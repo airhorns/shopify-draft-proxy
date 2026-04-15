@@ -1,0 +1,254 @@
+{
+  "data": {
+    "product": {
+      "id": "gid://shopify/Product/8397256720617",
+      "title": "CONVERSE | TODDLER CHUCK TAYLOR ALL STAR AXEL MID",
+      "options": [
+        {
+          "id": "gid://shopify/ProductOption/10609315152105",
+          "name": "Size",
+          "position": 1,
+          "optionValues": [
+            {
+              "id": "gid://shopify/ProductOptionValue/1781610119401",
+              "name": "5",
+              "hasVariants": true
+            },
+            {
+              "id": "gid://shopify/ProductOptionValue/1781610152169",
+              "name": "6",
+              "hasVariants": true
+            },
+            {
+              "id": "gid://shopify/ProductOptionValue/1781610184937",
+              "name": "7",
+              "hasVariants": true
+            },
+            {
+              "id": "gid://shopify/ProductOptionValue/1781610217705",
+              "name": "8",
+              "hasVariants": true
+            },
+            {
+              "id": "gid://shopify/ProductOptionValue/1781610250473",
+              "name": "9",
+              "hasVariants": true
+            }
+          ]
+        },
+        {
+          "id": "gid://shopify/ProductOption/10609315184873",
+          "name": "Color",
+          "position": 2,
+          "optionValues": [
+            {
+              "id": "gid://shopify/ProductOptionValue/1781610283241",
+              "name": "black",
+              "hasVariants": true
+            }
+          ]
+        }
+      ],
+      "variants": {
+        "edges": [
+          {
+            "node": {
+              "id": "gid://shopify/ProductVariant/46789263425769",
+              "title": "5 / black",
+              "sku": "C-03-black-5",
+              "barcode": null,
+              "price": "70.00",
+              "compareAtPrice": null,
+              "taxable": true,
+              "inventoryPolicy": "DENY",
+              "inventoryQuantity": 14,
+              "selectedOptions": [
+                {
+                  "name": "Size",
+                  "value": "5"
+                },
+                {
+                  "name": "Color",
+                  "value": "black"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/48886350676201",
+                "tracked": true,
+                "requiresShipping": true,
+                "measurement": {
+                  "weight": {
+                    "unit": "KILOGRAMS",
+                    "value": 0
+                  }
+                },
+                "countryCodeOfOrigin": null,
+                "provinceCodeOfOrigin": null,
+                "harmonizedSystemCode": null
+              }
+            }
+          },
+          {
+            "node": {
+              "id": "gid://shopify/ProductVariant/46789263458537",
+              "title": "6 / black",
+              "sku": "C-03-black-6",
+              "barcode": null,
+              "price": "70.00",
+              "compareAtPrice": null,
+              "taxable": true,
+              "inventoryPolicy": "DENY",
+              "inventoryQuantity": 3,
+              "selectedOptions": [
+                {
+                  "name": "Size",
+                  "value": "6"
+                },
+                {
+                  "name": "Color",
+                  "value": "black"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/48886350708969",
+                "tracked": true,
+                "requiresShipping": true,
+                "measurement": {
+                  "weight": {
+                    "unit": "KILOGRAMS",
+                    "value": 0
+                  }
+                },
+                "countryCodeOfOrigin": null,
+                "provinceCodeOfOrigin": null,
+                "harmonizedSystemCode": null
+              }
+            }
+          },
+          {
+            "node": {
+              "id": "gid://shopify/ProductVariant/46789263491305",
+              "title": "7 / black",
+              "sku": "C-03-black-7",
+              "barcode": null,
+              "price": "70.00",
+              "compareAtPrice": null,
+              "taxable": true,
+              "inventoryPolicy": "DENY",
+              "inventoryQuantity": 19,
+              "selectedOptions": [
+                {
+                  "name": "Size",
+                  "value": "7"
+                },
+                {
+                  "name": "Color",
+                  "value": "black"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/48886350741737",
+                "tracked": true,
+                "requiresShipping": true,
+                "measurement": {
+                  "weight": {
+                    "unit": "KILOGRAMS",
+                    "value": 0
+                  }
+                },
+                "countryCodeOfOrigin": null,
+                "provinceCodeOfOrigin": null,
+                "harmonizedSystemCode": null
+              }
+            }
+          },
+          {
+            "node": {
+              "id": "gid://shopify/ProductVariant/46789263524073",
+              "title": "8 / black",
+              "sku": "C-03-black-8",
+              "barcode": null,
+              "price": "70.00",
+              "compareAtPrice": null,
+              "taxable": true,
+              "inventoryPolicy": "DENY",
+              "inventoryQuantity": 3,
+              "selectedOptions": [
+                {
+                  "name": "Size",
+                  "value": "8"
+                },
+                {
+                  "name": "Color",
+                  "value": "black"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/48886350774505",
+                "tracked": true,
+                "requiresShipping": true,
+                "measurement": {
+                  "weight": {
+                    "unit": "KILOGRAMS",
+                    "value": 0
+                  }
+                },
+                "countryCodeOfOrigin": null,
+                "provinceCodeOfOrigin": null,
+                "harmonizedSystemCode": null
+              }
+            }
+          },
+          {
+            "node": {
+              "id": "gid://shopify/ProductVariant/46789263556841",
+              "title": "9 / black",
+              "sku": "C-03-black-9",
+              "barcode": null,
+              "price": "70.00",
+              "compareAtPrice": null,
+              "taxable": true,
+              "inventoryPolicy": "DENY",
+              "inventoryQuantity": 6,
+              "selectedOptions": [
+                {
+                  "name": "Size",
+                  "value": "9"
+                },
+                {
+                  "name": "Color",
+                  "value": "black"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/48886350807273",
+                "tracked": true,
+                "requiresShipping": true,
+                "measurement": {
+                  "weight": {
+                    "unit": "KILOGRAMS",
+                    "value": 0
+                  }
+                },
+                "countryCodeOfOrigin": null,
+                "provinceCodeOfOrigin": null,
+                "harmonizedSystemCode": null
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 17,
+      "actualQueryCost": 11,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1989,
+        "restoreRate": 100
+      }
+    }
+  }
+}

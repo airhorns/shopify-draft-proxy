@@ -1,0 +1,90 @@
+{
+  "data": {
+    "productsCount": {
+      "count": 13531,
+      "precision": "EXACT"
+    },
+    "products": {
+      "edges": [
+        {
+          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU2NzIwNjE3LCJsYXN0X3ZhbHVlIjoiMjAyNi0wMy0yNSAxOTozNToxMy4wMDAwMDAifQ==",
+          "node": {
+            "id": "gid://shopify/Product/8397256720617",
+            "legacyResourceId": "8397256720617",
+            "title": "CONVERSE | TODDLER CHUCK TAYLOR ALL STAR AXEL MID",
+            "handle": "converse-toddler-chuck-taylor-all-star-axel-mid",
+            "status": "ACTIVE",
+            "vendor": "CONVERSE",
+            "productType": "SHOES",
+            "tags": [
+              "converse",
+              "egnition-sample-data",
+              "kid"
+            ],
+            "totalInventory": 45,
+            "tracksInventory": true,
+            "createdAt": "2024-03-14T01:53:02Z",
+            "updatedAt": "2026-03-25T19:35:13Z"
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU3Mzc1OTc3LCJsYXN0X3ZhbHVlIjoiMjAyNi0wMy0yNSAxNjo0OTozNS4wMDAwMDAifQ==",
+          "node": {
+            "id": "gid://shopify/Product/8397257375977",
+            "legacyResourceId": "8397257375977",
+            "title": "NIKE | SWOOSH PRO FLAT PEAK CAP",
+            "handle": "nike-swoosh-pro-flat-peak-cap",
+            "status": "ACTIVE",
+            "vendor": "NIKE",
+            "productType": "ACCESSORIES",
+            "tags": [
+              "cap",
+              "egnition-sample-data",
+              "nike"
+            ],
+            "totalInventory": 20,
+            "tracksInventory": true,
+            "createdAt": "2024-03-14T01:53:33Z",
+            "updatedAt": "2026-03-25T16:49:35Z"
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU3MDgxMDY1LCJsYXN0X3ZhbHVlIjoiMjAyNi0wMy0yNSAxNDoyNzo1Ni4wMDAwMDAifQ==",
+          "node": {
+            "id": "gid://shopify/Product/8397257081065",
+            "legacyResourceId": "8397257081065",
+            "title": "VANS APPAREL AND ACCESSORIES | CLASSIC SUPER NO SHOW SOCKS 3 PACK WHITE",
+            "handle": "vans-apparel-and-accessories-classic-super-no-show-socks-3-pack-white",
+            "status": "ACTIVE",
+            "vendor": "VANS",
+            "productType": "ACCESSORIES",
+            "tags": [
+              "egnition-sample-data",
+              "unisex",
+              "vans"
+            ],
+            "totalInventory": 11,
+            "tracksInventory": true,
+            "createdAt": "2024-03-14T01:53:17Z",
+            "updatedAt": "2026-03-25T14:27:56Z"
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": true,
+        "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU3MDgxMDY1LCJsYXN0X3ZhbHVlIjoiMjAyNi0wMy0yNSAxNDoyNzo1Ni4wMDAwMDAifQ=="
+      }
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 14,
+      "actualQueryCost": 14,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1986,
+        "restoreRate": 100
+      }
+    }
+  }
+}

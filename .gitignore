@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Local environment secrets (keep examples tracked)
+.env
+.env.*
+!.env.example
+
+# Test and runtime output
+coverage/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+vitest.config.ts.timestamp-*
+
+# OS / editor noise
+.DS_Store
+.vscode/
+.idea/
+
+# Explicitly keep recorded conformance fixtures versioned
+!fixtures/conformance/
+!fixtures/conformance/**

@@ -1,0 +1,31 @@
+{
+  "connection": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/8397256720617",
+        "title": "CONVERSE | TODDLER CHUCK TAYLOR ALL STAR AXEL MID",
+        "metafields": {
+          "edges": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+          }
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 6,
+        "actualQueryCost": 3,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1997,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "singular": null
+}
