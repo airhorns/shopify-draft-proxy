@@ -117,79 +117,89 @@
     "notes": "Live collection detail capture now covers top-level `collection(id:)` plus the merchant-relevant nested `products` connection slice used by the overlay serializer."
   },
   {
-    "id": "collectionAddProducts-parity-plan",
+    "id": "collection-add-products-live-parity",
     "operationNames": [
       "collectionAddProducts"
     ],
-    "status": "planned",
+    "status": "captured",
     "assertionKinds": [
       "payload-shape",
       "user-errors-parity",
       "downstream-read-parity"
     ],
-    "captureFiles": [],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collection-add-products-parity.json"
+    ],
     "paritySpecPath": "config/parity-specs/collectionAddProducts-parity-plan.json",
-    "notes": "Proxy request scaffold now mirrors the staged collection-membership add runtime slice (`collectionAddProducts(id:, productIds:)` returning `collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } }` plus `userErrors`). Next step is to capture the same safe membership-add scenario against the dev store and compare mutation payload plus immediate downstream `collection.products` / `product.collections` parity."
+    "notes": "Live safe-write capture now covers collectionAddProducts plus immediate downstream `collection.products` / `product.collections` membership parity."
   },
   {
-    "id": "collectionCreate-parity-plan",
+    "id": "collection-create-live-parity",
     "operationNames": [
       "collectionCreate"
     ],
-    "status": "planned",
+    "status": "captured",
     "assertionKinds": [
       "payload-shape",
       "user-errors-parity",
       "downstream-read-parity"
     ],
-    "captureFiles": [],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collection-create-parity.json"
+    ],
     "paritySpecPath": "config/parity-specs/collectionCreate-parity-plan.json",
-    "notes": "Proxy request scaffold now mirrors the staged collection-create runtime slice (`collectionCreate(input:)` returning `collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } }` plus `userErrors`). Next step is to capture the same safe collection-create scenario against the dev store and compare mutation payload plus immediate downstream `collection` / `collections` read parity."
+    "notes": "Live safe-write capture now covers collectionCreate plus immediate downstream `collection` / `collections` read parity."
   },
   {
-    "id": "collectionDelete-parity-plan",
+    "id": "collection-delete-live-parity",
     "operationNames": [
       "collectionDelete"
     ],
-    "status": "planned",
+    "status": "captured",
     "assertionKinds": [
       "payload-shape",
       "user-errors-parity",
       "downstream-read-parity"
     ],
-    "captureFiles": [],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collection-delete-parity.json"
+    ],
     "paritySpecPath": "config/parity-specs/collectionDelete-parity-plan.json",
-    "notes": "Proxy request scaffold now mirrors the staged collection-delete runtime slice (`collectionDelete(input:)` returning `deletedCollectionId` plus `userErrors`). Next step is to capture the same safe collection-delete scenario against the dev store and compare mutation payload plus immediate downstream `collection` / `collections` removal parity."
+    "notes": "Live safe-write capture now covers collectionDelete plus immediate downstream `collection` / `collections` removal parity."
   },
   {
-    "id": "collectionRemoveProducts-parity-plan",
+    "id": "collection-remove-products-live-parity",
     "operationNames": [
       "collectionRemoveProducts"
     ],
-    "status": "planned",
+    "status": "captured",
     "assertionKinds": [
       "payload-shape",
       "user-errors-parity",
       "downstream-read-parity"
     ],
-    "captureFiles": [],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collection-remove-products-parity.json"
+    ],
     "paritySpecPath": "config/parity-specs/collectionRemoveProducts-parity-plan.json",
-    "notes": "Proxy request scaffold now mirrors the staged collection-membership remove runtime slice (`collectionRemoveProducts(id:, productIds:)` returning `job { id done }` plus `userErrors`). Next step is to capture the same safe membership-remove scenario against the dev store and compare mutation payload plus immediate downstream `collection.products` / `product.collections` parity."
+    "notes": "Live safe-write capture now covers collectionRemoveProducts plus immediate downstream `collection.products` / `product.collections` membership parity."
   },
   {
-    "id": "collectionUpdate-parity-plan",
+    "id": "collection-update-live-parity",
     "operationNames": [
       "collectionUpdate"
     ],
-    "status": "planned",
+    "status": "captured",
     "assertionKinds": [
       "payload-shape",
       "user-errors-parity",
       "downstream-read-parity"
     ],
-    "captureFiles": [],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collection-update-parity.json"
+    ],
     "paritySpecPath": "config/parity-specs/collectionUpdate-parity-plan.json",
-    "notes": "Proxy request scaffold now mirrors the staged collection-update runtime slice (`collectionUpdate(input:)` returning `collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } }` plus `userErrors`). Next step is to capture the same safe collection-update scenario against the dev store and compare mutation payload plus immediate downstream `collection` / nested `product.collections` parity."
+    "notes": "Live safe-write capture now covers collectionUpdate plus immediate downstream `collection` / nested `product.collections` parity."
   },
   {
     "id": "collections-catalog-read",
@@ -254,19 +264,21 @@
     "notes": "Proxy request scaffold now mirrors the staged product metafield write runtime slice (`metafieldsSet(metafields:)` returning `metafields { id namespace key type value }` plus `userErrors`). Next step is to run the same safe metafield-write scenario against a dedicated dev-store write pack and compare mutation payload together with immediate downstream `product.metafield(...)` / `product.metafields` parity."
   },
   {
-    "id": "productChangeStatus-parity-plan",
+    "id": "product-change-status-live-parity",
     "operationNames": [
       "productChangeStatus"
     ],
-    "status": "planned",
+    "status": "captured",
     "assertionKinds": [
       "payload-shape",
       "user-errors-parity",
       "downstream-read-parity"
     ],
-    "captureFiles": [],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-change-status-parity.json"
+    ],
     "paritySpecPath": "config/parity-specs/productChangeStatus-parity-plan.json",
-    "notes": "Write-path parity for staged productChangeStatus still needs a dedicated safe live scenario pack and payload comparison harness."
+    "notes": "Live capture recorded for `productChangeStatus`, but the immediate downstream `product(id:)` read returned a later `updatedAt` than the mutation payload, so promotion still requires timestamp-alignment decisions."
   },
   {
     "id": "productCreateMedia-parity-plan",
@@ -509,34 +521,38 @@
     "notes": "Proxy request scaffold now mirrors the staged variant bulk-update runtime slice (`productVariantsBulkUpdate(productId:, variants:)` returning product inventory aggregates, nested `product.variants`, updated `productVariants`, and `userErrors`). Next step is to run the same safe variant-update scenario against a dedicated dev-store write pack and compare the mutation payload together with immediate downstream variant/search/count parity."
   },
   {
-    "id": "tagsAdd-parity-plan",
+    "id": "tags-add-live-parity",
     "operationNames": [
       "tagsAdd"
     ],
-    "status": "planned",
+    "status": "captured",
     "assertionKinds": [
       "payload-shape",
       "user-errors-parity",
       "downstream-read-parity"
     ],
-    "captureFiles": [],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/tags-add-parity.json"
+    ],
     "paritySpecPath": "config/parity-specs/tagsAdd-parity-plan.json",
-    "notes": "Proxy request scaffold now mirrors the staged product-scoped tagsAdd runtime slice (`tagsAdd(id:, tags:)` returning `node { ... on Product { id tags } }` plus `userErrors`). Next step is to run the same safe tag-add scenario against a dedicated dev-store write pack and compare mutation payload plus immediate downstream product/tag-filter parity."
+    "notes": "Live capture recorded for `tagsAdd`, but Shopify did not reflect the freshly added unique tag in immediate `products(query:)` / `productsCount(query:)` search results, so promotion still requires search-index parity decisions."
   },
   {
-    "id": "tagsRemove-parity-plan",
+    "id": "tags-remove-live-parity",
     "operationNames": [
       "tagsRemove"
     ],
-    "status": "planned",
+    "status": "captured",
     "assertionKinds": [
       "payload-shape",
       "user-errors-parity",
       "downstream-read-parity"
     ],
-    "captureFiles": [],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/tags-remove-parity.json"
+    ],
     "paritySpecPath": "config/parity-specs/tagsRemove-parity-plan.json",
-    "notes": "Mutation parity for staged tag side effects is not yet automated against a safe live-write scenario pack."
+    "notes": "Live capture recorded for `tagsRemove`, but Shopify did not reflect the unique tag state in immediate `products(query:)` / `productsCount(query:)` search results, so promotion still requires search-index parity decisions."
   },
   {
     "id": "product-create-live-parity",

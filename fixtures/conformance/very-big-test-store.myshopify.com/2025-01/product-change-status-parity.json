@@ -1,0 +1,63 @@
+{
+  "mutation": {
+    "variables": {
+      "productId": "gid://shopify/Product/9255305347305",
+      "status": "ARCHIVED"
+    },
+    "response": {
+      "data": {
+        "productChangeStatus": {
+          "product": {
+            "id": "gid://shopify/Product/9255305347305",
+            "status": "ARCHIVED",
+            "updatedAt": "2026-04-16T00:56:24Z"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/9255305347305",
+        "status": "ARCHIVED",
+        "updatedAt": "2026-04-16T00:56:24Z"
+      },
+      "products": {
+        "nodes": [
+          {
+            "id": "gid://shopify/Product/9255305347305",
+            "status": "ARCHIVED"
+          }
+        ]
+      },
+      "productsCount": {
+        "count": 1,
+        "precision": "EXACT"
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 17,
+        "actualQueryCost": 14,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1986,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

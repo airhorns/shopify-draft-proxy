@@ -1,0 +1,14 @@
+mutation TagsRemoveParityPlan($id: ID!, $tags: [String!]!) {
+  tagsRemove(id: $id, tags: $tags) {
+    node {
+      ... on Product {
+        id
+        tags
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

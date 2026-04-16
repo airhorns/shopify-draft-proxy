@@ -1,19 +1,21 @@
 {
-  "scenarioId": "collectionCreate-parity-plan",
+  "scenarioId": "collection-create-live-parity",
   "operationNames": [
     "collectionCreate"
   ],
-  "scenarioStatus": "planned",
+  "scenarioStatus": "captured",
   "assertionKinds": [
     "payload-shape",
     "user-errors-parity",
     "downstream-read-parity"
   ],
-  "liveCaptureFiles": [],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collection-create-parity.json"
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/collectionCreate-parity-plan.graphql",
     "variablesPath": "config/parity-requests/collectionCreate-parity-plan.variables.json"
   },
-  "comparisonMode": "planned",
-  "notes": "Proxy request scaffold now mirrors the staged collection-create runtime slice (`collectionCreate(input:)` returning `collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } }` plus `userErrors`). Next step is to capture the same safe collection-create scenario against the dev store and compare mutation payload plus immediate downstream `collection` / `collections` read parity."
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live capture recorded for safe `collectionCreate` plus downstream collection visibility parity. Fill in comparator implementation to turn this into executed proxy-vs-Shopify comparison."
 }

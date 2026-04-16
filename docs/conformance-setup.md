@@ -59,7 +59,10 @@ Run:
 
 ```bash
 corepack pnpm conformance:capture-products
+corepack pnpm conformance:capture-product-mutations
+corepack pnpm conformance:capture-product-state-mutations
 corepack pnpm conformance:capture-collections
+corepack pnpm conformance:capture-collection-mutations
 ```
 
 This writes live Admin GraphQL captures under:

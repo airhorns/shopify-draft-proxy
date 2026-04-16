@@ -573,7 +573,7 @@ describe('collection draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('stages collectionRemoveProducts locally with an immediate done job and downstream membership removal', async () => {
+  it('stages collectionRemoveProducts locally with an async-shaped job and downstream membership removal', async () => {
     store.upsertBaseProducts([
       {
         id: 'gid://shopify/Product/50',
@@ -659,8 +659,8 @@ describe('collection draft flow', () => {
       data: {
         collectionRemoveProducts: {
           job: {
-            id: expect.stringMatching(/^gid:\/\/shopify\/Job\/\d+$/),
-            done: true,
+            id: expect.stringMatching(/^gid:\/\/shopify\/Job\/.+$/),
+            done: false,
           },
           userErrors: [],
         },

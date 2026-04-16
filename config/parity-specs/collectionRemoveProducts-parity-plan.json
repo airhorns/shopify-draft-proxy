@@ -1,19 +1,21 @@
 {
-  "scenarioId": "collectionRemoveProducts-parity-plan",
+  "scenarioId": "collection-remove-products-live-parity",
   "operationNames": [
     "collectionRemoveProducts"
   ],
-  "scenarioStatus": "planned",
+  "scenarioStatus": "captured",
   "assertionKinds": [
     "payload-shape",
     "user-errors-parity",
     "downstream-read-parity"
   ],
-  "liveCaptureFiles": [],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collection-remove-products-parity.json"
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/collectionRemoveProducts-parity-plan.graphql",
     "variablesPath": "config/parity-requests/collectionRemoveProducts-parity-plan.variables.json"
   },
-  "comparisonMode": "planned",
-  "notes": "Proxy request scaffold now mirrors the staged collection-membership remove runtime slice (`collectionRemoveProducts(id:, productIds:)` returning `job { id done }` plus `userErrors`). Next step is to capture the same safe membership-remove scenario against the dev store and compare mutation payload plus immediate downstream `collection.products` / `product.collections` parity."
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live capture recorded for `collectionRemoveProducts`; Shopify returned an async-shaped `job.done=false` payload while downstream membership removal was already visible. Fill in comparator implementation to turn this into executed proxy-vs-Shopify comparison."
 }

@@ -15,14 +15,19 @@ Use it as the source of truth for which implemented root operations are structur
 - [c] `productCreate`
 - [c] `productUpdate`
 - [c] `productDelete`
+- [c] `collectionCreate`
+- [c] `collectionUpdate`
+- [c] `collectionDelete`
+- [c] `collectionAddProducts`
+- [c] `collectionRemoveProducts`
 
 ## Implemented operations with declared conformance gaps
 
-- [x] `tagsAdd` — Mutation parity for staged tag side effects is not yet automated against a safe live-write scenario pack.
-- [x] `tagsRemove` — Mutation parity for staged tag side effects is not yet automated against a safe live-write scenario pack.
+- [x] `tagsAdd` — Live capture exists, but Shopify did not reflect a freshly added unique tag in immediate `products(query:)` / `productsCount(query:)` search results, so the staged instant tag-filter parity assumption is too optimistic to mark covered yet.
+- [x] `tagsRemove` — Live capture exists, but Shopify did not reflect unique tag writes in immediate `products(query:)` / `productsCount(query:)` search results, so the staged instant tag-filter removal parity assumption still needs alignment before promotion.
 - [x] `productDuplicate` — Write-path parity for staged productDuplicate still needs a dedicated safe live scenario pack and payload comparison harness.
 - [x] `productSet` — Write-path parity for staged productSet still needs a dedicated safe live scenario pack and payload comparison harness.
-- [x] `productChangeStatus` — Write-path parity for staged productChangeStatus still needs a dedicated safe live scenario pack and payload comparison harness.
+- [x] `productChangeStatus` — Live capture exists, but Shopify returned a later `updatedAt` on the immediate downstream `product(id:)` read than in the `productChangeStatus` mutation payload, so the staged exact-timestamp parity assumption still needs alignment before promotion.
 - [x] `productPublish` — Write-path parity for staged productPublish still needs a dedicated safe live scenario pack and payload comparison harness.
 - [x] `productUnpublish` — Write-path parity for staged productUnpublish still needs a dedicated safe live scenario pack and payload comparison harness.
 - [x] `productOptionsCreate` — Option mutation parity still needs dedicated live-write scenarios and payload assertions.
@@ -40,8 +45,3 @@ Use it as the source of truth for which implemented root operations are structur
 - [x] `inventoryAdjustQuantities` — Inventory adjustment parity still needs dedicated live-write scenarios and payload assertions.
 - [x] `metafieldsSet` — Metafield mutation parity still needs dedicated live-write scenarios and payload assertions.
 - [x] `metafieldDelete` — Metafield mutation parity still needs dedicated live-write scenarios and payload assertions.
-- [x] `collectionCreate` — Collection mutation parity still needs dedicated live-write scenarios and payload assertions.
-- [x] `collectionUpdate` — Collection mutation parity still needs dedicated live-write scenarios and payload assertions.
-- [x] `collectionDelete` — Collection mutation parity still needs dedicated live-write scenarios and payload assertions.
-- [x] `collectionAddProducts` — Collection membership mutation parity still needs dedicated live-write scenarios and payload assertions.
-- [x] `collectionRemoveProducts` — Collection membership mutation parity still needs dedicated live-write scenarios and payload assertions.

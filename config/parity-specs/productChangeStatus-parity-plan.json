@@ -1,19 +1,21 @@
 {
-  "scenarioId": "productChangeStatus-parity-plan",
+  "scenarioId": "product-change-status-live-parity",
   "operationNames": [
     "productChangeStatus"
   ],
-  "scenarioStatus": "planned",
+  "scenarioStatus": "captured",
   "assertionKinds": [
     "payload-shape",
     "user-errors-parity",
     "downstream-read-parity"
   ],
-  "liveCaptureFiles": [],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-change-status-parity.json"
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/productChangeStatus-parity-plan.graphql",
     "variablesPath": "config/parity-requests/productChangeStatus-parity-plan.variables.json"
   },
-  "comparisonMode": "planned",
-  "notes": "Proxy request scaffold now mirrors the staged status-only runtime slice (`productChangeStatus(productId:, status:)` returning `product { id status updatedAt }` plus `userErrors`). Next step is to run the same safe status-change scenario against a dedicated dev-store write pack and compare mutation payload plus immediate downstream status-filter read parity."
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live capture recorded for `productChangeStatus`, but the immediate downstream `product(id:)` read returned a later `updatedAt` than the mutation payload, so promotion still requires timestamp-alignment decisions."
 }

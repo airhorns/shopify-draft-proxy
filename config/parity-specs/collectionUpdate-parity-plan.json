@@ -1,19 +1,21 @@
 {
-  "scenarioId": "collectionUpdate-parity-plan",
+  "scenarioId": "collection-update-live-parity",
   "operationNames": [
     "collectionUpdate"
   ],
-  "scenarioStatus": "planned",
+  "scenarioStatus": "captured",
   "assertionKinds": [
     "payload-shape",
     "user-errors-parity",
     "downstream-read-parity"
   ],
-  "liveCaptureFiles": [],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collection-update-parity.json"
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/collectionUpdate-parity-plan.graphql",
     "variablesPath": "config/parity-requests/collectionUpdate-parity-plan.variables.json"
   },
-  "comparisonMode": "planned",
-  "notes": "Proxy request scaffold now mirrors the staged collection-update runtime slice (`collectionUpdate(input:)` returning `collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } }` plus `userErrors`). Next step is to capture the same safe collection-update scenario against the dev store and compare mutation payload plus immediate downstream `collection` / nested `product.collections` parity."
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live capture recorded for safe `collectionUpdate` plus downstream collection and product-membership metadata parity. Fill in comparator implementation to turn this into executed proxy-vs-Shopify comparison."
 }

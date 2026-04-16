@@ -4134,7 +4134,7 @@ export function handleProductMutation(document: string, variables: Record<string
 
       const productIds = Array.isArray(args['productIds']) ? args['productIds'].filter((productId): productId is string => typeof productId === 'string') : [];
       removeProductsFromCollection(existing, productIds);
-      const job = { id: makeSyntheticGid('Job'), done: true };
+      const job = { id: makeSyntheticGid('Job'), done: false };
       return {
         data: {
           [responseKey]: {

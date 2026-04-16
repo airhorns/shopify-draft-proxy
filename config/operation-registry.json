@@ -163,10 +163,10 @@
     ],
     "conformance": {
       "status": "declared-gap",
-      "reason": "Mutation parity for staged tag side effects is not yet automated against a safe live-write scenario pack.",
       "scenarioIds": [
-        "tagsAdd-parity-plan"
-      ]
+        "tags-add-live-parity"
+      ],
+      "reason": "Live capture exists, but Shopify did not reflect a freshly added unique tag in immediate `products(query:)` / `productsCount(query:)` search results, so the staged instant tag-filter parity assumption is too optimistic to mark covered yet."
     }
   },
   {
@@ -183,10 +183,10 @@
     ],
     "conformance": {
       "status": "declared-gap",
-      "reason": "Mutation parity for staged tag side effects is not yet automated against a safe live-write scenario pack.",
       "scenarioIds": [
-        "tagsRemove-parity-plan"
-      ]
+        "tags-remove-live-parity"
+      ],
+      "reason": "Live capture exists, but Shopify did not reflect unique tag writes in immediate `products(query:)` / `productsCount(query:)` search results, so the staged instant tag-filter removal parity assumption still needs alignment before promotion."
     }
   },
   {
@@ -307,10 +307,10 @@
     ],
     "conformance": {
       "status": "declared-gap",
-      "reason": "Write-path parity for staged productChangeStatus still needs a dedicated safe live scenario pack and payload comparison harness.",
       "scenarioIds": [
-        "productChangeStatus-parity-plan"
-      ]
+        "product-change-status-live-parity"
+      ],
+      "reason": "Live capture exists, but Shopify returned a later `updatedAt` on the immediate downstream `product(id:)` read than in the `productChangeStatus` mutation payload, so the staged exact-timestamp parity assumption still needs alignment before promotion."
     }
   },
   {
@@ -684,10 +684,9 @@
       "tests/integration/collection-draft-flow.test.ts"
     ],
     "conformance": {
-      "status": "declared-gap",
-      "reason": "Collection mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "status": "covered",
       "scenarioIds": [
-        "collectionCreate-parity-plan"
+        "collection-create-live-parity"
       ]
     }
   },
@@ -705,10 +704,9 @@
       "tests/integration/collection-draft-flow.test.ts"
     ],
     "conformance": {
-      "status": "declared-gap",
-      "reason": "Collection mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "status": "covered",
       "scenarioIds": [
-        "collectionUpdate-parity-plan"
+        "collection-update-live-parity"
       ]
     }
   },
@@ -726,10 +724,9 @@
       "tests/integration/collection-draft-flow.test.ts"
     ],
     "conformance": {
-      "status": "declared-gap",
-      "reason": "Collection mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "status": "covered",
       "scenarioIds": [
-        "collectionDelete-parity-plan"
+        "collection-delete-live-parity"
       ]
     }
   },
@@ -747,10 +744,9 @@
       "tests/integration/collection-draft-flow.test.ts"
     ],
     "conformance": {
-      "status": "declared-gap",
-      "reason": "Collection membership mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "status": "covered",
       "scenarioIds": [
-        "collectionAddProducts-parity-plan"
+        "collection-add-products-live-parity"
       ]
     }
   },
@@ -768,10 +764,9 @@
       "tests/integration/collection-draft-flow.test.ts"
     ],
     "conformance": {
-      "status": "declared-gap",
-      "reason": "Collection membership mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "status": "covered",
       "scenarioIds": [
-        "collectionRemoveProducts-parity-plan"
+        "collection-remove-products-live-parity"
       ]
     }
   }

@@ -1,0 +1,248 @@
+{
+  "seedProducts": [
+    {
+      "id": "gid://shopify/Product/8397256720617",
+      "title": "CONVERSE | TODDLER CHUCK TAYLOR ALL STAR AXEL MID",
+      "handle": "converse-toddler-chuck-taylor-all-star-axel-mid",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "gid://shopify/Product/8397257375977",
+      "title": "NIKE | SWOOSH PRO FLAT PEAK CAP",
+      "handle": "nike-swoosh-pro-flat-peak-cap",
+      "status": "ACTIVE"
+    }
+  ],
+  "mutation": {
+    "variables": {
+      "input": {
+        "title": "Hermes Collection Conformance 1776300936685"
+      }
+    },
+    "response": {
+      "data": {
+        "collectionCreate": {
+          "collection": {
+            "id": "gid://shopify/Collection/468025606377",
+            "title": "Hermes Collection Conformance 1776300936685",
+            "handle": "hermes-collection-conformance-1776300936685",
+            "products": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 16,
+          "actualQueryCost": 16,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1984,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "collection": {
+        "id": "gid://shopify/Collection/468025606377",
+        "title": "Hermes Collection Conformance 1776300936685",
+        "handle": "hermes-collection-conformance-1776300936685",
+        "products": {
+          "nodes": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        }
+      },
+      "collections": {
+        "nodes": [
+          {
+            "id": "gid://shopify/Collection/468025606377",
+            "title": "Hermes Collection Conformance 1776300936685",
+            "handle": "hermes-collection-conformance-1776300936685",
+            "products": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
+          },
+          {
+            "id": "gid://shopify/Collection/429826605289",
+            "title": "KID",
+            "handle": "kid",
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/8397256949993",
+                  "title": "ADIDAS | KID'S STAN SMITH",
+                  "handle": "adidas-kids-stan-smith"
+                },
+                {
+                  "id": "gid://shopify/Product/8397256786153",
+                  "title": "NIKE | TODDLER ROSHE ONE",
+                  "handle": "nike-toddler-roshe-one"
+                },
+                {
+                  "id": "gid://shopify/Product/8397256720617",
+                  "title": "CONVERSE | TODDLER CHUCK TAYLOR ALL STAR AXEL MID",
+                  "handle": "converse-toddler-chuck-taylor-all-star-axel-mid"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
+          },
+          {
+            "id": "gid://shopify/Collection/429826572521",
+            "title": "WOMEN",
+            "handle": "women",
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/8397256327401",
+                  "title": "DR MARTENS | 1460Z DMC 8-EYE BOOT | CHERRY SMOOTH",
+                  "handle": "dr-martens-1460z-dmc-8-eye-boot-cherry-smooth"
+                },
+                {
+                  "id": "gid://shopify/Product/8397256261865",
+                  "title": "DR MARTENS | CAVENDISH 3-EYE SHOE BLACK",
+                  "handle": "dr-martens-cavendish-3-eye-shoe-black"
+                },
+                {
+                  "id": "gid://shopify/Product/8397256163561",
+                  "title": "DR MARTENS | 1461 DMC 3-EYE SHOE | BLACK SMOOTH",
+                  "handle": "dr-martens-1461-dmc-3-eye-shoe-black-smooth"
+                },
+                {
+                  "id": "gid://shopify/Product/8397257081065",
+                  "title": "VANS APPAREL AND ACCESSORIES | CLASSIC SUPER NO SHOW SOCKS 3 PACK WHITE",
+                  "handle": "vans-apparel-and-accessories-classic-super-no-show-socks-3-pack-white"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
+          },
+          {
+            "id": "gid://shopify/Collection/429826539753",
+            "title": "MEN",
+            "handle": "men",
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/8397255901417",
+                  "title": "TIMBERLAND | MENS 6 INCH PREMIUM BOOT",
+                  "handle": "timberland-mens-6-inch-premium-boot"
+                },
+                {
+                  "id": "gid://shopify/Product/8397255672041",
+                  "title": "VANS | OLD SKOOL (BUTTERFLY) TRUE WHITE | BLACK",
+                  "handle": "vans-old-skool-butterfly-true-white-black"
+                },
+                {
+                  "id": "gid://shopify/Product/8397256491241",
+                  "title": "CONVERSE | CHUCK TAYLOR ALL STAR LO",
+                  "handle": "converse-chuck-taylor-all-star-lo"
+                },
+                {
+                  "id": "gid://shopify/Product/8397254492393",
+                  "title": "VANS | AUTHENTIC | (MULTI EYELETS) | GRADIENT/CRIMSON",
+                  "handle": "vans-authentic-multi-eyelets-gradient-crimson"
+                },
+                {
+                  "id": "gid://shopify/Product/8397255770345",
+                  "title": "VANS | CLASSIC SLIP-ON (PERFORATED SUEDE)",
+                  "handle": "vans-classic-slip-on-perforated-suede"
+                },
+                {
+                  "id": "gid://shopify/Product/8397255606505",
+                  "title": "VANS | SH-8 HI",
+                  "handle": "vans-sh-8-hi"
+                },
+                {
+                  "id": "gid://shopify/Product/8397255540969",
+                  "title": "VANS | ERA 59 (DESERT COWBOY)",
+                  "handle": "vans-era-59-desert-cowboy"
+                },
+                {
+                  "id": "gid://shopify/Product/8397254557929",
+                  "title": "VANS | AUTHENTIC (BUTTERFLY) TRUE | WHITE / BLACK",
+                  "handle": "vans-authentic-butterfly-true-white-black"
+                },
+                {
+                  "id": "gid://shopify/Product/8397254426857",
+                  "title": "VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE",
+                  "handle": "vans-authentic-lo-pro-burgandy-white"
+                },
+                {
+                  "id": "gid://shopify/Product/8397256589545",
+                  "title": "CONVERSE | CHUCK TAYLOR ALL STAR II HI",
+                  "handle": "converse-chuck-taylor-all-star-ii-hi"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false
+              }
+            }
+          },
+          {
+            "id": "gid://shopify/Collection/429826441449",
+            "title": "DR MARTENS",
+            "handle": "dr-martens",
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/8397256327401",
+                  "title": "DR MARTENS | 1460Z DMC 8-EYE BOOT | CHERRY SMOOTH",
+                  "handle": "dr-martens-1460z-dmc-8-eye-boot-cherry-smooth"
+                },
+                {
+                  "id": "gid://shopify/Product/8397256261865",
+                  "title": "DR MARTENS | CAVENDISH 3-EYE SHOE BLACK",
+                  "handle": "dr-martens-cavendish-3-eye-shoe-black"
+                },
+                {
+                  "id": "gid://shopify/Product/8397256163561",
+                  "title": "DR MARTENS | 1461 DMC 3-EYE SHOE | BLACK SMOOTH",
+                  "handle": "dr-martens-1461-dmc-3-eye-shoe-black-smooth"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
+          }
+        ]
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 30,
+        "actualQueryCost": 24,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1976,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

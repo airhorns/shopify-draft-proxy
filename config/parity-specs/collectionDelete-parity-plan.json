@@ -1,19 +1,21 @@
 {
-  "scenarioId": "collectionDelete-parity-plan",
+  "scenarioId": "collection-delete-live-parity",
   "operationNames": [
     "collectionDelete"
   ],
-  "scenarioStatus": "planned",
+  "scenarioStatus": "captured",
   "assertionKinds": [
     "payload-shape",
     "user-errors-parity",
     "downstream-read-parity"
   ],
-  "liveCaptureFiles": [],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collection-delete-parity.json"
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/collectionDelete-parity-plan.graphql",
     "variablesPath": "config/parity-requests/collectionDelete-parity-plan.variables.json"
   },
-  "comparisonMode": "planned",
-  "notes": "Proxy request scaffold now mirrors the staged collection-delete runtime slice (`collectionDelete(input:)` returning `deletedCollectionId` plus `userErrors`). Next step is to capture the same safe collection-delete scenario against the dev store and compare mutation payload plus immediate downstream `collection` / `collections` removal parity."
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live capture recorded for safe `collectionDelete` plus downstream null/removal parity. Fill in comparator implementation to turn this into executed proxy-vs-Shopify comparison."
 }

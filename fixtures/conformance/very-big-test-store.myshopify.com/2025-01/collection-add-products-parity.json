@@ -1,0 +1,151 @@
+{
+  "seedProducts": [
+    {
+      "id": "gid://shopify/Product/8397256720617",
+      "title": "CONVERSE | TODDLER CHUCK TAYLOR ALL STAR AXEL MID",
+      "handle": "converse-toddler-chuck-taylor-all-star-axel-mid",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "gid://shopify/Product/8397257375977",
+      "title": "NIKE | SWOOSH PRO FLAT PEAK CAP",
+      "handle": "nike-swoosh-pro-flat-peak-cap",
+      "status": "ACTIVE"
+    }
+  ],
+  "mutation": {
+    "variables": {
+      "id": "gid://shopify/Collection/468025606377",
+      "productIds": [
+        "gid://shopify/Product/8397256720617",
+        "gid://shopify/Product/8397257375977"
+      ]
+    },
+    "response": {
+      "data": {
+        "collectionAddProducts": {
+          "collection": {
+            "id": "gid://shopify/Collection/468025606377",
+            "title": "Hermes Collection Conformance 1776300936685",
+            "handle": "hermes-collection-conformance-1776300936685",
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/8397257375977",
+                  "title": "NIKE | SWOOSH PRO FLAT PEAK CAP",
+                  "handle": "nike-swoosh-pro-flat-peak-cap"
+                },
+                {
+                  "id": "gid://shopify/Product/8397256720617",
+                  "title": "CONVERSE | TODDLER CHUCK TAYLOR ALL STAR AXEL MID",
+                  "handle": "converse-toddler-chuck-taylor-all-star-axel-mid"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 16,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1976,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "collection": {
+        "id": "gid://shopify/Collection/468025606377",
+        "title": "Hermes Collection Conformance 1776300936685",
+        "handle": "hermes-collection-conformance-1776300936685",
+        "products": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Product/8397257375977",
+              "title": "NIKE | SWOOSH PRO FLAT PEAK CAP",
+              "handle": "nike-swoosh-pro-flat-peak-cap"
+            },
+            {
+              "id": "gid://shopify/Product/8397256720617",
+              "title": "CONVERSE | TODDLER CHUCK TAYLOR ALL STAR AXEL MID",
+              "handle": "converse-toddler-chuck-taylor-all-star-axel-mid"
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        }
+      },
+      "first": {
+        "id": "gid://shopify/Product/8397256720617",
+        "collections": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Collection/429826244841",
+              "title": "CONVERSE",
+              "handle": "converse"
+            },
+            {
+              "id": "gid://shopify/Collection/429826605289",
+              "title": "KID",
+              "handle": "kid"
+            },
+            {
+              "id": "gid://shopify/Collection/468025606377",
+              "title": "Hermes Collection Conformance 1776300936685",
+              "handle": "hermes-collection-conformance-1776300936685"
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        }
+      },
+      "second": {
+        "id": "gid://shopify/Product/8397257375977",
+        "collections": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Collection/429826212073",
+              "title": "NIKE",
+              "handle": "nike"
+            },
+            {
+              "id": "gid://shopify/Collection/468025606377",
+              "title": "Hermes Collection Conformance 1776300936685",
+              "handle": "hermes-collection-conformance-1776300936685"
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 21,
+        "actualQueryCost": 15,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1983,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

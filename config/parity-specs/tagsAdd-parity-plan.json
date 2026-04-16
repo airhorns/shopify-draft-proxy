@@ -1,19 +1,21 @@
 {
-  "scenarioId": "tagsAdd-parity-plan",
+  "scenarioId": "tags-add-live-parity",
   "operationNames": [
     "tagsAdd"
   ],
-  "scenarioStatus": "planned",
+  "scenarioStatus": "captured",
   "assertionKinds": [
     "payload-shape",
     "user-errors-parity",
     "downstream-read-parity"
   ],
-  "liveCaptureFiles": [],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/tags-add-parity.json"
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/tagsAdd-parity-plan.graphql",
     "variablesPath": "config/parity-requests/tagsAdd-parity-plan.variables.json"
   },
-  "comparisonMode": "planned",
-  "notes": "Proxy request scaffold now mirrors the staged product-scoped tagsAdd runtime slice (`tagsAdd(id:, tags:)` returning `node { ... on Product { id tags } }` plus `userErrors`). Next step is to run the same safe tag-add scenario against a dedicated dev-store write pack and compare mutation payload plus immediate downstream product/tag-filter parity."
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live capture recorded for `tagsAdd`, but Shopify did not reflect the freshly added unique tag in immediate `products(query:)` / `productsCount(query:)` search results, so promotion still requires search-index parity decisions."
 }

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-16T00:36:35.614Z",
+  "generatedAt": "2026-04-16T00:59:25.926Z",
   "implementedOperations": [
     {
       "name": "product",
@@ -81,9 +81,9 @@
       "execution": "stage-locally",
       "conformanceStatus": "declared-gap",
       "scenarioIds": [
-        "tagsAdd-parity-plan"
+        "tags-add-live-parity"
       ],
-      "reason": "Mutation parity for staged tag side effects is not yet automated against a safe live-write scenario pack."
+      "reason": "Live capture exists, but Shopify did not reflect a freshly added unique tag in immediate `products(query:)` / `productsCount(query:)` search results, so the staged instant tag-filter parity assumption is too optimistic to mark covered yet."
     },
     {
       "name": "tagsRemove",
@@ -91,9 +91,9 @@
       "execution": "stage-locally",
       "conformanceStatus": "declared-gap",
       "scenarioIds": [
-        "tagsRemove-parity-plan"
+        "tags-remove-live-parity"
       ],
-      "reason": "Mutation parity for staged tag side effects is not yet automated against a safe live-write scenario pack."
+      "reason": "Live capture exists, but Shopify did not reflect unique tag writes in immediate `products(query:)` / `productsCount(query:)` search results, so the staged instant tag-filter removal parity assumption still needs alignment before promotion."
     },
     {
       "name": "productCreate",
@@ -151,9 +151,9 @@
       "execution": "stage-locally",
       "conformanceStatus": "declared-gap",
       "scenarioIds": [
-        "productChangeStatus-parity-plan"
+        "product-change-status-live-parity"
       ],
-      "reason": "Write-path parity for staged productChangeStatus still needs a dedicated safe live scenario pack and payload comparison harness."
+      "reason": "Live capture exists, but Shopify returned a later `updatedAt` on the immediate downstream `product(id:)` read than in the `productChangeStatus` mutation payload, so the staged exact-timestamp parity assumption still needs alignment before promotion."
     },
     {
       "name": "productPublish",
@@ -329,51 +329,51 @@
       "name": "collectionCreate",
       "type": "mutation",
       "execution": "stage-locally",
-      "conformanceStatus": "declared-gap",
+      "conformanceStatus": "covered",
       "scenarioIds": [
-        "collectionCreate-parity-plan"
+        "collection-create-live-parity"
       ],
-      "reason": "Collection mutation parity still needs dedicated live-write scenarios and payload assertions."
+      "reason": null
     },
     {
       "name": "collectionUpdate",
       "type": "mutation",
       "execution": "stage-locally",
-      "conformanceStatus": "declared-gap",
+      "conformanceStatus": "covered",
       "scenarioIds": [
-        "collectionUpdate-parity-plan"
+        "collection-update-live-parity"
       ],
-      "reason": "Collection mutation parity still needs dedicated live-write scenarios and payload assertions."
+      "reason": null
     },
     {
       "name": "collectionDelete",
       "type": "mutation",
       "execution": "stage-locally",
-      "conformanceStatus": "declared-gap",
+      "conformanceStatus": "covered",
       "scenarioIds": [
-        "collectionDelete-parity-plan"
+        "collection-delete-live-parity"
       ],
-      "reason": "Collection mutation parity still needs dedicated live-write scenarios and payload assertions."
+      "reason": null
     },
     {
       "name": "collectionAddProducts",
       "type": "mutation",
       "execution": "stage-locally",
-      "conformanceStatus": "declared-gap",
+      "conformanceStatus": "covered",
       "scenarioIds": [
-        "collectionAddProducts-parity-plan"
+        "collection-add-products-live-parity"
       ],
-      "reason": "Collection membership mutation parity still needs dedicated live-write scenarios and payload assertions."
+      "reason": null
     },
     {
       "name": "collectionRemoveProducts",
       "type": "mutation",
       "execution": "stage-locally",
-      "conformanceStatus": "declared-gap",
+      "conformanceStatus": "covered",
       "scenarioIds": [
-        "collectionRemoveProducts-parity-plan"
+        "collection-remove-products-live-parity"
       ],
-      "reason": "Collection membership mutation parity still needs dedicated live-write scenarios and payload assertions."
+      "reason": null
     }
   ],
   "coveredOperationNames": [
@@ -386,7 +386,12 @@
     "collections",
     "productCreate",
     "productUpdate",
-    "productDelete"
+    "productDelete",
+    "collectionCreate",
+    "collectionUpdate",
+    "collectionDelete",
+    "collectionAddProducts",
+    "collectionRemoveProducts"
   ],
   "declaredGapOperationNames": [
     "tagsAdd",
@@ -410,12 +415,7 @@
     "productDeleteMedia",
     "inventoryAdjustQuantities",
     "metafieldsSet",
-    "metafieldDelete",
-    "collectionCreate",
-    "collectionUpdate",
-    "collectionDelete",
-    "collectionAddProducts",
-    "collectionRemoveProducts"
+    "metafieldDelete"
   ],
   "capturedScenarioIds": [
     "product-detail-read",
@@ -425,21 +425,23 @@
     "product-variants-read",
     "product-metafields-read",
     "collection-detail-read",
+    "collection-add-products-live-parity",
+    "collection-create-live-parity",
+    "collection-delete-live-parity",
+    "collection-remove-products-live-parity",
+    "collection-update-live-parity",
     "collections-catalog-read",
+    "product-change-status-live-parity",
+    "tags-add-live-parity",
+    "tags-remove-live-parity",
     "product-create-live-parity",
     "product-update-live-parity",
     "product-delete-live-parity"
   ],
   "plannedScenarioIds": [
-    "collectionAddProducts-parity-plan",
-    "collectionCreate-parity-plan",
-    "collectionDelete-parity-plan",
-    "collectionRemoveProducts-parity-plan",
-    "collectionUpdate-parity-plan",
     "inventoryAdjustQuantities-parity-plan",
     "metafieldDelete-parity-plan",
     "metafieldsSet-parity-plan",
-    "productChangeStatus-parity-plan",
     "productCreateMedia-parity-plan",
     "productDeleteMedia-parity-plan",
     "productDuplicate-parity-plan",
@@ -455,8 +457,6 @@
     "productVariantUpdate-parity-plan",
     "productVariantsBulkCreate-parity-plan",
     "productVariantsBulkDelete-parity-plan",
-    "productVariantsBulkUpdate-parity-plan",
-    "tagsAdd-parity-plan",
-    "tagsRemove-parity-plan"
+    "productVariantsBulkUpdate-parity-plan"
   ]
 }

@@ -138,7 +138,8 @@ Status legend:
 - [x] first standalone collection staging slice with downstream `collection`, `collections`, and nested `product.collections` visibility
 - [x] collection membership mutations
   - [x] `collectionAddProducts` with atomic duplicate-member rejection and downstream `collection.products` / `product.collections` visibility
-  - [x] `collectionRemoveProducts` with immediate local membership removal plus a synthetic done `job` payload for the first async pass
+  - [x] `collectionRemoveProducts` with immediate local membership removal plus a synthetic async-shaped `job` payload (`done: false`) for the first async pass
+  - [x] live safe-write conformance captures now cover the full collection mutation family (`collectionCreate`, `collectionUpdate`, `collectionDelete`, `collectionAddProducts`, `collectionRemoveProducts`) against the dev store
 
 ---
 
@@ -209,7 +210,8 @@ Status legend:
 - [ ] empty/null behavior parity harness
 
 Current live-conformance status note:
-- product mutation capture harness exists for `productCreate` / `productUpdate` / `productDelete` via `corepack pnpm conformance:capture-product-mutations`, but current store credentials are blocked on Shopify `ACCESS_DENIED` / missing `write_products`
+- dedicated dev-store conformance credentials are currently healthy enough for live probe/read capture and safe collection mutation capture
+- `corepack pnpm conformance:capture-collection-mutations` now records live parity fixtures for `collectionCreate`, `collectionUpdate`, `collectionDelete`, `collectionAddProducts`, and `collectionRemoveProducts`
 
 ---
 

@@ -1,19 +1,21 @@
 {
-  "scenarioId": "tagsRemove-parity-plan",
+  "scenarioId": "tags-remove-live-parity",
   "operationNames": [
     "tagsRemove"
   ],
-  "scenarioStatus": "planned",
+  "scenarioStatus": "captured",
   "assertionKinds": [
     "payload-shape",
     "user-errors-parity",
     "downstream-read-parity"
   ],
-  "liveCaptureFiles": [],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/tags-remove-parity.json"
+  ],
   "proxyRequest": {
-    "documentPath": null,
-    "variablesPath": null
+    "documentPath": "config/parity-requests/tagsRemove-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/tagsRemove-parity-plan.variables.json"
   },
-  "comparisonMode": "planned",
-  "notes": "Mutation parity for staged tag side effects is not yet automated against a safe live-write scenario pack."
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live capture recorded for `tagsRemove`, but Shopify did not reflect the unique tag state in immediate `products(query:)` / `productsCount(query:)` search results, so promotion still requires search-index parity decisions."
 }
