@@ -1,0 +1,95 @@
+{
+  "mutation": {
+    "variables": {
+      "product": {
+        "id": "gid://shopify/Product/9255299580137",
+        "title": "Hermes Product Conformance 1776299742511 Updated",
+        "vendor": "HERMES-LABS",
+        "productType": "TEST-GOODS",
+        "tags": [
+          "conformance",
+          "product-mutation",
+          "1776299742511-updated"
+        ],
+        "descriptionHtml": "<p>Updated Hermes product mutation conformance 1776299742511</p>",
+        "templateSuffix": "product-mutation-updated",
+        "seo": {
+          "title": "Hermes Product 1776299742511 Updated",
+          "description": "Updated Hermes product mutation conformance 1776299742511"
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "productUpdate": {
+          "product": {
+            "id": "gid://shopify/Product/9255299580137",
+            "title": "Hermes Product Conformance 1776299742511 Updated",
+            "handle": "hermes-product-conformance-1776299742511",
+            "status": "DRAFT",
+            "vendor": "HERMES-LABS",
+            "productType": "TEST-GOODS",
+            "tags": [
+              "1776299742511-updated",
+              "conformance",
+              "product-mutation"
+            ],
+            "descriptionHtml": "<p>Updated Hermes product mutation conformance 1776299742511</p>",
+            "templateSuffix": "product-mutation-updated",
+            "seo": {
+              "title": "Hermes Product 1776299742511 Updated",
+              "description": "Updated Hermes product mutation conformance 1776299742511"
+            },
+            "onlineStorePreviewUrl": "https://398wkt1vuyygoqqu-63755419881.shopifypreview.com/products_preview?preview_key=f5180b225ddf6eac7fa551884cf0bfd6&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaVoyWlhKNUxXSnBaeTEwWlhOMExYTjBiM0psTG0xNWMyaHZjR2xtZVM1amIyMEdPZ1pGVkE9PSIsImV4cCI6IjIwMjYtMDQtMTZUMDE6MzU6NDQuMDk5WiIsInB1ciI6InBlcm1hbmVudF9wYXNzd29yZF9ieXBhc3MifX0=--80269b28f439f5444623f9789f8a4e853670f146"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/9255299580137",
+        "title": "Hermes Product Conformance 1776299742511 Updated",
+        "handle": "hermes-product-conformance-1776299742511",
+        "status": "DRAFT",
+        "vendor": "HERMES-LABS",
+        "productType": "TEST-GOODS",
+        "tags": [
+          "1776299742511-updated",
+          "conformance",
+          "product-mutation"
+        ],
+        "descriptionHtml": "<p>Updated Hermes product mutation conformance 1776299742511</p>",
+        "templateSuffix": "product-mutation-updated",
+        "seo": {
+          "title": "Hermes Product 1776299742511 Updated",
+          "description": "Updated Hermes product mutation conformance 1776299742511"
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 2,
+        "actualQueryCost": 2,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1998,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

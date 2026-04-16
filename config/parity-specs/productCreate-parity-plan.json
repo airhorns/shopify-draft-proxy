@@ -1,19 +1,21 @@
 {
-  "scenarioId": "productCreate-parity-plan",
+  "scenarioId": "product-create-live-parity",
   "operationNames": [
     "productCreate"
   ],
-  "scenarioStatus": "planned",
+  "scenarioStatus": "captured",
   "assertionKinds": [
     "payload-shape",
     "user-errors-parity",
     "downstream-read-parity"
   ],
-  "liveCaptureFiles": [],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-create-parity.json"
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/productCreate-parity-plan.graphql",
     "variablesPath": "config/parity-requests/productCreate-parity-plan.variables.json"
   },
-  "comparisonMode": "planned",
-  "notes": "Proxy request scaffold now mirrors the staged rich-product create runtime slice (`title`, `status`, `vendor`, `productType`, `tags`, `descriptionHtml`, `templateSuffix`, `seo`). Next step is to capture the same safe create scenario against a dedicated dev-store write pack and compare mutation payload plus immediate downstream product read parity."
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live capture recorded for safe productCreate plus downstream read parity. Fill in comparator implementation to turn this into executed proxy-vs-Shopify comparison."
 }

@@ -204,10 +204,9 @@
       "tests/integration/proxy-capability-classification.test.ts"
     ],
     "conformance": {
-      "status": "declared-gap",
-      "reason": "Write-path parity for staged productCreate still needs a dedicated safe live scenario pack and payload comparison harness.",
+      "status": "covered",
       "scenarioIds": [
-        "productCreate-parity-plan"
+        "product-create-live-parity"
       ]
     }
   },
@@ -225,10 +224,9 @@
       "tests/integration/product-draft-flow.test.ts"
     ],
     "conformance": {
-      "status": "declared-gap",
-      "reason": "Write-path parity for staged productUpdate still needs a dedicated safe live scenario pack and payload comparison harness.",
+      "status": "covered",
       "scenarioIds": [
-        "productUpdate-parity-plan"
+        "product-update-live-parity"
       ]
     }
   },
@@ -246,10 +244,9 @@
       "tests/integration/product-draft-flow.test.ts"
     ],
     "conformance": {
-      "status": "declared-gap",
-      "reason": "Write-path parity for staged productDelete still needs a dedicated safe live scenario pack and payload comparison harness.",
+      "status": "covered",
       "scenarioIds": [
-        "productDelete-parity-plan"
+        "product-delete-live-parity"
       ]
     }
   },

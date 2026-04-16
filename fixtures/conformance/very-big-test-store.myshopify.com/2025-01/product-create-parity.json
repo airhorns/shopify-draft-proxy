@@ -1,0 +1,94 @@
+{
+  "mutation": {
+    "variables": {
+      "product": {
+        "title": "Hermes Product Conformance 1776299742511",
+        "status": "DRAFT",
+        "vendor": "HERMES",
+        "productType": "ACCESSORIES",
+        "tags": [
+          "conformance",
+          "product-mutation",
+          "1776299742511"
+        ],
+        "descriptionHtml": "<p>Hermes product mutation conformance 1776299742511</p>",
+        "templateSuffix": "product-mutation-parity",
+        "seo": {
+          "title": "Hermes Product 1776299742511",
+          "description": "Hermes product mutation conformance 1776299742511"
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "productCreate": {
+          "product": {
+            "id": "gid://shopify/Product/9255299580137",
+            "title": "Hermes Product Conformance 1776299742511",
+            "handle": "hermes-product-conformance-1776299742511",
+            "status": "DRAFT",
+            "vendor": "HERMES",
+            "productType": "ACCESSORIES",
+            "tags": [
+              "1776299742511",
+              "conformance",
+              "product-mutation"
+            ],
+            "descriptionHtml": "<p>Hermes product mutation conformance 1776299742511</p>",
+            "templateSuffix": "product-mutation-parity",
+            "seo": {
+              "title": "Hermes Product 1776299742511",
+              "description": "Hermes product mutation conformance 1776299742511"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/9255299580137",
+        "title": "Hermes Product Conformance 1776299742511",
+        "handle": "hermes-product-conformance-1776299742511",
+        "status": "DRAFT",
+        "vendor": "HERMES",
+        "productType": "ACCESSORIES",
+        "tags": [
+          "1776299742511",
+          "conformance",
+          "product-mutation"
+        ],
+        "descriptionHtml": "<p>Hermes product mutation conformance 1776299742511</p>",
+        "templateSuffix": "product-mutation-parity",
+        "seo": {
+          "title": "Hermes Product 1776299742511",
+          "description": "Hermes product mutation conformance 1776299742511"
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 2,
+        "actualQueryCost": 2,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1998,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

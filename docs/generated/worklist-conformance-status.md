@@ -12,14 +12,14 @@ Use it as the source of truth for which implemented root operations are structur
 - [c] `inventoryItem`
 - [c] `collection`
 - [c] `collections`
+- [c] `productCreate`
+- [c] `productUpdate`
+- [c] `productDelete`
 
 ## Implemented operations with declared conformance gaps
 
 - [x] `tagsAdd` — Mutation parity for staged tag side effects is not yet automated against a safe live-write scenario pack.
 - [x] `tagsRemove` — Mutation parity for staged tag side effects is not yet automated against a safe live-write scenario pack.
-- [x] `productCreate` — Write-path parity for staged productCreate still needs a dedicated safe live scenario pack and payload comparison harness.
-- [x] `productUpdate` — Write-path parity for staged productUpdate still needs a dedicated safe live scenario pack and payload comparison harness.
-- [x] `productDelete` — Write-path parity for staged productDelete still needs a dedicated safe live scenario pack and payload comparison harness.
 - [x] `productDuplicate` — Write-path parity for staged productDuplicate still needs a dedicated safe live scenario pack and payload comparison harness.
 - [x] `productSet` — Write-path parity for staged productSet still needs a dedicated safe live scenario pack and payload comparison harness.
 - [x] `productChangeStatus` — Write-path parity for staged productChangeStatus still needs a dedicated safe live scenario pack and payload comparison harness.

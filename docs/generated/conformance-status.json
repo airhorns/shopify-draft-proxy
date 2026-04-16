@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-16T00:34:13.786Z",
+  "generatedAt": "2026-04-16T00:36:35.614Z",
   "implementedOperations": [
     {
       "name": "product",
@@ -99,31 +99,31 @@
       "name": "productCreate",
       "type": "mutation",
       "execution": "stage-locally",
-      "conformanceStatus": "declared-gap",
+      "conformanceStatus": "covered",
       "scenarioIds": [
-        "productCreate-parity-plan"
+        "product-create-live-parity"
       ],
-      "reason": "Write-path parity for staged productCreate still needs a dedicated safe live scenario pack and payload comparison harness."
+      "reason": null
     },
     {
       "name": "productUpdate",
       "type": "mutation",
       "execution": "stage-locally",
-      "conformanceStatus": "declared-gap",
+      "conformanceStatus": "covered",
       "scenarioIds": [
-        "productUpdate-parity-plan"
+        "product-update-live-parity"
       ],
-      "reason": "Write-path parity for staged productUpdate still needs a dedicated safe live scenario pack and payload comparison harness."
+      "reason": null
     },
     {
       "name": "productDelete",
       "type": "mutation",
       "execution": "stage-locally",
-      "conformanceStatus": "declared-gap",
+      "conformanceStatus": "covered",
       "scenarioIds": [
-        "productDelete-parity-plan"
+        "product-delete-live-parity"
       ],
-      "reason": "Write-path parity for staged productDelete still needs a dedicated safe live scenario pack and payload comparison harness."
+      "reason": null
     },
     {
       "name": "productDuplicate",
@@ -383,14 +383,14 @@
     "productVariant",
     "inventoryItem",
     "collection",
-    "collections"
+    "collections",
+    "productCreate",
+    "productUpdate",
+    "productDelete"
   ],
   "declaredGapOperationNames": [
     "tagsAdd",
     "tagsRemove",
-    "productCreate",
-    "productUpdate",
-    "productDelete",
     "productDuplicate",
     "productSet",
     "productChangeStatus",
@@ -425,7 +425,10 @@
     "product-variants-read",
     "product-metafields-read",
     "collection-detail-read",
-    "collections-catalog-read"
+    "collections-catalog-read",
+    "product-create-live-parity",
+    "product-update-live-parity",
+    "product-delete-live-parity"
   ],
   "plannedScenarioIds": [
     "collectionAddProducts-parity-plan",
@@ -437,9 +440,7 @@
     "metafieldDelete-parity-plan",
     "metafieldsSet-parity-plan",
     "productChangeStatus-parity-plan",
-    "productCreate-parity-plan",
     "productCreateMedia-parity-plan",
-    "productDelete-parity-plan",
     "productDeleteMedia-parity-plan",
     "productDuplicate-parity-plan",
     "productOptionUpdate-parity-plan",
@@ -448,7 +449,6 @@
     "productPublish-parity-plan",
     "productSet-parity-plan",
     "productUnpublish-parity-plan",
-    "productUpdate-parity-plan",
     "productUpdateMedia-parity-plan",
     "productVariantCreate-parity-plan",
     "productVariantDelete-parity-plan",

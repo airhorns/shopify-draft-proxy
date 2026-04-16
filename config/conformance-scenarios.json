@@ -269,21 +269,6 @@
     "notes": "Write-path parity for staged productChangeStatus still needs a dedicated safe live scenario pack and payload comparison harness."
   },
   {
-    "id": "productCreate-parity-plan",
-    "operationNames": [
-      "productCreate"
-    ],
-    "status": "planned",
-    "assertionKinds": [
-      "payload-shape",
-      "user-errors-parity",
-      "downstream-read-parity"
-    ],
-    "captureFiles": [],
-    "paritySpecPath": "config/parity-specs/productCreate-parity-plan.json",
-    "notes": "Proxy request scaffold now mirrors the staged rich-product create runtime slice (`title`, `status`, `vendor`, `productType`, `tags`, `descriptionHtml`, `templateSuffix`, `seo`). Next step is to capture the same safe create scenario against a dedicated dev-store write pack and compare mutation payload plus immediate downstream product read parity."
-  },
-  {
     "id": "productCreateMedia-parity-plan",
     "operationNames": [
       "productCreateMedia"
@@ -297,21 +282,6 @@
     "captureFiles": [],
     "paritySpecPath": "config/parity-specs/productCreateMedia-parity-plan.json",
     "notes": "Media mutation parity still needs dedicated live-write scenarios and payload assertions."
-  },
-  {
-    "id": "productDelete-parity-plan",
-    "operationNames": [
-      "productDelete"
-    ],
-    "status": "planned",
-    "assertionKinds": [
-      "payload-shape",
-      "user-errors-parity",
-      "downstream-read-parity"
-    ],
-    "captureFiles": [],
-    "paritySpecPath": "config/parity-specs/productDelete-parity-plan.json",
-    "notes": "Write-path parity for staged productDelete still needs a dedicated safe live scenario pack and payload comparison harness."
   },
   {
     "id": "productDeleteMedia-parity-plan",
@@ -432,21 +402,6 @@
     "captureFiles": [],
     "paritySpecPath": "config/parity-specs/productUnpublish-parity-plan.json",
     "notes": "Proxy request scaffold now mirrors the staged product unpublish runtime slice (`productUnpublish(input:)` returning aggregate publication fields plus `userErrors`). Next step is to run the same safe unpublish scenario against a dedicated dev-store write pack and compare mutation payload plus immediate downstream publication aggregate read parity."
-  },
-  {
-    "id": "productUpdate-parity-plan",
-    "operationNames": [
-      "productUpdate"
-    ],
-    "status": "planned",
-    "assertionKinds": [
-      "payload-shape",
-      "user-errors-parity",
-      "downstream-read-parity"
-    ],
-    "captureFiles": [],
-    "paritySpecPath": "config/parity-specs/productUpdate-parity-plan.json",
-    "notes": "Write-path parity for staged productUpdate still needs a dedicated safe live scenario pack and payload comparison harness."
   },
   {
     "id": "productUpdateMedia-parity-plan",
@@ -582,5 +537,56 @@
     "captureFiles": [],
     "paritySpecPath": "config/parity-specs/tagsRemove-parity-plan.json",
     "notes": "Mutation parity for staged tag side effects is not yet automated against a safe live-write scenario pack."
+  },
+  {
+    "id": "product-create-live-parity",
+    "operationNames": [
+      "productCreate"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity",
+      "downstream-read-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-create-parity.json"
+    ],
+    "paritySpecPath": "config/parity-specs/productCreate-parity-plan.json",
+    "notes": "Live safe-write capture now covers productCreate plus immediate downstream product read parity."
+  },
+  {
+    "id": "product-update-live-parity",
+    "operationNames": [
+      "productUpdate"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity",
+      "downstream-read-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-update-parity.json"
+    ],
+    "paritySpecPath": "config/parity-specs/productUpdate-parity-plan.json",
+    "notes": "Live safe-write capture now covers productUpdate plus immediate downstream product read parity."
+  },
+  {
+    "id": "product-delete-live-parity",
+    "operationNames": [
+      "productDelete"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity",
+      "downstream-read-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-delete-parity.json"
+    ],
+    "paritySpecPath": "config/parity-specs/productDelete-parity-plan.json",
+    "notes": "Live safe-write capture now covers productDelete plus immediate downstream null/list-removal parity."
   }
 ]
