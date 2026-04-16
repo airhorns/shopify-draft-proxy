@@ -61,6 +61,7 @@ Run:
 corepack pnpm conformance:capture-products
 corepack pnpm conformance:capture-product-mutations
 corepack pnpm conformance:capture-product-state-mutations
+corepack pnpm conformance:capture-product-option-mutations
 corepack pnpm conformance:capture-collections
 corepack pnpm conformance:capture-collection-mutations
 ```

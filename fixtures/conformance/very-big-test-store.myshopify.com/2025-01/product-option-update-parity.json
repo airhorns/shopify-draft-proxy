@@ -1,0 +1,106 @@
+{
+  "mutation": {
+    "variables": {
+      "productId": "gid://shopify/Product/9255308361961",
+      "option": {
+        "id": "gid://shopify/ProductOption/11658189603049",
+        "name": "Shade",
+        "position": 2
+      },
+      "optionValuesToAdd": [
+        {
+          "name": "Blue"
+        }
+      ],
+      "optionValuesToUpdate": [
+        {
+          "id": "gid://shopify/ProductOptionValue/4709114609897",
+          "name": "Crimson"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "productOptionUpdate": {
+          "product": {
+            "id": "gid://shopify/Product/9255308361961",
+            "options": [
+              {
+                "id": "gid://shopify/ProductOption/11658189603049",
+                "name": "Shade",
+                "position": 1,
+                "values": [
+                  "Crimson"
+                ],
+                "optionValues": [
+                  {
+                    "id": "gid://shopify/ProductOptionValue/4709114609897",
+                    "name": "Crimson",
+                    "hasVariants": true
+                  },
+                  {
+                    "id": "gid://shopify/ProductOptionValue/4709114642665",
+                    "name": "Blue",
+                    "hasVariants": false
+                  }
+                ]
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/9255308361961",
+        "options": [
+          {
+            "id": "gid://shopify/ProductOption/11658189603049",
+            "name": "Shade",
+            "position": 1,
+            "values": [
+              "Crimson"
+            ],
+            "optionValues": [
+              {
+                "id": "gid://shopify/ProductOptionValue/4709114609897",
+                "name": "Crimson",
+                "hasVariants": true
+              },
+              {
+                "id": "gid://shopify/ProductOptionValue/4709114642665",
+                "name": "Blue",
+                "hasVariants": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 3,
+        "actualQueryCost": 3,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1997,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

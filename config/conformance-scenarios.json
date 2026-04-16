@@ -326,49 +326,55 @@
     "notes": "Write-path parity for staged productDuplicate still needs a dedicated safe live scenario pack and payload comparison harness."
   },
   {
-    "id": "productOptionUpdate-parity-plan",
+    "id": "product-option-update-live-parity",
     "operationNames": [
       "productOptionUpdate"
     ],
-    "status": "planned",
+    "status": "captured",
     "assertionKinds": [
       "payload-shape",
       "user-errors-parity",
       "downstream-read-parity"
     ],
-    "captureFiles": [],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-option-update-parity.json"
+    ],
     "paritySpecPath": "config/parity-specs/productOptionUpdate-parity-plan.json",
-    "notes": "Proxy request scaffold now mirrors the staged option-update runtime slice (`productOptionUpdate(productId:, option:, optionValuesToAdd:, optionValuesToUpdate:)` returning `product.options` with `values` and `optionValues { id name hasVariants }`). Next step is to run the same safe option-update scenario against a dedicated dev-store write pack and compare mutation payload plus immediate downstream option-read parity."
+    "notes": "Live safe-write capture now covers productOptionUpdate plus immediate downstream `product.options` parity, including Shopify's current behavior where renaming/repositioning the sole option still serializes it back at position `1` and only variant-backed values appear in `values`."
   },
   {
-    "id": "productOptionsCreate-parity-plan",
+    "id": "product-options-create-live-parity",
     "operationNames": [
       "productOptionsCreate"
     ],
-    "status": "planned",
+    "status": "captured",
     "assertionKinds": [
       "payload-shape",
       "user-errors-parity",
       "downstream-read-parity"
     ],
-    "captureFiles": [],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-options-create-parity.json"
+    ],
     "paritySpecPath": "config/parity-specs/productOptionsCreate-parity-plan.json",
-    "notes": "Proxy request scaffold now mirrors the staged option-create runtime slice (`productOptionsCreate(productId:, options:)` returning `product.options` with `values` and `optionValues { id name hasVariants }`). Next step is to run the same safe option-create scenario against a dedicated dev-store write pack and compare mutation payload plus immediate downstream option-read parity."
+    "notes": "Live safe-write capture now covers productOptionsCreate plus immediate downstream `product.options` parity, including Shopify replacing the default Title-only state with the created option and marking the first created value as variant-backed immediately."
   },
   {
-    "id": "productOptionsDelete-parity-plan",
+    "id": "product-options-delete-live-parity",
     "operationNames": [
       "productOptionsDelete"
     ],
-    "status": "planned",
+    "status": "captured",
     "assertionKinds": [
       "payload-shape",
       "user-errors-parity",
       "downstream-read-parity"
     ],
-    "captureFiles": [],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-options-delete-parity.json"
+    ],
     "paritySpecPath": "config/parity-specs/productOptionsDelete-parity-plan.json",
-    "notes": "Option mutation parity still needs dedicated live-write scenarios and payload assertions."
+    "notes": "Live safe-write capture now covers productOptionsDelete plus immediate downstream `product.options` parity, including Shopify restoring a fresh Title/Default Title fallback option after deleting the only custom option."
   },
   {
     "id": "productPublish-parity-plan",

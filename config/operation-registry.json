@@ -369,10 +369,9 @@
       "tests/integration/product-draft-flow.test.ts"
     ],
     "conformance": {
-      "status": "declared-gap",
-      "reason": "Option mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "status": "covered",
       "scenarioIds": [
-        "productOptionsCreate-parity-plan"
+        "product-options-create-live-parity"
       ]
     }
   },
@@ -390,10 +389,9 @@
       "tests/integration/product-draft-flow.test.ts"
     ],
     "conformance": {
-      "status": "declared-gap",
-      "reason": "Option mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "status": "covered",
       "scenarioIds": [
-        "productOptionUpdate-parity-plan"
+        "product-option-update-live-parity"
       ]
     }
   },
@@ -411,10 +409,9 @@
       "tests/integration/product-draft-flow.test.ts"
     ],
     "conformance": {
-      "status": "declared-gap",
-      "reason": "Option mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "status": "covered",
       "scenarioIds": [
-        "productOptionsDelete-parity-plan"
+        "product-options-delete-live-parity"
       ]
     }
   },

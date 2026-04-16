@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-16T00:59:25.926Z",
+  "generatedAt": "2026-04-16T01:20:48.082Z",
   "implementedOperations": [
     {
       "name": "product",
@@ -179,31 +179,31 @@
       "name": "productOptionsCreate",
       "type": "mutation",
       "execution": "stage-locally",
-      "conformanceStatus": "declared-gap",
+      "conformanceStatus": "covered",
       "scenarioIds": [
-        "productOptionsCreate-parity-plan"
+        "product-options-create-live-parity"
       ],
-      "reason": "Option mutation parity still needs dedicated live-write scenarios and payload assertions."
+      "reason": null
     },
     {
       "name": "productOptionUpdate",
       "type": "mutation",
       "execution": "stage-locally",
-      "conformanceStatus": "declared-gap",
+      "conformanceStatus": "covered",
       "scenarioIds": [
-        "productOptionUpdate-parity-plan"
+        "product-option-update-live-parity"
       ],
-      "reason": "Option mutation parity still needs dedicated live-write scenarios and payload assertions."
+      "reason": null
     },
     {
       "name": "productOptionsDelete",
       "type": "mutation",
       "execution": "stage-locally",
-      "conformanceStatus": "declared-gap",
+      "conformanceStatus": "covered",
       "scenarioIds": [
-        "productOptionsDelete-parity-plan"
+        "product-options-delete-live-parity"
       ],
-      "reason": "Option mutation parity still needs dedicated live-write scenarios and payload assertions."
+      "reason": null
     },
     {
       "name": "productVariantsBulkCreate",
@@ -387,6 +387,9 @@
     "productCreate",
     "productUpdate",
     "productDelete",
+    "productOptionsCreate",
+    "productOptionUpdate",
+    "productOptionsDelete",
     "collectionCreate",
     "collectionUpdate",
     "collectionDelete",
@@ -401,9 +404,6 @@
     "productChangeStatus",
     "productPublish",
     "productUnpublish",
-    "productOptionsCreate",
-    "productOptionUpdate",
-    "productOptionsDelete",
     "productVariantsBulkCreate",
     "productVariantsBulkUpdate",
     "productVariantsBulkDelete",
@@ -432,6 +432,9 @@
     "collection-update-live-parity",
     "collections-catalog-read",
     "product-change-status-live-parity",
+    "product-option-update-live-parity",
+    "product-options-create-live-parity",
+    "product-options-delete-live-parity",
     "tags-add-live-parity",
     "tags-remove-live-parity",
     "product-create-live-parity",
@@ -445,9 +448,6 @@
     "productCreateMedia-parity-plan",
     "productDeleteMedia-parity-plan",
     "productDuplicate-parity-plan",
-    "productOptionUpdate-parity-plan",
-    "productOptionsCreate-parity-plan",
-    "productOptionsDelete-parity-plan",
     "productPublish-parity-plan",
     "productSet-parity-plan",
     "productUnpublish-parity-plan",

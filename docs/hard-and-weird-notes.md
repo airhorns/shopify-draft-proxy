@@ -242,6 +242,10 @@ Current modeled behavior:
 - local option mutations are split across three real root fields, not one family name: `productOptionsCreate`, `productOptionUpdate` (singular), and `productOptionsDelete`
 - a useful first staged-mutation slice is LEAVE_AS_IS-style option list editing: insert/reorder options, rename them, and add/update/delete option values while leaving variant fanout semantics for a later increment
 - `productUpdate` preserves option state unless a future option-specific mutation changes it
+- live option-mutation capture on this host settled three easy-to-guess-wrong quirks:
+  - `productOptionsCreate` against a default-only product replaces the synthetic `Title` option instead of returning both the new option and `Title`
+  - `productOptionUpdate` can accept a requested reposition like `position: 2` on a now-single-option product but still serialize the option back at `position: 1`
+  - `product.options[].values` is narrower than `optionValues[]`: it currently reflects only the values that are actually used by variants, so newly added-but-unused values stay visible in `optionValues` but drop out of `values`
 
 ## 14. Variant detail reads already mix merchandising and inventory concepts
 

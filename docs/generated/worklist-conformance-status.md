@@ -15,6 +15,9 @@ Use it as the source of truth for which implemented root operations are structur
 - [c] `productCreate`
 - [c] `productUpdate`
 - [c] `productDelete`
+- [c] `productOptionsCreate`
+- [c] `productOptionUpdate`
+- [c] `productOptionsDelete`
 - [c] `collectionCreate`
 - [c] `collectionUpdate`
 - [c] `collectionDelete`
@@ -30,9 +33,6 @@ Use it as the source of truth for which implemented root operations are structur
 - [x] `productChangeStatus` — Live capture exists, but Shopify returned a later `updatedAt` on the immediate downstream `product(id:)` read than in the `productChangeStatus` mutation payload, so the staged exact-timestamp parity assumption still needs alignment before promotion.
 - [x] `productPublish` — Write-path parity for staged productPublish still needs a dedicated safe live scenario pack and payload comparison harness.
 - [x] `productUnpublish` — Write-path parity for staged productUnpublish still needs a dedicated safe live scenario pack and payload comparison harness.
-- [x] `productOptionsCreate` — Option mutation parity still needs dedicated live-write scenarios and payload assertions.
-- [x] `productOptionUpdate` — Option mutation parity still needs dedicated live-write scenarios and payload assertions.
-- [x] `productOptionsDelete` — Option mutation parity still needs dedicated live-write scenarios and payload assertions.
 - [x] `productVariantsBulkCreate` — Variant bulk mutation parity still needs dedicated live-write scenarios and payload assertions.
 - [x] `productVariantsBulkUpdate` — Variant bulk mutation parity still needs dedicated live-write scenarios and payload assertions.
 - [x] `productVariantsBulkDelete` — Variant bulk mutation parity still needs dedicated live-write scenarios and payload assertions.

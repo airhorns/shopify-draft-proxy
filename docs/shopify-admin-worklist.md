@@ -77,6 +77,8 @@ Status legend:
 - [x] `productOptionUpdate`
 - [x] `productOptionsDelete`
   - [x] local LEAVE_AS_IS-style option list staging for name/position/value edits with downstream `product.options` visibility
+  - [x] live safe-write conformance captures now cover the full product option mutation family (`productOptionsCreate`, `productOptionUpdate`, `productOptionsDelete`) against the dev store
+  - [x] local option behavior now mirrors the captured Shopify quirks: creating options on a default-only product replaces the synthetic `Title` option, deleting the last custom option restores a fresh default `Title` option, and `product.options[].values` reflects only option values currently used by variants
 - [x] `productVariantsBulkCreate`
 - [x] `productVariantsBulkUpdate`
 - [x] `productVariantsBulkDelete`
@@ -210,8 +212,9 @@ Status legend:
 - [ ] empty/null behavior parity harness
 
 Current live-conformance status note:
-- dedicated dev-store conformance credentials are currently healthy enough for live probe/read capture and safe collection mutation capture
+- dedicated dev-store conformance credentials are currently healthy enough for live probe/read capture plus safe collection and product-option mutation capture
 - `corepack pnpm conformance:capture-collection-mutations` now records live parity fixtures for `collectionCreate`, `collectionUpdate`, `collectionDelete`, `collectionAddProducts`, and `collectionRemoveProducts`
+- `corepack pnpm conformance:capture-product-option-mutations` now records live parity fixtures for `productOptionsCreate`, `productOptionUpdate`, and `productOptionsDelete`
 
 ---
 

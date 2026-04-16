@@ -1,0 +1,91 @@
+{
+  "mutation": {
+    "variables": {
+      "productId": "gid://shopify/Product/9255308361961",
+      "options": [
+        {
+          "name": "Color",
+          "position": 1,
+          "values": [
+            {
+              "name": "Red"
+            }
+          ]
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "productOptionsCreate": {
+          "product": {
+            "id": "gid://shopify/Product/9255308361961",
+            "options": [
+              {
+                "id": "gid://shopify/ProductOption/11658189603049",
+                "name": "Color",
+                "position": 1,
+                "values": [
+                  "Red"
+                ],
+                "optionValues": [
+                  {
+                    "id": "gid://shopify/ProductOptionValue/4709114609897",
+                    "name": "Red",
+                    "hasVariants": true
+                  }
+                ]
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/9255308361961",
+        "options": [
+          {
+            "id": "gid://shopify/ProductOption/11658189603049",
+            "name": "Color",
+            "position": 1,
+            "values": [
+              "Red"
+            ],
+            "optionValues": [
+              {
+                "id": "gid://shopify/ProductOptionValue/4709114609897",
+                "name": "Red",
+                "hasVariants": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 3,
+        "actualQueryCost": 3,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1997,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

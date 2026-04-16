@@ -20,6 +20,7 @@
     "conformance:capture-products": "node ./scripts/capture-product-conformance.mjs",
     "conformance:capture-product-mutations": "node ./scripts/capture-product-mutation-conformance.mjs",
     "conformance:capture-product-state-mutations": "node ./scripts/capture-product-state-mutation-conformance.mjs",
+    "conformance:capture-product-option-mutations": "node ./scripts/capture-product-option-mutation-conformance.mjs",
     "conformance:capture-collections": "node ./scripts/capture-collection-conformance.mjs",
     "conformance:capture-collection-mutations": "node ./scripts/capture-collection-mutation-conformance.mjs"
   },

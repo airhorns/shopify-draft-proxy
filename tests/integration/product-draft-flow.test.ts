@@ -1074,19 +1074,6 @@ describe('product draft flow', () => {
           {
             id: expect.stringMatching(/^gid:\/\/shopify\/ProductOptionValue\//),
             name: 'Red',
-            hasVariants: false,
-          },
-        ],
-      },
-      {
-        id: expect.stringMatching(/^gid:\/\/shopify\/ProductOption\//),
-        name: 'Title',
-        position: 2,
-        values: ['Default Title'],
-        optionValues: [
-          {
-            id: expect.stringMatching(/^gid:\/\/shopify\/ProductOptionValue\//),
-            name: 'Default Title',
             hasVariants: true,
           },
         ],
@@ -1117,28 +1104,15 @@ describe('product draft flow', () => {
     expect(updateOptionResponse.body.data.productOptionUpdate.userErrors).toEqual([]);
     expect(updateOptionResponse.body.data.productOptionUpdate.product.options).toEqual([
       {
-        id: expect.any(String),
-        name: 'Title',
-        position: 1,
-        values: ['Default Title'],
-        optionValues: [
-          {
-            id: expect.any(String),
-            name: 'Default Title',
-            hasVariants: true,
-          },
-        ],
-      },
-      {
         id: colorOptionId,
         name: 'Shade',
-        position: 2,
-        values: ['Crimson', 'Blue'],
+        position: 1,
+        values: ['Crimson'],
         optionValues: [
           {
             id: redValueId,
             name: 'Crimson',
-            hasVariants: false,
+            hasVariants: true,
           },
           {
             id: expect.stringMatching(/^gid:\/\/shopify\/ProductOptionValue\//),
@@ -1165,13 +1139,13 @@ describe('product draft flow', () => {
     expect(deleteOptionResponse.body.data.productOptionsDelete.deletedOptionsIds).toEqual([colorOptionId]);
     expect(deleteOptionResponse.body.data.productOptionsDelete.product.options).toEqual([
       {
-        id: expect.any(String),
+        id: expect.stringMatching(/^gid:\/\/shopify\/ProductOption\//),
         name: 'Title',
         position: 1,
         values: ['Default Title'],
         optionValues: [
           {
-            id: expect.any(String),
+            id: expect.stringMatching(/^gid:\/\/shopify\/ProductOptionValue\//),
             name: 'Default Title',
             hasVariants: true,
           },
@@ -1760,7 +1734,7 @@ describe('product draft flow', () => {
           name: 'Color',
           values: ['Red', 'Blue'],
           optionValues: [
-            { name: 'Red', hasVariants: false },
+            { name: 'Red', hasVariants: true },
             { name: 'Blue', hasVariants: true },
           ],
         },
@@ -1768,7 +1742,7 @@ describe('product draft flow', () => {
           name: 'Size',
           values: ['Small', 'Large'],
           optionValues: [
-            { name: 'Small', hasVariants: false },
+            { name: 'Small', hasVariants: true },
             { name: 'Large', hasVariants: true },
           ],
         },
@@ -1815,7 +1789,7 @@ describe('product draft flow', () => {
         {
           name: 'Size',
           optionValues: [
-            { name: 'Small', hasVariants: false },
+            { name: 'Small', hasVariants: true },
             { name: 'Large', hasVariants: true },
           ],
         },
@@ -1846,14 +1820,14 @@ describe('product draft flow', () => {
         {
           name: 'Color',
           optionValues: [
-            { name: 'Red', hasVariants: false },
+            { name: 'Red', hasVariants: true },
             { name: 'Blue', hasVariants: false },
           ],
         },
         {
           name: 'Size',
           optionValues: [
-            { name: 'Small', hasVariants: false },
+            { name: 'Small', hasVariants: true },
             { name: 'Large', hasVariants: false },
           ],
         },
@@ -2912,7 +2886,7 @@ describe('product draft flow', () => {
           options: [
             {
               name: 'Color',
-              values: ['Blue', 'Green'],
+              values: ['Blue'],
               optionValues: [
                 { name: 'Blue', hasVariants: true },
                 { name: 'Green', hasVariants: false },

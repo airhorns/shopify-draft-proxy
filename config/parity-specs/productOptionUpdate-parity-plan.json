@@ -1,19 +1,21 @@
 {
-  "scenarioId": "productOptionUpdate-parity-plan",
+  "scenarioId": "product-option-update-live-parity",
   "operationNames": [
     "productOptionUpdate"
   ],
-  "scenarioStatus": "planned",
+  "scenarioStatus": "captured",
   "assertionKinds": [
     "payload-shape",
     "user-errors-parity",
     "downstream-read-parity"
   ],
-  "liveCaptureFiles": [],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-option-update-parity.json"
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/productOptionUpdate-parity-plan.graphql",
     "variablesPath": "config/parity-requests/productOptionUpdate-parity-plan.variables.json"
   },
-  "comparisonMode": "planned",
-  "notes": "Proxy request scaffold now mirrors the staged option-update runtime slice (`productOptionUpdate(productId:, option:, optionValuesToAdd:, optionValuesToUpdate:)` returning `product.options` with `values` and `optionValues { id name hasVariants }`). Next step is to run the same safe option-update scenario against a dedicated dev-store write pack and compare mutation payload plus immediate downstream option-read parity."
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live capture recorded for safe `productOptionUpdate` plus downstream option/value rename parity. Fill in comparator implementation to turn this into executed proxy-vs-Shopify comparison."
 }

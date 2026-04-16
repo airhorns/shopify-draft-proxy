@@ -1,0 +1,23 @@
+mutation ProductOptionsDeleteParityPlan($productId: ID!, $options: [ID!]!) {
+  productOptionsDelete(productId: $productId, options: $options) {
+    deletedOptionsIds
+    product {
+      id
+      options {
+        id
+        name
+        position
+        values
+        optionValues {
+          id
+          name
+          hasVariants
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -661,14 +661,96 @@ function insertOptionAtPosition(
   return normalizeOptionPositions(nextOptions);
 }
 
+function productUsesOnlyDefaultOptionState(
+  options: ProductOptionRecord[],
+  variants: ProductVariantRecord[],
+): boolean {
+  return (
+    options.length === 1 &&
+    options[0]?.name === 'Title' &&
+    options[0]?.optionValues.length === 1 &&
+    options[0]?.optionValues[0]?.name === 'Default Title' &&
+    variants.length === 1 &&
+    variants[0]?.selectedOptions.length === 0
+  );
+}
+
+function remapDefaultVariantToCreatedOptions(
+  variant: ProductVariantRecord,
+  options: ProductOptionRecord[],
+): ProductVariantRecord {
+  const selectedOptions = options
+    .map((option) => {
+      const firstValue = option.optionValues[0]?.name;
+      if (typeof firstValue !== 'string' || !firstValue.trim()) {
+        return null;
+      }
+      return {
+        name: option.name,
+        value: firstValue,
+      };
+    })
+    .filter((value): value is ProductVariantRecord['selectedOptions'][number] => value !== null);
+
+  return {
+    ...structuredClone(variant),
+    title: deriveVariantTitle(null, selectedOptions, 'Default Title'),
+    selectedOptions,
+  };
+}
+
+function restoreDefaultOptionState(product: ProductRecord, variants: ProductVariantRecord[]): {
+  options: ProductOptionRecord[];
+  variants: ProductVariantRecord[];
+} {
+  const baseVariant = variants[0] ? structuredClone(variants[0]) : makeDefaultVariantRecord(product);
+  return {
+    options: [makeDefaultOptionRecord(product)],
+    variants: [
+      {
+        ...baseVariant,
+        productId: product.id,
+        title: 'Default Title',
+        selectedOptions: [],
+      },
+    ],
+  };
+}
+
+function remapVariantSelectionsForOptionUpdate(
+  variants: ProductVariantRecord[],
+  previousOptionName: string,
+  nextOptionName: string,
+  renamedValues: Map<string, string>,
+): ProductVariantRecord[] {
+  return variants.map((variant) => {
+    const selectedOptions = variant.selectedOptions.map((selectedOption) => {
+      if (selectedOption.name !== previousOptionName) {
+        return selectedOption;
+      }
+      return {
+        name: nextOptionName,
+        value: renamedValues.get(selectedOption.value) ?? selectedOption.value,
+      };
+    });
+
+    return {
+      ...structuredClone(variant),
+      title: deriveVariantTitle(null, selectedOptions, variant.title),
+      selectedOptions,
+    };
+  });
+}
+
 function updateOptionRecords(
   productId: string,
   options: ProductOptionRecord[],
+  variants: ProductVariantRecord[],
   optionInput: Record<string, unknown>,
   optionValuesToAddRaw: unknown,
   optionValuesToUpdateRaw: unknown,
   optionValuesToDeleteRaw: unknown,
-): ProductOptionRecord[] | null {
+): { options: ProductOptionRecord[]; variants: ProductVariantRecord[] } | null {
   const rawOptionId = optionInput['id'];
   if (typeof rawOptionId !== 'string') {
     return null;
@@ -686,6 +768,8 @@ function updateOptionRecords(
   }
 
   const target = structuredClone(existingTarget);
+  const previousOptionName = existingTarget.name;
+  const renamedValues = new Map<string, string>();
   const rawName = optionInput['name'];
   if (typeof rawName === 'string' && rawName.trim()) {
     target.name = rawName;
@@ -712,6 +796,7 @@ function updateOptionRecords(
 
       const existingValue = target.optionValues.find((optionValue) => optionValue.id === optionValueId);
       if (existingValue) {
+        renamedValues.set(existingValue.name, optionValueName);
         existingValue.name = optionValueName;
       }
     }
@@ -723,7 +808,10 @@ function updateOptionRecords(
   }
 
   nextOptions.splice(existingIndex, 1);
-  return insertOptionAtPosition(nextOptions, target, optionInput['position']);
+  return {
+    options: insertOptionAtPosition(nextOptions, target, optionInput['position']),
+    variants: remapVariantSelectionsForOptionUpdate(variants, previousOptionName, target.name, renamedValues),
+  };
 }
 
 function deleteOptionRecords(
@@ -1877,7 +1965,7 @@ function serializeOptionSelectionSet(
         result[key] = option.position;
         break;
       case 'values':
-        result[key] = option.optionValues.map((optionValue) => optionValue.name);
+        result[key] = option.optionValues.filter((optionValue) => optionValue.hasVariants).map((optionValue) => optionValue.name);
         break;
       case 'optionValues':
         result[key] = option.optionValues.map((optionValue) => {
@@ -3846,8 +3934,14 @@ export function handleProductMutation(document: string, variables: Record<string
         };
       }
 
-      let nextOptions = store.getEffectiveOptionsByProductId(productId);
+      const existingOptions = store.getEffectiveOptionsByProductId(productId);
+      const existingVariants = store.getEffectiveVariantsByProductId(productId);
+      let nextOptions = existingOptions;
       const optionInputs = Array.isArray(args['options']) ? args['options'] : [];
+      const shouldReplaceDefaultOptionState = productUsesOnlyDefaultOptionState(existingOptions, existingVariants);
+      if (shouldReplaceDefaultOptionState) {
+        nextOptions = [];
+      }
       for (const optionInput of optionInputs) {
         if (!isObject(optionInput)) {
           continue;
@@ -3860,7 +3954,13 @@ export function handleProductMutation(document: string, variables: Record<string
         );
       }
 
-      nextOptions = syncProductOptionsWithVariants(productId, nextOptions);
+      let nextVariants = existingVariants;
+      if (shouldReplaceDefaultOptionState && existingVariants[0]) {
+        nextVariants = [remapDefaultVariantToCreatedOptions(existingVariants[0], nextOptions)];
+        store.replaceStagedVariantsForProduct(productId, nextVariants);
+      }
+
+      nextOptions = syncProductOptionsWithVariants(productId, nextOptions, nextVariants);
       store.replaceStagedOptionsForProduct(productId, nextOptions);
       return {
         data: {
@@ -3898,15 +3998,16 @@ export function handleProductMutation(document: string, variables: Record<string
       }
 
       const optionInput = readProductInput(args['option']);
-      const nextOptions = updateOptionRecords(
+      const updateResult = updateOptionRecords(
         productId,
         store.getEffectiveOptionsByProductId(productId),
+        store.getEffectiveVariantsByProductId(productId),
         optionInput,
         args['optionValuesToAdd'],
         args['optionValuesToUpdate'],
         args['optionValuesToDelete'],
       );
-      if (!nextOptions) {
+      if (!updateResult) {
         return {
           data: {
             [responseKey]: {
@@ -3917,7 +4018,8 @@ export function handleProductMutation(document: string, variables: Record<string
         };
       }
 
-      const syncedOptions = syncProductOptionsWithVariants(productId, nextOptions);
+      store.replaceStagedVariantsForProduct(productId, updateResult.variants);
+      const syncedOptions = syncProductOptionsWithVariants(productId, updateResult.options, updateResult.variants);
       store.replaceStagedOptionsForProduct(productId, syncedOptions);
       return {
         data: {
@@ -3956,8 +4058,18 @@ export function handleProductMutation(document: string, variables: Record<string
         };
       }
 
-      const deleteResult = deleteOptionRecords(productId, store.getEffectiveOptionsByProductId(productId), args['options']);
-      store.replaceStagedOptionsForProduct(productId, deleteResult.options);
+      const effectiveOptions = store.getEffectiveOptionsByProductId(productId);
+      const effectiveVariants = store.getEffectiveVariantsByProductId(productId);
+      const deleteResult = deleteOptionRecords(productId, effectiveOptions, args['options']);
+      let nextOptions = deleteResult.options;
+      let nextVariants = effectiveVariants;
+      if (nextOptions.length === 0) {
+        const restoredDefaultState = restoreDefaultOptionState(existingProduct, effectiveVariants);
+        nextOptions = restoredDefaultState.options;
+        nextVariants = restoredDefaultState.variants;
+        store.replaceStagedVariantsForProduct(productId, nextVariants);
+      }
+      store.replaceStagedOptionsForProduct(productId, syncProductOptionsWithVariants(productId, nextOptions, nextVariants));
       return {
         data: {
           [responseKey]: {
