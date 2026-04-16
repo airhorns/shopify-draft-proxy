@@ -1,0 +1,9 @@
+mutation ProductVariantDeleteParityPlan($id: ID!) {
+  productVariantDelete(id: $id) {
+    deletedProductVariantId
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -1,0 +1,21 @@
+mutation ProductVariantsBulkDeleteParityPlan($productId: ID!, $variantsIds: [ID!]!) {
+  productVariantsBulkDelete(productId: $productId, variantsIds: $variantsIds) {
+    product {
+      id
+      totalInventory
+      tracksInventory
+      variants(first: 10) {
+        nodes {
+          id
+          title
+          sku
+          inventoryQuantity
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

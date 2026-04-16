@@ -1,0 +1,24 @@
+mutation InventoryAdjustQuantitiesParityPlan($input: InventoryAdjustQuantitiesInput!) {
+  inventoryAdjustQuantities(input: $input) {
+    inventoryAdjustmentGroup {
+      createdAt
+      reason
+      referenceDocumentUri
+      changes {
+        name
+        delta
+        quantityAfterChange
+        item {
+          id
+        }
+        location {
+          id
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

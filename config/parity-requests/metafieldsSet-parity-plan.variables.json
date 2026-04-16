@@ -1,0 +1,18 @@
+{
+  "metafields": [
+    {
+      "ownerId": "gid://shopify/Product/8397256720617",
+      "namespace": "custom",
+      "key": "material",
+      "type": "single_line_text_field",
+      "value": "Canvas"
+    },
+    {
+      "ownerId": "gid://shopify/Product/8397256720617",
+      "namespace": "details",
+      "key": "origin",
+      "type": "single_line_text_field",
+      "value": "VN"
+    }
+  ]
+}

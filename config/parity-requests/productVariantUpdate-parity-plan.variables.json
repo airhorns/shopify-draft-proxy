@@ -1,0 +1,22 @@
+{
+  "input": {
+    "id": "gid://shopify/ProductVariant/210",
+    "title": "Blue / XL",
+    "sku": "SVH-BL-XL",
+    "inventoryQuantity": 5,
+    "selectedOptions": [
+      {
+        "name": "Color",
+        "value": "Blue"
+      },
+      {
+        "name": "Size",
+        "value": "XL"
+      }
+    ],
+    "inventoryItem": {
+      "tracked": true,
+      "requiresShipping": true
+    }
+  }
+}

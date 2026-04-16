@@ -1,0 +1,19 @@
+{
+  "scenarioId": "collectionCreate-parity-plan",
+  "operationNames": [
+    "collectionCreate"
+  ],
+  "scenarioStatus": "planned",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity"
+  ],
+  "liveCaptureFiles": [],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/collectionCreate-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/collectionCreate-parity-plan.variables.json"
+  },
+  "comparisonMode": "planned",
+  "notes": "Proxy request scaffold now mirrors the staged collection-create runtime slice (`collectionCreate(input:)` returning `collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } }` plus `userErrors`). Next step is to capture the same safe collection-create scenario against the dev store and compare mutation payload plus immediate downstream `collection` / `collections` read parity."
+}

@@ -33,7 +33,19 @@ See `.env.example` for the canonical variable names.
 
 The server now loads `.env` automatically via `dotenv`, so a local `.env` file is enough for normal `pnpm dev` / `pnpm start` workflows.
 
-### 4. Probe the live target before writing parity fixtures
+### 4. Validate structural conformance coverage before live probing
+Before probing the live target, run:
+
+```bash
+corepack pnpm conformance:check
+corepack pnpm conformance:parity
+```
+
+`conformance:check` verifies the canonical operation registry, conformance scenario registry, parity-spec files, worklist sync, and captured fixture references. Any implemented operation must declare runtime-test coverage plus one or more conformance scenario manifests.
+
+`conformance:parity` is the parity-runner scaffold. Today it reports whether each scenario is still planned, captured-but-missing a proxy request spec, or ready for actual proxy-vs-Shopify comparison once the request/comparator details are filled in.
+
+### 5. Probe the live target before writing parity fixtures
 Once the vars are present, run:
 
 ```bash
@@ -47,6 +59,7 @@ Run:
 
 ```bash
 corepack pnpm conformance:capture-products
+corepack pnpm conformance:capture-collections
 ```
 
 This writes live Admin GraphQL captures under:
@@ -55,12 +68,14 @@ This writes live Admin GraphQL captures under:
 fixtures/conformance/<store-domain>/<api-version>/
 ```
 
-The first capture set currently records:
+The current capture set records:
 - catalog page / cursor sample
 - detailed product shape
 - variant matrix shape
 - search / count behavior
 - variant-backed product search samples (`sku:` and, when available in the dev store, `barcode:`)
+- top-level `collection(id:)` detail with nested `products` connection fields
+- top-level `collections` catalog pagination with nested `products` slices
 
 ## Near-term workflow
 

@@ -1,0 +1,19 @@
+{
+  "scenarioId": "productOptionUpdate-parity-plan",
+  "operationNames": [
+    "productOptionUpdate"
+  ],
+  "scenarioStatus": "planned",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity"
+  ],
+  "liveCaptureFiles": [],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/productOptionUpdate-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/productOptionUpdate-parity-plan.variables.json"
+  },
+  "comparisonMode": "planned",
+  "notes": "Proxy request scaffold now mirrors the staged option-update runtime slice (`productOptionUpdate(productId:, option:, optionValuesToAdd:, optionValuesToUpdate:)` returning `product.options` with `values` and `optionValues { id name hasVariants }`). Next step is to run the same safe option-update scenario against a dedicated dev-store write pack and compare mutation payload plus immediate downstream option-read parity."
+}

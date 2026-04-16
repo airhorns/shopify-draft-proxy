@@ -1,0 +1,35 @@
+query CollectionsCatalogRead($first: Int!) {
+  collections(first: $first) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        handle
+        products(first: 2) {
+          edges {
+            cursor
+            node {
+              id
+              title
+              handle
+              vendor
+            }
+          }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+            startCursor
+            endCursor
+          }
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

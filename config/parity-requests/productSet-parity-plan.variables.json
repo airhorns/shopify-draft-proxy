@@ -1,0 +1,41 @@
+{
+  "synchronous": true,
+  "input": {
+    "title": "Parity Set Snowboard",
+    "status": "DRAFT",
+    "vendor": "BURTON",
+    "productType": "SNOWBOARD",
+    "tags": ["parity-plan", "winter"],
+    "productOptions": [
+      {
+        "name": "Color",
+        "position": 1,
+        "values": [{ "name": "Blue" }, { "name": "Black" }]
+      }
+    ],
+    "variants": [
+      {
+        "optionValues": [{ "optionName": "Color", "name": "Blue" }],
+        "sku": "PARITY-SET-BLUE",
+        "price": "79.99",
+        "inventoryQuantities": [{ "quantity": 7 }],
+        "inventoryItem": { "tracked": true, "requiresShipping": true }
+      },
+      {
+        "optionValues": [{ "optionName": "Color", "name": "Black" }],
+        "sku": "PARITY-SET-BLACK",
+        "price": "69.99",
+        "inventoryQuantities": [{ "quantity": 3 }],
+        "inventoryItem": { "tracked": false, "requiresShipping": true }
+      }
+    ],
+    "metafields": [
+      {
+        "namespace": "custom",
+        "key": "season",
+        "type": "single_line_text_field",
+        "value": "winter"
+      }
+    ]
+  }
+}

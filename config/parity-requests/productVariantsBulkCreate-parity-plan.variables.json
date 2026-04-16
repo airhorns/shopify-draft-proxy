@@ -1,0 +1,16 @@
+{
+  "productId": "gid://shopify/Product/100",
+  "variants": [
+    {
+      "title": "Blue",
+      "sku": "HAT-BLUE",
+      "barcode": "2222222222222",
+      "price": "26.00",
+      "inventoryQuantity": 6,
+      "inventoryItem": {
+        "tracked": true,
+        "requiresShipping": false
+      }
+    }
+  ]
+}

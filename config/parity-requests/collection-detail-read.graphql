@@ -1,0 +1,28 @@
+query CollectionDetailRead($id: ID!) {
+  collection(id: $id) {
+    id
+    title
+    handle
+    products(first: 3) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          handle
+          vendor
+          productType
+          tags
+          totalInventory
+          tracksInventory
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}

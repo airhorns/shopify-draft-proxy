@@ -1,0 +1,124 @@
+{
+  "data": {
+    "collections": {
+      "edges": [
+        {
+          "cursor": "eyJsYXN0X2lkIjo0MDI0NzY1MzE5NDUsImxhc3RfdmFsdWUiOiI0MDI0NzY1MzE5NDUifQ==",
+          "node": {
+            "id": "gid://shopify/Collection/402476531945",
+            "title": "Home page",
+            "handle": "frontpage",
+            "products": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDI2ODU3LCJsYXN0X3ZhbHVlIjoiMiJ9",
+                  "node": {
+                    "id": "gid://shopify/Product/8397254426857",
+                    "title": "VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE",
+                    "handle": "vans-authentic-lo-pro-burgandy-white",
+                    "vendor": "VANS"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDI2ODU3LCJsYXN0X3ZhbHVlIjoiMiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDI2ODU3LCJsYXN0X3ZhbHVlIjoiMiJ9"
+              }
+            }
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo0Mjk4MjYxNDY1MzcsImxhc3RfdmFsdWUiOiI0Mjk4MjYxNDY1MzcifQ==",
+          "node": {
+            "id": "gid://shopify/Collection/429826146537",
+            "title": "VANS",
+            "handle": "vans",
+            "products": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU1NjcyMDQxLCJsYXN0X3ZhbHVlIjoiNCJ9",
+                  "node": {
+                    "id": "gid://shopify/Product/8397255672041",
+                    "title": "VANS | OLD SKOOL (BUTTERFLY) TRUE WHITE | BLACK",
+                    "handle": "vans-old-skool-butterfly-true-white-black",
+                    "vendor": "VANS"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDkyMzkzLCJsYXN0X3ZhbHVlIjoiMyJ9",
+                  "node": {
+                    "id": "gid://shopify/Product/8397254492393",
+                    "title": "VANS | AUTHENTIC | (MULTI EYELETS) | GRADIENT/CRIMSON",
+                    "handle": "vans-authentic-multi-eyelets-gradient-crimson",
+                    "vendor": "VANS"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU1NjcyMDQxLCJsYXN0X3ZhbHVlIjoiNCJ9",
+                "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDkyMzkzLCJsYXN0X3ZhbHVlIjoiMyJ9"
+              }
+            }
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo0Mjk4MjYxNzkzMDUsImxhc3RfdmFsdWUiOiI0Mjk4MjYxNzkzMDUifQ==",
+          "node": {
+            "id": "gid://shopify/Collection/429826179305",
+            "title": "ADIDAS",
+            "handle": "adidas",
+            "products": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU2OTQ5OTkzLCJsYXN0X3ZhbHVlIjoiMSJ9",
+                  "node": {
+                    "id": "gid://shopify/Product/8397256949993",
+                    "title": "ADIDAS | KID'S STAN SMITH",
+                    "handle": "adidas-kids-stan-smith",
+                    "vendor": "ADIDAS"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU1NDQyNjY1LCJsYXN0X3ZhbHVlIjoiMSJ9",
+                  "node": {
+                    "id": "gid://shopify/Product/8397255442665",
+                    "title": "ADIDAS | SUPERSTAR 80S",
+                    "handle": "adidas-superstar-80s",
+                    "vendor": "ADIDAS"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU2OTQ5OTkzLCJsYXN0X3ZhbHVlIjoiMSJ9",
+                "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU1NDQyNjY1LCJsYXN0X3ZhbHVlIjoiMSJ9"
+              }
+            }
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": true,
+        "hasPreviousPage": false,
+        "startCursor": "eyJsYXN0X2lkIjo0MDI0NzY1MzE5NDUsImxhc3RfdmFsdWUiOiI0MDI0NzY1MzE5NDUifQ==",
+        "endCursor": "eyJsYXN0X2lkIjo0Mjk4MjYxNzkzMDUsImxhc3RfdmFsdWUiOiI0Mjk4MjYxNzkzMDUifQ=="
+      }
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 10,
+      "actualQueryCost": 10,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1987,
+        "restoreRate": 100
+      }
+    }
+  }
+}

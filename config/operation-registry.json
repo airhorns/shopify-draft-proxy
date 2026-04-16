@@ -1,0 +1,781 @@
+[
+  {
+    "name": "product",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": [
+      "product",
+      "Product"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-query-shapes.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "product-detail-read"
+      ]
+    }
+  },
+  {
+    "name": "products",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": [
+      "products",
+      "Products"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-query-shapes.test.ts",
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "products-catalog-read",
+        "products-search-read",
+        "products-variant-search-read"
+      ]
+    }
+  },
+  {
+    "name": "productsCount",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": [
+      "productsCount",
+      "ProductsCount"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-query-shapes.test.ts",
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "products-catalog-read",
+        "products-search-read",
+        "products-variant-search-read"
+      ]
+    }
+  },
+  {
+    "name": "productVariant",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": [
+      "productVariant",
+      "ProductVariant"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-query-shapes.test.ts",
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "product-variants-read"
+      ]
+    }
+  },
+  {
+    "name": "inventoryItem",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": [
+      "inventoryItem",
+      "InventoryItem"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-query-shapes.test.ts",
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "product-variants-read"
+      ]
+    }
+  },
+  {
+    "name": "collection",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": [
+      "collection",
+      "Collection"
+    ],
+    "runtimeTests": [
+      "tests/integration/collection-query-shapes.test.ts",
+      "tests/integration/collection-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "collection-detail-read"
+      ]
+    }
+  },
+  {
+    "name": "collections",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": [
+      "collections",
+      "Collections"
+    ],
+    "runtimeTests": [
+      "tests/integration/collection-query-shapes.test.ts",
+      "tests/integration/collection-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "collections-catalog-read"
+      ]
+    }
+  },
+  {
+    "name": "tagsAdd",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "tagsAdd"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Mutation parity for staged tag side effects is not yet automated against a safe live-write scenario pack.",
+      "scenarioIds": [
+        "tagsAdd-parity-plan"
+      ]
+    }
+  },
+  {
+    "name": "tagsRemove",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "tagsRemove"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Mutation parity for staged tag side effects is not yet automated against a safe live-write scenario pack.",
+      "scenarioIds": [
+        "tagsRemove-parity-plan"
+      ]
+    }
+  },
+  {
+    "name": "productCreate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "productCreate",
+      "ProductCreate"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts",
+      "tests/integration/proxy-capability-classification.test.ts"
+    ],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Write-path parity for staged productCreate still needs a dedicated safe live scenario pack and payload comparison harness.",
+      "scenarioIds": [
+        "productCreate-parity-plan"
+      ]
+    }
+  },
+  {
+    "name": "productUpdate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "productUpdate",
+      "ProductUpdate"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Write-path parity for staged productUpdate still needs a dedicated safe live scenario pack and payload comparison harness.",
+      "scenarioIds": [
+        "productUpdate-parity-plan"
+      ]
+    }
+  },
+  {
+    "name": "productDelete",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "productDelete",
+      "ProductDelete"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Write-path parity for staged productDelete still needs a dedicated safe live scenario pack and payload comparison harness.",
+      "scenarioIds": [
+        "productDelete-parity-plan"
+      ]
+    }
+  },
+  {
+    "name": "productDuplicate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "productDuplicate",
+      "ProductDuplicate"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Write-path parity for staged productDuplicate still needs a dedicated safe live scenario pack and payload comparison harness.",
+      "scenarioIds": [
+        "productDuplicate-parity-plan"
+      ]
+    }
+  },
+  {
+    "name": "productSet",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "productSet",
+      "ProductSet"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Write-path parity for staged productSet still needs a dedicated safe live scenario pack and payload comparison harness.",
+      "scenarioIds": [
+        "productSet-parity-plan"
+      ]
+    }
+  },
+  {
+    "name": "productChangeStatus",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "productChangeStatus",
+      "ProductChangeStatus"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Write-path parity for staged productChangeStatus still needs a dedicated safe live scenario pack and payload comparison harness.",
+      "scenarioIds": [
+        "productChangeStatus-parity-plan"
+      ]
+    }
+  },
+  {
+    "name": "productPublish",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "productPublish",
+      "ProductPublish"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Write-path parity for staged productPublish still needs a dedicated safe live scenario pack and payload comparison harness.",
+      "scenarioIds": [
+        "productPublish-parity-plan"
+      ]
+    }
+  },
+  {
+    "name": "productUnpublish",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "productUnpublish",
+      "ProductUnpublish"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Write-path parity for staged productUnpublish still needs a dedicated safe live scenario pack and payload comparison harness.",
+      "scenarioIds": [
+        "productUnpublish-parity-plan"
+      ]
+    }
+  },
+  {
+    "name": "productOptionsCreate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "productOptionsCreate",
+      "ProductOptionsCreate"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Option mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "scenarioIds": [
+        "productOptionsCreate-parity-plan"
+      ]
+    }
+  },
+  {
+    "name": "productOptionUpdate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "productOptionUpdate",
+      "ProductOptionUpdate"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Option mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "scenarioIds": [
+        "productOptionUpdate-parity-plan"
+      ]
+    }
+  },
+  {
+    "name": "productOptionsDelete",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "productOptionsDelete",
+      "ProductOptionsDelete"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Option mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "scenarioIds": [
+        "productOptionsDelete-parity-plan"
+      ]
+    }
+  },
+  {
+    "name": "productVariantsBulkCreate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "productVariantsBulkCreate",
+      "ProductVariantsBulkCreate"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Variant bulk mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "scenarioIds": [
+        "productVariantsBulkCreate-parity-plan"
+      ]
+    }
+  },
+  {
+    "name": "productVariantsBulkUpdate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "productVariantsBulkUpdate",
+      "ProductVariantsBulkUpdate"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Variant bulk mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "scenarioIds": [
+        "productVariantsBulkUpdate-parity-plan"
+      ]
+    }
+  },
+  {
+    "name": "productVariantsBulkDelete",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "productVariantsBulkDelete",
+      "ProductVariantsBulkDelete"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Variant bulk mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "scenarioIds": [
+        "productVariantsBulkDelete-parity-plan"
+      ]
+    }
+  },
+  {
+    "name": "productVariantCreate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "productVariantCreate",
+      "ProductVariantCreate"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Single-variant mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "scenarioIds": [
+        "productVariantCreate-parity-plan"
+      ]
+    }
+  },
+  {
+    "name": "productVariantUpdate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "productVariantUpdate",
+      "ProductVariantUpdate"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Single-variant mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "scenarioIds": [
+        "productVariantUpdate-parity-plan"
+      ]
+    }
+  },
+  {
+    "name": "productVariantDelete",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "productVariantDelete",
+      "ProductVariantDelete"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Single-variant mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "scenarioIds": [
+        "productVariantDelete-parity-plan"
+      ]
+    }
+  },
+  {
+    "name": "productCreateMedia",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "productCreateMedia",
+      "ProductCreateMedia"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Media mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "scenarioIds": [
+        "productCreateMedia-parity-plan"
+      ]
+    }
+  },
+  {
+    "name": "productUpdateMedia",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "productUpdateMedia",
+      "ProductUpdateMedia"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Media mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "scenarioIds": [
+        "productUpdateMedia-parity-plan"
+      ]
+    }
+  },
+  {
+    "name": "productDeleteMedia",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "productDeleteMedia",
+      "ProductDeleteMedia"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Media mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "scenarioIds": [
+        "productDeleteMedia-parity-plan"
+      ]
+    }
+  },
+  {
+    "name": "inventoryAdjustQuantities",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "inventoryAdjustQuantities",
+      "InventoryAdjustQuantities"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Inventory adjustment parity still needs dedicated live-write scenarios and payload assertions.",
+      "scenarioIds": [
+        "inventoryAdjustQuantities-parity-plan"
+      ]
+    }
+  },
+  {
+    "name": "metafieldsSet",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "metafieldsSet",
+      "MetafieldsSet"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Metafield mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "scenarioIds": [
+        "metafieldsSet-parity-plan"
+      ]
+    }
+  },
+  {
+    "name": "metafieldDelete",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "metafieldDelete",
+      "MetafieldDelete"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Metafield mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "scenarioIds": [
+        "metafieldDelete-parity-plan"
+      ]
+    }
+  },
+  {
+    "name": "collectionCreate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "collectionCreate",
+      "CollectionCreate"
+    ],
+    "runtimeTests": [
+      "tests/integration/collection-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Collection mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "scenarioIds": [
+        "collectionCreate-parity-plan"
+      ]
+    }
+  },
+  {
+    "name": "collectionUpdate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "collectionUpdate",
+      "CollectionUpdate"
+    ],
+    "runtimeTests": [
+      "tests/integration/collection-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Collection mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "scenarioIds": [
+        "collectionUpdate-parity-plan"
+      ]
+    }
+  },
+  {
+    "name": "collectionDelete",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "collectionDelete",
+      "CollectionDelete"
+    ],
+    "runtimeTests": [
+      "tests/integration/collection-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Collection mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "scenarioIds": [
+        "collectionDelete-parity-plan"
+      ]
+    }
+  },
+  {
+    "name": "collectionAddProducts",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "collectionAddProducts",
+      "CollectionAddProducts"
+    ],
+    "runtimeTests": [
+      "tests/integration/collection-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Collection membership mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "scenarioIds": [
+        "collectionAddProducts-parity-plan"
+      ]
+    }
+  },
+  {
+    "name": "collectionRemoveProducts",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "collectionRemoveProducts",
+      "CollectionRemoveProducts"
+    ],
+    "runtimeTests": [
+      "tests/integration/collection-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Collection membership mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "scenarioIds": [
+        "collectionRemoveProducts-parity-plan"
+      ]
+    }
+  }
+]

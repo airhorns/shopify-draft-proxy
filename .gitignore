@@ -16,6 +16,8 @@ coverage/
 npm-debug.log*
 pnpm-debug.log*
 vitest.config.ts.timestamp-*
+.manual-store-auth.json
+.manual-store-auth-token.json
 
 # OS / editor noise
 .DS_Store

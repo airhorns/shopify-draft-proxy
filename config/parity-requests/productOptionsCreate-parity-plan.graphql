@@ -1,0 +1,22 @@
+mutation ProductOptionsCreateParityPlan($productId: ID!, $options: [OptionCreateInput!]!) {
+  productOptionsCreate(productId: $productId, options: $options) {
+    product {
+      id
+      options {
+        id
+        name
+        position
+        values
+        optionValues {
+          id
+          name
+          hasVariants
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

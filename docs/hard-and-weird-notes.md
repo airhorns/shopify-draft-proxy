@@ -196,6 +196,22 @@ Practical rule now used by the repo:
 
 This is the durable fix that lets live conformance run on either credential type instead of assuming only the older CLI-session path.
 
+### 11c. Probe success does not imply product-write scope for live mutation capture
+
+A later conformance run showed another important distinction:
+
+- `corepack pnpm conformance:probe` can succeed against the target store
+- the same token can still fail immediately on `productCreate` with GraphQL `ACCESS_DENIED`
+- Shopify reports required access `write_products` plus product-create permission requirements
+
+That means read-capable conformance credentials are not automatically sufficient for closing staged product mutation gaps. For the `productCreate` / `productUpdate` / `productDelete` family, the repo now has a dedicated live-write capture harness, but it cannot produce captured fixtures until the conformance credential can safely perform product writes on the dev store.
+
+Practical rule:
+
+- treat this as a **scope blocker**, not a proxy/runtime bug
+- keep the safe write pack explicit and ready to rerun
+- switch to a safe dev-store token with `write_products` before trying to promote product mutation scenarios from planned to captured/covered
+
 ## 12. Product variants are the first real nested product fidelity cliff
 
 Once `variants` were added, the product serializer stopped being a scalar-only object mapper and became a nested connection serializer.
@@ -258,6 +274,15 @@ Useful consequences:
 - `collection(id: ...)` can be answered immediately from any product that already carries that membership
 - `collection.products` can reuse the same overlay-aware product connection serializer as top-level `products`
 - `collections` needs deduplication by collection id because the same collection appears once per member product in storage
+
+### 15b. Dedicated top-level collection captures expose opaque cursors and a richer nested product slice
+
+The first live top-level collection fixtures (`collection-detail.json` and `collections-catalog.json`) settled two important shape questions:
+
+- Shopify uses opaque server cursors for both top-level `collections` and nested `collection.products`; they are not derivable from plain ids
+- merchant-facing collection reads quickly ask for catalog-style product fields such as `vendor`, `productType`, `tags`, `totalInventory`, and `tracksInventory`, not just `id`/`title`
+
+That means collection-read conformance cannot be inferred only from the lighter `product.collections` membership fixture. It needs its own captured top-level scenarios so cursor shape and nested catalog fields stay visible as the overlay serializer grows.
 
 Important limitation to remember:
 

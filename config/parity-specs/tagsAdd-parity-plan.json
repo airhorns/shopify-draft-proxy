@@ -1,0 +1,19 @@
+{
+  "scenarioId": "tagsAdd-parity-plan",
+  "operationNames": [
+    "tagsAdd"
+  ],
+  "scenarioStatus": "planned",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity"
+  ],
+  "liveCaptureFiles": [],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/tagsAdd-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/tagsAdd-parity-plan.variables.json"
+  },
+  "comparisonMode": "planned",
+  "notes": "Proxy request scaffold now mirrors the staged product-scoped tagsAdd runtime slice (`tagsAdd(id:, tags:)` returning `node { ... on Product { id tags } }` plus `userErrors`). Next step is to run the same safe tag-add scenario against a dedicated dev-store write pack and compare mutation payload plus immediate downstream product/tag-filter parity."
+}

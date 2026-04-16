@@ -1,0 +1,30 @@
+mutation ProductVariantUpdateParityPlan($input: ProductVariantInput!) {
+  productVariantUpdate(input: $input) {
+    product {
+      id
+      totalInventory
+      tracksInventory
+    }
+    productVariant {
+      id
+      title
+      sku
+      barcode
+      price
+      inventoryQuantity
+      selectedOptions {
+        name
+        value
+      }
+      inventoryItem {
+        id
+        tracked
+        requiresShipping
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

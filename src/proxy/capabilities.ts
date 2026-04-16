@@ -1,7 +1,9 @@
 import type { ParsedOperation } from '../graphql/parse-operation.js';
-
-export type CapabilityDomain = 'products' | 'unknown';
-export type CapabilityExecution = 'overlay-read' | 'stage-locally' | 'passthrough';
+import {
+  listImplementedOperationRegistryEntries,
+  type CapabilityDomain,
+  type CapabilityExecution,
+} from './operation-registry.js';
 
 export interface OperationCapability {
   type: ParsedOperation['type'];
@@ -10,82 +12,12 @@ export interface OperationCapability {
   execution: CapabilityExecution;
 }
 
-const PRODUCT_QUERY_NAMES = new Set([
-  'Product',
-  'Products',
-  'ProductsCount',
-  'ProductVariant',
-  'InventoryItem',
-  'Collection',
-  'Collections',
-  'product',
-  'products',
-  'productsCount',
-  'productVariant',
-  'inventoryItem',
-  'collection',
-  'collections',
-]);
-const PRODUCT_MUTATION_NAMES = new Set([
-  'ProductCreate',
-  'ProductUpdate',
-  'ProductDelete',
-  'ProductDuplicate',
-  'ProductSet',
-  'ProductChangeStatus',
-  'ProductPublish',
-  'ProductUnpublish',
-  'ProductOptionsCreate',
-  'ProductOptionUpdate',
-  'ProductOptionsDelete',
-  'ProductVariantsBulkCreate',
-  'ProductVariantsBulkUpdate',
-  'ProductVariantsBulkDelete',
-  'ProductVariantCreate',
-  'ProductVariantUpdate',
-  'ProductVariantDelete',
-  'MetafieldsSet',
-  'MetafieldDelete',
-  'CollectionCreate',
-  'CollectionUpdate',
-  'CollectionDelete',
-  'CollectionAddProducts',
-  'CollectionRemoveProducts',
-  'tagsAdd',
-  'tagsRemove',
-  'productCreate',
-  'productUpdate',
-  'productDelete',
-  'productDuplicate',
-  'productSet',
-  'productChangeStatus',
-  'productPublish',
-  'productUnpublish',
-  'productOptionsCreate',
-  'productOptionUpdate',
-  'productOptionsDelete',
-  'productVariantsBulkCreate',
-  'productVariantsBulkUpdate',
-  'productVariantsBulkDelete',
-  'productVariantCreate',
-  'productVariantUpdate',
-  'productVariantDelete',
-  'collectionCreate',
-  'collectionUpdate',
-  'collectionDelete',
-  'collectionAddProducts',
-  'collectionRemoveProducts',
-  'productCreateMedia',
-  'productUpdateMedia',
-  'productDeleteMedia',
-  'inventoryAdjustQuantities',
-  'metafieldsSet',
-  'metafieldDelete',
-  'ProductCreateMedia',
-  'ProductUpdateMedia',
-  'ProductDeleteMedia',
-  'InventoryAdjustQuantities',
-]);
+const implementedEntries = listImplementedOperationRegistryEntries();
+const CAPABILITY_ENTRY_BY_MATCH_NAME = new Map(
+  implementedEntries.flatMap((entry) =>
+    entry.matchNames.map((matchName) => [matchName, entry] as const),
+  ),
+);
 
 function getCandidateOperationNames(operation: ParsedOperation): string[] {
   const names = [operation.name, operation.rootFields?.[0] ?? null].filter(
@@ -97,23 +29,18 @@ function getCandidateOperationNames(operation: ParsedOperation): string[] {
 
 export function getOperationCapability(operation: ParsedOperation): OperationCapability {
   const candidates = getCandidateOperationNames(operation);
-  const matchedProductQuery = candidates.find((candidate) => PRODUCT_QUERY_NAMES.has(candidate));
-  if (matchedProductQuery && operation.type === 'query') {
-    return {
-      type: operation.type,
-      operationName: matchedProductQuery,
-      domain: 'products',
-      execution: 'overlay-read',
-    };
-  }
+  const matchedCandidate = candidates.find((candidate) => {
+    const entry = CAPABILITY_ENTRY_BY_MATCH_NAME.get(candidate);
+    return entry?.type === operation.type;
+  });
+  const matchedEntry = matchedCandidate ? CAPABILITY_ENTRY_BY_MATCH_NAME.get(matchedCandidate) ?? null : null;
 
-  const matchedProductMutation = candidates.find((candidate) => PRODUCT_MUTATION_NAMES.has(candidate));
-  if (matchedProductMutation && operation.type === 'mutation') {
+  if (matchedCandidate && matchedEntry) {
     return {
       type: operation.type,
-      operationName: matchedProductMutation,
-      domain: 'products',
-      execution: 'stage-locally',
+      operationName: matchedCandidate,
+      domain: matchedEntry.domain,
+      execution: matchedEntry.execution,
     };
   }
 

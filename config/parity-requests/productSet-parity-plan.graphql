@@ -1,0 +1,62 @@
+mutation ProductSetParityPlan($input: ProductSetInput!, $synchronous: Boolean!) {
+  productSet(input: $input, synchronous: $synchronous) {
+    product {
+      id
+      title
+      handle
+      status
+      vendor
+      productType
+      tags
+      options {
+        id
+        name
+        position
+        values
+        optionValues {
+          id
+          name
+          hasVariants
+        }
+      }
+      variants(first: 10) {
+        nodes {
+          id
+          title
+          sku
+          price
+          inventoryQuantity
+          selectedOptions {
+            name
+            value
+          }
+          inventoryItem {
+            tracked
+            requiresShipping
+          }
+        }
+      }
+      metafields(first: 10) {
+        nodes {
+          id
+          namespace
+          key
+          type
+          value
+        }
+      }
+    }
+    productSetOperation {
+      id
+      status
+      userErrors {
+        field
+        message
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

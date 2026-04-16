@@ -1,0 +1,19 @@
+{
+  "scenarioId": "productCreateMedia-parity-plan",
+  "operationNames": [
+    "productCreateMedia"
+  ],
+  "scenarioStatus": "planned",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity"
+  ],
+  "liveCaptureFiles": [],
+  "proxyRequest": {
+    "documentPath": null,
+    "variablesPath": null
+  },
+  "comparisonMode": "planned",
+  "notes": "Media mutation parity still needs dedicated live-write scenarios and payload assertions."
+}

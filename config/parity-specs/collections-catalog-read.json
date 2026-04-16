@@ -1,0 +1,21 @@
+{
+  "scenarioId": "collections-catalog-read",
+  "operationNames": [
+    "collections"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "selected-fields",
+    "pagination-shape"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collections-catalog.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/collections-catalog-read.graphql",
+    "variablesPath": "config/parity-requests/collections-catalog-read.variables.json"
+  },
+  "comparisonMode": "capture-only",
+  "notes": "Live collections catalog capture now covers top-level `collections` pagination plus a merchant-relevant nested `products` slice. Comparator wiring can reuse this request scaffold once proxy-vs-Shopify comparison is implemented."
+}

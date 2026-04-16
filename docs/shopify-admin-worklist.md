@@ -16,6 +16,8 @@ Status legend:
 2. Do not mark an operation conformance-covered unless it is compared against real Shopify behavior.
 3. Breadth comes after product-domain depth.
 4. If Shopify behavior is uncertain, add a conformance scenario instead of guessing.
+5. Every implemented root operation must stay in sync with `config/operation-registry.json`; `corepack pnpm conformance:check` is the structural gate for runtime-test coverage plus required scenario manifests and parity specs.
+6. Do not hand-maintain `[c]` status for root operations; use `docs/generated/worklist-conformance-status.md` and `docs/generated/conformance-status.json` as the generated source of truth.
 
 ---
 
@@ -79,10 +81,12 @@ Status legend:
 - [x] `productVariantsBulkUpdate`
 - [x] `productVariantsBulkDelete`
   - [x] staged variant merchandising/inventory slice (`sku`, `barcode`, `price`, `compareAtPrice`, `taxable`, `inventoryPolicy`, `inventoryQuantity`, `inventoryItem { tracked requiresShipping }`) with downstream `product.variants`, variant-backed search, and derived `totalInventory` / `tracksInventory` visibility
+  - [x] concrete parity-plan proxy requests now exist for bulk create/update/delete so the whole family reports as `planned-with-proxy-request` while live safe-write capture remains blocked on dedicated dev-store credentials
 - [x] `productVariantCreate` (version-relevant compatibility path staged through the local variant overlay model)
 - [x] `productVariantUpdate`
 - [x] `productVariantDelete`
 - [x] single-variant compatibility mutation family (`productVariantCreate` / `productVariantUpdate` / `productVariantDelete`) with downstream `product.variants`, `products`, and `productsCount` visibility
+  - [x] concrete parity-plan proxy requests now exist for single-variant create/update/delete so the whole family reports as `planned-with-proxy-request` while live safe-write capture remains blocked on dedicated dev-store credentials
 - [x] product media create/update/delete family
   - [x] local image-media staging for `productCreateMedia`, `productUpdateMedia`, and `productDeleteMedia` with downstream `product.media` visibility, `mediaUserErrors`, and delete id payloads
 - [ ] product reorder / sort operations if supported in Admin GraphQL
@@ -125,6 +129,7 @@ Status legend:
 - [x] `collections`
 - [x] collection products connection
   - [x] top-level collection surface is currently derived from the known product↔collection membership graph (staged state and hydrated product reads), with cursor pagination on `collections` and the usual overlay product list semantics on `collection.products`
+  - [x] live conformance captures now cover both `collection(id:)` detail reads and a top-level `collections` catalog slice with nested product connections
 
 ### Mutations
 - [x] `collectionCreate`
@@ -202,6 +207,9 @@ Status legend:
 - [ ] product scenario pack
 - [ ] mutation userErrors parity harness
 - [ ] empty/null behavior parity harness
+
+Current live-conformance status note:
+- product mutation capture harness exists for `productCreate` / `productUpdate` / `productDelete` via `corepack pnpm conformance:capture-product-mutations`, but current store credentials are blocked on Shopify `ACCESS_DENIED` / missing `write_products`
 
 ---
 

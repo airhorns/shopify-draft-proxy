@@ -1,0 +1,20 @@
+mutation ProductPublishParityPlan($input: ProductPublishInput!) {
+  productPublish(input: $input) {
+    product {
+      id
+      publishedOnCurrentPublication
+      availablePublicationsCount {
+        count
+        precision
+      }
+      resourcePublicationsCount {
+        count
+        precision
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

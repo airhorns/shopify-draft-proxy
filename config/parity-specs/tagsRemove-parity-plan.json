@@ -1,0 +1,19 @@
+{
+  "scenarioId": "tagsRemove-parity-plan",
+  "operationNames": [
+    "tagsRemove"
+  ],
+  "scenarioStatus": "planned",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity"
+  ],
+  "liveCaptureFiles": [],
+  "proxyRequest": {
+    "documentPath": null,
+    "variablesPath": null
+  },
+  "comparisonMode": "planned",
+  "notes": "Mutation parity for staged tag side effects is not yet automated against a safe live-write scenario pack."
+}

@@ -1,0 +1,19 @@
+{
+  "productId": "gid://shopify/Product/100",
+  "option": {
+    "id": "gid://shopify/ProductOption/200",
+    "name": "Shade",
+    "position": 2
+  },
+  "optionValuesToAdd": [
+    {
+      "name": "Blue"
+    }
+  ],
+  "optionValuesToUpdate": [
+    {
+      "id": "gid://shopify/ProductOptionValue/300",
+      "name": "Crimson"
+    }
+  ]
+}

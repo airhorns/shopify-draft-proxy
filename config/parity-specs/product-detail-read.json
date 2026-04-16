@@ -1,0 +1,21 @@
+{
+  "scenarioId": "product-detail-read",
+  "operationNames": [
+    "product"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "selected-fields",
+    "null-empty-behavior"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-detail.json"
+  ],
+  "proxyRequest": {
+    "documentPath": null,
+    "variablesPath": null
+  },
+  "comparisonMode": "capture-only",
+  "notes": "Fill in proxy request + comparator details as parity coverage is implemented."
+}

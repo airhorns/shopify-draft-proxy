@@ -1,0 +1,47 @@
+mutation ProductVariantsBulkUpdateParityPlan($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+  productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+    product {
+      id
+      totalInventory
+      tracksInventory
+      variants(first: 10) {
+        nodes {
+          id
+          title
+          sku
+          barcode
+          price
+          compareAtPrice
+          taxable
+          inventoryPolicy
+          inventoryQuantity
+          inventoryItem {
+            id
+            tracked
+            requiresShipping
+          }
+        }
+      }
+    }
+    productVariants {
+      id
+      title
+      sku
+      barcode
+      price
+      compareAtPrice
+      taxable
+      inventoryPolicy
+      inventoryQuantity
+      inventoryItem {
+        id
+        tracked
+        requiresShipping
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

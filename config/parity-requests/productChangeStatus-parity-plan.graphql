@@ -1,0 +1,13 @@
+mutation ProductChangeStatusParityPlan($productId: ID!, $status: ProductStatus!) {
+  productChangeStatus(productId: $productId, status: $status) {
+    product {
+      id
+      status
+      updatedAt
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

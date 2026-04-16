@@ -1,0 +1,462 @@
+{
+  "generatedAt": "2026-04-16T00:34:13.786Z",
+  "implementedOperations": [
+    {
+      "name": "product",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "product-detail-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "products",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "products-catalog-read",
+        "products-search-read",
+        "products-variant-search-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "productsCount",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "products-catalog-read",
+        "products-search-read",
+        "products-variant-search-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "productVariant",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "product-variants-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "inventoryItem",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "product-variants-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "collection",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "collection-detail-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "collections",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "collections-catalog-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "tagsAdd",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": [
+        "tagsAdd-parity-plan"
+      ],
+      "reason": "Mutation parity for staged tag side effects is not yet automated against a safe live-write scenario pack."
+    },
+    {
+      "name": "tagsRemove",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": [
+        "tagsRemove-parity-plan"
+      ],
+      "reason": "Mutation parity for staged tag side effects is not yet automated against a safe live-write scenario pack."
+    },
+    {
+      "name": "productCreate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": [
+        "productCreate-parity-plan"
+      ],
+      "reason": "Write-path parity for staged productCreate still needs a dedicated safe live scenario pack and payload comparison harness."
+    },
+    {
+      "name": "productUpdate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": [
+        "productUpdate-parity-plan"
+      ],
+      "reason": "Write-path parity for staged productUpdate still needs a dedicated safe live scenario pack and payload comparison harness."
+    },
+    {
+      "name": "productDelete",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": [
+        "productDelete-parity-plan"
+      ],
+      "reason": "Write-path parity for staged productDelete still needs a dedicated safe live scenario pack and payload comparison harness."
+    },
+    {
+      "name": "productDuplicate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": [
+        "productDuplicate-parity-plan"
+      ],
+      "reason": "Write-path parity for staged productDuplicate still needs a dedicated safe live scenario pack and payload comparison harness."
+    },
+    {
+      "name": "productSet",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": [
+        "productSet-parity-plan"
+      ],
+      "reason": "Write-path parity for staged productSet still needs a dedicated safe live scenario pack and payload comparison harness."
+    },
+    {
+      "name": "productChangeStatus",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": [
+        "productChangeStatus-parity-plan"
+      ],
+      "reason": "Write-path parity for staged productChangeStatus still needs a dedicated safe live scenario pack and payload comparison harness."
+    },
+    {
+      "name": "productPublish",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": [
+        "productPublish-parity-plan"
+      ],
+      "reason": "Write-path parity for staged productPublish still needs a dedicated safe live scenario pack and payload comparison harness."
+    },
+    {
+      "name": "productUnpublish",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": [
+        "productUnpublish-parity-plan"
+      ],
+      "reason": "Write-path parity for staged productUnpublish still needs a dedicated safe live scenario pack and payload comparison harness."
+    },
+    {
+      "name": "productOptionsCreate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": [
+        "productOptionsCreate-parity-plan"
+      ],
+      "reason": "Option mutation parity still needs dedicated live-write scenarios and payload assertions."
+    },
+    {
+      "name": "productOptionUpdate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": [
+        "productOptionUpdate-parity-plan"
+      ],
+      "reason": "Option mutation parity still needs dedicated live-write scenarios and payload assertions."
+    },
+    {
+      "name": "productOptionsDelete",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": [
+        "productOptionsDelete-parity-plan"
+      ],
+      "reason": "Option mutation parity still needs dedicated live-write scenarios and payload assertions."
+    },
+    {
+      "name": "productVariantsBulkCreate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": [
+        "productVariantsBulkCreate-parity-plan"
+      ],
+      "reason": "Variant bulk mutation parity still needs dedicated live-write scenarios and payload assertions."
+    },
+    {
+      "name": "productVariantsBulkUpdate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": [
+        "productVariantsBulkUpdate-parity-plan"
+      ],
+      "reason": "Variant bulk mutation parity still needs dedicated live-write scenarios and payload assertions."
+    },
+    {
+      "name": "productVariantsBulkDelete",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": [
+        "productVariantsBulkDelete-parity-plan"
+      ],
+      "reason": "Variant bulk mutation parity still needs dedicated live-write scenarios and payload assertions."
+    },
+    {
+      "name": "productVariantCreate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": [
+        "productVariantCreate-parity-plan"
+      ],
+      "reason": "Single-variant mutation parity still needs dedicated live-write scenarios and payload assertions."
+    },
+    {
+      "name": "productVariantUpdate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": [
+        "productVariantUpdate-parity-plan"
+      ],
+      "reason": "Single-variant mutation parity still needs dedicated live-write scenarios and payload assertions."
+    },
+    {
+      "name": "productVariantDelete",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": [
+        "productVariantDelete-parity-plan"
+      ],
+      "reason": "Single-variant mutation parity still needs dedicated live-write scenarios and payload assertions."
+    },
+    {
+      "name": "productCreateMedia",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": [
+        "productCreateMedia-parity-plan"
+      ],
+      "reason": "Media mutation parity still needs dedicated live-write scenarios and payload assertions."
+    },
+    {
+      "name": "productUpdateMedia",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": [
+        "productUpdateMedia-parity-plan"
+      ],
+      "reason": "Media mutation parity still needs dedicated live-write scenarios and payload assertions."
+    },
+    {
+      "name": "productDeleteMedia",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": [
+        "productDeleteMedia-parity-plan"
+      ],
+      "reason": "Media mutation parity still needs dedicated live-write scenarios and payload assertions."
+    },
+    {
+      "name": "inventoryAdjustQuantities",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": [
+        "inventoryAdjustQuantities-parity-plan"
+      ],
+      "reason": "Inventory adjustment parity still needs dedicated live-write scenarios and payload assertions."
+    },
+    {
+      "name": "metafieldsSet",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": [
+        "metafieldsSet-parity-plan"
+      ],
+      "reason": "Metafield mutation parity still needs dedicated live-write scenarios and payload assertions."
+    },
+    {
+      "name": "metafieldDelete",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": [
+        "metafieldDelete-parity-plan"
+      ],
+      "reason": "Metafield mutation parity still needs dedicated live-write scenarios and payload assertions."
+    },
+    {
+      "name": "collectionCreate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": [
+        "collectionCreate-parity-plan"
+      ],
+      "reason": "Collection mutation parity still needs dedicated live-write scenarios and payload assertions."
+    },
+    {
+      "name": "collectionUpdate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": [
+        "collectionUpdate-parity-plan"
+      ],
+      "reason": "Collection mutation parity still needs dedicated live-write scenarios and payload assertions."
+    },
+    {
+      "name": "collectionDelete",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": [
+        "collectionDelete-parity-plan"
+      ],
+      "reason": "Collection mutation parity still needs dedicated live-write scenarios and payload assertions."
+    },
+    {
+      "name": "collectionAddProducts",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": [
+        "collectionAddProducts-parity-plan"
+      ],
+      "reason": "Collection membership mutation parity still needs dedicated live-write scenarios and payload assertions."
+    },
+    {
+      "name": "collectionRemoveProducts",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": [
+        "collectionRemoveProducts-parity-plan"
+      ],
+      "reason": "Collection membership mutation parity still needs dedicated live-write scenarios and payload assertions."
+    }
+  ],
+  "coveredOperationNames": [
+    "product",
+    "products",
+    "productsCount",
+    "productVariant",
+    "inventoryItem",
+    "collection",
+    "collections"
+  ],
+  "declaredGapOperationNames": [
+    "tagsAdd",
+    "tagsRemove",
+    "productCreate",
+    "productUpdate",
+    "productDelete",
+    "productDuplicate",
+    "productSet",
+    "productChangeStatus",
+    "productPublish",
+    "productUnpublish",
+    "productOptionsCreate",
+    "productOptionUpdate",
+    "productOptionsDelete",
+    "productVariantsBulkCreate",
+    "productVariantsBulkUpdate",
+    "productVariantsBulkDelete",
+    "productVariantCreate",
+    "productVariantUpdate",
+    "productVariantDelete",
+    "productCreateMedia",
+    "productUpdateMedia",
+    "productDeleteMedia",
+    "inventoryAdjustQuantities",
+    "metafieldsSet",
+    "metafieldDelete",
+    "collectionCreate",
+    "collectionUpdate",
+    "collectionDelete",
+    "collectionAddProducts",
+    "collectionRemoveProducts"
+  ],
+  "capturedScenarioIds": [
+    "product-detail-read",
+    "products-catalog-read",
+    "products-search-read",
+    "products-variant-search-read",
+    "product-variants-read",
+    "product-metafields-read",
+    "collection-detail-read",
+    "collections-catalog-read"
+  ],
+  "plannedScenarioIds": [
+    "collectionAddProducts-parity-plan",
+    "collectionCreate-parity-plan",
+    "collectionDelete-parity-plan",
+    "collectionRemoveProducts-parity-plan",
+    "collectionUpdate-parity-plan",
+    "inventoryAdjustQuantities-parity-plan",
+    "metafieldDelete-parity-plan",
+    "metafieldsSet-parity-plan",
+    "productChangeStatus-parity-plan",
+    "productCreate-parity-plan",
+    "productCreateMedia-parity-plan",
+    "productDelete-parity-plan",
+    "productDeleteMedia-parity-plan",
+    "productDuplicate-parity-plan",
+    "productOptionUpdate-parity-plan",
+    "productOptionsCreate-parity-plan",
+    "productOptionsDelete-parity-plan",
+    "productPublish-parity-plan",
+    "productSet-parity-plan",
+    "productUnpublish-parity-plan",
+    "productUpdate-parity-plan",
+    "productUpdateMedia-parity-plan",
+    "productVariantCreate-parity-plan",
+    "productVariantDelete-parity-plan",
+    "productVariantUpdate-parity-plan",
+    "productVariantsBulkCreate-parity-plan",
+    "productVariantsBulkDelete-parity-plan",
+    "productVariantsBulkUpdate-parity-plan",
+    "tagsAdd-parity-plan",
+    "tagsRemove-parity-plan"
+  ]
+}

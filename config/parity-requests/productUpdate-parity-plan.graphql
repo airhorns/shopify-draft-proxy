@@ -1,0 +1,22 @@
+mutation ProductUpdateParityPlan($product: ProductUpdateInput!) {
+  productUpdate(product: $product) {
+    product {
+      id
+      title
+      vendor
+      productType
+      tags
+      descriptionHtml
+      templateSuffix
+      seo {
+        title
+        description
+      }
+      onlineStorePreviewUrl
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

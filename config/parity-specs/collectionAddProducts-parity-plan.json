@@ -1,0 +1,19 @@
+{
+  "scenarioId": "collectionAddProducts-parity-plan",
+  "operationNames": [
+    "collectionAddProducts"
+  ],
+  "scenarioStatus": "planned",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity"
+  ],
+  "liveCaptureFiles": [],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/collectionAddProducts-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/collectionAddProducts-parity-plan.variables.json"
+  },
+  "comparisonMode": "planned",
+  "notes": "Proxy request scaffold now mirrors the staged collection-membership add runtime slice (`collectionAddProducts(id:, productIds:)` returning `collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } }` plus `userErrors`). Next step is to capture the same safe membership-add scenario against the dev store and compare mutation payload plus immediate downstream `collection.products` / `product.collections` parity."
+}

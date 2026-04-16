@@ -1,0 +1,14 @@
+{
+  "productId": "gid://shopify/Product/100",
+  "options": [
+    {
+      "name": "Color",
+      "position": 1,
+      "values": [
+        {
+          "name": "Red"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "input": {
+    "name": "available",
+    "reason": "correction",
+    "referenceDocumentUri": "logistics://cycle-count/2026-04-15",
+    "changes": [
+      {
+        "inventoryItemId": "gid://shopify/InventoryItem/8001",
+        "locationId": "gid://shopify/Location/1",
+        "delta": -2
+      },
+      {
+        "inventoryItemId": "gid://shopify/InventoryItem/8002",
+        "locationId": "gid://shopify/Location/1",
+        "delta": 4
+      }
+    ]
+  }
+}

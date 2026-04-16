@@ -1,0 +1,19 @@
+{
+  "scenarioId": "productUpdate-parity-plan",
+  "operationNames": [
+    "productUpdate"
+  ],
+  "scenarioStatus": "planned",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity"
+  ],
+  "liveCaptureFiles": [],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/productUpdate-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/productUpdate-parity-plan.variables.json"
+  },
+  "comparisonMode": "planned",
+  "notes": "Proxy request scaffold now mirrors the staged rich-product runtime slice (`title`, `vendor`, `productType`, `tags`, `descriptionHtml`, `templateSuffix`, `seo`, preserved `onlineStorePreviewUrl`). Next step is to run the same safe update scenario against a dedicated dev-store write pack and compare mutation payload plus immediate downstream product read parity."
+}

@@ -1,0 +1,19 @@
+{
+  "scenarioId": "productSet-parity-plan",
+  "operationNames": [
+    "productSet"
+  ],
+  "scenarioStatus": "planned",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity"
+  ],
+  "liveCaptureFiles": [],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/productSet-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/productSet-parity-plan.variables.json"
+  },
+  "comparisonMode": "planned",
+  "notes": "Proxy request scaffold now mirrors the staged synchronous productSet create slice (scalar/detail fields plus `productOptions`, `variants`, and `metafields`). Next step is to run the same safe productSet scenario against a dedicated dev-store write pack and compare mutation payload plus immediate downstream product read parity."
+}

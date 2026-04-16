@@ -1,0 +1,24 @@
+mutation CollectionCreateParityPlan($input: CollectionInput!) {
+  collectionCreate(input: $input) {
+    collection {
+      id
+      title
+      handle
+      products(first: 10) {
+        nodes {
+          id
+          title
+          handle
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

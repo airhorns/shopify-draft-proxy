@@ -1,0 +1,19 @@
+{
+  "scenarioId": "productChangeStatus-parity-plan",
+  "operationNames": [
+    "productChangeStatus"
+  ],
+  "scenarioStatus": "planned",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity"
+  ],
+  "liveCaptureFiles": [],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/productChangeStatus-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/productChangeStatus-parity-plan.variables.json"
+  },
+  "comparisonMode": "planned",
+  "notes": "Proxy request scaffold now mirrors the staged status-only runtime slice (`productChangeStatus(productId:, status:)` returning `product { id status updatedAt }` plus `userErrors`). Next step is to run the same safe status-change scenario against a dedicated dev-store write pack and compare mutation payload plus immediate downstream status-filter read parity."
+}
