@@ -312,6 +312,7 @@ Takeaway:
 - repeated replacement semantics are especially important for `productSet`, because its `collections` input is a product-scoped replacement list rather than an additive patch
 
 ### 15c. Standalone collection staging has to overlay — not replace — membership-derived visibility
+
 The first `collectionCreate` / `collectionUpdate` / `collectionDelete` pass added standalone collection state so the proxy can represent empty collections before any products are attached.
 
 That uncovered an easy trap:
@@ -329,6 +330,7 @@ Takeaway:
 - nested `product.collections` should overlay standalone staged `title` / `handle` edits onto membership rows instead of inventing a second membership mutation path prematurely
 
 ### 15d. Collection membership mutations need product-scoped empty-family replacement markers
+
 The first `collectionAddProducts` / `collectionRemoveProducts` pass exposed a subtle overlay bug in the normalized store.
 
 What went wrong:
@@ -345,6 +347,7 @@ Takeaway:
 - this is the collection-membership version of the broader child-family replacement rule already learned for `productSet`
 
 ### 15e. Collection add/remove parity is asymmetric in a useful way
+
 Public Shopify docs for the real mutations already force two different local semantics:
 
 - `collectionAddProducts` is atomic for duplicate membership: if any requested product is already in the collection, return a `userErrors` entry and add none of them

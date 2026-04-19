@@ -85,26 +85,32 @@ describe('getOperationCapability anonymous operations', () => {
   });
 
   it('classifies anonymous product variant bulk mutations by root field name', () => {
-    expect(getOperationCapability({ type: 'mutation', name: null, rootFields: ['productVariantsBulkCreate'] })).toEqual({
-      domain: 'products',
-      execution: 'stage-locally',
-      operationName: 'productVariantsBulkCreate',
-      type: 'mutation',
-    });
+    expect(getOperationCapability({ type: 'mutation', name: null, rootFields: ['productVariantsBulkCreate'] })).toEqual(
+      {
+        domain: 'products',
+        execution: 'stage-locally',
+        operationName: 'productVariantsBulkCreate',
+        type: 'mutation',
+      },
+    );
 
-    expect(getOperationCapability({ type: 'mutation', name: null, rootFields: ['productVariantsBulkUpdate'] })).toEqual({
-      domain: 'products',
-      execution: 'stage-locally',
-      operationName: 'productVariantsBulkUpdate',
-      type: 'mutation',
-    });
+    expect(getOperationCapability({ type: 'mutation', name: null, rootFields: ['productVariantsBulkUpdate'] })).toEqual(
+      {
+        domain: 'products',
+        execution: 'stage-locally',
+        operationName: 'productVariantsBulkUpdate',
+        type: 'mutation',
+      },
+    );
 
-    expect(getOperationCapability({ type: 'mutation', name: null, rootFields: ['productVariantsBulkDelete'] })).toEqual({
-      domain: 'products',
-      execution: 'stage-locally',
-      operationName: 'productVariantsBulkDelete',
-      type: 'mutation',
-    });
+    expect(getOperationCapability({ type: 'mutation', name: null, rootFields: ['productVariantsBulkDelete'] })).toEqual(
+      {
+        domain: 'products',
+        execution: 'stage-locally',
+        operationName: 'productVariantsBulkDelete',
+        type: 'mutation',
+      },
+    );
   });
 
   it('classifies anonymous singular product variant mutations by root field name', () => {
@@ -177,12 +183,14 @@ describe('getOperationCapability anonymous operations', () => {
   });
 
   it('classifies anonymous inventory adjustments by root field name', () => {
-    expect(getOperationCapability({ type: 'mutation', name: null, rootFields: ['inventoryAdjustQuantities'] })).toEqual({
-      domain: 'products',
-      execution: 'stage-locally',
-      operationName: 'inventoryAdjustQuantities',
-      type: 'mutation',
-    });
+    expect(getOperationCapability({ type: 'mutation', name: null, rootFields: ['inventoryAdjustQuantities'] })).toEqual(
+      {
+        domain: 'products',
+        execution: 'stage-locally',
+        operationName: 'inventoryAdjustQuantities',
+        type: 'mutation',
+      },
+    );
   });
 
   it('classifies anonymous products query by root field name', () => {

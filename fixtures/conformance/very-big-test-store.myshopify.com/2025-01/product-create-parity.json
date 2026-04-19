@@ -6,11 +6,7 @@
         "status": "DRAFT",
         "vendor": "HERMES",
         "productType": "ACCESSORIES",
-        "tags": [
-          "conformance",
-          "product-mutation",
-          "1776299742511"
-        ],
+        "tags": ["conformance", "product-mutation", "1776299742511"],
         "descriptionHtml": "<p>Hermes product mutation conformance 1776299742511</p>",
         "templateSuffix": "product-mutation-parity",
         "seo": {
@@ -29,11 +25,7 @@
             "status": "DRAFT",
             "vendor": "HERMES",
             "productType": "ACCESSORIES",
-            "tags": [
-              "1776299742511",
-              "conformance",
-              "product-mutation"
-            ],
+            "tags": ["1776299742511", "conformance", "product-mutation"],
             "descriptionHtml": "<p>Hermes product mutation conformance 1776299742511</p>",
             "templateSuffix": "product-mutation-parity",
             "seo": {
@@ -66,11 +58,7 @@
         "status": "DRAFT",
         "vendor": "HERMES",
         "productType": "ACCESSORIES",
-        "tags": [
-          "1776299742511",
-          "conformance",
-          "product-mutation"
-        ],
+        "tags": ["1776299742511", "conformance", "product-mutation"],
         "descriptionHtml": "<p>Hermes product mutation conformance 1776299742511</p>",
         "templateSuffix": "product-mutation-parity",
         "seo": {

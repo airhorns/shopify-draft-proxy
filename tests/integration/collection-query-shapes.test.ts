@@ -273,12 +273,10 @@ describe('collection query shapes', () => {
 
     const app = createApp({ ...config, readMode: 'snapshot' }).callback();
 
-    const firstResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'query { collections(first: 1) { edges { cursor node { id title handle } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }',
-      });
+    const firstResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query { collections(first: 1) { edges { cursor node { id title handle } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }',
+    });
 
     expect(firstResponse.status).toBe(200);
     expect(firstResponse.body).toEqual({

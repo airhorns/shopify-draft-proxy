@@ -34,22 +34,19 @@ const expectedLiveFamilies = [
     operationName: 'productOptionsCreate',
     scenarioId: 'product-options-create-live-parity',
     paritySpecPath: 'config/parity-specs/productOptionsCreate-parity-plan.json',
-    captureFile:
-      'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-options-create-parity.json',
+    captureFile: 'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-options-create-parity.json',
   },
   {
     operationName: 'productOptionUpdate',
     scenarioId: 'product-option-update-live-parity',
     paritySpecPath: 'config/parity-specs/productOptionUpdate-parity-plan.json',
-    captureFile:
-      'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-option-update-parity.json',
+    captureFile: 'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-option-update-parity.json',
   },
   {
     operationName: 'productOptionsDelete',
     scenarioId: 'product-options-delete-live-parity',
     paritySpecPath: 'config/parity-specs/productOptionsDelete-parity-plan.json',
-    captureFile:
-      'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-options-delete-parity.json',
+    captureFile: 'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-options-delete-parity.json',
   },
 ] as const;
 

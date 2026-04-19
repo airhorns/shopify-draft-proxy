@@ -62,7 +62,9 @@ describe('getOperationCapability', () => {
   });
 
   it('marks productChangeStatus as a locally staged mutation', () => {
-    expect(getOperationCapability({ type: 'mutation', name: 'ProductChangeStatus', rootFields: ['productChangeStatus'] })).toEqual({
+    expect(
+      getOperationCapability({ type: 'mutation', name: 'ProductChangeStatus', rootFields: ['productChangeStatus'] }),
+    ).toEqual({
       domain: 'products',
       execution: 'stage-locally',
       operationName: 'ProductChangeStatus',
@@ -71,14 +73,18 @@ describe('getOperationCapability', () => {
   });
 
   it('marks product publication mutations as locally staged mutations', () => {
-    expect(getOperationCapability({ type: 'mutation', name: 'ProductPublish', rootFields: ['productPublish'] })).toEqual({
+    expect(
+      getOperationCapability({ type: 'mutation', name: 'ProductPublish', rootFields: ['productPublish'] }),
+    ).toEqual({
       domain: 'products',
       execution: 'stage-locally',
       operationName: 'ProductPublish',
       type: 'mutation',
     });
 
-    expect(getOperationCapability({ type: 'mutation', name: 'ProductUnpublish', rootFields: ['productUnpublish'] })).toEqual({
+    expect(
+      getOperationCapability({ type: 'mutation', name: 'ProductUnpublish', rootFields: ['productUnpublish'] }),
+    ).toEqual({
       domain: 'products',
       execution: 'stage-locally',
       operationName: 'ProductUnpublish',
@@ -103,7 +109,9 @@ describe('getOperationCapability', () => {
   });
 
   it('marks productDuplicate as a locally staged mutation', () => {
-    expect(getOperationCapability({ type: 'mutation', name: 'ProductDuplicate', rootFields: ['productDuplicate'] })).toEqual({
+    expect(
+      getOperationCapability({ type: 'mutation', name: 'ProductDuplicate', rootFields: ['productDuplicate'] }),
+    ).toEqual({
       domain: 'products',
       execution: 'stage-locally',
       operationName: 'ProductDuplicate',
@@ -121,21 +129,27 @@ describe('getOperationCapability', () => {
   });
 
   it('marks product option mutations as locally staged mutations', () => {
-    expect(getOperationCapability({ type: 'mutation', name: 'ProductOptionsCreate', rootFields: ['productOptionsCreate'] })).toEqual({
+    expect(
+      getOperationCapability({ type: 'mutation', name: 'ProductOptionsCreate', rootFields: ['productOptionsCreate'] }),
+    ).toEqual({
       domain: 'products',
       execution: 'stage-locally',
       operationName: 'ProductOptionsCreate',
       type: 'mutation',
     });
 
-    expect(getOperationCapability({ type: 'mutation', name: 'ProductOptionUpdate', rootFields: ['productOptionUpdate'] })).toEqual({
+    expect(
+      getOperationCapability({ type: 'mutation', name: 'ProductOptionUpdate', rootFields: ['productOptionUpdate'] }),
+    ).toEqual({
       domain: 'products',
       execution: 'stage-locally',
       operationName: 'ProductOptionUpdate',
       type: 'mutation',
     });
 
-    expect(getOperationCapability({ type: 'mutation', name: 'ProductOptionsDelete', rootFields: ['productOptionsDelete'] })).toEqual({
+    expect(
+      getOperationCapability({ type: 'mutation', name: 'ProductOptionsDelete', rootFields: ['productOptionsDelete'] }),
+    ).toEqual({
       domain: 'products',
       execution: 'stage-locally',
       operationName: 'ProductOptionsDelete',
@@ -144,21 +158,39 @@ describe('getOperationCapability', () => {
   });
 
   it('marks product variant bulk mutations as locally staged mutations', () => {
-    expect(getOperationCapability({ type: 'mutation', name: 'ProductVariantsBulkCreate', rootFields: ['productVariantsBulkCreate'] })).toEqual({
+    expect(
+      getOperationCapability({
+        type: 'mutation',
+        name: 'ProductVariantsBulkCreate',
+        rootFields: ['productVariantsBulkCreate'],
+      }),
+    ).toEqual({
       domain: 'products',
       execution: 'stage-locally',
       operationName: 'ProductVariantsBulkCreate',
       type: 'mutation',
     });
 
-    expect(getOperationCapability({ type: 'mutation', name: 'ProductVariantsBulkUpdate', rootFields: ['productVariantsBulkUpdate'] })).toEqual({
+    expect(
+      getOperationCapability({
+        type: 'mutation',
+        name: 'ProductVariantsBulkUpdate',
+        rootFields: ['productVariantsBulkUpdate'],
+      }),
+    ).toEqual({
       domain: 'products',
       execution: 'stage-locally',
       operationName: 'ProductVariantsBulkUpdate',
       type: 'mutation',
     });
 
-    expect(getOperationCapability({ type: 'mutation', name: 'ProductVariantsBulkDelete', rootFields: ['productVariantsBulkDelete'] })).toEqual({
+    expect(
+      getOperationCapability({
+        type: 'mutation',
+        name: 'ProductVariantsBulkDelete',
+        rootFields: ['productVariantsBulkDelete'],
+      }),
+    ).toEqual({
       domain: 'products',
       execution: 'stage-locally',
       operationName: 'ProductVariantsBulkDelete',
@@ -167,21 +199,27 @@ describe('getOperationCapability', () => {
   });
 
   it('marks singular product variant mutations as locally staged mutations', () => {
-    expect(getOperationCapability({ type: 'mutation', name: 'ProductVariantCreate', rootFields: ['productVariantCreate'] })).toEqual({
+    expect(
+      getOperationCapability({ type: 'mutation', name: 'ProductVariantCreate', rootFields: ['productVariantCreate'] }),
+    ).toEqual({
       domain: 'products',
       execution: 'stage-locally',
       operationName: 'ProductVariantCreate',
       type: 'mutation',
     });
 
-    expect(getOperationCapability({ type: 'mutation', name: 'ProductVariantUpdate', rootFields: ['productVariantUpdate'] })).toEqual({
+    expect(
+      getOperationCapability({ type: 'mutation', name: 'ProductVariantUpdate', rootFields: ['productVariantUpdate'] }),
+    ).toEqual({
       domain: 'products',
       execution: 'stage-locally',
       operationName: 'ProductVariantUpdate',
       type: 'mutation',
     });
 
-    expect(getOperationCapability({ type: 'mutation', name: 'ProductVariantDelete', rootFields: ['productVariantDelete'] })).toEqual({
+    expect(
+      getOperationCapability({ type: 'mutation', name: 'ProductVariantDelete', rootFields: ['productVariantDelete'] }),
+    ).toEqual({
       domain: 'products',
       execution: 'stage-locally',
       operationName: 'ProductVariantDelete',
@@ -197,7 +235,9 @@ describe('getOperationCapability', () => {
       type: 'mutation',
     });
 
-    expect(getOperationCapability({ type: 'mutation', name: 'MetafieldDelete', rootFields: ['metafieldDelete'] })).toEqual({
+    expect(
+      getOperationCapability({ type: 'mutation', name: 'MetafieldDelete', rootFields: ['metafieldDelete'] }),
+    ).toEqual({
       domain: 'products',
       execution: 'stage-locally',
       operationName: 'MetafieldDelete',
@@ -206,21 +246,27 @@ describe('getOperationCapability', () => {
   });
 
   it('marks collection mutations as locally staged mutations', () => {
-    expect(getOperationCapability({ type: 'mutation', name: 'CollectionCreate', rootFields: ['collectionCreate'] })).toEqual({
+    expect(
+      getOperationCapability({ type: 'mutation', name: 'CollectionCreate', rootFields: ['collectionCreate'] }),
+    ).toEqual({
       domain: 'products',
       execution: 'stage-locally',
       operationName: 'CollectionCreate',
       type: 'mutation',
     });
 
-    expect(getOperationCapability({ type: 'mutation', name: 'CollectionUpdate', rootFields: ['collectionUpdate'] })).toEqual({
+    expect(
+      getOperationCapability({ type: 'mutation', name: 'CollectionUpdate', rootFields: ['collectionUpdate'] }),
+    ).toEqual({
       domain: 'products',
       execution: 'stage-locally',
       operationName: 'CollectionUpdate',
       type: 'mutation',
     });
 
-    expect(getOperationCapability({ type: 'mutation', name: 'CollectionDelete', rootFields: ['collectionDelete'] })).toEqual({
+    expect(
+      getOperationCapability({ type: 'mutation', name: 'CollectionDelete', rootFields: ['collectionDelete'] }),
+    ).toEqual({
       domain: 'products',
       execution: 'stage-locally',
       operationName: 'CollectionDelete',
@@ -229,21 +275,27 @@ describe('getOperationCapability', () => {
   });
 
   it('marks product media mutations as locally staged mutations', () => {
-    expect(getOperationCapability({ type: 'mutation', name: 'ProductCreateMedia', rootFields: ['productCreateMedia'] })).toEqual({
+    expect(
+      getOperationCapability({ type: 'mutation', name: 'ProductCreateMedia', rootFields: ['productCreateMedia'] }),
+    ).toEqual({
       domain: 'products',
       execution: 'stage-locally',
       operationName: 'ProductCreateMedia',
       type: 'mutation',
     });
 
-    expect(getOperationCapability({ type: 'mutation', name: 'ProductUpdateMedia', rootFields: ['productUpdateMedia'] })).toEqual({
+    expect(
+      getOperationCapability({ type: 'mutation', name: 'ProductUpdateMedia', rootFields: ['productUpdateMedia'] }),
+    ).toEqual({
       domain: 'products',
       execution: 'stage-locally',
       operationName: 'ProductUpdateMedia',
       type: 'mutation',
     });
 
-    expect(getOperationCapability({ type: 'mutation', name: 'ProductDeleteMedia', rootFields: ['productDeleteMedia'] })).toEqual({
+    expect(
+      getOperationCapability({ type: 'mutation', name: 'ProductDeleteMedia', rootFields: ['productDeleteMedia'] }),
+    ).toEqual({
       domain: 'products',
       execution: 'stage-locally',
       operationName: 'ProductDeleteMedia',
@@ -252,7 +304,13 @@ describe('getOperationCapability', () => {
   });
 
   it('marks inventoryAdjustQuantities as a locally staged mutation', () => {
-    expect(getOperationCapability({ type: 'mutation', name: 'InventoryAdjustQuantities', rootFields: ['inventoryAdjustQuantities'] })).toEqual({
+    expect(
+      getOperationCapability({
+        type: 'mutation',
+        name: 'InventoryAdjustQuantities',
+        rootFields: ['inventoryAdjustQuantities'],
+      }),
+    ).toEqual({
       domain: 'products',
       execution: 'stage-locally',
       operationName: 'InventoryAdjustQuantities',
@@ -261,7 +319,9 @@ describe('getOperationCapability', () => {
   });
 
   it('falls back to passthrough for unknown operations', () => {
-    expect(getOperationCapability({ type: 'mutation', name: 'InventoryActivate', rootFields: ['inventoryActivate'] })).toEqual({
+    expect(
+      getOperationCapability({ type: 'mutation', name: 'InventoryActivate', rootFields: ['inventoryActivate'] }),
+    ).toEqual({
       domain: 'unknown',
       execution: 'passthrough',
       operationName: 'InventoryActivate',

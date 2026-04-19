@@ -1,17 +1,9 @@
 {
   "scenarioId": "product-metafields-read",
-  "operationNames": [
-    "product"
-  ],
+  "operationNames": ["product"],
   "scenarioStatus": "captured",
-  "assertionKinds": [
-    "payload-shape",
-    "selected-fields",
-    "connection-shape"
-  ],
-  "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-metafields.json"
-  ],
+  "assertionKinds": ["payload-shape", "selected-fields", "connection-shape"],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-metafields.json"],
   "proxyRequest": {
     "documentPath": null,
     "variablesPath": null
