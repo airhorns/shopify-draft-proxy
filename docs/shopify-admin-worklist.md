@@ -222,6 +222,7 @@ Status legend:
 - [ ] normalized snapshot compiler
 - [ ] proxy parity runner
 - [ ] operation coverage matrix
+- [x] CI conformance status reporting (main baseline artifact plus idempotent PR comment with scenario totals and improvement over main)
 - [ ] product scenario pack
 - [ ] mutation userErrors parity harness
 - [ ] empty/null behavior parity harness

@@ -6,6 +6,12 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+  actions: read
+  issues: write
+  pull-requests: read
+
 jobs:
   verify:
     name: Verify
@@ -50,8 +56,54 @@ jobs:
       - name: Check conformance coverage
         run: corepack pnpm conformance:check
 
+      - name: Find latest main conformance baseline
+        id: main_conformance_baseline
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: corepack pnpm exec node ./scripts/find-main-conformance-baseline.mjs
+
+      - name: Download latest main conformance baseline
+        if: github.event_name == 'pull_request' && steps.main_conformance_baseline.outputs.found == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ steps.main_conformance_baseline.outputs.artifact_id }}
+          path: .conformance/main
+          merge-multiple: true
+
+      - name: Fall back to checked-in main conformance baseline
+        if: github.event_name == 'pull_request' && steps.main_conformance_baseline.outputs.found != 'true'
+        run: |
+          mkdir -p .conformance/main
+          git fetch origin main:refs/remotes/origin/main --depth=1
+          git show origin/main:docs/generated/conformance-status.json > .conformance/main/conformance-status-report.json
+
+      - name: Generate conformance status report
+        id: conformance_status
+        run: >
+          corepack pnpm conformance:status --
+          --baseline .conformance/main/conformance-status-report.json
+          --output-json .conformance/current/conformance-status-report.json
+          --output-markdown .conformance/current/conformance-status-comment.md
+
       - name: Build
         run: corepack pnpm build
 
       - name: Test
         run: corepack pnpm test
+
+      - name: Upload main conformance baseline
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: conformance-status-main
+          path: .conformance/current/conformance-status-report.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Add or update PR conformance comment
+        if: github.event_name == 'pull_request' && always() && steps.conformance_status.outcome == 'success'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: corepack pnpm exec node ./scripts/upsert-pr-conformance-comment.mjs --body-file .conformance/current/conformance-status-comment.md
