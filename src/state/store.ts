@@ -57,7 +57,10 @@ function buildCollectionStorageKey(collection: ProductCollectionRecord): string 
   return `${collection.productId}::${collection.id}`;
 }
 
-function mergeCollectionRecords(base: CollectionRecord | null, staged: CollectionRecord | null): CollectionRecord | null {
+function mergeCollectionRecords(
+  base: CollectionRecord | null,
+  staged: CollectionRecord | null,
+): CollectionRecord | null {
   if (!base && !staged) {
     return null;
   }
@@ -344,7 +347,10 @@ export class InMemoryStore {
       return null;
     }
 
-    return mergeProductRecords(this.baseState.products[productId] ?? null, this.stagedState.products[productId] ?? null);
+    return mergeProductRecords(
+      this.baseState.products[productId] ?? null,
+      this.stagedState.products[productId] ?? null,
+    );
   }
 
   listEffectiveProducts(): ProductRecord[] {
@@ -356,7 +362,10 @@ export class InMemoryStore {
         continue;
       }
 
-      const product = mergeProductRecords(this.baseState.products[productId] ?? null, this.stagedState.products[productId] ?? null);
+      const product = mergeProductRecords(
+        this.baseState.products[productId] ?? null,
+        this.stagedState.products[productId] ?? null,
+      );
       if (product) {
         merged.push(product);
       }
@@ -463,7 +472,9 @@ export class InMemoryStore {
     }
 
     for (const product of this.listEffectiveProducts()) {
-      const membership = this.getEffectiveCollectionsByProductId(product.id).find((collection) => collection.id === collectionId);
+      const membership = this.getEffectiveCollectionsByProductId(product.id).find(
+        (collection) => collection.id === collectionId,
+      );
       if (membership) {
         return {
           id: membership.id,
@@ -479,7 +490,10 @@ export class InMemoryStore {
   listEffectiveCollections(): CollectionRecord[] {
     const collectionsById = new Map<string, CollectionRecord>();
 
-    for (const collectionId of new Set([...Object.keys(this.baseState.collections), ...Object.keys(this.stagedState.collections)])) {
+    for (const collectionId of new Set([
+      ...Object.keys(this.baseState.collections),
+      ...Object.keys(this.stagedState.collections),
+    ])) {
       const collection = this.getEffectiveCollectionById(collectionId);
       if (collection) {
         collectionsById.set(collection.id, collection);
@@ -498,7 +512,9 @@ export class InMemoryStore {
       }
     }
 
-    return Array.from(collectionsById.values()).sort((left, right) => left.title.localeCompare(right.title) || compareResourceIds(left.id, right.id));
+    return Array.from(collectionsById.values()).sort(
+      (left, right) => left.title.localeCompare(right.title) || compareResourceIds(left.id, right.id),
+    );
   }
 
   getEffectiveCollectionsByProductId(productId: string): ProductCollectionRecord[] {
@@ -510,12 +526,11 @@ export class InMemoryStore {
       .filter((collection) => collection.productId === productId)
       .map((collection) => structuredClone(collection));
 
-    const sourceCollections =
-      this.stagedCollectionFamilies.has(productId)
-        ? stagedCollections
-        : Object.values(this.baseState.productCollections)
-            .filter((collection) => collection.productId === productId)
-            .map((collection) => structuredClone(collection));
+    const sourceCollections = this.stagedCollectionFamilies.has(productId)
+      ? stagedCollections
+      : Object.values(this.baseState.productCollections)
+          .filter((collection) => collection.productId === productId)
+          .map((collection) => structuredClone(collection));
 
     const visibleCollections = sourceCollections
       .filter((collection) => !this.stagedState.deletedCollectionIds[collection.id])
@@ -535,7 +550,9 @@ export class InMemoryStore {
         };
       });
 
-    return visibleCollections.sort((left, right) => left.title.localeCompare(right.title) || compareResourceIds(left.id, right.id));
+    return visibleCollections.sort(
+      (left, right) => left.title.localeCompare(right.title) || compareResourceIds(left.id, right.id),
+    );
   }
 
   getEffectiveMediaByProductId(productId: string): ProductMediaRecord[] {
@@ -575,7 +592,9 @@ export class InMemoryStore {
 
     return sourceMetafields.sort(
       (left, right) =>
-        left.namespace.localeCompare(right.namespace) || left.key.localeCompare(right.key) || left.id.localeCompare(right.id),
+        left.namespace.localeCompare(right.namespace) ||
+        left.key.localeCompare(right.key) ||
+        left.id.localeCompare(right.id),
     );
   }
 

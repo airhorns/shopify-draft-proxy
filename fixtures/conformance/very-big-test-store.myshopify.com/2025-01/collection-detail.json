@@ -14,12 +14,7 @@
               "handle": "converse-chuck-taylor-all-star-lo",
               "vendor": "CONVERSE",
               "productType": "SHOES",
-              "tags": [
-                "converse",
-                "egnition-sample-data",
-                "men",
-                "summer"
-              ],
+              "tags": ["converse", "egnition-sample-data", "men", "summer"],
               "totalInventory": 121,
               "tracksInventory": true
             }
@@ -32,12 +27,7 @@
               "handle": "converse-chuck-taylor-all-star-ii-hi",
               "vendor": "CONVERSE",
               "productType": "SHOES",
-              "tags": [
-                "converse",
-                "egnition-sample-data",
-                "men",
-                "summer"
-              ],
+              "tags": ["converse", "egnition-sample-data", "men", "summer"],
               "totalInventory": 81,
               "tracksInventory": true
             }
@@ -50,11 +40,7 @@
               "handle": "converse-toddler-chuck-taylor-all-star-axel-mid",
               "vendor": "CONVERSE",
               "productType": "SHOES",
-              "tags": [
-                "converse",
-                "egnition-sample-data",
-                "kid"
-              ],
+              "tags": ["converse", "egnition-sample-data", "kid"],
               "totalInventory": 45,
               "tracksInventory": true
             }

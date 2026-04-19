@@ -12,7 +12,9 @@ describe('productOptionsDelete parity plan scaffold', () => {
     };
 
     expect(spec.proxyRequest?.documentPath).toBe('config/parity-requests/productOptionsDelete-parity-plan.graphql');
-    expect(spec.proxyRequest?.variablesPath).toBe('config/parity-requests/productOptionsDelete-parity-plan.variables.json');
+    expect(spec.proxyRequest?.variablesPath).toBe(
+      'config/parity-requests/productOptionsDelete-parity-plan.variables.json',
+    );
 
     const documentPath = resolve(repoRoot, spec.proxyRequest!.documentPath!);
     const variablesPath = resolve(repoRoot, spec.proxyRequest!.variablesPath!);

@@ -13,6 +13,7 @@ const requiredVars = [
 
 const missingVars = requiredVars.filter((name) => !process.env[name]);
 if (missingVars.length > 0) {
+  // oxlint-disable-next-line no-console -- CLI error output is intentionally written to stderr.
   console.error(`Missing required environment variables: ${missingVars.join(', ')}`);
   process.exit(1);
 }
@@ -274,6 +275,7 @@ try {
     await writeFile(path.join(outputDir, filename), `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
   }
 
+  // oxlint-disable-next-line no-console -- CLI capture result is intentionally written to stdout.
   console.log(
     JSON.stringify(
       {
@@ -290,6 +292,7 @@ try {
   const blocker = parseWriteScopeBlocker(error?.result ?? null);
   if (blocker) {
     await writeScopeBlocker(blocker);
+    // oxlint-disable-next-line no-console -- CLI blocker result is intentionally written to stdout.
     console.log(
       JSON.stringify(
         {

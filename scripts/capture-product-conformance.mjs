@@ -11,6 +11,7 @@ const requiredVars = [
 
 const missingVars = requiredVars.filter((name) => !process.env[name]);
 if (missingVars.length > 0) {
+  // oxlint-disable-next-line no-console -- CLI error output is intentionally written to stderr.
   console.error(`Missing required environment variables: ${missingVars.join(', ')}`);
   process.exit(1);
 }
@@ -295,23 +296,23 @@ const detail = await runGraphql(detailQuery, { id: sampleProductId });
 const variants = await runGraphql(variantsQuery, { id: sampleProductId });
 const search = await runGraphql(searchQuery);
 const variantNodes = variants.data?.product?.variants?.edges?.map((edge) => edge?.node).filter(Boolean) ?? [];
-const sampleSku = variantNodes.find((variant) => typeof variant?.sku === 'string' && variant.sku.length > 0)?.sku ?? null;
-const sampleBarcode = variantNodes.find((variant) => typeof variant?.barcode === 'string' && variant.barcode.length > 0)?.barcode ?? null;
+const sampleSku =
+  variantNodes.find((variant) => typeof variant?.sku === 'string' && variant.sku.length > 0)?.sku ?? null;
+const sampleBarcode =
+  variantNodes.find((variant) => typeof variant?.barcode === 'string' && variant.barcode.length > 0)?.barcode ?? null;
 const variantSearch = {
-  sku:
-    sampleSku
-      ? {
-          value: sampleSku,
-          response: await runGraphql(buildVariantSearchQuery('sku', sampleSku)),
-        }
-      : null,
-  barcode:
-    sampleBarcode
-      ? {
-          value: sampleBarcode,
-          response: await runGraphql(buildVariantSearchQuery('barcode', sampleBarcode)),
-        }
-      : null,
+  sku: sampleSku
+    ? {
+        value: sampleSku,
+        response: await runGraphql(buildVariantSearchQuery('sku', sampleSku)),
+      }
+    : null,
+  barcode: sampleBarcode
+    ? {
+        value: sampleBarcode,
+        response: await runGraphql(buildVariantSearchQuery('barcode', sampleBarcode)),
+      }
+    : null,
 };
 const metafieldsConnection = await runGraphql(metafieldsConnectionQuery, { id: sampleProductId });
 const firstMetafield = metafieldsConnection.data?.product?.metafields?.edges?.[0]?.node;
@@ -340,6 +341,7 @@ for (const [filename, payload] of Object.entries(captures)) {
   await writeFile(path.join(outputDir, filename), `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
 }
 
+// oxlint-disable-next-line no-console -- CLI capture result is intentionally written to stdout.
 console.log(
   JSON.stringify(
     {

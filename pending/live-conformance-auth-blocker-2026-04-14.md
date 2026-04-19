@@ -28,6 +28,7 @@ During this run (originally, then reconfirmed on the later `productChangeStatus`
 ## Options considered
 
 ### 1. Keep relying on Shopify CLI account session refresh
+
 - Pros:
   - matches the current host-specific workflow
   - avoids introducing a new store token right now
@@ -36,6 +37,7 @@ During this run (originally, then reconfirmed on the later `productChangeStatus`
   - once the stored pair is spent, cron cannot recover autonomously
 
 ### 2. Switch conformance to a dedicated custom-app Admin API token
+
 - Pros:
   - stable credential for unattended probe/capture runs
   - avoids Shopify account-session expiry and rotation behavior

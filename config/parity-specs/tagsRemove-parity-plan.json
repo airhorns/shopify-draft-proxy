@@ -1,17 +1,9 @@
 {
   "scenarioId": "tags-remove-live-parity",
-  "operationNames": [
-    "tagsRemove"
-  ],
+  "operationNames": ["tagsRemove"],
   "scenarioStatus": "captured",
-  "assertionKinds": [
-    "payload-shape",
-    "user-errors-parity",
-    "downstream-read-parity"
-  ],
-  "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/tags-remove-parity.json"
-  ],
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/tags-remove-parity.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/tagsRemove-parity-plan.graphql",
     "variablesPath": "config/parity-requests/tagsRemove-parity-plan.variables.json"

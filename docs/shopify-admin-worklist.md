@@ -24,6 +24,7 @@ Status legend:
 ## Product domain
 
 ### Queries
+
 - [x] `product` (id-based reads, staged overlay, snapshot empty/null behavior)
   - [x] richer detail slice on product reads (`descriptionHtml`, `onlineStorePreviewUrl`, `templateSuffix`, `seo { title description }`, `category { id fullName }`)
 - [x] `products` (nodes/edges/pageInfo with simple first slicing, staged overlay)
@@ -60,6 +61,7 @@ Status legend:
   - [x] top-level `products` backward cursor pagination with `before`/`last` across default and filtered/sorted overlay reads
 
 ### Mutations
+
 - [x] `productCreate` (staged locally with synthetic id/timestamps and simple Shopify-like payload)
   - [x] staged merchandising/detail input slice (`vendor`, `productType`, `tags`, `descriptionHtml`, `templateSuffix`, `seo`) with downstream read/filter visibility
 - [x] `productUpdate` (staged locally with merge-over-existing behavior)
@@ -97,6 +99,7 @@ Status legend:
 - [ ] product collections side-effect mutations as applicable beyond the dedicated collection membership family
 
 ### Product-specific fidelity work items
+
 - [x] stable synthetic GID generation for products and variants (product-only so far)
 - [x] stable synthetic timestamps (product-only so far)
 - [-] handle generation / uniqueness behavior (slugified titles only; no uniqueness conflict modeling yet)
@@ -115,10 +118,12 @@ Status legend:
 ## Metafields domain
 
 ### Queries
+
 - [x] metafield owner-scoped read coverage (product owner via `product.metafield(namespace:, key:)`)
 - [x] metafields connections on supported owner types (product owner via `product.metafields`)
 
 ### Mutations
+
 - [x] `metafieldsSet`
 - [x] `metafieldDelete`
 
@@ -127,6 +132,7 @@ Status legend:
 ## Collections domain
 
 ### Queries
+
 - [x] `collection`
 - [x] `collections`
 - [x] collection products connection
@@ -134,6 +140,7 @@ Status legend:
   - [x] live conformance captures now cover both `collection(id:)` detail reads and a top-level `collections` catalog slice with nested product connections
 
 ### Mutations
+
 - [x] `collectionCreate`
 - [x] `collectionUpdate`
 - [x] `collectionDelete`
@@ -148,6 +155,7 @@ Status legend:
 ## Inventory / variants domain
 
 ### Queries
+
 - [-] variant inventory read paths
   - [x] top-level `productVariant` read path for the common merchandising + inventory slice (`sku`, `barcode`, `price`, `compareAtPrice`, `taxable`, `inventoryPolicy`, `inventoryQuantity`, `selectedOptions`, `inventoryItem`) plus nested parent `product`
 - [-] inventory item read paths
@@ -155,6 +163,7 @@ Status legend:
 - [ ] inventory levels read paths
 
 ### Mutations
+
 - [-] inventory adjustment family relevant to products
   - [x] `inventoryAdjustQuantities` first pass for product-backed `available` quantity deltas by `inventoryItemId` / `locationId`, with downstream `product`, `productVariant`, `inventoryItem`, `products`, and `productsCount` inventory visibility
   - [ ] broader inventory adjustment parity beyond `available` (additional quantity names, richer userErrors, and fuller payload/detail parity)
@@ -165,9 +174,11 @@ Status legend:
 ## Media domain
 
 ### Queries
+
 - [ ] media-on-product read coverage
 
 ### Mutations
+
 - [ ] media create family
 - [ ] media update family
 - [ ] media delete family
@@ -177,6 +188,7 @@ Status legend:
 ## Generic platform work items
 
 ### Proxy/runtime
+
 - [x] versioned Shopify path handling
 - [x] upstream auth header pass-through
 - [x] query vs mutation classifier
@@ -187,6 +199,7 @@ Status legend:
 - [ ] pure passthrough mode
 
 ### Meta API
+
 - [ ] `POST /__meta/reset`
 - [ ] `POST /__meta/commit`
 - [ ] `GET /__meta/log`
@@ -195,6 +208,7 @@ Status legend:
 - [ ] `GET /__meta/health`
 
 ### State engine
+
 - [ ] normalized object graph
 - [ ] staged overlay engine
 - [ ] raw mutation log retention
@@ -202,6 +216,7 @@ Status legend:
 - [ ] stop-on-first-error commit semantics
 
 ### Conformance
+
 - [ ] scenario fixture format
 - [ ] real Shopify recorder
 - [ ] normalized snapshot compiler
@@ -217,6 +232,7 @@ Status legend:
 - [ ] empty/null behavior parity harness
 
 Current live-conformance status note:
+
 - dedicated dev-store conformance credentials are currently healthy enough for live probe/read capture plus safe collection and product-option mutation capture
 - `corepack pnpm conformance:capture-collection-mutations` now records live parity fixtures for `collectionCreate`, `collectionUpdate`, `collectionDelete`, `collectionAddProducts`, and `collectionRemoveProducts`
 - `corepack pnpm conformance:capture-product-option-mutations` now records live parity fixtures for `productOptionsCreate`, `productOptionUpdate`, and `productOptionsDelete`

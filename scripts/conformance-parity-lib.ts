@@ -151,7 +151,10 @@ export function validateComparisonContract(comparison: unknown): string[] {
   return errors;
 }
 
-export function classifyParityScenarioState(scenario: Pick<Scenario, 'status'>, paritySpec: ParitySpec | null | undefined): ParityScenarioState {
+export function classifyParityScenarioState(
+  scenario: Pick<Scenario, 'status'>,
+  paritySpec: ParitySpec | null | undefined,
+): ParityScenarioState {
   if (scenario.status === 'captured') {
     if (!hasProxyRequest(paritySpec)) {
       return 'captured-awaiting-proxy-request';
@@ -169,12 +172,23 @@ export const parityStatusNote =
 export function summarizeParityResults(results: Array<{ state: ParityScenarioState }>): {
   readyForComparison: number;
   pending: number;
-  statusCounts: Record<'readyForComparison' | 'capturedAwaitingComparisonContract' | 'capturedAwaitingProxyRequest' | 'plannedWithProxyRequest' | 'planned', number>;
+  statusCounts: Record<
+    | 'readyForComparison'
+    | 'capturedAwaitingComparisonContract'
+    | 'capturedAwaitingProxyRequest'
+    | 'plannedWithProxyRequest'
+    | 'planned',
+    number
+  >;
   statusNote: string;
 } {
   const readyForComparison = results.filter((result) => result.state === 'ready-for-comparison').length;
-  const capturedAwaitingComparisonContract = results.filter((result) => result.state === 'captured-awaiting-comparison-contract').length;
-  const capturedAwaitingProxyRequest = results.filter((result) => result.state === 'captured-awaiting-proxy-request').length;
+  const capturedAwaitingComparisonContract = results.filter(
+    (result) => result.state === 'captured-awaiting-comparison-contract',
+  ).length;
+  const capturedAwaitingProxyRequest = results.filter(
+    (result) => result.state === 'captured-awaiting-proxy-request',
+  ).length;
   const plannedWithProxyRequest = results.filter((result) => result.state === 'planned-with-proxy-request').length;
   const planned = results.filter((result) => result.state === 'planned').length;
 
@@ -275,7 +289,11 @@ function isIsoTimestamp(value: unknown): boolean {
 }
 
 function isShopifyGid(value: unknown, resourceType: string): boolean {
-  return typeof value === 'string' && value.startsWith(`gid://shopify/${resourceType}/`) && value.length > `gid://shopify/${resourceType}/`.length;
+  return (
+    typeof value === 'string' &&
+    value.startsWith(`gid://shopify/${resourceType}/`) &&
+    value.length > `gid://shopify/${resourceType}/`.length
+  );
 }
 
 function matcherAccepts(matcher: Matcher, expected: unknown, actual: unknown): boolean {
@@ -303,7 +321,14 @@ function matcherAccepts(matcher: Matcher, expected: unknown, actual: unknown): b
   throw new Error(`Unknown comparison matcher: ${matcher}`);
 }
 
-function diffValues(expected: unknown, actual: unknown, currentPath: string, pathSegments: PathSegment[], rules: CompiledRule[], differences: Difference[]): void {
+function diffValues(
+  expected: unknown,
+  actual: unknown,
+  currentPath: string,
+  pathSegments: PathSegment[],
+  rules: CompiledRule[],
+  differences: Difference[],
+): void {
   const rule = findRule(rules, pathSegments);
   if (rule?.ignore === true) {
     return;
@@ -324,12 +349,24 @@ function diffValues(expected: unknown, actual: unknown, currentPath: string, pat
     }
 
     if (expected.length !== actual.length) {
-      differences.push({ path: currentPath, message: `Array length differs: expected ${expected.length}, received ${actual.length}.`, expected, actual });
+      differences.push({
+        path: currentPath,
+        message: `Array length differs: expected ${expected.length}, received ${actual.length}.`,
+        expected,
+        actual,
+      });
       return;
     }
 
     for (let index = 0; index < expected.length; index += 1) {
-      diffValues(expected[index], actual[index], appendPath(currentPath, index), [...pathSegments, index], rules, differences);
+      diffValues(
+        expected[index],
+        actual[index],
+        appendPath(currentPath, index),
+        [...pathSegments, index],
+        rules,
+        differences,
+      );
     }
     return;
   }
@@ -351,12 +388,22 @@ function diffValues(expected: unknown, actual: unknown, currentPath: string, pat
       }
 
       if (!Object.prototype.hasOwnProperty.call(expected, key)) {
-        differences.push({ path: childPath, message: 'Unexpected field in actual payload.', expected: undefined, actual: actual[key] });
+        differences.push({
+          path: childPath,
+          message: 'Unexpected field in actual payload.',
+          expected: undefined,
+          actual: actual[key],
+        });
         continue;
       }
 
       if (!Object.prototype.hasOwnProperty.call(actual, key)) {
-        differences.push({ path: childPath, message: 'Missing field in actual payload.', expected: expected[key], actual: undefined });
+        differences.push({
+          path: childPath,
+          message: 'Missing field in actual payload.',
+          expected: expected[key],
+          actual: undefined,
+        });
         continue;
       }
 
@@ -368,7 +415,11 @@ function diffValues(expected: unknown, actual: unknown, currentPath: string, pat
   differences.push({ path: currentPath, message: 'Value differs.', expected, actual });
 }
 
-export function compareJsonPayloads(expected: unknown, actual: unknown, comparison: Pick<ComparisonContract, 'allowedDifferences'> = {}): { ok: boolean; differences: Difference[] } {
+export function compareJsonPayloads(
+  expected: unknown,
+  actual: unknown,
+  comparison: Pick<ComparisonContract, 'allowedDifferences'> = {},
+): { ok: boolean; differences: Difference[] } {
   const allowedDifferences = Array.isArray(comparison.allowedDifferences) ? comparison.allowedDifferences : [];
   const rules = allowedDifferences.map(makeRule);
   const differences: Difference[] = [];
@@ -416,7 +467,9 @@ function materializeValue(rawValue: unknown, primaryProxyResponse: unknown): unk
     return readJsonPath(primaryProxyResponse, rawValue['fromPrimaryProxyPath']);
   }
 
-  return Object.fromEntries(Object.entries(rawValue).map(([key, value]) => [key, materializeValue(value, primaryProxyResponse)]));
+  return Object.fromEntries(
+    Object.entries(rawValue).map(([key, value]) => [key, materializeValue(value, primaryProxyResponse)]),
+  );
 }
 
 function materializeVariables(rawVariables: unknown, primaryProxyResponse: unknown): Record<string, unknown> {
@@ -424,7 +477,10 @@ function materializeVariables(rawVariables: unknown, primaryProxyResponse: unkno
   return isPlainObject(materialized) ? materialized : {};
 }
 
-async function executeGraphQLAgainstLocalProxy(document: string, variables: Record<string, unknown>): Promise<{ status: number; body: Record<string, unknown> }> {
+async function executeGraphQLAgainstLocalProxy(
+  document: string,
+  variables: Record<string, unknown>,
+): Promise<{ status: number; body: Record<string, unknown> }> {
   const parsed = parseOperation(document);
   const capability = getOperationCapability(parsed);
 
@@ -452,7 +508,9 @@ async function executeGraphQLAgainstLocalProxy(document: string, variables: Reco
     };
   }
 
-  throw new Error(`Parity execution does not allow live Shopify requests or unsupported operations: ${capability.operationName}`);
+  throw new Error(
+    `Parity execution does not allow live Shopify requests or unsupported operations: ${capability.operationName}`,
+  );
 }
 
 function readComparisonTargets(comparison: ComparisonContract): ComparisonTarget[] {
@@ -469,7 +527,15 @@ function readComparisonTargets(comparison: ComparisonContract): ComparisonTarget
   ];
 }
 
-export async function executeParityScenario({ repoRoot, scenario, paritySpec }: { repoRoot: string; scenario: Scenario; paritySpec: ParitySpec }): Promise<{
+export async function executeParityScenario({
+  repoRoot,
+  scenario,
+  paritySpec,
+}: {
+  repoRoot: string;
+  scenario: Scenario;
+  paritySpec: ParitySpec;
+}): Promise<{
   ok: boolean;
   primaryProxyStatus: number;
   comparisons: Array<{ name: string; ok: boolean; differences: Difference[] }>;
@@ -494,7 +560,10 @@ export async function executeParityScenario({ repoRoot, scenario, paritySpec }: 
   const primaryVariables = paritySpec.proxyRequest.variablesPath
     ? readJsonFile(repoRoot, paritySpec.proxyRequest.variablesPath)
     : {};
-  const primaryProxyResponse = await executeGraphQLAgainstLocalProxy(primaryDocument, materializeVariables(primaryVariables, {}));
+  const primaryProxyResponse = await executeGraphQLAgainstLocalProxy(
+    primaryDocument,
+    materializeVariables(primaryVariables, {}),
+  );
 
   const comparisons = [];
   for (const target of readComparisonTargets(paritySpec.comparison)) {
@@ -506,7 +575,10 @@ export async function executeParityScenario({ repoRoot, scenario, paritySpec }: 
       const variables = target.proxyRequest.variablesPath
         ? readJsonFile(repoRoot, target.proxyRequest.variablesPath)
         : target.proxyRequest.variables;
-      const proxyResponse = await executeGraphQLAgainstLocalProxy(document, materializeVariables(variables, primaryProxyResponse.body));
+      const proxyResponse = await executeGraphQLAgainstLocalProxy(
+        document,
+        materializeVariables(variables, primaryProxyResponse.body),
+      );
       proxyResponseBody = proxyResponse.body;
     }
 

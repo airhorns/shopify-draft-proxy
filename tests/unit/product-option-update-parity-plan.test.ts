@@ -12,7 +12,9 @@ describe('productOptionUpdate parity plan scaffold', () => {
     };
 
     expect(spec.proxyRequest?.documentPath).toBe('config/parity-requests/productOptionUpdate-parity-plan.graphql');
-    expect(spec.proxyRequest?.variablesPath).toBe('config/parity-requests/productOptionUpdate-parity-plan.variables.json');
+    expect(spec.proxyRequest?.variablesPath).toBe(
+      'config/parity-requests/productOptionUpdate-parity-plan.variables.json',
+    );
 
     const documentPath = resolve(repoRoot, spec.proxyRequest!.documentPath!);
     const variablesPath = resolve(repoRoot, spec.proxyRequest!.variablesPath!);
@@ -21,6 +23,7 @@ describe('productOptionUpdate parity plan scaffold', () => {
     expect(existsSync(variablesPath)).toBe(true);
 
     const document = readFileSync(documentPath, 'utf8');
+    const compactDocument = document.replace(/\s+/g, ' ');
     const variables = JSON.parse(readFileSync(variablesPath, 'utf8')) as {
       productId?: string;
       option?: Record<string, unknown>;
@@ -28,11 +31,11 @@ describe('productOptionUpdate parity plan scaffold', () => {
       optionValuesToUpdate?: Array<Record<string, unknown>>;
     };
 
-    expect(document).toContain(
-      'mutation ProductOptionUpdateParityPlan($productId: ID!, $option: OptionUpdateInput!, $optionValuesToAdd: [OptionValueCreateInput!], $optionValuesToUpdate: [OptionValueUpdateInput!])',
+    expect(compactDocument).toContain(
+      'mutation ProductOptionUpdateParityPlan( $productId: ID! $option: OptionUpdateInput! $optionValuesToAdd: [OptionValueCreateInput!] $optionValuesToUpdate: [OptionValueUpdateInput!] )',
     );
-    expect(document).toContain(
-      'productOptionUpdate(productId: $productId, option: $option, optionValuesToAdd: $optionValuesToAdd, optionValuesToUpdate: $optionValuesToUpdate)',
+    expect(compactDocument).toContain(
+      'productOptionUpdate( productId: $productId option: $option optionValuesToAdd: $optionValuesToAdd optionValuesToUpdate: $optionValuesToUpdate )',
     );
     expect(document).toContain('product {');
     expect(document).toContain('options {');

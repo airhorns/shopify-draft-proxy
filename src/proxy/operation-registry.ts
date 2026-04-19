@@ -29,9 +29,7 @@ export function listOperationRegistryEntries(): OperationRegistryEntry[] {
     runtimeTests: [...entry.runtimeTests],
     conformance: {
       ...entry.conformance,
-      ...(entry.conformance.scenarioIds
-        ? { scenarioIds: [...entry.conformance.scenarioIds] }
-        : {}),
+      ...(entry.conformance.scenarioIds ? { scenarioIds: [...entry.conformance.scenarioIds] } : {}),
     },
   }));
 }

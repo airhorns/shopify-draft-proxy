@@ -3,10 +3,7 @@ import 'dotenv/config';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import {
-  parseWriteScopeBlocker,
-  renderWriteScopeBlockerNote,
-} from './product-mutation-conformance-lib.mjs';
+import { parseWriteScopeBlocker, renderWriteScopeBlockerNote } from './product-mutation-conformance-lib.mjs';
 
 const requiredVars = [
   'SHOPIFY_CONFORMANCE_STORE_DOMAIN',
@@ -16,6 +13,7 @@ const requiredVars = [
 
 const missingVars = requiredVars.filter((name) => !process.env[name]);
 if (missingVars.length > 0) {
+  // oxlint-disable-next-line no-console -- CLI error output is intentionally written to stderr.
   console.error(`Missing required environment variables: ${missingVars.join(', ')}`);
   process.exit(1);
 }
@@ -324,7 +322,13 @@ async function writeScopeBlocker(blocker) {
     title: 'Collection mutation conformance blocker',
     whatFailed:
       'Attempted to capture live conformance for the full collection mutation family (`collectionCreate`, `collectionUpdate`, `collectionDelete`, `collectionAddProducts`, `collectionRemoveProducts`).',
-    operations: ['collectionCreate', 'collectionUpdate', 'collectionDelete', 'collectionAddProducts', 'collectionRemoveProducts'],
+    operations: [
+      'collectionCreate',
+      'collectionUpdate',
+      'collectionDelete',
+      'collectionAddProducts',
+      'collectionRemoveProducts',
+    ],
     blocker,
     whyBlocked:
       'Without a write-capable token plus store/user permissions for collection writes, the repo cannot capture successful live mutation payload shape, userErrors behavior for safe writes, or immediate downstream collection/product membership parity for this family.',
@@ -427,7 +431,10 @@ try {
       seedProducts: [firstProduct, secondProduct],
       mutation: {
         variables: {
-          id: createdCollectionId ?? deleteResponse?.data?.collectionDelete?.deletedCollectionId ?? updateVariables.input.id,
+          id:
+            createdCollectionId ??
+            deleteResponse?.data?.collectionDelete?.deletedCollectionId ??
+            updateVariables.input.id,
           productIds: [firstProduct.id],
         },
         response: removeResponse,
@@ -437,7 +444,9 @@ try {
     'collection-delete-parity.json': {
       seedProducts: [firstProduct, secondProduct],
       mutation: {
-        variables: { input: { id: deleteResponse.data?.collectionDelete?.deletedCollectionId ?? updateVariables.input.id } },
+        variables: {
+          input: { id: deleteResponse.data?.collectionDelete?.deletedCollectionId ?? updateVariables.input.id },
+        },
         response: deleteResponse,
       },
       downstreamRead: postDeleteRead,
@@ -448,6 +457,7 @@ try {
     await writeFile(path.join(outputDir, filename), `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
   }
 
+  // oxlint-disable-next-line no-console -- CLI capture result is intentionally written to stdout.
   console.log(
     JSON.stringify(
       {
@@ -465,6 +475,7 @@ try {
   const blocker = parseWriteScopeBlocker(error?.result ?? null);
   if (blocker) {
     await writeScopeBlocker(blocker);
+    // oxlint-disable-next-line no-console -- CLI blocker result is intentionally written to stdout.
     console.log(
       JSON.stringify(
         {

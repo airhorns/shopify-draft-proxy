@@ -12,7 +12,9 @@ describe('productOptionsCreate parity plan scaffold', () => {
     };
 
     expect(spec.proxyRequest?.documentPath).toBe('config/parity-requests/productOptionsCreate-parity-plan.graphql');
-    expect(spec.proxyRequest?.variablesPath).toBe('config/parity-requests/productOptionsCreate-parity-plan.variables.json');
+    expect(spec.proxyRequest?.variablesPath).toBe(
+      'config/parity-requests/productOptionsCreate-parity-plan.variables.json',
+    );
 
     const documentPath = resolve(repoRoot, spec.proxyRequest!.documentPath!);
     const variablesPath = resolve(repoRoot, spec.proxyRequest!.variablesPath!);
@@ -26,7 +28,9 @@ describe('productOptionsCreate parity plan scaffold', () => {
       options?: Array<Record<string, unknown>>;
     };
 
-    expect(document).toContain('mutation ProductOptionsCreateParityPlan($productId: ID!, $options: [OptionCreateInput!]!)');
+    expect(document).toContain(
+      'mutation ProductOptionsCreateParityPlan($productId: ID!, $options: [OptionCreateInput!]!)',
+    );
     expect(document).toContain('productOptionsCreate(productId: $productId, options: $options)');
     expect(document).toContain('product {');
     expect(document).toContain('options {');

@@ -2,7 +2,12 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { classifyParityScenarioState, executeParityScenario, summarizeParityResults, validateComparisonContract } from './conformance-parity-lib.js';
+import {
+  classifyParityScenarioState,
+  executeParityScenario,
+  summarizeParityResults,
+  validateComparisonContract,
+} from './conformance-parity-lib.js';
 import type { ParitySpec, Scenario } from './conformance-parity-lib.js';
 
 interface RegisteredScenario extends Scenario {
@@ -13,14 +18,15 @@ interface RegisteredScenario extends Scenario {
 }
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const scenarioRegistry = JSON.parse(readFileSync(path.join(repoRoot, 'config', 'conformance-scenarios.json'), 'utf8')) as RegisteredScenario[];
+const scenarioRegistry = JSON.parse(
+  readFileSync(path.join(repoRoot, 'config', 'conformance-scenarios.json'), 'utf8'),
+) as RegisteredScenario[];
 
 const filterId = process.argv[2] ?? null;
-const selectedScenarios = filterId
-  ? scenarioRegistry.filter((scenario) => scenario.id === filterId)
-  : scenarioRegistry;
+const selectedScenarios = filterId ? scenarioRegistry.filter((scenario) => scenario.id === filterId) : scenarioRegistry;
 
 if (selectedScenarios.length === 0) {
+  // oxlint-disable-next-line no-console -- CLI error output is intentionally written to stderr.
   console.error(filterId ? `Unknown conformance scenario id: ${filterId}` : 'No conformance scenarios found.');
   process.exit(1);
 }
@@ -48,9 +54,8 @@ for (const scenario of selectedScenarios) {
             status: 'missing',
             errors: comparisonContractErrors,
           };
-  const execution = state === 'ready-for-comparison'
-    ? await executeParityScenario({ repoRoot, scenario, paritySpec })
-    : null;
+  const execution =
+    state === 'ready-for-comparison' ? await executeParityScenario({ repoRoot, scenario, paritySpec }) : null;
 
   results.push({
     scenarioId: scenario.id,
@@ -68,13 +73,20 @@ for (const scenario of selectedScenarios) {
 const summary = summarizeParityResults(results);
 const ok = results.every((result) => !('execution' in result) || result.execution.ok);
 
-console.log(JSON.stringify({
-  ok,
-  total: results.length,
-  ...summary,
-  executedComparisons: results.filter((result) => 'execution' in result).length,
-  results,
-}, null, 2));
+// oxlint-disable-next-line no-console -- CLI parity result is intentionally written to stdout.
+console.log(
+  JSON.stringify(
+    {
+      ok,
+      total: results.length,
+      ...summary,
+      executedComparisons: results.filter((result) => 'execution' in result).length,
+      results,
+    },
+    null,
+    2,
+  ),
+);
 
 if (!ok) {
   process.exit(1);
