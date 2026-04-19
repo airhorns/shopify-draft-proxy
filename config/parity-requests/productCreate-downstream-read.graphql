@@ -1,0 +1,17 @@
+query ProductCreateDownstreamRead($id: ID!) {
+  product(id: $id) {
+    id
+    title
+    handle
+    status
+    vendor
+    productType
+    tags
+    descriptionHtml
+    templateSuffix
+    seo {
+      title
+      description
+    }
+  }
+}

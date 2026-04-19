@@ -9,6 +9,7 @@ describe('productCreate parity plan scaffold', () => {
     const specPath = resolve(repoRoot, 'config/parity-specs/productCreate-parity-plan.json');
     const spec = JSON.parse(readFileSync(specPath, 'utf8')) as {
       proxyRequest?: { documentPath?: string | null; variablesPath?: string | null };
+      comparison?: { mode?: string; targets?: Array<{ name?: string }>; allowedDifferences?: Array<{ path?: string }> };
     };
 
     expect(spec.proxyRequest?.documentPath).toBe('config/parity-requests/productCreate-parity-plan.graphql');
@@ -37,17 +38,24 @@ describe('productCreate parity plan scaffold', () => {
     expect(document).toContain('seo {');
 
     expect(variables.product).toMatchObject({
-      title: 'Rich Hat',
+      title: 'Hermes Product Conformance 1776299742511',
       status: 'DRAFT',
-      vendor: 'NIKE',
+      vendor: 'HERMES',
       productType: 'ACCESSORIES',
-      tags: ['cap', 'summer'],
-      descriptionHtml: '<p>Rich hat description</p>',
-      templateSuffix: 'custom-product',
+      tags: ['1776299742511', 'conformance', 'product-mutation'],
+      descriptionHtml: '<p>Hermes product mutation conformance 1776299742511</p>',
+      templateSuffix: 'product-mutation-parity',
       seo: {
-        title: 'Rich Hat SEO',
-        description: 'Search-ready rich hat description',
+        title: 'Hermes Product 1776299742511',
+        description: 'Hermes product mutation conformance 1776299742511',
       },
     });
+
+    expect(spec.comparison?.mode).toBe('strict-json');
+    expect(spec.comparison?.targets?.map((target) => target.name)).toEqual(['mutation-data', 'downstream-read-data']);
+    expect(spec.comparison?.allowedDifferences?.map((difference) => difference.path)).toEqual([
+      '$.productCreate.product.id',
+      '$.product.id',
+    ]);
   });
 });

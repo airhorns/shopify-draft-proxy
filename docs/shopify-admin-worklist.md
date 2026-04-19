@@ -220,7 +220,12 @@ Status legend:
 - [ ] scenario fixture format
 - [ ] real Shopify recorder
 - [ ] normalized snapshot compiler
-- [ ] proxy parity runner
+- [~] proxy parity runner
+  - [x] contract-gated execution against a local snapshot-mode product proxy handler harness with live Shopify access disabled during parity runs
+  - [x] strict JSON comparator for explicit captured/proxy payload paths, with missing fields, extra fields, userErrors drift, null/empty mismatches, selected-field differences, and array shape drift failing by default
+  - [x] path-scoped allowed-difference rules for nondeterministic generated values; `product-create-live-parity` now compares mutation data and immediate downstream product read data with only synthetic product GIDs allowed to differ
+  - [x] parity runner/helper entrypoints are TypeScript and `conformance:parity` runs through `tsx` without a pre-build
+  - [ ] broaden executed comparison contracts beyond the first productCreate scenario, including cost/throttle extension modeling or explicit contract decisions per scenario
 - [ ] operation coverage matrix
 - [x] CI conformance status reporting (main baseline artifact plus idempotent PR comment with scenario totals and improvement over main)
 - [ ] product scenario pack

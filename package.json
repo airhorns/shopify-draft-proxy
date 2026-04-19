@@ -15,7 +15,7 @@
     "worklist:check": "node ./scripts/check-worklist.mjs",
     "conformance:check": "node ./scripts/check-conformance-coverage.mjs",
     "conformance:status": "node ./scripts/conformance-status-report.mjs",
-    "conformance:parity": "node ./scripts/run-conformance-parity.mjs",
+    "conformance:parity": "tsx ./scripts/run-conformance-parity.ts",
     "conformance:probe": "node ./scripts/conformance-probe.mjs",
     "conformance:capture-products": "node ./scripts/capture-product-conformance.mjs",
     "conformance:capture-product-mutations": "node ./scripts/capture-product-mutation-conformance.mjs",
