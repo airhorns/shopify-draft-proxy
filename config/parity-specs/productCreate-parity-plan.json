@@ -1,17 +1,9 @@
 {
   "scenarioId": "product-create-live-parity",
-  "operationNames": [
-    "productCreate"
-  ],
+  "operationNames": ["productCreate"],
   "scenarioStatus": "captured",
-  "assertionKinds": [
-    "payload-shape",
-    "user-errors-parity",
-    "downstream-read-parity"
-  ],
-  "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-create-parity.json"
-  ],
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-create-parity.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/productCreate-parity-plan.graphql",
     "variablesPath": "config/parity-requests/productCreate-parity-plan.variables.json"

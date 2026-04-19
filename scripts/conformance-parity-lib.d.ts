@@ -2,7 +2,7 @@ export function classifyParityScenarioState(
   scenario: { status: string },
   paritySpec:
     | {
-        proxyRequest?: { documentPath?: string | null };
+        proxyRequest?: { documentPath?: string | null; variablesPath?: string | null };
         comparison?: { mode?: string | null; allowedDifferences?: unknown[] | null };
       }
     | null

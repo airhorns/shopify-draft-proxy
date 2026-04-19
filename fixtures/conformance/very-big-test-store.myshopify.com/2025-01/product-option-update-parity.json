@@ -29,9 +29,7 @@
                 "id": "gid://shopify/ProductOption/11658190848233",
                 "name": "Shade",
                 "position": 1,
-                "values": [
-                  "Crimson"
-                ],
+                "values": ["Crimson"],
                 "optionValues": [
                   {
                     "id": "gid://shopify/ProductOptionValue/4709117755625",
@@ -72,9 +70,7 @@
             "id": "gid://shopify/ProductOption/11658190848233",
             "name": "Shade",
             "position": 1,
-            "values": [
-              "Crimson"
-            ],
+            "values": ["Crimson"],
             "optionValues": [
               {
                 "id": "gid://shopify/ProductOptionValue/4709117755625",

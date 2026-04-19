@@ -1,5 +1,5 @@
 function hasProxyRequest(paritySpec) {
-  return !!(paritySpec?.proxyRequest?.documentPath);
+  return !!paritySpec?.proxyRequest?.documentPath;
 }
 
 function hasComparisonContract(paritySpec) {
@@ -69,8 +69,12 @@ export const parityStatusNote =
 
 export function summarizeParityResults(results) {
   const readyForComparison = results.filter((result) => result.state === 'ready-for-comparison').length;
-  const capturedAwaitingComparisonContract = results.filter((result) => result.state === 'captured-awaiting-comparison-contract').length;
-  const capturedAwaitingProxyRequest = results.filter((result) => result.state === 'captured-awaiting-proxy-request').length;
+  const capturedAwaitingComparisonContract = results.filter(
+    (result) => result.state === 'captured-awaiting-comparison-contract',
+  ).length;
+  const capturedAwaitingProxyRequest = results.filter(
+    (result) => result.state === 'captured-awaiting-proxy-request',
+  ).length;
   const plannedWithProxyRequest = results.filter((result) => result.state === 'planned-with-proxy-request').length;
   const planned = results.filter((result) => result.state === 'planned').length;
 
@@ -175,7 +179,11 @@ function isIsoTimestamp(value) {
 }
 
 function isShopifyGid(value, resourceType) {
-  return typeof value === 'string' && value.startsWith(`gid://shopify/${resourceType}/`) && value.length > `gid://shopify/${resourceType}/`.length;
+  return (
+    typeof value === 'string' &&
+    value.startsWith(`gid://shopify/${resourceType}/`) &&
+    value.length > `gid://shopify/${resourceType}/`.length
+  );
 }
 
 function matcherAccepts(matcher, expected, actual) {
@@ -224,7 +232,12 @@ function diffValues(expected, actual, path, pathSegments, rules, differences) {
     }
 
     if (expected.length !== actual.length) {
-      differences.push({ path, message: `Array length differs: expected ${expected.length}, received ${actual.length}.`, expected, actual });
+      differences.push({
+        path,
+        message: `Array length differs: expected ${expected.length}, received ${actual.length}.`,
+        expected,
+        actual,
+      });
       return;
     }
 
@@ -251,12 +264,22 @@ function diffValues(expected, actual, path, pathSegments, rules, differences) {
       }
 
       if (!Object.prototype.hasOwnProperty.call(expected, key)) {
-        differences.push({ path: childPath, message: 'Unexpected field in actual payload.', expected: undefined, actual: actual[key] });
+        differences.push({
+          path: childPath,
+          message: 'Unexpected field in actual payload.',
+          expected: undefined,
+          actual: actual[key],
+        });
         continue;
       }
 
       if (!Object.prototype.hasOwnProperty.call(actual, key)) {
-        differences.push({ path: childPath, message: 'Missing field in actual payload.', expected: expected[key], actual: undefined });
+        differences.push({
+          path: childPath,
+          message: 'Missing field in actual payload.',
+          expected: expected[key],
+          actual: undefined,
+        });
         continue;
       }
 

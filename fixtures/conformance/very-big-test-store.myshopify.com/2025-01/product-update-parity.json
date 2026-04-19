@@ -6,11 +6,7 @@
         "title": "Hermes Product Conformance 1776299742511 Updated",
         "vendor": "HERMES-LABS",
         "productType": "TEST-GOODS",
-        "tags": [
-          "conformance",
-          "product-mutation",
-          "1776299742511-updated"
-        ],
+        "tags": ["conformance", "product-mutation", "1776299742511-updated"],
         "descriptionHtml": "<p>Updated Hermes product mutation conformance 1776299742511</p>",
         "templateSuffix": "product-mutation-updated",
         "seo": {
@@ -29,11 +25,7 @@
             "status": "DRAFT",
             "vendor": "HERMES-LABS",
             "productType": "TEST-GOODS",
-            "tags": [
-              "1776299742511-updated",
-              "conformance",
-              "product-mutation"
-            ],
+            "tags": ["1776299742511-updated", "conformance", "product-mutation"],
             "descriptionHtml": "<p>Updated Hermes product mutation conformance 1776299742511</p>",
             "templateSuffix": "product-mutation-updated",
             "seo": {
@@ -67,11 +59,7 @@
         "status": "DRAFT",
         "vendor": "HERMES-LABS",
         "productType": "TEST-GOODS",
-        "tags": [
-          "1776299742511-updated",
-          "conformance",
-          "product-mutation"
-        ],
+        "tags": ["1776299742511-updated", "conformance", "product-mutation"],
         "descriptionHtml": "<p>Updated Hermes product mutation conformance 1776299742511</p>",
         "templateSuffix": "product-mutation-updated",
         "seo": {

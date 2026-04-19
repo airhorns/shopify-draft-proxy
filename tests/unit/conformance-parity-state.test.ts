@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-// scripts/ is intentionally outside tsconfig's checked sources; runtime coverage here verifies the JS helper.
-// @ts-expect-error local .mjs helper is exercised via Vitest rather than TS declarations
-import { classifyParityScenarioState, compareJsonPayloads, summarizeParityResults, validateComparisonContract } from '../../scripts/conformance-parity-lib.mjs';
+import {
+  classifyParityScenarioState,
+  compareJsonPayloads,
+  summarizeParityResults,
+  validateComparisonContract,
+} from '../../scripts/conformance-parity-lib.mjs';
 
 describe('classifyParityScenarioState', () => {
   it('does not mark captured scenarios ready until an explicit strict comparison contract exists', () => {
@@ -163,7 +166,9 @@ describe('compareJsonPayloads', () => {
     );
 
     expect(result.ok).toBe(false);
-    expect(result.differences.map((difference: { path: string; message: string }) => [difference.path, difference.message])).toEqual([
+    expect(
+      result.differences.map((difference: { path: string; message: string }) => [difference.path, difference.message]),
+    ).toEqual([
       ['$.data.productCreate.product.handle', 'Unexpected field in actual payload.'],
       ['$.data.productCreate.product.id', 'Value differs.'],
       ['$.data.productCreate.product.title', 'Value differs.'],
@@ -234,9 +239,18 @@ describe('compareJsonPayloads', () => {
     ).toBe(true);
 
     expect(
-      compareJsonPayloads(expected, { ...actual, data: { productCreate: { product: { ...actual.data.productCreate.product, id: 'not-a-gid' }, userErrors: [] } } }, {
-        allowedDifferences: [{ path: '$.data.productCreate.product.id', matcher: 'shopify-gid:Product' }],
-      }).differences,
+      compareJsonPayloads(
+        expected,
+        {
+          ...actual,
+          data: {
+            productCreate: { product: { ...actual.data.productCreate.product, id: 'not-a-gid' }, userErrors: [] },
+          },
+        },
+        {
+          allowedDifferences: [{ path: '$.data.productCreate.product.id', matcher: 'shopify-gid:Product' }],
+        },
+      ).differences,
     ).toEqual([
       {
         path: '$.data.productCreate.product.createdAt',

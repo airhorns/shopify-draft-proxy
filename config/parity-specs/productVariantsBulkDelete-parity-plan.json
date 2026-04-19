@@ -1,14 +1,8 @@
 {
   "scenarioId": "productVariantsBulkDelete-parity-plan",
-  "operationNames": [
-    "productVariantsBulkDelete"
-  ],
+  "operationNames": ["productVariantsBulkDelete"],
   "scenarioStatus": "planned",
-  "assertionKinds": [
-    "payload-shape",
-    "user-errors-parity",
-    "downstream-read-parity"
-  ],
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": [],
   "proxyRequest": {
     "documentPath": "config/parity-requests/productVariantsBulkDelete-parity-plan.graphql",

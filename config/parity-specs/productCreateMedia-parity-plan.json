@@ -1,14 +1,8 @@
 {
   "scenarioId": "productCreateMedia-parity-plan",
-  "operationNames": [
-    "productCreateMedia"
-  ],
+  "operationNames": ["productCreateMedia"],
   "scenarioStatus": "planned",
-  "assertionKinds": [
-    "payload-shape",
-    "user-errors-parity",
-    "downstream-read-parity"
-  ],
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": [],
   "proxyRequest": {
     "documentPath": null,
