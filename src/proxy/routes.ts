@@ -1,5 +1,6 @@
 import Router from '@koa/router';
 import type Koa from 'koa';
+import { logger } from '../logger.js';
 import { parseOperation } from '../graphql/parse-operation.js';
 import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
@@ -20,6 +21,7 @@ function readVariables(raw: unknown): Record<string, unknown> {
 export function createProxyRouter(config: AppConfig): Router {
   const router = new Router();
   const upstream = createUpstreamGraphQLClient(config.shopifyAdminOrigin);
+  const proxyLogger = logger.child({ component: 'proxy' });
 
   router.post('/admin/api/:version/graphql.json', async (ctx: Koa.Context) => {
     const body = ctx.request.body as GraphQLBody;
@@ -35,6 +37,16 @@ export function createProxyRouter(config: AppConfig): Router {
     const capability = getOperationCapability(parsed);
 
     if (capability.execution === 'stage-locally' && capability.domain === 'products') {
+      proxyLogger.debug(
+        {
+          execution: capability.execution,
+          operationName: capability.operationName,
+          operationType: parsed.type,
+          rootFields: parsed.rootFields,
+        },
+        'staging supported mutation locally',
+      );
+
       store.appendLog({
         id: makeSyntheticGid('MutationLogEntry'),
         receivedAt: makeSyntheticTimestamp(),
@@ -78,6 +90,16 @@ export function createProxyRouter(config: AppConfig): Router {
     }
 
     if (parsed.type === 'mutation') {
+      proxyLogger.warn(
+        {
+          execution: capability.execution,
+          operationName: capability.operationName,
+          operationType: parsed.type,
+          rootFields: parsed.rootFields,
+        },
+        'proxying unsupported mutation upstream',
+      );
+
       store.appendLog({
         id: makeSyntheticGid('MutationLogEntry'),
         receivedAt: makeSyntheticTimestamp(),

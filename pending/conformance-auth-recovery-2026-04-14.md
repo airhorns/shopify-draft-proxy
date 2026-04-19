@@ -19,15 +19,18 @@ Live Shopify conformance is currently blocked because the stored Shopify CLI-bac
 ## Options considered
 
 ### Option A — recover from another persisted Shopify CLI/session source
+
 - Search for another persisted copy of the newly rotated refresh token or a separate valid store-scoped session.
 - Best if such a source exists, because it avoids interactive login.
 - Not completed in this run; no obvious backup config file was found.
 
 ### Option B — re-establish Shopify CLI auth non-interactively on this host
+
 - If the Shopify CLI binary or equivalent auth helper can be installed/restored, use it to mint a fresh session and then mirror the new bearer into repo `.env`.
 - Most likely durable fix if host automation is expected to keep running unattended.
 
 ### Option C — switch conformance to a dedicated Admin API token
+
 - Provision a dev-store token not coupled to the volatile Shopify CLI account session.
 - Best long-term operational choice for unattended conformance jobs, but requires app/token provisioning work.
 

@@ -4,10 +4,7 @@
     "status": "DRAFT",
     "vendor": "NIKE",
     "productType": "ACCESSORIES",
-    "tags": [
-      "cap",
-      "summer"
-    ],
+    "tags": ["cap", "summer"],
     "descriptionHtml": "<p>Rich hat description</p>",
     "templateSuffix": "custom-product",
     "seo": {

@@ -1,14 +1,8 @@
 {
   "scenarioId": "productPublish-parity-plan",
-  "operationNames": [
-    "productPublish"
-  ],
+  "operationNames": ["productPublish"],
   "scenarioStatus": "planned",
-  "assertionKinds": [
-    "payload-shape",
-    "user-errors-parity",
-    "downstream-read-parity"
-  ],
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": [],
   "proxyRequest": {
     "documentPath": "config/parity-requests/productPublish-parity-plan.graphql",

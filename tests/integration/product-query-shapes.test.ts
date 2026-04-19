@@ -34,23 +34,20 @@ describe('product query shapes', () => {
 
     const app = createApp(config).callback();
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productCreate(product: { title: "Red Hat" }) { product { id } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Red Hat" }) { product { id } userErrors { field message } } }',
+    });
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productCreate(product: { title: "Blue Hat" }) { product { id } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Blue Hat" }) { product { id } userErrors { field message } } }',
+    });
 
-    const response = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'query { products(first: 10) { edges { cursor node { id title handle } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }',
-      });
+    const response = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query { products(first: 10) { edges { cursor node { id title handle } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }',
+    });
 
     expect(response.status).toBe(200);
     expect(response.body.data.products.edges).toHaveLength(2);
@@ -69,18 +66,18 @@ describe('product query shapes', () => {
   it('returns null for a deleted product on direct product lookup', async () => {
     const app = createApp({ ...config, readMode: 'snapshot' }).callback();
 
-    const createResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productCreate(product: { title: "Soon Gone" }) { product { id } userErrors { field message } } }',
-      });
+    const createResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Soon Gone" }) { product { id } userErrors { field message } } }',
+    });
 
     const createdId = createResponse.body.data.productCreate.product.id as string;
 
     await request(app)
       .post('/admin/api/2025-01/graphql.json')
       .send({
-        query: 'mutation productDelete($input: ProductDeleteInput!) { productDelete(input: $input) { deletedProductId userErrors { field message } } }',
+        query:
+          'mutation productDelete($input: ProductDeleteInput!) { productDelete(input: $input) { deletedProductId userErrors { field message } } }',
         variables: {
           input: { id: createdId },
         },
@@ -104,31 +101,25 @@ describe('product query shapes', () => {
   it('serves productsCount from staged local state in snapshot mode', async () => {
     const app = createApp({ ...config, readMode: 'snapshot' }).callback();
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productCreate(product: { title: "Nike Hat" }) { product { id } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Nike Hat" }) { product { id } userErrors { field message } } }',
+    });
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productCreate(product: { title: "Nike Shirt", status: DRAFT }) { product { id } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Nike Shirt", status: DRAFT }) { product { id } userErrors { field message } } }',
+    });
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productCreate(product: { title: "Adidas Hat" }) { product { id } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Adidas Hat" }) { product { id } userErrors { field message } } }',
+    });
 
-    const response = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'query { total: productsCount { count precision } nikeActive: productsCount(query: "title:Nike status:active") { count precision } }',
-      });
+    const response = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query { total: productsCount { count precision } nikeActive: productsCount(query: "title:Nike status:active") { count precision } }',
+    });
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
@@ -184,31 +175,25 @@ describe('product query shapes', () => {
 
     const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productUpdate(product: { id: "gid://shopify/Product/2", title: "Nike Base Shoe" }) { product { id title } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productUpdate(product: { id: "gid://shopify/Product/2", title: "Nike Base Shoe" }) { product { id title } userErrors { field message } } }',
+    });
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productDelete(input: { id: "gid://shopify/Product/1" }) { deletedProductId userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productDelete(input: { id: "gid://shopify/Product/1" }) { deletedProductId userErrors { field message } } }',
+    });
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productCreate(product: { title: "Nike Draft Cap", status: DRAFT }) { product { id } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Nike Draft Cap", status: DRAFT }) { product { id } userErrors { field message } } }',
+    });
 
-    const response = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'query { total: productsCount { count precision } nikeActive: productsCount(query: "title:Nike status:active") { count precision } drafts: productsCount(query: "status:draft") { count precision } }',
-      });
+    const response = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query { total: productsCount { count precision } nikeActive: productsCount(query: "title:Nike status:active") { count precision } drafts: productsCount(query: "status:draft") { count precision } }',
+    });
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
@@ -281,12 +266,10 @@ describe('product query shapes', () => {
 
     const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productUpdate(product: { id: "gid://shopify/Product/1", title: "Renamed Shirt" }) { product { id title } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productUpdate(product: { id: "gid://shopify/Product/1", title: "Renamed Shirt" }) { product { id title } userErrors { field message } } }',
+    });
 
     const response = await request(app)
       .post('/admin/api/2025-01/graphql.json')
@@ -387,12 +370,10 @@ describe('product query shapes', () => {
 
     const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productUpdate(product: { id: "gid://shopify/Product/8397256720617", title: "Converse Shoe Renamed" }) { product { id title } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productUpdate(product: { id: "gid://shopify/Product/8397256720617", title: "Converse Shoe Renamed" }) { product { id title } userErrors { field message } } }',
+    });
 
     const response = await request(app)
       .post('/admin/api/2025-01/graphql.json')
@@ -473,12 +454,10 @@ describe('product query shapes', () => {
 
     const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productUpdate(product: { id: "gid://shopify/Product/8397256720617", title: "Converse Shoe Renamed" }) { product { id title } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productUpdate(product: { id: "gid://shopify/Product/8397256720617", title: "Converse Shoe Renamed" }) { product { id title } userErrors { field message } } }',
+    });
 
     const response = await request(app)
       .post('/admin/api/2025-01/graphql.json')
@@ -540,12 +519,10 @@ describe('product query shapes', () => {
 
     const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productUpdate(product: { id: "gid://shopify/Product/8397256720617", title: "Converse Shoe Renamed" }) { product { id title } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productUpdate(product: { id: "gid://shopify/Product/8397256720617", title: "Converse Shoe Renamed" }) { product { id title } userErrors { field message } } }',
+    });
 
     const firstPageResponse = await request(app)
       .post('/admin/api/2025-01/graphql.json')
@@ -645,12 +622,10 @@ describe('product query shapes', () => {
 
     const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productUpdate(product: { id: "gid://shopify/Product/8397256720617", title: "Converse Shoe Renamed" }) { product { id title } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productUpdate(product: { id: "gid://shopify/Product/8397256720617", title: "Converse Shoe Renamed" }) { product { id title } userErrors { field message } } }',
+    });
 
     const response = await request(app)
       .post('/admin/api/2025-01/graphql.json')
@@ -696,11 +671,10 @@ describe('product query shapes', () => {
 
     const app = createApp(config).callback();
 
-    const createResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productCreate(product: { title: "Collectionless Hat" }) { product { id } userErrors { field message } } }',
-      });
+    const createResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Collectionless Hat" }) { product { id } userErrors { field message } } }',
+    });
 
     const createdId = createResponse.body.data.productCreate.product.id as string;
 
@@ -752,12 +726,10 @@ describe('product query shapes', () => {
 
     const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productUpdate(product: { id: "gid://shopify/Product/8397256720617", title: "Converse Shoe Renamed" }) { product { id title } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productUpdate(product: { id: "gid://shopify/Product/8397256720617", title: "Converse Shoe Renamed" }) { product { id title } userErrors { field message } } }',
+    });
 
     const response = await request(app)
       .post('/admin/api/2025-01/graphql.json')
@@ -835,12 +807,10 @@ describe('product query shapes', () => {
 
     const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productUpdate(product: { id: "gid://shopify/Product/8397256720617", title: "Converse Shoe Renamed" }) { product { id title } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productUpdate(product: { id: "gid://shopify/Product/8397256720617", title: "Converse Shoe Renamed" }) { product { id title } userErrors { field message } } }',
+    });
 
     const response = await request(app)
       .post('/admin/api/2025-01/graphql.json')
@@ -894,11 +864,10 @@ describe('product query shapes', () => {
 
     const app = createApp(config).callback();
 
-    const createResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productCreate(product: { title: "Imageless Hat" }) { product { id } userErrors { field message } } }',
-      });
+    const createResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Imageless Hat" }) { product { id } userErrors { field message } } }',
+    });
 
     const createdId = createResponse.body.data.productCreate.product.id as string;
 
@@ -936,9 +905,27 @@ describe('product query shapes', () => {
               updatedAt: '2024-01-03T00:00:00.000Z',
               media: {
                 edges: [
-                  { node: { mediaContentType: 'IMAGE', alt: '', preview: { image: { url: 'https://cdn.shopify.com/media-1.jpg' } } } },
-                  { node: { mediaContentType: 'IMAGE', alt: 'Side angle', preview: { image: { url: 'https://cdn.shopify.com/media-2.jpg' } } } },
-                  { node: { mediaContentType: 'IMAGE', alt: 'Back angle', preview: { image: { url: 'https://cdn.shopify.com/media-3.jpg' } } } },
+                  {
+                    node: {
+                      mediaContentType: 'IMAGE',
+                      alt: '',
+                      preview: { image: { url: 'https://cdn.shopify.com/media-1.jpg' } },
+                    },
+                  },
+                  {
+                    node: {
+                      mediaContentType: 'IMAGE',
+                      alt: 'Side angle',
+                      preview: { image: { url: 'https://cdn.shopify.com/media-2.jpg' } },
+                    },
+                  },
+                  {
+                    node: {
+                      mediaContentType: 'IMAGE',
+                      alt: 'Back angle',
+                      preview: { image: { url: 'https://cdn.shopify.com/media-3.jpg' } },
+                    },
+                  },
                 ],
               },
             },
@@ -950,12 +937,10 @@ describe('product query shapes', () => {
 
     const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productUpdate(product: { id: "gid://shopify/Product/8397256720617", title: "Converse Shoe Renamed" }) { product { id title } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productUpdate(product: { id: "gid://shopify/Product/8397256720617", title: "Converse Shoe Renamed" }) { product { id title } userErrors { field message } } }',
+    });
 
     const response = await request(app)
       .post('/admin/api/2025-01/graphql.json')
@@ -1040,12 +1025,10 @@ describe('product query shapes', () => {
 
     const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productUpdate(product: { id: "gid://shopify/Product/8397256720617", title: "Converse Shoe Renamed" }) { product { id title } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productUpdate(product: { id: "gid://shopify/Product/8397256720617", title: "Converse Shoe Renamed" }) { product { id title } userErrors { field message } } }',
+    });
 
     const response = await request(app)
       .post('/admin/api/2025-01/graphql.json')
@@ -1104,11 +1087,10 @@ describe('product query shapes', () => {
 
     const app = createApp(config).callback();
 
-    const createResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productCreate(product: { title: "Metafieldless Hat" }) { product { id } userErrors { field message } } }',
-      });
+    const createResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Metafieldless Hat" }) { product { id } userErrors { field message } } }',
+    });
 
     const createdId = createResponse.body.data.productCreate.product.id as string;
 
@@ -1147,9 +1129,33 @@ describe('product query shapes', () => {
               updatedAt: '2024-01-03T00:00:00.000Z',
               metafields: {
                 edges: [
-                  { node: { id: 'gid://shopify/Metafield/9001', namespace: 'custom', key: 'material', type: 'single_line_text_field', value: 'Canvas' } },
-                  { node: { id: 'gid://shopify/Metafield/9002', namespace: 'details', key: 'origin', type: 'single_line_text_field', value: 'VN' } },
-                  { node: { id: 'gid://shopify/Metafield/9003', namespace: 'details', key: 'season', type: 'single_line_text_field', value: 'SS26' } },
+                  {
+                    node: {
+                      id: 'gid://shopify/Metafield/9001',
+                      namespace: 'custom',
+                      key: 'material',
+                      type: 'single_line_text_field',
+                      value: 'Canvas',
+                    },
+                  },
+                  {
+                    node: {
+                      id: 'gid://shopify/Metafield/9002',
+                      namespace: 'details',
+                      key: 'origin',
+                      type: 'single_line_text_field',
+                      value: 'VN',
+                    },
+                  },
+                  {
+                    node: {
+                      id: 'gid://shopify/Metafield/9003',
+                      namespace: 'details',
+                      key: 'season',
+                      type: 'single_line_text_field',
+                      value: 'SS26',
+                    },
+                  },
                 ],
               },
             },
@@ -1161,12 +1167,10 @@ describe('product query shapes', () => {
 
     const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productUpdate(product: { id: "gid://shopify/Product/8397256720617", title: "Converse Shoe Renamed" }) { product { id title } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productUpdate(product: { id: "gid://shopify/Product/8397256720617", title: "Converse Shoe Renamed" }) { product { id title } userErrors { field message } } }',
+    });
 
     const response = await request(app)
       .post('/admin/api/2025-01/graphql.json')
@@ -1257,19 +1261,15 @@ describe('product query shapes', () => {
 
     const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productUpdate(product: { id: "gid://shopify/Product/8397257375977", title: "AARDVARK NIKE CAP" }) { product { id title } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productUpdate(product: { id: "gid://shopify/Product/8397257375977", title: "AARDVARK NIKE CAP" }) { product { id title } userErrors { field message } } }',
+    });
 
-    const response = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'query { products(first: 5, query: "vendor:NIKE status:active", sortKey: TITLE) { edges { node { id title vendor status totalInventory } } pageInfo { hasNextPage } } }',
-      });
+    const response = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query { products(first: 5, query: "vendor:NIKE status:active", sortKey: TITLE) { edges { node { id title vendor status totalInventory } } pageInfo { hasNextPage } } }',
+    });
 
     expect(response.status).toBe(200);
     expect(response.body.data.products.edges).toEqual([
@@ -1350,19 +1350,15 @@ describe('product query shapes', () => {
 
     const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productUpdate(product: { id: "gid://shopify/Product/8971371741417", title: "Test Product - 6726 (Renamed)" }) { product { id title } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productUpdate(product: { id: "gid://shopify/Product/8971371741417", title: "Test Product - 6726 (Renamed)" }) { product { id title } userErrors { field message } } }',
+    });
 
-    const response = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'query { products(first: 5, query: "inventory_total:<=5 status:active", sortKey: INVENTORY_TOTAL) { edges { node { id title totalInventory } } } }',
-      });
+    const response = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query { products(first: 5, query: "inventory_total:<=5 status:active", sortKey: INVENTORY_TOTAL) { edges { node { id title totalInventory } } } }',
+    });
 
     expect(response.status).toBe(200);
     expect(response.body.data.products.edges).toEqual([
@@ -1421,19 +1417,15 @@ describe('product query shapes', () => {
 
     const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productUpdate(product: { id: "gid://shopify/Product/8397256720617", title: "Renamed Converse" }) { product { id title } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productUpdate(product: { id: "gid://shopify/Product/8397256720617", title: "Renamed Converse" }) { product { id title } userErrors { field message } } }',
+    });
 
-    const response = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'query { products(first: 5) { edges { node { id legacyResourceId title vendor productType tags totalInventory tracksInventory } } pageInfo { hasNextPage endCursor } } }',
-      });
+    const response = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query { products(first: 5) { edges { node { id legacyResourceId title vendor productType tags totalInventory tracksInventory } } pageInfo { hasNextPage endCursor } } }',
+    });
 
     expect(response.status).toBe(200);
     expect(response.body.data.products.edges).toEqual([
@@ -1457,83 +1449,80 @@ describe('product query shapes', () => {
   });
 
   it('filters products by title, handle, tag, and product_type terms and supports reverse UPDATED_AT sorting', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
-      new Response(
-        JSON.stringify({
-          data: {
-            products: {
-              edges: [
-                {
-                  node: {
-                    id: 'gid://shopify/Product/8397255999721',
-                    legacyResourceId: '8397255999721',
-                    title: 'NIKE | CRACKLE PRINT TB TEE',
-                    handle: 'nike-crackle-print-tb-tee',
-                    status: 'ACTIVE',
-                    vendor: 'NIKE',
-                    productType: 'TOPS',
-                    tags: ['nike', 'egnition-sample-data', 'tee'],
-                    totalInventory: 16,
-                    tracksInventory: true,
-                    createdAt: '2024-03-14T01:53:01Z',
-                    updatedAt: '2026-03-25T10:00:00Z',
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            data: {
+              products: {
+                edges: [
+                  {
+                    node: {
+                      id: 'gid://shopify/Product/8397255999721',
+                      legacyResourceId: '8397255999721',
+                      title: 'NIKE | CRACKLE PRINT TB TEE',
+                      handle: 'nike-crackle-print-tb-tee',
+                      status: 'ACTIVE',
+                      vendor: 'NIKE',
+                      productType: 'TOPS',
+                      tags: ['nike', 'egnition-sample-data', 'tee'],
+                      totalInventory: 16,
+                      tracksInventory: true,
+                      createdAt: '2024-03-14T01:53:01Z',
+                      updatedAt: '2026-03-25T10:00:00Z',
+                    },
                   },
-                },
-                {
-                  node: {
-                    id: 'gid://shopify/Product/8397257375977',
-                    legacyResourceId: '8397257375977',
-                    title: 'NIKE | SWOOSH PRO FLAT PEAK CAP',
-                    handle: 'nike-swoosh-pro-flat-peak-cap',
-                    status: 'ACTIVE',
-                    vendor: 'NIKE',
-                    productType: 'ACCESSORIES',
-                    tags: ['cap', 'egnition-sample-data', 'nike'],
-                    totalInventory: 20,
-                    tracksInventory: true,
-                    createdAt: '2024-03-14T01:53:33Z',
-                    updatedAt: '2026-03-25T16:49:35Z',
+                  {
+                    node: {
+                      id: 'gid://shopify/Product/8397257375977',
+                      legacyResourceId: '8397257375977',
+                      title: 'NIKE | SWOOSH PRO FLAT PEAK CAP',
+                      handle: 'nike-swoosh-pro-flat-peak-cap',
+                      status: 'ACTIVE',
+                      vendor: 'NIKE',
+                      productType: 'ACCESSORIES',
+                      tags: ['cap', 'egnition-sample-data', 'nike'],
+                      totalInventory: 20,
+                      tracksInventory: true,
+                      createdAt: '2024-03-14T01:53:33Z',
+                      updatedAt: '2026-03-25T16:49:35Z',
+                    },
                   },
-                },
-                {
-                  node: {
-                    id: 'gid://shopify/Product/8397257081065',
-                    legacyResourceId: '8397257081065',
-                    title: 'VANS APPAREL AND ACCESSORIES | CLASSIC SUPER NO SHOW SOCKS 3 PACK WHITE',
-                    handle: 'vans-apparel-and-accessories-classic-super-no-show-socks-3-pack-white',
-                    status: 'ACTIVE',
-                    vendor: 'VANS',
-                    productType: 'ACCESSORIES',
-                    tags: ['egnition-sample-data', 'unisex', 'vans'],
-                    totalInventory: 11,
-                    tracksInventory: true,
-                    createdAt: '2024-03-14T01:53:17Z',
-                    updatedAt: '2026-03-25T14:27:56Z',
+                  {
+                    node: {
+                      id: 'gid://shopify/Product/8397257081065',
+                      legacyResourceId: '8397257081065',
+                      title: 'VANS APPAREL AND ACCESSORIES | CLASSIC SUPER NO SHOW SOCKS 3 PACK WHITE',
+                      handle: 'vans-apparel-and-accessories-classic-super-no-show-socks-3-pack-white',
+                      status: 'ACTIVE',
+                      vendor: 'VANS',
+                      productType: 'ACCESSORIES',
+                      tags: ['egnition-sample-data', 'unisex', 'vans'],
+                      totalInventory: 11,
+                      tracksInventory: true,
+                      createdAt: '2024-03-14T01:53:17Z',
+                      updatedAt: '2026-03-25T14:27:56Z',
+                    },
                   },
-                },
-              ],
+                ],
+              },
             },
-          },
-        }),
-        { status: 200, headers: { 'content-type': 'application/json' } },
-      ),
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
     );
 
     const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productUpdate(product: { id: "gid://shopify/Product/8397257375977", title: "NIKE | SWOOSH PRO FLAT PEAK CAP (Renamed)" }) { product { id title } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productUpdate(product: { id: "gid://shopify/Product/8397257375977", title: "NIKE | SWOOSH PRO FLAT PEAK CAP (Renamed)" }) { product { id title } userErrors { field message } } }',
+    });
 
-    const titleHandleResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'query { products(first: 5, query: "title:SWOOSH handle:nike-swoosh-pro-flat-peak-cap tag:nike product_type:ACCESSORIES") { edges { node { id title handle productType tags } } pageInfo { hasNextPage startCursor endCursor } } }',
-      });
+    const titleHandleResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query { products(first: 5, query: "title:SWOOSH handle:nike-swoosh-pro-flat-peak-cap tag:nike product_type:ACCESSORIES") { edges { node { id title handle productType tags } } pageInfo { hasNextPage startCursor endCursor } } }',
+    });
 
     expect(titleHandleResponse.status).toBe(200);
     expect(titleHandleResponse.body.data.products.edges).toEqual([
@@ -1553,12 +1542,10 @@ describe('product query shapes', () => {
       endCursor: 'cursor:gid://shopify/Product/8397257375977',
     });
 
-    const sortedResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'query { products(first: 5, query: "tag:egnition-sample-data product_type:ACCESSORIES", sortKey: UPDATED_AT, reverse: true) { edges { node { id title handle productType tags } } pageInfo { hasNextPage startCursor endCursor } } }',
-      });
+    const sortedResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query { products(first: 5, query: "tag:egnition-sample-data product_type:ACCESSORIES", sortKey: UPDATED_AT, reverse: true) { edges { node { id title handle productType tags } } pageInfo { hasNextPage startCursor endCursor } } }',
+    });
 
     expect(sortedResponse.status).toBe(200);
     expect(sortedResponse.body.data.products.edges).toEqual([
@@ -1661,25 +1648,19 @@ describe('product query shapes', () => {
 
     const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'query { products(first: 5) { edges { node { id title updatedAt } } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query: 'query { products(first: 5) { edges { node { id title updatedAt } } } }',
+    });
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productUpdate(product: { id: "gid://shopify/Product/8397257081065", title: "VANS APPAREL AND ACCESSORIES | CLASSIC SUPER NO SHOW SOCKS 3 PACK WHITE (Updated)" }) { product { id title updatedAt } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productUpdate(product: { id: "gid://shopify/Product/8397257081065", title: "VANS APPAREL AND ACCESSORIES | CLASSIC SUPER NO SHOW SOCKS 3 PACK WHITE (Updated)" }) { product { id title updatedAt } userErrors { field message } } }',
+    });
 
-    const createdAtResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'query { earlyProducts: products(first: 5, query: "created_at:<2024-03-14T01:53:20Z status:active", sortKey: CREATED_AT) { edges { node { id title createdAt } } } earlyCount: productsCount(query: "created_at:<2024-03-14T01:53:20Z status:active") { count precision } }',
-      });
+    const createdAtResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query { earlyProducts: products(first: 5, query: "created_at:<2024-03-14T01:53:20Z status:active", sortKey: CREATED_AT) { edges { node { id title createdAt } } } earlyCount: productsCount(query: "created_at:<2024-03-14T01:53:20Z status:active") { count precision } }',
+    });
 
     expect(createdAtResponse.status).toBe(200);
     expect(createdAtResponse.body.data.earlyProducts.edges).toEqual([
@@ -1703,12 +1684,10 @@ describe('product query shapes', () => {
       precision: 'EXACT',
     });
 
-    const updatedAtResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'query { recentProducts: products(first: 5, query: "product_type:ACCESSORIES updated_at:>=2026-03-25T14:27:57Z", sortKey: CREATED_AT) { edges { node { id title createdAt updatedAt } } } recentCount: productsCount(query: "product_type:ACCESSORIES updated_at:>=2026-03-25T14:27:57Z") { count precision } }',
-      });
+    const updatedAtResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query { recentProducts: products(first: 5, query: "product_type:ACCESSORIES updated_at:>=2026-03-25T14:27:57Z", sortKey: CREATED_AT) { edges { node { id title createdAt updatedAt } } } recentCount: productsCount(query: "product_type:ACCESSORIES updated_at:>=2026-03-25T14:27:57Z") { count precision } }',
+    });
 
     expect(updatedAtResponse.status).toBe(200);
     expect(updatedAtResponse.body.data.recentProducts.edges).toHaveLength(2);
@@ -1804,12 +1783,10 @@ describe('product query shapes', () => {
 
     const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productUpdate(product: { id: "gid://shopify/Product/8397257375977", title: "NIKE | SWOOSH PRO FLAT PEAK CAP" }) { product { id title } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productUpdate(product: { id: "gid://shopify/Product/8397257375977", title: "NIKE | SWOOSH PRO FLAT PEAK CAP" }) { product { id title } userErrors { field message } } }',
+    });
 
     const response = await request(app)
       .post('/admin/api/2025-01/graphql.json')
@@ -1912,12 +1889,10 @@ describe('product query shapes', () => {
 
     const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productUpdate(product: { id: "gid://shopify/Product/8397257375977", title: "NIKE | SWOOSH PRO FLAT PEAK CAP" }) { product { id title } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productUpdate(product: { id: "gid://shopify/Product/8397257375977", title: "NIKE | SWOOSH PRO FLAT PEAK CAP" }) { product { id title } userErrors { field message } } }',
+    });
 
     const response = await request(app)
       .post('/admin/api/2025-01/graphql.json')
@@ -2025,12 +2000,10 @@ describe('product query shapes', () => {
 
     const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productUpdate(product: { id: "gid://shopify/Product/8397257375977", title: "NIKE | SWOOSH PRO FLAT PEAK CAP" }) { product { id title } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productUpdate(product: { id: "gid://shopify/Product/8397257375977", title: "NIKE | SWOOSH PRO FLAT PEAK CAP" }) { product { id title } userErrors { field message } } }',
+    });
 
     const response = await request(app)
       .post('/admin/api/2025-01/graphql.json')
@@ -2134,19 +2107,15 @@ describe('product query shapes', () => {
 
     const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productUpdate(product: { id: "gid://shopify/Product/8397257375977", title: "NIKE | SWOOSH PRO FLAT PEAK CAP" }) { product { id title } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productUpdate(product: { id: "gid://shopify/Product/8397257375977", title: "NIKE | SWOOSH PRO FLAT PEAK CAP" }) { product { id title } userErrors { field message } } }',
+    });
 
-    const vendorResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'query { products(first: 5, query: "egnition-sample-data status:active", sortKey: VENDOR) { edges { node { id title vendor productType } } } }',
-      });
+    const vendorResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query { products(first: 5, query: "egnition-sample-data status:active", sortKey: VENDOR) { edges { node { id title vendor productType } } } }',
+    });
 
     expect(vendorResponse.status).toBe(200);
     expect(vendorResponse.body.data.products.edges.map((edge: { node: { id: string } }) => edge.node.id)).toEqual([
@@ -2155,12 +2124,10 @@ describe('product query shapes', () => {
       'gid://shopify/Product/8397257081065',
     ]);
 
-    const productTypeResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'query { products(first: 5, query: "egnition-sample-data status:active", sortKey: PRODUCT_TYPE, reverse: true) { edges { node { id title vendor productType } } } }',
-      });
+    const productTypeResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query { products(first: 5, query: "egnition-sample-data status:active", sortKey: PRODUCT_TYPE, reverse: true) { edges { node { id title vendor productType } } } }',
+    });
 
     expect(productTypeResponse.status).toBe(200);
     expect(productTypeResponse.body.data.products.edges.map((edge: { node: { id: string } }) => edge.node.id)).toEqual([
@@ -2236,12 +2203,10 @@ describe('product query shapes', () => {
 
     const app = createApp({ ...config, readMode: 'snapshot' }).callback();
 
-    const handleResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'query { products(first: 10, sortKey: HANDLE) { edges { node { id handle status } } pageInfo { hasNextPage hasPreviousPage } } }',
-      });
+    const handleResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query { products(first: 10, sortKey: HANDLE) { edges { node { id handle status } } pageInfo { hasNextPage hasPreviousPage } } }',
+    });
 
     expect(handleResponse.status).toBe(200);
     expect(handleResponse.body.data.products.edges.map((edge: { node: { id: string } }) => edge.node.id)).toEqual([
@@ -2250,12 +2215,10 @@ describe('product query shapes', () => {
       'gid://shopify/Product/10',
     ]);
 
-    const statusResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'query { products(first: 10, sortKey: STATUS, reverse: true) { edges { node { id handle status } } pageInfo { hasNextPage hasPreviousPage } } }',
-      });
+    const statusResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query { products(first: 10, sortKey: STATUS, reverse: true) { edges { node { id handle status } } pageInfo { hasNextPage hasPreviousPage } } }',
+    });
 
     expect(statusResponse.status).toBe(200);
     expect(statusResponse.body.data.products.edges.map((edge: { node: { id: string } }) => edge.node.id)).toEqual([
@@ -2263,16 +2226,17 @@ describe('product query shapes', () => {
       'gid://shopify/Product/12',
       'gid://shopify/Product/10',
     ]);
-    expect(statusResponse.body.data.products.edges.map((edge: { node: { status: string } }) => edge.node.status)).toEqual([
-      'DRAFT',
-      'ARCHIVED',
-      'ACTIVE',
-    ]);
+    expect(
+      statusResponse.body.data.products.edges.map((edge: { node: { status: string } }) => edge.node.status),
+    ).toEqual(['DRAFT', 'ARCHIVED', 'ACTIVE']);
   });
 
   it('filters products and counts by variant sku after live-hybrid detail hydration', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
-      const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as { query?: string; variables?: { id?: string } }) : {};
+      const body =
+        typeof init?.body === 'string'
+          ? (JSON.parse(init.body) as { query?: string; variables?: { id?: string } })
+          : {};
       const query = body.query ?? '';
 
       if (query.includes('product(id:')) {
@@ -2382,25 +2346,20 @@ describe('product query shapes', () => {
       barcode: '1111111111111',
     });
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productUpdate(product: { id: "gid://shopify/Product/8397256720617", title: "Renamed Converse" }) { product { id title } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productUpdate(product: { id: "gid://shopify/Product/8397256720617", title: "Renamed Converse" }) { product { id title } userErrors { field message } } }',
+    });
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productCreate(product: { title: "Unrelated Draft Cap" }) { product { id } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Unrelated Draft Cap" }) { product { id } userErrors { field message } } }',
+    });
 
-    const response = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'query { matches: productsCount(query: "sku:C-03-black-5") { count precision } products(first: 5, query: "sku:C-03-black-5") { edges { node { id title handle } } pageInfo { hasNextPage startCursor endCursor } } }',
-      });
+    const response = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query { matches: productsCount(query: "sku:C-03-black-5") { count precision } products(first: 5, query: "sku:C-03-black-5") { edges { node { id title handle } } pageInfo { hasNextPage startCursor endCursor } } }',
+    });
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
@@ -2432,11 +2391,10 @@ describe('product query shapes', () => {
   it('filters products and counts by staged variant barcode in snapshot mode', async () => {
     const app = createApp({ ...config, readMode: 'snapshot' }).callback();
 
-    const createResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productCreate(product: { title: "Barcode Hat" }) { product { id } userErrors { field message } } }',
-      });
+    const createResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Barcode Hat" }) { product { id } userErrors { field message } } }',
+    });
 
     const createdId = createResponse.body.data.productCreate.product.id as string;
     const [defaultVariant] = store.getEffectiveVariantsByProductId(createdId);
@@ -2448,18 +2406,15 @@ describe('product query shapes', () => {
     };
     store.replaceStagedVariantsForProduct(createdId, [barcodeVariant]);
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productCreate(product: { title: "Plain Hat" }) { product { id } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Plain Hat" }) { product { id } userErrors { field message } } }',
+    });
 
-    const response = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'query { matches: productsCount(query: "barcode:0987654321098") { count precision } products(first: 5, query: "barcode:0987654321098") { edges { node { id title handle } } pageInfo { hasNextPage startCursor endCursor } } }',
-      });
+    const response = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query { matches: productsCount(query: "barcode:0987654321098") { count precision } products(first: 5, query: "barcode:0987654321098") { edges { node { id title handle } } pageInfo { hasNextPage startCursor endCursor } } }',
+    });
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
@@ -2489,45 +2444,41 @@ describe('product query shapes', () => {
   });
 
   it('paginates staged products with after cursors in default overlay order', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
-      new Response(
-        JSON.stringify({
-          data: {
-            products: {
-              nodes: [],
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            data: {
+              products: {
+                nodes: [],
+              },
             },
-          },
-        }),
-        { status: 200, headers: { 'content-type': 'application/json' } },
-      ),
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
     );
 
     const app = createApp(config).callback();
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productCreate(product: { title: "Alpha Hat" }) { product { id } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Alpha Hat" }) { product { id } userErrors { field message } } }',
+    });
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productCreate(product: { title: "Beta Hat" }) { product { id } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Beta Hat" }) { product { id } userErrors { field message } } }',
+    });
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productCreate(product: { title: "Gamma Hat" }) { product { id } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Gamma Hat" }) { product { id } userErrors { field message } } }',
+    });
 
-    const firstPage = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'query { products(first: 2) { edges { cursor node { id title } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }',
-      });
+    const firstPage = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query { products(first: 2) { edges { cursor node { id title } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }',
+    });
 
     expect(firstPage.status).toBe(200);
     expect(firstPage.body.data.products.edges.map((edge: { node: { title: string } }) => edge.node.title)).toEqual([
@@ -2572,29 +2523,24 @@ describe('product query shapes', () => {
   it('supports before/last backward pagination in snapshot mode', async () => {
     const app = createApp({ ...config, readMode: 'snapshot' }).callback();
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productCreate(product: { title: "Alpha Hat" }) { product { id } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Alpha Hat" }) { product { id } userErrors { field message } } }',
+    });
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productCreate(product: { title: "Beta Hat" }) { product { id } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Beta Hat" }) { product { id } userErrors { field message } } }',
+    });
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productCreate(product: { title: "Gamma Hat" }) { product { id } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Gamma Hat" }) { product { id } userErrors { field message } } }',
+    });
 
-    const anchorResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'query { products(first: 3) { edges { cursor node { id title } } } }',
-      });
+    const anchorResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query: 'query { products(first: 3) { edges { cursor node { id title } } } }',
+    });
 
     const response = await request(app)
       .post('/admin/api/2025-01/graphql.json')
@@ -2620,83 +2566,80 @@ describe('product query shapes', () => {
   });
 
   it('applies before/last cursors after filtering and sortKey ordering during overlay reads', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
-      new Response(
-        JSON.stringify({
-          data: {
-            products: {
-              edges: [
-                {
-                  node: {
-                    id: 'gid://shopify/Product/8397255999721',
-                    legacyResourceId: '8397255999721',
-                    title: 'NIKE | CRACKLE PRINT TB TEE',
-                    handle: 'nike-crackle-print-tb-tee',
-                    status: 'ACTIVE',
-                    vendor: 'NIKE',
-                    productType: 'TOPS',
-                    tags: ['nike', 'egnition-sample-data', 'tee'],
-                    totalInventory: 16,
-                    tracksInventory: true,
-                    createdAt: '2024-03-14T01:53:01Z',
-                    updatedAt: '2026-03-25T10:00:00Z',
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            data: {
+              products: {
+                edges: [
+                  {
+                    node: {
+                      id: 'gid://shopify/Product/8397255999721',
+                      legacyResourceId: '8397255999721',
+                      title: 'NIKE | CRACKLE PRINT TB TEE',
+                      handle: 'nike-crackle-print-tb-tee',
+                      status: 'ACTIVE',
+                      vendor: 'NIKE',
+                      productType: 'TOPS',
+                      tags: ['nike', 'egnition-sample-data', 'tee'],
+                      totalInventory: 16,
+                      tracksInventory: true,
+                      createdAt: '2024-03-14T01:53:01Z',
+                      updatedAt: '2026-03-25T10:00:00Z',
+                    },
                   },
-                },
-                {
-                  node: {
-                    id: 'gid://shopify/Product/8397257375977',
-                    legacyResourceId: '8397257375977',
-                    title: 'NIKE | SWOOSH PRO FLAT PEAK CAP',
-                    handle: 'nike-swoosh-pro-flat-peak-cap',
-                    status: 'ACTIVE',
-                    vendor: 'NIKE',
-                    productType: 'ACCESSORIES',
-                    tags: ['cap', 'egnition-sample-data', 'nike'],
-                    totalInventory: 20,
-                    tracksInventory: true,
-                    createdAt: '2024-03-14T01:53:33Z',
-                    updatedAt: '2026-03-25T16:49:35Z',
+                  {
+                    node: {
+                      id: 'gid://shopify/Product/8397257375977',
+                      legacyResourceId: '8397257375977',
+                      title: 'NIKE | SWOOSH PRO FLAT PEAK CAP',
+                      handle: 'nike-swoosh-pro-flat-peak-cap',
+                      status: 'ACTIVE',
+                      vendor: 'NIKE',
+                      productType: 'ACCESSORIES',
+                      tags: ['cap', 'egnition-sample-data', 'nike'],
+                      totalInventory: 20,
+                      tracksInventory: true,
+                      createdAt: '2024-03-14T01:53:33Z',
+                      updatedAt: '2026-03-25T16:49:35Z',
+                    },
                   },
-                },
-                {
-                  node: {
-                    id: 'gid://shopify/Product/8397257081065',
-                    legacyResourceId: '8397257081065',
-                    title: 'VANS APPAREL AND ACCESSORIES | CLASSIC SUPER NO SHOW SOCKS 3 PACK WHITE',
-                    handle: 'vans-apparel-and-accessories-classic-super-no-show-socks-3-pack-white',
-                    status: 'ACTIVE',
-                    vendor: 'VANS',
-                    productType: 'ACCESSORIES',
-                    tags: ['egnition-sample-data', 'unisex', 'vans'],
-                    totalInventory: 11,
-                    tracksInventory: true,
-                    createdAt: '2024-03-14T01:53:17Z',
-                    updatedAt: '2026-03-25T14:27:56Z',
+                  {
+                    node: {
+                      id: 'gid://shopify/Product/8397257081065',
+                      legacyResourceId: '8397257081065',
+                      title: 'VANS APPAREL AND ACCESSORIES | CLASSIC SUPER NO SHOW SOCKS 3 PACK WHITE',
+                      handle: 'vans-apparel-and-accessories-classic-super-no-show-socks-3-pack-white',
+                      status: 'ACTIVE',
+                      vendor: 'VANS',
+                      productType: 'ACCESSORIES',
+                      tags: ['egnition-sample-data', 'unisex', 'vans'],
+                      totalInventory: 11,
+                      tracksInventory: true,
+                      createdAt: '2024-03-14T01:53:17Z',
+                      updatedAt: '2026-03-25T14:27:56Z',
+                    },
                   },
-                },
-              ],
+                ],
+              },
             },
-          },
-        }),
-        { status: 200, headers: { 'content-type': 'application/json' } },
-      ),
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
     );
 
     const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productUpdate(product: { id: "gid://shopify/Product/8397257375977", title: "NIKE | SWOOSH PRO FLAT PEAK CAP (Renamed)" }) { product { id title } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productUpdate(product: { id: "gid://shopify/Product/8397257375977", title: "NIKE | SWOOSH PRO FLAT PEAK CAP (Renamed)" }) { product { id title } userErrors { field message } } }',
+    });
 
-    const latestResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'query { products(first: 2, query: "tag:egnition-sample-data product_type:ACCESSORIES", sortKey: UPDATED_AT, reverse: true) { edges { cursor node { id title } } } }',
-      });
+    const latestResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query { products(first: 2, query: "tag:egnition-sample-data product_type:ACCESSORIES", sortKey: UPDATED_AT, reverse: true) { edges { cursor node { id title } } } }',
+    });
 
     const response = await request(app)
       .post('/admin/api/2025-01/graphql.json')
@@ -2727,83 +2670,80 @@ describe('product query shapes', () => {
   });
 
   it('applies after cursors after filtering and sortKey ordering during overlay reads', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
-      new Response(
-        JSON.stringify({
-          data: {
-            products: {
-              edges: [
-                {
-                  node: {
-                    id: 'gid://shopify/Product/8397255999721',
-                    legacyResourceId: '8397255999721',
-                    title: 'NIKE | CRACKLE PRINT TB TEE',
-                    handle: 'nike-crackle-print-tb-tee',
-                    status: 'ACTIVE',
-                    vendor: 'NIKE',
-                    productType: 'TOPS',
-                    tags: ['nike', 'egnition-sample-data', 'tee'],
-                    totalInventory: 16,
-                    tracksInventory: true,
-                    createdAt: '2024-03-14T01:53:01Z',
-                    updatedAt: '2026-03-25T10:00:00Z',
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            data: {
+              products: {
+                edges: [
+                  {
+                    node: {
+                      id: 'gid://shopify/Product/8397255999721',
+                      legacyResourceId: '8397255999721',
+                      title: 'NIKE | CRACKLE PRINT TB TEE',
+                      handle: 'nike-crackle-print-tb-tee',
+                      status: 'ACTIVE',
+                      vendor: 'NIKE',
+                      productType: 'TOPS',
+                      tags: ['nike', 'egnition-sample-data', 'tee'],
+                      totalInventory: 16,
+                      tracksInventory: true,
+                      createdAt: '2024-03-14T01:53:01Z',
+                      updatedAt: '2026-03-25T10:00:00Z',
+                    },
                   },
-                },
-                {
-                  node: {
-                    id: 'gid://shopify/Product/8397257375977',
-                    legacyResourceId: '8397257375977',
-                    title: 'NIKE | SWOOSH PRO FLAT PEAK CAP',
-                    handle: 'nike-swoosh-pro-flat-peak-cap',
-                    status: 'ACTIVE',
-                    vendor: 'NIKE',
-                    productType: 'ACCESSORIES',
-                    tags: ['cap', 'egnition-sample-data', 'nike'],
-                    totalInventory: 20,
-                    tracksInventory: true,
-                    createdAt: '2024-03-14T01:53:33Z',
-                    updatedAt: '2026-03-25T16:49:35Z',
+                  {
+                    node: {
+                      id: 'gid://shopify/Product/8397257375977',
+                      legacyResourceId: '8397257375977',
+                      title: 'NIKE | SWOOSH PRO FLAT PEAK CAP',
+                      handle: 'nike-swoosh-pro-flat-peak-cap',
+                      status: 'ACTIVE',
+                      vendor: 'NIKE',
+                      productType: 'ACCESSORIES',
+                      tags: ['cap', 'egnition-sample-data', 'nike'],
+                      totalInventory: 20,
+                      tracksInventory: true,
+                      createdAt: '2024-03-14T01:53:33Z',
+                      updatedAt: '2026-03-25T16:49:35Z',
+                    },
                   },
-                },
-                {
-                  node: {
-                    id: 'gid://shopify/Product/8397257081065',
-                    legacyResourceId: '8397257081065',
-                    title: 'VANS APPAREL AND ACCESSORIES | CLASSIC SUPER NO SHOW SOCKS 3 PACK WHITE',
-                    handle: 'vans-apparel-and-accessories-classic-super-no-show-socks-3-pack-white',
-                    status: 'ACTIVE',
-                    vendor: 'VANS',
-                    productType: 'ACCESSORIES',
-                    tags: ['egnition-sample-data', 'unisex', 'vans'],
-                    totalInventory: 11,
-                    tracksInventory: true,
-                    createdAt: '2024-03-14T01:53:17Z',
-                    updatedAt: '2026-03-25T14:27:56Z',
+                  {
+                    node: {
+                      id: 'gid://shopify/Product/8397257081065',
+                      legacyResourceId: '8397257081065',
+                      title: 'VANS APPAREL AND ACCESSORIES | CLASSIC SUPER NO SHOW SOCKS 3 PACK WHITE',
+                      handle: 'vans-apparel-and-accessories-classic-super-no-show-socks-3-pack-white',
+                      status: 'ACTIVE',
+                      vendor: 'VANS',
+                      productType: 'ACCESSORIES',
+                      tags: ['egnition-sample-data', 'unisex', 'vans'],
+                      totalInventory: 11,
+                      tracksInventory: true,
+                      createdAt: '2024-03-14T01:53:17Z',
+                      updatedAt: '2026-03-25T14:27:56Z',
+                    },
                   },
-                },
-              ],
+                ],
+              },
             },
-          },
-        }),
-        { status: 200, headers: { 'content-type': 'application/json' } },
-      ),
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
     );
 
     const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productUpdate(product: { id: "gid://shopify/Product/8397257375977", title: "NIKE | SWOOSH PRO FLAT PEAK CAP (Renamed)" }) { product { id title } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productUpdate(product: { id: "gid://shopify/Product/8397257375977", title: "NIKE | SWOOSH PRO FLAT PEAK CAP (Renamed)" }) { product { id title } userErrors { field message } } }',
+    });
 
-    const firstPage = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'query { products(first: 1, query: "tag:egnition-sample-data product_type:ACCESSORIES", sortKey: UPDATED_AT, reverse: true) { edges { cursor node { id title } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }',
-      });
+    const firstPage = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query { products(first: 1, query: "tag:egnition-sample-data product_type:ACCESSORIES", sortKey: UPDATED_AT, reverse: true) { edges { cursor node { id title } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }',
+    });
 
     expect(firstPage.status).toBe(200);
     expect(firstPage.body.data.products.edges).toEqual([
@@ -2884,12 +2824,10 @@ describe('product query shapes', () => {
 
     const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productUpdate(product: { id: "gid://shopify/Product/8397256720617", title: "Renamed Converse" }) { product { id title } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productUpdate(product: { id: "gid://shopify/Product/8397256720617", title: "Renamed Converse" }) { product { id title } userErrors { field message } } }',
+    });
 
     const response = await request(app)
       .post('/admin/api/2025-01/graphql.json')
@@ -2922,12 +2860,10 @@ describe('product query shapes', () => {
   it('returns deterministic null detail defaults for staged products without upstream hydration', async () => {
     const app = createApp({ ...config, readMode: 'snapshot' }).callback();
 
-    const createResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productCreate(product: { title: "Fresh Draft" }) { product { id } userErrors { field message } } }',
-      });
+    const createResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Fresh Draft" }) { product { id } userErrors { field message } } }',
+    });
 
     const createdId = createResponse.body.data.productCreate.product.id as string;
 
@@ -2957,19 +2893,17 @@ describe('product query shapes', () => {
   it('serves top-level productVariant and inventoryItem queries from staged local variant state in snapshot mode', async () => {
     const app = createApp({ ...config, readMode: 'snapshot' }).callback();
 
-    const createResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productCreate(product: { title: "Variant Detail Hat" }) { product { id title handle status } userErrors { field message } } }',
-      });
+    const createResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Variant Detail Hat" }) { product { id title handle status } userErrors { field message } } }',
+    });
 
     const productId = createResponse.body.data.productCreate.product.id as string;
 
     const productResponse = await request(app)
       .post('/admin/api/2025-01/graphql.json')
       .send({
-        query:
-          'query ($id: ID!) { product(id: $id) { id variants(first: 10) { nodes { id } } } }',
+        query: 'query ($id: ID!) { product(id: $id) { id variants(first: 10) { nodes { id } } } }',
         variables: { id: productId },
       });
 
@@ -3011,13 +2945,11 @@ describe('product query shapes', () => {
 
     const inventoryItemId = updateResponse.body.data.productVariantUpdate.productVariant.inventoryItem.id as string;
 
-    const response = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'query VariantAndInventory($variantId: ID!, $inventoryItemId: ID!) { variant: productVariant(id: $variantId) { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping measurement { weight { unit value } } countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode } product { id title handle status } } stock: inventoryItem(id: $inventoryItemId) { id tracked requiresShipping measurement { weight { unit value } } countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode variant { id title sku selectedOptions { name value } product { id title handle } } } }',
-        variables: { variantId, inventoryItemId },
-      });
+    const response = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query VariantAndInventory($variantId: ID!, $inventoryItemId: ID!) { variant: productVariant(id: $variantId) { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping measurement { weight { unit value } } countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode } product { id title handle status } } stock: inventoryItem(id: $inventoryItemId) { id tracked requiresShipping measurement { weight { unit value } } countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode variant { id title sku selectedOptions { name value } product { id title handle } } } }',
+      variables: { variantId, inventoryItemId },
+    });
 
     expect(response.status).toBe(200);
     expect(response.body.data.variant).toEqual({
@@ -3081,7 +3013,7 @@ describe('product query shapes', () => {
 
   it('overlays top-level productVariant and inventoryItem queries onto hydrated variant state in live-hybrid mode', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
-      const body = typeof init?.body === 'string' ? JSON.parse(init.body) as { query?: string } : {};
+      const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as { query?: string }) : {};
       const query = body.query ?? '';
 
       if (query.includes('product(id:')) {
@@ -3151,12 +3083,10 @@ describe('product query shapes', () => {
         variables: { id: 'gid://shopify/Product/500' },
       });
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productUpdate(product: { id: "gid://shopify/Product/500", title: "Hydrated Variant Hat Renamed" }) { product { id title } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productUpdate(product: { id: "gid://shopify/Product/500", title: "Hydrated Variant Hat Renamed" }) { product { id title } userErrors { field message } } }',
+    });
 
     const response = await request(app)
       .post('/admin/api/2025-01/graphql.json')

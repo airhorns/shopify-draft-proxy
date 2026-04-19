@@ -1,14 +1,8 @@
 {
   "scenarioId": "collection-add-products-live-parity",
-  "operationNames": [
-    "collectionAddProducts"
-  ],
+  "operationNames": ["collectionAddProducts"],
   "scenarioStatus": "captured",
-  "assertionKinds": [
-    "payload-shape",
-    "user-errors-parity",
-    "downstream-read-parity"
-  ],
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": [
     "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collection-add-products-parity.json"
   ],
