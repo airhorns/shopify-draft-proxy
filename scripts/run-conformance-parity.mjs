@@ -7,11 +7,10 @@ const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '
 const scenarioRegistry = JSON.parse(readFileSync(path.join(repoRoot, 'config', 'conformance-scenarios.json'), 'utf8'));
 
 const filterId = process.argv[2] ?? null;
-const selectedScenarios = filterId
-  ? scenarioRegistry.filter((scenario) => scenario.id === filterId)
-  : scenarioRegistry;
+const selectedScenarios = filterId ? scenarioRegistry.filter((scenario) => scenario.id === filterId) : scenarioRegistry;
 
 if (selectedScenarios.length === 0) {
+  // oxlint-disable-next-line no-console -- CLI error output is intentionally written to stderr.
   console.error(filterId ? `Unknown conformance scenario id: ${filterId}` : 'No conformance scenarios found.');
   process.exit(1);
 }
@@ -34,10 +33,17 @@ for (const scenario of selectedScenarios) {
   });
 }
 
-console.log(JSON.stringify({
-  ok: true,
-  total: results.length,
-  readyForComparison: results.filter((result) => result.state === 'ready-for-comparison').length,
-  pending: results.filter((result) => result.state !== 'ready-for-comparison').length,
-  results,
-}, null, 2));
+// oxlint-disable-next-line no-console -- CLI parity result is intentionally written to stdout.
+console.log(
+  JSON.stringify(
+    {
+      ok: true,
+      total: results.length,
+      readyForComparison: results.filter((result) => result.state === 'ready-for-comparison').length,
+      pending: results.filter((result) => result.state !== 'ready-for-comparison').length,
+      results,
+    },
+    null,
+    2,
+  ),
+);

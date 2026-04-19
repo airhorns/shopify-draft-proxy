@@ -13,6 +13,7 @@ const requiredVars = [
 
 const missingVars = requiredVars.filter((name) => !process.env[name]);
 if (missingVars.length > 0) {
+  // oxlint-disable-next-line no-console -- CLI error output is intentionally written to stderr.
   console.error(`Missing required environment variables: ${missingVars.join(', ')}`);
   process.exit(1);
 }
@@ -237,11 +238,11 @@ try {
   optionsCreateResponse = await runGraphql(optionsCreateMutation, optionsCreateVariables);
   const createdOptions = optionsCreateResponse.data?.productOptionsCreate?.product?.options ?? [];
   const createdOption = Array.isArray(createdOptions)
-    ? createdOptions.find((option) => option?.name === 'Color') ?? null
+    ? (createdOptions.find((option) => option?.name === 'Color') ?? null)
     : null;
   const createdOptionId = typeof createdOption?.id === 'string' ? createdOption.id : null;
   const redValueId = Array.isArray(createdOption?.optionValues)
-    ? createdOption.optionValues.find((value) => value?.name === 'Red')?.id ?? null
+    ? (createdOption.optionValues.find((value) => value?.name === 'Red')?.id ?? null)
     : null;
   if (!createdOptionId || !redValueId) {
     throw new Error('Option create capture did not yield the created option/value ids.');
@@ -284,6 +285,7 @@ try {
     await writeFile(path.join(outputDir, filename), `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
   }
 
+  // oxlint-disable-next-line no-console -- CLI capture result is intentionally written to stdout.
   console.log(
     JSON.stringify(
       {
@@ -301,6 +303,7 @@ try {
   const blocker = parseWriteScopeBlocker(error?.result ?? null);
   if (blocker) {
     await writeScopeBlocker(blocker);
+    // oxlint-disable-next-line no-console -- CLI blocker result is intentionally written to stdout.
     console.log(
       JSON.stringify(
         {

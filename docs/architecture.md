@@ -52,6 +52,11 @@ App -> Koa server -> operation classifier
 - build Koa app
 - register body parser, request logging, meta routes, proxy routes
 
+### `src/logger.ts`
+- create the shared pino structured logger for runtime proxy logs
+- provide child loggers for server and proxy modules
+- keep unsupported mutation passthrough visible through structured warning logs
+
 ### `src/server.ts`
 - start HTTP server
 

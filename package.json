@@ -4,7 +4,6 @@
   "private": true,
   "description": "High-fidelity Shopify Admin GraphQL draft proxy for test environments",
   "type": "module",
-  "packageManager": "pnpm@10.18.3",
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
@@ -12,7 +11,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint -D no-console . && oxfmt --check .github/workflows/ci.yml .oxfmtrc.json package.json src/logger.ts src/server.ts src/proxy/routes.ts scripts/capture-collection-conformance.mjs scripts/capture-collection-mutation-conformance.mjs scripts/capture-product-conformance.mjs scripts/capture-product-mutation-conformance.mjs scripts/capture-product-option-mutation-conformance.mjs scripts/capture-product-state-mutation-conformance.mjs scripts/check-conformance-coverage.mjs scripts/check-worklist.mjs scripts/conformance-probe.mjs scripts/run-conformance-parity.mjs",
     "worklist:check": "node ./scripts/check-worklist.mjs",
     "conformance:check": "node ./scripts/check-conformance-coverage.mjs",
     "conformance:parity": "node ./scripts/run-conformance-parity.mjs",
@@ -24,25 +23,29 @@
     "conformance:capture-collections": "node ./scripts/capture-collection-conformance.mjs",
     "conformance:capture-collection-mutations": "node ./scripts/capture-collection-mutation-conformance.mjs"
   },
-  "engines": {
-    "node": ">=22.0.0"
-  },
   "dependencies": {
     "@koa/router": "^15.4.0",
     "dotenv": "^16.6.1",
     "graphql": "^16.11.0",
     "koa": "^2.16.3",
-    "koa-bodyparser": "^4.4.1"
+    "koa-bodyparser": "^4.4.1",
+    "pino": "^10.3.1"
   },
   "devDependencies": {
     "@types/koa": "^2.15.0",
-    "@types/koa__router": "^12.0.4",
     "@types/koa-bodyparser": "^4.3.12",
+    "@types/koa__router": "^12.0.4",
     "@types/node": "^24.6.1",
     "@types/supertest": "^6.0.3",
+    "oxfmt": "^0.45.0",
+    "oxlint": "^1.60.0",
     "supertest": "^7.1.4",
     "tsx": "^4.20.6",
     "typescript": "5.9.3",
     "vitest": "^3.2.4"
-  }
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "packageManager": "pnpm@10.18.3"
 }
