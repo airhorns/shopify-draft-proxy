@@ -3,6 +3,8 @@ mutation ProductUpdateParityPlan($product: ProductUpdateInput!) {
     product {
       id
       title
+      handle
+      status
       vendor
       productType
       tags

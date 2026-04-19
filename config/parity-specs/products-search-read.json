@@ -14,9 +14,20 @@
     "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-search.json"
   ],
   "proxyRequest": {
-    "documentPath": null,
-    "variablesPath": null
+    "documentPath": "config/parity-requests/products-search-read.graphql",
+    "variablesPath": "config/parity-requests/products-search-read.variables.json"
   },
-  "comparisonMode": "capture-only",
-  "notes": "Fill in proxy request + comparator details as parity coverage is implemented."
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executed by the conformance parity runner against a local proxy harness with the captured Shopify payload supplied as the upstream read response; no live Shopify writes are performed.",
+  "comparisons": [
+    {
+      "name": "captured read payload",
+      "capturePath": "$",
+      "proxyResponsePath": "$",
+      "allowedDifferencePaths": [],
+      "mustMatchPaths": [
+        "$.data"
+      ]
+    }
+  ]
 }

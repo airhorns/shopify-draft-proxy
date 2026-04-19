@@ -30,6 +30,7 @@ const allowedDomain = new Set(['products', 'unknown']);
 const allowedType = new Set(['query', 'mutation']);
 const allowedConformanceStatus = new Set(['covered', 'declared-gap']);
 const allowedScenarioStatus = new Set(['captured', 'planned']);
+const allowedComparisonMode = new Set(['captured-vs-proxy-request', 'planned']);
 const operationNames = new Set();
 const matchNames = new Map();
 const scenarioIds = new Map();
@@ -44,11 +45,41 @@ for (const scenario of scenarioRegistry) {
   assert(Array.isArray(scenario.captureFiles), `Scenario ${scenario.id} must declare captureFiles.`);
   assert(typeof scenario.paritySpecPath === 'string' && scenario.paritySpecPath.length > 0, `Scenario ${scenario.id} must declare paritySpecPath.`);
   assert(relativeExists(scenario.paritySpecPath), `Scenario ${scenario.id} references missing parity spec: ${scenario.paritySpecPath}`);
+  const paritySpec = relativeExists(scenario.paritySpecPath)
+    ? JSON.parse(readFileSync(path.join(repoRoot, scenario.paritySpecPath), 'utf8'))
+    : null;
+  assert(
+    allowedComparisonMode.has(paritySpec?.comparisonMode),
+    `Scenario ${scenario.id} parity spec must use comparisonMode captured-vs-proxy-request or planned.`,
+  );
   if (scenario.status === 'captured') {
     assert(scenario.captureFiles.length > 0, `Captured scenario ${scenario.id} must reference at least one capture file.`);
     for (const captureFile of scenario.captureFiles) {
       assert(relativeExists(captureFile), `Scenario ${scenario.id} references missing capture file: ${captureFile}`);
     }
+    assert(
+      paritySpec?.comparisonMode === 'captured-vs-proxy-request',
+      `Captured scenario ${scenario.id} must run captured-vs-proxy-request comparisons.`,
+    );
+    assert(
+      Array.isArray(paritySpec?.comparisons) && paritySpec.comparisons.length > 0,
+      `Captured scenario ${scenario.id} must declare explicit parity comparisons.`,
+    );
+    for (const comparison of paritySpec?.comparisons ?? []) {
+      const proxyRequest = comparison.proxyRequest ?? paritySpec.proxyRequest;
+      assert(typeof comparison.name === 'string' && comparison.name.length > 0, `Scenario ${scenario.id} has a comparison without a name.`);
+      assert(typeof comparison.capturePath === 'string' && comparison.capturePath.length > 0, `Scenario ${scenario.id} comparison ${comparison.name} must declare capturePath.`);
+      assert(typeof comparison.proxyResponsePath === 'string' && comparison.proxyResponsePath.length > 0, `Scenario ${scenario.id} comparison ${comparison.name} must declare proxyResponsePath.`);
+      assert(Array.isArray(comparison.allowedDifferencePaths), `Scenario ${scenario.id} comparison ${comparison.name} must declare allowedDifferencePaths.`);
+      assert(Array.isArray(comparison.mustMatchPaths), `Scenario ${scenario.id} comparison ${comparison.name} must declare mustMatchPaths.`);
+      assert(proxyRequest?.documentPath && relativeExists(proxyRequest.documentPath), `Scenario ${scenario.id} comparison ${comparison.name} references missing proxy document.`);
+      assert(proxyRequest?.variablesPath && relativeExists(proxyRequest.variablesPath), `Scenario ${scenario.id} comparison ${comparison.name} references missing proxy variables.`);
+    }
+  } else {
+    assert(
+      paritySpec?.comparisonMode === 'planned',
+      `Planned scenario ${scenario.id} must stay not-yet-implemented with comparisonMode planned.`,
+    );
   }
 }
 

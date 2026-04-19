@@ -1,0 +1,30 @@
+query ProductSearchConformance {
+  total: productsCount(limit: null) {
+    count
+    precision
+  }
+  nike: products(first: 2, query: "vendor:NIKE status:active", sortKey: TITLE) {
+    edges {
+      node {
+        id
+        title
+        vendor
+        status
+        totalInventory
+      }
+    }
+    pageInfo {
+      hasNextPage
+    }
+  }
+  lowInventory: products(first: 2, query: "inventory_total:<=5 status:active", sortKey: INVENTORY_TOTAL) {
+    edges {
+      node {
+        id
+        title
+        vendor
+        totalInventory
+      }
+    }
+  }
+}

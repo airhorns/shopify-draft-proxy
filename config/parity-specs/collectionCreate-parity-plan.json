@@ -17,5 +17,21 @@
     "variablesPath": "config/parity-requests/collectionCreate-parity-plan.variables.json"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live capture recorded for safe `collectionCreate` plus downstream collection visibility parity. Fill in comparator implementation to turn this into executed proxy-vs-Shopify comparison."
+  "notes": "Executed by the conformance parity runner against the local staged-mutation path with live fixture variables; allowed differences are path-scoped to nondeterministic ids, timestamps, throttle metadata, or documented declared-gap fields.",
+  "comparisons": [
+    {
+      "name": "captured mutation payload",
+      "capturePath": "$.mutation.response",
+      "proxyResponsePath": "$",
+      "variablesCapturePath": "$.mutation.variables",
+      "upstreamCapturePath": null,
+      "allowedDifferencePaths": [
+        "$.extensions",
+        "$.data.collectionCreate.collection.id"
+      ],
+      "mustMatchPaths": [
+        "$.data.collectionCreate.userErrors"
+      ]
+    }
+  ]
 }
