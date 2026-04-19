@@ -22,10 +22,10 @@ describe('product draft flow', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
       if (url.endsWith('/graphql.json')) {
-        return new Response(
-          JSON.stringify({ data: { product: null } }),
-          { status: 200, headers: { 'content-type': 'application/json' } },
-        );
+        return new Response(JSON.stringify({ data: { product: null } }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
       }
 
       throw new Error(`Unexpected fetch: ${String(url)}`);
@@ -37,7 +37,8 @@ describe('product draft flow', () => {
       .post('/admin/api/2025-01/graphql.json')
       .set('x-shopify-access-token', 'shpat_test')
       .send({
-        query: 'mutation productCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title handle status createdAt updatedAt } userErrors { field message } } }',
+        query:
+          'mutation productCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title handle status createdAt updatedAt } userErrors { field message } } }',
         variables: {
           product: {
             title: 'Draft Hat',
@@ -98,11 +99,13 @@ describe('product draft flow', () => {
 
     const createdId = createResponse.body.data.productCreate.product.id as string;
 
-    const initialQueryResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
-      query:
-        'query ($id: ID!) { product(id: $id) { id title options { id name position optionValues { id name hasVariants } } variants(first: 10) { nodes { id title } pageInfo { hasNextPage hasPreviousPage } } } }',
-      variables: { id: createdId },
-    });
+    const initialQueryResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query ($id: ID!) { product(id: $id) { id title options { id name position optionValues { id name hasVariants } } variants(first: 10) { nodes { id title } pageInfo { hasNextPage hasPreviousPage } } } }',
+        variables: { id: createdId },
+      });
 
     expect(initialQueryResponse.status).toBe(200);
     expect(initialQueryResponse.body.data.product.options).toEqual([
@@ -129,27 +132,33 @@ describe('product draft flow', () => {
       hasPreviousPage: false,
     });
 
-    await request(app).post('/admin/api/2025-01/graphql.json').send({
-      query:
-        'mutation ($product: ProductUpdateInput!) { productUpdate(product: $product) { product { id title } userErrors { field message } } }',
-      variables: {
-        product: {
-          id: createdId,
-          title: 'Variant Hat Renamed',
+    await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation ($product: ProductUpdateInput!) { productUpdate(product: $product) { product { id title } userErrors { field message } } }',
+        variables: {
+          product: {
+            id: createdId,
+            title: 'Variant Hat Renamed',
+          },
         },
-      },
-    });
+      });
 
-    const updatedQueryResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
-      query:
-        'query ($id: ID!) { product(id: $id) { id title options { id name position optionValues { id name hasVariants } } variants(first: 10) { nodes { id title } } } }',
-      variables: { id: createdId },
-    });
+    const updatedQueryResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query ($id: ID!) { product(id: $id) { id title options { id name position optionValues { id name hasVariants } } variants(first: 10) { nodes { id title } } } }',
+        variables: { id: createdId },
+      });
 
     expect(updatedQueryResponse.status).toBe(200);
     expect(updatedQueryResponse.body.data.product.title).toBe('Variant Hat Renamed');
     expect(updatedQueryResponse.body.data.product.options).toEqual(initialQueryResponse.body.data.product.options);
-    expect(updatedQueryResponse.body.data.product.variants.nodes).toEqual(initialQueryResponse.body.data.product.variants.nodes);
+    expect(updatedQueryResponse.body.data.product.variants.nodes).toEqual(
+      initialQueryResponse.body.data.product.variants.nodes,
+    );
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
@@ -295,12 +304,10 @@ describe('product draft flow', () => {
       tags: ['existing', 'summer'],
     });
 
-    const filteredResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'query FilteredTaggedReads { remaining: products(first: 10, query: "tag:summer") { nodes { id tags } } removed: products(first: 10, query: "tag:sale") { nodes { id } } remainingCount: productsCount(query: "tag:summer") { count precision } removedCount: productsCount(query: "tag:sale") { count precision } }',
-      });
+    const filteredResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query FilteredTaggedReads { remaining: products(first: 10, query: "tag:summer") { nodes { id tags } } removed: products(first: 10, query: "tag:sale") { nodes { id } } remainingCount: productsCount(query: "tag:summer") { count precision } removedCount: productsCount(query: "tag:sale") { count precision } }',
+    });
 
     expect(filteredResponse.status).toBe(200);
     expect(filteredResponse.body.data.remaining.nodes).toEqual([
@@ -392,12 +399,10 @@ describe('product draft flow', () => {
       },
     });
 
-    const filteredProductsResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'query { products(first: 10, query: "vendor:NIKE tag:summer product_type:ACCESSORIES") { nodes { id title vendor productType tags } } }',
-      });
+    const filteredProductsResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query { products(first: 10, query: "vendor:NIKE tag:summer product_type:ACCESSORIES") { nodes { id title vendor productType tags } } }',
+    });
 
     expect(filteredProductsResponse.status).toBe(200);
     expect(filteredProductsResponse.body.data.products.nodes).toEqual([
@@ -414,7 +419,7 @@ describe('product draft flow', () => {
 
   it('applies rich merchandising/detail field updates onto hydrated products without dropping untouched detail fields', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
-      const body = typeof init?.body === 'string' ? JSON.parse(init.body) as { query?: string } : {};
+      const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as { query?: string }) : {};
       const query = body.query ?? '';
 
       if (query.includes('product(id:')) {
@@ -567,12 +572,10 @@ describe('product draft flow', () => {
       onlineStorePreviewUrl: 'https://example.myshopify.com/products/base-shirt',
     });
 
-    const filteredProductsResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'query { products(first: 10, query: "vendor:NIKE tag:summer product_type:ACCESSORIES") { nodes { id title vendor productType tags descriptionHtml templateSuffix seo { title description } onlineStorePreviewUrl } } }',
-      });
+    const filteredProductsResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query { products(first: 10, query: "vendor:NIKE tag:summer product_type:ACCESSORIES") { nodes { id title vendor productType tags descriptionHtml templateSuffix seo { title description } onlineStorePreviewUrl } } }',
+    });
 
     expect(filteredProductsResponse.status).toBe(200);
     expect(filteredProductsResponse.body.data.products.nodes).toEqual([
@@ -618,29 +621,24 @@ describe('product draft flow', () => {
 
     const app = createApp(config).callback();
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productUpdate(product: { id: "gid://shopify/Product/1", title: "Renamed Shirt" }) { product { id title } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productUpdate(product: { id: "gid://shopify/Product/1", title: "Renamed Shirt" }) { product { id title } userErrors { field message } } }',
+    });
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productCreate(product: { title: "New Hat" }) { product { id title } userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "New Hat" }) { product { id title } userErrors { field message } } }',
+    });
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productDelete(input: { id: "gid://shopify/Product/1" }) { deletedProductId userErrors { field message } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productDelete(input: { id: "gid://shopify/Product/1" }) { deletedProductId userErrors { field message } } }',
+    });
 
-    const productsResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'query { products(first: 10) { nodes { id title handle status } } }',
-      });
+    const productsResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query: 'query { products(first: 10) { nodes { id title handle status } } }',
+    });
 
     expect(productsResponse.status).toBe(200);
     expect(productsResponse.body.data.products.nodes).toEqual([
@@ -654,19 +652,23 @@ describe('product draft flow', () => {
 
   it('stages productChangeStatus locally for created products and updates downstream reads', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
-      return new Response(JSON.stringify({ data: { product: null, products: { nodes: [] }, productsCount: { count: 0, precision: 'EXACT' } } }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({
+          data: { product: null, products: { nodes: [] }, productsCount: { count: 0, precision: 'EXACT' } },
+        }),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        },
+      );
     });
 
     const app = createApp(config).callback();
 
-    const createResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productCreate(product: { title: "Status Hat", status: DRAFT }) { product { id status } userErrors { field message } } }',
-      });
+    const createResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Status Hat", status: DRAFT }) { product { id status } userErrors { field message } } }',
+    });
 
     const createdId = createResponse.body.data.productCreate.product.id as string;
 
@@ -691,7 +693,8 @@ describe('product draft flow', () => {
     const queryResponse = await request(app)
       .post('/admin/api/2025-01/graphql.json')
       .send({
-        query: 'query AfterStatusChange($id: ID!) { product(id: $id) { id status updatedAt } products(first: 10, query: "status:active") { nodes { id status } } activeCount: productsCount(query: "status:active") { count precision } }',
+        query:
+          'query AfterStatusChange($id: ID!) { product(id: $id) { id status updatedAt } products(first: 10, query: "status:active") { nodes { id status } } activeCount: productsCount(query: "status:active") { count precision } }',
         variables: { id: createdId },
       });
 
@@ -747,11 +750,10 @@ describe('product draft flow', () => {
 
     const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
 
-    const invalidResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productChangeStatus(productId: null, status: ARCHIVED) { product { id status } userErrors { field message } } }',
-      });
+    const invalidResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productChangeStatus(productId: null, status: ARCHIVED) { product { id status } userErrors { field message } } }',
+    });
 
     expect(invalidResponse.status).toBe(200);
     expect(invalidResponse.body.data.productChangeStatus).toEqual({
@@ -772,12 +774,10 @@ describe('product draft flow', () => {
       status: 'ACTIVE',
     });
 
-    const changeResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productChangeStatus(productId: "gid://shopify/Product/1", status: ARCHIVED) { product { id status updatedAt } userErrors { field message } } }',
-      });
+    const changeResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productChangeStatus(productId: "gid://shopify/Product/1", status: ARCHIVED) { product { id status updatedAt } userErrors { field message } } }',
+    });
 
     expect(changeResponse.status).toBe(200);
     expect(changeResponse.body.data.productChangeStatus.userErrors).toEqual([]);
@@ -821,11 +821,10 @@ describe('product draft flow', () => {
 
     const app = createApp(config).callback();
 
-    const createResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productCreate(product: { title: "Publication Hat", status: DRAFT }) { product { id } userErrors { field message } } }',
-      });
+    const createResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Publication Hat", status: DRAFT }) { product { id } userErrors { field message } } }',
+    });
 
     const productId = createResponse.body.data.productCreate.product.id as string;
 
@@ -868,9 +867,7 @@ describe('product draft flow', () => {
       });
 
     expect(publishedQueryResponse.status).toBe(200);
-    expect(publishedQueryResponse.body.data.product).toEqual(
-      publishResponse.body.data.productPublish.product,
-    );
+    expect(publishedQueryResponse.body.data.product).toEqual(publishResponse.body.data.productPublish.product);
 
     const unpublishResponse = await request(app)
       .post('/admin/api/2025-01/graphql.json')
@@ -911,9 +908,7 @@ describe('product draft flow', () => {
       });
 
     expect(unpublishedQueryResponse.status).toBe(200);
-    expect(unpublishedQueryResponse.body.data.product).toEqual(
-      unpublishResponse.body.data.productUnpublish.product,
-    );
+    expect(unpublishedQueryResponse.body.data.product).toEqual(unpublishResponse.body.data.productUnpublish.product);
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
@@ -947,12 +942,10 @@ describe('product draft flow', () => {
 
     const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
 
-    const invalidPublishResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productPublish(input: { id: null, productPublications: [{ publicationId: "gid://shopify/Publication/1" }] }) { product { id } userErrors { field message } } }',
-      });
+    const invalidPublishResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productPublish(input: { id: null, productPublications: [{ publicationId: "gid://shopify/Publication/1" }] }) { product { id } userErrors { field message } } }',
+    });
 
     expect(invalidPublishResponse.status).toBe(200);
     expect(invalidPublishResponse.body.data.productPublish).toEqual({
@@ -1021,9 +1014,7 @@ describe('product draft flow', () => {
       });
 
     expect(overlayQueryResponse.status).toBe(200);
-    expect(overlayQueryResponse.body.data.product).toEqual(
-      publishResponse.body.data.productPublish.product,
-    );
+    expect(overlayQueryResponse.body.data.product).toEqual(publishResponse.body.data.productPublish.product);
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
@@ -1037,11 +1028,10 @@ describe('product draft flow', () => {
 
     const app = createApp(config).callback();
 
-    const createProductResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productCreate(product: { title: "Option Hat" }) { product { id } userErrors { field message } } }',
-      });
+    const createProductResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Option Hat" }) { product { id } userErrors { field message } } }',
+    });
 
     const productId = createProductResponse.body.data.productCreate.product.id as string;
 
@@ -1081,7 +1071,8 @@ describe('product draft flow', () => {
     ]);
 
     const colorOptionId = createOptionResponse.body.data.productOptionsCreate.product.options[0].id as string;
-    const redValueId = createOptionResponse.body.data.productOptionsCreate.product.options[0].optionValues[0].id as string;
+    const redValueId = createOptionResponse.body.data.productOptionsCreate.product.options[0].optionValues[0]
+      .id as string;
 
     const updateOptionResponse = await request(app)
       .post('/admin/api/2025-01/graphql.json')
@@ -1182,19 +1173,23 @@ describe('product draft flow', () => {
 
   it('stages product variant bulk create, update, and delete mutations locally with downstream variant reads and inventory-derived catalog fields', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
-      return new Response(JSON.stringify({ data: { product: null, products: { nodes: [] }, productsCount: { count: 0, precision: 'EXACT' } } }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({
+          data: { product: null, products: { nodes: [] }, productsCount: { count: 0, precision: 'EXACT' } },
+        }),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        },
+      );
     });
 
     const app = createApp(config).callback();
 
-    const createProductResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productCreate(product: { title: "Variant Catalog Hat" }) { product { id } userErrors { field message } } }',
-      });
+    const createProductResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Variant Catalog Hat" }) { product { id } userErrors { field message } } }',
+    });
 
     const productId = createProductResponse.body.data.productCreate.product.id as string;
 
@@ -1434,19 +1429,23 @@ describe('product draft flow', () => {
 
   it('stages singular product variant create, update, and delete mutations locally via the same overlay model', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
-      return new Response(JSON.stringify({ data: { product: null, products: { nodes: [] }, productsCount: { count: 0, precision: 'EXACT' } } }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({
+          data: { product: null, products: { nodes: [] }, productsCount: { count: 0, precision: 'EXACT' } },
+        }),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        },
+      );
     });
 
     const app = createApp(config).callback();
 
-    const createProductResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productCreate(product: { title: "Single Variant Hat" }) { product { id } userErrors { field message } } }',
-      });
+    const createProductResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Single Variant Hat" }) { product { id } userErrors { field message } } }',
+    });
 
     const productId = createProductResponse.body.data.productCreate.product.id as string;
 
@@ -1665,19 +1664,23 @@ describe('product draft flow', () => {
 
   it('keeps option values and hasVariants in sync with singular variant selectedOptions mutations', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
-      return new Response(JSON.stringify({ data: { product: null, products: { nodes: [] }, productsCount: { count: 0, precision: 'EXACT' } } }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({
+          data: { product: null, products: { nodes: [] }, productsCount: { count: 0, precision: 'EXACT' } },
+        }),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        },
+      );
     });
 
     const app = createApp(config).callback();
 
-    const createProductResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productCreate(product: { title: "Option Synced Hat" }) { product { id } userErrors { field message } } }',
-      });
+    const createProductResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Option Synced Hat" }) { product { id } userErrors { field message } } }',
+    });
 
     const productId = createProductResponse.body.data.productCreate.product.id as string;
 
@@ -1799,7 +1802,8 @@ describe('product draft flow', () => {
     const deleteVariantResponse = await request(app)
       .post('/admin/api/2025-01/graphql.json')
       .send({
-        query: 'mutation DeleteVariant($id: ID!) { productVariantDelete(id: $id) { deletedProductVariantId userErrors { field message } } }',
+        query:
+          'mutation DeleteVariant($id: ID!) { productVariantDelete(id: $id) { deletedProductVariantId userErrors { field message } } }',
         variables: { id: createdVariantId },
       });
 
@@ -1845,11 +1849,10 @@ describe('product draft flow', () => {
 
     const app = createApp({ ...config, readMode: 'snapshot' }).callback();
 
-    const createProductResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productCreate(product: { title: "Bulk Option Hat" }) { product { id } userErrors { field message } } }',
-      });
+    const createProductResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Bulk Option Hat" }) { product { id } userErrors { field message } } }',
+    });
 
     const productId = createProductResponse.body.data.productCreate.product.id as string;
 
@@ -1953,11 +1956,10 @@ describe('product draft flow', () => {
 
     const app = createApp(config).callback();
 
-    const createResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productCreate(product: { title: "Metafield Hat" }) { product { id } userErrors { field message } } }',
-      });
+    const createResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Metafield Hat" }) { product { id } userErrors { field message } } }',
+    });
 
     const productId = createResponse.body.data.productCreate.product.id as string;
     const fetchCountBeforeMutation = fetchSpy.mock.calls.length;
@@ -2030,7 +2032,7 @@ describe('product draft flow', () => {
 
   it('stages metafieldDelete locally against hydrated product metafields and removes the deleted metafield from downstream reads', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
-      const body = typeof init?.body === 'string' ? JSON.parse(init.body) as { query?: string } : {};
+      const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as { query?: string }) : {};
       const query = body.query ?? '';
 
       if (query.includes('product(id:')) {
@@ -2163,11 +2165,9 @@ describe('product draft flow', () => {
         variables: { id: 'gid://shopify/Product/404' },
       });
 
-    const productsResponse = await request(snapshotApp)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'query { products(first: 10) { nodes { id title } } }',
-      });
+    const productsResponse = await request(snapshotApp).post('/admin/api/2025-01/graphql.json').send({
+      query: 'query { products(first: 10) { nodes { id title } } }',
+    });
 
     expect(productResponse.body).toEqual({ data: { product: null } });
     expect(productsResponse.body).toEqual({
@@ -2452,11 +2452,10 @@ describe('product draft flow', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     const app = createApp({ ...config, readMode: 'snapshot' }).callback();
 
-    const createProductResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'mutation { productCreate(product: { title: "Media Hat" }) { product { id } userErrors { field message } } }',
-      });
+    const createProductResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Media Hat" }) { product { id } userErrors { field message } } }',
+    });
 
     const productId = createProductResponse.body.data.productCreate.product.id as string;
 
@@ -2640,9 +2639,7 @@ describe('product draft flow', () => {
                 inventoryItem: { tracked: false, requiresShipping: true },
               },
             ],
-            metafields: [
-              { namespace: 'custom', key: 'season', type: 'single_line_text_field', value: 'winter' },
-            ],
+            metafields: [{ namespace: 'custom', key: 'season', type: 'single_line_text_field', value: 'winter' }],
           },
         },
       });
@@ -2792,7 +2789,15 @@ describe('product draft flow', () => {
         inventoryPolicy: 'DENY',
         inventoryQuantity: 5,
         selectedOptions: [{ name: 'Color', value: 'Blue' }],
-        inventoryItem: { id: 'gid://shopify/InventoryItem/70001', tracked: true, requiresShipping: true, measurement: null, countryCodeOfOrigin: null, provinceCodeOfOrigin: null, harmonizedSystemCode: null },
+        inventoryItem: {
+          id: 'gid://shopify/InventoryItem/70001',
+          tracked: true,
+          requiresShipping: true,
+          measurement: null,
+          countryCodeOfOrigin: null,
+          provinceCodeOfOrigin: null,
+          harmonizedSystemCode: null,
+        },
       },
       {
         id: 'gid://shopify/ProductVariant/70002',
@@ -2806,7 +2811,15 @@ describe('product draft flow', () => {
         inventoryPolicy: 'DENY',
         inventoryQuantity: 7,
         selectedOptions: [{ name: 'Color', value: 'Red' }],
-        inventoryItem: { id: 'gid://shopify/InventoryItem/70002', tracked: true, requiresShipping: true, measurement: null, countryCodeOfOrigin: null, provinceCodeOfOrigin: null, harmonizedSystemCode: null },
+        inventoryItem: {
+          id: 'gid://shopify/InventoryItem/70002',
+          tracked: true,
+          requiresShipping: true,
+          measurement: null,
+          countryCodeOfOrigin: null,
+          provinceCodeOfOrigin: null,
+          harmonizedSystemCode: null,
+        },
       },
     ]);
     store.replaceBaseCollectionsForProduct('gid://shopify/Product/700', [
@@ -2814,8 +2827,22 @@ describe('product draft flow', () => {
       { id: 'gid://shopify/Collection/2', productId: 'gid://shopify/Product/700', title: 'Sale', handle: 'sale' },
     ]);
     store.replaceBaseMetafieldsForProduct('gid://shopify/Product/700', [
-      { id: 'gid://shopify/Metafield/7001', productId: 'gid://shopify/Product/700', namespace: 'custom', key: 'season', type: 'single_line_text_field', value: 'old' },
-      { id: 'gid://shopify/Metafield/7002', productId: 'gid://shopify/Product/700', namespace: 'custom', key: 'material', type: 'single_line_text_field', value: 'wood' },
+      {
+        id: 'gid://shopify/Metafield/7001',
+        productId: 'gid://shopify/Product/700',
+        namespace: 'custom',
+        key: 'season',
+        type: 'single_line_text_field',
+        value: 'old',
+      },
+      {
+        id: 'gid://shopify/Metafield/7002',
+        productId: 'gid://shopify/Product/700',
+        namespace: 'custom',
+        key: 'material',
+        type: 'single_line_text_field',
+        value: 'wood',
+      },
     ]);
 
     const app = createApp({ ...config, readMode: 'snapshot' }).callback();
@@ -2849,9 +2876,7 @@ describe('product draft flow', () => {
                 inventoryQuantities: [{ quantity: 9 }],
               },
             ],
-            metafields: [
-              { namespace: 'custom', key: 'season', type: 'single_line_text_field', value: 'new' },
-            ],
+            metafields: [{ namespace: 'custom', key: 'season', type: 'single_line_text_field', value: 'new' }],
           },
         },
       });
@@ -3296,7 +3321,8 @@ describe('product draft flow', () => {
     const queryResponse = await request(app)
       .post('/admin/api/2025-01/graphql.json')
       .send({
-        query: 'query ($id: ID!) { product(id: $id) { id totalInventory variants(first: 10) { nodes { id inventoryQuantity } } } }',
+        query:
+          'query ($id: ID!) { product(id: $id) { id totalInventory variants(first: 10) { nodes { id inventoryQuantity } } } }',
         variables: { id: 'gid://shopify/Product/801' },
       });
 

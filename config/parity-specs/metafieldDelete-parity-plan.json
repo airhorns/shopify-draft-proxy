@@ -1,19 +1,12 @@
 {
   "scenarioId": "metafieldDelete-parity-plan",
-  "operationNames": [
-    "metafieldDelete"
-  ],
+  "operationNames": ["metafieldDelete"],
   "scenarioStatus": "planned",
-  "assertionKinds": [
-    "payload-shape",
-    "user-errors-parity",
-    "downstream-read-parity"
-  ],
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": [],
   "proxyRequest": {
     "documentPath": null,
     "variablesPath": null
   },
-  "comparisonMode": "planned",
   "notes": "Metafield mutation parity still needs dedicated live-write scenarios and payload assertions."
 }

@@ -44,47 +44,71 @@ App -> Koa server -> operation classifier
 ## Primary modules
 
 ### `src/config.ts`
+
 - parse environment/configuration
 - select runtime mode
 - hold Shopify upstream URL/version settings
 
 ### `src/app.ts`
+
 - build Koa app
 - register body parser, request logging, meta routes, proxy routes
 
+### `src/logger.ts`
+
+- create the shared pino structured logger for runtime proxy logs
+- use `pino-pretty` single-line output for local development
+- provide child loggers for server and proxy modules
+- keep unsupported mutation passthrough visible through structured warning logs
+
 ### `src/server.ts`
+
 - start HTTP server
 
 ### `src/graphql/`
+
 - parse GraphQL documents
 - identify operation type and operation name
 - eventually map known operations to capability records
 
 ### `src/state/`
+
 - define normalized object graph
 - state store interface + in-memory implementation
 - mutation log
 - synthetic ID/timestamp generation
 
 ### `src/proxy/`
+
 - request classifier
 - read pipeline
 - mutation pipeline
 - response overlay engine
 
 ### `src/shopify/`
+
 - upstream HTTP client
 - request serialization
 - commit executor
 - conformance helpers later
 
 ### `src/meta/`
+
 - reset, commit, state, log endpoints
 
 ### `src/testing/`
+
 - scenario fixtures
 - recorder/replayer helpers
 - parity comparators
+
+### `scripts/conformance-parity-lib.ts`
+
+- classifies conformance scenarios by capture/proxy-request/comparison-contract readiness
+- executes contract-ready proxy requests against local product proxy handlers in snapshot mode
+- blocks live Shopify access during parity execution by rejecting unsupported operations instead of proxying them upstream
+- compares captured Shopify payload slices to proxy payload slices with strict JSON semantics
+- allows nondeterministic values only through explicit path-scoped rules in parity specs
 
 ## State model
 
@@ -201,3 +225,5 @@ The conformance suite should include:
    - compare payloads and downstream read behavior
 4. **coverage registry**
    - map every query/mutation to implementation and parity status
+
+Current proxy parity execution is intentionally contract-gated. A captured scenario with a proxy request is not executed until its parity spec declares strict JSON comparison targets and allowed differences. Within a declared comparison target, missing fields, extra fields, null/empty mismatches, array shape drift, changed `userErrors`, and selected-field changes fail by default. The first promoted comparison is `product-create-live-parity`, which compares mutation `data` and immediate downstream product read `data`; Shopify cost/throttle `extensions` remain outside that first explicit contract until the proxy models cost metadata.

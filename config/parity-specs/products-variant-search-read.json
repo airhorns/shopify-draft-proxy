@@ -1,33 +1,24 @@
 {
   "scenarioId": "products-variant-search-read",
-  "operationNames": [
-    "products",
-    "productsCount"
-  ],
+  "operationNames": ["products", "productsCount"],
   "scenarioStatus": "captured",
-  "assertionKinds": [
-    "payload-shape",
-    "selected-fields",
-    "search-filter-semantics"
-  ],
-  "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-variant-search.json"
-  ],
+  "assertionKinds": ["payload-shape", "selected-fields", "search-filter-semantics"],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-variant-search.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products-variant-search-read.graphql",
     "variablesPath": "config/parity-requests/products-variant-search-read.variables.json"
   },
-  "comparisonMode": "captured-vs-proxy-request",
   "notes": "Executed by the conformance parity runner against a local proxy harness with the captured Shopify payload supplied as the upstream read response; no live Shopify writes are performed.",
-  "comparisons": [
-    {
-      "name": "captured read payload",
-      "capturePath": "$.sku.response",
-      "proxyResponsePath": "$",
-      "allowedDifferencePaths": [],
-      "mustMatchPaths": [
-        "$.data"
-      ]
-    }
-  ]
+  "comparison": {
+    "mode": "strict-json",
+    "allowedDifferences": [],
+    "targets": [
+      {
+        "name": "captured read payload",
+        "capturePath": "$.sku.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.sku.response"
+      }
+    ]
+  }
 }

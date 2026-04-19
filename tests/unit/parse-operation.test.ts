@@ -11,7 +11,9 @@ describe('parseOperation', () => {
   });
 
   it('classifies mutations', () => {
-    expect(parseOperation('mutation ProductCreate { productCreate(product: { title: "Hat" }) { product { id } } }')).toEqual({
+    expect(
+      parseOperation('mutation ProductCreate { productCreate(product: { title: "Hat" }) { product { id } } }'),
+    ).toEqual({
       type: 'mutation',
       name: 'ProductCreate',
       rootFields: ['productCreate'],

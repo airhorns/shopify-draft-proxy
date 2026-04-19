@@ -26,7 +26,10 @@ type ParitySpec = {
   scenarioId: string;
   scenarioStatus: string;
   liveCaptureFiles: string[];
-  comparisonMode: string;
+  comparison?: {
+    mode?: string;
+    targets?: Array<{ name?: string }>;
+  };
 };
 
 const expectedLiveFamilies = [
@@ -58,7 +61,8 @@ const expectedLiveFamilies = [
     operationName: 'collectionRemoveProducts',
     scenarioId: 'collection-remove-products-live-parity',
     paritySpecPath: 'config/parity-specs/collectionRemoveProducts-parity-plan.json',
-    captureFile: 'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collection-remove-products-parity.json',
+    captureFile:
+      'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collection-remove-products-parity.json',
   },
 ] as const;
 
@@ -103,7 +107,7 @@ describe('collection mutation live conformance wiring', () => {
     }
   });
 
-  it('upgrades the collection mutation parity specs to captured-vs-proxy-request mode', () => {
+  it('upgrades the collection mutation parity specs to strict comparison contracts', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
 
     for (const expected of expectedLiveFamilies) {
@@ -114,9 +118,10 @@ describe('collection mutation live conformance wiring', () => {
           scenarioId: expected.scenarioId,
           scenarioStatus: 'captured',
           liveCaptureFiles: [expected.captureFile],
-          comparisonMode: 'captured-vs-proxy-request',
         }),
       );
+      expect(spec.comparison?.mode).toBe('strict-json');
+      expect(spec.comparison?.targets?.map((target) => target.name)).toEqual(['mutation-data']);
     }
   });
 });

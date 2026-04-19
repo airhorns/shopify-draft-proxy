@@ -1,19 +1,12 @@
 {
   "scenarioId": "productVariantCreate-parity-plan",
-  "operationNames": [
-    "productVariantCreate"
-  ],
+  "operationNames": ["productVariantCreate"],
   "scenarioStatus": "planned",
-  "assertionKinds": [
-    "payload-shape",
-    "user-errors-parity",
-    "downstream-read-parity"
-  ],
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": [],
   "proxyRequest": {
     "documentPath": "config/parity-requests/productVariantCreate-parity-plan.graphql",
     "variablesPath": "config/parity-requests/productVariantCreate-parity-plan.variables.json"
   },
-  "comparisonMode": "planned",
   "notes": "Proxy request scaffold now mirrors the staged single-variant create compatibility slice (`productVariantCreate(input:)` returning product inventory aggregates, created `productVariant`, and `userErrors`). Next step is to run the same safe single-variant create scenario against a dedicated dev-store write pack and compare the mutation payload together with immediate downstream variant/search/count parity."
 }

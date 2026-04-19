@@ -3,9 +3,11 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-// scripts/ is intentionally outside tsconfig's checked sources; runtime coverage here verifies the JS helper.
-// @ts-expect-error local .mjs helper is exercised via Vitest rather than TS declarations
-import { parseWriteScopeBlocker, pickProductMutationSeed, renderWriteScopeBlockerNote } from '../../scripts/product-mutation-conformance-lib.mjs';
+import {
+  parseWriteScopeBlocker,
+  pickProductMutationSeed,
+  renderWriteScopeBlockerNote,
+} from '../../scripts/product-mutation-conformance-lib.mjs';
 
 describe('pickProductMutationSeed', () => {
   it('returns the first product node from the products catalog capture', () => {
@@ -19,7 +21,14 @@ describe('pickProductMutationSeed', () => {
       data?: {
         products?: {
           edges?: Array<{
-            node?: { id?: string; title?: string; handle?: string; status?: string; vendor?: string; productType?: string };
+            node?: {
+              id?: string;
+              title?: string;
+              handle?: string;
+              status?: string;
+              vendor?: string;
+              productType?: string;
+            };
           }>;
         };
       };
@@ -53,7 +62,8 @@ describe('parseWriteScopeBlocker', () => {
               'Access denied for productCreate field. Required access: `write_products` access scope. Also: The user must have a permission to create products.',
             extensions: {
               code: 'ACCESS_DENIED',
-              requiredAccess: '`write_products` access scope. Also: The user must have a permission to create products.',
+              requiredAccess:
+                '`write_products` access scope. Also: The user must have a permission to create products.',
             },
             path: ['productCreate'],
           },
@@ -104,7 +114,9 @@ describe('renderWriteScopeBlockerNote', () => {
     expect(note).toContain('- `productUpdate`');
     expect(note).toContain('- `productDelete`');
     expect(note).toContain('- `ACCESS_DENIED`');
-    expect(note).toContain('- required access: `write_products` access scope. Also: The user must have a permission to create products.');
+    expect(note).toContain(
+      '- required access: `write_products` access scope. Also: The user must have a permission to create products.',
+    );
     expect(note).toContain('Switch the repo conformance credential to a safe dev-store token with `write_products`');
   });
 });

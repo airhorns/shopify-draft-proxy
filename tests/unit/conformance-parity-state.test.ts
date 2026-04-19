@@ -1,10 +1,58 @@
 import { describe, expect, it } from 'vitest';
 
-// scripts/ is intentionally outside tsconfig's checked sources; runtime coverage here verifies the JS helper.
-// @ts-expect-error local .mjs helper is exercised via Vitest rather than TS declarations
-import { classifyParityScenarioState, compareJson } from '../../scripts/conformance-parity-lib.mjs';
+import {
+  classifyParityScenarioState,
+  compareJsonPayloads,
+  executeParityScenario,
+  summarizeParityResults,
+  validateComparisonContract,
+} from '../../scripts/conformance-parity-lib.js';
 
 describe('classifyParityScenarioState', () => {
+  it('marks captured scenarios invalid until they have a strict comparison contract and proxy request', () => {
+    expect(
+      classifyParityScenarioState(
+        { status: 'captured' },
+        {
+          proxyRequest: {
+            documentPath: 'config/parity-requests/productCreate.graphql',
+            variablesPath: 'config/parity-requests/productCreate.json',
+          },
+        },
+      ),
+    ).toBe('invalid-missing-comparison-contract');
+
+    expect(
+      classifyParityScenarioState(
+        { status: 'captured' },
+        {
+          comparison: {
+            mode: 'strict-json',
+            allowedDifferences: [],
+          },
+        },
+      ),
+    ).toBe('invalid-missing-comparison-contract');
+  });
+
+  it('marks captured scenarios with proxy requests and comparison contracts as ready', () => {
+    const state = classifyParityScenarioState(
+      { status: 'captured' },
+      {
+        proxyRequest: {
+          documentPath: 'config/parity-requests/productCreate.graphql',
+          variablesPath: 'config/parity-requests/productCreate.json',
+        },
+        comparison: {
+          mode: 'strict-json',
+          allowedDifferences: [],
+        },
+      },
+    );
+
+    expect(state).toBe('ready-for-comparison');
+  });
+
   it('keeps planned scenarios as not-yet-implemented even when a proxy request scaffold exists', () => {
     const state = classifyParityScenarioState(
       { status: 'planned' },
@@ -18,41 +66,354 @@ describe('classifyParityScenarioState', () => {
 
     expect(state).toBe('not-yet-implemented');
   });
+});
 
-  it('requires captured scenarios to declare executable comparison contracts', () => {
-    expect(
-      classifyParityScenarioState(
-        { status: 'captured' },
-        {
-          proxyRequest: {
-            documentPath: 'config/parity-requests/productCreate.graphql',
-          },
-        },
-      ),
-    ).toBe('invalid-missing-comparison-contract');
+describe('summarizeParityResults', () => {
+  it('separates ready, invalid, and not-yet-implemented scenario states', () => {
+    const summary = summarizeParityResults([
+      { state: 'ready-for-comparison' },
+      { state: 'invalid-missing-comparison-contract' },
+      { state: 'invalid-missing-comparison-contract' },
+      { state: 'not-yet-implemented' },
+    ]);
 
-    expect(
-      classifyParityScenarioState(
-        { status: 'captured' },
-        {
-          comparisonMode: 'captured-vs-proxy-request',
-          comparisons: [{ name: 'mutation payload' }],
-        },
-      ),
-    ).toBe('ready-for-comparison');
+    expect(summary.readyForComparison).toBe(1);
+    expect(summary.pending).toBe(3);
+    expect(summary.statusCounts).toEqual({
+      readyForComparison: 1,
+      invalidMissingComparisonContract: 2,
+      notYetImplemented: 1,
+    });
+    expect(summary.statusNote).toContain('notYetImplemented');
   });
 });
 
-describe('compareJson', () => {
-  it('fails strict payload differences unless they are path-scoped as allowed', () => {
-    expect(compareJson({ data: { product: { id: 'gid://shopify/Product/1', title: 'Hat' } } }, { data: { product: { id: 'gid://shopify/Product/2', title: 'Hat' } } }).pass).toBe(false);
+describe('validateComparisonContract', () => {
+  it('requires allowed differences to be path-scoped, documented, and typed', () => {
+    expect(
+      validateComparisonContract({
+        mode: 'strict-json',
+        allowedDifferences: [
+          {
+            path: '$.data.product.id',
+            matcher: 'shopify-gid:Product',
+            reason: 'Product ids are allocated independently per parity run.',
+          },
+        ],
+      }),
+    ).toEqual([]);
 
     expect(
-      compareJson(
-        { data: { product: { id: 'gid://shopify/Product/1', title: 'Hat' } } },
-        { data: { product: { id: 'gid://shopify/Product/2', title: 'Hat' } } },
-        { allowedDifferencePaths: ['$.data.product.id'] },
-      ).pass,
+      validateComparisonContract({
+        mode: 'strict-json',
+        allowedDifferences: [
+          {
+            path: '$.data.product.id',
+            matcher: 'everything',
+          },
+          {
+            reason: 'This rule is missing a path and action.',
+          },
+        ],
+      }),
+    ).toEqual([
+      'allowedDifferences[0] must document why the difference is nondeterministic.',
+      'allowedDifferences[0] declares unknown matcher `everything`.',
+      'allowedDifferences[1] must declare a non-empty JSON path.',
+      'allowedDifferences[1] must declare exactly one of `matcher` or `ignore: true`.',
+    ]);
+  });
+});
+
+describe('compareJsonPayloads', () => {
+  it('is strict by default for API-visible missing, extra, and changed fields', () => {
+    const result = compareJsonPayloads(
+      {
+        data: {
+          productCreate: {
+            product: {
+              id: 'gid://shopify/Product/1',
+              title: 'Shopify title',
+            },
+            userErrors: [],
+          },
+        },
+      },
+      {
+        data: {
+          productCreate: {
+            product: {
+              id: 'gid://shopify/Product/2',
+              handle: 'shopify-title',
+              title: 'Proxy title',
+            },
+          },
+        },
+      },
+    );
+
+    expect(result.ok).toBe(false);
+    expect(
+      result.differences.map((difference: { path: string; message: string }) => [difference.path, difference.message]),
+    ).toEqual([
+      ['$.data.productCreate.product.handle', 'Unexpected field in actual payload.'],
+      ['$.data.productCreate.product.id', 'Value differs.'],
+      ['$.data.productCreate.product.title', 'Value differs.'],
+      ['$.data.productCreate.userErrors', 'Missing field in actual payload.'],
+    ]);
+  });
+
+  it('allows only path-scoped nondeterministic values that still match the declared type', () => {
+    const expected = {
+      data: {
+        productCreate: {
+          product: {
+            id: 'gid://shopify/Product/123',
+            title: 'Hat',
+            createdAt: '2026-04-19T20:00:00.000Z',
+          },
+          userErrors: [],
+        },
+      },
+      extensions: {
+        cost: {
+          throttleStatus: {
+            currentlyAvailable: 1988,
+          },
+        },
+      },
+    };
+    const actual = {
+      data: {
+        productCreate: {
+          product: {
+            id: 'gid://shopify/Product/999',
+            title: 'Hat',
+            createdAt: '2026-04-19T20:00:02.000Z',
+          },
+          userErrors: [],
+        },
+      },
+      extensions: {
+        cost: {
+          throttleStatus: {
+            currentlyAvailable: 42,
+          },
+        },
+      },
+    };
+
+    expect(
+      compareJsonPayloads(expected, actual, {
+        allowedDifferences: [
+          {
+            path: '$.data.productCreate.product.id',
+            matcher: 'shopify-gid:Product',
+            reason: 'Shopify and the proxy allocate different product ids during isolated parity runs.',
+          },
+          {
+            path: '$.data.productCreate.product.createdAt',
+            matcher: 'iso-timestamp',
+            reason: 'Creation timestamps are generated independently per parity run.',
+          },
+          {
+            path: '$.extensions.cost.throttleStatus.currentlyAvailable',
+            matcher: 'any-number',
+            reason: 'Shopify throttle bucket availability depends on recent store traffic.',
+          },
+        ],
+      }).ok,
     ).toBe(true);
+
+    expect(
+      compareJsonPayloads(
+        expected,
+        {
+          ...actual,
+          data: {
+            productCreate: { product: { ...actual.data.productCreate.product, id: 'not-a-gid' }, userErrors: [] },
+          },
+        },
+        {
+          allowedDifferences: [{ path: '$.data.productCreate.product.id', matcher: 'shopify-gid:Product' }],
+        },
+      ).differences,
+    ).toEqual([
+      {
+        path: '$.data.productCreate.product.createdAt',
+        message: 'Value differs.',
+        expected: '2026-04-19T20:00:00.000Z',
+        actual: '2026-04-19T20:00:02.000Z',
+      },
+      {
+        path: '$.data.productCreate.product.id',
+        message: 'Value differs.',
+        expected: 'gid://shopify/Product/123',
+        actual: 'not-a-gid',
+      },
+      {
+        path: '$.extensions.cost.throttleStatus.currentlyAvailable',
+        message: 'Value differs.',
+        expected: 1988,
+        actual: 42,
+      },
+    ]);
+  });
+
+  it('supports array wildcards for repeated generated ids without ignoring sibling fields', () => {
+    const result = compareJsonPayloads(
+      {
+        data: {
+          product: {
+            options: [
+              {
+                id: 'gid://shopify/ProductOption/1',
+                name: 'Color',
+              },
+            ],
+          },
+        },
+      },
+      {
+        data: {
+          product: {
+            options: [
+              {
+                id: 'gid://shopify/ProductOption/2',
+                name: 'Shade',
+              },
+            ],
+          },
+        },
+      },
+      {
+        allowedDifferences: [
+          {
+            path: '$.data.product.options[*].id',
+            matcher: 'shopify-gid:ProductOption',
+            reason: 'Option ids are generated independently per parity run.',
+          },
+        ],
+      },
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.differences).toEqual([
+      {
+        path: '$.data.product.options[0].name',
+        message: 'Value differs.',
+        expected: 'Color',
+        actual: 'Shade',
+      },
+    ]);
+  });
+});
+
+describe('executeParityScenario', () => {
+  it('executes the promoted productCreate captured scenario against the local proxy harness', async () => {
+    const repoRoot = new URL('../..', import.meta.url).pathname;
+    const result = await executeParityScenario({
+      repoRoot,
+      scenario: {
+        id: 'product-create-live-parity',
+        status: 'captured',
+        captureFiles: ['fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-create-parity.json'],
+      },
+      paritySpec: {
+        proxyRequest: {
+          documentPath: 'config/parity-requests/productCreate-parity-plan.graphql',
+          variablesPath: 'config/parity-requests/productCreate-parity-plan.variables.json',
+          variablesCapturePath: '$.mutation.variables',
+        },
+        comparison: {
+          mode: 'strict-json',
+          allowedDifferences: [
+            {
+              path: '$.productCreate.product.id',
+              matcher: 'shopify-gid:Product',
+              reason: 'Synthetic local product id.',
+            },
+            {
+              path: '$.productCreate.product.tags',
+              ignore: true,
+              reason: 'Local tag order is a documented parity gap.',
+            },
+            {
+              path: '$.product.id',
+              matcher: 'shopify-gid:Product',
+              reason: 'Synthetic local product id.',
+            },
+            {
+              path: '$.product.tags',
+              ignore: true,
+              reason: 'Local tag order is a documented parity gap.',
+            },
+          ],
+          targets: [
+            {
+              name: 'mutation-data',
+              capturePath: '$.mutation.response.data',
+              proxyPath: '$.data',
+            },
+            {
+              name: 'downstream-read-data',
+              capturePath: '$.downstreamRead.data',
+              proxyRequest: {
+                documentPath: 'config/parity-requests/productCreate-downstream-read.graphql',
+                variables: {
+                  id: {
+                    fromPrimaryProxyPath: '$.data.productCreate.product.id',
+                  },
+                },
+              },
+              proxyPath: '$.data',
+            },
+          ],
+        },
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.primaryProxyStatus).toBe(200);
+    expect(result.comparisons.map((comparison) => comparison.name)).toEqual(['mutation-data', 'downstream-read-data']);
+  });
+
+  it('returns captured upstream payloads for no-write overlay reads', async () => {
+    const repoRoot = new URL('../..', import.meta.url).pathname;
+    const result = await executeParityScenario({
+      repoRoot,
+      scenario: {
+        id: 'product-detail-read',
+        status: 'captured',
+        captureFiles: ['fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-detail.json'],
+      },
+      paritySpec: {
+        proxyRequest: {
+          documentPath: 'config/parity-requests/product-detail-read.graphql',
+          variablesPath: 'config/parity-requests/product-detail-read.variables.json',
+        },
+        comparison: {
+          mode: 'strict-json',
+          allowedDifferences: [],
+          targets: [
+            {
+              name: 'read-data',
+              capturePath: '$.data',
+              proxyPath: '$.data',
+              upstreamCapturePath: '$',
+            },
+          ],
+        },
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.comparisons).toEqual([
+      {
+        name: 'read-data',
+        ok: true,
+        differences: [],
+      },
+    ]);
   });
 });

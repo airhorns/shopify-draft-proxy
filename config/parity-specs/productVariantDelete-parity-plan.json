@@ -1,19 +1,12 @@
 {
   "scenarioId": "productVariantDelete-parity-plan",
-  "operationNames": [
-    "productVariantDelete"
-  ],
+  "operationNames": ["productVariantDelete"],
   "scenarioStatus": "planned",
-  "assertionKinds": [
-    "payload-shape",
-    "user-errors-parity",
-    "downstream-read-parity"
-  ],
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": [],
   "proxyRequest": {
     "documentPath": "config/parity-requests/productVariantDelete-parity-plan.graphql",
     "variablesPath": "config/parity-requests/productVariantDelete-parity-plan.variables.json"
   },
-  "comparisonMode": "planned",
   "notes": "Proxy request scaffold now mirrors the staged single-variant delete compatibility slice (`productVariantDelete(id:)` returning `deletedProductVariantId` plus `userErrors`). Next step is to run the same safe single-variant delete scenario against a dedicated dev-store write pack and compare the mutation payload together with immediate downstream variant/search/count parity."
 }

@@ -30,67 +30,160 @@ const allowedDomain = new Set(['products', 'unknown']);
 const allowedType = new Set(['query', 'mutation']);
 const allowedConformanceStatus = new Set(['covered', 'declared-gap']);
 const allowedScenarioStatus = new Set(['captured', 'planned']);
-const allowedComparisonMode = new Set(['captured-vs-proxy-request', 'planned']);
 const operationNames = new Set();
 const matchNames = new Map();
 const scenarioIds = new Map();
 
+function isPlainObject(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function validateProxyRequest(scenarioId, label, proxyRequest, options = {}) {
+  assert(isPlainObject(proxyRequest), `Scenario ${scenarioId} ${label} must declare a proxyRequest.`);
+  if (!isPlainObject(proxyRequest)) {
+    return;
+  }
+
+  assert(
+    typeof proxyRequest.documentPath === 'string' && relativeExists(proxyRequest.documentPath),
+    `Scenario ${scenarioId} ${label} references missing proxy document.`,
+  );
+
+  const hasVariablesPath = typeof proxyRequest.variablesPath === 'string';
+  const hasVariables = isPlainObject(proxyRequest.variables);
+  const hasVariablesCapturePath = typeof proxyRequest.variablesCapturePath === 'string';
+  assert(
+    hasVariablesPath || hasVariables || hasVariablesCapturePath || options.allowNoVariables === true,
+    `Scenario ${scenarioId} ${label} must declare variablesPath, variables, or variablesCapturePath.`,
+  );
+  if (hasVariablesPath) {
+    assert(
+      relativeExists(proxyRequest.variablesPath),
+      `Scenario ${scenarioId} ${label} references missing proxy variables.`,
+    );
+  }
+}
+
+function validateComparisonContract(scenarioId, comparison) {
+  assert(isPlainObject(comparison), `Captured scenario ${scenarioId} must declare a comparison contract.`);
+  if (!isPlainObject(comparison)) {
+    return false;
+  }
+
+  assert(
+    comparison.mode === 'strict-json',
+    `Captured scenario ${scenarioId} comparison contract must use mode strict-json.`,
+  );
+  assert(
+    Array.isArray(comparison.allowedDifferences),
+    `Captured scenario ${scenarioId} comparison contract must declare allowedDifferences.`,
+  );
+
+  for (const [index, rawRule] of (comparison.allowedDifferences ?? []).entries()) {
+    const rule = isPlainObject(rawRule) ? rawRule : {};
+    const label = `allowedDifferences[${index}]`;
+    assert(
+      typeof rule.path === 'string' && rule.path.length > 0,
+      `Captured scenario ${scenarioId} ${label} must declare a non-empty path.`,
+    );
+    assert(
+      typeof rule.reason === 'string' && rule.reason.length > 0,
+      `Captured scenario ${scenarioId} ${label} must document its reason.`,
+    );
+    assert(
+      (typeof rule.matcher === 'string') !== (rule.ignore === true),
+      `Captured scenario ${scenarioId} ${label} must declare exactly one matcher or ignore.`,
+    );
+  }
+
+  const targets = comparison.targets;
+  assert(
+    Array.isArray(targets) && targets.length > 0,
+    `Captured scenario ${scenarioId} comparison contract must declare at least one target.`,
+  );
+  for (const [index, rawTarget] of (targets ?? []).entries()) {
+    const target = isPlainObject(rawTarget) ? rawTarget : {};
+    const label = `target ${index}`;
+    assert(
+      typeof target.name === 'string' && target.name.length > 0,
+      `Captured scenario ${scenarioId} ${label} must declare a non-empty name.`,
+    );
+    assert(
+      typeof target.capturePath === 'string' && target.capturePath.length > 0,
+      `Captured scenario ${scenarioId} ${label} must declare capturePath.`,
+    );
+    assert(
+      typeof target.proxyPath === 'string' && target.proxyPath.length > 0,
+      `Captured scenario ${scenarioId} ${label} must declare proxyPath.`,
+    );
+    if (target.proxyRequest !== undefined) {
+      validateProxyRequest(scenarioId, label, target.proxyRequest, { allowNoVariables: true });
+    }
+  }
+
+  return comparison.mode === 'strict-json' && Array.isArray(comparison.allowedDifferences);
+}
+
 for (const scenario of scenarioRegistry) {
-  assert(typeof scenario.id === 'string' && scenario.id.length > 0, 'Every conformance scenario must have a non-empty id.');
+  assert(
+    typeof scenario.id === 'string' && scenario.id.length > 0,
+    'Every conformance scenario must have a non-empty id.',
+  );
   assert(!scenarioIds.has(scenario.id), `Duplicate conformance scenario id: ${scenario.id}`);
   scenarioIds.set(scenario.id, scenario);
   assert(allowedScenarioStatus.has(scenario.status), `Scenario ${scenario.id} has invalid status ${scenario.status}.`);
-  assert(Array.isArray(scenario.operationNames) && scenario.operationNames.length > 0, `Scenario ${scenario.id} must declare operationNames.`);
-  assert(Array.isArray(scenario.assertionKinds) && scenario.assertionKinds.length > 0, `Scenario ${scenario.id} must declare assertionKinds.`);
+  assert(
+    Array.isArray(scenario.operationNames) && scenario.operationNames.length > 0,
+    `Scenario ${scenario.id} must declare operationNames.`,
+  );
+  assert(
+    Array.isArray(scenario.assertionKinds) && scenario.assertionKinds.length > 0,
+    `Scenario ${scenario.id} must declare assertionKinds.`,
+  );
   assert(Array.isArray(scenario.captureFiles), `Scenario ${scenario.id} must declare captureFiles.`);
-  assert(typeof scenario.paritySpecPath === 'string' && scenario.paritySpecPath.length > 0, `Scenario ${scenario.id} must declare paritySpecPath.`);
-  assert(relativeExists(scenario.paritySpecPath), `Scenario ${scenario.id} references missing parity spec: ${scenario.paritySpecPath}`);
+  assert(
+    typeof scenario.paritySpecPath === 'string' && scenario.paritySpecPath.length > 0,
+    `Scenario ${scenario.id} must declare paritySpecPath.`,
+  );
+  assert(
+    relativeExists(scenario.paritySpecPath),
+    `Scenario ${scenario.id} references missing parity spec: ${scenario.paritySpecPath}`,
+  );
   const paritySpec = relativeExists(scenario.paritySpecPath)
     ? JSON.parse(readFileSync(path.join(repoRoot, scenario.paritySpecPath), 'utf8'))
     : null;
-  assert(
-    allowedComparisonMode.has(paritySpec?.comparisonMode),
-    `Scenario ${scenario.id} parity spec must use comparisonMode captured-vs-proxy-request or planned.`,
-  );
   if (scenario.status === 'captured') {
-    assert(scenario.captureFiles.length > 0, `Captured scenario ${scenario.id} must reference at least one capture file.`);
+    assert(
+      scenario.captureFiles.length > 0,
+      `Captured scenario ${scenario.id} must reference at least one capture file.`,
+    );
     for (const captureFile of scenario.captureFiles) {
       assert(relativeExists(captureFile), `Scenario ${scenario.id} references missing capture file: ${captureFile}`);
     }
-    assert(
-      paritySpec?.comparisonMode === 'captured-vs-proxy-request',
-      `Captured scenario ${scenario.id} must run captured-vs-proxy-request comparisons.`,
-    );
-    assert(
-      Array.isArray(paritySpec?.comparisons) && paritySpec.comparisons.length > 0,
-      `Captured scenario ${scenario.id} must declare explicit parity comparisons.`,
-    );
-    for (const comparison of paritySpec?.comparisons ?? []) {
-      const proxyRequest = comparison.proxyRequest ?? paritySpec.proxyRequest;
-      assert(typeof comparison.name === 'string' && comparison.name.length > 0, `Scenario ${scenario.id} has a comparison without a name.`);
-      assert(typeof comparison.capturePath === 'string' && comparison.capturePath.length > 0, `Scenario ${scenario.id} comparison ${comparison.name} must declare capturePath.`);
-      assert(typeof comparison.proxyResponsePath === 'string' && comparison.proxyResponsePath.length > 0, `Scenario ${scenario.id} comparison ${comparison.name} must declare proxyResponsePath.`);
-      assert(Array.isArray(comparison.allowedDifferencePaths), `Scenario ${scenario.id} comparison ${comparison.name} must declare allowedDifferencePaths.`);
-      assert(Array.isArray(comparison.mustMatchPaths), `Scenario ${scenario.id} comparison ${comparison.name} must declare mustMatchPaths.`);
-      assert(proxyRequest?.documentPath && relativeExists(proxyRequest.documentPath), `Scenario ${scenario.id} comparison ${comparison.name} references missing proxy document.`);
-      assert(proxyRequest?.variablesPath && relativeExists(proxyRequest.variablesPath), `Scenario ${scenario.id} comparison ${comparison.name} references missing proxy variables.`);
-    }
+    validateProxyRequest(scenario.id, 'primary proxy request', paritySpec?.proxyRequest);
+    validateComparisonContract(scenario.id, paritySpec?.comparison);
   } else {
     assert(
-      paritySpec?.comparisonMode === 'planned',
-      `Planned scenario ${scenario.id} must stay not-yet-implemented with comparisonMode planned.`,
+      !paritySpec?.comparison || paritySpec.comparison.mode !== 'strict-json',
+      `Planned scenario ${scenario.id} must stay not-yet-implemented until it has captured fixtures.`,
     );
   }
 }
 
 for (const entry of operationRegistry) {
-  assert(typeof entry.name === 'string' && entry.name.length > 0, 'Every operation registry entry must have a non-empty name.');
+  assert(
+    typeof entry.name === 'string' && entry.name.length > 0,
+    'Every operation registry entry must have a non-empty name.',
+  );
   assert(!operationNames.has(entry.name), `Duplicate operation registry entry: ${entry.name}`);
   operationNames.add(entry.name);
   assert(allowedType.has(entry.type), `Operation ${entry.name} has invalid type ${entry.type}.`);
   assert(allowedDomain.has(entry.domain), `Operation ${entry.name} has invalid domain ${entry.domain}.`);
   assert(allowedExecution.has(entry.execution), `Operation ${entry.name} has invalid execution ${entry.execution}.`);
-  assert(Array.isArray(entry.matchNames) && entry.matchNames.length > 0, `Operation ${entry.name} must declare matchNames.`);
+  assert(
+    Array.isArray(entry.matchNames) && entry.matchNames.length > 0,
+    `Operation ${entry.name} must declare matchNames.`,
+  );
   for (const matchName of entry.matchNames) {
     const previous = matchNames.get(matchName);
     assert(!previous, `Match name ${matchName} is declared by both ${previous} and ${entry.name}.`);
@@ -101,13 +194,25 @@ for (const entry of operationRegistry) {
     continue;
   }
 
-  assert(Array.isArray(entry.runtimeTests) && entry.runtimeTests.length > 0, `Implemented operation ${entry.name} must declare runtime test files.`);
+  assert(
+    Array.isArray(entry.runtimeTests) && entry.runtimeTests.length > 0,
+    `Implemented operation ${entry.name} must declare runtime test files.`,
+  );
   for (const testPath of entry.runtimeTests) {
-    assert(relativeExists(testPath), `Implemented operation ${entry.name} references missing runtime test file: ${testPath}`);
+    assert(
+      relativeExists(testPath),
+      `Implemented operation ${entry.name} references missing runtime test file: ${testPath}`,
+    );
   }
 
-  assert(entry.conformance && allowedConformanceStatus.has(entry.conformance.status), `Implemented operation ${entry.name} must declare a valid conformance status.`);
-  assert(Array.isArray(entry.conformance.scenarioIds) && entry.conformance.scenarioIds.length > 0, `Implemented operation ${entry.name} must reference at least one conformance scenario.`);
+  assert(
+    entry.conformance && allowedConformanceStatus.has(entry.conformance.status),
+    `Implemented operation ${entry.name} must declare a valid conformance status.`,
+  );
+  assert(
+    Array.isArray(entry.conformance.scenarioIds) && entry.conformance.scenarioIds.length > 0,
+    `Implemented operation ${entry.name} must reference at least one conformance scenario.`,
+  );
 
   for (const scenarioId of entry.conformance.scenarioIds ?? []) {
     const scenario = scenarioIds.get(scenarioId);
@@ -115,13 +220,19 @@ for (const entry of operationRegistry) {
     if (scenario) {
       assert(scenario.operationNames.includes(entry.name), `Scenario ${scenarioId} must list operation ${entry.name}.`);
       if (entry.conformance.status === 'covered') {
-        assert(scenario.status === 'captured', `Covered operation ${entry.name} must reference captured scenario ${scenarioId}.`);
+        assert(
+          scenario.status === 'captured',
+          `Covered operation ${entry.name} must reference captured scenario ${scenarioId}.`,
+        );
       }
     }
   }
 
   if (entry.conformance.status === 'declared-gap') {
-    assert(typeof entry.conformance.reason === 'string' && entry.conformance.reason.length > 0, `Declared-gap operation ${entry.name} must include a reason.`);
+    assert(
+      typeof entry.conformance.reason === 'string' && entry.conformance.reason.length > 0,
+      `Declared-gap operation ${entry.name} must include a reason.`,
+    );
   }
 }
 
@@ -139,12 +250,17 @@ const implementedWorklistOperations = new Set(
 );
 
 for (const entry of operationRegistry.filter((candidate) => candidate.implemented)) {
-  assert(implementedWorklistOperations.has(entry.name), `Implemented operation ${entry.name} must appear as [x] in docs/shopify-admin-worklist.md.`);
+  assert(
+    implementedWorklistOperations.has(entry.name),
+    `Implemented operation ${entry.name} must appear as [x] in docs/shopify-admin-worklist.md.`,
+  );
 }
 
 if (errors.length > 0) {
+  // oxlint-disable-next-line no-console -- CLI error output is intentionally written to stderr.
   console.error('Conformance coverage check failed:\n');
   for (const error of errors) {
+    // oxlint-disable-next-line no-console -- CLI error output is intentionally written to stderr.
     console.error(`- ${error}`);
   }
   process.exit(1);
@@ -198,7 +314,10 @@ const coverageReport = [
   '',
   '## Captured scenarios',
   '',
-  ...capturedScenarios.map((scenario) => `- \`${scenario.id}\` → \`${scenario.paritySpecPath}\` + ${scenario.captureFiles.map((file) => `\`${file}\``).join(', ')}`),
+  ...capturedScenarios.map(
+    (scenario) =>
+      `- \`${scenario.id}\` → \`${scenario.paritySpecPath}\` + ${scenario.captureFiles.map((file) => `\`${file}\``).join(', ')}`,
+  ),
   '',
   '## Planned scenarios',
   '',
@@ -227,5 +346,9 @@ writeFileSync(reportPath, coverageReport.join('\n'));
 writeFileSync(statusJsonPath, JSON.stringify(statusJson, null, 2) + '\n');
 writeFileSync(statusMarkdownPath, worklistStatusReport.join('\n'));
 
+// oxlint-disable-next-line no-console -- CLI status output is intentionally written to stdout.
 console.log(`conformance coverage ok (${coveredEntries.length} covered / ${gapEntries.length} declared gaps)`);
-console.log(`reports written to ${path.relative(repoRoot, reportPath)}, ${path.relative(repoRoot, statusJsonPath)}, and ${path.relative(repoRoot, statusMarkdownPath)}`);
+// oxlint-disable-next-line no-console -- CLI status output is intentionally written to stdout.
+console.log(
+  `reports written to ${path.relative(repoRoot, reportPath)}, ${path.relative(repoRoot, statusJsonPath)}, and ${path.relative(repoRoot, statusMarkdownPath)}`,
+);

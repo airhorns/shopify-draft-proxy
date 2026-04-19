@@ -2,16 +2,12 @@
   "mutation": {
     "variables": {
       "productId": "gid://shopify/Product/9255309443305",
-      "options": [
-        "gid://shopify/ProductOption/11658190848233"
-      ]
+      "options": ["gid://shopify/ProductOption/11658190848233"]
     },
     "response": {
       "data": {
         "productOptionsDelete": {
-          "deletedOptionsIds": [
-            "gid://shopify/ProductOption/11658190848233"
-          ],
+          "deletedOptionsIds": ["gid://shopify/ProductOption/11658190848233"],
           "product": {
             "id": "gid://shopify/Product/9255309443305",
             "options": [
@@ -19,9 +15,7 @@
                 "id": "gid://shopify/ProductOption/11658190881001",
                 "name": "Title",
                 "position": 1,
-                "values": [
-                  "Default Title"
-                ],
+                "values": ["Default Title"],
                 "optionValues": [
                   {
                     "id": "gid://shopify/ProductOptionValue/4709117853929",
@@ -57,9 +51,7 @@
             "id": "gid://shopify/ProductOption/11658190881001",
             "name": "Title",
             "position": 1,
-            "values": [
-              "Default Title"
-            ],
+            "values": ["Default Title"],
             "optionValues": [
               {
                 "id": "gid://shopify/ProductOptionValue/4709117853929",

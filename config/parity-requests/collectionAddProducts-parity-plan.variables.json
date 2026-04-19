@@ -1,7 +1,4 @@
 {
   "id": "gid://shopify/Collection/930",
-  "productIds": [
-    "gid://shopify/Product/30",
-    "gid://shopify/Product/31"
-  ]
+  "productIds": ["gid://shopify/Product/30", "gid://shopify/Product/31"]
 }

@@ -26,7 +26,10 @@ type ParitySpec = {
   scenarioId: string;
   scenarioStatus: string;
   liveCaptureFiles: string[];
-  comparisonMode: string;
+  comparison?: {
+    mode?: string;
+    targets?: Array<{ name?: string }>;
+  };
 };
 
 const expectedLiveFamilies = [
@@ -34,22 +37,19 @@ const expectedLiveFamilies = [
     operationName: 'productOptionsCreate',
     scenarioId: 'product-options-create-live-parity',
     paritySpecPath: 'config/parity-specs/productOptionsCreate-parity-plan.json',
-    captureFile:
-      'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-options-create-parity.json',
+    captureFile: 'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-options-create-parity.json',
   },
   {
     operationName: 'productOptionUpdate',
     scenarioId: 'product-option-update-live-parity',
     paritySpecPath: 'config/parity-specs/productOptionUpdate-parity-plan.json',
-    captureFile:
-      'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-option-update-parity.json',
+    captureFile: 'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-option-update-parity.json',
   },
   {
     operationName: 'productOptionsDelete',
     scenarioId: 'product-options-delete-live-parity',
     paritySpecPath: 'config/parity-specs/productOptionsDelete-parity-plan.json',
-    captureFile:
-      'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-options-delete-parity.json',
+    captureFile: 'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-options-delete-parity.json',
   },
 ] as const;
 
@@ -94,7 +94,7 @@ describe('product option mutation live conformance wiring', () => {
     }
   });
 
-  it('upgrades the product option mutation parity specs to captured-vs-proxy-request mode', () => {
+  it('upgrades the product option mutation parity specs to strict comparison contracts', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
 
     for (const expected of expectedLiveFamilies) {
@@ -105,9 +105,10 @@ describe('product option mutation live conformance wiring', () => {
           scenarioId: expected.scenarioId,
           scenarioStatus: 'captured',
           liveCaptureFiles: [expected.captureFile],
-          comparisonMode: 'captured-vs-proxy-request',
         }),
       );
+      expect(spec.comparison?.mode).toBe('strict-json');
+      expect(spec.comparison?.targets?.map((target) => target.name)).toEqual(['mutation-data']);
     }
   });
 });

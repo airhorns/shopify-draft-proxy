@@ -11,8 +11,12 @@ describe('inventoryAdjustQuantities parity plan scaffold', () => {
       proxyRequest?: { documentPath?: string | null; variablesPath?: string | null };
     };
 
-    expect(spec.proxyRequest?.documentPath).toBe('config/parity-requests/inventoryAdjustQuantities-parity-plan.graphql');
-    expect(spec.proxyRequest?.variablesPath).toBe('config/parity-requests/inventoryAdjustQuantities-parity-plan.variables.json');
+    expect(spec.proxyRequest?.documentPath).toBe(
+      'config/parity-requests/inventoryAdjustQuantities-parity-plan.graphql',
+    );
+    expect(spec.proxyRequest?.variablesPath).toBe(
+      'config/parity-requests/inventoryAdjustQuantities-parity-plan.variables.json',
+    );
 
     const documentPath = resolve(repoRoot, spec.proxyRequest!.documentPath!);
     const variablesPath = resolve(repoRoot, spec.proxyRequest!.variablesPath!);

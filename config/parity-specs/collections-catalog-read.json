@@ -1,32 +1,24 @@
 {
   "scenarioId": "collections-catalog-read",
-  "operationNames": [
-    "collections"
-  ],
+  "operationNames": ["collections"],
   "scenarioStatus": "captured",
-  "assertionKinds": [
-    "payload-shape",
-    "selected-fields",
-    "pagination-shape"
-  ],
-  "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collections-catalog.json"
-  ],
+  "assertionKinds": ["payload-shape", "selected-fields", "pagination-shape"],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collections-catalog.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/collections-catalog-read.graphql",
     "variablesPath": "config/parity-requests/collections-catalog-read.variables.json"
   },
-  "comparisonMode": "captured-vs-proxy-request",
   "notes": "Executed by the conformance parity runner against a local proxy harness with the captured Shopify payload supplied as the upstream read response; no live Shopify writes are performed.",
-  "comparisons": [
-    {
-      "name": "captured read payload",
-      "capturePath": "$",
-      "proxyResponsePath": "$",
-      "allowedDifferencePaths": [],
-      "mustMatchPaths": [
-        "$.data"
-      ]
-    }
-  ]
+  "comparison": {
+    "mode": "strict-json",
+    "allowedDifferences": [],
+    "targets": [
+      {
+        "name": "captured read payload",
+        "capturePath": "$.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$"
+      }
+    ]
+  }
 }

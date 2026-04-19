@@ -1,19 +1,12 @@
 {
   "scenarioId": "metafieldsSet-parity-plan",
-  "operationNames": [
-    "metafieldsSet"
-  ],
+  "operationNames": ["metafieldsSet"],
   "scenarioStatus": "planned",
-  "assertionKinds": [
-    "payload-shape",
-    "user-errors-parity",
-    "downstream-read-parity"
-  ],
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": [],
   "proxyRequest": {
     "documentPath": "config/parity-requests/metafieldsSet-parity-plan.graphql",
     "variablesPath": "config/parity-requests/metafieldsSet-parity-plan.variables.json"
   },
-  "comparisonMode": "planned",
   "notes": "Proxy request scaffold now mirrors the staged product metafield write runtime slice (`metafieldsSet(metafields:)` returning `metafields { id namespace key type value }` plus `userErrors`). Next step is to run the same safe metafield-write scenario against a dedicated dev-store write pack and compare mutation payload together with immediate downstream `product.metafield(...)` / `product.metafields` parity."
 }
