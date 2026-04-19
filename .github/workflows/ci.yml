@@ -38,6 +38,9 @@ jobs:
       - name: Install dependencies
         run: corepack pnpm install --frozen-lockfile
 
+      - name: Lint
+        run: corepack pnpm lint
+
       - name: Check worklist
         run: corepack pnpm worklist:check
 
