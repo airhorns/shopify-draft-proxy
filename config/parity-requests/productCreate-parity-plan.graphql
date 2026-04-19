@@ -14,8 +14,6 @@ mutation ProductCreateParityPlan($product: ProductCreateInput!) {
         title
         description
       }
-      createdAt
-      updatedAt
     }
     userErrors {
       field

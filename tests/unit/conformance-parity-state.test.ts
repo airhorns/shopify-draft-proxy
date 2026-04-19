@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-// scripts/ is intentionally outside tsconfig's checked sources; runtime coverage here verifies the JS helper.
-// @ts-expect-error local .mjs helper is exercised via Vitest rather than TS declarations
-import { classifyParityScenarioState, compareJsonPayloads, summarizeParityResults, validateComparisonContract } from '../../scripts/conformance-parity-lib.mjs';
+import { classifyParityScenarioState, compareJsonPayloads, executeParityScenario, summarizeParityResults, validateComparisonContract } from '../../scripts/conformance-parity-lib.js';
 
 describe('classifyParityScenarioState', () => {
   it('does not mark captured scenarios ready until an explicit strict comparison contract exists', () => {
@@ -305,5 +303,64 @@ describe('compareJsonPayloads', () => {
         actual: 'Shade',
       },
     ]);
+  });
+});
+
+describe('executeParityScenario', () => {
+  it('executes the promoted productCreate captured scenario against the local proxy harness', async () => {
+    const repoRoot = new URL('../..', import.meta.url).pathname;
+    const result = await executeParityScenario({
+      repoRoot,
+      scenario: {
+        id: 'product-create-live-parity',
+        status: 'captured',
+        captureFiles: ['fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-create-parity.json'],
+      },
+      paritySpec: {
+        proxyRequest: {
+          documentPath: 'config/parity-requests/productCreate-parity-plan.graphql',
+          variablesPath: 'config/parity-requests/productCreate-parity-plan.variables.json',
+        },
+        comparison: {
+          mode: 'strict-json',
+          allowedDifferences: [
+            {
+              path: '$.productCreate.product.id',
+              matcher: 'shopify-gid:Product',
+              reason: 'Synthetic local product id.',
+            },
+            {
+              path: '$.product.id',
+              matcher: 'shopify-gid:Product',
+              reason: 'Synthetic local product id.',
+            },
+          ],
+          targets: [
+            {
+              name: 'mutation-data',
+              capturePath: '$.mutation.response.data',
+              proxyPath: '$.data',
+            },
+            {
+              name: 'downstream-read-data',
+              capturePath: '$.downstreamRead.data',
+              proxyRequest: {
+                documentPath: 'config/parity-requests/productCreate-downstream-read.graphql',
+                variables: {
+                  id: {
+                    fromPrimaryProxyPath: '$.data.productCreate.product.id',
+                  },
+                },
+              },
+              proxyPath: '$.data',
+            },
+          ],
+        },
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.primaryProxyStatus).toBe(200);
+    expect(result.comparisons.map((comparison) => comparison.name)).toEqual(['mutation-data', 'downstream-read-data']);
   });
 });
