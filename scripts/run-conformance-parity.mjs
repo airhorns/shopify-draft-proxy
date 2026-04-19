@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { classifyParityScenarioState } from './conformance-parity-lib.mjs';
+import { classifyParityScenarioState, summarizeParityResults, validateComparisonContract } from './conformance-parity-lib.mjs';
 
 const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const scenarioRegistry = JSON.parse(readFileSync(path.join(repoRoot, 'config', 'conformance-scenarios.json'), 'utf8'));
@@ -22,6 +22,23 @@ for (const scenario of selectedScenarios) {
   const paritySpec = JSON.parse(readFileSync(paritySpecPath, 'utf8'));
 
   const state = classifyParityScenarioState(scenario, paritySpec);
+  const comparisonContractErrors = validateComparisonContract(paritySpec?.comparison);
+  const comparisonContract =
+    comparisonContractErrors.length === 0
+      ? {
+          status: 'valid',
+          mode: paritySpec.comparison.mode,
+          allowedDifferences: paritySpec.comparison.allowedDifferences.length,
+        }
+      : paritySpec?.comparison
+        ? {
+            status: 'invalid',
+            errors: comparisonContractErrors,
+          }
+        : {
+            status: 'missing',
+            errors: comparisonContractErrors,
+          };
 
   results.push({
     scenarioId: scenario.id,
@@ -29,15 +46,17 @@ for (const scenario of selectedScenarios) {
     scenarioStatus: scenario.status,
     paritySpecPath: scenario.paritySpecPath,
     state,
+    comparisonContract,
     assertionKinds: scenario.assertionKinds,
     captureFiles: scenario.captureFiles,
   });
 }
 
+const summary = summarizeParityResults(results);
+
 console.log(JSON.stringify({
   ok: true,
   total: results.length,
-  readyForComparison: results.filter((result) => result.state === 'ready-for-comparison').length,
-  pending: results.filter((result) => result.state !== 'ready-for-comparison').length,
+  ...summary,
   results,
 }, null, 2));
