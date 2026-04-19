@@ -192,7 +192,7 @@ Status legend:
 - [ ] `GET /__meta/log`
 - [ ] `GET /__meta/state`
 - [ ] `GET /__meta/config`
-- [ ] `GET /__meta/health`
+- [x] `GET /__meta/health`
 
 ### State engine
 - [ ] normalized object graph

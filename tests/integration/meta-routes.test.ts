@@ -10,7 +10,7 @@ const config: AppConfig = {
 };
 
 describe('meta routes', () => {
-  it('exposes health and reset endpoints', async () => {
+  it('exposes a lightweight health endpoint', async () => {
     const app = createApp(config);
     const server = app.callback();
 
@@ -20,6 +20,11 @@ describe('meta routes', () => {
       ok: true,
       message: 'shopify-draft-proxy is running',
     });
+  });
+
+  it('exposes a reset endpoint', async () => {
+    const app = createApp(config);
+    const server = app.callback();
 
     const reset = await request(server).post('/__meta/reset');
     expect(reset.status).toBe(200);
