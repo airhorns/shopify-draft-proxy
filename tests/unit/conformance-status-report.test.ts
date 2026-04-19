@@ -1,8 +1,46 @@
 import { describe, expect, it } from 'vitest';
 
-// scripts/ is intentionally outside tsconfig's checked sources; runtime coverage here verifies the JS helper.
-// @ts-expect-error local .mjs helper is exercised via Vitest rather than TS declarations
-import { buildConformanceReport, compareConformanceSummaries, renderConformanceComment, summarizeConformanceStatus } from '../../scripts/conformance-status-report.mjs';
+// @ts-ignore scripts/ is intentionally outside tsconfig's checked sources; runtime coverage here verifies the JS helper.
+import * as conformanceStatusReport from '../../scripts/conformance-status-report.mjs';
+
+const { buildConformanceReport, compareConformanceSummaries, renderConformanceComment, summarizeConformanceStatus } =
+  conformanceStatusReport as {
+    buildConformanceReport: (input: {
+      status: typeof status;
+      baseline?: typeof status | null;
+      commit?: string | null;
+      refName?: string | null;
+      runId?: string | null;
+    }) => {
+      conformance: ReturnType<typeof summarizeConformanceStatus>;
+      baseline: ReturnType<typeof summarizeConformanceStatus> | null;
+      delta: ReturnType<typeof compareConformanceSummaries>;
+      commit: string | null;
+    };
+    compareConformanceSummaries: (
+      current: ReturnType<typeof summarizeConformanceStatus>,
+      baseline: ReturnType<typeof summarizeConformanceStatus> | null,
+    ) => {
+      conformingScenarios: number;
+      totalScenarios: number;
+      conformanceRatio: number;
+      coveredOperations: number;
+      implementedOperations: number;
+      declaredGapOperations: number;
+    } | null;
+    renderConformanceComment: (report: ReturnType<typeof buildConformanceReport>) => string;
+    summarizeConformanceStatus: (input: typeof status) => {
+      generatedAt: string | null;
+      conformingScenarios: number;
+      totalScenarios: number;
+      pendingScenarios: number;
+      conformanceRatio: number;
+      coveredOperations: number;
+      implementedOperations: number;
+      declaredGapOperations: number;
+      operationCoverageRatio: number;
+    };
+  };
 
 const status = {
   generatedAt: '2026-04-19T00:00:00.000Z',

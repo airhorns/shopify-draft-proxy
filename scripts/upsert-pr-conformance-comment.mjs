@@ -52,7 +52,7 @@ function readPullRequestNumber(args) {
 }
 
 async function githubRequest(pathname, { token, method = 'GET', body = undefined }) {
-  const response = await fetch(`https://api.github.com${pathname}`, {
+  const request = {
     method,
     headers: {
       accept: 'application/vnd.github+json',
@@ -60,8 +60,13 @@ async function githubRequest(pathname, { token, method = 'GET', body = undefined
       'content-type': 'application/json',
       'x-github-api-version': '2022-11-28',
     },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  };
+
+  if (body !== undefined) {
+    request.body = JSON.stringify(body);
+  }
+
+  const response = await fetch(`https://api.github.com${pathname}`, request);
 
   if (!response.ok) {
     const responseBody = await response.text();
@@ -117,6 +122,10 @@ function writeGithubOutputs(outputs) {
   appendFileSync(process.env.GITHUB_OUTPUT, `${lines.join('\n')}\n`);
 }
 
+function writeLine(message) {
+  process.stdout.write(`${message}\n`);
+}
+
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const args = parseArgs(process.argv.slice(2));
   const repository = args.get('repository') ?? process.env.GITHUB_REPOSITORY;
@@ -147,5 +156,5 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   });
 
   writeGithubOutputs({ action: result.action, comment_url: result.url });
-  console.log(`${result.action} conformance status comment: ${result.url}`);
+  writeLine(`${result.action} conformance status comment: ${result.url}`);
 }

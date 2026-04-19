@@ -57,6 +57,10 @@ function formatSignedPercentPoints(value) {
   return value > 0 ? `+${formatted}` : value < 0 ? `-${formatted}` : formatted;
 }
 
+function writeLine(message) {
+  process.stdout.write(`${message}\n`);
+}
+
 function getGitValue(args, envName, command) {
   const fromEnv = process.env[envName];
   if (fromEnv && fromEnv.length > 0) {
@@ -74,7 +78,9 @@ export function summarizeConformanceStatus(status) {
   const conformingScenarioIds = Array.isArray(status.capturedScenarioIds) ? status.capturedScenarioIds : [];
   const pendingScenarioIds = Array.isArray(status.plannedScenarioIds) ? status.plannedScenarioIds : [];
   const coveredOperationNames = Array.isArray(status.coveredOperationNames) ? status.coveredOperationNames : [];
-  const declaredGapOperationNames = Array.isArray(status.declaredGapOperationNames) ? status.declaredGapOperationNames : [];
+  const declaredGapOperationNames = Array.isArray(status.declaredGapOperationNames)
+    ? status.declaredGapOperationNames
+    : [];
   const implementedOperations = Array.isArray(status.implementedOperations) ? status.implementedOperations : [];
   const totalScenarios = conformingScenarioIds.length + pendingScenarioIds.length;
 
@@ -178,18 +184,18 @@ export function writeConformanceReport({ statusPath, baselinePath, outputJsonPat
   writeFileSync(outputJsonPath, JSON.stringify(report, null, 2) + '\n');
   writeFileSync(outputMarkdownPath, markdown);
 
-  console.log(
+  writeLine(
     `conformance status: ${report.conformance.conformingScenarios}/${report.conformance.totalScenarios} scenarios conforming`,
   );
   if (report.delta) {
-    console.log(`improvement over main: ${formatSignedInteger(report.delta.conformingScenarios)} scenarios`);
+    writeLine(`improvement over main: ${formatSignedInteger(report.delta.conformingScenarios)} scenarios`);
   } else {
-    console.log('improvement over main: baseline unavailable');
+    writeLine('improvement over main: baseline unavailable');
   }
 }
 
 function printHelp() {
-  console.log(`Usage: node scripts/conformance-status-report.mjs [options]
+  process.stdout.write(`Usage: node scripts/conformance-status-report.mjs [options]
 
 Options:
   --status-json <path>       Source conformance status JSON. Defaults to docs/generated/conformance-status.json.

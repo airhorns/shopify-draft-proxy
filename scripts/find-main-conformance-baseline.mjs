@@ -49,7 +49,13 @@ async function githubRequest(pathname, token) {
   return response.json();
 }
 
-export async function findMainConformanceBaseline({ repository, token, workflow = defaultWorkflow, branch = defaultBranch, artifactName = defaultArtifactName }) {
+export async function findMainConformanceBaseline({
+  repository,
+  token,
+  workflow = defaultWorkflow,
+  branch = defaultBranch,
+  artifactName = defaultArtifactName,
+}) {
   const workflowRuns = await githubRequest(
     `/repos/${repository}/actions/workflows/${encodeURIComponent(workflow)}/runs?branch=${encodeURIComponent(branch)}&event=push&status=success&per_page=20`,
     token,
@@ -85,6 +91,10 @@ function writeGithubOutputs(outputs) {
   appendFileSync(process.env.GITHUB_OUTPUT, `${lines.join('\n')}\n`);
 }
 
+function writeLine(message) {
+  process.stdout.write(`${message}\n`);
+}
+
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const args = parseArgs(process.argv.slice(2));
   const repository = args.get('repository') ?? process.env.GITHUB_REPOSITORY;
@@ -113,8 +123,8 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   });
 
   if (result.found) {
-    console.log(`found ${result.artifactName} from run ${result.runId} (${result.headSha})`);
+    writeLine(`found ${result.artifactName} from run ${result.runId} (${result.headSha})`);
   } else {
-    console.log('no main conformance baseline artifact found');
+    writeLine('no main conformance baseline artifact found');
   }
 }
