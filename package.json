@@ -12,7 +12,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "tsc -p tsconfig.json --noEmit",
+    "lint": "node ./scripts/check-no-console-log.mjs && tsc -p tsconfig.json --noEmit",
     "worklist:check": "node ./scripts/check-worklist.mjs",
     "conformance:check": "node ./scripts/check-conformance-coverage.mjs",
     "conformance:parity": "node ./scripts/run-conformance-parity.mjs",
@@ -32,12 +32,13 @@
     "dotenv": "^16.6.1",
     "graphql": "^16.11.0",
     "koa": "^2.16.3",
-    "koa-bodyparser": "^4.4.1"
+    "koa-bodyparser": "^4.4.1",
+    "pino": "^10.3.1"
   },
   "devDependencies": {
     "@types/koa": "^2.15.0",
-    "@types/koa__router": "^12.0.4",
     "@types/koa-bodyparser": "^4.3.12",
+    "@types/koa__router": "^12.0.4",
     "@types/node": "^24.6.1",
     "@types/supertest": "^6.0.3",
     "supertest": "^7.1.4",

@@ -4,6 +4,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { parseWriteScopeBlocker, renderWriteScopeBlockerNote } from './product-mutation-conformance-lib.mjs';
+import { printJson } from './stdout.mjs';
 
 const requiredVars = [
   'SHOPIFY_CONFORMANCE_STORE_DOMAIN',
@@ -311,34 +312,22 @@ try {
     await writeFile(path.join(outputDir, filename), `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
   }
 
-  console.log(
-    JSON.stringify(
-      {
-        ok: true,
-        outputDir,
-        files: Object.keys(captures),
-        productId: createdProductId,
-      },
-      null,
-      2,
-    ),
-  );
+  printJson({
+    ok: true,
+    outputDir,
+    files: Object.keys(captures),
+    productId: createdProductId,
+  });
 } catch (error) {
   const blocker = parseWriteScopeBlocker(error?.result ?? null);
   if (blocker) {
     await writeScopeBlocker(blocker);
-    console.log(
-      JSON.stringify(
-        {
-          ok: false,
-          blocked: true,
-          blockerPath,
-          blocker,
-        },
-        null,
-        2,
-      ),
-    );
+    printJson({
+      ok: false,
+      blocked: true,
+      blockerPath,
+      blocker,
+    });
     process.exit(1);
   }
 

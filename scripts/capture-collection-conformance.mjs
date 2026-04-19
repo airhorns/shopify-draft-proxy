@@ -4,6 +4,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { pickCollectionCaptureSeed } from './collection-conformance-lib.mjs';
+import { printJson } from './stdout.mjs';
 
 const requiredVars = [
   'SHOPIFY_CONFORMANCE_STORE_DOMAIN',
@@ -162,15 +163,9 @@ for (const [filename, payload] of Object.entries(captures)) {
   await writeFile(path.join(outputDir, filename), `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
 }
 
-console.log(
-  JSON.stringify(
-    {
-      ok: true,
-      outputDir,
-      sampleCollection,
-      files: Object.keys(captures),
-    },
-    null,
-    2,
-  ),
-);
+printJson({
+  ok: true,
+  outputDir,
+  sampleCollection,
+  files: Object.keys(captures),
+});

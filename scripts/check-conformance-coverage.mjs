@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { printLine } from './stdout.mjs';
 
 const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const operationRegistryPath = path.join(repoRoot, 'config', 'operation-registry.json');
@@ -196,5 +197,5 @@ writeFileSync(reportPath, coverageReport.join('\n'));
 writeFileSync(statusJsonPath, JSON.stringify(statusJson, null, 2) + '\n');
 writeFileSync(statusMarkdownPath, worklistStatusReport.join('\n'));
 
-console.log(`conformance coverage ok (${coveredEntries.length} covered / ${gapEntries.length} declared gaps)`);
-console.log(`reports written to ${path.relative(repoRoot, reportPath)}, ${path.relative(repoRoot, statusJsonPath)}, and ${path.relative(repoRoot, statusMarkdownPath)}`);
+printLine(`conformance coverage ok (${coveredEntries.length} covered / ${gapEntries.length} declared gaps)`);
+printLine(`reports written to ${path.relative(repoRoot, reportPath)}, ${path.relative(repoRoot, statusJsonPath)}, and ${path.relative(repoRoot, statusMarkdownPath)}`);

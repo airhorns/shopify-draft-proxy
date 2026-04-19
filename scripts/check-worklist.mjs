@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { printLine } from './stdout.mjs';
 
 const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const worklistPath = path.join(repoRoot, 'docs', 'shopify-admin-worklist.md');
@@ -28,4 +29,4 @@ for (const entry of registry) {
   }
 }
 
-console.log('worklist ok');
+printLine('worklist ok');

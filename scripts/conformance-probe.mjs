@@ -1,5 +1,7 @@
 import 'dotenv/config';
 
+import { printJson } from './stdout.mjs';
+
 const requiredVars = [
   'SHOPIFY_CONFORMANCE_STORE_DOMAIN',
   'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN',
@@ -70,15 +72,9 @@ if (!response.ok || payload.errors) {
   process.exit(1);
 }
 
-console.log(
-  JSON.stringify(
-    {
-      ok: true,
-      apiVersion,
-      storeDomain,
-      shop: payload.data?.shop ?? null,
-    },
-    null,
-    2,
-  ),
-);
+printJson({
+  ok: true,
+  apiVersion,
+  storeDomain,
+  shop: payload.data?.shop ?? null,
+});
