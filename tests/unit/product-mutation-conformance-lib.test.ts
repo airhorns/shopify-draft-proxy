@@ -8,7 +8,45 @@ import { describe, expect, it } from 'vitest';
 import { parseWriteScopeBlocker, pickProductMutationSeed, renderWriteScopeBlockerNote } from '../../scripts/product-mutation-conformance-lib.mjs';
 
 describe('pickProductMutationSeed', () => {
-  it('returns the first product node from the products catalog capture', () => {
+  it('returns the first valid product node from a catalog payload', () => {
+    expect(
+      pickProductMutationSeed({
+        data: {
+          products: {
+            edges: [
+              {
+                node: {
+                  id: 'gid://shopify/Product/1',
+                  title: 'First product',
+                  handle: 'first-product',
+                  status: 'DRAFT',
+                  vendor: 'Hermes',
+                  productType: 'TOOLS',
+                },
+              },
+              {
+                node: {
+                  id: 'gid://shopify/Product/2',
+                  title: 'Second product',
+                  handle: 'second-product',
+                  status: 'ACTIVE',
+                },
+              },
+            ],
+          },
+        },
+      }),
+    ).toEqual({
+      id: 'gid://shopify/Product/1',
+      title: 'First product',
+      handle: 'first-product',
+      status: 'DRAFT',
+      vendor: 'Hermes',
+      productType: 'TOOLS',
+    });
+  });
+
+  it('returns a structurally valid seed from the current products catalog capture', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
     const catalogFixture = JSON.parse(
       readFileSync(
@@ -25,13 +63,13 @@ describe('pickProductMutationSeed', () => {
       };
     };
 
-    expect(pickProductMutationSeed(catalogFixture)).toEqual({
-      id: 'gid://shopify/Product/8397256720617',
-      title: 'CONVERSE | TODDLER CHUCK TAYLOR ALL STAR AXEL MID',
-      handle: 'converse-toddler-chuck-taylor-all-star-axel-mid',
-      status: 'ACTIVE',
-      vendor: 'CONVERSE',
-      productType: 'SHOES',
+    expect(pickProductMutationSeed(catalogFixture)).toMatchObject({
+      id: expect.stringMatching(/^gid:\/\/shopify\/Product\//),
+      title: expect.any(String),
+      handle: expect.any(String),
+      status: expect.any(String),
+      vendor: expect.any(String),
+      productType: expect.any(String),
     });
   });
 

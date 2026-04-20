@@ -1,0 +1,109 @@
+query ProductVariantsRead($variantId: ID!, $inventoryItemId: ID!) {
+  variant: productVariant(id: $variantId) {
+    id
+    title
+    sku
+    barcode
+    price
+    compareAtPrice
+    taxable
+    inventoryPolicy
+    inventoryQuantity
+    selectedOptions {
+      name
+      value
+    }
+    inventoryItem {
+      id
+      tracked
+      requiresShipping
+      measurement {
+        weight {
+          unit
+          value
+        }
+      }
+      countryCodeOfOrigin
+      provinceCodeOfOrigin
+      harmonizedSystemCode
+      inventoryLevels(first: 5) {
+        edges {
+          cursor
+          node {
+            id
+            location {
+              id
+              name
+            }
+            quantities(names: ["available", "on_hand", "incoming"]) {
+              name
+              quantity
+              updatedAt
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+    product {
+      id
+      title
+      handle
+      status
+    }
+  }
+  stock: inventoryItem(id: $inventoryItemId) {
+    id
+    tracked
+    requiresShipping
+    measurement {
+      weight {
+        unit
+        value
+      }
+    }
+    countryCodeOfOrigin
+    provinceCodeOfOrigin
+    harmonizedSystemCode
+    inventoryLevels(first: 5) {
+      edges {
+        cursor
+        node {
+          id
+          location {
+            id
+            name
+          }
+          quantities(names: ["available", "on_hand", "incoming"]) {
+            name
+            quantity
+            updatedAt
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    variant {
+      id
+      title
+      sku
+      inventoryQuantity
+      product {
+        id
+        title
+        handle
+        status
+      }
+    }
+  }
+}

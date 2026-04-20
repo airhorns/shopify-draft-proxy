@@ -1,0 +1,94 @@
+{
+  "mutation": {
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Customer/9079716675817"
+      }
+    },
+    "response": {
+      "data": {
+        "customerDelete": {
+          "deletedCustomerId": "gid://shopify/Customer/9079716675817",
+          "shop": {
+            "id": "gid://shopify/Shop/63755419881"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "customer": null,
+      "customers": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false
+        }
+      },
+      "customersCount": {
+        "count": 73,
+        "precision": "EXACT"
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 24,
+        "actualQueryCost": 16,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1984,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "validation": {
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Customer/999999999999999"
+      }
+    },
+    "response": {
+      "data": {
+        "customerDelete": {
+          "deletedCustomerId": null,
+          "shop": {
+            "id": "gid://shopify/Shop/63755419881"
+          },
+          "userErrors": [
+            {
+              "field": [
+                "id"
+              ],
+              "message": "Customer can't be found"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1983,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

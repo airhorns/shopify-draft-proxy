@@ -17,5 +17,5 @@
     "variablesPath": "config/parity-requests/tagsAdd-parity-plan.variables.json"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live capture recorded for `tagsAdd`, but Shopify did not reflect the freshly added unique tag in immediate `products(query:)` / `productsCount(query:)` search results, so promotion still requires search-index parity decisions."
+  "notes": "Live capture recorded for `tagsAdd`, and the staged runtime now mirrors Shopify's immediate tag-index lag for hydrated products: `product.tags` updates immediately while `products(query: \"tag:...\")` / `productsCount(query: \"tag:...\")` stay limited to hydrated/base tags."
 }

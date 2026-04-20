@@ -1,0 +1,36 @@
+{
+  "query": "mutation FulfillmentTrackingInfoUpdateMissingId($fulfillmentId: ID!, $trackingInfoInput: FulfillmentTrackingInput!, $notifyCustomer: Boolean) {\n    fulfillmentTrackingInfoUpdate(\n      fulfillmentId: $fulfillmentId\n      trackingInfoInput: $trackingInfoInput\n      notifyCustomer: $notifyCustomer\n    ) {\n      fulfillment {\n        id\n        status\n        trackingInfo {\n          number\n          url\n          company\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+  "variables": {
+    "notifyCustomer": false,
+    "trackingInfoInput": {
+      "number": "HERMES-TRACK-UPDATE",
+      "url": "https://example.com/track/HERMES-TRACK-UPDATE",
+      "company": "Hermes"
+    }
+  },
+  "mutation": {
+    "response": {
+      "errors": [
+        {
+          "message": "Variable $fulfillmentId of type ID! was provided invalid value",
+          "locations": [
+            {
+              "line": 2,
+              "column": 51
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": null,
+            "problems": [
+              {
+                "path": [],
+                "explanation": "Expected value to not be null"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

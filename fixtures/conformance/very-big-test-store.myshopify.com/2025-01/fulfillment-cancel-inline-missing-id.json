@@ -1,0 +1,29 @@
+{
+  "query": "mutation FulfillmentCancelInlineMissingId {\n    fulfillmentCancel {\n      fulfillment {\n        id\n        status\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+  "variables": {},
+  "mutation": {
+    "response": {
+      "errors": [
+        {
+          "message": "Field 'fulfillmentCancel' is missing required arguments: id",
+          "locations": [
+            {
+              "line": 3,
+              "column": 5
+            }
+          ],
+          "path": [
+            "mutation FulfillmentCancelInlineMissingId",
+            "fulfillmentCancel"
+          ],
+          "extensions": {
+            "code": "missingRequiredArguments",
+            "className": "Field",
+            "name": "fulfillmentCancel",
+            "arguments": "id"
+          }
+        }
+      ]
+    }
+  }
+}

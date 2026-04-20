@@ -1,0 +1,24 @@
+{
+  "scenarioId": "products-or-precedence-read",
+  "operationNames": [
+    "products",
+    "productsCount"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "selected-fields",
+    "search-filter-semantics",
+    "sort-order-semantics",
+    "pagination-shape"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-or-precedence.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products-or-precedence-read.graphql",
+    "variablesPath": "config/parity-requests/products-or-precedence-read.variables.json"
+  },
+  "comparisonMode": "capture-only",
+  "notes": "Live product OR-precedence capture records Shopify's current AND-before-OR behavior for unparenthesized search terms, preserving the merchant-facing products/productsCount slice plus UPDATED_AT-desc ordering and pagination metadata."
+}

@@ -1,0 +1,21 @@
+{
+  "scenarioId": "publications-catalog-read",
+  "operationNames": [
+    "publications"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "selected-fields",
+    "pagination-shape"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/publications-catalog.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/publications-catalog-read.graphql",
+    "variablesPath": "config/parity-requests/publications-catalog-read.variables.json"
+  },
+  "comparisonMode": "capture-only",
+  "notes": "Live product-publication capture now also covers top-level `publications` pagination for the merchant-facing publication target slice (`id`, `name`)."
+}

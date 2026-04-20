@@ -5,12 +5,15 @@ import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-ide
 import { store } from '../state/store.js';
 import type {
   CollectionRecord,
+  InventoryLevelRecord,
+  ProductCatalogConnectionRecord,
   ProductCollectionRecord,
   ProductMediaRecord,
   ProductMetafieldRecord,
   ProductOptionRecord,
   ProductRecord,
   ProductVariantRecord,
+  PublicationRecord,
 } from '../state/types.js';
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -21,15 +24,27 @@ function hasOwnField(value: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(value, key);
 }
 
-function slugifyHandle(title: string): string {
-  const normalized = title
+function normalizeHandleParts(value: string): string {
+  return value
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
+}
 
+function slugifyHandle(title: string): string {
+  const normalized = normalizeHandleParts(title);
   return normalized || 'untitled-product';
 }
+
+function normalizeExplicitProductHandle(handle: string): string {
+  const normalized = normalizeHandleParts(handle);
+  return normalized || 'product';
+}
+
+type ExplicitHandleResolution =
+  | { kind: 'normalized-explicit'; handle: string }
+  | { kind: 'fallback-explicit'; handle: string };
 
 function readProductInput(raw: unknown): Record<string, unknown> {
   return isObject(raw) ? raw : {};
@@ -39,12 +54,150 @@ function findEffectiveProductByHandle(handle: string): ProductRecord | null {
   return store.listEffectiveProducts().find((product) => product.handle === handle) ?? null;
 }
 
+function readExplicitHandle(input: Record<string, unknown>): ExplicitHandleResolution | null {
+  const rawHandle = input['handle'];
+  if (typeof rawHandle !== 'string') {
+    return null;
+  }
+
+  const trimmedHandle = rawHandle.trim();
+  if (!trimmedHandle) {
+    return null;
+  }
+
+  const normalized = normalizeHandleParts(trimmedHandle);
+  if (!normalized) {
+    return { kind: 'fallback-explicit', handle: 'product' };
+  }
+
+  return { kind: 'normalized-explicit', handle: normalized };
+}
+
+function productHandleInUse(handle: string, excludedProductId?: string): boolean {
+  const existing = findEffectiveProductByHandle(handle);
+  return Boolean(existing && existing.id !== excludedProductId);
+}
+
+function nextProductHandleCandidate(handle: string): string {
+  const numericSuffixMatch = handle.match(/^(.*?)(\d+)$/u);
+  if (numericSuffixMatch) {
+    const prefix = numericSuffixMatch[1] ?? '';
+    const numericSuffix = numericSuffixMatch[2] ?? '';
+    return `${prefix}${String(Number.parseInt(numericSuffix, 10) + 1)}`;
+  }
+
+  const hyphenatedSuffixMatch = handle.match(/^(.*?)-(\d+)$/u);
+  if (hyphenatedSuffixMatch) {
+    const prefix = hyphenatedSuffixMatch[1] ?? handle;
+    const numericSuffix = hyphenatedSuffixMatch[2] ?? '0';
+    return `${prefix}-${String(Number.parseInt(numericSuffix, 10) + 1)}`;
+  }
+
+  return `${handle}-1`;
+}
+
+function ensureUniqueProductHandle(handle: string, excludedProductId?: string): string {
+  let candidate = handle;
+  while (productHandleInUse(candidate, excludedProductId)) {
+    candidate = nextProductHandleCandidate(candidate);
+  }
+
+  return candidate;
+}
+
+function productHandleConflictError(handle: string): { field: string[]; message: string } {
+  return {
+    field: ['input', 'handle'],
+    message: `Handle '${handle}' already in use. Please provide a new handle.`,
+  };
+}
+
+function prepareProductInputWithResolvedHandle(
+  input: Record<string, unknown>,
+  existing?: ProductRecord,
+): { input: Record<string, unknown>; error: { field: string[]; message: string } | null } {
+  const explicitHandle = readExplicitHandle(input);
+  if (explicitHandle) {
+    if (explicitHandle.kind === 'normalized-explicit') {
+      if (productHandleInUse(explicitHandle.handle, existing?.id)) {
+        return { input, error: productHandleConflictError(explicitHandle.handle) };
+      }
+
+      return { input: { ...input, handle: explicitHandle.handle }, error: null };
+    }
+
+    return {
+      input: {
+        ...input,
+        handle: ensureUniqueProductHandle(explicitHandle.handle, existing?.id),
+      },
+      error: null,
+    };
+  }
+
+  const rawId = input['id'];
+  const isSparseUpdate = typeof rawId === 'string' && !existing;
+  if (isSparseUpdate) {
+    return {
+      input: {
+        ...input,
+        handle: '',
+      },
+      error: null,
+    };
+  }
+
+  const rawTitle = input['title'];
+  const title = typeof rawTitle === 'string' && rawTitle.trim() ? rawTitle.trim() : existing?.title ?? 'Untitled product';
+  const baseHandle = existing?.handle ?? slugifyHandle(title);
+  return {
+    input: {
+      ...input,
+      handle: ensureUniqueProductHandle(baseHandle, existing?.id),
+    },
+    error: null,
+  };
+}
+
 function findEffectiveCollectionById(collectionId: string): CollectionRecord | null {
   return store.getEffectiveCollectionById(collectionId);
 }
 
 function listEffectiveCollections(): CollectionRecord[] {
   return store.listEffectiveCollections();
+}
+
+interface LocationRecord {
+  id: string;
+  name: string | null;
+}
+
+function listEffectiveLocations(): LocationRecord[] {
+  const locations: LocationRecord[] = [];
+  const seenLocationIds = new Set<string>();
+
+  for (const product of store.listEffectiveProducts()) {
+    for (const variant of store.getEffectiveVariantsByProductId(product.id)) {
+      for (const level of getEffectiveInventoryLevels(variant)) {
+        const locationId = level.location?.id;
+        if (!locationId || seenLocationIds.has(locationId)) {
+          continue;
+        }
+
+        seenLocationIds.add(locationId);
+        locations.push({
+          id: locationId,
+          name: level.location?.name ?? null,
+        });
+      }
+    }
+  }
+
+  return locations;
+}
+
+function listEffectivePublications(): PublicationRecord[] {
+  return store.listEffectivePublications();
 }
 
 function listEffectiveProductsForCollection(collectionId: string): ProductRecord[] {
@@ -365,6 +518,7 @@ function makeProductRecord(input: Record<string, unknown>, existing?: ProductRec
   const rawDescriptionHtml = input['descriptionHtml'];
   const rawTemplateSuffix = input['templateSuffix'];
   const rawSeo = input['seo'];
+  const rawPublishedAt = input['publishedAt'];
 
   const isSparseUpdate = typeof rawId === 'string' && !existing;
   const existingSeo = existing?.seo ?? { title: null, description: null };
@@ -381,6 +535,12 @@ function makeProductRecord(input: Record<string, unknown>, existing?: ProductRec
     publicationIds: readPublicationIds(input['publicationIds'], existing?.publicationIds ?? []),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
+    publishedAt:
+      rawPublishedAt === null
+        ? null
+        : typeof rawPublishedAt === 'string'
+          ? rawPublishedAt
+          : existing?.publishedAt ?? null,
     vendor: typeof rawVendor === 'string' ? rawVendor : existing?.vendor ?? null,
     productType: typeof rawProductType === 'string' ? rawProductType : existing?.productType ?? null,
     tags: Array.isArray(rawTags)
@@ -460,6 +620,7 @@ function makeDuplicatedProductRecord(source: ProductRecord, newTitle?: string): 
     publicationIds: [],
     createdAt: now,
     updatedAt: now,
+    publishedAt: null,
     vendor: source.vendor,
     productType: source.productType,
     tags: structuredClone(source.tags),
@@ -539,6 +700,7 @@ function duplicateMediaRecord(media: ProductMediaRecord, productId: string): Pro
     status: media.status ?? null,
     imageUrl: media.imageUrl ?? media.previewImageUrl,
     previewImageUrl: media.previewImageUrl,
+    sourceUrl: media.sourceUrl ?? media.imageUrl ?? media.previewImageUrl ?? null,
   };
 }
 
@@ -569,7 +731,8 @@ function makeCreatedMediaRecord(
   const mediaContentType = typeof rawMediaContentType === 'string' ? rawMediaContentType : 'IMAGE';
   const rawAlt = input['alt'];
   const rawOriginalSource = input['originalSource'];
-  const imageUrl = typeof rawOriginalSource === 'string' && rawOriginalSource.trim() ? rawOriginalSource : null;
+  const sourceUrl =
+    typeof rawOriginalSource === 'string' && rawOriginalSource.trim() ? rawOriginalSource : null;
 
   return {
     key: `${productId}:media:${position}`,
@@ -579,8 +742,28 @@ function makeCreatedMediaRecord(
     mediaContentType,
     alt: typeof rawAlt === 'string' ? rawAlt : null,
     status: 'UPLOADED',
-    imageUrl,
-    previewImageUrl: imageUrl,
+    imageUrl: null,
+    previewImageUrl: null,
+    sourceUrl,
+  };
+}
+
+function transitionMediaToProcessing(media: ProductMediaRecord): ProductMediaRecord {
+  return {
+    ...structuredClone(media),
+    status: 'PROCESSING',
+    imageUrl: null,
+    previewImageUrl: null,
+  };
+}
+
+function transitionMediaToReady(media: ProductMediaRecord): ProductMediaRecord {
+  const readyUrl = media.sourceUrl ?? media.imageUrl ?? media.previewImageUrl ?? null;
+  return {
+    ...structuredClone(media),
+    status: 'READY',
+    imageUrl: readyUrl,
+    previewImageUrl: readyUrl,
   };
 }
 
@@ -593,13 +776,15 @@ function updateMediaRecord(existing: ProductMediaRecord, input: Record<string, u
       ? rawPreviewImageSource
       : typeof rawOriginalSource === 'string' && rawOriginalSource.trim()
         ? rawOriginalSource
-        : existing.imageUrl ?? existing.previewImageUrl;
+        : existing.imageUrl ?? existing.previewImageUrl ?? existing.sourceUrl ?? null;
 
   return {
     ...structuredClone(existing),
     alt: typeof rawAlt === 'string' ? rawAlt : existing.alt,
+    status: 'READY',
     imageUrl: nextImageUrl,
     previewImageUrl: nextImageUrl,
+    sourceUrl: existing.sourceUrl ?? nextImageUrl,
   };
 }
 
@@ -899,6 +1084,144 @@ function readSelectedOptionsInput(raw: unknown): ProductVariantRecord['selectedO
     .filter((value): value is ProductVariantRecord['selectedOptions'][number] => value !== null);
 }
 
+function readVariantOptionsArrayInput(
+  raw: unknown,
+  productId: string,
+): ProductVariantRecord['selectedOptions'] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  const optionValues = raw.filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+  const options = store.getEffectiveOptionsByProductId(productId);
+  return optionValues
+    .map((value, index) => {
+      const optionName = options[index]?.name;
+      if (typeof optionName !== 'string' || !optionName.trim()) {
+        return null;
+      }
+
+      return {
+        name: optionName,
+        value,
+      };
+    })
+    .filter((value): value is ProductVariantRecord['selectedOptions'][number] => value !== null);
+}
+
+function readVariantSelectedOptions(
+  input: Record<string, unknown>,
+  productId: string,
+  fallback: ProductVariantRecord['selectedOptions'] = [],
+): ProductVariantRecord['selectedOptions'] {
+  if (hasOwnField(input, 'selectedOptions')) {
+    return readSelectedOptionsInput(input['selectedOptions']);
+  }
+
+  if (hasOwnField(input, 'optionValues')) {
+    return readProductSetSelectedOptions(input['optionValues']);
+  }
+
+  if (hasOwnField(input, 'options')) {
+    return readVariantOptionsArrayInput(input['options'], productId);
+  }
+
+  return structuredClone(fallback);
+}
+
+function readVariantInventoryQuantity(
+  input: Record<string, unknown>,
+  fallback: number | null,
+): number | null {
+  if (typeof input['inventoryQuantity'] === 'number' && Number.isFinite(input['inventoryQuantity'])) {
+    return Math.floor(input['inventoryQuantity']);
+  }
+
+  const rawInventoryQuantities = input['inventoryQuantities'];
+  if (!Array.isArray(rawInventoryQuantities)) {
+    return fallback;
+  }
+
+  const quantities = rawInventoryQuantities
+    .filter((value): value is Record<string, unknown> => isObject(value))
+    .map((value) => value['availableQuantity'])
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+
+  if (quantities.length === 0) {
+    return fallback;
+  }
+
+  return quantities.reduce((total, quantity) => total + Math.floor(quantity), 0);
+}
+
+function readVariantSku(input: Record<string, unknown>, fallback: string | null): string | null {
+  if (typeof input['sku'] === 'string') {
+    return input['sku'];
+  }
+
+  const rawInventoryItem = input['inventoryItem'];
+  if (isObject(rawInventoryItem) && typeof rawInventoryItem['sku'] === 'string') {
+    return rawInventoryItem['sku'];
+  }
+
+  return fallback;
+}
+
+const DEFAULT_INVENTORY_LEVEL_LOCATION_ID = 'gid://shopify/Location/1';
+
+function normalizeInventoryLevelRecords(raw: unknown): InventoryLevelRecord[] | null {
+  if (!isObject(raw)) {
+    return null;
+  }
+
+  const rawEdges = Array.isArray(raw['edges']) ? raw['edges'] : [];
+  const levels = rawEdges
+    .map((edge) => {
+      if (!isObject(edge)) {
+        return null;
+      }
+
+      const cursor = typeof edge['cursor'] === 'string' && edge['cursor'].trim() ? edge['cursor'] : null;
+      const rawNode = edge['node'];
+      if (!isObject(rawNode) || typeof rawNode['id'] !== 'string') {
+        return null;
+      }
+
+      const rawLocation = rawNode['location'];
+      const location = isObject(rawLocation) && typeof rawLocation['id'] === 'string'
+        ? {
+            id: rawLocation['id'],
+            name: typeof rawLocation['name'] === 'string' ? rawLocation['name'] : null,
+          }
+        : null;
+      const quantities = Array.isArray(rawNode['quantities'])
+        ? rawNode['quantities']
+            .map((quantity) => {
+              if (!isObject(quantity) || typeof quantity['name'] !== 'string') {
+                return null;
+              }
+
+              return {
+                name: quantity['name'],
+                quantity: typeof quantity['quantity'] === 'number' ? quantity['quantity'] : null,
+                updatedAt: typeof quantity['updatedAt'] === 'string' ? quantity['updatedAt'] : null,
+              };
+            })
+            .filter((quantity): quantity is NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']>[number]['quantities'][number] => quantity !== null)
+        : [];
+
+      return {
+        id: rawNode['id'],
+        cursor,
+        location,
+        quantities,
+      };
+    })
+    .filter((level): level is NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']>[number] => level !== null);
+
+  return levels.length > 0 ? levels : null;
+}
+
 function readInventoryItemInput(
   raw: unknown,
   existing: ProductVariantRecord['inventoryItem'],
@@ -930,6 +1253,7 @@ function readInventoryItemInput(
       typeof raw['provinceCodeOfOrigin'] === 'string' ? raw['provinceCodeOfOrigin'] : current?.provinceCodeOfOrigin ?? null,
     harmonizedSystemCode:
       typeof raw['harmonizedSystemCode'] === 'string' ? raw['harmonizedSystemCode'] : current?.harmonizedSystemCode ?? null,
+    inventoryLevels: normalizeInventoryLevelRecords(raw['inventoryLevels']) ?? current?.inventoryLevels ?? null,
   };
 }
 
@@ -947,37 +1271,37 @@ function deriveVariantTitle(
 }
 
 function makeCreatedVariantRecord(productId: string, input: Record<string, unknown>): ProductVariantRecord {
-  const selectedOptions = readSelectedOptionsInput(input['selectedOptions']);
+  const selectedOptions = readVariantSelectedOptions(input, productId);
   return {
     id: makeSyntheticGid('ProductVariant'),
     productId,
     title: deriveVariantTitle(input['title'], selectedOptions, 'Default Title'),
-    sku: typeof input['sku'] === 'string' ? input['sku'] : null,
+    sku: readVariantSku(input, null),
     barcode: typeof input['barcode'] === 'string' ? input['barcode'] : null,
     price: typeof input['price'] === 'string' ? input['price'] : null,
     compareAtPrice: typeof input['compareAtPrice'] === 'string' ? input['compareAtPrice'] : null,
     taxable: typeof input['taxable'] === 'boolean' ? input['taxable'] : null,
     inventoryPolicy: typeof input['inventoryPolicy'] === 'string' ? input['inventoryPolicy'] : null,
-    inventoryQuantity: typeof input['inventoryQuantity'] === 'number' ? input['inventoryQuantity'] : null,
+    inventoryQuantity: readVariantInventoryQuantity(input, null),
     selectedOptions,
     inventoryItem: readInventoryItemInput(input['inventoryItem'], null),
   };
 }
 
 function updateVariantRecord(existing: ProductVariantRecord, input: Record<string, unknown>): ProductVariantRecord {
-  const selectedOptions = hasOwnField(input, 'selectedOptions') ? readSelectedOptionsInput(input['selectedOptions']) : existing.selectedOptions;
+  const selectedOptions = readVariantSelectedOptions(input, existing.productId, existing.selectedOptions);
 
   return {
     id: existing.id,
     productId: existing.productId,
     title: deriveVariantTitle(input['title'], selectedOptions, existing.title),
-    sku: typeof input['sku'] === 'string' ? input['sku'] : existing.sku,
+    sku: readVariantSku(input, existing.sku),
     barcode: typeof input['barcode'] === 'string' ? input['barcode'] : existing.barcode,
     price: typeof input['price'] === 'string' ? input['price'] : existing.price,
     compareAtPrice: typeof input['compareAtPrice'] === 'string' ? input['compareAtPrice'] : existing.compareAtPrice,
     taxable: typeof input['taxable'] === 'boolean' ? input['taxable'] : existing.taxable,
     inventoryPolicy: typeof input['inventoryPolicy'] === 'string' ? input['inventoryPolicy'] : existing.inventoryPolicy,
-    inventoryQuantity: typeof input['inventoryQuantity'] === 'number' ? input['inventoryQuantity'] : existing.inventoryQuantity,
+    inventoryQuantity: readVariantInventoryQuantity(input, existing.inventoryQuantity),
     selectedOptions,
     inventoryItem: hasOwnField(input, 'inventoryItem')
       ? readInventoryItemInput(input['inventoryItem'], existing.inventoryItem)
@@ -1086,15 +1410,24 @@ function syncProductInventorySummary(productId: string): ProductRecord | null {
 interface InventoryAdjustmentChangeInputRecord {
   inventoryItemId: string | null;
   locationId: string | null;
+  ledgerDocumentUri: string | null;
   delta: number | null;
 }
 
 interface InventoryAdjustmentChangeRecord {
   inventoryItemId: string;
   locationId: string | null;
+  ledgerDocumentUri: string | null;
   delta: number;
   name: string;
-  quantityAfterChange: number;
+  quantityAfterChange: number | null;
+}
+
+interface InventoryAdjustmentAppRecord {
+  id: string | null;
+  title: string | null;
+  handle: string | null;
+  apiKey: string | null;
 }
 
 interface InventoryAdjustmentGroupRecord {
@@ -1102,7 +1435,176 @@ interface InventoryAdjustmentGroupRecord {
   createdAt: string;
   reason: string;
   referenceDocumentUri: string | null;
+  app: InventoryAdjustmentAppRecord | null;
   changes: InventoryAdjustmentChangeRecord[];
+}
+
+interface InventoryAdjustInputProblemRecord {
+  path: Array<string | number>;
+  explanation: string;
+}
+
+interface InventoryMutationUserError {
+  field: string[] | null;
+  message: string;
+  code?: string | null;
+}
+
+interface InventoryLevelTargetRecord {
+  variant: ProductVariantRecord;
+  level: NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']>[number];
+}
+
+function buildInventoryAdjustInvalidVariableError(
+  fieldPath: string,
+  value: Record<string, unknown>,
+  problemPath: Array<string | number>,
+): { errors: Array<{ message: string; extensions: { code: 'INVALID_VARIABLE'; value: Record<string, unknown>; problems: InventoryAdjustInputProblemRecord[] } }> } {
+  return {
+    errors: [
+      {
+        message: `Variable $input of type InventoryAdjustQuantitiesInput! was provided invalid value for ${fieldPath} (Expected value to not be null)`,
+        extensions: {
+          code: 'INVALID_VARIABLE',
+          value: structuredClone(value),
+          problems: [{ path: problemPath, explanation: 'Expected value to not be null' }],
+        },
+      },
+    ],
+  };
+}
+
+function buildNullProductChangeStatusArgumentError(): {
+  errors: Array<{
+    message: string;
+    path: string[];
+    extensions: {
+      code: 'argumentLiteralsIncompatible';
+      typeName: 'Field';
+      argumentName: 'productId';
+    };
+  }>;
+} {
+  return {
+    errors: [
+      {
+        message: "Argument 'productId' on Field 'productChangeStatus' has an invalid value (null). Expected type 'ID!'.",
+        path: ['mutation', 'productChangeStatus', 'productId'],
+        extensions: {
+          code: 'argumentLiteralsIncompatible',
+          typeName: 'Field',
+          argumentName: 'productId',
+        },
+      },
+    ],
+  };
+}
+
+function buildProductDeleteInvalidVariableError(input: Record<string, unknown>): {
+  errors: Array<{
+    message: string;
+    extensions: {
+      code: 'INVALID_VARIABLE';
+      value: Record<string, unknown>;
+      problems: Array<{ path: string[]; explanation: 'Expected value to not be null' }>;
+    };
+  }>;
+} {
+  return {
+    errors: [
+      {
+        message: 'Variable $input of type ProductDeleteInput! was provided invalid value for id (Expected value to not be null)',
+        extensions: {
+          code: 'INVALID_VARIABLE',
+          value: structuredClone(input),
+          problems: [{ path: ['id'], explanation: 'Expected value to not be null' }],
+        },
+      },
+    ],
+  };
+}
+
+function buildMissingProductDeleteInputIdArgumentError(): {
+  errors: Array<{
+    message: string;
+    path: string[];
+    extensions: {
+      code: 'missingRequiredInputObjectAttribute';
+      argumentName: 'id';
+      argumentType: 'ID!';
+      inputObjectType: 'ProductDeleteInput';
+    };
+  }>;
+} {
+  return {
+    errors: [
+      {
+        message: "Argument 'id' on InputObject 'ProductDeleteInput' is required. Expected type ID!",
+        path: ['mutation', 'productDelete', 'input', 'id'],
+        extensions: {
+          code: 'missingRequiredInputObjectAttribute',
+          argumentName: 'id',
+          argumentType: 'ID!',
+          inputObjectType: 'ProductDeleteInput',
+        },
+      },
+    ],
+  };
+}
+
+function buildNullProductDeleteInputIdArgumentError(): {
+  errors: Array<{
+    message: string;
+    path: string[];
+    extensions: {
+      code: 'argumentLiteralsIncompatible';
+      argumentName: 'id';
+      typeName: 'InputObject';
+    };
+  }>;
+} {
+  return {
+    errors: [
+      {
+        message: "Argument 'id' on InputObject 'ProductDeleteInput' has an invalid value (null). Expected type 'ID!'.",
+        path: ['mutation', 'productDelete', 'input', 'id'],
+        extensions: {
+          code: 'argumentLiteralsIncompatible',
+          argumentName: 'id',
+          typeName: 'InputObject',
+        },
+      },
+    ],
+  };
+}
+
+function validateInventoryAdjustRequiredFields(input: Record<string, unknown>):
+  | { errors: Array<{ message: string; extensions: { code: 'INVALID_VARIABLE'; value: Record<string, unknown>; problems: InventoryAdjustInputProblemRecord[] } }> }
+  | null {
+  const rawChanges = input['changes'];
+  if (!Array.isArray(rawChanges)) {
+    return null;
+  }
+
+  for (const [index, rawChange] of rawChanges.entries()) {
+    if (!isObject(rawChange)) {
+      continue;
+    }
+
+    if (!hasOwnField(rawChange, 'inventoryItemId')) {
+      return buildInventoryAdjustInvalidVariableError(`changes.${index}.inventoryItemId`, input, ['changes', index, 'inventoryItemId']);
+    }
+
+    if (!hasOwnField(rawChange, 'delta')) {
+      return buildInventoryAdjustInvalidVariableError(`changes.${index}.delta`, input, ['changes', index, 'delta']);
+    }
+
+    if (!hasOwnField(rawChange, 'locationId')) {
+      return buildInventoryAdjustInvalidVariableError(`changes.${index}.locationId`, input, ['changes', index, 'locationId']);
+    }
+  }
+
+  return null;
 }
 
 function readInventoryAdjustmentChangeInputs(raw: unknown): InventoryAdjustmentChangeInputRecord[] {
@@ -1115,6 +1617,7 @@ function readInventoryAdjustmentChangeInputs(raw: unknown): InventoryAdjustmentC
     return {
       inventoryItemId: typeof value['inventoryItemId'] === 'string' ? value['inventoryItemId'] : null,
       locationId: typeof value['locationId'] === 'string' ? value['locationId'] : null,
+      ledgerDocumentUri: typeof value['ledgerDocumentUri'] === 'string' ? value['ledgerDocumentUri'] : null,
       delta: typeof value['delta'] === 'number' ? value['delta'] : null,
     };
   });
@@ -1149,6 +1652,9 @@ function serializeInventoryAdjustmentGroup(
       case 'referenceDocumentUri':
         result[key] = group.referenceDocumentUri;
         break;
+      case 'app':
+        result[key] = serializeInventoryAdjustmentApp(group.app, selection);
+        break;
       case 'changes':
         result[key] = group.changes.map((change) => {
           const changeResult: Record<string, unknown> = {};
@@ -1170,14 +1676,15 @@ function serializeInventoryAdjustmentGroup(
                 changeResult[changeKey] = change.quantityAfterChange;
                 break;
               case 'ledgerDocumentUri':
-                changeResult[changeKey] = group.referenceDocumentUri;
+                changeResult[changeKey] = change.ledgerDocumentUri;
                 break;
               case 'item':
                 changeResult[changeKey] = variant
                   ? serializeInventoryItemSelectionSet(variant, changeSelection.selectionSet?.selections ?? [])
                   : null;
                 break;
-              case 'location':
+              case 'location': {
+                const location = change.locationId ? findKnownLocationById(change.locationId) : null;
                 changeResult[changeKey] = Object.fromEntries(
                   (changeSelection.selectionSet?.selections ?? [])
                     .filter((locationSelection): locationSelection is FieldNode => locationSelection.kind === Kind.FIELD)
@@ -1186,12 +1693,15 @@ function serializeInventoryAdjustmentGroup(
                       switch (locationSelection.name.value) {
                         case 'id':
                           return [locationKey, change.locationId];
+                        case 'name':
+                          return [locationKey, location?.name ?? null];
                         default:
                           return [locationKey, null];
                       }
                     }),
                 );
                 break;
+              }
               default:
                 changeResult[changeKey] = null;
             }
@@ -1207,6 +1717,52 @@ function serializeInventoryAdjustmentGroup(
   return result;
 }
 
+function serializeInventoryAdjustmentApp(
+  app: InventoryAdjustmentAppRecord | null,
+  field: FieldNode,
+): Record<string, unknown> | null {
+  if (!app) {
+    return null;
+  }
+
+  return Object.fromEntries(
+    (field.selectionSet?.selections ?? [])
+      .filter((selection): selection is FieldNode => selection.kind === Kind.FIELD)
+      .map((selection) => {
+        const key = selection.alias?.value ?? selection.name.value;
+        switch (selection.name.value) {
+          case 'id':
+            return [key, app.id];
+          case 'title':
+            return [key, app.title];
+          case 'handle':
+            return [key, app.handle];
+          case 'apiKey':
+            return [key, app.apiKey];
+          default:
+            return [key, null];
+        }
+      }),
+  );
+}
+
+function buildInventoryAdjustmentAppRecord(): InventoryAdjustmentAppRecord {
+  const handle = typeof process.env['SHOPIFY_CONFORMANCE_APP_HANDLE'] === 'string' ? process.env['SHOPIFY_CONFORMANCE_APP_HANDLE'] : null;
+  const appId = typeof process.env['SHOPIFY_CONFORMANCE_APP_ID'] === 'string' ? process.env['SHOPIFY_CONFORMANCE_APP_ID'] : null;
+  const apiKey = typeof process.env['SHOPIFY_API_KEY'] === 'string'
+    ? process.env['SHOPIFY_API_KEY']
+    : typeof process.env['SHOPIFY_CONFORMANCE_APP_API_KEY'] === 'string'
+      ? process.env['SHOPIFY_CONFORMANCE_APP_API_KEY']
+      : null;
+
+  return {
+    id: appId,
+    title: handle,
+    handle,
+    apiKey,
+  };
+}
+
 function applyInventoryAdjustQuantities(input: Record<string, unknown>):
   | { group: InventoryAdjustmentGroupRecord; userErrors: Array<{ field: string[]; message: string }> }
   | { group: null; userErrors: Array<{ field: string[]; message: string }> } {
@@ -1215,13 +1771,6 @@ function applyInventoryAdjustQuantities(input: Record<string, unknown>):
     return {
       group: null,
       userErrors: [{ field: ['input', 'name'], message: 'Inventory quantity name is required' }],
-    };
-  }
-
-  if (name !== 'available') {
-    return {
-      group: null,
-      userErrors: [{ field: ['input', 'name'], message: 'Only available inventory adjustments are supported' }],
     };
   }
 
@@ -1241,21 +1790,51 @@ function applyInventoryAdjustQuantities(input: Record<string, unknown>):
     };
   }
 
+  const validNames = ['available', 'damaged', 'incoming', 'quality_control', 'reserved', 'safety_stock'];
+  const validationErrors: Array<{ field: string[]; message: string }> = [];
+
+  if (!validNames.includes(name)) {
+    validationErrors.push({
+      field: ['input', 'name'],
+      message:
+        'The specified quantity name is invalid. Valid values are: available, damaged, incoming, quality_control, reserved, safety_stock.',
+    });
+  }
+
+  if (name !== 'available') {
+    changes.forEach((change, index) => {
+      if (!change.ledgerDocumentUri) {
+        validationErrors.push({
+          field: ['input', 'changes', String(index), 'ledgerDocumentUri'],
+          message: 'A ledger document URI is required except when adjusting available.',
+        });
+      }
+    });
+  }
+
+  if (validationErrors.length > 0) {
+    return {
+      group: null,
+      userErrors: validationErrors,
+    };
+  }
+
   const variantsByProductId = new Map<string, ProductVariantRecord[]>();
   const adjustedChanges: InventoryAdjustmentChangeRecord[] = [];
+  const mirroredOnHandChanges: InventoryAdjustmentChangeRecord[] = [];
 
-  for (const change of changes) {
+  for (const [changeIndex, change] of changes.entries()) {
     if (!change.inventoryItemId) {
       return {
         group: null,
-        userErrors: [{ field: ['input', 'changes', 'inventoryItemId'], message: 'Inventory item id is required' }],
+        userErrors: [{ field: ['input', 'changes', String(changeIndex), 'inventoryItemId'], message: 'Inventory item id is required' }],
       };
     }
 
     if (typeof change.delta !== 'number') {
       return {
         group: null,
-        userErrors: [{ field: ['input', 'changes', 'delta'], message: 'Inventory delta is required' }],
+        userErrors: [{ field: ['input', 'changes', String(changeIndex), 'delta'], message: 'Inventory delta is required' }],
       };
     }
 
@@ -1263,7 +1842,7 @@ function applyInventoryAdjustQuantities(input: Record<string, unknown>):
     if (!variant) {
       return {
         group: null,
-        userErrors: [{ field: ['input', 'changes', 'inventoryItemId'], message: 'Inventory item not found' }],
+        userErrors: [{ field: ['input', 'changes', String(changeIndex), 'inventoryItemId'], message: 'The specified inventory item could not be found.' }],
       };
     }
 
@@ -1274,30 +1853,155 @@ function applyInventoryAdjustQuantities(input: Record<string, unknown>):
     if (variantIndex < 0) {
       return {
         group: null,
-        userErrors: [{ field: ['input', 'changes', 'inventoryItemId'], message: 'Inventory item not found' }],
+        userErrors: [
+          {
+            field: ['input', 'changes', String(changeIndex), 'inventoryItemId'],
+            message: 'The specified inventory item could not be found.',
+          },
+        ],
       };
     }
 
     const existingVariant = nextVariants[variantIndex]!;
-    const quantityAfterChange = (existingVariant.inventoryQuantity ?? 0) + change.delta;
-    nextVariants[variantIndex] = {
+    const explicitLevels = variant.inventoryItem?.inventoryLevels ?? null;
+    if (
+      change.locationId &&
+      explicitLevels &&
+      explicitLevels.length > 0 &&
+      !explicitLevels.some((level) => level.location?.id === change.locationId)
+    ) {
+      return {
+        group: null,
+        userErrors: [{ field: ['input', 'changes', String(changeIndex), 'locationId'], message: 'The specified location could not be found.' }],
+      };
+    }
+
+    const nextInventoryItem = existingVariant.inventoryItem
+      ? structuredClone(existingVariant.inventoryItem)
+      : {
+          id: change.inventoryItemId,
+          tracked: true,
+          requiresShipping: null,
+          measurement: null,
+          countryCodeOfOrigin: null,
+          provinceCodeOfOrigin: null,
+          harmonizedSystemCode: null,
+          inventoryLevels: null,
+        };
+    const nextLevels =
+      nextInventoryItem.inventoryLevels && nextInventoryItem.inventoryLevels.length > 0
+        ? structuredClone(nextInventoryItem.inventoryLevels)
+        : buildSyntheticInventoryLevels({ ...existingVariant, inventoryItem: nextInventoryItem });
+    const levelIndex = nextLevels.findIndex((level) => level.location?.id === change.locationId);
+    const targetLevel =
+      levelIndex >= 0
+        ? nextLevels[levelIndex]!
+        : buildSyntheticInventoryLevel(
+            { ...existingVariant, inventoryItem: nextInventoryItem },
+            {
+              locationId: change.locationId,
+              availableQuantity: change.locationId === DEFAULT_INVENTORY_LEVEL_LOCATION_ID ? (existingVariant.inventoryQuantity ?? 0) : 0,
+            },
+          ) ?? {
+            id: `${makeSyntheticGid('InventoryLevel')}?inventory_item_id=${encodeURIComponent(change.inventoryItemId)}`,
+            cursor: null,
+            location: change.locationId ? { id: change.locationId, name: null } : { id: DEFAULT_INVENTORY_LEVEL_LOCATION_ID, name: null },
+            quantities: [],
+          };
+    const nextQuantities = targetLevel.quantities.map((quantity) => structuredClone(quantity));
+    const quantityIndex = nextQuantities.findIndex((quantity) => quantity.name === name);
+    if (quantityIndex >= 0) {
+      nextQuantities[quantityIndex] = {
+        ...nextQuantities[quantityIndex]!,
+        quantity: (nextQuantities[quantityIndex]!.quantity ?? 0) + change.delta,
+        updatedAt: makeSyntheticTimestamp(),
+      };
+    } else {
+      nextQuantities.push({
+        name,
+        quantity: change.delta,
+        updatedAt: makeSyntheticTimestamp(),
+      });
+    }
+
+    let nextVariant = {
       ...existingVariant,
-      inventoryQuantity: quantityAfterChange,
+      inventoryItem: {
+        ...nextInventoryItem,
+        inventoryLevels: nextLevels.map((level, candidateIndex) =>
+          candidateIndex === levelIndex || (levelIndex < 0 && candidateIndex === nextLevels.length)
+            ? level
+            : level,
+        ),
+      },
+    } satisfies ProductVariantRecord;
+
+    const updatedLevel = {
+      ...targetLevel,
+      quantities: nextQuantities,
     };
+    if (levelIndex >= 0) {
+      nextLevels[levelIndex] = updatedLevel;
+    } else {
+      nextLevels.push(updatedLevel);
+    }
+    nextVariant = {
+      ...nextVariant,
+      inventoryItem: {
+        ...nextInventoryItem,
+        inventoryLevels: nextLevels,
+      },
+    };
+
+    if (name === 'available') {
+      const quantityAfterChange = (existingVariant.inventoryQuantity ?? 0) + change.delta;
+      nextVariant = {
+        ...nextVariant,
+        inventoryQuantity: quantityAfterChange,
+      };
+      const onHandIndex = nextQuantities.findIndex((quantity) => quantity.name === 'on_hand');
+      if (onHandIndex >= 0) {
+        nextQuantities[onHandIndex] = {
+          ...nextQuantities[onHandIndex]!,
+          quantity: (nextQuantities[onHandIndex]!.quantity ?? 0) + change.delta,
+        };
+      }
+      adjustedChanges.push({
+        inventoryItemId: change.inventoryItemId,
+        locationId: change.locationId,
+        ledgerDocumentUri: change.ledgerDocumentUri,
+        delta: change.delta,
+        name,
+        quantityAfterChange: null,
+      });
+      mirroredOnHandChanges.push({
+        inventoryItemId: change.inventoryItemId,
+        locationId: change.locationId,
+        ledgerDocumentUri: null,
+        delta: change.delta,
+        name: 'on_hand',
+        quantityAfterChange: null,
+      });
+    } else {
+      adjustedChanges.push({
+        inventoryItemId: change.inventoryItemId,
+        locationId: change.locationId,
+        ledgerDocumentUri: change.ledgerDocumentUri,
+        delta: change.delta,
+        name,
+        quantityAfterChange: null,
+      });
+    }
+
+    nextVariants[variantIndex] = nextVariant;
     variantsByProductId.set(variant.productId, nextVariants);
-    adjustedChanges.push({
-      inventoryItemId: change.inventoryItemId,
-      locationId: change.locationId,
-      delta: change.delta,
-      name,
-      quantityAfterChange,
-    });
   }
 
   for (const [productId, nextVariants] of variantsByProductId.entries()) {
     store.replaceStagedVariantsForProduct(productId, nextVariants);
-    syncProductInventorySummary(productId);
   }
+
+  adjustedChanges.push(...mirroredOnHandChanges);
 
   return {
     group: {
@@ -1305,9 +2009,68 @@ function applyInventoryAdjustQuantities(input: Record<string, unknown>):
       createdAt: makeSyntheticTimestamp(),
       reason,
       referenceDocumentUri: typeof input['referenceDocumentUri'] === 'string' ? input['referenceDocumentUri'] : null,
+      app: buildInventoryAdjustmentAppRecord(),
       changes: adjustedChanges,
     },
     userErrors: [],
+  };
+}
+
+function findInventoryLevelTarget(inventoryLevelId: string): InventoryLevelTargetRecord | null {
+  for (const product of store.listEffectiveProducts()) {
+    for (const variant of store.getEffectiveVariantsByProductId(product.id)) {
+      const level = getEffectiveInventoryLevels(variant).find((candidate) => candidate.id === inventoryLevelId) ?? null;
+      if (level) {
+        return { variant, level };
+      }
+    }
+  }
+
+  return null;
+}
+
+function findKnownLocationById(locationId: string): LocationRecord | null {
+  return listEffectiveLocations().find((location) => location.id === locationId) ?? null;
+}
+
+function stageVariantInventoryLevels(
+  variant: ProductVariantRecord,
+  nextLevels: NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']>,
+): ProductVariantRecord {
+  const nextVariant: ProductVariantRecord = {
+    ...structuredClone(variant),
+    inventoryItem: variant.inventoryItem
+      ? {
+          ...structuredClone(variant.inventoryItem),
+          inventoryLevels: nextLevels,
+        }
+      : null,
+  };
+  const nextVariants = store
+    .getEffectiveVariantsByProductId(variant.productId)
+    .map((candidate) => (candidate.id === variant.id ? nextVariant : candidate));
+  store.replaceStagedVariantsForProduct(variant.productId, nextVariants);
+  return store.getEffectiveVariantById(variant.id) ?? nextVariant;
+}
+
+function buildActivatedInventoryLevel(
+  variant: ProductVariantRecord,
+  location: LocationRecord,
+): NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']>[number] | null {
+  const syntheticLevel = buildSyntheticInventoryLevel(variant, {
+    locationId: location.id,
+    availableQuantity: 0,
+  });
+  if (!syntheticLevel) {
+    return null;
+  }
+
+  return {
+    ...syntheticLevel,
+    location: {
+      id: location.id,
+      name: location.name,
+    },
   };
 }
 
@@ -1327,7 +2090,7 @@ function serializeVariantPayload(variants: ProductVariantRecord[], field: FieldN
     return variants.map((variant) => ({ id: variant.id }));
   }
 
-  return variants.map((variant) => serializeVariantSelectionSet(variant, field.selectionSet?.selections ?? []));
+  return variants.map((variant) => serializeVariantSelectionSet(variant, field.selectionSet?.selections ?? [], {}));
 }
 
 function serializeMediaPayload(mediaRecords: ProductMediaRecord[], field: FieldNode | null): Record<string, unknown>[] {
@@ -1355,6 +2118,53 @@ function readMetafieldsSetInput(raw: unknown): Record<string, unknown>[] {
   }
 
   return raw.filter((value): value is Record<string, unknown> => isObject(value));
+}
+
+type DeletedMetafieldIdentifierRecord = {
+  ownerId: string;
+  namespace: string;
+  key: string;
+};
+
+function readMetafieldsDeleteInput(raw: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  return raw.filter((value): value is Record<string, unknown> => isObject(value));
+}
+
+function serializeDeletedMetafieldIdentifiers(
+  identifiers: DeletedMetafieldIdentifierRecord[],
+  field: FieldNode | null,
+): Record<string, unknown>[] {
+  if (!field) {
+    return identifiers.map((identifier) => ({
+      ownerId: identifier.ownerId,
+      namespace: identifier.namespace,
+      key: identifier.key,
+    }));
+  }
+
+  return identifiers.map((identifier) =>
+    Object.fromEntries(
+      (field.selectionSet?.selections ?? [])
+        .filter((selection): selection is FieldNode => selection.kind === Kind.FIELD)
+        .map((selection) => {
+          const responseKey = selection.alias?.value ?? selection.name.value;
+          switch (selection.name.value) {
+            case 'ownerId':
+              return [responseKey, identifier.ownerId];
+            case 'namespace':
+              return [responseKey, identifier.namespace];
+            case 'key':
+              return [responseKey, identifier.key];
+            default:
+              return [responseKey, null];
+          }
+        }),
+    ),
+  );
 }
 
 function upsertMetafieldsForProduct(
@@ -1400,6 +2210,72 @@ function findMetafieldById(metafieldId: string): ProductMetafieldRecord | null {
   }
 
   return null;
+}
+
+function deleteMetafieldsByIdentifiers(inputs: Record<string, unknown>[]): {
+  deletedMetafields: DeletedMetafieldIdentifierRecord[];
+  userErrors: Array<{ field: string[]; message: string }>;
+} {
+  if (inputs.length === 0) {
+    return {
+      deletedMetafields: [],
+      userErrors: [{ field: ['metafields'], message: 'At least one metafield identifier is required' }],
+    };
+  }
+
+  const effectiveMetafieldsByProductId = new Map<string, ProductMetafieldRecord[]>();
+  const deletedMetafields: DeletedMetafieldIdentifierRecord[] = [];
+  const userErrors: Array<{ field: string[]; message: string }> = [];
+
+  for (const [index, input] of inputs.entries()) {
+    const ownerId = typeof input['ownerId'] === 'string' ? input['ownerId'] : null;
+    const namespace = typeof input['namespace'] === 'string' ? input['namespace'] : null;
+    const key = typeof input['key'] === 'string' ? input['key'] : null;
+
+    if (!ownerId) {
+      userErrors.push({ field: ['metafields', String(index), 'ownerId'], message: 'Owner id is required' });
+      continue;
+    }
+
+    if (!namespace) {
+      userErrors.push({ field: ['metafields', String(index), 'namespace'], message: 'Namespace is required' });
+      continue;
+    }
+
+    if (!key) {
+      userErrors.push({ field: ['metafields', String(index), 'key'], message: 'Key is required' });
+      continue;
+    }
+
+    const effectiveMetafields = effectiveMetafieldsByProductId.get(ownerId) ?? store.getEffectiveMetafieldsByProductId(ownerId);
+    const metafieldExists = effectiveMetafields.some((metafield) => metafield.namespace === namespace && metafield.key === key);
+    if (!metafieldExists) {
+      userErrors.push({ field: ['metafields', String(index)], message: 'Metafield not found' });
+      continue;
+    }
+
+    const remainingMetafields = effectiveMetafields.filter(
+      (metafield) => metafield.namespace !== namespace || metafield.key !== key,
+    );
+    effectiveMetafieldsByProductId.set(ownerId, remainingMetafields);
+    deletedMetafields.push({ ownerId, namespace, key });
+  }
+
+  if (userErrors.length > 0) {
+    return {
+      deletedMetafields: [],
+      userErrors,
+    };
+  }
+
+  for (const [productId, metafields] of effectiveMetafieldsByProductId.entries()) {
+    store.replaceStagedMetafieldsForProduct(productId, metafields);
+  }
+
+  return {
+    deletedMetafields,
+    userErrors: [],
+  };
 }
 
 function buildProductSetVariantRecords(productId: string, rawVariants: unknown): ProductVariantRecord[] {
@@ -1517,6 +2393,7 @@ function normalizeUpstreamVariant(productId: string, value: unknown): ProductVar
           typeof rawInventoryItem['provinceCodeOfOrigin'] === 'string' ? rawInventoryItem['provinceCodeOfOrigin'] : null,
         harmonizedSystemCode:
           typeof rawInventoryItem['harmonizedSystemCode'] === 'string' ? rawInventoryItem['harmonizedSystemCode'] : null,
+        inventoryLevels: normalizeInventoryLevelRecords(rawInventoryItem['inventoryLevels']),
       }
     : null;
 
@@ -1642,6 +2519,9 @@ function normalizeUpstreamMedia(productId: string, value: unknown, position: num
   const rawImage = value['image'];
   const rawImageUrl = isObject(rawImage) ? rawImage['url'] : null;
 
+  const normalizedImageUrl =
+    typeof rawImageUrl === 'string' ? rawImageUrl : typeof rawPreviewImageUrl === 'string' ? rawPreviewImageUrl : null;
+
   return {
     key: `${productId}:media:${position}`,
     productId,
@@ -1650,8 +2530,9 @@ function normalizeUpstreamMedia(productId: string, value: unknown, position: num
     mediaContentType: typeof rawMediaContentType === 'string' ? rawMediaContentType : null,
     alt: typeof rawAlt === 'string' ? rawAlt : null,
     status: typeof rawStatus === 'string' ? rawStatus : null,
-    imageUrl: typeof rawImageUrl === 'string' ? rawImageUrl : typeof rawPreviewImageUrl === 'string' ? rawPreviewImageUrl : null,
+    imageUrl: normalizedImageUrl,
     previewImageUrl: typeof rawPreviewImageUrl === 'string' ? rawPreviewImageUrl : null,
+    sourceUrl: normalizedImageUrl,
   };
 }
 
@@ -1698,6 +2579,24 @@ function readVariantNodes(value: unknown): unknown[] {
 }
 
 function readCollectionNodes(value: unknown): unknown[] {
+  if (!isObject(value)) {
+    return [];
+  }
+
+  if (Array.isArray(value['nodes'])) {
+    return value['nodes'];
+  }
+
+  if (Array.isArray(value['edges'])) {
+    return value['edges']
+      .map((edge) => (isObject(edge) ? edge['node'] : null))
+      .filter((node) => node !== null);
+  }
+
+  return [];
+}
+
+function readPublicationNodes(value: unknown): unknown[] {
   if (!isObject(value)) {
     return [];
   }
@@ -1769,6 +2668,88 @@ function readProductNodes(value: unknown): unknown[] {
   return [];
 }
 
+function normalizeProductCatalogPageInfo(raw: unknown): ProductCatalogConnectionRecord['pageInfo'] {
+  if (!isObject(raw)) {
+    return {
+      hasNextPage: false,
+      hasPreviousPage: false,
+      startCursor: null,
+      endCursor: null,
+    };
+  }
+
+  return {
+    hasNextPage: raw['hasNextPage'] === true,
+    hasPreviousPage: raw['hasPreviousPage'] === true,
+    startCursor: typeof raw['startCursor'] === 'string' ? raw['startCursor'] : null,
+    endCursor: typeof raw['endCursor'] === 'string' ? raw['endCursor'] : null,
+  };
+}
+
+function collectProductCatalogConnection(raw: unknown, responseKey = 'products'): ProductCatalogConnectionRecord | null {
+  if (!isObject(raw) || !isObject(raw[responseKey])) {
+    return null;
+  }
+
+  const productsConnection = raw[responseKey];
+  const connectionEdges = Array.isArray(productsConnection['edges'])
+    ? productsConnection['edges'].filter((edge): edge is Record<string, unknown> => isObject(edge))
+    : [];
+
+  const orderedProductIds: string[] = [];
+  const cursorByProductId: Record<string, string> = {};
+  for (const edge of connectionEdges) {
+    const normalized = normalizeUpstreamProduct(edge['node']);
+    const cursor = typeof edge['cursor'] === 'string' ? edge['cursor'] : null;
+    if (!normalized) {
+      continue;
+    }
+
+    orderedProductIds.push(normalized.product.id);
+    if (cursor) {
+      cursorByProductId[normalized.product.id] = cursor;
+    }
+  }
+
+  if (orderedProductIds.length === 0) {
+    return null;
+  }
+
+  return {
+    orderedProductIds,
+    cursorByProductId,
+    pageInfo: normalizeProductCatalogPageInfo(productsConnection['pageInfo']),
+  };
+}
+
+function collectProductSearchConnections(
+  document: string,
+  variables: Record<string, unknown>,
+  rawData: Record<string, unknown>,
+): Record<string, ProductCatalogConnectionRecord> {
+  const connections: Record<string, ProductCatalogConnectionRecord> = {};
+  for (const field of getRootFields(document)) {
+    if (field.name.value !== 'products') {
+      continue;
+    }
+
+    const args = getFieldArguments(field, variables);
+    const key = buildProductSearchConnectionKey(args['query'], args['sortKey'], args['reverse']);
+    if (!key) {
+      continue;
+    }
+
+    const connection = collectProductCatalogConnection(rawData, field.alias?.value ?? field.name.value);
+    if (!connection) {
+      continue;
+    }
+
+    connections[key] = connection;
+  }
+
+  return connections;
+}
+
 function getChildField(parent: FieldNode, fieldName: string): FieldNode | null {
   const child = parent.selectionSet?.selections.find(
     (selection): selection is FieldNode => selection.kind === Kind.FIELD && selection.name.value === fieldName,
@@ -1777,9 +2758,360 @@ function getChildField(parent: FieldNode, fieldName: string): FieldNode | null {
   return child ?? null;
 }
 
+function buildSyntheticInventoryLevel(
+  variant: ProductVariantRecord,
+  options?: { existingLevel?: NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']>[number] | null; locationId?: string | null; availableQuantity?: number },
+): NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']>[number] | null {
+  if (!variant.inventoryItem) {
+    return null;
+  }
+
+  const existingLevel = options?.existingLevel ?? null;
+  const locationId = options?.locationId ?? existingLevel?.location?.id ?? DEFAULT_INVENTORY_LEVEL_LOCATION_ID;
+  const availableQuantity = options?.availableQuantity ?? (locationId === DEFAULT_INVENTORY_LEVEL_LOCATION_ID ? (variant.inventoryQuantity ?? 0) : 0);
+  const availableUpdatedAt = makeSyntheticTimestamp();
+
+  return {
+    id: existingLevel?.id ?? `${makeSyntheticGid('InventoryLevel')}?inventory_item_id=${encodeURIComponent(variant.inventoryItem.id)}`,
+    cursor: existingLevel?.cursor ?? null,
+    location: existingLevel?.location ?? { id: locationId, name: null },
+    quantities: [
+      {
+        name: 'available',
+        quantity: availableQuantity,
+        updatedAt: availableUpdatedAt,
+      },
+      {
+        name: 'on_hand',
+        quantity: availableQuantity,
+        updatedAt: null,
+      },
+      {
+        name: 'incoming',
+        quantity: 0,
+        updatedAt: null,
+      },
+      {
+        name: 'committed',
+        quantity: 0,
+        updatedAt: null,
+      },
+      {
+        name: 'reserved',
+        quantity: 0,
+        updatedAt: null,
+      },
+    ],
+  };
+}
+
+function buildSyntheticInventoryLevels(variant: ProductVariantRecord): NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']> {
+  const level = buildSyntheticInventoryLevel(variant);
+  return level ? [level] : [];
+}
+
+function getEffectiveInventoryLevels(variant: ProductVariantRecord): NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']> {
+  const hydratedLevels = variant.inventoryItem?.inventoryLevels;
+  if (!hydratedLevels || hydratedLevels.length === 0) {
+    return buildSyntheticInventoryLevels(variant);
+  }
+
+  return structuredClone(hydratedLevels);
+}
+
+function serializeInventoryLevelQuantities(
+  variant: ProductVariantRecord,
+  level: NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']>[number],
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Array<Record<string, unknown>> {
+  const args = getFieldArguments(field, variables);
+  const requestedNames = Array.isArray(args['names'])
+    ? args['names'].filter((value): value is string => typeof value === 'string')
+    : [];
+  const allQuantities = level.quantities.length > 0 ? level.quantities : buildSyntheticInventoryLevels(variant)[0]?.quantities ?? [];
+  const visibleQuantities = requestedNames.length > 0
+    ? requestedNames.map((name) => allQuantities.find((quantity) => quantity.name === name) ?? { name, quantity: 0, updatedAt: null })
+    : allQuantities;
+
+  return visibleQuantities.map((quantity) => {
+    const quantityResult: Record<string, unknown> = {};
+    for (const quantitySelection of field.selectionSet?.selections ?? []) {
+      if (quantitySelection.kind !== Kind.FIELD) {
+        continue;
+      }
+
+      const quantityKey = quantitySelection.alias?.value ?? quantitySelection.name.value;
+      switch (quantitySelection.name.value) {
+        case 'name':
+          quantityResult[quantityKey] = quantity.name;
+          break;
+        case 'quantity':
+          quantityResult[quantityKey] = quantity.quantity;
+          break;
+        case 'updatedAt':
+          quantityResult[quantityKey] = quantity.updatedAt;
+          break;
+        default:
+          quantityResult[quantityKey] = null;
+      }
+    }
+    return quantityResult;
+  });
+}
+
+function serializeInventoryLevelsConnection(
+  variant: ProductVariantRecord,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const allLevels = getEffectiveInventoryLevels(variant);
+  const { items: levels, hasNextPage, hasPreviousPage } = paginateConnectionItems(
+    allLevels,
+    field,
+    variables,
+    (level) => level.cursor ?? `cursor:${level.id}`,
+  );
+  const result: Record<string, unknown> = {};
+
+  for (const selection of field.selectionSet?.selections ?? []) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = selection.alias?.value ?? selection.name.value;
+    switch (selection.name.value) {
+      case 'nodes':
+        result[key] = levels.map((level) => {
+          const nodeResult: Record<string, unknown> = {};
+          for (const levelSelection of selection.selectionSet?.selections ?? []) {
+            if (levelSelection.kind !== Kind.FIELD) {
+              continue;
+            }
+
+            const levelKey = levelSelection.alias?.value ?? levelSelection.name.value;
+            switch (levelSelection.name.value) {
+              case 'id':
+                nodeResult[levelKey] = level.id;
+                break;
+              case 'location': {
+                if (!level.location) {
+                  nodeResult[levelKey] = null;
+                  break;
+                }
+                const locationResult: Record<string, unknown> = {};
+                for (const locationSelection of levelSelection.selectionSet?.selections ?? []) {
+                  if (locationSelection.kind !== Kind.FIELD) {
+                    continue;
+                  }
+                  const locationKey = locationSelection.alias?.value ?? locationSelection.name.value;
+                  switch (locationSelection.name.value) {
+                    case 'id':
+                      locationResult[locationKey] = level.location.id;
+                      break;
+                    case 'name':
+                      locationResult[locationKey] = level.location.name;
+                      break;
+                    default:
+                      locationResult[locationKey] = null;
+                  }
+                }
+                nodeResult[levelKey] = locationResult;
+                break;
+              }
+              case 'quantities':
+                nodeResult[levelKey] = serializeInventoryLevelQuantities(variant, level, levelSelection, variables);
+                break;
+              default:
+                nodeResult[levelKey] = null;
+            }
+          }
+          return nodeResult;
+        });
+        break;
+      case 'edges':
+        result[key] = levels.map((level) => {
+          const edgeResult: Record<string, unknown> = {};
+          for (const edgeSelection of selection.selectionSet?.selections ?? []) {
+            if (edgeSelection.kind !== Kind.FIELD) {
+              continue;
+            }
+
+            const edgeKey = edgeSelection.alias?.value ?? edgeSelection.name.value;
+            switch (edgeSelection.name.value) {
+              case 'cursor':
+                edgeResult[edgeKey] = level.cursor ?? `cursor:${level.id}`;
+                break;
+              case 'node': {
+                const nodeResult: Record<string, unknown> = {};
+                for (const levelSelection of edgeSelection.selectionSet?.selections ?? []) {
+                  if (levelSelection.kind !== Kind.FIELD) {
+                    continue;
+                  }
+
+                  const levelKey = levelSelection.alias?.value ?? levelSelection.name.value;
+                  switch (levelSelection.name.value) {
+                    case 'id':
+                      nodeResult[levelKey] = level.id;
+                      break;
+                    case 'location': {
+                      if (!level.location) {
+                        nodeResult[levelKey] = null;
+                        break;
+                      }
+                      const locationResult: Record<string, unknown> = {};
+                      for (const locationSelection of levelSelection.selectionSet?.selections ?? []) {
+                        if (locationSelection.kind !== Kind.FIELD) {
+                          continue;
+                        }
+                        const locationKey = locationSelection.alias?.value ?? locationSelection.name.value;
+                        switch (locationSelection.name.value) {
+                          case 'id':
+                            locationResult[locationKey] = level.location.id;
+                            break;
+                          case 'name':
+                            locationResult[locationKey] = level.location.name;
+                            break;
+                          default:
+                            locationResult[locationKey] = null;
+                        }
+                      }
+                      nodeResult[levelKey] = locationResult;
+                      break;
+                    }
+                    case 'quantities':
+                      nodeResult[levelKey] = serializeInventoryLevelQuantities(variant, level, levelSelection, variables);
+                      break;
+                    default:
+                      nodeResult[levelKey] = null;
+                  }
+                }
+                edgeResult[edgeKey] = nodeResult;
+                break;
+              }
+              default:
+                edgeResult[edgeKey] = null;
+            }
+          }
+          return edgeResult;
+        });
+        break;
+      case 'pageInfo':
+        result[key] = serializeConnectionPageInfo(
+          selection,
+          levels,
+          hasNextPage,
+          hasPreviousPage,
+          (level) => level.cursor ?? `cursor:${level.id}`,
+        );
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeInventoryMutationUserErrors(
+  field: FieldNode | null,
+  userErrors: InventoryMutationUserError[],
+): Array<Record<string, unknown>> {
+  if (!field) {
+    return userErrors.map((userError) => ({
+      field: userError.field,
+      message: userError.message,
+      code: userError.code ?? null,
+    }));
+  }
+
+  return userErrors.map((userError) => {
+    const result: Record<string, unknown> = {};
+    for (const selection of field.selectionSet?.selections ?? []) {
+      if (selection.kind !== Kind.FIELD) {
+        continue;
+      }
+
+      const key = selection.alias?.value ?? selection.name.value;
+      switch (selection.name.value) {
+        case 'field':
+          result[key] = userError.field;
+          break;
+        case 'message':
+          result[key] = userError.message;
+          break;
+        case 'code':
+          result[key] = userError.code ?? null;
+          break;
+        default:
+          result[key] = null;
+      }
+    }
+    return result;
+  });
+}
+
+function serializeInventoryLevelObject(
+  variant: ProductVariantRecord,
+  level: NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']>[number],
+  selections: readonly SelectionNode[],
+  variables: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = selection.alias?.value ?? selection.name.value;
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = level.id;
+        break;
+      case 'location': {
+        if (!level.location) {
+          result[key] = null;
+          break;
+        }
+        const locationResult: Record<string, unknown> = {};
+        for (const locationSelection of selection.selectionSet?.selections ?? []) {
+          if (locationSelection.kind !== Kind.FIELD) {
+            continue;
+          }
+          const locationKey = locationSelection.alias?.value ?? locationSelection.name.value;
+          switch (locationSelection.name.value) {
+            case 'id':
+              locationResult[locationKey] = level.location.id;
+              break;
+            case 'name':
+              locationResult[locationKey] = level.location.name;
+              break;
+            default:
+              locationResult[locationKey] = null;
+          }
+        }
+        result[key] = locationResult;
+        break;
+      }
+      case 'quantities':
+        result[key] = serializeInventoryLevelQuantities(variant, level, selection, variables);
+        break;
+      case 'item':
+        result[key] = serializeInventoryItemSelectionSet(variant, selection.selectionSet?.selections ?? [], variables);
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
 function serializeInventoryItemSelectionSet(
   variant: ProductVariantRecord,
   selections: readonly SelectionNode[],
+  variables: Record<string, unknown> = {},
 ): Record<string, unknown> | null {
   if (!variant.inventoryItem) {
     return null;
@@ -1850,10 +3182,12 @@ function serializeInventoryItemSelectionSet(
             return [inventoryKey, variant.inventoryItem?.provinceCodeOfOrigin ?? null];
           case 'harmonizedSystemCode':
             return [inventoryKey, variant.inventoryItem?.harmonizedSystemCode ?? null];
+          case 'inventoryLevels':
+            return [inventoryKey, serializeInventoryLevelsConnection(variant, inventorySelection, variables)];
           case 'variant':
             return [
               inventoryKey,
-              serializeVariantSelectionSet(variant, inventorySelection.selectionSet?.selections ?? []),
+              serializeVariantSelectionSet(variant, inventorySelection.selectionSet?.selections ?? [], variables),
             ];
           default:
             return [inventoryKey, null];
@@ -1865,6 +3199,7 @@ function serializeInventoryItemSelectionSet(
 function serializeVariantSelectionSet(
   variant: ProductVariantRecord,
   selections: readonly SelectionNode[],
+  variables: Record<string, unknown> = {},
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
@@ -1927,7 +3262,7 @@ function serializeVariantSelectionSet(
         });
         break;
       case 'inventoryItem':
-        result[key] = serializeInventoryItemSelectionSet(variant, selection.selectionSet?.selections ?? []);
+        result[key] = serializeInventoryItemSelectionSet(variant, selection.selectionSet?.selections ?? [], variables);
         break;
       case 'product': {
         const product = store.getEffectiveProductById(variant.productId);
@@ -2006,12 +3341,16 @@ function readConnectionSizeArgument(raw: unknown): number | null {
 }
 
 function readConnectionCursor(raw: unknown): string | null {
-  if (typeof raw !== 'string' || !raw.startsWith('cursor:')) {
+  if (typeof raw !== 'string') {
     return null;
   }
 
-  const cursorValue = raw.slice('cursor:'.length);
-  return cursorValue.length > 0 ? cursorValue : null;
+  if (raw.startsWith('cursor:')) {
+    const cursorValue = raw.slice('cursor:'.length);
+    return cursorValue.length > 0 ? cursorValue : null;
+  }
+
+  return raw.length > 0 ? raw : null;
 }
 
 function paginateConnectionItems<T>(
@@ -2099,7 +3438,7 @@ function serializeVariantsConnection(productId: string, field: FieldNode, variab
     const key = selection.alias?.value ?? selection.name.value;
     switch (selection.name.value) {
       case 'nodes':
-        result[key] = variants.map((variant) => serializeVariantSelectionSet(variant, selection.selectionSet?.selections ?? []));
+        result[key] = variants.map((variant) => serializeVariantSelectionSet(variant, selection.selectionSet?.selections ?? [], variables));
         break;
       case 'edges':
         result[key] = variants.map((variant) => {
@@ -2115,7 +3454,7 @@ function serializeVariantsConnection(productId: string, field: FieldNode, variab
                 edgeResult[edgeKey] = `cursor:${variant.id}`;
                 break;
               case 'node':
-                edgeResult[edgeKey] = serializeVariantSelectionSet(variant, edgeSelection.selectionSet?.selections ?? []);
+                edgeResult[edgeKey] = serializeVariantSelectionSet(variant, edgeSelection.selectionSet?.selections ?? [], variables);
                 break;
               default:
                 edgeResult[edgeKey] = null;
@@ -2344,10 +3683,208 @@ function serializeTopLevelCollectionsConnection(field: FieldNode, variables: Rec
   return result;
 }
 
+function serializeLocationSelectionSet(location: LocationRecord, selections: readonly SelectionNode[]): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      const typeName = selection.typeCondition?.name.value;
+      if (typeName && typeName !== 'Location') {
+        continue;
+      }
+
+      Object.assign(result, serializeLocationSelectionSet(location, selection.selectionSet.selections));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = selection.alias?.value ?? selection.name.value;
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = location.id;
+        break;
+      case 'name':
+        result[key] = location.name;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeTopLevelLocationsConnection(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+  const allLocations = listEffectiveLocations();
+  const { items: locations, hasNextPage, hasPreviousPage } = paginateConnectionItems(
+    allLocations,
+    field,
+    variables,
+    (location) => location.id,
+  );
+  const result: Record<string, unknown> = {};
+
+  for (const selection of field.selectionSet?.selections ?? []) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = selection.alias?.value ?? selection.name.value;
+    switch (selection.name.value) {
+      case 'nodes':
+        result[key] = locations.map((location) => serializeLocationSelectionSet(location, selection.selectionSet?.selections ?? []));
+        break;
+      case 'edges':
+        result[key] = locations.map((location) => {
+          const edgeResult: Record<string, unknown> = {};
+          for (const edgeSelection of selection.selectionSet?.selections ?? []) {
+            if (edgeSelection.kind !== Kind.FIELD) {
+              continue;
+            }
+
+            const edgeKey = edgeSelection.alias?.value ?? edgeSelection.name.value;
+            switch (edgeSelection.name.value) {
+              case 'cursor':
+                edgeResult[edgeKey] = `cursor:${location.id}`;
+                break;
+              case 'node':
+                edgeResult[edgeKey] = serializeLocationSelectionSet(location, edgeSelection.selectionSet?.selections ?? []);
+                break;
+              default:
+                edgeResult[edgeKey] = null;
+            }
+          }
+          return edgeResult;
+        });
+        break;
+      case 'pageInfo':
+        result[key] = serializeConnectionPageInfo(selection, locations, hasNextPage, hasPreviousPage, (location) => location.id);
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializePublicationSelectionSet(publication: PublicationRecord, selections: readonly SelectionNode[]): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = selection.alias?.value ?? selection.name.value;
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = publication.id;
+        break;
+      case 'name':
+        result[key] = publication.name;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function getPublicationCursorValue(publication: PublicationRecord): string {
+  return typeof publication.cursor === 'string' && publication.cursor.length > 0 ? publication.cursor : publication.id;
+}
+
+function serializePublicationCursor(publication: PublicationRecord): string {
+  return typeof publication.cursor === 'string' && publication.cursor.length > 0
+    ? publication.cursor
+    : `cursor:${publication.id}`;
+}
+
+function serializeTopLevelPublicationsConnection(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+  const allPublications = listEffectivePublications();
+  const { items: publications, hasNextPage, hasPreviousPage } = paginateConnectionItems(
+    allPublications,
+    field,
+    variables,
+    (publication) => getPublicationCursorValue(publication),
+  );
+  const result: Record<string, unknown> = {};
+
+  for (const selection of field.selectionSet?.selections ?? []) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = selection.alias?.value ?? selection.name.value;
+    switch (selection.name.value) {
+      case 'nodes':
+        result[key] = publications.map((publication) => serializePublicationSelectionSet(publication, selection.selectionSet?.selections ?? []));
+        break;
+      case 'edges':
+        result[key] = publications.map((publication) => {
+          const edgeResult: Record<string, unknown> = {};
+          for (const edgeSelection of selection.selectionSet?.selections ?? []) {
+            if (edgeSelection.kind !== Kind.FIELD) {
+              continue;
+            }
+
+            const edgeKey = edgeSelection.alias?.value ?? edgeSelection.name.value;
+            switch (edgeSelection.name.value) {
+              case 'cursor':
+                edgeResult[edgeKey] = serializePublicationCursor(publication);
+                break;
+              case 'node':
+                edgeResult[edgeKey] = serializePublicationSelectionSet(publication, edgeSelection.selectionSet?.selections ?? []);
+                break;
+              default:
+                edgeResult[edgeKey] = null;
+            }
+          }
+          return edgeResult;
+        });
+        break;
+      case 'pageInfo':
+        result[key] = Object.fromEntries(
+          (selection.selectionSet?.selections ?? [])
+            .filter((pageInfoSelection): pageInfoSelection is FieldNode => pageInfoSelection.kind === Kind.FIELD)
+            .map((pageInfoSelection) => {
+              const pageInfoKey = pageInfoSelection.alias?.value ?? pageInfoSelection.name.value;
+              switch (pageInfoSelection.name.value) {
+                case 'hasNextPage':
+                  return [pageInfoKey, hasNextPage];
+                case 'hasPreviousPage':
+                  return [pageInfoKey, hasPreviousPage];
+                case 'startCursor':
+                  return [pageInfoKey, publications[0] ? serializePublicationCursor(publications[0]) : null];
+                case 'endCursor':
+                  return [pageInfoKey, publications.length > 0 ? serializePublicationCursor(publications[publications.length - 1]!) : null];
+                default:
+                  return [pageInfoKey, null];
+              }
+            }),
+        );
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
 function serializeMediaImageSelectionSet(
   imageUrl: string | null,
   selections: readonly SelectionNode[],
-): Record<string, unknown> {
+): Record<string, unknown> | null {
+  if (!imageUrl) {
+    return null;
+  }
+
   const result: Record<string, unknown> = {};
 
   for (const selection of selections) {
@@ -2438,6 +3975,18 @@ function serializeMediaSelectionSet(media: ProductMediaRecord, selections: reado
   return result;
 }
 
+function promoteProcessingMediaAfterRead(productId: string, mediaRecords: ProductMediaRecord[]): void {
+  const needsPromotion = mediaRecords.some((mediaRecord) => mediaRecord.status === 'PROCESSING');
+  if (!needsPromotion) {
+    return;
+  }
+
+  const nextMedia = store
+    .getEffectiveMediaByProductId(productId)
+    .map((mediaRecord) => (mediaRecord.status === 'PROCESSING' ? transitionMediaToReady(mediaRecord) : mediaRecord));
+  store.replaceStagedMediaForProduct(productId, nextMedia);
+}
+
 function serializeMediaConnection(productId: string, field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
   const allMediaRecords = store.getEffectiveMediaByProductId(productId);
   const { items: mediaRecords, hasNextPage, hasPreviousPage } = paginateConnectionItems(
@@ -2497,6 +4046,7 @@ function serializeMediaConnection(productId: string, field: FieldNode, variables
     }
   }
 
+  promoteProcessingMediaAfterRead(productId, allMediaRecords);
   return result;
 }
 
@@ -2640,6 +4190,8 @@ function serializeProductField(product: ProductRecord, field: FieldNode, variabl
       return product.createdAt;
     case 'updatedAt':
       return product.updatedAt;
+    case 'publishedAt':
+      return product.publishedAt ?? null;
     case 'descriptionHtml':
       return product.descriptionHtml;
     case 'onlineStorePreviewUrl':
@@ -3006,13 +4558,39 @@ function matchesStringValue(candidate: string, rawValue: string, matchMode: 'inc
     : normalizedCandidate.includes(normalizedValue);
 }
 
+function getSearchableProductTags(product: ProductRecord): string[] {
+  if (!store.isTagSearchLagged(product.id)) {
+    return product.tags;
+  }
+
+  const baseProduct = store.getBaseProductById(product.id);
+  if (!baseProduct) {
+    return product.tags;
+  }
+
+  return product.tags.filter((tag) => baseProduct.tags.includes(tag));
+}
+
+function getSearchableProductVariants(product: ProductRecord): ProductVariantRecord[] {
+  if (!store.isVariantSearchLagged(product.id)) {
+    return store.getEffectiveVariantsByProductId(product.id);
+  }
+
+  const baseProduct = store.getBaseProductById(product.id);
+  if (!baseProduct) {
+    return [];
+  }
+
+  return store.getBaseVariantsByProductId(baseProduct.id);
+}
+
 function matchesProductSearchText(product: ProductRecord, rawValue: string): boolean {
   const searchableValues = [
     product.title,
     product.handle,
     product.vendor ?? '',
     product.productType ?? '',
-    ...product.tags,
+    ...getSearchableProductTags(product),
   ];
 
   return searchableValues.some((candidate) => matchesStringValue(candidate, rawValue, 'includes'));
@@ -3033,7 +4611,7 @@ function matchesPositiveProductQueryTerm(product: ProductRecord, term: string): 
     case 'handle':
       return matchesStringValue(product.handle, value, 'exact');
     case 'tag':
-      return product.tags.some((tag) => matchesStringValue(tag, value, 'exact'));
+      return getSearchableProductTags(product).some((tag) => matchesStringValue(tag, value, 'exact'));
     case 'product_type':
       return typeof product.productType === 'string' && matchesStringValue(product.productType, value, 'exact');
     case 'vendor':
@@ -3045,13 +4623,13 @@ function matchesPositiveProductQueryTerm(product: ProductRecord, term: string): 
     case 'updated_at':
       return matchesProductTimestampTerm(product.updatedAt, value);
     case 'sku':
-      return store
-        .getEffectiveVariantsByProductId(product.id)
-        .some((variant) => typeof variant.sku === 'string' && matchesStringValue(variant.sku, value, 'exact'));
+      return getSearchableProductVariants(product).some(
+        (variant) => typeof variant.sku === 'string' && matchesStringValue(variant.sku, value, 'exact'),
+      );
     case 'barcode':
-      return store
-        .getEffectiveVariantsByProductId(product.id)
-        .some((variant) => typeof variant.barcode === 'string' && matchesStringValue(variant.barcode, value, 'exact'));
+      return getSearchableProductVariants(product).some(
+        (variant) => typeof variant.barcode === 'string' && matchesStringValue(variant.barcode, value, 'exact'),
+      );
     case 'inventory_total': {
       if (product.totalInventory === null) {
         return false;
@@ -3128,6 +4706,52 @@ function applyProductsQuery(products: ProductRecord[], rawQuery: unknown): Produ
   return products.filter((product) => matchesProductsQueryNode(product, parsedQuery));
 }
 
+function buildProductSearchConnectionKey(rawQuery: unknown, rawSortKey: unknown, rawReverse: unknown): string | null {
+  const query = typeof rawQuery === 'string' ? rawQuery.trim() : '';
+  const sortKey = typeof rawSortKey === 'string' ? rawSortKey : '';
+  if (!query || sortKey !== 'RELEVANCE') {
+    return null;
+  }
+
+  return JSON.stringify({
+    query,
+    sortKey,
+    reverse: rawReverse === true,
+  });
+}
+
+function buildSyntheticProductCursor(productId: string): string {
+  return `cursor:${productId}`;
+}
+
+function resolveCatalogProductCursor(productId: string, catalogConnection: ProductCatalogConnectionRecord | null): string {
+  return catalogConnection?.cursorByProductId[productId] ?? buildSyntheticProductCursor(productId);
+}
+
+function listProductsForConnection(catalogConnection: ProductCatalogConnectionRecord | null): ProductRecord[] {
+  if (!catalogConnection) {
+    return store.listEffectiveProducts();
+  }
+
+  const orderedProducts = catalogConnection.orderedProductIds
+    .map((productId) => store.getEffectiveProductById(productId))
+    .filter((product): product is ProductRecord => product !== null);
+  const seenProductIds = new Set(orderedProducts.map((product) => product.id));
+  const extraProducts = store.listEffectiveProducts().filter((product) => !seenProductIds.has(product.id));
+  return [...orderedProducts, ...extraProducts];
+}
+
+function compareProductIds(leftId: string, rightId: string): number {
+  const leftTail = Number.parseInt(leftId.split('/').at(-1) ?? '', 10);
+  const rightTail = Number.parseInt(rightId.split('/').at(-1) ?? '', 10);
+
+  if (Number.isFinite(leftTail) && Number.isFinite(rightTail)) {
+    return leftTail - rightTail;
+  }
+
+  return leftId.localeCompare(rightId);
+}
+
 function compareProductsBySortKey(left: ProductRecord, right: ProductRecord, rawSortKey: unknown): number {
   switch (rawSortKey) {
     case 'TITLE':
@@ -3141,6 +4765,10 @@ function compareProductsBySortKey(left: ProductRecord, right: ProductRecord, raw
     }
     case 'CREATED_AT':
       return left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id);
+    case 'PUBLISHED_AT':
+      return (left.publishedAt ?? '').localeCompare(right.publishedAt ?? '') || left.id.localeCompare(right.id);
+    case 'ID':
+      return compareProductIds(left.id, right.id) || left.id.localeCompare(right.id);
     case 'HANDLE':
       return left.handle.localeCompare(right.handle) || left.id.localeCompare(right.id);
     case 'STATUS':
@@ -3187,30 +4815,44 @@ function serializeProductsConnection(
   rawReverse: unknown,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const filteredProducts = applyProductsQuery(products, rawQuery);
-  const sortedProducts = sortProducts(filteredProducts, rawSortKey, rawReverse);
-  const afterProductId = parseProductsCursor(rawAfter);
-  const beforeProductId = parseProductsCursor(rawBefore);
-  const startIndex = afterProductId === null ? 0 : sortedProducts.findIndex((product) => product.id === afterProductId) + 1;
-  const beforeIndex = beforeProductId === null ? sortedProducts.length : sortedProducts.findIndex((product) => product.id === beforeProductId);
+  const searchConnectionKey = buildProductSearchConnectionKey(rawQuery, rawSortKey, rawReverse);
+  const searchConnection = searchConnectionKey ? store.getBaseProductSearchConnection(searchConnectionKey) : null;
+  const candidateProducts = searchConnection ? listProductsForConnection(searchConnection) : products;
+  const filteredProducts = applyProductsQuery(candidateProducts, rawQuery);
+  const sortedProducts = searchConnection ? filteredProducts : sortProducts(filteredProducts, rawSortKey, rawReverse);
+  const afterCursor = typeof rawAfter === 'string' ? rawAfter : null;
+  const beforeCursor = typeof rawBefore === 'string' ? rawBefore : null;
+  const afterProductId = searchConnection ? null : parseProductsCursor(rawAfter);
+  const beforeProductId = searchConnection ? null : parseProductsCursor(rawBefore);
+  const startIndex = searchConnection
+    ? (afterCursor ? sortedProducts.findIndex((product) => resolveCatalogProductCursor(product.id, searchConnection) === afterCursor) + 1 : 0)
+    : (afterProductId === null ? 0 : sortedProducts.findIndex((product) => product.id === afterProductId) + 1);
+  const beforeIndex = searchConnection
+    ? (beforeCursor ? sortedProducts.findIndex((product) => resolveCatalogProductCursor(product.id, searchConnection) === beforeCursor) : sortedProducts.length)
+    : (beforeProductId === null ? sortedProducts.length : sortedProducts.findIndex((product) => product.id === beforeProductId));
   const endIndex = beforeIndex >= 0 ? beforeIndex : sortedProducts.length;
   const windowStart = Math.max(0, startIndex);
   const windowEnd = Math.max(windowStart, endIndex);
   const paginatedProducts = sortedProducts.slice(windowStart, windowEnd);
 
   let limitedProducts = paginatedProducts;
-  let hasNextPage = windowEnd < sortedProducts.length;
-  let hasPreviousPage = windowStart > 0;
+  const preserveBaselinePageInfo = searchConnection !== null && beforeCursor === null && last === null;
+  const calculatedHasNextPage = windowEnd < sortedProducts.length || (first !== null && paginatedProducts.length > first);
+  const calculatedHasPreviousPage = windowStart > 0;
 
   if (first !== null) {
-    hasNextPage = hasNextPage || paginatedProducts.length > first;
     limitedProducts = limitedProducts.slice(0, first);
   }
 
+  let visibleStartIndex = windowStart;
   if (last !== null) {
-    hasPreviousPage = hasPreviousPage || limitedProducts.length > last;
+    visibleStartIndex = Math.max(windowStart, windowStart + limitedProducts.length - last);
     limitedProducts = limitedProducts.slice(Math.max(0, limitedProducts.length - last));
   }
+
+  const visibleEndIndex = visibleStartIndex + limitedProducts.length;
+  const hasNextPage = calculatedHasNextPage || (preserveBaselinePageInfo && (searchConnection?.pageInfo.hasNextPage ?? false));
+  const hasPreviousPage = (visibleStartIndex > 0) || (preserveBaselinePageInfo && (searchConnection?.pageInfo.hasPreviousPage ?? false));
 
   const result: Record<string, unknown> = {};
 
@@ -3234,11 +4876,11 @@ function serializeProductsConnection(
             if (edgeSelection.kind !== Kind.FIELD) {
               continue;
             }
-          
+
             const edgeKey = edgeSelection.alias?.value ?? edgeSelection.name.value;
             switch (edgeSelection.name.value) {
               case 'cursor':
-                edgeResult[edgeKey] = `cursor:${product.id}`;
+                edgeResult[edgeKey] = resolveCatalogProductCursor(product.id, searchConnection);
                 break;
               case 'node':
                 edgeResult[edgeKey] = serializeSelectionSet(product, edgeSelection.selectionSet?.selections ?? [], variables);
@@ -3262,9 +4904,19 @@ function serializeProductsConnection(
                 case 'hasPreviousPage':
                   return [pageInfoKey, hasPreviousPage];
                 case 'startCursor':
-                  return [pageInfoKey, limitedProducts[0] ? `cursor:${limitedProducts[0].id}` : null];
+                  return [
+                    pageInfoKey,
+                    limitedProducts[0]
+                      ? resolveCatalogProductCursor(limitedProducts[0].id, searchConnection)
+                      : (preserveBaselinePageInfo ? (searchConnection?.pageInfo.startCursor ?? null) : null),
+                  ];
                 case 'endCursor':
-                  return [pageInfoKey, limitedProducts.length > 0 ? `cursor:${limitedProducts[limitedProducts.length - 1]?.id}` : null];
+                  return [
+                    pageInfoKey,
+                    limitedProducts.length > 0
+                      ? resolveCatalogProductCursor(limitedProducts[limitedProducts.length - 1]!.id, searchConnection)
+                      : (preserveBaselinePageInfo ? (searchConnection?.pageInfo.endCursor ?? null) : null),
+                  ];
                 default:
                   return [pageInfoKey, null];
               }
@@ -3277,6 +4929,50 @@ function serializeProductsConnection(
   }
 
   return result;
+}
+
+function normalizeUpstreamPublication(value: unknown, cursor?: string | null): PublicationRecord | null {
+  if (!isObject(value)) {
+    return null;
+  }
+
+  const rawId = value['id'];
+  if (typeof rawId !== 'string') {
+    return null;
+  }
+
+  return {
+    id: rawId,
+    name: typeof value['name'] === 'string' ? value['name'] : null,
+    cursor: typeof cursor === 'string' && cursor.length > 0 ? cursor : null,
+  };
+}
+
+function readPublicationRecords(value: unknown): PublicationRecord[] {
+  if (!isObject(value)) {
+    return [];
+  }
+
+  if (Array.isArray(value['edges'])) {
+    return value['edges']
+      .map((edge) => {
+        if (!isObject(edge)) {
+          return null;
+        }
+
+        const cursor = typeof edge['cursor'] === 'string' ? edge['cursor'] : null;
+        return normalizeUpstreamPublication(edge['node'], cursor);
+      })
+      .filter((publication): publication is PublicationRecord => publication !== null);
+  }
+
+  if (Array.isArray(value['nodes'])) {
+    return value['nodes']
+      .map((publication) => normalizeUpstreamPublication(publication))
+      .filter((publication): publication is PublicationRecord => publication !== null);
+  }
+
+  return [];
 }
 
 function normalizeUpstreamProduct(
@@ -3309,6 +5005,7 @@ function normalizeUpstreamProduct(
   const rawStatus = value['status'];
   const rawCreatedAt = value['createdAt'];
   const rawUpdatedAt = value['updatedAt'];
+  const rawPublishedAt = value['publishedAt'];
   const rawLegacyResourceId = value['legacyResourceId'];
   const rawVendor = value['vendor'];
   const rawProductType = value['productType'];
@@ -3373,6 +5070,7 @@ function normalizeUpstreamProduct(
       publicationIds: makeUnknownPublicationIds(publicationCount),
       createdAt: typeof rawCreatedAt === 'string' ? rawCreatedAt : '1970-01-01T00:00:00.000Z',
       updatedAt: typeof rawUpdatedAt === 'string' ? rawUpdatedAt : '1970-01-01T00:00:00.000Z',
+      publishedAt: rawPublishedAt === null ? null : typeof rawPublishedAt === 'string' ? rawPublishedAt : null,
       vendor: typeof rawVendor === 'string' ? rawVendor : null,
       productType: typeof rawProductType === 'string' ? rawProductType : null,
       tags: Array.isArray(rawTags) ? rawTags.filter((tag): tag is string => typeof tag === 'string') : [],
@@ -3408,7 +5106,11 @@ function normalizeUpstreamProduct(
   };
 }
 
-export function hydrateProductsFromUpstreamResponse(responseBody: unknown): void {
+export function hydrateProductsFromUpstreamResponse(
+  document: string,
+  variables: Record<string, unknown>,
+  responseBody: unknown,
+): void {
   if (!isObject(responseBody)) {
     return;
   }
@@ -3416,6 +5118,16 @@ export function hydrateProductsFromUpstreamResponse(responseBody: unknown): void
   const rawData = responseBody['data'];
   if (!isObject(rawData)) {
     return;
+  }
+
+  const productSearchConnections = collectProductSearchConnections(document, variables, rawData);
+  for (const [key, connection] of Object.entries(productSearchConnections)) {
+    store.setBaseProductSearchConnection(key, connection);
+  }
+
+  const publications = readPublicationRecords(rawData['publications']);
+  if (publications.length > 0) {
+    store.upsertBasePublications(publications);
   }
 
   const maybeProduct = normalizeUpstreamProduct(rawData['product']);
@@ -3482,7 +5194,11 @@ export function hydrateProductsFromUpstreamResponse(responseBody: unknown): void
   }
 }
 
-export function handleProductMutation(document: string, variables: Record<string, unknown>): Record<string, unknown> {
+export function handleProductMutation(
+  document: string,
+  variables: Record<string, unknown>,
+  readMode: ReadMode,
+): Record<string, unknown> {
   const field = getRootField(document);
   const args = getRootFieldArguments(document, variables);
   const responseKey = field.alias?.value ?? field.name.value;
@@ -3534,6 +5250,9 @@ export function handleProductMutation(document: string, variables: Record<string
       }
 
       store.stageUpdateProduct(makeProductRecord({ id: productId, tags: nextTags }, existingProduct));
+      if (store.getBaseProductById(productId)) {
+        store.markTagSearchLagged(productId);
+      }
       const product = store.getEffectiveProductById(productId);
       return {
         data: {
@@ -3584,6 +5303,9 @@ export function handleProductMutation(document: string, variables: Record<string
 
       const nextTags = existingProduct.tags.filter((tag) => !tags.includes(tag));
       store.stageUpdateProduct(makeProductRecord({ id: productId, tags: nextTags }, existingProduct));
+      if (store.getBaseProductById(productId)) {
+        store.markTagSearchLagged(productId);
+      }
       const product = store.getEffectiveProductById(productId);
       return {
         data: {
@@ -3596,7 +5318,32 @@ export function handleProductMutation(document: string, variables: Record<string
     }
     case 'productCreate': {
       const input = readProductInput(args['product']);
-      const product = store.stageCreateProduct(makeProductRecord(input));
+      const rawTitle = input['title'];
+      const title = typeof rawTitle === 'string' ? rawTitle.trim() : '';
+      if (!title) {
+        return {
+          data: {
+            [responseKey]: {
+              product: null,
+              userErrors: [{ field: ['title'], message: "Title can't be blank" }],
+            },
+          },
+        };
+      }
+
+      const preparedCreateInput = prepareProductInputWithResolvedHandle(input);
+      if (preparedCreateInput.error) {
+        return {
+          data: {
+            [responseKey]: {
+              product: null,
+              userErrors: [preparedCreateInput.error],
+            },
+          },
+        };
+      }
+
+      const product = store.stageCreateProduct(makeProductRecord(preparedCreateInput.input));
       store.replaceStagedOptionsForProduct(product.id, [makeDefaultOptionRecord(product)]);
       store.replaceStagedVariantsForProduct(product.id, [makeDefaultVariantRecord(product)]);
       return {
@@ -3617,14 +5364,49 @@ export function handleProductMutation(document: string, variables: Record<string
           data: {
             [responseKey]: {
               product: null,
-              userErrors: [{ field: ['product', 'id'], message: 'Product id is required' }],
+              userErrors: [{ field: ['id'], message: 'Product does not exist' }],
             },
           },
         };
       }
 
       const existing = store.getEffectiveProductById(id) ?? undefined;
-      store.stageUpdateProduct(makeProductRecord({ ...input, id }, existing));
+      if (!existing && readMode === 'snapshot') {
+        return {
+          data: {
+            [responseKey]: {
+              product: null,
+              userErrors: [{ field: ['id'], message: 'Product does not exist' }],
+            },
+          },
+        };
+      }
+
+      const rawTitle = input['title'];
+      if (existing && typeof rawTitle === 'string' && !rawTitle.trim()) {
+        return {
+          data: {
+            [responseKey]: {
+              product: serializeProduct(existing, getChildField(field, 'product'), variables),
+              userErrors: [{ field: ['title'], message: "Title can't be blank" }],
+            },
+          },
+        };
+      }
+
+      const preparedUpdateInput = prepareProductInputWithResolvedHandle({ ...input, id }, existing);
+      if (preparedUpdateInput.error) {
+        return {
+          data: {
+            [responseKey]: {
+              product: serializeProduct(existing ?? store.getEffectiveProductById(id), getChildField(field, 'product'), variables),
+              userErrors: [preparedUpdateInput.error],
+            },
+          },
+        };
+      }
+
+      store.stageUpdateProduct(makeProductRecord(preparedUpdateInput.input, existing));
       const product = store.getEffectiveProductById(id);
       return {
         data: {
@@ -3636,16 +5418,40 @@ export function handleProductMutation(document: string, variables: Record<string
       };
     }
     case 'productDelete': {
+      const inputArg = field.arguments?.find((argument) => argument.name.value === 'input') ?? null;
+      if (inputArg?.value.kind === Kind.VARIABLE) {
+        const rawVariableInput = readProductInput(variables[inputArg.value.name.value]);
+        if (!hasOwnField(rawVariableInput, 'id') || rawVariableInput['id'] === null) {
+          return buildProductDeleteInvalidVariableError(rawVariableInput);
+        }
+      }
+
+      if (inputArg?.value.kind === Kind.OBJECT) {
+        const idField = inputArg.value.fields.find((objectField) => objectField.name.value === 'id') ?? null;
+        if (!idField) {
+          return buildMissingProductDeleteInputIdArgumentError();
+        }
+
+        if (idField.value.kind === Kind.NULL) {
+          return buildNullProductDeleteInputIdArgumentError();
+        }
+      }
+
       const input = readProductInput(args['input']);
       const inputId = input['id'];
       const argId = args['id'];
       const id = typeof inputId === 'string' ? inputId : typeof argId === 'string' ? argId : null;
       if (!id) {
+        return buildProductDeleteInvalidVariableError(input);
+      }
+
+      const existing = store.getEffectiveProductById(id);
+      if (!existing && readMode === 'snapshot') {
         return {
           data: {
             [responseKey]: {
               deletedProductId: null,
-              userErrors: [{ field: ['input', 'id'], message: 'Product id is required' }],
+              userErrors: [{ field: ['id'], message: 'Product does not exist' }],
             },
           },
         };
@@ -3687,8 +5493,18 @@ export function handleProductMutation(document: string, variables: Record<string
         };
       }
 
+      const duplicatedRecord = makeDuplicatedProductRecord(
+        sourceProduct,
+        typeof args['newTitle'] === 'string' ? args['newTitle'] : undefined,
+      );
       const duplicatedProduct = store.stageCreateProduct(
-        makeDuplicatedProductRecord(sourceProduct, typeof args['newTitle'] === 'string' ? args['newTitle'] : undefined),
+        makeProductRecord(
+          {
+            ...duplicatedRecord,
+            handle: ensureUniqueProductHandle(duplicatedRecord.handle),
+          },
+          duplicatedRecord,
+        ),
       );
       store.replaceStagedOptionsForProduct(
         duplicatedProduct.id,
@@ -3727,14 +5543,27 @@ export function handleProductMutation(document: string, variables: Record<string
       const identifierId = typeof identifier['id'] === 'string' ? identifier['id'] : null;
       const identifierHandle = typeof identifier['handle'] === 'string' ? identifier['handle'] : null;
       const inputId = typeof input['id'] === 'string' ? input['id'] : null;
+      const synchronous = args['synchronous'] !== false;
       const existing =
         (identifierId ? store.getEffectiveProductById(identifierId) : null) ??
         (inputId ? store.getEffectiveProductById(inputId) : null) ??
         (identifierHandle ? findEffectiveProductByHandle(identifierHandle) : null);
+      const preparedInput = prepareProductInputWithResolvedHandle(existing ? { ...input, id: existing.id } : input, existing ?? undefined);
+      if (preparedInput.error) {
+        return {
+          data: {
+            [responseKey]: {
+              product: synchronous ? serializeProduct(existing, getChildField(field, 'product'), variables) : null,
+              productSetOperation: null,
+              userErrors: [preparedInput.error],
+            },
+          },
+        };
+      }
 
       const stagedProduct = existing
-        ? store.stageUpdateProduct(makeProductRecord({ ...input, id: existing.id }, existing))
-        : store.stageCreateProduct(makeProductRecord(input));
+        ? store.stageUpdateProduct(makeProductRecord(preparedInput.input, existing))
+        : store.stageCreateProduct(makeProductRecord(preparedInput.input));
       const productId = stagedProduct.id;
 
       if (hasOwnField(input, 'productOptions')) {
@@ -3766,7 +5595,6 @@ export function handleProductMutation(document: string, variables: Record<string
       }
 
       const product = syncProductInventorySummary(productId) ?? store.getEffectiveProductById(productId);
-      const synchronous = args['synchronous'] !== false;
       return {
         data: {
           [responseKey]: {
@@ -3779,6 +5607,10 @@ export function handleProductMutation(document: string, variables: Record<string
     }
     case 'productChangeStatus': {
       const rawProductId = args['productId'];
+      if (rawProductId === null) {
+        return buildNullProductChangeStatusArgumentError();
+      }
+
       const productId = typeof rawProductId === 'string' ? rawProductId : null;
       if (!productId) {
         return {
@@ -3803,7 +5635,18 @@ export function handleProductMutation(document: string, variables: Record<string
         };
       }
 
-      const existing = store.getEffectiveProductById(productId) ?? undefined;
+      const existing = store.getEffectiveProductById(productId);
+      if (!existing) {
+        return {
+          data: {
+            [responseKey]: {
+              product: null,
+              userErrors: [{ field: ['productId'], message: 'Product does not exist' }],
+            },
+          },
+        };
+      }
+
       store.stageUpdateProduct(
         makeProductRecord(
           {
@@ -4291,7 +6134,7 @@ export function handleProductMutation(document: string, variables: Record<string
       const nextMedia = [...existingMedia, ...createdMedia];
       store.replaceStagedMediaForProduct(productId, nextMedia);
 
-      return {
+      const response = {
         data: {
           [responseKey]: {
             media: serializeMediaPayload(createdMedia, getChildField(field, 'media')),
@@ -4300,6 +6143,13 @@ export function handleProductMutation(document: string, variables: Record<string
           },
         },
       };
+
+      store.replaceStagedMediaForProduct(productId, [
+        ...existingMedia,
+        ...createdMedia.map((mediaRecord) => transitionMediaToProcessing(mediaRecord)),
+      ]);
+
+      return response;
     }
     case 'productUpdateMedia': {
       const rawProductId = args['productId'];
@@ -4331,6 +6181,39 @@ export function handleProductMutation(document: string, variables: Record<string
       const updates = (Array.isArray(args['media']) ? args['media'] : []).filter(
         (media): media is Record<string, unknown> => isObject(media),
       );
+      const missingMediaId = updates.find(
+        (media) => typeof media['id'] !== 'string' || !effectiveMedia.some((candidate) => candidate.id === media['id']),
+      );
+      if (missingMediaId) {
+        return {
+          data: {
+            [responseKey]: {
+              media: [],
+              mediaUserErrors: [{ field: ['media', 'id'], message: 'Media id is required' }],
+            },
+          },
+        };
+      }
+
+      const nonReadyMedia = updates.find((media) => {
+        const mediaId = typeof media['id'] === 'string' ? media['id'] : null;
+        const existingMediaRecord = mediaId
+          ? effectiveMedia.find((candidate) => candidate.id === mediaId) ?? null
+          : null;
+        return existingMediaRecord?.status !== 'READY';
+      });
+      if (nonReadyMedia) {
+        const updateIndex = updates.indexOf(nonReadyMedia);
+        return {
+          data: {
+            [responseKey]: {
+              media: [],
+              mediaUserErrors: [{ field: ['media', `${updateIndex}`, 'id'], message: 'Non-ready media cannot be updated.' }],
+            },
+          },
+        };
+      }
+
       const updatedMedia: ProductMediaRecord[] = [];
       const nextMedia = effectiveMedia.map((mediaRecord) => {
         const update = updates.find((candidate) => candidate['id'] === mediaRecord.id);
@@ -4342,18 +6225,6 @@ export function handleProductMutation(document: string, variables: Record<string
         updatedMedia.push(nextRecord);
         return nextRecord;
       });
-
-      const missingMediaId = updates.find((media) => typeof media['id'] !== 'string' || !effectiveMedia.some((candidate) => candidate.id === media['id']));
-      if (missingMediaId) {
-        return {
-          data: {
-            [responseKey]: {
-              media: [],
-              mediaUserErrors: [{ field: ['media', 'id'], message: 'Media id is required' }],
-            },
-          },
-        };
-      }
 
       store.replaceStagedMediaForProduct(productId, nextMedia);
       return {
@@ -4406,10 +6277,7 @@ export function handleProductMutation(document: string, variables: Record<string
       store.replaceStagedMediaForProduct(productId, nextMedia);
 
       const deletedMediaIds = deletedMedia.map((mediaRecord) => mediaRecord.id).filter((mediaId): mediaId is string => typeof mediaId === 'string');
-      const deletedProductImageIds = deletedMedia
-        .filter((mediaRecord) => mediaRecord.mediaContentType === 'IMAGE')
-        .map((mediaRecord) => mediaRecord.id)
-        .filter((mediaId): mediaId is string => typeof mediaId === 'string');
+      const deletedProductImageIds: string[] = [];
 
       return {
         data: {
@@ -4422,8 +6290,53 @@ export function handleProductMutation(document: string, variables: Record<string
         },
       };
     }
+    case 'inventoryItemUpdate': {
+      const rawId = args['id'];
+      const inventoryItemId = typeof rawId === 'string' ? rawId : null;
+      const existingVariant = inventoryItemId ? store.findEffectiveVariantByInventoryItemId(inventoryItemId) : null;
+      if (!existingVariant || !existingVariant.inventoryItem) {
+        return {
+          data: {
+            [responseKey]: {
+              inventoryItem: null,
+              userErrors: [{ field: ['id'], message: "The product couldn't be updated because it does not exist." }],
+            },
+          },
+        };
+      }
+
+      const nextVariant: ProductVariantRecord = {
+        ...structuredClone(existingVariant),
+        inventoryItem: readInventoryItemInput(args['input'], existingVariant.inventoryItem),
+      };
+      const productId = existingVariant.productId;
+      const nextVariants = store
+        .getEffectiveVariantsByProductId(productId)
+        .map((variant) => (variant.id === existingVariant.id ? nextVariant : variant));
+      store.replaceStagedVariantsForProduct(productId, nextVariants);
+      syncProductInventorySummary(productId);
+      const updatedVariant = store.getEffectiveVariantById(existingVariant.id) ?? nextVariant;
+
+      return {
+        data: {
+          [responseKey]: {
+            inventoryItem: serializeInventoryItemSelectionSet(
+              updatedVariant,
+              getChildField(field, 'inventoryItem')?.selectionSet?.selections ?? [],
+              variables,
+            ),
+            userErrors: [],
+          },
+        },
+      };
+    }
     case 'inventoryAdjustQuantities': {
       const input = readProductInput(args['input']);
+      const invalidVariableError = validateInventoryAdjustRequiredFields(input);
+      if (invalidVariableError) {
+        return invalidVariableError;
+      }
+
       const result = applyInventoryAdjustQuantities(input);
       return {
         data: {
@@ -4433,6 +6346,177 @@ export function handleProductMutation(document: string, variables: Record<string
               getChildField(field, 'inventoryAdjustmentGroup'),
             ),
             userErrors: result.userErrors,
+          },
+        },
+      };
+    }
+    case 'inventoryActivate': {
+      const rawInventoryItemId = args['inventoryItemId'];
+      const rawLocationId = args['locationId'];
+      const inventoryItemId = typeof rawInventoryItemId === 'string' ? rawInventoryItemId : null;
+      const locationId = typeof rawLocationId === 'string' ? rawLocationId : null;
+      const variant = inventoryItemId ? store.findEffectiveVariantByInventoryItemId(inventoryItemId) : null;
+      const knownLocation = locationId ? findKnownLocationById(locationId) : null;
+      const level =
+        variant && locationId
+          ? getEffectiveInventoryLevels(variant).find((candidate) => candidate.location?.id === locationId) ?? null
+          : null;
+      const hasAvailableArg = hasOwnField(args, 'available');
+      const userErrors: InventoryMutationUserError[] = [];
+
+      if (variant && locationId && !level && !knownLocation) {
+        userErrors.push({
+          field: ['locationId'],
+          message: "The product couldn't be stocked because the location wasn't found.",
+        });
+      }
+
+      if (hasAvailableArg && level) {
+        userErrors.push({
+          field: ['available'],
+          message: 'Not allowed to set available quantity when the item is already active at the location.',
+        });
+      }
+
+      let resolvedVariant = variant;
+      let resolvedLevel = level;
+      if (variant && knownLocation && !level) {
+        const nextLevel = buildActivatedInventoryLevel(variant, knownLocation);
+        if (nextLevel) {
+          resolvedVariant = stageVariantInventoryLevels(variant, [...getEffectiveInventoryLevels(variant), nextLevel]);
+          resolvedLevel =
+            getEffectiveInventoryLevels(resolvedVariant).find((candidate) => candidate.location?.id === knownLocation.id) ?? nextLevel;
+        }
+      }
+
+      return {
+        data: {
+          [responseKey]: {
+            inventoryLevel:
+              resolvedVariant && resolvedLevel && userErrors.length === 0
+                ? serializeInventoryLevelObject(
+                    resolvedVariant,
+                    resolvedLevel,
+                    getChildField(field, 'inventoryLevel')?.selectionSet?.selections ?? [],
+                    variables,
+                  )
+                : null,
+            userErrors: serializeInventoryMutationUserErrors(getChildField(field, 'userErrors'), userErrors),
+          },
+        },
+      };
+    }
+    case 'inventoryDeactivate': {
+      const rawInventoryLevelId = args['inventoryLevelId'];
+      const inventoryLevelId = typeof rawInventoryLevelId === 'string' ? rawInventoryLevelId : null;
+      const target = inventoryLevelId ? findInventoryLevelTarget(inventoryLevelId) : null;
+      const allLevels = target ? getEffectiveInventoryLevels(target.variant) : [];
+      const userErrors: InventoryMutationUserError[] = [];
+
+      if (target && allLevels.length <= 1) {
+        userErrors.push({
+          field: null,
+          message: `The product couldn't be unstocked from ${target.level.location?.name ?? 'this location'} because products need to be stocked at a minimum of 1 location.`,
+        });
+      }
+
+      if (target && userErrors.length === 0) {
+        stageVariantInventoryLevels(
+          target.variant,
+          allLevels.filter((candidate) => candidate.id !== target.level.id),
+        );
+      }
+
+      return {
+        data: {
+          [responseKey]: {
+            userErrors: serializeInventoryMutationUserErrors(getChildField(field, 'userErrors'), userErrors),
+          },
+        },
+      };
+    }
+    case 'inventoryBulkToggleActivation': {
+      const rawInventoryItemId = args['inventoryItemId'];
+      const inventoryItemId = typeof rawInventoryItemId === 'string' ? rawInventoryItemId : null;
+      const variant = inventoryItemId ? store.findEffectiveVariantByInventoryItemId(inventoryItemId) : null;
+      const updates = Array.isArray(args['inventoryItemUpdates'])
+        ? args['inventoryItemUpdates'].filter((value): value is Record<string, unknown> => isObject(value))
+        : [];
+      const firstUpdate = updates[0] ?? null;
+      const locationId = typeof firstUpdate?.['locationId'] === 'string' ? firstUpdate['locationId'] : null;
+      const activate = typeof firstUpdate?.['activate'] === 'boolean' ? firstUpdate['activate'] : null;
+      const knownLocation = locationId ? findKnownLocationById(locationId) : null;
+      const level =
+        variant && locationId
+          ? getEffectiveInventoryLevels(variant).find((candidate) => candidate.location?.id === locationId) ?? null
+          : null;
+      const userErrors: InventoryMutationUserError[] = [];
+
+      if (variant && locationId && !level && !knownLocation) {
+        userErrors.push({
+          field: ['inventoryItemUpdates', '0', 'locationId'],
+          message: "The quantity couldn't be updated because the location was not found.",
+          code: 'LOCATION_NOT_FOUND',
+        });
+      }
+
+      if (variant && activate === false && level && getEffectiveInventoryLevels(variant).length <= 1) {
+        userErrors.push({
+          field: ['inventoryItemUpdates', '0', 'locationId'],
+          message: `The variant couldn't be unstocked from ${level.location?.name ?? 'this location'} because products need to be stocked at a minimum of 1 location.`,
+          code: 'CANNOT_DEACTIVATE_FROM_ONLY_LOCATION',
+        });
+      }
+
+      let resolvedVariant = variant;
+      let responseLevels: Record<string, unknown>[] | null = null;
+      if (variant && userErrors.length === 0 && locationId) {
+        if (activate === true && !level && knownLocation) {
+          const nextLevel = buildActivatedInventoryLevel(variant, knownLocation);
+          if (nextLevel) {
+            resolvedVariant = stageVariantInventoryLevels(variant, [...getEffectiveInventoryLevels(variant), nextLevel]);
+            const resolvedLevel =
+              getEffectiveInventoryLevels(resolvedVariant).find((candidate) => candidate.location?.id === knownLocation.id) ?? nextLevel;
+            responseLevels = [
+              serializeInventoryLevelObject(
+                resolvedVariant,
+                resolvedLevel,
+                getChildField(field, 'inventoryLevels')?.selectionSet?.selections ?? [],
+                variables,
+              ),
+            ];
+          }
+        } else if (activate === false && level) {
+          resolvedVariant = stageVariantInventoryLevels(
+            variant,
+            getEffectiveInventoryLevels(variant).filter((candidate) => candidate.id !== level.id),
+          );
+          responseLevels = [];
+        } else if (level) {
+          responseLevels = [
+            serializeInventoryLevelObject(
+              variant,
+              level,
+              getChildField(field, 'inventoryLevels')?.selectionSet?.selections ?? [],
+              variables,
+            ),
+          ];
+        }
+      }
+
+      return {
+        data: {
+          [responseKey]: {
+            inventoryItem:
+              resolvedVariant && userErrors.length === 0
+                ? serializeInventoryItemSelectionSet(
+                    resolvedVariant,
+                    getChildField(field, 'inventoryItem')?.selectionSet?.selections ?? [],
+                    variables,
+                  )
+                : null,
+            inventoryLevels: userErrors.length === 0 ? responseLevels : null,
+            userErrors: serializeInventoryMutationUserErrors(getChildField(field, 'userErrors'), userErrors),
           },
         },
       };
@@ -4518,6 +6602,20 @@ export function handleProductMutation(document: string, variables: Record<string
         },
       };
     }
+    case 'metafieldsDelete': {
+      const deleteResult = deleteMetafieldsByIdentifiers(readMetafieldsDeleteInput(args['metafields']));
+      return {
+        data: {
+          [responseKey]: {
+            deletedMetafields: serializeDeletedMetafieldIdentifiers(
+              deleteResult.deletedMetafields,
+              getChildField(field, 'deletedMetafields'),
+            ),
+            userErrors: deleteResult.userErrors,
+          },
+        },
+      };
+    }
     case 'metafieldDelete': {
       const input = readProductInput(args['input']);
       const rawId = input['id'];
@@ -4545,15 +6643,18 @@ export function handleProductMutation(document: string, variables: Record<string
         };
       }
 
-      const remainingMetafields = store
-        .getEffectiveMetafieldsByProductId(existingMetafield.productId)
-        .filter((metafield) => metafield.id !== metafieldId);
-      store.replaceStagedMetafieldsForProduct(existingMetafield.productId, remainingMetafields);
+      const deleteResult = deleteMetafieldsByIdentifiers([
+        {
+          ownerId: existingMetafield.productId,
+          namespace: existingMetafield.namespace,
+          key: existingMetafield.key,
+        },
+      ]);
       return {
         data: {
           [responseKey]: {
-            deletedId: metafieldId,
-            userErrors: [],
+            deletedId: deleteResult.userErrors.length === 0 ? metafieldId : null,
+            userErrors: deleteResult.userErrors,
           },
         },
       };
@@ -4596,7 +6697,7 @@ export function handleProductMutation(document: string, variables: Record<string
         data: {
           [responseKey]: {
             product: serializeProduct(product, getChildField(field, 'product'), variables),
-            productVariant: serializeVariantSelectionSet(createdVariant, getChildField(field, 'productVariant')?.selectionSet?.selections ?? []),
+            productVariant: serializeVariantSelectionSet(createdVariant, getChildField(field, 'productVariant')?.selectionSet?.selections ?? [], variables),
             userErrors: [],
           },
         },
@@ -4651,7 +6752,7 @@ export function handleProductMutation(document: string, variables: Record<string
           [responseKey]: {
             product: serializeProduct(product, getChildField(field, 'product'), variables),
             productVariant: updatedVariant
-              ? serializeVariantSelectionSet(updatedVariant, getChildField(field, 'productVariant')?.selectionSet?.selections ?? [])
+              ? serializeVariantSelectionSet(updatedVariant, getChildField(field, 'productVariant')?.selectionSet?.selections ?? [], variables)
               : null,
             userErrors: [],
           },
@@ -4732,6 +6833,7 @@ export function handleProductMutation(document: string, variables: Record<string
       const nextVariants = [...store.getEffectiveVariantsByProductId(productId), ...createdVariants];
       store.replaceStagedVariantsForProduct(productId, nextVariants);
       store.replaceStagedOptionsForProduct(productId, syncProductOptionsWithVariants(productId, undefined, nextVariants));
+      store.markVariantSearchLagged(productId);
       const product = syncProductInventorySummary(productId);
       return {
         data: {
@@ -4776,6 +6878,24 @@ export function handleProductMutation(document: string, variables: Record<string
       const updates = (Array.isArray(args['variants']) ? args['variants'] : []).filter(
         (variant): variant is Record<string, unknown> => isObject(variant),
       );
+      const inventoryQuantityUpdateIndex = updates.findIndex((variant) => hasOwnField(variant, 'inventoryQuantities'));
+      if (inventoryQuantityUpdateIndex >= 0) {
+        return {
+          data: {
+            [responseKey]: {
+              product: null,
+              productVariants: [],
+              userErrors: [
+                {
+                  field: ['variants', String(inventoryQuantityUpdateIndex), 'inventoryQuantities'],
+                  message:
+                    'Inventory quantities can only be provided during create. To update inventory for existing variants, use inventoryAdjustQuantities.',
+                },
+              ],
+            },
+          },
+        };
+      }
       const updatedVariants: ProductVariantRecord[] = [];
       const nextVariants = effectiveVariants.map((variant) => {
         const update = updates.find((candidate) => candidate['id'] === variant.id);
@@ -4803,6 +6923,7 @@ export function handleProductMutation(document: string, variables: Record<string
 
       store.replaceStagedVariantsForProduct(productId, nextVariants);
       store.replaceStagedOptionsForProduct(productId, syncProductOptionsWithVariants(productId, undefined, nextVariants));
+      store.markVariantSearchLagged(productId);
       const product = syncProductInventorySummary(productId);
       return {
         data: {
@@ -4848,6 +6969,7 @@ export function handleProductMutation(document: string, variables: Record<string
         .filter((variant) => !variantIds.includes(variant.id));
       store.replaceStagedVariantsForProduct(productId, nextVariants);
       store.replaceStagedOptionsForProduct(productId, syncProductOptionsWithVariants(productId, undefined, nextVariants));
+      store.markVariantSearchLagged(productId);
       const product = syncProductInventorySummary(productId);
       return {
         data: {
@@ -4910,14 +7032,14 @@ export function handleProductQuery(
         const rawId = args['id'];
         const id = typeof rawId === 'string' ? rawId : null;
         const variant = id ? store.getEffectiveVariantById(id) : null;
-        data[responseKey] = variant ? serializeVariantSelectionSet(variant, field.selectionSet?.selections ?? []) : null;
+        data[responseKey] = variant ? serializeVariantSelectionSet(variant, field.selectionSet?.selections ?? [], variables) : null;
         break;
       }
       case 'inventoryItem': {
         const rawId = args['id'];
         const id = typeof rawId === 'string' ? rawId : null;
         const variant = id ? store.findEffectiveVariantByInventoryItemId(id) : null;
-        data[responseKey] = variant ? serializeInventoryItemSelectionSet(variant, field.selectionSet?.selections ?? []) : null;
+        data[responseKey] = variant ? serializeInventoryItemSelectionSet(variant, field.selectionSet?.selections ?? [], variables) : null;
         break;
       }
       case 'collection': {
@@ -4929,6 +7051,14 @@ export function handleProductQuery(
       }
       case 'collections': {
         data[responseKey] = serializeTopLevelCollectionsConnection(field, variables);
+        break;
+      }
+      case 'locations': {
+        data[responseKey] = serializeTopLevelLocationsConnection(field, variables);
+        break;
+      }
+      case 'publications': {
+        data[responseKey] = serializeTopLevelPublicationsConnection(field, variables);
         break;
       }
       default:

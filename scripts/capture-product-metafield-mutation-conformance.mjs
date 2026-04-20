@@ -1,0 +1,328 @@
+import 'dotenv/config';
+
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+
+import { parseWriteScopeBlocker, renderWriteScopeBlockerNote } from './product-mutation-conformance-lib.mjs';
+
+const requiredVars = [
+  'SHOPIFY_CONFORMANCE_STORE_DOMAIN',
+  'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN',
+  'SHOPIFY_CONFORMANCE_ADMIN_ACCESS_TOKEN',
+];
+
+const missingVars = requiredVars.filter((name) => !process.env[name]);
+if (missingVars.length > 0) {
+  console.error(`Missing required environment variables: ${missingVars.join(', ')}`);
+  process.exit(1);
+}
+
+const storeDomain = process.env['SHOPIFY_CONFORMANCE_STORE_DOMAIN'];
+const adminOrigin = process.env['SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
+const adminAccessToken = process.env['SHOPIFY_CONFORMANCE_ADMIN_ACCESS_TOKEN'];
+const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || '2025-01';
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const pendingDir = 'pending';
+const blockerPath = path.join(pendingDir, 'product-metafield-mutation-conformance-scope-blocker.md');
+
+function buildAdminAuthHeaders(token) {
+  if (/^shp[a-z]+_/.test(token)) {
+    return {
+      'X-Shopify-Access-Token': token,
+    };
+  }
+
+  const bearerToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+  return {
+    Authorization: bearerToken,
+    'X-Shopify-Access-Token': bearerToken,
+  };
+}
+
+async function runGraphql(query, variables = {}) {
+  const response = await fetch(`${adminOrigin}/admin/api/${apiVersion}/graphql.json`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...buildAdminAuthHeaders(adminAccessToken),
+    },
+    body: JSON.stringify({ query, variables }),
+  });
+
+  const payload = await response.json();
+  if (!response.ok || payload.errors) {
+    const error = new Error(JSON.stringify({ status: response.status, payload }, null, 2));
+    error.result = { status: response.status, payload };
+    throw error;
+  }
+
+  return payload;
+}
+
+const createProductMutation = `#graphql
+  mutation ProductMetafieldConformanceCreateProduct($product: ProductCreateInput!) {
+    productCreate(product: $product) {
+      product {
+        id
+        title
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const deleteProductMutation = `#graphql
+  mutation ProductMetafieldConformanceDeleteProduct($input: ProductDeleteInput!) {
+    productDelete(input: $input) {
+      deletedProductId
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const metafieldsSetMutation = `#graphql
+  mutation MetafieldsSetConformance($metafields: [MetafieldsSetInput!]!) {
+    metafieldsSet(metafields: $metafields) {
+      metafields {
+        id
+        namespace
+        key
+        type
+        value
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const metafieldsDeleteMutation = `#graphql
+  mutation MetafieldsDeleteConformance($metafields: [MetafieldIdentifierInput!]!) {
+    metafieldsDelete(metafields: $metafields) {
+      deletedMetafields {
+        key
+        namespace
+        ownerId
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const downstreamReadQuery = `#graphql
+  query ProductMetafieldDownstream($id: ID!) {
+    product(id: $id) {
+      id
+      primarySpec: metafield(namespace: "custom", key: "material") {
+        id
+        namespace
+        key
+        type
+        value
+      }
+      origin: metafield(namespace: "details", key: "origin") {
+        id
+        namespace
+        key
+        type
+        value
+      }
+      metafields(first: 10) {
+        nodes {
+          id
+          namespace
+          key
+          type
+          value
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+  }
+`;
+
+function buildCreateProductVariables(runId) {
+  return {
+    product: {
+      title: `Hermes Product Metafield Conformance ${runId}`,
+      status: 'DRAFT',
+    },
+  };
+}
+
+function buildMetafieldsSetVariables(productId) {
+  return {
+    metafields: [
+      {
+        ownerId: productId,
+        namespace: 'custom',
+        key: 'material',
+        type: 'single_line_text_field',
+        value: 'Canvas',
+      },
+      {
+        ownerId: productId,
+        namespace: 'details',
+        key: 'origin',
+        type: 'single_line_text_field',
+        value: 'VN',
+      },
+    ],
+  };
+}
+
+function buildMetafieldsDeleteVariables(productId) {
+  return {
+    metafields: [
+      {
+        ownerId: productId,
+        namespace: 'custom',
+        key: 'material',
+      },
+    ],
+  };
+}
+
+async function writeScopeBlocker(blocker) {
+  await mkdir(pendingDir, { recursive: true });
+  const note = renderWriteScopeBlockerNote({
+    title: 'Product metafield mutation conformance blocker',
+    whatFailed:
+      'Attempted to capture live conformance for the product-scoped metafield write slice (`metafieldsSet`).',
+    operations: ['metafieldsSet'],
+    blocker,
+    whyBlocked:
+      'Without a write-capable token, the repo cannot capture successful live metafield payload shape, userErrors behavior, or immediate downstream `product.metafield(...)` / `product.metafields` parity for staged metafield writes.',
+    completedSteps: [
+      'added a reusable live-write capture harness for staged product metafield writes',
+      'aligned the metafield write mutation and downstream read slices with the parity-request scaffold so future runs capture the same owner-scoped metafield shape directly',
+    ],
+    recommendedNextStep:
+      'Switch the repo conformance credential to a safe dev-store token with product write permissions, then rerun `corepack pnpm conformance:capture-product-metafield-mutations`.',
+  });
+
+  await writeFile(blockerPath, `${note}\n`, 'utf8');
+}
+
+await mkdir(outputDir, { recursive: true });
+
+const runId = `${Date.now()}`;
+const createProductVariables = buildCreateProductVariables(runId);
+let createdProductId = null;
+
+try {
+  const createProductResponse = await runGraphql(createProductMutation, createProductVariables);
+  createdProductId = createProductResponse.data?.productCreate?.product?.id ?? null;
+  if (!createdProductId) {
+    throw new Error('Product metafield capture did not return a product id.');
+  }
+
+  const metafieldsSetVariables = buildMetafieldsSetVariables(createdProductId);
+  const metafieldsSetResponse = await runGraphql(metafieldsSetMutation, metafieldsSetVariables);
+  const postSetRead = await runGraphql(downstreamReadQuery, { id: createdProductId });
+  const metafieldsDeleteVariables = buildMetafieldsDeleteVariables(createdProductId);
+  const metafieldsDeleteResponse = await runGraphql(metafieldsDeleteMutation, metafieldsDeleteVariables);
+  const postDeleteRead = await runGraphql(downstreamReadQuery, { id: createdProductId });
+
+  const setCaptureFile = 'metafields-set-parity.json';
+  await writeFile(
+    path.join(outputDir, setCaptureFile),
+    `${JSON.stringify(
+      {
+        mutation: {
+          variables: metafieldsSetVariables,
+          response: metafieldsSetResponse,
+        },
+        downstreamRead: postSetRead,
+      },
+      null,
+      2,
+    )}\n`,
+    'utf8',
+  );
+
+  const deleteCaptureFile = 'metafields-delete-parity.json';
+  await writeFile(
+    path.join(outputDir, deleteCaptureFile),
+    `${JSON.stringify(
+      {
+        mutation: {
+          variables: metafieldsDeleteVariables,
+          response: metafieldsDeleteResponse,
+        },
+        downstreamRead: postDeleteRead,
+      },
+      null,
+      2,
+    )}\n`,
+    'utf8',
+  );
+
+  console.log(
+    JSON.stringify(
+      {
+        ok: true,
+        outputDir,
+        files: [setCaptureFile, deleteCaptureFile],
+        productId: createdProductId,
+      },
+      null,
+      2,
+    ),
+  );
+} catch (error) {
+  const blocker = parseWriteScopeBlocker(error?.result ?? null);
+  if (blocker) {
+    await writeScopeBlocker(blocker);
+    console.log(
+      JSON.stringify(
+        {
+          ok: false,
+          blocked: true,
+          blockerPath,
+          blocker,
+        },
+        null,
+        2,
+      ),
+    );
+    process.exit(1);
+  }
+
+  throw error;
+} finally {
+  if (createdProductId) {
+    try {
+      await runGraphql(deleteProductMutation, { input: { id: createdProductId } });
+    } catch (cleanupError) {
+      console.warn(
+        JSON.stringify(
+          {
+            ok: false,
+            cleanup: 'productDelete',
+            productId: createdProductId,
+            error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+          },
+          null,
+          2,
+        ),
+      );
+    }
+  }
+}

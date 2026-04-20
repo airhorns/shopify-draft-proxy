@@ -2065,6 +2065,123 @@ describe('product query shapes', () => {
     });
   });
 
+  it('treats later AND filters as binding tighter than ungrouped OR terms', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      return new Response(
+        JSON.stringify({
+          data: {
+            productsCount: {
+              count: 3,
+              precision: 'EXACT',
+            },
+            products: {
+              edges: [
+                {
+                  node: {
+                    id: 'gid://shopify/Product/8397256720617',
+                    legacyResourceId: '8397256720617',
+                    title: 'CONVERSE | TODDLER CHUCK TAYLOR ALL STAR AXEL MID',
+                    handle: 'converse-toddler-chuck-taylor-all-star-axel-mid',
+                    status: 'ACTIVE',
+                    vendor: 'CONVERSE',
+                    productType: 'SHOES',
+                    tags: ['converse', 'egnition-sample-data', 'kid'],
+                    totalInventory: 45,
+                    tracksInventory: true,
+                    createdAt: '2024-03-14T01:53:02Z',
+                    updatedAt: '2026-03-25T19:35:13Z',
+                  },
+                },
+                {
+                  node: {
+                    id: 'gid://shopify/Product/8397257375977',
+                    legacyResourceId: '8397257375977',
+                    title: 'NIKE | SWOOSH PRO FLAT PEAK CAP',
+                    handle: 'nike-swoosh-pro-flat-peak-cap',
+                    status: 'ACTIVE',
+                    vendor: 'NIKE',
+                    productType: 'ACCESSORIES',
+                    tags: ['cap', 'egnition-sample-data', 'nike'],
+                    totalInventory: 20,
+                    tracksInventory: true,
+                    createdAt: '2024-03-14T01:53:33Z',
+                    updatedAt: '2026-03-25T16:49:35Z',
+                  },
+                },
+                {
+                  node: {
+                    id: 'gid://shopify/Product/8397257081065',
+                    legacyResourceId: '8397257081065',
+                    title: 'VANS APPAREL AND ACCESSORIES | CLASSIC SUPER NO SHOW SOCKS 3 PACK WHITE',
+                    handle: 'vans-apparel-and-accessories-classic-super-no-show-socks-3-pack-white',
+                    status: 'ACTIVE',
+                    vendor: 'VANS',
+                    productType: 'ACCESSORIES',
+                    tags: ['egnition-sample-data', 'unisex', 'vans'],
+                    totalInventory: 11,
+                    tracksInventory: true,
+                    createdAt: '2024-03-14T01:53:17Z',
+                    updatedAt: '2026-03-25T14:27:56Z',
+                  },
+                },
+              ],
+              pageInfo: {
+                hasNextPage: false,
+                endCursor: 'cursor:gid://shopify/Product/8397257081065',
+              },
+            },
+          },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    });
+
+    const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
+
+    await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation { productUpdate(product: { id: "gid://shopify/Product/8397257375977", title: "NIKE | SWOOSH PRO FLAT PEAK CAP" }) { product { id title } userErrors { field message } } }',
+      });
+
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query UngroupedOrPrecedence($query: String!) { matches: products(first: 10, query: $query, sortKey: UPDATED_AT, reverse: true) { edges { node { id title vendor productType tags } } } count: productsCount(query: $query) { count precision } }',
+        variables: {
+          query: 'vendor:CONVERSE OR tag:cap vendor:NIKE',
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.matches.edges).toEqual([
+      {
+        node: {
+          id: 'gid://shopify/Product/8397256720617',
+          title: 'CONVERSE | TODDLER CHUCK TAYLOR ALL STAR AXEL MID',
+          vendor: 'CONVERSE',
+          productType: 'SHOES',
+          tags: ['converse', 'egnition-sample-data', 'kid'],
+        },
+      },
+      {
+        node: {
+          id: 'gid://shopify/Product/8397257375977',
+          title: 'NIKE | SWOOSH PRO FLAT PEAK CAP',
+          vendor: 'NIKE',
+          productType: 'ACCESSORIES',
+          tags: ['cap', 'egnition-sample-data', 'nike'],
+        },
+      },
+    ]);
+    expect(response.body.data.count).toEqual({
+      count: 2,
+      precision: 'EXACT',
+    });
+  });
+
   it('supports vendor and product-type sort keys after overlay filtering', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       return new Response(
@@ -2170,17 +2287,18 @@ describe('product query shapes', () => {
     ]);
   });
 
-  it('sorts snapshot products by handle and status', async () => {
+  it('sorts snapshot products by handle, status, publishedAt, and id', async () => {
     store.upsertBaseProducts([
       {
-        id: 'gid://shopify/Product/10',
-        legacyResourceId: '10',
+        id: 'gid://shopify/Product/20',
+        legacyResourceId: '20',
         title: 'Zulu Jacket',
         handle: 'zulu-jacket',
         status: 'ACTIVE',
         publicationIds: [],
         createdAt: '2024-01-01T00:00:00.000Z',
         updatedAt: '2024-01-02T00:00:00.000Z',
+        publishedAt: '2024-03-01T00:00:00.000Z',
         vendor: 'NIKE',
         productType: 'OUTERWEAR',
         tags: ['outerwear'],
@@ -2201,6 +2319,7 @@ describe('product query shapes', () => {
         publicationIds: [],
         createdAt: '2024-01-03T00:00:00.000Z',
         updatedAt: '2024-01-04T00:00:00.000Z',
+        publishedAt: null,
         vendor: 'ADIDAS',
         productType: 'OUTERWEAR',
         tags: ['outerwear'],
@@ -2213,14 +2332,15 @@ describe('product query shapes', () => {
         category: null,
       },
       {
-        id: 'gid://shopify/Product/12',
-        legacyResourceId: '12',
+        id: 'gid://shopify/Product/5',
+        legacyResourceId: '5',
         title: 'Middle Jacket',
         handle: 'middle-jacket',
         status: 'ARCHIVED',
         publicationIds: [],
         createdAt: '2024-01-05T00:00:00.000Z',
         updatedAt: '2024-01-06T00:00:00.000Z',
+        publishedAt: '2024-02-01T00:00:00.000Z',
         vendor: 'PUMA',
         productType: 'OUTERWEAR',
         tags: ['outerwear'],
@@ -2246,8 +2366,8 @@ describe('product query shapes', () => {
     expect(handleResponse.status).toBe(200);
     expect(handleResponse.body.data.products.edges.map((edge: { node: { id: string } }) => edge.node.id)).toEqual([
       'gid://shopify/Product/11',
-      'gid://shopify/Product/12',
-      'gid://shopify/Product/10',
+      'gid://shopify/Product/5',
+      'gid://shopify/Product/20',
     ]);
 
     const statusResponse = await request(app)
@@ -2260,14 +2380,222 @@ describe('product query shapes', () => {
     expect(statusResponse.status).toBe(200);
     expect(statusResponse.body.data.products.edges.map((edge: { node: { id: string } }) => edge.node.id)).toEqual([
       'gid://shopify/Product/11',
-      'gid://shopify/Product/12',
-      'gid://shopify/Product/10',
+      'gid://shopify/Product/5',
+      'gid://shopify/Product/20',
     ]);
     expect(statusResponse.body.data.products.edges.map((edge: { node: { status: string } }) => edge.node.status)).toEqual([
       'DRAFT',
       'ARCHIVED',
       'ACTIVE',
     ]);
+
+    const publishedAtResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query { products(first: 10, sortKey: PUBLISHED_AT, reverse: true) { edges { node { id legacyResourceId publishedAt } } pageInfo { hasNextPage hasPreviousPage } } }',
+      });
+
+    expect(publishedAtResponse.status).toBe(200);
+    expect(publishedAtResponse.body.data.products.edges.map((edge: { node: { id: string } }) => edge.node.id)).toEqual([
+      'gid://shopify/Product/20',
+      'gid://shopify/Product/5',
+      'gid://shopify/Product/11',
+    ]);
+    expect(
+      publishedAtResponse.body.data.products.edges.map((edge: { node: { publishedAt: string | null } }) => edge.node.publishedAt),
+    ).toEqual(['2024-03-01T00:00:00.000Z', '2024-02-01T00:00:00.000Z', null]);
+
+    const idResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query { products(first: 10, sortKey: ID, reverse: true) { edges { node { id legacyResourceId } } pageInfo { hasNextPage hasPreviousPage } } }',
+      });
+
+    expect(idResponse.status).toBe(200);
+    expect(idResponse.body.data.products.edges.map((edge: { node: { id: string } }) => edge.node.id)).toEqual([
+      'gid://shopify/Product/20',
+      'gid://shopify/Product/11',
+      'gid://shopify/Product/5',
+    ]);
+    expect(
+      idResponse.body.data.products.edges.map((edge: { node: { legacyResourceId: string } }) => edge.node.legacyResourceId),
+    ).toEqual(['20', '11', '5']);
+  });
+
+  it('replays Shopify relevance ordering and opaque cursors during staged overlay reads', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementationOnce(async () =>
+        new Response(
+          JSON.stringify({
+            data: {
+              products: {
+                edges: [
+                  {
+                    cursor: 'eyJsYXN0X2lkIjo5MTAsImxhc3RfdmFsdWUiOiJzd29vc2gifQ==',
+                    node: {
+                      id: 'gid://shopify/Product/910',
+                      legacyResourceId: '910',
+                      title: 'SWOOSH Heritage Runner',
+                      handle: 'swoosh-heritage-runner',
+                      status: 'ACTIVE',
+                      vendor: 'NIKE',
+                      productType: 'SHOES',
+                      tags: ['egnition-sample-data'],
+                      totalInventory: 8,
+                      tracksInventory: true,
+                      createdAt: '2024-04-01T00:00:00.000Z',
+                      updatedAt: '2024-04-09T00:00:00.000Z',
+                    },
+                  },
+                  {
+                    cursor: 'eyJsYXN0X2lkIjo5MzAsImxhc3RfdmFsdWUiOiJzd29vc2gtdGVhbSJ9',
+                    node: {
+                      id: 'gid://shopify/Product/930',
+                      legacyResourceId: '930',
+                      title: 'SWOOSH Team Sock',
+                      handle: 'swoosh-team-sock',
+                      status: 'ACTIVE',
+                      vendor: 'NIKE',
+                      productType: 'ACCESSORIES',
+                      tags: ['egnition-sample-data'],
+                      totalInventory: 5,
+                      tracksInventory: true,
+                      createdAt: '2024-04-03T00:00:00.000Z',
+                      updatedAt: '2024-04-07T00:00:00.000Z',
+                    },
+                  },
+                  {
+                    cursor: 'eyJsYXN0X2lkIjo5MjAsImxhc3RfdmFsdWUiOiJzd29vc2gtY2FwIn0=',
+                    node: {
+                      id: 'gid://shopify/Product/920',
+                      legacyResourceId: '920',
+                      title: 'SWOOSH Cap',
+                      handle: 'swoosh-cap',
+                      status: 'ACTIVE',
+                      vendor: 'NIKE',
+                      productType: 'ACCESSORIES',
+                      tags: ['egnition-sample-data'],
+                      totalInventory: 2,
+                      tracksInventory: true,
+                      createdAt: '2024-04-02T00:00:00.000Z',
+                      updatedAt: '2024-04-08T00:00:00.000Z',
+                    },
+                  },
+                ],
+                pageInfo: {
+                  hasNextPage: true,
+                  hasPreviousPage: false,
+                  startCursor: 'eyJsYXN0X2lkIjo5MTAsImxhc3RfdmFsdWUiOiJzd29vc2gifQ==',
+                  endCursor: 'eyJsYXN0X2lkIjo5MjAsImxhc3RfdmFsdWUiOiJzd29vc2gtY2FwIn0=',
+                },
+              },
+            },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+      )
+      .mockImplementationOnce(async () =>
+        new Response(
+          JSON.stringify({
+            data: {
+              products: {
+                edges: [],
+                pageInfo: {
+                  hasNextPage: false,
+                  hasPreviousPage: false,
+                  startCursor: null,
+                  endCursor: null,
+                },
+              },
+            },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+      );
+
+    const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
+
+    await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: 'mutation { productCreate(product: { title: "Unrelated Draft" }) { product { id } userErrors { field message } } }',
+      });
+
+    const requestBody = {
+      query: `query ProductRelevanceReplay($query: String!) {
+        products(first: 3, query: $query, sortKey: RELEVANCE) {
+          edges {
+            cursor
+            node {
+              id
+              legacyResourceId
+              title
+              handle
+            }
+          }
+          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+        }
+      }`,
+      variables: { query: 'swoo* status:active' },
+    };
+
+    const firstResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send(requestBody);
+
+    expect(firstResponse.status).toBe(200);
+    expect(firstResponse.body).toEqual({
+      data: {
+        products: {
+          edges: [
+            {
+              cursor: 'eyJsYXN0X2lkIjo5MTAsImxhc3RfdmFsdWUiOiJzd29vc2gifQ==',
+              node: {
+                id: 'gid://shopify/Product/910',
+                legacyResourceId: '910',
+                title: 'SWOOSH Heritage Runner',
+                handle: 'swoosh-heritage-runner',
+              },
+            },
+            {
+              cursor: 'eyJsYXN0X2lkIjo5MzAsImxhc3RfdmFsdWUiOiJzd29vc2gtdGVhbSJ9',
+              node: {
+                id: 'gid://shopify/Product/930',
+                legacyResourceId: '930',
+                title: 'SWOOSH Team Sock',
+                handle: 'swoosh-team-sock',
+              },
+            },
+            {
+              cursor: 'eyJsYXN0X2lkIjo5MjAsImxhc3RfdmFsdWUiOiJzd29vc2gtY2FwIn0=',
+              node: {
+                id: 'gid://shopify/Product/920',
+                legacyResourceId: '920',
+                title: 'SWOOSH Cap',
+                handle: 'swoosh-cap',
+              },
+            },
+          ],
+          pageInfo: {
+            hasNextPage: true,
+            hasPreviousPage: false,
+            startCursor: 'eyJsYXN0X2lkIjo5MTAsImxhc3RfdmFsdWUiOiJzd29vc2gifQ==',
+            endCursor: 'eyJsYXN0X2lkIjo5MjAsImxhc3RfdmFsdWUiOiJzd29vc2gtY2FwIn0=',
+          },
+        },
+      },
+    });
+
+    const replayResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send(requestBody);
+
+    expect(replayResponse.status).toBe(200);
+    expect(replayResponse.body).toEqual(firstResponse.body);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
   it('filters products and counts by variant sku after live-hybrid detail hydration', async () => {
@@ -3074,6 +3402,332 @@ describe('product query shapes', () => {
           id: productId,
           title: 'Variant Detail Hat',
           handle: 'variant-detail-hat',
+        },
+      },
+    });
+  });
+
+  it('serializes inventory levels for staged top-level productVariant and inventoryItem reads', async () => {
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const createResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: 'mutation { productCreate(product: { title: "Inventory Level Hat" }) { product { id title } userErrors { field message } } }',
+      });
+
+    const productId = createResponse.body.data.productCreate.product.id as string;
+
+    const productResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: 'query ($id: ID!) { product(id: $id) { id variants(first: 10) { nodes { id } } } }',
+        variables: { id: productId },
+      });
+
+    const variantId = productResponse.body.data.product.variants.nodes[0].id as string;
+
+    const updateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation UpdateVariant($input: ProductVariantInput!) { productVariantUpdate(input: $input) { productVariant { id inventoryQuantity inventoryItem { id tracked } } userErrors { field message } } }',
+        variables: {
+          input: {
+            id: variantId,
+            inventoryQuantity: 7,
+            inventoryItem: {
+              tracked: true,
+            },
+          },
+        },
+      });
+
+    const inventoryItemId = updateResponse.body.data.productVariantUpdate.productVariant.inventoryItem.id as string;
+
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query VariantAndInventoryLevels($variantId: ID!, $inventoryItemId: ID!) { variant: productVariant(id: $variantId) { id inventoryQuantity inventoryItem { id tracked inventoryLevels(first: 5) { edges { cursor node { id location { id name } quantities(names: ["available", "on_hand", "incoming"]) { name quantity updatedAt } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } } stock: inventoryItem(id: $inventoryItemId) { id tracked inventoryLevels(first: 5) { edges { cursor node { id location { id name } quantities(names: ["available", "on_hand", "incoming"]) { name quantity updatedAt } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } variant { id inventoryQuantity product { id title handle } } } }',
+        variables: { variantId, inventoryItemId },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.variant.inventoryItem.inventoryLevels).toEqual({
+      edges: [
+        {
+          cursor: expect.stringMatching(/^cursor:/),
+          node: {
+            id: expect.stringMatching(/^gid:\/\/shopify\/InventoryLevel\//),
+            location: {
+              id: 'gid://shopify/Location/1',
+              name: null,
+            },
+            quantities: [
+              {
+                name: 'available',
+                quantity: 7,
+                updatedAt: expect.any(String),
+              },
+              {
+                name: 'on_hand',
+                quantity: 7,
+                updatedAt: null,
+              },
+              {
+                name: 'incoming',
+                quantity: 0,
+                updatedAt: null,
+              },
+            ],
+          },
+        },
+      ],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: expect.stringMatching(/^cursor:/),
+        endCursor: expect.stringMatching(/^cursor:/),
+      },
+    });
+    expect(response.body.data.stock).toEqual({
+      id: inventoryItemId,
+      tracked: true,
+      inventoryLevels: {
+        edges: [
+          {
+            cursor: expect.stringMatching(/^cursor:/),
+            node: {
+              id: expect.stringMatching(/^gid:\/\/shopify\/InventoryLevel\//),
+              location: {
+                id: 'gid://shopify/Location/1',
+                name: null,
+              },
+              quantities: [
+                {
+                  name: 'available',
+                  quantity: 7,
+                  updatedAt: expect.any(String),
+                },
+                {
+                  name: 'on_hand',
+                  quantity: 7,
+                  updatedAt: null,
+                },
+                {
+                  name: 'incoming',
+                  quantity: 0,
+                  updatedAt: null,
+                },
+              ],
+            },
+          },
+        ],
+        pageInfo: {
+          hasNextPage: false,
+          hasPreviousPage: false,
+          startCursor: expect.stringMatching(/^cursor:/),
+          endCursor: expect.stringMatching(/^cursor:/),
+        },
+      },
+      variant: {
+        id: variantId,
+        inventoryQuantity: 7,
+        product: {
+          id: productId,
+          title: 'Inventory Level Hat',
+          handle: 'inventory-level-hat',
+        },
+      },
+    });
+  });
+
+  it('replays hydrated inventory levels on top-level productVariant and inventoryItem reads in live-hybrid mode', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
+      const body = typeof init?.body === 'string' ? JSON.parse(init.body) as { query?: string } : {};
+      const query = body.query ?? '';
+
+      if (query.includes('product(id:')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              product: {
+                id: 'gid://shopify/Product/700',
+                title: 'Hydrated Inventory Level Hat',
+                handle: 'hydrated-inventory-level-hat',
+                status: 'ACTIVE',
+                createdAt: '2024-01-02T00:00:00.000Z',
+                updatedAt: '2024-01-03T00:00:00.000Z',
+                variants: {
+                  nodes: [
+                    {
+                      id: 'gid://shopify/ProductVariant/1700',
+                      title: 'Default Title',
+                      sku: 'INV-LVL-1',
+                      barcode: null,
+                      price: '24.00',
+                      compareAtPrice: null,
+                      taxable: true,
+                      inventoryPolicy: 'DENY',
+                      inventoryQuantity: 5,
+                      selectedOptions: [
+                        { name: 'Title', value: 'Default Title' },
+                      ],
+                      inventoryItem: {
+                        id: 'gid://shopify/InventoryItem/1701',
+                        tracked: true,
+                        requiresShipping: true,
+                        measurement: {
+                          weight: {
+                            unit: 'KILOGRAMS',
+                            value: 0.5,
+                          },
+                        },
+                        countryCodeOfOrigin: 'US',
+                        provinceCodeOfOrigin: 'CA',
+                        harmonizedSystemCode: '650500',
+                        inventoryLevels: {
+                          edges: [
+                            {
+                              cursor: 'opaque-live-level-cursor',
+                              node: {
+                                id: 'gid://shopify/InventoryLevel/1701?inventory_item_id=1701',
+                                location: {
+                                  id: 'gid://shopify/Location/68509171945',
+                                  name: '103 ossington',
+                                },
+                                quantities: [
+                                  { name: 'available', quantity: 5, updatedAt: '2026-04-17T03:58:00Z' },
+                                  { name: 'on_hand', quantity: 5, updatedAt: null },
+                                  { name: 'incoming', quantity: 0, updatedAt: null },
+                                ],
+                              },
+                            },
+                          ],
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+
+      return new Response(JSON.stringify({ data: {} }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+
+    const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
+
+    await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query Hydrate($id: ID!) { product(id: $id) { id title handle status variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping measurement { weight { unit value } } countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode inventoryLevels(first: 5) { edges { cursor node { id location { id name } quantities(names: ["available", "on_hand", "incoming"]) { name quantity updatedAt } } } } } } } } }',
+        variables: { id: 'gid://shopify/Product/700' },
+      });
+
+    await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation { productUpdate(product: { id: "gid://shopify/Product/700", title: "Hydrated Inventory Level Hat Renamed" }) { product { id title } userErrors { field message } } }',
+      });
+
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query VariantAndInventoryLevels($variantId: ID!, $inventoryItemId: ID!) { variant: productVariant(id: $variantId) { id title inventoryQuantity inventoryItem { id tracked inventoryLevels(first: 5) { edges { cursor node { id location { id name } quantities(names: ["available", "on_hand", "incoming"]) { name quantity updatedAt } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } product { id title handle status } } stock: inventoryItem(id: $inventoryItemId) { id tracked inventoryLevels(first: 5) { edges { cursor node { id location { id name } quantities(names: ["available", "on_hand", "incoming"]) { name quantity updatedAt } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } variant { id inventoryQuantity product { id title handle status } } } }',
+        variables: {
+          variantId: 'gid://shopify/ProductVariant/1700',
+          inventoryItemId: 'gid://shopify/InventoryItem/1701',
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.variant).toEqual({
+      id: 'gid://shopify/ProductVariant/1700',
+      title: 'Default Title',
+      inventoryQuantity: 5,
+      inventoryItem: {
+        id: 'gid://shopify/InventoryItem/1701',
+        tracked: true,
+        inventoryLevels: {
+          edges: [
+            {
+              cursor: 'opaque-live-level-cursor',
+              node: {
+                id: 'gid://shopify/InventoryLevel/1701?inventory_item_id=1701',
+                location: {
+                  id: 'gid://shopify/Location/68509171945',
+                  name: '103 ossington',
+                },
+                quantities: [
+                  { name: 'available', quantity: 5, updatedAt: '2026-04-17T03:58:00Z' },
+                  { name: 'on_hand', quantity: 5, updatedAt: null },
+                  { name: 'incoming', quantity: 0, updatedAt: null },
+                ],
+              },
+            },
+          ],
+          pageInfo: {
+            hasNextPage: false,
+            hasPreviousPage: false,
+            startCursor: 'cursor:opaque-live-level-cursor',
+            endCursor: 'cursor:opaque-live-level-cursor',
+          },
+        },
+      },
+      product: {
+        id: 'gid://shopify/Product/700',
+        title: 'Hydrated Inventory Level Hat Renamed',
+        handle: 'hydrated-inventory-level-hat',
+        status: 'ACTIVE',
+      },
+    });
+    expect(response.body.data.stock).toEqual({
+      id: 'gid://shopify/InventoryItem/1701',
+      tracked: true,
+      inventoryLevels: {
+        edges: [
+          {
+            cursor: 'opaque-live-level-cursor',
+            node: {
+              id: 'gid://shopify/InventoryLevel/1701?inventory_item_id=1701',
+              location: {
+                id: 'gid://shopify/Location/68509171945',
+                name: '103 ossington',
+              },
+              quantities: [
+                { name: 'available', quantity: 5, updatedAt: '2026-04-17T03:58:00Z' },
+                { name: 'on_hand', quantity: 5, updatedAt: null },
+                { name: 'incoming', quantity: 0, updatedAt: null },
+              ],
+            },
+          },
+        ],
+        pageInfo: {
+          hasNextPage: false,
+          hasPreviousPage: false,
+          startCursor: 'cursor:opaque-live-level-cursor',
+          endCursor: 'cursor:opaque-live-level-cursor',
+        },
+      },
+      variant: {
+        id: 'gid://shopify/ProductVariant/1700',
+        inventoryQuantity: 5,
+        product: {
+          id: 'gid://shopify/Product/700',
+          title: 'Hydrated Inventory Level Hat Renamed',
+          handle: 'hydrated-inventory-level-hat',
+          status: 'ACTIVE',
         },
       },
     });

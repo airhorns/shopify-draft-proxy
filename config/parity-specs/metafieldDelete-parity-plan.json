@@ -1,19 +1,21 @@
 {
-  "scenarioId": "metafieldDelete-parity-plan",
+  "scenarioId": "metafield-delete-compatibility-live-parity",
   "operationNames": [
     "metafieldDelete"
   ],
-  "scenarioStatus": "planned",
+  "scenarioStatus": "captured",
   "assertionKinds": [
     "payload-shape",
     "user-errors-parity",
     "downstream-read-parity"
   ],
-  "liveCaptureFiles": [],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/metafields-delete-parity.json"
+  ],
   "proxyRequest": {
-    "documentPath": null,
-    "variablesPath": null
+    "documentPath": "config/parity-requests/metafieldDelete-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/metafieldDelete-parity-plan.variables.json"
   },
-  "comparisonMode": "planned",
-  "notes": "Metafield mutation parity still needs dedicated live-write scenarios and payload assertions."
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "The singular `metafieldDelete` path is now treated as a compatibility alias for Shopify's current plural `metafieldsDelete` root. The live capture settles the delete semantics while the staged compatibility shim preserves the singular payload shape (`deletedId`)."
 }

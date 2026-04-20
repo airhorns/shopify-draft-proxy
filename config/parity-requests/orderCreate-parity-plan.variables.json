@@ -1,0 +1,84 @@
+{
+  "order": {
+    "email": "hermes-order-parity-plan-20260418@example.com",
+    "note": "order create parity plan",
+    "tags": [
+      "parity-plan",
+      "order-create"
+    ],
+    "test": true,
+    "customAttributes": [
+      {
+        "key": "source",
+        "value": "hermes-parity-plan"
+      },
+      {
+        "key": "channel",
+        "value": "cron-orders-bootstrap"
+      }
+    ],
+    "billingAddress": {
+      "firstName": "Hermes",
+      "lastName": "Operator",
+      "address1": "123 Queen St W",
+      "city": "Toronto",
+      "provinceCode": "ON",
+      "countryCode": "CA",
+      "zip": "M5H 2M9",
+      "phone": "+14165550101"
+    },
+    "shippingAddress": {
+      "firstName": "Hermes",
+      "lastName": "Operator",
+      "address1": "123 Queen St W",
+      "city": "Toronto",
+      "provinceCode": "ON",
+      "countryCode": "CA",
+      "zip": "M5H 2M9",
+      "phone": "+14165550101"
+    },
+    "shippingLines": [
+      {
+        "title": "Standard",
+        "code": "STANDARD",
+        "source": "hermes-parity-plan",
+        "priceSet": {
+          "shopMoney": {
+            "amount": "5.00",
+            "currencyCode": "CAD"
+          }
+        }
+      }
+    ],
+    "lineItems": [
+      {
+        "title": "Hermes custom order line item",
+        "quantity": 1,
+        "priceSet": {
+          "shopMoney": {
+            "amount": "10.00",
+            "currencyCode": "CAD"
+          }
+        },
+        "requiresShipping": false,
+        "taxable": false,
+        "sku": "hermes-order-parity-plan-20260418"
+      }
+    ],
+    "transactions": [
+      {
+        "kind": "SALE",
+        "status": "SUCCESS",
+        "gateway": "manual",
+        "test": true,
+        "amountSet": {
+          "shopMoney": {
+            "amount": "15.00",
+            "currencyCode": "CAD"
+          }
+        }
+      }
+    ]
+  },
+  "options": null
+}

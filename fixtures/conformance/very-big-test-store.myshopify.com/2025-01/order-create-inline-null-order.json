@@ -1,0 +1,29 @@
+{
+  "query": "mutation InlineNullOrderArg {\n    orderCreate(order: null) {\n      order { id }\n      userErrors { field message }\n    }\n  }",
+  "variables": {},
+  "mutation": {
+    "response": {
+      "errors": [
+        {
+          "message": "Argument 'order' on Field 'orderCreate' has an invalid value (null). Expected type 'OrderCreateOrderInput!'.",
+          "locations": [
+            {
+              "line": 3,
+              "column": 5
+            }
+          ],
+          "path": [
+            "mutation InlineNullOrderArg",
+            "orderCreate",
+            "order"
+          ],
+          "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "Field",
+            "argumentName": "order"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "scenarioId": "order-create-live-parity",
+  "operationNames": [
+    "orderCreate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "selected-fields",
+    "downstream-read-parity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-create-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orderCreate-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/orderCreate-parity-plan.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "The first merchant-realistic direct-order creation slice is now live-captured on this host and aligned with local staging: the request includes custom line items, shipping lines, billing + shipping addresses, and order customAttributes, while the current capture compares the mutation payload plus immediate `order(id:)` read-after-write visibility without overclaiming broader catalog/count parity."
+}

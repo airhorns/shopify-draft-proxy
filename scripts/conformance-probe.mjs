@@ -41,7 +41,7 @@ const query = `#graphql
 `;
 
 function buildAdminAuthHeaders(token) {
-  if (token.startsWith('shpat_')) {
+  if (/^shp[a-z]+_/.test(token)) {
     return {
       'X-Shopify-Access-Token': token,
     };

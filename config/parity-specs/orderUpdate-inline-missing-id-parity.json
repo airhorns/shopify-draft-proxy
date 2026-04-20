@@ -1,0 +1,20 @@
+{
+  "scenarioId": "order-update-inline-missing-id-argument-error",
+  "operationNames": [
+    "orderUpdate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-update-inline-missing-id.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orderUpdate-inline-missing-id-parity.graphql",
+    "variablesPath": "config/parity-requests/orderUpdate-inline-missing-id-parity.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured `orderUpdate` inline missing-id GraphQL validation slice: Shopify fails the inline literal input with `missingRequiredInputObjectAttribute`, and snapshot-mode local parity now mirrors that branch without hitting upstream."
+}

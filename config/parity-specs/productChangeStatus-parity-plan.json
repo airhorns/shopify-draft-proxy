@@ -17,5 +17,5 @@
     "variablesPath": "config/parity-requests/productChangeStatus-parity-plan.variables.json"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live capture recorded for `productChangeStatus`, but the immediate downstream `product(id:)` read returned a later `updatedAt` than the mutation payload, so promotion still requires timestamp-alignment decisions."
+  "notes": "Live capture recorded for `productChangeStatus`, and the staged runtime now keeps the mutation payload and immediate downstream status-filter reads aligned closely enough to promote the operation as covered."
 }

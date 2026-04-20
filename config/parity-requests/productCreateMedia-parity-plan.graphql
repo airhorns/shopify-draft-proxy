@@ -1,0 +1,45 @@
+mutation ProductCreateMediaParityPlan($productId: ID!, $media: [CreateMediaInput!]!) {
+  productCreateMedia(productId: $productId, media: $media) {
+    media {
+      id
+      alt
+      mediaContentType
+      status
+      preview {
+        image {
+          url
+        }
+      }
+      ... on MediaImage {
+        image {
+          url
+        }
+      }
+    }
+    mediaUserErrors {
+      field
+      message
+    }
+    product {
+      id
+      media(first: 10) {
+        nodes {
+          id
+          alt
+          mediaContentType
+          status
+          preview {
+            image {
+              url
+            }
+          }
+          ... on MediaImage {
+            image {
+              url
+            }
+          }
+        }
+      }
+    }
+  }
+}

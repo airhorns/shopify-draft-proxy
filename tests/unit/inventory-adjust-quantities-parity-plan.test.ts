@@ -33,10 +33,13 @@ describe('inventoryAdjustQuantities parity plan scaffold', () => {
     expect(document).toContain('mutation InventoryAdjustQuantitiesParityPlan($input: InventoryAdjustQuantitiesInput!)');
     expect(document).toContain('inventoryAdjustQuantities(input: $input)');
     expect(document).toContain('inventoryAdjustmentGroup {');
+    expect(document).toContain('id');
     expect(document).toContain('changes {');
     expect(document).toContain('quantityAfterChange');
+    expect(document).toContain('ledgerDocumentUri');
     expect(document).toContain('item {');
     expect(document).toContain('location {');
+    expect(document).toContain('name');
     expect(document).toContain('userErrors {');
 
     expect(variables.input).toMatchObject({

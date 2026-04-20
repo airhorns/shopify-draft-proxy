@@ -1,0 +1,15 @@
+mutation OrderUpdateInlineNullIdParityPlan {
+  orderUpdate(input: { id: null, note: "order update inline null-id parity plan", tags: ["parity-plan", "order-update", "inline-null-id"] }) {
+    order {
+      id
+      name
+      updatedAt
+      note
+      tags
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

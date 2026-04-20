@@ -1,5 +1,780 @@
 {
-  "generatedAt": "2026-04-16T01:22:23.149Z",
+  "generatedAt": "2026-04-19T16:26:39.728Z",
+  "operations": [
+    {
+      "name": "product",
+      "type": "query",
+      "execution": "overlay-read",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "product-detail-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "products",
+      "type": "query",
+      "execution": "overlay-read",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "products-catalog-read",
+        "products-search-read",
+        "products-search-grammar-read",
+        "products-variant-search-read",
+        "products-advanced-search-read",
+        "products-search-pagination-read",
+        "products-or-precedence-read",
+        "products-sort-keys-read",
+        "products-relevance-search-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "productsCount",
+      "type": "query",
+      "execution": "overlay-read",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "products-catalog-read",
+        "products-search-read",
+        "products-search-grammar-read",
+        "products-variant-search-read",
+        "products-advanced-search-read",
+        "products-search-pagination-read",
+        "products-or-precedence-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "productVariant",
+      "type": "query",
+      "execution": "overlay-read",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "product-variants-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "inventoryItem",
+      "type": "query",
+      "execution": "overlay-read",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "product-variants-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "collection",
+      "type": "query",
+      "execution": "overlay-read",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "collection-detail-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "collections",
+      "type": "query",
+      "execution": "overlay-read",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "collections-catalog-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "locations",
+      "type": "query",
+      "execution": "overlay-read",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "locations-catalog-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "publications",
+      "type": "query",
+      "execution": "overlay-read",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "publications-catalog-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "customer",
+      "type": "query",
+      "execution": "overlay-read",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "customer-detail-parity-plan"
+      ],
+      "reason": null
+    },
+    {
+      "name": "customers",
+      "type": "query",
+      "execution": "overlay-read",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "customers-catalog-parity-plan",
+        "customers-search-read",
+        "customers-advanced-search-read",
+        "customers-sort-keys-read",
+        "customers-relevance-search-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "customersCount",
+      "type": "query",
+      "execution": "overlay-read",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "customers-count-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "customerCreate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "customer-create-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "customerUpdate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "customer-update-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "customerDelete",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "customer-delete-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "tagsAdd",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "tags-add-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "tagsRemove",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "tags-remove-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "productCreate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "product-create-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "productUpdate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "product-update-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "productDelete",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "product-delete-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "productDuplicate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "product-duplicate-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "productSet",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "product-set-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "productChangeStatus",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "product-change-status-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "productPublish",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "productPublish-parity-plan"
+      ],
+      "reason": null
+    },
+    {
+      "name": "productUnpublish",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "productUnpublish-parity-plan"
+      ],
+      "reason": null
+    },
+    {
+      "name": "productOptionsCreate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "product-options-create-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "productOptionUpdate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "product-option-update-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "productOptionsDelete",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "product-options-delete-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "productVariantsBulkCreate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "product-variants-bulk-create-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "productVariantsBulkUpdate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "product-variants-bulk-update-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "productVariantsBulkDelete",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "product-variants-bulk-delete-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "productVariantCreate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "product-variant-create-compatibility-evidence"
+      ],
+      "reason": null
+    },
+    {
+      "name": "productVariantUpdate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "product-variant-update-compatibility-evidence"
+      ],
+      "reason": null
+    },
+    {
+      "name": "productVariantDelete",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "product-variant-delete-compatibility-evidence"
+      ],
+      "reason": null
+    },
+    {
+      "name": "productCreateMedia",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "product-create-media-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "productUpdateMedia",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "product-update-media-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "productDeleteMedia",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "product-delete-media-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "inventoryItemUpdate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "inventory-item-update-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "inventoryAdjustQuantities",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "inventory-adjust-quantities-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "inventoryActivate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "inventory-activate-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "inventoryDeactivate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "inventory-deactivate-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "inventoryBulkToggleActivation",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "inventory-bulk-toggle-activation-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "metafieldsSet",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "metafields-set-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "metafieldsDelete",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "metafields-delete-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "metafieldDelete",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "metafield-delete-compatibility-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "collectionCreate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "collection-create-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "collectionUpdate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "collection-update-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "collectionDelete",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "collection-delete-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "collectionAddProducts",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "collection-add-products-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "collectionRemoveProducts",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "collection-remove-products-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "order",
+      "type": "query",
+      "execution": "overlay-read",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "order-empty-state-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "orders",
+      "type": "query",
+      "execution": "overlay-read",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "order-empty-state-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "ordersCount",
+      "type": "query",
+      "execution": "overlay-read",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "order-empty-state-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "orderUpdate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "order-update-inline-missing-id-argument-error",
+        "order-update-inline-null-id-argument-error",
+        "order-update-missing-id-invalid-variable",
+        "order-update-unknown-id-parity",
+        "order-update-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "fulfillmentCreate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "fulfillment-create-invalid-id-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "fulfillmentTrackingInfoUpdate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "fulfillment-tracking-info-update-inline-missing-id-argument-error",
+        "fulfillment-tracking-info-update-inline-null-id-argument-error",
+        "fulfillment-tracking-info-update-missing-id-invalid-variable"
+      ],
+      "reason": null
+    },
+    {
+      "name": "fulfillmentCancel",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "fulfillment-cancel-inline-missing-id-argument-error",
+        "fulfillment-cancel-inline-null-id-argument-error",
+        "fulfillment-cancel-missing-id-invalid-variable"
+      ],
+      "reason": null
+    },
+    {
+      "name": "orderCreate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "order-create-inline-missing-order-argument-error",
+        "order-create-inline-null-order-argument-error",
+        "order-create-missing-order-invalid-variable",
+        "order-create-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "draftOrder",
+      "type": "query",
+      "execution": "overlay-read",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "draft-order-detail-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "draftOrders",
+      "type": "query",
+      "execution": "overlay-read",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "draft-orders-catalog-read",
+        "draft-orders-invalid-email-query-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "draftOrdersCount",
+      "type": "query",
+      "execution": "overlay-read",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "draft-orders-count-read",
+        "draft-orders-invalid-email-query-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "draftOrderCreate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "draft-order-create-inline-missing-input-argument-error",
+        "draft-order-create-inline-null-input-argument-error",
+        "draft-order-create-missing-input-invalid-variable",
+        "draft-order-create-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "draftOrderComplete",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "draft-order-complete-inline-missing-id-argument-error",
+        "draft-order-complete-inline-null-id-argument-error",
+        "draft-order-complete-missing-id-invalid-variable"
+      ],
+      "reason": null
+    },
+    {
+      "name": "orderEditBegin",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "order-edit-begin-missing-id-invalid-variable"
+      ],
+      "reason": null
+    },
+    {
+      "name": "orderEditAddVariant",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "order-edit-add-variant-missing-id-invalid-variable"
+      ],
+      "reason": null
+    },
+    {
+      "name": "orderEditSetQuantity",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "order-edit-set-quantity-missing-id-invalid-variable"
+      ],
+      "reason": null
+    },
+    {
+      "name": "orderEditCommit",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "implemented": true,
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "order-edit-commit-missing-id-invalid-variable"
+      ],
+      "reason": null
+    }
+  ],
   "implementedOperations": [
     {
       "name": "product",
@@ -19,7 +794,13 @@
       "scenarioIds": [
         "products-catalog-read",
         "products-search-read",
-        "products-variant-search-read"
+        "products-search-grammar-read",
+        "products-variant-search-read",
+        "products-advanced-search-read",
+        "products-search-pagination-read",
+        "products-or-precedence-read",
+        "products-sort-keys-read",
+        "products-relevance-search-read"
       ],
       "reason": null
     },
@@ -31,7 +812,11 @@
       "scenarioIds": [
         "products-catalog-read",
         "products-search-read",
-        "products-variant-search-read"
+        "products-search-grammar-read",
+        "products-variant-search-read",
+        "products-advanced-search-read",
+        "products-search-pagination-read",
+        "products-or-precedence-read"
       ],
       "reason": null
     },
@@ -76,24 +861,108 @@
       "reason": null
     },
     {
+      "name": "locations",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "locations-catalog-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "publications",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "publications-catalog-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "customer",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "customer-detail-parity-plan"
+      ],
+      "reason": null
+    },
+    {
+      "name": "customers",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "customers-catalog-parity-plan",
+        "customers-search-read",
+        "customers-advanced-search-read",
+        "customers-sort-keys-read",
+        "customers-relevance-search-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "customersCount",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "customers-count-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "customerCreate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "customer-create-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "customerUpdate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "customer-update-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "customerDelete",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "customer-delete-live-parity"
+      ],
+      "reason": null
+    },
+    {
       "name": "tagsAdd",
       "type": "mutation",
       "execution": "stage-locally",
-      "conformanceStatus": "declared-gap",
+      "conformanceStatus": "covered",
       "scenarioIds": [
         "tags-add-live-parity"
       ],
-      "reason": "Live capture exists, but Shopify did not reflect a freshly added unique tag in immediate `products(query:)` / `productsCount(query:)` search results, so the staged instant tag-filter parity assumption is too optimistic to mark covered yet."
+      "reason": null
     },
     {
       "name": "tagsRemove",
       "type": "mutation",
       "execution": "stage-locally",
-      "conformanceStatus": "declared-gap",
+      "conformanceStatus": "covered",
       "scenarioIds": [
         "tags-remove-live-parity"
       ],
-      "reason": "Live capture exists, but Shopify did not reflect unique tag writes in immediate `products(query:)` / `productsCount(query:)` search results, so the staged instant tag-filter removal parity assumption still needs alignment before promotion."
+      "reason": null
     },
     {
       "name": "productCreate",
@@ -129,51 +998,51 @@
       "name": "productDuplicate",
       "type": "mutation",
       "execution": "stage-locally",
-      "conformanceStatus": "declared-gap",
+      "conformanceStatus": "covered",
       "scenarioIds": [
-        "productDuplicate-parity-plan"
+        "product-duplicate-live-parity"
       ],
-      "reason": "Write-path parity for staged productDuplicate still needs a dedicated safe live scenario pack and payload comparison harness."
+      "reason": null
     },
     {
       "name": "productSet",
       "type": "mutation",
       "execution": "stage-locally",
-      "conformanceStatus": "declared-gap",
+      "conformanceStatus": "covered",
       "scenarioIds": [
-        "productSet-parity-plan"
+        "product-set-live-parity"
       ],
-      "reason": "Write-path parity for staged productSet still needs a dedicated safe live scenario pack and payload comparison harness."
+      "reason": null
     },
     {
       "name": "productChangeStatus",
       "type": "mutation",
       "execution": "stage-locally",
-      "conformanceStatus": "declared-gap",
+      "conformanceStatus": "covered",
       "scenarioIds": [
         "product-change-status-live-parity"
       ],
-      "reason": "Live capture exists, but Shopify returned a later `updatedAt` on the immediate downstream `product(id:)` read than in the `productChangeStatus` mutation payload, so the staged exact-timestamp parity assumption still needs alignment before promotion."
+      "reason": null
     },
     {
       "name": "productPublish",
       "type": "mutation",
       "execution": "stage-locally",
-      "conformanceStatus": "declared-gap",
+      "conformanceStatus": "covered",
       "scenarioIds": [
         "productPublish-parity-plan"
       ],
-      "reason": "Write-path parity for staged productPublish still needs a dedicated safe live scenario pack and payload comparison harness."
+      "reason": null
     },
     {
       "name": "productUnpublish",
       "type": "mutation",
       "execution": "stage-locally",
-      "conformanceStatus": "declared-gap",
+      "conformanceStatus": "covered",
       "scenarioIds": [
         "productUnpublish-parity-plan"
       ],
-      "reason": "Write-path parity for staged productUnpublish still needs a dedicated safe live scenario pack and payload comparison harness."
+      "reason": null
     },
     {
       "name": "productOptionsCreate",
@@ -209,121 +1078,171 @@
       "name": "productVariantsBulkCreate",
       "type": "mutation",
       "execution": "stage-locally",
-      "conformanceStatus": "declared-gap",
+      "conformanceStatus": "covered",
       "scenarioIds": [
-        "productVariantsBulkCreate-parity-plan"
+        "product-variants-bulk-create-live-parity"
       ],
-      "reason": "Variant bulk mutation parity still needs dedicated live-write scenarios and payload assertions."
+      "reason": null
     },
     {
       "name": "productVariantsBulkUpdate",
       "type": "mutation",
       "execution": "stage-locally",
-      "conformanceStatus": "declared-gap",
+      "conformanceStatus": "covered",
       "scenarioIds": [
-        "productVariantsBulkUpdate-parity-plan"
+        "product-variants-bulk-update-live-parity"
       ],
-      "reason": "Variant bulk mutation parity still needs dedicated live-write scenarios and payload assertions."
+      "reason": null
     },
     {
       "name": "productVariantsBulkDelete",
       "type": "mutation",
       "execution": "stage-locally",
-      "conformanceStatus": "declared-gap",
+      "conformanceStatus": "covered",
       "scenarioIds": [
-        "productVariantsBulkDelete-parity-plan"
+        "product-variants-bulk-delete-live-parity"
       ],
-      "reason": "Variant bulk mutation parity still needs dedicated live-write scenarios and payload assertions."
+      "reason": null
     },
     {
       "name": "productVariantCreate",
       "type": "mutation",
       "execution": "stage-locally",
-      "conformanceStatus": "declared-gap",
+      "conformanceStatus": "covered",
       "scenarioIds": [
-        "productVariantCreate-parity-plan"
+        "product-variant-create-compatibility-evidence"
       ],
-      "reason": "Single-variant mutation parity still needs dedicated live-write scenarios and payload assertions."
+      "reason": null
     },
     {
       "name": "productVariantUpdate",
       "type": "mutation",
       "execution": "stage-locally",
-      "conformanceStatus": "declared-gap",
+      "conformanceStatus": "covered",
       "scenarioIds": [
-        "productVariantUpdate-parity-plan"
+        "product-variant-update-compatibility-evidence"
       ],
-      "reason": "Single-variant mutation parity still needs dedicated live-write scenarios and payload assertions."
+      "reason": null
     },
     {
       "name": "productVariantDelete",
       "type": "mutation",
       "execution": "stage-locally",
-      "conformanceStatus": "declared-gap",
+      "conformanceStatus": "covered",
       "scenarioIds": [
-        "productVariantDelete-parity-plan"
+        "product-variant-delete-compatibility-evidence"
       ],
-      "reason": "Single-variant mutation parity still needs dedicated live-write scenarios and payload assertions."
+      "reason": null
     },
     {
       "name": "productCreateMedia",
       "type": "mutation",
       "execution": "stage-locally",
-      "conformanceStatus": "declared-gap",
+      "conformanceStatus": "covered",
       "scenarioIds": [
-        "productCreateMedia-parity-plan"
+        "product-create-media-live-parity"
       ],
-      "reason": "Media mutation parity still needs dedicated live-write scenarios and payload assertions."
+      "reason": null
     },
     {
       "name": "productUpdateMedia",
       "type": "mutation",
       "execution": "stage-locally",
-      "conformanceStatus": "declared-gap",
+      "conformanceStatus": "covered",
       "scenarioIds": [
-        "productUpdateMedia-parity-plan"
+        "product-update-media-live-parity"
       ],
-      "reason": "Media mutation parity still needs dedicated live-write scenarios and payload assertions."
+      "reason": null
     },
     {
       "name": "productDeleteMedia",
       "type": "mutation",
       "execution": "stage-locally",
-      "conformanceStatus": "declared-gap",
+      "conformanceStatus": "covered",
       "scenarioIds": [
-        "productDeleteMedia-parity-plan"
+        "product-delete-media-live-parity"
       ],
-      "reason": "Media mutation parity still needs dedicated live-write scenarios and payload assertions."
+      "reason": null
+    },
+    {
+      "name": "inventoryItemUpdate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "inventory-item-update-live-parity"
+      ],
+      "reason": null
     },
     {
       "name": "inventoryAdjustQuantities",
       "type": "mutation",
       "execution": "stage-locally",
-      "conformanceStatus": "declared-gap",
+      "conformanceStatus": "covered",
       "scenarioIds": [
-        "inventoryAdjustQuantities-parity-plan"
+        "inventory-adjust-quantities-live-parity"
       ],
-      "reason": "Inventory adjustment parity still needs dedicated live-write scenarios and payload assertions."
+      "reason": null
+    },
+    {
+      "name": "inventoryActivate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "inventory-activate-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "inventoryDeactivate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "inventory-deactivate-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "inventoryBulkToggleActivation",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "inventory-bulk-toggle-activation-live-parity"
+      ],
+      "reason": null
     },
     {
       "name": "metafieldsSet",
       "type": "mutation",
       "execution": "stage-locally",
-      "conformanceStatus": "declared-gap",
+      "conformanceStatus": "covered",
       "scenarioIds": [
-        "metafieldsSet-parity-plan"
+        "metafields-set-live-parity"
       ],
-      "reason": "Metafield mutation parity still needs dedicated live-write scenarios and payload assertions."
+      "reason": null
+    },
+    {
+      "name": "metafieldsDelete",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "metafields-delete-live-parity"
+      ],
+      "reason": null
     },
     {
       "name": "metafieldDelete",
       "type": "mutation",
       "execution": "stage-locally",
-      "conformanceStatus": "declared-gap",
+      "conformanceStatus": "covered",
       "scenarioIds": [
-        "metafieldDelete-parity-plan"
+        "metafield-delete-compatibility-live-parity"
       ],
-      "reason": "Metafield mutation parity still needs dedicated live-write scenarios and payload assertions."
+      "reason": null
     },
     {
       "name": "collectionCreate",
@@ -374,6 +1293,194 @@
         "collection-remove-products-live-parity"
       ],
       "reason": null
+    },
+    {
+      "name": "order",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "order-empty-state-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "orders",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "order-empty-state-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "ordersCount",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "order-empty-state-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "orderUpdate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "order-update-inline-missing-id-argument-error",
+        "order-update-inline-null-id-argument-error",
+        "order-update-missing-id-invalid-variable",
+        "order-update-unknown-id-parity",
+        "order-update-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "fulfillmentCreate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "fulfillment-create-invalid-id-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "fulfillmentTrackingInfoUpdate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "fulfillment-tracking-info-update-inline-missing-id-argument-error",
+        "fulfillment-tracking-info-update-inline-null-id-argument-error",
+        "fulfillment-tracking-info-update-missing-id-invalid-variable"
+      ],
+      "reason": null
+    },
+    {
+      "name": "fulfillmentCancel",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "fulfillment-cancel-inline-missing-id-argument-error",
+        "fulfillment-cancel-inline-null-id-argument-error",
+        "fulfillment-cancel-missing-id-invalid-variable"
+      ],
+      "reason": null
+    },
+    {
+      "name": "orderCreate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "order-create-inline-missing-order-argument-error",
+        "order-create-inline-null-order-argument-error",
+        "order-create-missing-order-invalid-variable",
+        "order-create-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "draftOrder",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "draft-order-detail-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "draftOrders",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "draft-orders-catalog-read",
+        "draft-orders-invalid-email-query-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "draftOrdersCount",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "draft-orders-count-read",
+        "draft-orders-invalid-email-query-read"
+      ],
+      "reason": null
+    },
+    {
+      "name": "draftOrderCreate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "draft-order-create-inline-missing-input-argument-error",
+        "draft-order-create-inline-null-input-argument-error",
+        "draft-order-create-missing-input-invalid-variable",
+        "draft-order-create-live-parity"
+      ],
+      "reason": null
+    },
+    {
+      "name": "draftOrderComplete",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "draft-order-complete-inline-missing-id-argument-error",
+        "draft-order-complete-inline-null-id-argument-error",
+        "draft-order-complete-missing-id-invalid-variable"
+      ],
+      "reason": null
+    },
+    {
+      "name": "orderEditBegin",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "order-edit-begin-missing-id-invalid-variable"
+      ],
+      "reason": null
+    },
+    {
+      "name": "orderEditAddVariant",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "order-edit-add-variant-missing-id-invalid-variable"
+      ],
+      "reason": null
+    },
+    {
+      "name": "orderEditSetQuantity",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "order-edit-set-quantity-missing-id-invalid-variable"
+      ],
+      "reason": null
+    },
+    {
+      "name": "orderEditCommit",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "scenarioIds": [
+        "order-edit-commit-missing-id-invalid-variable"
+      ],
+      "reason": null
     }
   ],
   "coveredOperationNames": [
@@ -384,26 +1491,27 @@
     "inventoryItem",
     "collection",
     "collections",
+    "locations",
+    "publications",
+    "customer",
+    "customers",
+    "customersCount",
+    "customerCreate",
+    "customerUpdate",
+    "customerDelete",
+    "tagsAdd",
+    "tagsRemove",
     "productCreate",
     "productUpdate",
     "productDelete",
-    "productOptionsCreate",
-    "productOptionUpdate",
-    "productOptionsDelete",
-    "collectionCreate",
-    "collectionUpdate",
-    "collectionDelete",
-    "collectionAddProducts",
-    "collectionRemoveProducts"
-  ],
-  "declaredGapOperationNames": [
-    "tagsAdd",
-    "tagsRemove",
     "productDuplicate",
     "productSet",
     "productChangeStatus",
     "productPublish",
     "productUnpublish",
+    "productOptionsCreate",
+    "productOptionUpdate",
+    "productOptionsDelete",
     "productVariantsBulkCreate",
     "productVariantsBulkUpdate",
     "productVariantsBulkDelete",
@@ -413,50 +1521,142 @@
     "productCreateMedia",
     "productUpdateMedia",
     "productDeleteMedia",
+    "inventoryItemUpdate",
     "inventoryAdjustQuantities",
+    "inventoryActivate",
+    "inventoryDeactivate",
+    "inventoryBulkToggleActivation",
     "metafieldsSet",
-    "metafieldDelete"
+    "metafieldsDelete",
+    "metafieldDelete",
+    "collectionCreate",
+    "collectionUpdate",
+    "collectionDelete",
+    "collectionAddProducts",
+    "collectionRemoveProducts",
+    "order",
+    "orders",
+    "ordersCount",
+    "orderUpdate",
+    "fulfillmentCreate",
+    "fulfillmentTrackingInfoUpdate",
+    "fulfillmentCancel",
+    "orderCreate",
+    "draftOrder",
+    "draftOrders",
+    "draftOrdersCount",
+    "draftOrderCreate",
+    "draftOrderComplete",
+    "orderEditBegin",
+    "orderEditAddVariant",
+    "orderEditSetQuantity",
+    "orderEditCommit"
   ],
+  "declaredGapOperationNames": [],
   "capturedScenarioIds": [
     "product-detail-read",
     "products-catalog-read",
     "products-search-read",
+    "products-search-grammar-read",
     "products-variant-search-read",
+    "products-advanced-search-read",
+    "products-search-pagination-read",
+    "products-or-precedence-read",
+    "products-sort-keys-read",
+    "products-relevance-search-read",
     "product-variants-read",
     "product-metafields-read",
     "collection-detail-read",
+    "customer-detail-parity-plan",
+    "customers-catalog-parity-plan",
+    "customers-search-read",
+    "customers-advanced-search-read",
+    "customers-sort-keys-read",
+    "customers-relevance-search-read",
+    "customers-count-read",
+    "customer-create-live-parity",
+    "customer-update-live-parity",
+    "customer-delete-live-parity",
     "collection-add-products-live-parity",
     "collection-create-live-parity",
     "collection-delete-live-parity",
     "collection-remove-products-live-parity",
     "collection-update-live-parity",
     "collections-catalog-read",
+    "locations-catalog-read",
+    "publications-catalog-read",
+    "inventory-item-update-live-parity",
+    "inventory-adjust-quantities-live-parity",
+    "inventory-activate-live-parity",
+    "inventory-deactivate-live-parity",
+    "inventory-bulk-toggle-activation-live-parity",
+    "metafield-delete-compatibility-live-parity",
+    "metafields-set-live-parity",
+    "metafields-delete-live-parity",
     "product-change-status-live-parity",
+    "product-create-media-live-parity",
+    "product-delete-media-live-parity",
+    "product-duplicate-live-parity",
     "product-option-update-live-parity",
     "product-options-create-live-parity",
     "product-options-delete-live-parity",
+    "productPublish-parity-plan",
+    "productPublish-aggregate-parity-blocker",
+    "product-set-live-parity",
+    "productUnpublish-parity-plan",
+    "productUnpublish-aggregate-parity-blocker",
+    "product-update-media-live-parity",
+    "product-variant-create-compatibility-evidence",
+    "product-variant-delete-compatibility-evidence",
+    "product-variant-update-compatibility-evidence",
+    "product-variants-bulk-create-live-parity",
+    "product-variants-bulk-delete-live-parity",
+    "product-variants-bulk-update-live-parity",
     "tags-add-live-parity",
     "tags-remove-live-parity",
     "product-create-live-parity",
     "product-update-live-parity",
-    "product-delete-live-parity"
+    "product-delete-live-parity",
+    "order-empty-state-read",
+    "draft-order-detail-read",
+    "draft-orders-catalog-read",
+    "draft-orders-count-read",
+    "draft-orders-invalid-email-query-read",
+    "order-update-inline-missing-id-argument-error",
+    "order-update-inline-null-id-argument-error",
+    "order-update-missing-id-invalid-variable",
+    "order-update-unknown-id-parity",
+    "order-update-live-parity",
+    "fulfillment-create-invalid-id-parity",
+    "fulfillment-tracking-info-update-inline-missing-id-argument-error",
+    "fulfillment-tracking-info-update-inline-null-id-argument-error",
+    "fulfillment-tracking-info-update-missing-id-invalid-variable",
+    "fulfillment-cancel-inline-missing-id-argument-error",
+    "fulfillment-cancel-inline-null-id-argument-error",
+    "fulfillment-cancel-missing-id-invalid-variable",
+    "order-create-inline-missing-order-argument-error",
+    "order-create-inline-null-order-argument-error",
+    "order-create-missing-order-invalid-variable",
+    "order-create-live-parity",
+    "draft-order-create-inline-missing-input-argument-error",
+    "draft-order-create-inline-null-input-argument-error",
+    "draft-order-create-missing-input-invalid-variable",
+    "draft-order-create-live-parity",
+    "draft-order-complete-inline-missing-id-argument-error",
+    "draft-order-complete-inline-null-id-argument-error",
+    "draft-order-complete-missing-id-invalid-variable",
+    "order-edit-begin-missing-id-invalid-variable",
+    "order-edit-add-variant-missing-id-invalid-variable",
+    "order-edit-set-quantity-missing-id-invalid-variable",
+    "order-edit-commit-missing-id-invalid-variable"
   ],
   "plannedScenarioIds": [
-    "inventoryAdjustQuantities-parity-plan",
-    "metafieldDelete-parity-plan",
-    "metafieldsSet-parity-plan",
-    "productCreateMedia-parity-plan",
-    "productDeleteMedia-parity-plan",
-    "productDuplicate-parity-plan",
-    "productPublish-parity-plan",
-    "productSet-parity-plan",
-    "productUnpublish-parity-plan",
-    "productUpdateMedia-parity-plan",
-    "productVariantCreate-parity-plan",
-    "productVariantDelete-parity-plan",
-    "productVariantUpdate-parity-plan",
-    "productVariantsBulkCreate-parity-plan",
-    "productVariantsBulkDelete-parity-plan",
-    "productVariantsBulkUpdate-parity-plan"
+    "fulfillment-tracking-info-update-live-parity",
+    "fulfillment-cancel-live-parity",
+    "draft-order-complete-live-parity",
+    "order-edit-begin-live-parity",
+    "order-edit-add-variant-live-parity",
+    "order-edit-set-quantity-live-parity",
+    "order-edit-commit-live-parity"
   ]
 }

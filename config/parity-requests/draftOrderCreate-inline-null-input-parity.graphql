@@ -1,0 +1,11 @@
+mutation InlineNullDraftOrderInput {
+  draftOrderCreate(input: null) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

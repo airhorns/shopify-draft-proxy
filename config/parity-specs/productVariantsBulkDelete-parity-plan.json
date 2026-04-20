@@ -1,19 +1,21 @@
 {
-  "scenarioId": "productVariantsBulkDelete-parity-plan",
+  "scenarioId": "product-variants-bulk-delete-live-parity",
   "operationNames": [
     "productVariantsBulkDelete"
   ],
-  "scenarioStatus": "planned",
+  "scenarioStatus": "captured",
   "assertionKinds": [
     "payload-shape",
     "user-errors-parity",
     "downstream-read-parity"
   ],
-  "liveCaptureFiles": [],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-variants-bulk-delete-parity.json"
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/productVariantsBulkDelete-parity-plan.graphql",
     "variablesPath": "config/parity-requests/productVariantsBulkDelete-parity-plan.variables.json"
   },
-  "comparisonMode": "planned",
-  "notes": "Proxy request scaffold now mirrors the staged variant bulk-delete runtime slice (`productVariantsBulkDelete(productId:, variantsIds:)` returning product inventory aggregates, nested `product.variants`, and `userErrors`). Next step is to run the same safe variant-delete scenario against a dedicated dev-store write pack and compare the mutation payload together with immediate downstream variant/search/count parity."
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live capture now covers `productVariantsBulkDelete`, including immediate downstream `product.variants` removal parity while sku-filtered `products` / `productsCount` still remain empty on the just-written product surface."
 }

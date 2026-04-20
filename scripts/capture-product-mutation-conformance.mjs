@@ -26,7 +26,7 @@ const pendingDir = 'pending';
 const blockerPath = path.join(pendingDir, 'product-mutation-conformance-scope-blocker.md');
 
 function buildAdminAuthHeaders(token) {
-  if (token.startsWith('shpat_')) {
+  if (/^shp[a-z]+_/.test(token)) {
     return {
       'X-Shopify-Access-Token': token,
     };
@@ -150,6 +150,22 @@ const updateMutation = `#graphql
   }
 `;
 
+const updateMissingIdMutation = `#graphql
+  mutation ProductUpdateConformanceMissingId($product: ProductUpdateInput!) {
+    productUpdate(product: $product) {
+      product {
+        id
+        title
+        handle
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
 const deleteMutation = `#graphql
   mutation ProductDeleteConformance($input: ProductDeleteInput!) {
     productDelete(input: $input) {
@@ -198,6 +214,178 @@ function buildUpdateVariables(productId, runId) {
   };
 }
 
+function buildCreateValidationVariables() {
+  return {
+    product: {
+      title: '',
+    },
+  };
+}
+
+function buildUpdateValidationVariables() {
+  return {
+    product: {
+      id: 'gid://shopify/Product/999999999999999',
+      title: 'Ghost Product',
+    },
+  };
+}
+
+function buildUpdateMissingIdValidationVariables() {
+  return {
+    product: {
+      title: 'Ghost Product Missing Id',
+    },
+  };
+}
+
+function buildUpdateBlankTitleValidationVariables(productId) {
+  return {
+    product: {
+      id: productId,
+      title: '',
+    },
+  };
+}
+
+function buildDeleteValidationVariables() {
+  return {
+    input: {
+      id: 'gid://shopify/Product/999999999999999',
+    },
+  };
+}
+
+function buildDeleteMissingIdValidationVariables() {
+  return {
+    input: {},
+  };
+}
+
+const deleteInlineMissingIdMutation = `#graphql
+  mutation {
+    productDelete(input: {}) {
+      deletedProductId
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const deleteInlineNullIdMutation = `#graphql
+  mutation {
+    productDelete(input: { id: null }) {
+      deletedProductId
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+function buildCreateHandleCollisionVariables(handle, runId) {
+  return {
+    product: {
+      title: `Hermes Product Handle Collision ${runId}`,
+      handle,
+    },
+  };
+}
+
+function buildCreateHandleNormalizationVariables(runId) {
+  return {
+    product: {
+      title: `Normalized Handle Probe ${runId}`,
+      handle: '  Weird Handle / 100%  ',
+    },
+  };
+}
+
+function buildCreateWhitespaceHandleVariables(runId) {
+  return {
+    product: {
+      title: `Whitespace Handle Probe ${runId}`,
+      handle: '   ',
+    },
+  };
+}
+
+function buildCreatePunctuationHandleNormalizationVariables(runId) {
+  return {
+    product: {
+      title: `Hermes Product Handle Punctuation ${runId}`,
+      handle: '%%%',
+    },
+  };
+}
+
+function buildUpdateHandleCollisionSeedVariables(runId) {
+  return {
+    product: {
+      title: `Hermes Product Handle Challenger ${runId}`,
+      status: 'DRAFT',
+    },
+  };
+}
+
+function buildUpdateHandleNormalizationVariables(productId) {
+  return {
+    product: {
+      id: productId,
+      handle: '  Mixed CASE/ Weird 200 % ',
+    },
+  };
+}
+
+function buildUpdateWhitespaceHandleVariables(productId) {
+  return {
+    product: {
+      id: productId,
+      handle: '   ',
+    },
+  };
+}
+
+function buildUpdatePunctuationHandleNormalizationVariables(productId) {
+  return {
+    product: {
+      id: productId,
+      handle: '%%%',
+    },
+  };
+}
+
+function buildUpdateHandleCollisionVariables(productId, handle) {
+  return {
+    product: {
+      id: productId,
+      handle,
+    },
+  };
+}
+
+function buildUpdateTitleOnlyVariables(productId, runId) {
+  return {
+    product: {
+      id: productId,
+      title: `Hermes Title Only Handle Probe ${runId} Updated`,
+    },
+  };
+}
+
+function buildUpdateTitleOnlySeedVariables(runId) {
+  return {
+    product: {
+      title: `Hermes Title Only Handle Probe ${runId}`,
+      handle: `title-only-handle-probe-${runId}`,
+      status: 'DRAFT',
+    },
+  };
+}
+
 async function writeScopeBlocker(blocker) {
   await mkdir(pendingDir, { recursive: true });
   const note = renderWriteScopeBlockerNote({
@@ -224,21 +412,125 @@ await mkdir(outputDir, { recursive: true });
 const runId = `${Date.now()}`;
 const createVariables = buildCreateVariables(runId);
 let createdProductId = null;
+let createNormalizationProductId = null;
+let whitespaceHandleSeedProductId = null;
+let createPunctuationNormalizationProductId = null;
+let updateCollisionSeedProductId = null;
+let updateTitleOnlySeedProductId = null;
 let createResponse = null;
 let updateResponse = null;
 let deleteResponse = null;
 
 try {
+  const createValidationVariables = buildCreateValidationVariables();
+  const createValidationResponse = await runGraphql(createMutation, createValidationVariables);
+
   createResponse = await runGraphql(createMutation, createVariables);
   createdProductId = createResponse.data?.productCreate?.product?.id ?? null;
   if (!createdProductId) {
     throw new Error('Product create capture did not return a product id.');
   }
 
+  const createdHandle = createResponse.data?.productCreate?.product?.handle ?? null;
+  if (typeof createdHandle !== 'string' || createdHandle.length === 0) {
+    throw new Error('Product create capture did not return a handle.');
+  }
+
+  const createHandleNormalizationVariables = buildCreateHandleNormalizationVariables(runId);
+  const createHandleNormalizationResponse = await runGraphql(createMutation, createHandleNormalizationVariables);
+  createNormalizationProductId = createHandleNormalizationResponse.data?.productCreate?.product?.id ?? null;
+  if (!createNormalizationProductId) {
+    throw new Error('Product create handle normalization capture did not return a product id.');
+  }
+
+  const createWhitespaceHandleVariables = buildCreateWhitespaceHandleVariables(runId);
+  const createWhitespaceHandleResponse = await runGraphql(createMutation, createWhitespaceHandleVariables);
+  whitespaceHandleSeedProductId = createWhitespaceHandleResponse.data?.productCreate?.product?.id ?? null;
+  if (!whitespaceHandleSeedProductId) {
+    throw new Error('Product create whitespace-handle capture did not return a product id.');
+  }
+
+  const createPunctuationHandleNormalizationVariables = buildCreatePunctuationHandleNormalizationVariables(runId);
+  const createPunctuationHandleNormalizationResponse = await runGraphql(
+    createMutation,
+    createPunctuationHandleNormalizationVariables,
+  );
+  createPunctuationNormalizationProductId =
+    createPunctuationHandleNormalizationResponse.data?.productCreate?.product?.id ?? null;
+  if (!createPunctuationNormalizationProductId) {
+    throw new Error('Product create punctuation-handle normalization capture did not return a product id.');
+  }
+  await runGraphql(deleteMutation, { input: { id: createPunctuationNormalizationProductId } });
+  createPunctuationNormalizationProductId = null;
+
+  const createHandleCollisionVariables = buildCreateHandleCollisionVariables(createdHandle, runId);
+  const createHandleCollisionResponse = await runGraphql(createMutation, createHandleCollisionVariables);
   const postCreateDetail = await runGraphql(productDetailQuery, { id: createdProductId });
+
+  const updateCollisionSeedVariables = buildUpdateHandleCollisionSeedVariables(runId);
+  const updateCollisionSeedResponse = await runGraphql(createMutation, updateCollisionSeedVariables);
+  updateCollisionSeedProductId = updateCollisionSeedResponse.data?.productCreate?.product?.id ?? null;
+  if (!updateCollisionSeedProductId) {
+    throw new Error('Product update handle collision seed create did not return a product id.');
+  }
+
+  const updateTitleOnlySeedVariables = buildUpdateTitleOnlySeedVariables(runId);
+  const updateTitleOnlySeedResponse = await runGraphql(createMutation, updateTitleOnlySeedVariables);
+  updateTitleOnlySeedProductId = updateTitleOnlySeedResponse.data?.productCreate?.product?.id ?? null;
+  if (!updateTitleOnlySeedProductId) {
+    throw new Error('Product update title-only handle seed create did not return a product id.');
+  }
+
   const updateVariables = buildUpdateVariables(createdProductId, runId);
+  const updateValidationVariables = buildUpdateValidationVariables();
+  const updateValidationResponse = await runGraphql(updateMutation, updateValidationVariables);
+  const updateMissingIdValidationVariables = buildUpdateMissingIdValidationVariables();
+  const updateMissingIdValidationResponse = await runGraphql(updateMissingIdMutation, updateMissingIdValidationVariables);
+  const updateBlankTitleValidationVariables = buildUpdateBlankTitleValidationVariables(createdProductId);
+  const updateBlankTitleValidationResponse = await runGraphql(updateMutation, updateBlankTitleValidationVariables);
+  const updateHandleNormalizationVariables = buildUpdateHandleNormalizationVariables(updateCollisionSeedProductId);
+  const updateHandleNormalizationResponse = await runGraphql(updateMutation, updateHandleNormalizationVariables);
+  const updateWhitespaceHandleVariables = buildUpdateWhitespaceHandleVariables(whitespaceHandleSeedProductId);
+  const updateWhitespaceHandleResponse = await runGraphql(updateMutation, updateWhitespaceHandleVariables);
+  const updatePunctuationHandleNormalizationVariables =
+    buildUpdatePunctuationHandleNormalizationVariables(updateCollisionSeedProductId);
+  const updatePunctuationHandleNormalizationResponse = await runGraphql(
+    updateMutation,
+    updatePunctuationHandleNormalizationVariables,
+  );
+  const updateHandleCollisionVariables = buildUpdateHandleCollisionVariables(updateCollisionSeedProductId, createdHandle);
+  const updateHandleCollisionResponse = await runGraphql(updateMutation, updateHandleCollisionVariables);
+  const updateTitleOnlyVariables = buildUpdateTitleOnlyVariables(updateTitleOnlySeedProductId, runId);
+  const updateTitleOnlyResponse = await runGraphql(updateMutation, updateTitleOnlyVariables);
   updateResponse = await runGraphql(updateMutation, updateVariables);
   const postUpdateDetail = await runGraphql(productDetailQuery, { id: createdProductId });
+  const deleteValidationVariables = buildDeleteValidationVariables();
+  const deleteValidationResponse = await runGraphql(deleteMutation, deleteValidationVariables);
+  const deleteMissingIdValidationVariables = buildDeleteMissingIdValidationVariables();
+  const deleteMissingIdValidationResponse = await fetch(`${adminOrigin}/admin/api/${apiVersion}/graphql.json`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...buildAdminAuthHeaders(adminAccessToken),
+    },
+    body: JSON.stringify({ query: deleteMutation, variables: deleteMissingIdValidationVariables }),
+  }).then(async (response) => response.json());
+  const deleteInlineMissingIdValidationResponse = await fetch(`${adminOrigin}/admin/api/${apiVersion}/graphql.json`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...buildAdminAuthHeaders(adminAccessToken),
+    },
+    body: JSON.stringify({ query: deleteInlineMissingIdMutation, variables: {} }),
+  }).then(async (response) => response.json());
+  const deleteInlineNullIdValidationResponse = await fetch(`${adminOrigin}/admin/api/${apiVersion}/graphql.json`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...buildAdminAuthHeaders(adminAccessToken),
+    },
+    body: JSON.stringify({ query: deleteInlineNullIdMutation, variables: {} }),
+  }).then(async (response) => response.json());
   deleteResponse = await runGraphql(deleteMutation, { input: { id: createdProductId } });
   const postDeleteLookup = await runGraphql(deletedProductLookupQuery, {
     id: createdProductId,
@@ -252,6 +544,28 @@ try {
         variables: createVariables,
         response: createResponse,
       },
+      validation: {
+        variables: createValidationVariables,
+        response: createValidationResponse,
+      },
+      handleValidation: {
+        createNormalization: {
+          variables: createHandleNormalizationVariables,
+          response: createHandleNormalizationResponse,
+        },
+        createWhitespaceNormalization: {
+          variables: createWhitespaceHandleVariables,
+          response: createWhitespaceHandleResponse,
+        },
+        createPunctuationNormalization: {
+          variables: createPunctuationHandleNormalizationVariables,
+          response: createPunctuationHandleNormalizationResponse,
+        },
+        createCollision: {
+          variables: createHandleCollisionVariables,
+          response: createHandleCollisionResponse,
+        },
+      },
       downstreamRead: postCreateDetail,
     },
     'product-update-parity.json': {
@@ -259,12 +573,64 @@ try {
         variables: updateVariables,
         response: updateResponse,
       },
+      validation: {
+        unknownId: {
+          variables: updateValidationVariables,
+          response: updateValidationResponse,
+        },
+        missingId: {
+          variables: updateMissingIdValidationVariables,
+          response: updateMissingIdValidationResponse,
+        },
+        blankTitle: {
+          variables: updateBlankTitleValidationVariables,
+          response: updateBlankTitleValidationResponse,
+        },
+      },
+      handleValidation: {
+        updateNormalization: {
+          variables: updateHandleNormalizationVariables,
+          response: updateHandleNormalizationResponse,
+        },
+        updateWhitespacePreservesHandle: {
+          variables: updateWhitespaceHandleVariables,
+          response: updateWhitespaceHandleResponse,
+        },
+        updatePunctuationNormalization: {
+          variables: updatePunctuationHandleNormalizationVariables,
+          response: updatePunctuationHandleNormalizationResponse,
+        },
+        updateCollision: {
+          variables: updateHandleCollisionVariables,
+          response: updateHandleCollisionResponse,
+        },
+        updateTitleOnlyPreservesHandle: {
+          variables: updateTitleOnlyVariables,
+          response: updateTitleOnlyResponse,
+        },
+      },
       downstreamRead: postUpdateDetail,
     },
     'product-delete-parity.json': {
       mutation: {
         variables: { input: { id: deleteResponse.data?.productDelete?.deletedProductId ?? null } },
         response: deleteResponse,
+      },
+      validation: {
+        variables: deleteValidationVariables,
+        response: deleteValidationResponse,
+      },
+      invalidInput: {
+        variableMissingId: {
+          variables: deleteMissingIdValidationVariables,
+          response: deleteMissingIdValidationResponse,
+        },
+        inlineMissingId: {
+          response: deleteInlineMissingIdValidationResponse,
+        },
+        inlineNullId: {
+          response: deleteInlineNullIdValidationResponse,
+        },
       },
       downstreamRead: postDeleteLookup,
     },
@@ -307,6 +673,46 @@ try {
 
   throw error;
 } finally {
+  if (updateCollisionSeedProductId) {
+    try {
+      await runGraphql(deleteMutation, { input: { id: updateCollisionSeedProductId } });
+    } catch {
+      // Best-effort cleanup only. The conformance script should still surface the original failure.
+    }
+  }
+
+  if (updateTitleOnlySeedProductId) {
+    try {
+      await runGraphql(deleteMutation, { input: { id: updateTitleOnlySeedProductId } });
+    } catch {
+      // Best-effort cleanup only. The conformance script should still surface the original failure.
+    }
+  }
+
+  if (createNormalizationProductId) {
+    try {
+      await runGraphql(deleteMutation, { input: { id: createNormalizationProductId } });
+    } catch {
+      // Best-effort cleanup only. The conformance script should still surface the original failure.
+    }
+  }
+
+  if (whitespaceHandleSeedProductId) {
+    try {
+      await runGraphql(deleteMutation, { input: { id: whitespaceHandleSeedProductId } });
+    } catch {
+      // Best-effort cleanup only. The conformance script should still surface the original failure.
+    }
+  }
+
+  if (createPunctuationNormalizationProductId) {
+    try {
+      await runGraphql(deleteMutation, { input: { id: createPunctuationNormalizationProductId } });
+    } catch {
+      // Best-effort cleanup only. The conformance script should still surface the original failure.
+    }
+  }
+
   if (createdProductId) {
     try {
       await runGraphql(deleteMutation, { input: { id: createdProductId } });

@@ -38,7 +38,13 @@
       "scenarioIds": [
         "products-catalog-read",
         "products-search-read",
-        "products-variant-search-read"
+        "products-search-grammar-read",
+        "products-variant-search-read",
+        "products-advanced-search-read",
+        "products-search-pagination-read",
+        "products-or-precedence-read",
+        "products-sort-keys-read",
+        "products-relevance-search-read"
       ]
     }
   },
@@ -61,7 +67,11 @@
       "scenarioIds": [
         "products-catalog-read",
         "products-search-read",
-        "products-variant-search-read"
+        "products-search-grammar-read",
+        "products-variant-search-read",
+        "products-advanced-search-read",
+        "products-search-pagination-read",
+        "products-or-precedence-read"
       ]
     }
   },
@@ -150,6 +160,170 @@
     }
   },
   {
+    "name": "locations",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": [
+      "locations",
+      "Locations"
+    ],
+    "runtimeTests": [
+      "tests/integration/location-query-shapes.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "locations-catalog-read"
+      ]
+    }
+  },
+  {
+    "name": "publications",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": [
+      "publications",
+      "Publications"
+    ],
+    "runtimeTests": [
+      "tests/integration/publication-query-shapes.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "publications-catalog-read"
+      ]
+    }
+  },
+  {
+    "name": "customer",
+    "type": "query",
+    "domain": "customers",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": [
+      "customer",
+      "Customer"
+    ],
+    "runtimeTests": [
+      "tests/integration/customer-query-shapes.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "customer-detail-parity-plan"
+      ]
+    }
+  },
+  {
+    "name": "customers",
+    "type": "query",
+    "domain": "customers",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": [
+      "customers",
+      "Customers"
+    ],
+    "runtimeTests": [
+      "tests/integration/customer-query-shapes.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "customers-catalog-parity-plan",
+        "customers-search-read",
+        "customers-advanced-search-read",
+        "customers-sort-keys-read",
+        "customers-relevance-search-read"
+      ]
+    }
+  },
+  {
+    "name": "customersCount",
+    "type": "query",
+    "domain": "customers",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": [
+      "customersCount",
+      "CustomersCount"
+    ],
+    "runtimeTests": [
+      "tests/integration/customer-query-shapes.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "customers-count-read"
+      ]
+    }
+  },
+  {
+    "name": "customerCreate",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "customerCreate",
+      "CustomerCreate"
+    ],
+    "runtimeTests": [
+      "tests/integration/customer-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "customer-create-live-parity"
+      ]
+    }
+  },
+  {
+    "name": "customerUpdate",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "customerUpdate",
+      "CustomerUpdate"
+    ],
+    "runtimeTests": [
+      "tests/integration/customer-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "customer-update-live-parity"
+      ]
+    }
+  },
+  {
+    "name": "customerDelete",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "customerDelete",
+      "CustomerDelete"
+    ],
+    "runtimeTests": [
+      "tests/integration/customer-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "customer-delete-live-parity"
+      ]
+    }
+  },
+  {
     "name": "tagsAdd",
     "type": "mutation",
     "domain": "products",
@@ -162,11 +336,10 @@
       "tests/integration/product-draft-flow.test.ts"
     ],
     "conformance": {
-      "status": "declared-gap",
+      "status": "covered",
       "scenarioIds": [
         "tags-add-live-parity"
-      ],
-      "reason": "Live capture exists, but Shopify did not reflect a freshly added unique tag in immediate `products(query:)` / `productsCount(query:)` search results, so the staged instant tag-filter parity assumption is too optimistic to mark covered yet."
+      ]
     }
   },
   {
@@ -182,11 +355,10 @@
       "tests/integration/product-draft-flow.test.ts"
     ],
     "conformance": {
-      "status": "declared-gap",
+      "status": "covered",
       "scenarioIds": [
         "tags-remove-live-parity"
-      ],
-      "reason": "Live capture exists, but Shopify did not reflect unique tag writes in immediate `products(query:)` / `productsCount(query:)` search results, so the staged instant tag-filter removal parity assumption still needs alignment before promotion."
+      ]
     }
   },
   {
@@ -264,10 +436,9 @@
       "tests/integration/product-draft-flow.test.ts"
     ],
     "conformance": {
-      "status": "declared-gap",
-      "reason": "Write-path parity for staged productDuplicate still needs a dedicated safe live scenario pack and payload comparison harness.",
+      "status": "covered",
       "scenarioIds": [
-        "productDuplicate-parity-plan"
+        "product-duplicate-live-parity"
       ]
     }
   },
@@ -285,10 +456,9 @@
       "tests/integration/product-draft-flow.test.ts"
     ],
     "conformance": {
-      "status": "declared-gap",
-      "reason": "Write-path parity for staged productSet still needs a dedicated safe live scenario pack and payload comparison harness.",
+      "status": "covered",
       "scenarioIds": [
-        "productSet-parity-plan"
+        "product-set-live-parity"
       ]
     }
   },
@@ -306,11 +476,10 @@
       "tests/integration/product-draft-flow.test.ts"
     ],
     "conformance": {
-      "status": "declared-gap",
+      "status": "covered",
       "scenarioIds": [
         "product-change-status-live-parity"
-      ],
-      "reason": "Live capture exists, but Shopify returned a later `updatedAt` on the immediate downstream `product(id:)` read than in the `productChangeStatus` mutation payload, so the staged exact-timestamp parity assumption still needs alignment before promotion."
+      ]
     }
   },
   {
@@ -327,8 +496,7 @@
       "tests/integration/product-draft-flow.test.ts"
     ],
     "conformance": {
-      "status": "declared-gap",
-      "reason": "Write-path parity for staged productPublish still needs a dedicated safe live scenario pack and payload comparison harness.",
+      "status": "covered",
       "scenarioIds": [
         "productPublish-parity-plan"
       ]
@@ -348,8 +516,7 @@
       "tests/integration/product-draft-flow.test.ts"
     ],
     "conformance": {
-      "status": "declared-gap",
-      "reason": "Write-path parity for staged productUnpublish still needs a dedicated safe live scenario pack and payload comparison harness.",
+      "status": "covered",
       "scenarioIds": [
         "productUnpublish-parity-plan"
       ]
@@ -429,10 +596,9 @@
       "tests/integration/product-draft-flow.test.ts"
     ],
     "conformance": {
-      "status": "declared-gap",
-      "reason": "Variant bulk mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "status": "covered",
       "scenarioIds": [
-        "productVariantsBulkCreate-parity-plan"
+        "product-variants-bulk-create-live-parity"
       ]
     }
   },
@@ -450,10 +616,9 @@
       "tests/integration/product-draft-flow.test.ts"
     ],
     "conformance": {
-      "status": "declared-gap",
-      "reason": "Variant bulk mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "status": "covered",
       "scenarioIds": [
-        "productVariantsBulkUpdate-parity-plan"
+        "product-variants-bulk-update-live-parity"
       ]
     }
   },
@@ -471,10 +636,9 @@
       "tests/integration/product-draft-flow.test.ts"
     ],
     "conformance": {
-      "status": "declared-gap",
-      "reason": "Variant bulk mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "status": "covered",
       "scenarioIds": [
-        "productVariantsBulkDelete-parity-plan"
+        "product-variants-bulk-delete-live-parity"
       ]
     }
   },
@@ -492,10 +656,9 @@
       "tests/integration/product-draft-flow.test.ts"
     ],
     "conformance": {
-      "status": "declared-gap",
-      "reason": "Single-variant mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "status": "covered",
       "scenarioIds": [
-        "productVariantCreate-parity-plan"
+        "product-variant-create-compatibility-evidence"
       ]
     }
   },
@@ -513,10 +676,9 @@
       "tests/integration/product-draft-flow.test.ts"
     ],
     "conformance": {
-      "status": "declared-gap",
-      "reason": "Single-variant mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "status": "covered",
       "scenarioIds": [
-        "productVariantUpdate-parity-plan"
+        "product-variant-update-compatibility-evidence"
       ]
     }
   },
@@ -534,10 +696,9 @@
       "tests/integration/product-draft-flow.test.ts"
     ],
     "conformance": {
-      "status": "declared-gap",
-      "reason": "Single-variant mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "status": "covered",
       "scenarioIds": [
-        "productVariantDelete-parity-plan"
+        "product-variant-delete-compatibility-evidence"
       ]
     }
   },
@@ -555,10 +716,9 @@
       "tests/integration/product-draft-flow.test.ts"
     ],
     "conformance": {
-      "status": "declared-gap",
-      "reason": "Media mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "status": "covered",
       "scenarioIds": [
-        "productCreateMedia-parity-plan"
+        "product-create-media-live-parity"
       ]
     }
   },
@@ -576,10 +736,9 @@
       "tests/integration/product-draft-flow.test.ts"
     ],
     "conformance": {
-      "status": "declared-gap",
-      "reason": "Media mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "status": "covered",
       "scenarioIds": [
-        "productUpdateMedia-parity-plan"
+        "product-update-media-live-parity"
       ]
     }
   },
@@ -597,10 +756,29 @@
       "tests/integration/product-draft-flow.test.ts"
     ],
     "conformance": {
-      "status": "declared-gap",
-      "reason": "Media mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "status": "covered",
       "scenarioIds": [
-        "productDeleteMedia-parity-plan"
+        "product-delete-media-live-parity"
+      ]
+    }
+  },
+  {
+    "name": "inventoryItemUpdate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "inventoryItemUpdate",
+      "InventoryItemUpdate"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "inventory-item-update-live-parity"
       ]
     }
   },
@@ -618,10 +796,69 @@
       "tests/integration/product-draft-flow.test.ts"
     ],
     "conformance": {
-      "status": "declared-gap",
-      "reason": "Inventory adjustment parity still needs dedicated live-write scenarios and payload assertions.",
+      "status": "covered",
       "scenarioIds": [
-        "inventoryAdjustQuantities-parity-plan"
+        "inventory-adjust-quantities-live-parity"
+      ]
+    }
+  },
+  {
+    "name": "inventoryActivate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "inventoryActivate",
+      "InventoryActivate"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "inventory-activate-live-parity"
+      ]
+    }
+  },
+  {
+    "name": "inventoryDeactivate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "inventoryDeactivate",
+      "InventoryDeactivate"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "inventory-deactivate-live-parity"
+      ]
+    }
+  },
+  {
+    "name": "inventoryBulkToggleActivation",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "inventoryBulkToggleActivation",
+      "InventoryBulkToggleActivation"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "inventory-bulk-toggle-activation-live-parity"
       ]
     }
   },
@@ -639,10 +876,29 @@
       "tests/integration/product-draft-flow.test.ts"
     ],
     "conformance": {
-      "status": "declared-gap",
-      "reason": "Metafield mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "status": "covered",
       "scenarioIds": [
-        "metafieldsSet-parity-plan"
+        "metafields-set-live-parity"
+      ]
+    }
+  },
+  {
+    "name": "metafieldsDelete",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "metafieldsDelete",
+      "MetafieldsDelete"
+    ],
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "metafields-delete-live-parity"
       ]
     }
   },
@@ -660,10 +916,9 @@
       "tests/integration/product-draft-flow.test.ts"
     ],
     "conformance": {
-      "status": "declared-gap",
-      "reason": "Metafield mutation parity still needs dedicated live-write scenarios and payload assertions.",
+      "status": "covered",
       "scenarioIds": [
-        "metafieldDelete-parity-plan"
+        "metafield-delete-compatibility-live-parity"
       ]
     }
   },
@@ -764,6 +1019,365 @@
       "status": "covered",
       "scenarioIds": [
         "collection-remove-products-live-parity"
+      ]
+    }
+  },
+  {
+    "name": "order",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": [
+      "order",
+      "Order"
+    ],
+    "runtimeTests": [
+      "tests/integration/order-query-shapes.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "order-empty-state-read"
+      ]
+    }
+  },
+  {
+    "name": "orders",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": [
+      "orders",
+      "Orders"
+    ],
+    "runtimeTests": [
+      "tests/integration/order-query-shapes.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "order-empty-state-read"
+      ]
+    }
+  },
+  {
+    "name": "ordersCount",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": [
+      "ordersCount",
+      "OrdersCount"
+    ],
+    "runtimeTests": [
+      "tests/integration/order-query-shapes.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "order-empty-state-read"
+      ]
+    }
+  },
+  {
+    "name": "orderUpdate",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "orderUpdate",
+      "OrderUpdate"
+    ],
+    "runtimeTests": [
+      "tests/integration/order-draft-flow.test.ts",
+      "tests/integration/order-edit-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "order-update-inline-missing-id-argument-error",
+        "order-update-inline-null-id-argument-error",
+        "order-update-missing-id-invalid-variable",
+        "order-update-unknown-id-parity",
+        "order-update-live-parity"
+      ]
+    }
+  },
+  {
+    "name": "fulfillmentCreate",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "fulfillmentCreate",
+      "FulfillmentCreate"
+    ],
+    "runtimeTests": [
+      "tests/integration/order-fulfillment-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "fulfillment-create-invalid-id-parity"
+      ]
+    }
+  },
+  {
+    "name": "fulfillmentTrackingInfoUpdate",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "fulfillmentTrackingInfoUpdate",
+      "FulfillmentTrackingInfoUpdate"
+    ],
+    "runtimeTests": [
+      "tests/integration/order-fulfillment-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "fulfillment-tracking-info-update-inline-missing-id-argument-error",
+        "fulfillment-tracking-info-update-inline-null-id-argument-error",
+        "fulfillment-tracking-info-update-missing-id-invalid-variable"
+      ]
+    }
+  },
+  {
+    "name": "fulfillmentCancel",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "fulfillmentCancel",
+      "FulfillmentCancel"
+    ],
+    "runtimeTests": [
+      "tests/integration/order-fulfillment-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "fulfillment-cancel-inline-missing-id-argument-error",
+        "fulfillment-cancel-inline-null-id-argument-error",
+        "fulfillment-cancel-missing-id-invalid-variable"
+      ]
+    }
+  },
+  {
+    "name": "orderCreate",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "orderCreate",
+      "OrderCreate"
+    ],
+    "runtimeTests": [
+      "tests/integration/order-creation-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "order-create-inline-missing-order-argument-error",
+        "order-create-inline-null-order-argument-error",
+        "order-create-missing-order-invalid-variable",
+        "order-create-live-parity"
+      ]
+    }
+  },
+  {
+    "name": "draftOrder",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": [
+      "draftOrder",
+      "DraftOrder"
+    ],
+    "runtimeTests": [
+      "tests/integration/order-creation-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "draft-order-detail-read"
+      ]
+    }
+  },
+  {
+    "name": "draftOrders",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": [
+      "draftOrders",
+      "DraftOrders"
+    ],
+    "runtimeTests": [
+      "tests/integration/order-creation-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "draft-orders-catalog-read",
+        "draft-orders-invalid-email-query-read"
+      ]
+    }
+  },
+  {
+    "name": "draftOrdersCount",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": [
+      "draftOrdersCount",
+      "DraftOrdersCount"
+    ],
+    "runtimeTests": [
+      "tests/integration/order-creation-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "draft-orders-count-read",
+        "draft-orders-invalid-email-query-read"
+      ]
+    }
+  },
+  {
+    "name": "draftOrderCreate",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "draftOrderCreate",
+      "DraftOrderCreate"
+    ],
+    "runtimeTests": [
+      "tests/integration/order-creation-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "draft-order-create-inline-missing-input-argument-error",
+        "draft-order-create-inline-null-input-argument-error",
+        "draft-order-create-missing-input-invalid-variable",
+        "draft-order-create-live-parity"
+      ]
+    }
+  },
+  {
+    "name": "draftOrderComplete",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "draftOrderComplete",
+      "DraftOrderComplete"
+    ],
+    "runtimeTests": [
+      "tests/integration/order-creation-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "draft-order-complete-inline-missing-id-argument-error",
+        "draft-order-complete-inline-null-id-argument-error",
+        "draft-order-complete-missing-id-invalid-variable"
+      ]
+    }
+  },
+  {
+    "name": "orderEditBegin",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "orderEditBegin",
+      "OrderEditBegin"
+    ],
+    "runtimeTests": [
+      "tests/integration/order-edit-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "order-edit-begin-missing-id-invalid-variable"
+      ]
+    }
+  },
+  {
+    "name": "orderEditAddVariant",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "orderEditAddVariant",
+      "OrderEditAddVariant"
+    ],
+    "runtimeTests": [
+      "tests/integration/order-edit-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "order-edit-add-variant-missing-id-invalid-variable"
+      ]
+    }
+  },
+  {
+    "name": "orderEditSetQuantity",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "orderEditSetQuantity",
+      "OrderEditSetQuantity"
+    ],
+    "runtimeTests": [
+      "tests/integration/order-edit-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "order-edit-set-quantity-missing-id-invalid-variable"
+      ]
+    }
+  },
+  {
+    "name": "orderEditCommit",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": [
+      "orderEditCommit",
+      "OrderEditCommit"
+    ],
+    "runtimeTests": [
+      "tests/integration/order-edit-flow.test.ts"
+    ],
+    "conformance": {
+      "status": "covered",
+      "scenarioIds": [
+        "order-edit-commit-missing-id-invalid-variable"
       ]
     }
   }

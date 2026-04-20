@@ -1,0 +1,46 @@
+{
+  "variables": {
+    "input": {
+      "note": "order update missing-id parity probe",
+      "tags": [
+        "parity-probe",
+        "order-update",
+        "missing-id"
+      ]
+    }
+  },
+  "mutation": {
+    "response": {
+      "errors": [
+        {
+          "message": "Variable $input of type OrderInput! was provided invalid value for id (Expected value to not be null)",
+          "locations": [
+            {
+              "line": 2,
+              "column": 38
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": {
+              "note": "order update missing-id parity probe",
+              "tags": [
+                "parity-probe",
+                "order-update",
+                "missing-id"
+              ]
+            },
+            "problems": [
+              {
+                "path": [
+                  "id"
+                ],
+                "explanation": "Expected value to not be null"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

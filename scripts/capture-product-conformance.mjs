@@ -22,7 +22,7 @@ const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || '2025-01';
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
 
 function buildAdminAuthHeaders(token) {
-  if (token.startsWith('shpat_')) {
+  if (/^shp[a-z]+_/.test(token)) {
     return {
       'X-Shopify-Access-Token': token,
     };
@@ -173,6 +173,29 @@ const variantsQuery = `#graphql
               countryCodeOfOrigin
               provinceCodeOfOrigin
               harmonizedSystemCode
+              inventoryLevels(first: 5) {
+                edges {
+                  cursor
+                  node {
+                    id
+                    location {
+                      id
+                      name
+                    }
+                    quantities(names: ["available", "on_hand", "incoming"]) {
+                      name
+                      quantity
+                      updatedAt
+                    }
+                  }
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
             }
           }
         }
@@ -209,6 +232,341 @@ const searchQuery = `#graphql
           vendor
           totalInventory
         }
+      }
+    }
+  }
+`;
+
+const searchGrammarVariables = {
+  phraseQuery: '"flat peak cap" accessories -vendor:VANS -tag:vans',
+};
+
+const searchGrammarQuery = `#graphql
+  query ProductSearchGrammarConformance($phraseQuery: String!) {
+    phraseCount: productsCount(query: $phraseQuery) {
+      count
+      precision
+    }
+    phraseMatches: products(first: 5, query: $phraseQuery) {
+      edges {
+        node {
+          id
+          title
+          vendor
+          productType
+          tags
+        }
+      }
+    }
+  }
+`;
+
+const advancedSearchQuery = `#graphql
+  query ProductAdvancedSearchConformance {
+    prefixCount: productsCount(query: "swoo* status:active") {
+      count
+      precision
+    }
+    prefix: products(first: 3, query: "swoo* status:active", sortKey: UPDATED_AT, reverse: true) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          handle
+          vendor
+          productType
+          tags
+          updatedAt
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    orCount: productsCount(query: "(vendor:NIKE OR vendor:VANS) tag:egnition-sample-data product_type:ACCESSORIES") {
+      count
+      precision
+    }
+    orMatches: products(first: 5, query: "(vendor:NIKE OR vendor:VANS) tag:egnition-sample-data product_type:ACCESSORIES", sortKey: UPDATED_AT, reverse: true) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          handle
+          vendor
+          productType
+          tags
+          updatedAt
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    groupedExclusionCount: productsCount(query: "tag:egnition-sample-data product_type:ACCESSORIES -(vendor:VANS)") {
+      count
+      precision
+    }
+    groupedExclusion: products(first: 5, query: "tag:egnition-sample-data product_type:ACCESSORIES -(vendor:VANS)", sortKey: UPDATED_AT, reverse: true) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          handle
+          vendor
+          productType
+          tags
+          updatedAt
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+`;
+
+const searchPaginationBaseVariables = {
+  query: 'tag:egnition-sample-data product_type:ACCESSORIES',
+};
+
+const searchPaginationFirstPageQuery = `#graphql
+  query ProductSearchPaginationFirstPage($query: String!) {
+    count: productsCount(query: $query) {
+      count
+      precision
+    }
+    firstPage: products(first: 1, query: $query, sortKey: UPDATED_AT, reverse: true) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          handle
+          vendor
+          productType
+          tags
+          updatedAt
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+`;
+
+const searchPaginationNextPageQuery = `#graphql
+  query ProductSearchPaginationNextPage($query: String!, $afterCursor: String!) {
+    nextPage: products(first: 1, after: $afterCursor, query: $query, sortKey: UPDATED_AT, reverse: true) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          handle
+          vendor
+          productType
+          tags
+          updatedAt
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+`;
+
+const searchPaginationPreviousPageQuery = `#graphql
+  query ProductSearchPaginationPreviousPage($query: String!, $beforeCursor: String!) {
+    previousPage: products(last: 1, before: $beforeCursor, query: $query, sortKey: UPDATED_AT, reverse: true) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          handle
+          vendor
+          productType
+          tags
+          updatedAt
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+`;
+
+const orPrecedenceVariables = {
+  precedenceQuery: 'vendor:NIKE OR vendor:VANS tag:egnition-sample-data product_type:ACCESSORIES',
+};
+
+const orPrecedenceQuery = `#graphql
+  query ProductOrPrecedenceConformance($precedenceQuery: String!) {
+    precedenceCount: productsCount(query: $precedenceQuery) {
+      count
+      precision
+    }
+    precedenceMatches: products(first: 10, query: $precedenceQuery, sortKey: UPDATED_AT, reverse: true) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          handle
+          vendor
+          productType
+          tags
+          updatedAt
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+`;
+
+const sortKeysQuery = `#graphql
+  query ProductSortKeysConformance($query: String!) {
+    titleOrder: products(first: 5, query: $query, sortKey: TITLE) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          handle
+          status
+          vendor
+          productType
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    vendorOrder: products(first: 5, query: $query, sortKey: VENDOR) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          handle
+          status
+          vendor
+          productType
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    productTypeOrder: products(first: 5, query: $query, sortKey: PRODUCT_TYPE, reverse: true) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          handle
+          status
+          vendor
+          productType
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    publishedAtOrder: products(first: 5, query: $query, sortKey: PUBLISHED_AT, reverse: true) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          publishedAt
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    idOrder: products(first: 5, query: $query, sortKey: ID, reverse: true) {
+      edges {
+        cursor
+        node {
+          id
+          legacyResourceId
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+`;
+
+const relevanceSearchQuery = `#graphql
+  query ProductRelevanceSearchConformance($first: Int!, $query: String!) {
+    products(first: $first, query: $query, sortKey: RELEVANCE) {
+      edges {
+        cursor
+        node {
+          id
+          legacyResourceId
+          title
+          handle
+          vendor
+          productType
+          tags
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
       }
     }
   }
@@ -283,6 +641,35 @@ const singularMetafieldQuery = `#graphql
   }
 `;
 
+const emptyStateQuery = `#graphql
+  query ProductEmptyStateConformance($missingId: ID!, $emptyQuery: String!) {
+    missingProduct: product(id: $missingId) {
+      id
+      title
+    }
+    emptyCount: productsCount(query: $emptyQuery) {
+      count
+      precision
+    }
+    emptyProducts: products(first: 3, query: $emptyQuery, sortKey: UPDATED_AT, reverse: true) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          handle
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+`;
+
 await mkdir(outputDir, { recursive: true });
 
 const catalog = await runGraphql(catalogQuery);
@@ -294,6 +681,65 @@ if (!sampleProductId) {
 const detail = await runGraphql(detailQuery, { id: sampleProductId });
 const variants = await runGraphql(variantsQuery, { id: sampleProductId });
 const search = await runGraphql(searchQuery);
+const searchGrammar = {
+  variables: searchGrammarVariables,
+  response: await runGraphql(searchGrammarQuery, searchGrammarVariables),
+};
+const advancedSearch = await runGraphql(advancedSearchQuery);
+const searchPaginationFirstPage = await runGraphql(
+  searchPaginationFirstPageQuery,
+  searchPaginationBaseVariables,
+);
+const searchPaginationAfterCursor = searchPaginationFirstPage.data?.firstPage?.pageInfo?.endCursor;
+if (typeof searchPaginationAfterCursor !== 'string' || searchPaginationAfterCursor.length === 0) {
+  throw new Error('Could not derive the filtered search after cursor for pagination conformance capture.');
+}
+const searchPaginationNextPage = await runGraphql(searchPaginationNextPageQuery, {
+  ...searchPaginationBaseVariables,
+  afterCursor: searchPaginationAfterCursor,
+});
+const searchPaginationBeforeCursor = searchPaginationNextPage.data?.nextPage?.pageInfo?.startCursor;
+if (typeof searchPaginationBeforeCursor !== 'string' || searchPaginationBeforeCursor.length === 0) {
+  throw new Error('Could not derive the filtered search before cursor for pagination conformance capture.');
+}
+const searchPaginationPreviousPage = await runGraphql(searchPaginationPreviousPageQuery, {
+  ...searchPaginationBaseVariables,
+  beforeCursor: searchPaginationBeforeCursor,
+});
+const searchPagination = {
+  variables: {
+    ...searchPaginationBaseVariables,
+    afterCursor: searchPaginationAfterCursor,
+    beforeCursor: searchPaginationBeforeCursor,
+  },
+  response: {
+    data: {
+      count: searchPaginationFirstPage.data?.count ?? null,
+      firstPage: searchPaginationFirstPage.data?.firstPage ?? null,
+      nextPage: searchPaginationNextPage.data?.nextPage ?? null,
+      previousPage: searchPaginationPreviousPage.data?.previousPage ?? null,
+    },
+  },
+};
+const orPrecedence = {
+  variables: orPrecedenceVariables,
+  response: await runGraphql(orPrecedenceQuery, orPrecedenceVariables),
+};
+const sortKeysVariables = {
+  query: 'egnition-sample-data status:active',
+};
+const sortKeys = {
+  variables: sortKeysVariables,
+  response: await runGraphql(sortKeysQuery, sortKeysVariables),
+};
+const relevanceSearchVariables = {
+  first: 3,
+  query: 'swoo* status:active',
+};
+const relevanceSearch = {
+  variables: relevanceSearchVariables,
+  response: await runGraphql(relevanceSearchQuery, relevanceSearchVariables),
+};
 const variantNodes = variants.data?.product?.variants?.edges?.map((edge) => edge?.node).filter(Boolean) ?? [];
 const sampleSku = variantNodes.find((variant) => typeof variant?.sku === 'string' && variant.sku.length > 0)?.sku ?? null;
 const sampleBarcode = variantNodes.find((variant) => typeof variant?.barcode === 'string' && variant.barcode.length > 0)?.barcode ?? null;
@@ -323,12 +769,27 @@ const singularMetafield =
         key: firstMetafield.key,
       })
     : null;
+const emptyStateVariables = {
+  missingId: 'gid://shopify/Product/999999999999999',
+  emptyQuery: 'title:__hermes_empty_catalog_probe__',
+};
+const emptyState = {
+  variables: emptyStateVariables,
+  response: await runGraphql(emptyStateQuery, emptyStateVariables),
+};
 
 const captures = {
   'products-catalog-page.json': catalog,
   'product-detail.json': detail,
+  'product-empty-state.json': emptyState,
   'product-variants-matrix.json': variants,
   'products-search.json': search,
+  'products-search-grammar.json': searchGrammar,
+  'products-advanced-search.json': advancedSearch,
+  'products-search-pagination.json': searchPagination,
+  'products-or-precedence.json': orPrecedence,
+  'products-sort-keys.json': sortKeys,
+  'products-relevance-search.json': relevanceSearch,
   'products-variant-search.json': variantSearch,
   'product-metafields.json': {
     connection: metafieldsConnection,

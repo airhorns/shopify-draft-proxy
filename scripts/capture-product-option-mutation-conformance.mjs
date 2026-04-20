@@ -26,7 +26,7 @@ const pendingDir = 'pending';
 const blockerPath = path.join(pendingDir, 'product-option-mutation-conformance-scope-blocker.md');
 
 function buildAdminAuthHeaders(token) {
-  if (token.startsWith('shpat_')) {
+  if (/^shp[a-z]+_/.test(token)) {
     return {
       'X-Shopify-Access-Token': token,
     };

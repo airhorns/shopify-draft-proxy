@@ -24,14 +24,16 @@ export function pickProductMutationSeed(payload) {
   throw new Error('Could not find a sample product from ProductCatalogPage capture');
 }
 
-export function parseWriteScopeBlocker(result) {
+export function parseAccessDeniedErrors(result) {
   const errors = Array.isArray(result?.payload?.errors) ? result.payload.errors : [];
+  const blockers = [];
+
   for (const error of errors) {
     if (error?.extensions?.code !== 'ACCESS_DENIED') {
       continue;
     }
 
-    return {
+    blockers.push({
       operationName:
         Array.isArray(error?.path) && typeof error.path[0] === 'string'
           ? error.path[0]
@@ -42,10 +44,14 @@ export function parseWriteScopeBlocker(result) {
       requiredAccess:
         typeof error?.extensions?.requiredAccess === 'string' ? error.extensions.requiredAccess : 'unknown',
       errorCode: error.extensions.code,
-    };
+    });
   }
 
-  return null;
+  return blockers;
+}
+
+export function parseWriteScopeBlocker(result) {
+  return parseAccessDeniedErrors(result)[0] ?? null;
 }
 
 export function renderWriteScopeBlockerNote({

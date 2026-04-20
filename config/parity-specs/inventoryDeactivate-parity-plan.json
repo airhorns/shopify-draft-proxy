@@ -1,0 +1,20 @@
+{
+  "scenarioId": "inventory-deactivate-live-parity",
+  "operationNames": [
+    "inventoryDeactivate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/inventory-linkage-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/inventoryDeactivate-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/inventoryDeactivate-parity-plan.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live capture now covers the current single-location `inventoryDeactivate` error path on this host: deactivating the only inventory level returns the exact minimum-one-location userError with `field: null`."
+}

@@ -1,0 +1,40 @@
+{
+  "variables": {
+    "input": {
+      "id": "gid://shopify/Order/0",
+      "note": "order update unknown-id parity probe",
+      "tags": [
+        "parity-probe",
+        "order-update"
+      ]
+    }
+  },
+  "mutation": {
+    "response": {
+      "data": {
+        "orderUpdate": {
+          "order": null,
+          "userErrors": [
+            {
+              "field": [
+                "id"
+              ],
+              "message": "Order does not exist"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

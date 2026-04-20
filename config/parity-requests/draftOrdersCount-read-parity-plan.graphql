@@ -1,0 +1,6 @@
+query DraftOrdersCountReadParityPlan($query: String) {
+  draftOrdersCount(query: $query) {
+    count
+    precision
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "scenarioId": "products-search-grammar-read",
+  "operationNames": [
+    "products",
+    "productsCount"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "selected-fields",
+    "search-filter-semantics"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-search-grammar.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products-search-grammar-read.graphql",
+    "variablesPath": "config/parity-requests/products-search-grammar-read.variables.json"
+  },
+  "comparisonMode": "capture-only",
+  "notes": "Live product search-grammar capture now keeps the quoted-phrase, bare-term, and term-local negation slice separate from the broader grouped/prefix advanced-search fixture so later parity work can compare that merchant-facing grammar increment directly."
+}

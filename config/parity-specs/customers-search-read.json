@@ -1,0 +1,21 @@
+{
+  "scenarioId": "customers-search-read",
+  "operationNames": [
+    "customers"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "selected-fields",
+    "search-filter-semantics"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customers-search.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers-search-read.graphql",
+    "variablesPath": "config/parity-requests/customers-search-read.variables.json"
+  },
+  "comparisonMode": "capture-only",
+  "notes": "Live customer search capture now exercises the current supported overlay slice for `customers(query:, sortKey:, reverse:)` using a concrete `state:DISABLED` search ordered by `UPDATED_AT` descending."
+}

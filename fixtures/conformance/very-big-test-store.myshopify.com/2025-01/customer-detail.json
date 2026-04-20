@@ -1,0 +1,54 @@
+{
+  "data": {
+    "customer": {
+      "id": "gid://shopify/Customer/6157654556905",
+      "firstName": "Henry",
+      "lastName": "Short",
+      "displayName": "Henry Short",
+      "email": "egnition_sample_29@egnition.com",
+      "legacyResourceId": "6157654556905",
+      "locale": "en",
+      "note": null,
+      "canDelete": false,
+      "verifiedEmail": true,
+      "taxExempt": false,
+      "state": "DISABLED",
+      "tags": [
+        "egnition-sample-data",
+        "referral"
+      ],
+      "numberOfOrders": "12",
+      "amountSpent": {
+        "amount": "1.6",
+        "currencyCode": "CAD"
+      },
+      "defaultEmailAddress": {
+        "emailAddress": "egnition_sample_29@egnition.com"
+      },
+      "defaultPhoneNumber": {
+        "phoneNumber": "+2911120123"
+      },
+      "defaultAddress": {
+        "address1": "Ap #147-5705 Nonummy Street",
+        "city": "Maubeuge",
+        "province": null,
+        "country": "Eritrea",
+        "zip": "7759",
+        "formattedArea": "Maubeuge, Eritrea"
+      },
+      "createdAt": "2022-04-06T14:51:36Z",
+      "updatedAt": "2024-03-14T01:55:09Z"
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 3,
+      "actualQueryCost": 3,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1997,
+        "restoreRate": 100
+      }
+    }
+  }
+}

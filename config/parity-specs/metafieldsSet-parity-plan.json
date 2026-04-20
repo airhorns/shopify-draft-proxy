@@ -1,19 +1,21 @@
 {
-  "scenarioId": "metafieldsSet-parity-plan",
+  "scenarioId": "metafields-set-live-parity",
   "operationNames": [
     "metafieldsSet"
   ],
-  "scenarioStatus": "planned",
+  "scenarioStatus": "captured",
   "assertionKinds": [
     "payload-shape",
     "user-errors-parity",
     "downstream-read-parity"
   ],
-  "liveCaptureFiles": [],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/metafields-set-parity.json"
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/metafieldsSet-parity-plan.graphql",
     "variablesPath": "config/parity-requests/metafieldsSet-parity-plan.variables.json"
   },
-  "comparisonMode": "planned",
-  "notes": "Proxy request scaffold now mirrors the staged product metafield write runtime slice (`metafieldsSet(metafields:)` returning `metafields { id namespace key type value }` plus `userErrors`). Next step is to run the same safe metafield-write scenario against a dedicated dev-store write pack and compare mutation payload together with immediate downstream `product.metafield(...)` / `product.metafields` parity."
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live capture recorded for `metafieldsSet`, including immediate downstream `product.metafield(...)` and `product.metafields` visibility for the written product-owned metafields."
 }

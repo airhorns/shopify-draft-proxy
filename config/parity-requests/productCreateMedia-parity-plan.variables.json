@@ -1,0 +1,10 @@
+{
+  "productId": "gid://shopify/Product/100",
+  "media": [
+    {
+      "mediaContentType": "IMAGE",
+      "originalSource": "https://placehold.co/600x400/png",
+      "alt": "Front view"
+    }
+  ]
+}

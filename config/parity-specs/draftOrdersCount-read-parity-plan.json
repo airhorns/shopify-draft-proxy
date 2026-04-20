@@ -1,0 +1,20 @@
+{
+  "scenarioId": "draft-orders-count-read",
+  "operationNames": [
+    "draftOrdersCount"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "selected-fields"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-orders-count.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/draftOrdersCount-read-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/draftOrdersCount-read-parity-plan.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "The first non-empty Shopify draft-order count baseline is now captured on this host, so parity compares the live count/precision payload against the proxy's local replay instead of staying blocked on a missing baseline."
+}

@@ -1,0 +1,20 @@
+{
+  "scenarioId": "draft-order-create-inline-null-input-argument-error",
+  "operationNames": [
+    "draftOrderCreate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-create-inline-null-input.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/draftOrderCreate-inline-null-input-parity.graphql",
+    "variablesPath": "config/parity-requests/draftOrderCreate-inline-null-input-parity.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured `draftOrderCreate` inline null-argument GraphQL validation slice: `draftOrderCreate(input: null)` fails with `argumentLiteralsIncompatible`, and snapshot-mode local parity now mirrors that branch without hitting upstream."
+}

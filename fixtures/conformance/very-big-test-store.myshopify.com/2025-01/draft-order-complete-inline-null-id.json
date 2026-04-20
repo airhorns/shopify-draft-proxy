@@ -1,0 +1,29 @@
+{
+  "query": "mutation DraftOrderCompleteInlineNullIdParity {\n    draftOrderComplete(id: null, paymentGatewayId: null, sourceName: \"hermes-cron-orders\") {\n      draftOrder {\n        id\n        name\n        status\n        ready\n        invoiceUrl\n      }\n      userErrors { field message }\n    }\n  }",
+  "variables": {},
+  "mutation": {
+    "response": {
+      "errors": [
+        {
+          "message": "Argument 'id' on Field 'draftOrderComplete' has an invalid value (null). Expected type 'ID!'.",
+          "locations": [
+            {
+              "line": 3,
+              "column": 5
+            }
+          ],
+          "path": [
+            "mutation DraftOrderCompleteInlineNullIdParity",
+            "draftOrderComplete",
+            "id"
+          ],
+          "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "Field",
+            "argumentName": "id"
+          }
+        }
+      ]
+    }
+  }
+}

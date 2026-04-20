@@ -11,9 +11,11 @@
       "null-empty-behavior"
     ],
     "captureFiles": [
-      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-detail.json"
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-detail.json",
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-empty-state.json"
     ],
-    "paritySpecPath": "config/parity-specs/product-detail-read.json"
+    "paritySpecPath": "config/parity-specs/product-detail-read.json",
+    "notes": "Live product read capture now includes both the merchant-facing detail slice for a real product with empty collections/media connections and a dedicated empty-state fixture covering missing-product null behavior plus empty `products` / `productsCount` results for an unmatched query."
   },
   {
     "id": "products-catalog-read",
@@ -50,6 +52,24 @@
     "paritySpecPath": "config/parity-specs/products-search-read.json"
   },
   {
+    "id": "products-search-grammar-read",
+    "operationNames": [
+      "products",
+      "productsCount"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "selected-fields",
+      "search-filter-semantics"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-search-grammar.json"
+    ],
+    "paritySpecPath": "config/parity-specs/products-search-grammar-read.json",
+    "notes": "Live product search-grammar capture exercises quoted phrases, bare text terms, and term-local negation across both `products` and `productsCount` without conflating that slice with the broader grouped/prefix advanced-search fixture."
+  },
+  {
     "id": "products-variant-search-read",
     "operationNames": [
       "products",
@@ -67,6 +87,102 @@
     "paritySpecPath": "config/parity-specs/products-variant-search-read.json"
   },
   {
+    "id": "products-advanced-search-read",
+    "operationNames": [
+      "products",
+      "productsCount"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "selected-fields",
+      "search-filter-semantics",
+      "sort-order-semantics",
+      "pagination-shape"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-advanced-search.json"
+    ],
+    "paritySpecPath": "config/parity-specs/products-advanced-search-read.json",
+    "notes": "Live product advanced search capture exercises trailing prefix matching, grouped OR vendor filters, grouped negation, and UPDATED_AT-desc ordering with pageInfo across both `products` and `productsCount`."
+  },
+  {
+    "id": "products-search-pagination-read",
+    "operationNames": [
+      "products",
+      "productsCount"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "selected-fields",
+      "search-filter-semantics",
+      "sort-order-semantics",
+      "pagination-shape"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-search-pagination.json"
+    ],
+    "paritySpecPath": "config/parity-specs/products-search-pagination-read.json",
+    "notes": "Live product search pagination capture preserves a concrete filtered UPDATED_AT-desc window plus forward and backward cursor traversal so overlay pagination parity can be compared against Shopify for the same query tuple."
+  },
+  {
+    "id": "products-or-precedence-read",
+    "operationNames": [
+      "products",
+      "productsCount"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "selected-fields",
+      "search-filter-semantics",
+      "sort-order-semantics",
+      "pagination-shape"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-or-precedence.json"
+    ],
+    "paritySpecPath": "config/parity-specs/products-or-precedence-read.json",
+    "notes": "Live product OR-precedence capture records Shopify's current AND-before-OR behavior for unparenthesized search terms, preserving the merchant-facing products/productsCount slice plus UPDATED_AT-desc ordering and pagination metadata."
+  },
+  {
+    "id": "products-sort-keys-read",
+    "operationNames": [
+      "products"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "selected-fields",
+      "sort-order-semantics",
+      "pagination-shape"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-sort-keys.json"
+    ],
+    "paritySpecPath": "config/parity-specs/products-sort-keys-read.json",
+    "notes": "Live product sort-key capture now covers deterministic Shopify ordering for the current schema-backed product sort keys TITLE, VENDOR, PRODUCT_TYPE, and ID on the merchant-facing catalog slice used by the overlay serializer."
+  },
+  {
+    "id": "products-relevance-search-read",
+    "operationNames": [
+      "products"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "selected-fields",
+      "sort-order-semantics",
+      "pagination-shape"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-relevance-search.json"
+    ],
+    "paritySpecPath": "config/parity-specs/products-relevance-search-read.json",
+    "notes": "Live product relevance capture preserves Shopify opaque cursors plus RELEVANCE ordering for a concrete merchant-facing query so staged overlay replay can reuse the hydrated search baseline instead of inventing synthetic order."
+  },
+  {
     "id": "product-variants-read",
     "operationNames": [
       "productVariant",
@@ -76,12 +192,14 @@
     "assertionKinds": [
       "payload-shape",
       "selected-fields",
-      "nested-inventory-shape"
+      "nested-inventory-shape",
+      "connection-shape"
     ],
     "captureFiles": [
       "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-variants-matrix.json"
     ],
-    "paritySpecPath": "config/parity-specs/product-variants-read.json"
+    "paritySpecPath": "config/parity-specs/product-variants-read.json",
+    "notes": "The current variant/inventory-item read capture now includes the first inventory-level connection slice on `inventoryItem.inventoryLevels(first:)`, preserving location-aware level nodes plus `available` / `on_hand` / `incoming` quantity rows from live Shopify fixtures."
   },
   {
     "id": "product-metafields-read",
@@ -115,6 +233,177 @@
     ],
     "paritySpecPath": "config/parity-specs/collection-detail-read.json",
     "notes": "Live collection detail capture now covers top-level `collection(id:)` plus the merchant-relevant nested `products` connection slice used by the overlay serializer."
+  },
+  {
+    "id": "customer-detail-parity-plan",
+    "operationNames": [
+      "customer"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "selected-fields",
+      "null-empty-behavior"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customer-detail.json"
+    ],
+    "paritySpecPath": "config/parity-specs/customer-detail-parity-plan.json",
+    "notes": "Live customer detail capture now covers top-level `customer(id:)` reads with the merchant-facing field slice already wired through the local overlay serializer."
+  },
+  {
+    "id": "customers-catalog-parity-plan",
+    "operationNames": [
+      "customers"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "selected-fields",
+      "pagination-shape"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customers-catalog.json"
+    ],
+    "paritySpecPath": "config/parity-specs/customers-catalog-parity-plan.json",
+    "notes": "Live customers catalog capture now covers top-level `customers` pagination with the merchant-facing customer card slice used by the current overlay serializer."
+  },
+  {
+    "id": "customers-search-read",
+    "operationNames": [
+      "customers"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "selected-fields",
+      "search-filter-semantics"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customers-search.json"
+    ],
+    "paritySpecPath": "config/parity-specs/customers-search-read.json",
+    "notes": "Live customer search capture now covers top-level `customers(query:, sortKey:, reverse:)` replay for a concrete `state:DISABLED` slice ordered by `UPDATED_AT` descending."
+  },
+  {
+    "id": "customers-advanced-search-read",
+    "operationNames": [
+      "customers"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "selected-fields",
+      "search-filter-semantics"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customers-advanced-search.json"
+    ],
+    "paritySpecPath": "config/parity-specs/customers-advanced-search-read.json",
+    "notes": "Live customer advanced search capture now covers prefix matching, grouped OR tag filters, and grouped negation for top-level `customers(query:, sortKey:, reverse:)` replay ordered by `UPDATED_AT` descending."
+  },
+  {
+    "id": "customers-sort-keys-read",
+    "operationNames": [
+      "customers"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "selected-fields",
+      "sort-order-semantics"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customers-sort-keys.json"
+    ],
+    "paritySpecPath": "config/parity-specs/customers-sort-keys-read.json",
+    "notes": "Live customer sort-key capture now covers the deterministic Shopify customer sort keys `NAME`, `ID`, and `LOCATION` against the merchant-facing customer card slice used by the overlay serializer."
+  },
+  {
+    "id": "customers-relevance-search-read",
+    "operationNames": [
+      "customers"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "selected-fields",
+      "search-filter-semantics",
+      "sort-order-semantics"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customers-relevance-search.json"
+    ],
+    "paritySpecPath": "config/parity-specs/customers-relevance-search-read.json",
+    "notes": "Live customer relevance capture now covers `customers(query:, sortKey: RELEVANCE)` with a concrete broad-text query so the proxy can replay Shopify's opaque relevance ordering, cursors, and pageInfo without inventing deterministic score semantics."
+  },
+  {
+    "id": "customers-count-read",
+    "operationNames": [
+      "customersCount"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "selected-fields",
+      "search-filter-semantics"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customers-count.json"
+    ],
+    "paritySpecPath": "config/parity-specs/customers-count-read.json",
+    "notes": "Live customersCount capture now covers top-level `customersCount(query:)`; on this host the captured `email:` and `state:` query slices both returned exact total counts plus Shopify `invalid_field` warnings under `extensions.search[]`, so the proxy keeps a conservative no-op count-query model and now mirrors that warning metadata instead of assuming `customers` list-search parity."
+  },
+  {
+    "id": "customer-create-live-parity",
+    "operationNames": [
+      "customerCreate"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity",
+      "downstream-read-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customer-create-parity.json"
+    ],
+    "paritySpecPath": "config/parity-specs/customerCreate-parity-plan.json",
+    "notes": "Live safe-write capture now covers `customerCreate` plus immediate downstream `customer`, `customers`, and `customersCount` visibility for the supported customer card/detail slice."
+  },
+  {
+    "id": "customer-update-live-parity",
+    "operationNames": [
+      "customerUpdate"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity",
+      "downstream-read-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customer-update-parity.json"
+    ],
+    "paritySpecPath": "config/parity-specs/customerUpdate-parity-plan.json",
+    "notes": "Live safe-write capture now covers `customerUpdate` plus immediate downstream `customer` and filtered `customers` replay for the supported customer card/detail slice."
+  },
+  {
+    "id": "customer-delete-live-parity",
+    "operationNames": [
+      "customerDelete"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity",
+      "downstream-read-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customer-delete-parity.json"
+    ],
+    "paritySpecPath": "config/parity-specs/customerDelete-parity-plan.json",
+    "notes": "Live safe-write capture now covers `customerDelete` plus immediate downstream customer removal from `customer`, `customers`, and `customersCount` reads."
   },
   {
     "id": "collection-add-products-live-parity",
@@ -219,49 +508,173 @@
     "notes": "Live collections catalog capture now covers top-level `collections` pagination together with a nested merchant-facing `products` slice."
   },
   {
-    "id": "inventoryAdjustQuantities-parity-plan",
+    "id": "locations-catalog-read",
+    "operationNames": [
+      "locations"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "selected-fields",
+      "pagination-shape"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/locations-catalog.json"
+    ],
+    "paritySpecPath": "config/parity-specs/locations-catalog-read.json",
+    "notes": "Live locations catalog capture now covers top-level `locations` pagination for the merchant-facing location slice (`id`, `name`) that the inventory overlay can derive from effective inventory levels."
+  },
+  {
+    "id": "publications-catalog-read",
+    "operationNames": [
+      "publications"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "selected-fields",
+      "pagination-shape"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/publications-catalog.json"
+    ],
+    "paritySpecPath": "config/parity-specs/publications-catalog-read.json",
+    "notes": "Live product-publication capture now also records the top-level `publications` catalog slice (`id`, `name`) so the proxy can replay publication targets locally when staged product publication state exists."
+  },
+  {
+    "id": "inventory-item-update-live-parity",
+    "operationNames": [
+      "inventoryItemUpdate"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity",
+      "downstream-read-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/inventory-item-update-parity.json"
+    ],
+    "paritySpecPath": "config/parity-specs/inventoryItemUpdate-parity-plan.json",
+    "notes": "Live inventory item update capture now covers the current merchant-facing metadata slice (`tracked`, `requiresShipping`, origin codes, harmonized system code, and `measurement.weight`) together with immediate downstream `inventoryItem` visibility and the unknown-id `does not exist` userError path."
+  },
+  {
+    "id": "inventory-adjust-quantities-live-parity",
     "operationNames": [
       "inventoryAdjustQuantities"
     ],
-    "status": "planned",
+    "status": "captured",
     "assertionKinds": [
       "payload-shape",
       "user-errors-parity",
       "downstream-read-parity"
     ],
-    "captureFiles": [],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/inventory-adjust-quantities-parity.json"
+    ],
     "paritySpecPath": "config/parity-specs/inventoryAdjustQuantities-parity-plan.json",
-    "notes": "Inventory adjustment parity still needs dedicated live-write scenarios and payload assertions."
+    "notes": "Live inventory adjustment capture now covers `inventoryAdjustQuantities`. Shopify mirrored each `available` delta into an additional `on_hand` change, left `quantityAfterChange` null in the mutation payload, updated `productVariant` / `inventoryItem.variant` quantities before product-level `totalInventory` and `inventory_total:` catalog search caught up, accepted non-available names like `incoming` only when each change carried a ledger document URI, and rejected invalid names like `on_hand` with an explicit valid-values error plus the same ledger document URI requirement."
   },
   {
-    "id": "metafieldDelete-parity-plan",
+    "id": "inventory-activate-live-parity",
+    "operationNames": [
+      "inventoryActivate"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity",
+      "downstream-read-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/inventory-linkage-parity.json"
+    ],
+    "paritySpecPath": "config/parity-specs/inventoryActivate-parity-plan.json",
+    "notes": "Live inventory linkage capture now covers the first safe `inventoryActivate` slice on this host: calling the root against the already-active only location is a no-op without `available`, while providing `available` returns the captured active-location userError."
+  },
+  {
+    "id": "inventory-deactivate-live-parity",
+    "operationNames": [
+      "inventoryDeactivate"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/inventory-linkage-parity.json"
+    ],
+    "paritySpecPath": "config/parity-specs/inventoryDeactivate-parity-plan.json",
+    "notes": "Live inventory linkage capture now covers the current single-location `inventoryDeactivate` error path on this host, including the exact minimum-one-location userError with `field: null`."
+  },
+  {
+    "id": "inventory-bulk-toggle-activation-live-parity",
+    "operationNames": [
+      "inventoryBulkToggleActivation"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity",
+      "downstream-read-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/inventory-linkage-parity.json"
+    ],
+    "paritySpecPath": "config/parity-specs/inventoryBulkToggleActivation-parity-plan.json",
+    "notes": "Live inventory linkage capture now covers the first safe `inventoryBulkToggleActivation` slice on this host: `activate: true` against the already-active only location is a no-op success, while `activate: false` returns the captured `CANNOT_DEACTIVATE_FROM_ONLY_LOCATION` userError."
+  },
+  {
+    "id": "metafield-delete-compatibility-live-parity",
     "operationNames": [
       "metafieldDelete"
     ],
-    "status": "planned",
+    "status": "captured",
     "assertionKinds": [
       "payload-shape",
       "user-errors-parity",
       "downstream-read-parity"
     ],
-    "captureFiles": [],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/metafields-delete-parity.json"
+    ],
     "paritySpecPath": "config/parity-specs/metafieldDelete-parity-plan.json",
-    "notes": "Metafield mutation parity still needs dedicated live-write scenarios and payload assertions."
+    "notes": "Live current-root capture for `metafieldsDelete` now closes the singular `metafieldDelete` path as a compatibility alias. The compatibility shim still returns `deletedId`, but it stages the same owner-scoped downstream metafield removal proven against Shopify's plural root."
   },
   {
-    "id": "metafieldsSet-parity-plan",
+    "id": "metafields-set-live-parity",
     "operationNames": [
       "metafieldsSet"
     ],
-    "status": "planned",
+    "status": "captured",
     "assertionKinds": [
       "payload-shape",
       "user-errors-parity",
       "downstream-read-parity"
     ],
-    "captureFiles": [],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/metafields-set-parity.json"
+    ],
     "paritySpecPath": "config/parity-specs/metafieldsSet-parity-plan.json",
-    "notes": "Proxy request scaffold now mirrors the staged product metafield write runtime slice (`metafieldsSet(metafields:)` returning `metafields { id namespace key type value }` plus `userErrors`). Next step is to run the same safe metafield-write scenario against a dedicated dev-store write pack and compare mutation payload together with immediate downstream `product.metafield(...)` / `product.metafields` parity."
+    "notes": "Live safe-write capture now covers `metafieldsSet` together with immediate downstream `product.metafield(...)` / `product.metafields` visibility for product-owned metafields."
+  },
+  {
+    "id": "metafields-delete-live-parity",
+    "operationNames": [
+      "metafieldsDelete"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity",
+      "downstream-read-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/metafields-delete-parity.json"
+    ],
+    "paritySpecPath": "config/parity-specs/metafieldsDelete-parity-plan.json",
+    "notes": "Live safe-write capture now covers Shopify's current plural `metafieldsDelete` root together with immediate downstream `product.metafield(...)` / `product.metafields` removal parity for product-owned metafields."
   },
   {
     "id": "product-change-status-live-parity",
@@ -278,52 +691,58 @@
       "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-change-status-parity.json"
     ],
     "paritySpecPath": "config/parity-specs/productChangeStatus-parity-plan.json",
-    "notes": "Live capture recorded for `productChangeStatus`, but the immediate downstream `product(id:)` read returned a later `updatedAt` than the mutation payload, so promotion still requires timestamp-alignment decisions."
+    "notes": "Live capture recorded for `productChangeStatus`, and the staged runtime now keeps the mutation payload and immediate downstream status-filter reads aligned closely enough to promote the operation as covered."
   },
   {
-    "id": "productCreateMedia-parity-plan",
+    "id": "product-create-media-live-parity",
     "operationNames": [
       "productCreateMedia"
     ],
-    "status": "planned",
+    "status": "captured",
     "assertionKinds": [
       "payload-shape",
       "user-errors-parity",
       "downstream-read-parity"
     ],
-    "captureFiles": [],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-create-media-parity.json"
+    ],
     "paritySpecPath": "config/parity-specs/productCreateMedia-parity-plan.json",
-    "notes": "Media mutation parity still needs dedicated live-write scenarios and payload assertions."
+    "notes": "Live safe-write capture now covers productCreateMedia plus immediate downstream `product.media` parity. Shopify returns newly created image media as `UPLOADED` with null image urls in the mutation payload, then flips the immediate follow-up read into a null-url `PROCESSING` state before the asset becomes `READY`."
   },
   {
-    "id": "productDeleteMedia-parity-plan",
+    "id": "product-delete-media-live-parity",
     "operationNames": [
       "productDeleteMedia"
     ],
-    "status": "planned",
+    "status": "captured",
     "assertionKinds": [
       "payload-shape",
       "user-errors-parity",
       "downstream-read-parity"
     ],
-    "captureFiles": [],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-delete-media-parity.json"
+    ],
     "paritySpecPath": "config/parity-specs/productDeleteMedia-parity-plan.json",
-    "notes": "Media mutation parity still needs dedicated live-write scenarios and payload assertions."
+    "notes": "Live safe-write capture now covers productDeleteMedia plus immediate downstream `product.media` removal parity, including Shopify returning an empty `deletedProductImageIds` list for MediaImage deletes."
   },
   {
-    "id": "productDuplicate-parity-plan",
+    "id": "product-duplicate-live-parity",
     "operationNames": [
       "productDuplicate"
     ],
-    "status": "planned",
+    "status": "captured",
     "assertionKinds": [
       "payload-shape",
       "user-errors-parity",
       "downstream-read-parity"
     ],
-    "captureFiles": [],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-duplicate-parity.json"
+    ],
     "paritySpecPath": "config/parity-specs/productDuplicate-parity-plan.json",
-    "notes": "Write-path parity for staged productDuplicate still needs a dedicated safe live scenario pack and payload comparison harness."
+    "notes": "Live safe-write capture now covers `productDuplicate` against a rich source product graph. On this host, Shopify preserved collection memberships and product metafields on the duplicate, but the duplicate's immediate `media` connection came back empty even when the source product already had ready image media."
   },
   {
     "id": "product-option-update-live-parity",
@@ -381,150 +800,207 @@
     "operationNames": [
       "productPublish"
     ],
-    "status": "planned",
+    "status": "captured",
     "assertionKinds": [
       "payload-shape",
       "user-errors-parity",
       "downstream-read-parity"
     ],
-    "captureFiles": [],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-publish-parity.json"
+    ],
     "paritySpecPath": "config/parity-specs/productPublish-parity-plan.json",
-    "notes": "Proxy request scaffold now mirrors the staged product publication runtime slice (`productPublish(input:)` returning aggregate publication fields plus `userErrors`). Next step is to run the same safe publication scenario against a dedicated dev-store write pack and compare mutation payload plus immediate downstream publication aggregate read parity."
+    "notes": "Minimal live publish/unpublish mutation payloads now capture successfully for `productPublish`, and this scenario now tracks the ready-for-comparison minimal live payload slice separately from the still-blocked aggregate publication-field companion scenario."
   },
   {
-    "id": "productSet-parity-plan",
+    "id": "productPublish-aggregate-parity-blocker",
+    "operationNames": [
+      "productPublish"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity",
+      "downstream-read-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-publish-parity.json"
+    ],
+    "paritySpecPath": "config/parity-specs/productPublish-aggregate-parity-blocker.json",
+    "notes": "The aggregate publication-field blocker for `productPublish` remains explicit in this separate captured scenario: selecting `publishedOnCurrentPublication`, `availablePublicationsCount`, or `resourcePublicationsCount` still fails even though the minimal mutation payload now captures successfully."
+  },
+  {
+    "id": "product-set-live-parity",
     "operationNames": [
       "productSet"
     ],
-    "status": "planned",
+    "status": "captured",
     "assertionKinds": [
       "payload-shape",
       "user-errors-parity",
       "downstream-read-parity"
     ],
-    "captureFiles": [],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-set-parity.json"
+    ],
     "paritySpecPath": "config/parity-specs/productSet-parity-plan.json",
-    "notes": "Proxy request scaffold now mirrors the staged synchronous productSet create slice (scalar/detail fields plus `productOptions`, `variants`, and `metafields`). Next step is to run the same safe productSet scenario against a dedicated dev-store write pack and compare mutation payload plus immediate downstream product read parity."
+    "notes": "Live safe-write capture now covers the synchronous create slice of `productSet` plus immediate downstream `product(id:)` parity. The current live API requires `variants[].inventoryQuantities[]` entries to include both `locationId` and quantity `name` (for this capture, `available`) rather than only a bare quantity."
   },
   {
     "id": "productUnpublish-parity-plan",
     "operationNames": [
       "productUnpublish"
     ],
-    "status": "planned",
+    "status": "captured",
     "assertionKinds": [
       "payload-shape",
       "user-errors-parity",
       "downstream-read-parity"
     ],
-    "captureFiles": [],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-unpublish-parity.json"
+    ],
     "paritySpecPath": "config/parity-specs/productUnpublish-parity-plan.json",
-    "notes": "Proxy request scaffold now mirrors the staged product unpublish runtime slice (`productUnpublish(input:)` returning aggregate publication fields plus `userErrors`). Next step is to run the same safe unpublish scenario against a dedicated dev-store write pack and compare mutation payload plus immediate downstream publication aggregate read parity."
+    "notes": "Minimal live publish/unpublish mutation payloads now capture successfully for `productUnpublish`, and this scenario now tracks the ready-for-comparison minimal live payload slice separately from the still-blocked aggregate publication-field companion scenario."
   },
   {
-    "id": "productUpdateMedia-parity-plan",
+    "id": "productUnpublish-aggregate-parity-blocker",
+    "operationNames": [
+      "productUnpublish"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity",
+      "downstream-read-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-unpublish-parity.json"
+    ],
+    "paritySpecPath": "config/parity-specs/productUnpublish-aggregate-parity-blocker.json",
+    "notes": "The aggregate publication-field blocker for `productUnpublish` remains explicit in this separate captured scenario: selecting `publishedOnCurrentPublication`, `availablePublicationsCount`, or `resourcePublicationsCount` still fails even though the minimal mutation payload now captures successfully."
+  },
+  {
+    "id": "product-update-media-live-parity",
     "operationNames": [
       "productUpdateMedia"
     ],
-    "status": "planned",
+    "status": "captured",
     "assertionKinds": [
       "payload-shape",
       "user-errors-parity",
       "downstream-read-parity"
     ],
-    "captureFiles": [],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-update-media-parity.json"
+    ],
     "paritySpecPath": "config/parity-specs/productUpdateMedia-parity-plan.json",
-    "notes": "Media mutation parity still needs dedicated live-write scenarios and payload assertions."
+    "notes": "Live safe-write capture now covers productUpdateMedia once the uploaded asset becomes `READY`; attempting the same update earlier returns `mediaUserErrors` instead of a successful mutation payload."
   },
   {
-    "id": "productVariantCreate-parity-plan",
+    "id": "product-variant-create-compatibility-evidence",
     "operationNames": [
       "productVariantCreate"
     ],
-    "status": "planned",
+    "status": "captured",
     "assertionKinds": [
       "payload-shape",
       "user-errors-parity",
       "downstream-read-parity"
     ],
-    "captureFiles": [],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-variants-bulk-create-parity.json",
+      "pending/product-variant-compatibility-live-schema-blocker.md"
+    ],
     "paritySpecPath": "config/parity-specs/productVariantCreate-parity-plan.json",
-    "notes": "Proxy request scaffold now mirrors the staged single-variant create compatibility slice (`productVariantCreate(input:)` returning product inventory aggregates, created `productVariant`, and `userErrors`). Next step is to run the same safe single-variant create scenario against a dedicated dev-store write pack and compare the mutation payload together with immediate downstream variant/search/count parity."
+    "notes": "Compatibility-only coverage for `productVariantCreate`: the local wrapper rides the same normalized variant overlay proven by captured `productVariantsBulkCreate` live parity, and the checked-in schema blocker note records that the direct legacy root is absent on the current 2025-01 conformance store."
   },
   {
-    "id": "productVariantDelete-parity-plan",
+    "id": "product-variant-delete-compatibility-evidence",
     "operationNames": [
       "productVariantDelete"
     ],
-    "status": "planned",
+    "status": "captured",
     "assertionKinds": [
       "payload-shape",
       "user-errors-parity",
       "downstream-read-parity"
     ],
-    "captureFiles": [],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-variants-bulk-delete-parity.json",
+      "pending/product-variant-compatibility-live-schema-blocker.md"
+    ],
     "paritySpecPath": "config/parity-specs/productVariantDelete-parity-plan.json",
-    "notes": "Proxy request scaffold now mirrors the staged single-variant delete compatibility slice (`productVariantDelete(id:)` returning `deletedProductVariantId` plus `userErrors`). Next step is to run the same safe single-variant delete scenario against a dedicated dev-store write pack and compare the mutation payload together with immediate downstream variant/search/count parity."
+    "notes": "Compatibility-only coverage for `productVariantDelete`: the local wrapper reuses the bulk delete overlay path already settled against live Shopify, and the checked-in schema blocker note records that the direct legacy root is absent on the current 2025-01 conformance store."
   },
   {
-    "id": "productVariantUpdate-parity-plan",
+    "id": "product-variant-update-compatibility-evidence",
     "operationNames": [
       "productVariantUpdate"
     ],
-    "status": "planned",
+    "status": "captured",
     "assertionKinds": [
       "payload-shape",
       "user-errors-parity",
       "downstream-read-parity"
     ],
-    "captureFiles": [],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-variants-bulk-update-parity.json",
+      "pending/product-variant-compatibility-live-schema-blocker.md"
+    ],
     "paritySpecPath": "config/parity-specs/productVariantUpdate-parity-plan.json",
-    "notes": "Proxy request scaffold now mirrors the staged single-variant update compatibility slice (`productVariantUpdate(input:)` returning product inventory aggregates, updated `productVariant`, and `userErrors`). Next step is to run the same safe single-variant update scenario against a dedicated dev-store write pack and compare the mutation payload together with immediate downstream variant/search/count parity."
+    "notes": "Compatibility-only coverage for `productVariantUpdate`: the local wrapper reuses the bulk update overlay path already settled against live Shopify, and the checked-in schema blocker note records that the direct legacy root is absent on the current 2025-01 conformance store."
   },
   {
-    "id": "productVariantsBulkCreate-parity-plan",
+    "id": "product-variants-bulk-create-live-parity",
     "operationNames": [
       "productVariantsBulkCreate"
     ],
-    "status": "planned",
+    "status": "captured",
     "assertionKinds": [
       "payload-shape",
       "user-errors-parity",
       "downstream-read-parity"
     ],
-    "captureFiles": [],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-variants-bulk-create-parity.json"
+    ],
     "paritySpecPath": "config/parity-specs/productVariantsBulkCreate-parity-plan.json",
-    "notes": "Proxy request scaffold now mirrors the staged variant bulk-create runtime slice (`productVariantsBulkCreate(productId:, variants:)` returning product inventory aggregates, nested `product.variants`, created `productVariants`, and `userErrors`). Next step is to run the same safe variant-create scenario against a dedicated dev-store write pack and compare the mutation payload together with immediate downstream variant/search/count parity."
+    "notes": "Live safe-write capture now covers `productVariantsBulkCreate` on the current token without location-scoped inventory quantities. Shopify accepted `optionValues` plus `inventoryItem.sku`, returned the created variant immediately on `product.variants`, but left downstream `products(query: \"sku:...\")` / `productsCount(query: \"sku:...\")` empty immediately after the write."
   },
   {
-    "id": "productVariantsBulkDelete-parity-plan",
+    "id": "product-variants-bulk-delete-live-parity",
     "operationNames": [
       "productVariantsBulkDelete"
     ],
-    "status": "planned",
+    "status": "captured",
     "assertionKinds": [
       "payload-shape",
       "user-errors-parity",
       "downstream-read-parity"
     ],
-    "captureFiles": [],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-variants-bulk-delete-parity.json"
+    ],
     "paritySpecPath": "config/parity-specs/productVariantsBulkDelete-parity-plan.json",
-    "notes": "Proxy request scaffold now mirrors the staged variant bulk-delete runtime slice (`productVariantsBulkDelete(productId:, variantsIds:)` returning product inventory aggregates, nested `product.variants`, and `userErrors`). Next step is to run the same safe variant-delete scenario against a dedicated dev-store write pack and compare the mutation payload together with immediate downstream variant/search/count parity."
+    "notes": "Live safe-write capture now covers `productVariantsBulkDelete`, including immediate downstream `product.variants` removal parity while sku-filtered `products` / `productsCount` still remain empty on the same just-written product surface."
   },
   {
-    "id": "productVariantsBulkUpdate-parity-plan",
+    "id": "product-variants-bulk-update-live-parity",
     "operationNames": [
       "productVariantsBulkUpdate"
     ],
-    "status": "planned",
+    "status": "captured",
     "assertionKinds": [
       "payload-shape",
       "user-errors-parity",
       "downstream-read-parity"
     ],
-    "captureFiles": [],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-variants-bulk-update-parity.json"
+    ],
     "paritySpecPath": "config/parity-specs/productVariantsBulkUpdate-parity-plan.json",
-    "notes": "Proxy request scaffold now mirrors the staged variant bulk-update runtime slice (`productVariantsBulkUpdate(productId:, variants:)` returning product inventory aggregates, nested `product.variants`, updated `productVariants`, and `userErrors`). Next step is to run the same safe variant-update scenario against a dedicated dev-store write pack and compare the mutation payload together with immediate downstream variant/search/count parity."
+    "notes": "Live safe-write capture now covers `productVariantsBulkUpdate`. Shopify accepted `inventoryItem.sku` on update, kept `inventoryQuantity` at `0` without a separate inventory adjustment, and left downstream sku-filtered `products` / `productsCount` empty immediately after the write."
   },
   {
     "id": "tags-add-live-parity",
@@ -541,7 +1017,7 @@
       "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/tags-add-parity.json"
     ],
     "paritySpecPath": "config/parity-specs/tagsAdd-parity-plan.json",
-    "notes": "Live capture recorded for `tagsAdd`, but Shopify did not reflect the freshly added unique tag in immediate `products(query:)` / `productsCount(query:)` search results, so promotion still requires search-index parity decisions."
+    "notes": "Live capture recorded for `tagsAdd`, and the staged runtime now mirrors Shopify's immediate tag-index lag for hydrated products: `product.tags` updates immediately while `products(query: \"tag:...\")` / `productsCount(query: \"tag:...\")` stay limited to hydrated/base tags."
   },
   {
     "id": "tags-remove-live-parity",
@@ -558,7 +1034,7 @@
       "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/tags-remove-parity.json"
     ],
     "paritySpecPath": "config/parity-specs/tagsRemove-parity-plan.json",
-    "notes": "Live capture recorded for `tagsRemove`, but Shopify did not reflect the unique tag state in immediate `products(query:)` / `productsCount(query:)` search results, so promotion still requires search-index parity decisions."
+    "notes": "Live capture recorded for `tagsRemove`, and the staged runtime now mirrors Shopify's immediate tag-index lag for hydrated products by dropping removed hydrated/base tags from search immediately while leaving newly added-only tags out of `products(query: \"tag:...\")` / `productsCount(query: \"tag:...\")` until rehydration."
   },
   {
     "id": "product-create-live-parity",
@@ -610,5 +1086,633 @@
     ],
     "paritySpecPath": "config/parity-specs/productDelete-parity-plan.json",
     "notes": "Live safe-write capture now covers productDelete plus immediate downstream null/list-removal parity."
+  },
+  {
+    "id": "order-empty-state-read",
+    "operationNames": [
+      "order",
+      "orders",
+      "ordersCount"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "selected-fields",
+      "null-empty-behavior",
+      "pagination-shape"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-empty-state.json"
+    ],
+    "paritySpecPath": "config/parity-specs/order-empty-state-read.json",
+    "notes": "Live direct-order read probing on this host is currently safe enough to capture a conservative empty-state baseline: `order(id: gid://shopify/Order/0) -> null`, `orders(first: 1, sortKey: CREATED_AT, reverse: true) -> empty connection`, and `ordersCount -> { count: 0, precision: EXACT }`."
+  },
+  {
+    "id": "draft-order-detail-read",
+    "operationNames": [
+      "draftOrder"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "selected-fields",
+      "downstream-read-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-detail.json"
+    ],
+    "paritySpecPath": "config/parity-specs/draftOrder-read-parity-plan.json",
+    "notes": "A first live-backed draft-order detail slice is now captured: reading `draftOrder(id:)` immediately after a safe `draftOrderCreate` returns the same merchant-facing open-draft detail payload on this host."
+  },
+  {
+    "id": "draft-orders-catalog-read",
+    "operationNames": [
+      "draftOrders"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "selected-fields",
+      "pagination-shape"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-orders-catalog.json"
+    ],
+    "paritySpecPath": "config/parity-specs/draftOrders-read-parity-plan.json",
+    "notes": "A first non-empty live `draftOrders(first: ...)` catalog baseline is now captured on this host: the current repo credential can read the newest-first draft-order catalog with opaque Shopify cursors and a non-empty page window immediately after safe draft-order creation."
+  },
+  {
+    "id": "draft-orders-count-read",
+    "operationNames": [
+      "draftOrdersCount"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "selected-fields"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-orders-count.json"
+    ],
+    "paritySpecPath": "config/parity-specs/draftOrdersCount-read-parity-plan.json",
+    "notes": "A first non-empty live `draftOrdersCount(query:)` baseline is now captured on this host: the current repo credential can read the aggregate draft-order count/precision slice for the same catalog family without relying only on staged synthetic counts."
+  },
+  {
+    "id": "draft-orders-invalid-email-query-read",
+    "operationNames": [
+      "draftOrders",
+      "draftOrdersCount"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "selected-fields",
+      "search-filter-semantics"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-orders-invalid-email-query.json"
+    ],
+    "paritySpecPath": "config/parity-specs/draftOrders-invalid-email-query-read.json",
+    "notes": "A first evidence-backed filtered draft-order search slice is now captured on this host: `draftOrders(query: \"email:...\")` and `draftOrdersCount(query: \"email:...\")` do not narrow the result set and instead return Shopify `extensions.search[]` invalid_field warnings for the unsupported email field."
+  },
+  {
+    "id": "order-update-inline-missing-id-argument-error",
+    "operationNames": [
+      "orderUpdate"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-update-inline-missing-id.json"
+    ],
+    "paritySpecPath": "config/parity-specs/orderUpdate-inline-missing-id-parity.json",
+    "notes": "A third safe live order-editing slice is now captured for `orderUpdate`: omitting inline `input.id` fails earlier with top-level GraphQL `missingRequiredInputObjectAttribute` instead of reaching mutation-scoped `userErrors`."
+  },
+  {
+    "id": "order-update-inline-null-id-argument-error",
+    "operationNames": [
+      "orderUpdate"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-update-inline-null-id.json"
+    ],
+    "paritySpecPath": "config/parity-specs/orderUpdate-inline-null-id-parity.json",
+    "notes": "A fourth safe live order-editing slice is now captured for `orderUpdate`: inline `input.id: null` fails earlier with top-level GraphQL `argumentLiteralsIncompatible` instead of reaching mutation-scoped `userErrors`."
+  },
+  {
+    "id": "order-update-missing-id-invalid-variable",
+    "operationNames": [
+      "orderUpdate"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-update-missing-id.json"
+    ],
+    "paritySpecPath": "config/parity-specs/orderUpdate-missing-id-parity.json",
+    "notes": "A second safe live order-editing slice is now captured for `orderUpdate`: omitting `input.id` from the variables payload fails earlier with a top-level GraphQL `INVALID_VARIABLE` error (`Expected value to not be null`) instead of reaching mutation-scoped `userErrors`."
+  },
+  {
+    "id": "order-update-unknown-id-parity",
+    "operationNames": [
+      "orderUpdate"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-update-unknown-id.json"
+    ],
+    "paritySpecPath": "config/parity-specs/orderUpdate-parity-plan.json",
+    "notes": "A safe live order-editing slice is now captured for `orderUpdate`: updating a missing order id returns `order: null` plus `userErrors[{ field: ['id'], message: 'Order does not exist' }]` under the current host credential without requiring a writable order target."
+  },
+  {
+    "id": "order-update-live-parity",
+    "operationNames": [
+      "orderUpdate"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "selected-fields",
+      "downstream-read-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-update-parity.json"
+    ],
+    "paritySpecPath": "config/parity-specs/orderUpdate-live-parity.json",
+    "notes": "The first live happy-path `orderUpdate` slice is now captured on this host: updating `note` and `tags` on a freshly created order returned `userErrors: []`, kept the same order id/name, and the immediate downstream `order(id:)` read preserved the edited values."
+  },
+  {
+    "id": "fulfillment-create-invalid-id-parity",
+    "operationNames": [
+      "fulfillmentCreate"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "resource-not-found-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/fulfillment-create-invalid-id.json"
+    ],
+    "paritySpecPath": "config/parity-specs/fulfillmentCreate-invalid-id-parity.json",
+    "notes": "The first fulfillment-domain slice is a safe invalid-id validation branch: on this host `fulfillmentCreate` against `gid://shopify/FulfillmentOrder/0` returns top-level GraphQL `RESOURCE_NOT_FOUND` / `invalid id` instead of a scope blocker."
+  },
+  {
+    "id": "fulfillment-tracking-info-update-inline-missing-id-argument-error",
+    "operationNames": [
+      "fulfillmentTrackingInfoUpdate"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/fulfillment-tracking-info-update-inline-missing-id.json"
+    ],
+    "paritySpecPath": "config/parity-specs/fulfillmentTrackingInfoUpdate-inline-missing-id-parity.json",
+    "notes": "A first safe fulfillmentTrackingInfoUpdate validation slice is now captured for the orders domain: omitting the inline required `fulfillmentId` argument fails with top-level GraphQL `missingRequiredArguments` before Shopify reaches the root's separate fulfillment-write scope and permission gate."
+  },
+  {
+    "id": "fulfillment-tracking-info-update-inline-null-id-argument-error",
+    "operationNames": [
+      "fulfillmentTrackingInfoUpdate"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/fulfillment-tracking-info-update-inline-null-id.json"
+    ],
+    "paritySpecPath": "config/parity-specs/fulfillmentTrackingInfoUpdate-inline-null-id-parity.json",
+    "notes": "A second safe fulfillmentTrackingInfoUpdate validation slice is now captured for the orders domain: inline `fulfillmentId: null` fails with top-level GraphQL `argumentLiteralsIncompatible` before Shopify reaches the root's separate fulfillment-write scope and permission gate."
+  },
+  {
+    "id": "fulfillment-tracking-info-update-missing-id-invalid-variable",
+    "operationNames": [
+      "fulfillmentTrackingInfoUpdate"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/fulfillment-tracking-info-update-missing-id.json"
+    ],
+    "paritySpecPath": "config/parity-specs/fulfillmentTrackingInfoUpdate-missing-id-parity.json",
+    "notes": "A safe fulfillmentTrackingInfoUpdate validation slice is now captured for the orders domain: omitting the required `$fulfillmentId` variable fails at GraphQL coercion time with `INVALID_VARIABLE` before Shopify reaches the root's separate fulfillment-write scope and permission gate."
+  },
+  {
+    "id": "fulfillment-cancel-inline-missing-id-argument-error",
+    "operationNames": [
+      "fulfillmentCancel"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/fulfillment-cancel-inline-missing-id.json"
+    ],
+    "paritySpecPath": "config/parity-specs/fulfillmentCancel-inline-missing-id-parity.json",
+    "notes": "A first safe fulfillmentCancel validation slice is now captured for the orders domain: omitting the inline required `id` argument fails with top-level GraphQL `missingRequiredArguments` before Shopify reaches the root's separate fulfillment lifecycle access gate."
+  },
+  {
+    "id": "fulfillment-cancel-inline-null-id-argument-error",
+    "operationNames": [
+      "fulfillmentCancel"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/fulfillment-cancel-inline-null-id.json"
+    ],
+    "paritySpecPath": "config/parity-specs/fulfillmentCancel-inline-null-id-parity.json",
+    "notes": "A second safe fulfillmentCancel validation slice is now captured for the orders domain: inline `id: null` fails with top-level GraphQL `argumentLiteralsIncompatible` before Shopify reaches the root's separate fulfillment lifecycle access gate."
+  },
+  {
+    "id": "fulfillment-cancel-missing-id-invalid-variable",
+    "operationNames": [
+      "fulfillmentCancel"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/fulfillment-cancel-missing-id.json"
+    ],
+    "paritySpecPath": "config/parity-specs/fulfillmentCancel-missing-id-parity.json",
+    "notes": "A safe fulfillmentCancel validation slice is now captured for the orders domain: omitting the required `$id` variable fails at GraphQL coercion time with `INVALID_VARIABLE` before Shopify reaches the root's separate fulfillment lifecycle access gate."
+  },
+  {
+    "id": "fulfillment-tracking-info-update-live-parity",
+    "operationNames": [
+      "fulfillmentTrackingInfoUpdate"
+    ],
+    "status": "planned",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity",
+      "downstream-read-parity"
+    ],
+    "captureFiles": [],
+    "paritySpecPath": "config/parity-specs/fulfillmentTrackingInfoUpdate-parity-plan.json",
+    "notes": "First live fulfillmentTrackingInfoUpdate parity scaffold for the orders domain. The current conformance credential on this host is blocked on one of Shopify's fulfillment-write scopes plus the fulfill_and_ship_orders permission, so the scenario stays planned-with-blocker until a fulfillment-lifecycle-capable install is available."
+  },
+  {
+    "id": "fulfillment-cancel-live-parity",
+    "operationNames": [
+      "fulfillmentCancel"
+    ],
+    "status": "planned",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity",
+      "downstream-read-parity"
+    ],
+    "captureFiles": [],
+    "paritySpecPath": "config/parity-specs/fulfillmentCancel-parity-plan.json",
+    "notes": "First live fulfillmentCancel parity scaffold for the orders domain. The current conformance credential on this host still returns ACCESS_DENIED for this mutation, so the scenario stays planned-with-blocker until a fulfillment-lifecycle-capable install is available."
+  },
+  {
+    "id": "order-create-inline-missing-order-argument-error",
+    "operationNames": [
+      "orderCreate"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-create-inline-missing-order.json"
+    ],
+    "paritySpecPath": "config/parity-specs/orderCreate-inline-missing-order-parity.json",
+    "notes": "A safe direct-order creation validation slice is now captured for `orderCreate`: omitting the inline required `order` argument fails with top-level GraphQL `missingRequiredArguments` before Shopify reaches the root's separate offline-token/write_orders blocker."
+  },
+  {
+    "id": "order-create-inline-null-order-argument-error",
+    "operationNames": [
+      "orderCreate"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-create-inline-null-order.json"
+    ],
+    "paritySpecPath": "config/parity-specs/orderCreate-inline-null-order-parity.json",
+    "notes": "A second safe direct-order creation validation slice is now captured for `orderCreate`: inline `order: null` fails with top-level GraphQL `argumentLiteralsIncompatible` before Shopify reaches the root's separate offline-token/write_orders blocker."
+  },
+  {
+    "id": "order-create-missing-order-invalid-variable",
+    "operationNames": [
+      "orderCreate"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-create-missing-order.json"
+    ],
+    "paritySpecPath": "config/parity-specs/orderCreate-missing-order-parity.json",
+    "notes": "A first safe order-creation validation slice is now captured for `orderCreate`: omitting the required `$order` variable fails at GraphQL coercion time with `INVALID_VARIABLE` before Shopify reaches the root's separate offline-token/write_orders blocker."
+  },
+  {
+    "id": "order-create-live-parity",
+    "operationNames": [
+      "orderCreate"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "selected-fields",
+      "downstream-read-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-create-parity.json"
+    ],
+    "paritySpecPath": "config/parity-specs/orderCreate-parity-plan.json",
+    "notes": "The first merchant-realistic direct-order creation slice is now live-captured on this host: `orderCreate` accepted custom line items, shipping lines, billing + shipping addresses, and order customAttributes, returned a paid unfulfilled order payload, and the created order was immediately readable through `order(id:)`."
+  },
+  {
+    "id": "draft-order-create-inline-missing-input-argument-error",
+    "operationNames": [
+      "draftOrderCreate"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-create-inline-missing-input.json"
+    ],
+    "paritySpecPath": "config/parity-specs/draftOrderCreate-inline-missing-input-parity.json",
+    "notes": "A second safe draft-order creation validation slice is now captured for `draftOrderCreate`: omitting the inline required `input` argument fails with top-level GraphQL `missingRequiredArguments` before Shopify reaches the root's separate draft-order write/manage-access blocker."
+  },
+  {
+    "id": "draft-order-create-inline-null-input-argument-error",
+    "operationNames": [
+      "draftOrderCreate"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-create-inline-null-input.json"
+    ],
+    "paritySpecPath": "config/parity-specs/draftOrderCreate-inline-null-input-parity.json",
+    "notes": "A third safe draft-order creation validation slice is now captured for `draftOrderCreate`: inline `input: null` fails with top-level GraphQL `argumentLiteralsIncompatible` before Shopify reaches the root's separate draft-order write/manage-access blocker."
+  },
+  {
+    "id": "draft-order-create-missing-input-invalid-variable",
+    "operationNames": [
+      "draftOrderCreate"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-create-missing-input.json"
+    ],
+    "paritySpecPath": "config/parity-specs/draftOrderCreate-missing-input-parity.json",
+    "notes": "A first safe draft-order creation validation slice is now captured for `draftOrderCreate`: omitting the required `$input` variable fails at GraphQL coercion time with `INVALID_VARIABLE` before Shopify reaches the root's separate draft-order write/manage-access blocker."
+  },
+  {
+    "id": "draft-order-create-live-parity",
+    "operationNames": [
+      "draftOrderCreate"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "selected-fields",
+      "downstream-read-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-create-parity.json"
+    ],
+    "paritySpecPath": "config/parity-specs/draftOrderCreate-parity-plan.json",
+    "notes": "The first merchant-realistic draft-order creation slice is now live-captured on this host: `draftOrderCreate` accepted custom line items, addresses, tags, and customAttributes, returned an immediate open-draft payload, and the created draft was then readable through `draftOrder(id:)`."
+  },
+  {
+    "id": "draft-order-complete-inline-missing-id-argument-error",
+    "operationNames": [
+      "draftOrderComplete"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-complete-inline-missing-id.json"
+    ],
+    "paritySpecPath": "config/parity-specs/draftOrderComplete-inline-missing-id-parity.json",
+    "notes": "A second safe draft-order completion validation slice is now captured for `draftOrderComplete`: omitting the inline required `id` argument fails with top-level GraphQL `missingRequiredArguments` before Shopify reaches the root's separate draft-order completion access/permission blocker."
+  },
+  {
+    "id": "draft-order-complete-inline-null-id-argument-error",
+    "operationNames": [
+      "draftOrderComplete"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-complete-inline-null-id.json"
+    ],
+    "paritySpecPath": "config/parity-specs/draftOrderComplete-inline-null-id-parity.json",
+    "notes": "A third safe draft-order completion validation slice is now captured for `draftOrderComplete`: inline `id: null` fails with top-level GraphQL `argumentLiteralsIncompatible` before Shopify reaches the root's separate draft-order completion access/permission blocker."
+  },
+  {
+    "id": "draft-order-complete-missing-id-invalid-variable",
+    "operationNames": [
+      "draftOrderComplete"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-complete-missing-id.json"
+    ],
+    "paritySpecPath": "config/parity-specs/draftOrderComplete-missing-id-parity.json",
+    "notes": "A first safe draft-order completion validation slice is now captured for `draftOrderComplete`: omitting the required `$id` variable fails at GraphQL coercion time with `INVALID_VARIABLE` before Shopify reaches the root's separate draft-order completion access/permission blocker."
+  },
+  {
+    "id": "draft-order-complete-live-parity",
+    "operationNames": [
+      "draftOrderComplete"
+    ],
+    "status": "planned",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity",
+      "downstream-read-parity"
+    ],
+    "captureFiles": [],
+    "paritySpecPath": "config/parity-specs/draftOrderComplete-parity-plan.json",
+    "notes": "First live draftOrderComplete parity scaffold for the orders domain. The current conformance credential on this host is blocked on write_draft_orders plus mark-as-paid/set-payment-terms permission, so the scenario stays planned-with-blocker until a draft-order completion-capable install is available."
+  },
+  {
+    "id": "order-edit-begin-missing-id-invalid-variable",
+    "operationNames": [
+      "orderEditBegin"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-edit-begin-missing-id.json"
+    ],
+    "paritySpecPath": "config/parity-specs/orderEditBegin-missing-id-parity.json",
+    "notes": "A first safe order-editing validation slice is now captured for `orderEditBegin`: omitting the required `$id` variable fails at GraphQL coercion time with `INVALID_VARIABLE` before Shopify reaches the root's separate `write_order_edits` blocker."
+  },
+  {
+    "id": "order-edit-begin-live-parity",
+    "operationNames": [
+      "orderEditBegin"
+    ],
+    "status": "planned",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity",
+      "downstream-read-parity"
+    ],
+    "captureFiles": [],
+    "paritySpecPath": "config/parity-specs/orderEditBegin-parity-plan.json",
+    "notes": "First live orderEditBegin parity scaffold for the orders domain. The current conformance credential on this host is blocked on write_order_edits, so the scenario stays planned-with-blocker until an order-edit capable install is available."
+  },
+  {
+    "id": "order-edit-add-variant-missing-id-invalid-variable",
+    "operationNames": [
+      "orderEditAddVariant"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-edit-add-variant-missing-id.json"
+    ],
+    "paritySpecPath": "config/parity-specs/orderEditAddVariant-missing-id-parity.json",
+    "notes": "A second safe order-editing validation slice is now captured for `orderEditAddVariant`: omitting the required `$id` variable fails at GraphQL coercion time with `INVALID_VARIABLE` before Shopify reaches the root's separate `write_order_edits` blocker."
+  },
+  {
+    "id": "order-edit-add-variant-live-parity",
+    "operationNames": [
+      "orderEditAddVariant"
+    ],
+    "status": "planned",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity",
+      "downstream-read-parity"
+    ],
+    "captureFiles": [],
+    "paritySpecPath": "config/parity-specs/orderEditAddVariant-parity-plan.json",
+    "notes": "First live orderEditAddVariant parity scaffold for the orders domain. The current conformance credential on this host is blocked on write_order_edits, so the scenario stays planned-with-blocker until an order-edit capable install is available."
+  },
+  {
+    "id": "order-edit-set-quantity-missing-id-invalid-variable",
+    "operationNames": [
+      "orderEditSetQuantity"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-edit-set-quantity-missing-id.json"
+    ],
+    "paritySpecPath": "config/parity-specs/orderEditSetQuantity-missing-id-parity.json",
+    "notes": "A third safe order-editing validation slice is now captured for `orderEditSetQuantity`: omitting the required `$id` variable fails at GraphQL coercion time with `INVALID_VARIABLE` before Shopify reaches the root's separate `write_order_edits` blocker."
+  },
+  {
+    "id": "order-edit-set-quantity-live-parity",
+    "operationNames": [
+      "orderEditSetQuantity"
+    ],
+    "status": "planned",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity",
+      "downstream-read-parity"
+    ],
+    "captureFiles": [],
+    "paritySpecPath": "config/parity-specs/orderEditSetQuantity-parity-plan.json",
+    "notes": "First live orderEditSetQuantity parity scaffold for the orders domain. The current conformance credential on this host is blocked on write_order_edits, so the scenario stays planned-with-blocker until an order-edit capable install is available."
+  },
+  {
+    "id": "order-edit-commit-missing-id-invalid-variable",
+    "operationNames": [
+      "orderEditCommit"
+    ],
+    "status": "captured",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity"
+    ],
+    "captureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-edit-commit-missing-id.json"
+    ],
+    "paritySpecPath": "config/parity-specs/orderEditCommit-missing-id-parity.json",
+    "notes": "A fourth safe order-editing validation slice is now captured for `orderEditCommit`: omitting the required `$id` variable fails at GraphQL coercion time with `INVALID_VARIABLE` before Shopify reaches the root's separate `write_order_edits` blocker."
+  },
+  {
+    "id": "order-edit-commit-live-parity",
+    "operationNames": [
+      "orderEditCommit"
+    ],
+    "status": "planned",
+    "assertionKinds": [
+      "payload-shape",
+      "user-errors-parity",
+      "downstream-read-parity"
+    ],
+    "captureFiles": [],
+    "paritySpecPath": "config/parity-specs/orderEditCommit-parity-plan.json",
+    "notes": "First live orderEditCommit parity scaffold for the orders domain. The current conformance credential on this host is blocked on write_order_edits, so the scenario stays planned-with-blocker until an order-edit capable install is available."
   }
 ]

@@ -1,0 +1,22 @@
+{
+  "scenarioId": "customers-relevance-search-read",
+  "operationNames": [
+    "customers"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "selected-fields",
+    "search-filter-semantics",
+    "sort-order-semantics"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customers-relevance-search.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers-relevance-search-read.graphql",
+    "variablesPath": "config/parity-requests/customers-relevance-search-read.variables.json"
+  },
+  "comparisonMode": "capture-only",
+  "notes": "Live customer relevance capture now exercises `customers(query:, sortKey: RELEVANCE)` with a concrete broad-text query so the proxy can replay Shopify's opaque relevance ordering, cursors, and pageInfo without inventing deterministic score semantics."
+}

@@ -2,13 +2,13 @@
   "mutation": {
     "variables": {
       "input": {
-        "id": "gid://shopify/Product/9255299580137"
+        "id": "gid://shopify/Product/9257218801897"
       }
     },
     "response": {
       "data": {
         "productDelete": {
-          "deletedProductId": "gid://shopify/Product/9255299580137",
+          "deletedProductId": "gid://shopify/Product/9257218801897",
           "userErrors": []
         }
       },
@@ -22,6 +22,124 @@
             "restoreRate": 100
           }
         }
+      }
+    }
+  },
+  "validation": {
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Product/999999999999999"
+      }
+    },
+    "response": {
+      "data": {
+        "productDelete": {
+          "deletedProductId": null,
+          "userErrors": [
+            {
+              "field": [
+                "id"
+              ],
+              "message": "Product does not exist"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "invalidInput": {
+    "variableMissingId": {
+      "variables": {
+        "input": {}
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Variable $input of type ProductDeleteInput! was provided invalid value for id (Expected value to not be null)",
+            "locations": [
+              {
+                "line": 2,
+                "column": 37
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {},
+              "problems": [
+                {
+                  "path": [
+                    "id"
+                  ],
+                  "explanation": "Expected value to not be null"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "inlineMissingId": {
+      "response": {
+        "errors": [
+          {
+            "message": "Argument 'id' on InputObject 'ProductDeleteInput' is required. Expected type ID!",
+            "locations": [
+              {
+                "line": 3,
+                "column": 26
+              }
+            ],
+            "path": [
+              "mutation",
+              "productDelete",
+              "input",
+              "id"
+            ],
+            "extensions": {
+              "code": "missingRequiredInputObjectAttribute",
+              "argumentName": "id",
+              "argumentType": "ID!",
+              "inputObjectType": "ProductDeleteInput"
+            }
+          }
+        ]
+      }
+    },
+    "inlineNullId": {
+      "response": {
+        "errors": [
+          {
+            "message": "Argument 'id' on InputObject 'ProductDeleteInput' has an invalid value (null). Expected type 'ID!'.",
+            "locations": [
+              {
+                "line": 3,
+                "column": 26
+              }
+            ],
+            "path": [
+              "mutation",
+              "productDelete",
+              "input",
+              "id"
+            ],
+            "extensions": {
+              "code": "argumentLiteralsIncompatible",
+              "typeName": "InputObject",
+              "argumentName": "id"
+            }
+          }
+        ]
       }
     }
   },

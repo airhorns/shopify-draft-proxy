@@ -1,0 +1,21 @@
+{
+  "scenarioId": "locations-catalog-read",
+  "operationNames": [
+    "locations"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "selected-fields",
+    "pagination-shape"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/locations-catalog.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/locations-catalog-read.graphql",
+    "variablesPath": "config/parity-requests/locations-catalog-read.variables.json"
+  },
+  "comparisonMode": "capture-only",
+  "notes": "Live locations catalog capture now covers top-level `locations` pagination for the location slice (`id`, `name`) that the inventory overlay can derive from effective inventory levels."
+}

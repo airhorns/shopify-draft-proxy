@@ -1,0 +1,24 @@
+query DraftOrdersInvalidEmailQueryRead($first: Int!, $query: String!) {
+  draftOrders(first: $first, query: $query) {
+    edges {
+      cursor
+      node {
+        id
+        name
+        email
+        status
+        ready
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  draftOrdersCount(query: $query) {
+    count
+    precision
+  }
+}

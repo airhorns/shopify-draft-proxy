@@ -1,0 +1,24 @@
+{
+  "scenarioId": "products-search-pagination-read",
+  "operationNames": [
+    "products",
+    "productsCount"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "selected-fields",
+    "search-filter-semantics",
+    "sort-order-semantics",
+    "pagination-shape"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-search-pagination.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products-search-pagination-read.graphql",
+    "variablesPath": "config/parity-requests/products-search-pagination-read.variables.json"
+  },
+  "comparisonMode": "capture-only",
+  "notes": "Live product search pagination capture preserves a concrete filtered UPDATED_AT-desc window plus forward and backward cursor traversal so overlay pagination parity can be compared against Shopify for the same query tuple."
+}

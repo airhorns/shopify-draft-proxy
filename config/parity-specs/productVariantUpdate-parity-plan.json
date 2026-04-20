@@ -1,19 +1,22 @@
 {
-  "scenarioId": "productVariantUpdate-parity-plan",
+  "scenarioId": "product-variant-update-compatibility-evidence",
   "operationNames": [
     "productVariantUpdate"
   ],
-  "scenarioStatus": "planned",
+  "scenarioStatus": "captured",
   "assertionKinds": [
     "payload-shape",
     "user-errors-parity",
     "downstream-read-parity"
   ],
-  "liveCaptureFiles": [],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-variants-bulk-update-parity.json",
+    "pending/product-variant-compatibility-live-schema-blocker.md"
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/productVariantUpdate-parity-plan.graphql",
     "variablesPath": "config/parity-requests/productVariantUpdate-parity-plan.variables.json"
   },
-  "comparisonMode": "planned",
-  "notes": "Proxy request scaffold now mirrors the staged single-variant update compatibility slice (`productVariantUpdate(input:)` returning product inventory aggregates, updated `productVariant`, and `userErrors`). Next step is to run the same safe single-variant update scenario against a dedicated dev-store write pack and compare the mutation payload together with immediate downstream variant/search/count parity."
+  "comparisonMode": "captured-compatibility-wrapper",
+  "notes": "Compatibility-only coverage for `productVariantUpdate`: compare the checked-in wrapper request against the bulk-update live parity slice it reuses locally, while keeping the schema blocker note alongside the capture to document that Shopify no longer exposes the legacy root directly on this store/api-version pair."
 }

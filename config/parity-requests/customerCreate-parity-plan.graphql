@@ -1,0 +1,26 @@
+mutation CustomerCreateParityPlan($input: CustomerInput!) {
+  customerCreate(input: $input) {
+    customer {
+      id
+      firstName
+      lastName
+      displayName
+      email
+      locale
+      note
+      verifiedEmail
+      taxExempt
+      tags
+      state
+      canDelete
+      defaultEmailAddress { emailAddress }
+      defaultPhoneNumber { phoneNumber }
+      createdAt
+      updatedAt
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "scenarioId": "draft-order-detail-read",
+  "operationNames": [
+    "draftOrder"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "selected-fields",
+    "downstream-read-parity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-detail.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/draftOrder-read-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/draftOrder-read-parity-plan.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "The first live-backed draft-order detail slice is now captured: reading `draftOrder(id:)` immediately after a safe `draftOrderCreate` returns the same merchant-facing open-draft detail payload on this host."
+}

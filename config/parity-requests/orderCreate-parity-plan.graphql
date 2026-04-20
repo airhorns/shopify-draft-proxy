@@ -1,0 +1,93 @@
+mutation OrderCreateParityPlan($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
+  orderCreate(order: $order, options: $options) {
+    order {
+      id
+      name
+      createdAt
+      updatedAt
+      displayFinancialStatus
+      displayFulfillmentStatus
+      canMarkAsPaid
+      note
+      tags
+      customAttributes {
+        key
+        value
+      }
+      billingAddress {
+        firstName
+        lastName
+        address1
+        city
+        provinceCode
+        countryCodeV2
+        zip
+        phone
+      }
+      shippingAddress {
+        firstName
+        lastName
+        address1
+        city
+        provinceCode
+        countryCodeV2
+        zip
+        phone
+      }
+      subtotalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      currentTotalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      customer {
+        id
+        email
+        displayName
+      }
+      shippingLines(first: 5) {
+        nodes {
+          title
+          code
+          originalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+      lineItems(first: 5) {
+        nodes {
+          id
+          title
+          quantity
+          sku
+          variantTitle
+          originalUnitPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

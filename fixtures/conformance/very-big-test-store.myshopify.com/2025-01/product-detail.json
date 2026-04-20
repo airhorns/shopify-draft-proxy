@@ -1,104 +1,36 @@
 {
   "data": {
     "product": {
-      "id": "gid://shopify/Product/8397256720617",
-      "title": "CONVERSE | TODDLER CHUCK TAYLOR ALL STAR AXEL MID",
-      "handle": "converse-toddler-chuck-taylor-all-star-axel-mid",
+      "id": "gid://shopify/Product/8971842846953",
+      "title": "Test Product - 6635",
+      "handle": "test-product-ge91cbbd6",
       "status": "ACTIVE",
-      "descriptionHtml": "The Converse Chuck Taylor All Star Axel recasts the iconic original in a refreshed silhouette for a premium look and feel. A no-tie design lets kids slip them on and go, while a rubber outsole delivers reliable traction from the classroom to the playground.",
-      "onlineStorePreviewUrl": "https://very-big-test-store.myshopify.com/products/converse-toddler-chuck-taylor-all-star-axel-mid",
+      "descriptionHtml": "",
+      "onlineStorePreviewUrl": "https://very-big-test-store.myshopify.com/products/test-product-ge91cbbd6",
       "templateSuffix": null,
       "seo": {
         "title": null,
         "description": null
       },
-      "category": null,
+      "category": {
+        "id": "gid://shopify/TaxonomyCategory/na",
+        "fullName": "Uncategorized"
+      },
       "collections": {
-        "edges": [
-          {
-            "node": {
-              "id": "gid://shopify/Collection/429826244841",
-              "title": "CONVERSE",
-              "handle": "converse"
-            }
-          },
-          {
-            "node": {
-              "id": "gid://shopify/Collection/429826605289",
-              "title": "KID",
-              "handle": "kid"
-            }
-          }
-        ]
+        "edges": []
       },
       "media": {
-        "edges": [
-          {
-            "node": {
-              "mediaContentType": "IMAGE",
-              "alt": "",
-              "preview": {
-                "image": {
-                  "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/products/9e0022e2f92e19ed96c8f908f2cf1b40.jpg?v=1710381182"
-                }
-              }
-            }
-          },
-          {
-            "node": {
-              "mediaContentType": "IMAGE",
-              "alt": "",
-              "preview": {
-                "image": {
-                  "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/products/ccb1295a4de27c9e22baa70f93c80e11.jpg?v=1710381182"
-                }
-              }
-            }
-          },
-          {
-            "node": {
-              "mediaContentType": "IMAGE",
-              "alt": "",
-              "preview": {
-                "image": {
-                  "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/products/a1c5f2b0c38389be8616b23b4809d1eb.jpg?v=1710381182"
-                }
-              }
-            }
-          },
-          {
-            "node": {
-              "mediaContentType": "IMAGE",
-              "alt": "",
-              "preview": {
-                "image": {
-                  "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/products/e80b902b3f4690444edb80c1462b262c.jpg?v=1710381182"
-                }
-              }
-            }
-          },
-          {
-            "node": {
-              "mediaContentType": "IMAGE",
-              "alt": "",
-              "preview": {
-                "image": {
-                  "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/products/d6b14300fa5787e09152538830682ce3.jpg?v=1710381182"
-                }
-              }
-            }
-          }
-        ]
+        "edges": []
       }
     }
   },
   "extensions": {
     "cost": {
       "requestedQueryCost": 19,
-      "actualQueryCost": 18,
+      "actualQueryCost": 7,
       "throttleStatus": {
         "maximumAvailable": 2000,
-        "currentlyAvailable": 1982,
+        "currentlyAvailable": 1993,
         "restoreRate": 100
       }
     }

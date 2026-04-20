@@ -26,7 +26,7 @@ const pendingDir = 'pending';
 const blockerPath = path.join(pendingDir, 'product-state-mutation-conformance-scope-blocker.md');
 
 function buildAdminAuthHeaders(token) {
-  if (token.startsWith('shpat_')) {
+  if (/^shp[a-z]+_/.test(token)) {
     return {
       'X-Shopify-Access-Token': token,
     };
@@ -39,7 +39,7 @@ function buildAdminAuthHeaders(token) {
   };
 }
 
-async function runGraphql(query, variables = {}) {
+async function postGraphql(query, variables = {}) {
   const response = await fetch(`${adminOrigin}/admin/api/${apiVersion}/graphql.json`, {
     method: 'POST',
     headers: {
@@ -50,12 +50,22 @@ async function runGraphql(query, variables = {}) {
   });
 
   const payload = await response.json();
-  if (!response.ok || payload.errors) {
-    const error = new Error(JSON.stringify({ status: response.status, payload }, null, 2));
-    error.result = { status: response.status, payload };
+  return { status: response.status, payload };
+}
+
+async function runGraphql(query, variables = {}) {
+  const { status, payload } = await postGraphql(query, variables);
+  if (status < 200 || status >= 300 || payload.errors) {
+    const error = new Error(JSON.stringify({ status, payload }, null, 2));
+    error.result = { status, payload };
     throw error;
   }
 
+  return payload;
+}
+
+async function runGraphqlAllowErrors(query, variables = {}) {
+  const { payload } = await postGraphql(query, variables);
   return payload;
 }
 
@@ -92,6 +102,22 @@ const deleteMutation = `#graphql
 const changeStatusMutation = `#graphql
   mutation ProductChangeStatusConformance($productId: ID!, $status: ProductStatus!) {
     productChangeStatus(productId: $productId, status: $status) {
+      product {
+        id
+        status
+        updatedAt
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const changeStatusNullLiteralMutation = `#graphql
+  mutation ProductChangeStatusNullLiteralConformance {
+    productChangeStatus(productId: null, status: ARCHIVED) {
       product {
         id
         status
@@ -245,11 +271,14 @@ const uniqueSummerTag = `hermes-summer-${runId}`;
 const uniqueSaleTag = `hermes-sale-${runId}`;
 const createVariables = buildCreateVariables(runId);
 const statusVariables = { productId: null, status: 'ARCHIVED' };
+const unknownStatusVariables = { productId: 'gid://shopify/Product/999999999999999', status: 'ARCHIVED' };
 const tagsAddVariables = { id: null, tags: ['existing', uniqueSummerTag, uniqueSaleTag] };
 const tagsRemoveVariables = { id: null, tags: [uniqueSaleTag, 'missing'] };
 let createdProductId = null;
 let createResponse = null;
 let statusResponse = null;
+let unknownStatusResponse = null;
+let nullLiteralStatusResponse = null;
 let tagsAddResponse = null;
 let tagsRemoveResponse = null;
 
@@ -265,6 +294,8 @@ try {
   tagsRemoveVariables.id = createdProductId;
 
   statusResponse = await runGraphql(changeStatusMutation, statusVariables);
+  unknownStatusResponse = await runGraphql(changeStatusMutation, unknownStatusVariables);
+  nullLiteralStatusResponse = await runGraphqlAllowErrors(changeStatusNullLiteralMutation);
   const postStatusRead = await runGraphql(postStatusReadQuery, {
     id: createdProductId,
     query: 'status:archived',
@@ -288,6 +319,16 @@ try {
       mutation: {
         variables: statusVariables,
         response: statusResponse,
+      },
+      validation: {
+        unknownProduct: {
+          variables: unknownStatusVariables,
+          response: unknownStatusResponse,
+        },
+        nullLiteralProductId: {
+          query: changeStatusNullLiteralMutation,
+          response: nullLiteralStatusResponse,
+        },
       },
       downstreamRead: postStatusRead,
     },

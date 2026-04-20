@@ -10,12 +10,13 @@
     "null-empty-behavior"
   ],
   "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-detail.json"
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-detail.json",
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-empty-state.json"
   ],
   "proxyRequest": {
-    "documentPath": null,
-    "variablesPath": null
+    "documentPath": "config/parity-requests/product-detail-read.graphql",
+    "variablesPath": "config/parity-requests/product-detail-read.variables.json"
   },
   "comparisonMode": "capture-only",
-  "notes": "Fill in proxy request + comparator details as parity coverage is implemented."
+  "notes": "Live product read capture now couples the concrete product-detail request scaffold with extra empty/null evidence: a real product whose collections/media connections are empty plus a dedicated empty-state fixture covering missing-product null behavior and unmatched `products` / `productsCount` responses. Comparator wiring can reuse the same request scaffold once proxy-vs-Shopify comparison is implemented."
 }

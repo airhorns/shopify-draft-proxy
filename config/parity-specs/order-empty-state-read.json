@@ -1,0 +1,24 @@
+{
+  "scenarioId": "order-empty-state-read",
+  "operationNames": [
+    "order",
+    "orders",
+    "ordersCount"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "selected-fields",
+    "null-empty-behavior",
+    "pagination-shape"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-empty-state.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/order-empty-state-read.graphql",
+    "variablesPath": "config/parity-requests/order-empty-state-read.variables.json"
+  },
+  "comparisonMode": "capture-only",
+  "notes": "Live direct-order read probing on this host is currently safe enough to capture only the empty-state baseline. Comparator wiring can reuse this scaffold once local order overlay runtime exists."
+}

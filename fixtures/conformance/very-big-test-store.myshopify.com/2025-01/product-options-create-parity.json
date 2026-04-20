@@ -1,7 +1,7 @@
 {
   "mutation": {
     "variables": {
-      "productId": "gid://shopify/Product/9255309443305",
+      "productId": "gid://shopify/Product/9257219260649",
       "options": [
         {
           "name": "Color",
@@ -18,10 +18,10 @@
       "data": {
         "productOptionsCreate": {
           "product": {
-            "id": "gid://shopify/Product/9255309443305",
+            "id": "gid://shopify/Product/9257219260649",
             "options": [
               {
-                "id": "gid://shopify/ProductOption/11658190848233",
+                "id": "gid://shopify/ProductOption/11660597788905",
                 "name": "Color",
                 "position": 1,
                 "values": [
@@ -29,7 +29,7 @@
                 ],
                 "optionValues": [
                   {
-                    "id": "gid://shopify/ProductOptionValue/4709117755625",
+                    "id": "gid://shopify/ProductOptionValue/4718343979241",
                     "name": "Red",
                     "hasVariants": true
                   }
@@ -56,10 +56,10 @@
   "downstreamRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/9255309443305",
+        "id": "gid://shopify/Product/9257219260649",
         "options": [
           {
-            "id": "gid://shopify/ProductOption/11658190848233",
+            "id": "gid://shopify/ProductOption/11660597788905",
             "name": "Color",
             "position": 1,
             "values": [
@@ -67,7 +67,7 @@
             ],
             "optionValues": [
               {
-                "id": "gid://shopify/ProductOptionValue/4709117755625",
+                "id": "gid://shopify/ProductOptionValue/4718343979241",
                 "name": "Red",
                 "hasVariants": true
               }

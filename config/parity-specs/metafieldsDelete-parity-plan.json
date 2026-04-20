@@ -1,0 +1,21 @@
+{
+  "scenarioId": "metafields-delete-live-parity",
+  "operationNames": [
+    "metafieldsDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/metafields-delete-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafieldsDelete-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/metafieldsDelete-parity-plan.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live capture now covers Shopify's current plural `metafieldsDelete` root, including immediate downstream `product.metafield(...)` / `product.metafields` removal parity for product-owned metafields."
+}

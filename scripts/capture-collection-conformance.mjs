@@ -24,7 +24,7 @@ const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || '2025-01';
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
 
 function buildAdminAuthHeaders(token) {
-  if (token.startsWith('shpat_')) {
+  if (/^shp[a-z]+_/.test(token)) {
     return {
       'X-Shopify-Access-Token': token,
     };
@@ -71,6 +71,15 @@ const collectionSeedQuery = `#graphql
               }
             }
           }
+        }
+      }
+    }
+    collections(first: 5) {
+      edges {
+        node {
+          id
+          title
+          handle
         }
       }
     }

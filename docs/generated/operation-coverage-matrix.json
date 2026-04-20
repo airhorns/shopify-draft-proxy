@@ -1,0 +1,4300 @@
+{
+  "generatedAt": "2026-04-19T16:26:39.734Z",
+  "totals": {
+    "operations": 67,
+    "coveredOperations": 67,
+    "declaredGaps": 0,
+    "scenarios": 102,
+    "readyScenarios": 93,
+    "blockedScenarios": 9,
+    "pendingScenarios": 0,
+    "blockedOperations": 9,
+    "pendingOperations": 0
+  },
+  "blockedOperationNames": [
+    "productPublish",
+    "productUnpublish",
+    "fulfillmentTrackingInfoUpdate",
+    "fulfillmentCancel",
+    "draftOrderComplete",
+    "orderEditBegin",
+    "orderEditAddVariant",
+    "orderEditSetQuantity",
+    "orderEditCommit"
+  ],
+  "pendingOperationNames": [],
+  "operations": [
+    {
+      "name": "product",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "product-detail-read"
+      ],
+      "assertionKinds": [
+        "connection-shape",
+        "null-empty-behavior",
+        "payload-shape",
+        "selected-fields"
+      ],
+      "parity": {
+        "readyScenarioCount": 2,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "product-detail-read",
+          "operationNames": [
+            "product"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "null-empty-behavior"
+          ],
+          "paritySpecPath": "config/parity-specs/product-detail-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-detail.json",
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-empty-state.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "product-metafields-read",
+          "operationNames": [
+            "product"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "connection-shape"
+          ],
+          "paritySpecPath": "config/parity-specs/product-metafields-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-metafields.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": false
+        }
+      ]
+    },
+    {
+      "name": "products",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "products-catalog-read",
+        "products-search-read",
+        "products-search-grammar-read",
+        "products-variant-search-read",
+        "products-advanced-search-read",
+        "products-search-pagination-read",
+        "products-or-precedence-read",
+        "products-sort-keys-read",
+        "products-relevance-search-read"
+      ],
+      "assertionKinds": [
+        "pagination-shape",
+        "payload-shape",
+        "search-filter-semantics",
+        "selected-fields",
+        "sort-order-semantics"
+      ],
+      "parity": {
+        "readyScenarioCount": 9,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "products-advanced-search-read",
+          "operationNames": [
+            "products",
+            "productsCount"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "search-filter-semantics",
+            "sort-order-semantics",
+            "pagination-shape"
+          ],
+          "paritySpecPath": "config/parity-specs/products-advanced-search-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-advanced-search.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "products-catalog-read",
+          "operationNames": [
+            "products",
+            "productsCount"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "pagination-shape"
+          ],
+          "paritySpecPath": "config/parity-specs/products-catalog-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-catalog-page.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "products-or-precedence-read",
+          "operationNames": [
+            "products",
+            "productsCount"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "search-filter-semantics",
+            "sort-order-semantics",
+            "pagination-shape"
+          ],
+          "paritySpecPath": "config/parity-specs/products-or-precedence-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-or-precedence.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "products-relevance-search-read",
+          "operationNames": [
+            "products"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "sort-order-semantics",
+            "pagination-shape"
+          ],
+          "paritySpecPath": "config/parity-specs/products-relevance-search-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-relevance-search.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "products-search-grammar-read",
+          "operationNames": [
+            "products",
+            "productsCount"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "search-filter-semantics"
+          ],
+          "paritySpecPath": "config/parity-specs/products-search-grammar-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-search-grammar.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "products-search-pagination-read",
+          "operationNames": [
+            "products",
+            "productsCount"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "search-filter-semantics",
+            "sort-order-semantics",
+            "pagination-shape"
+          ],
+          "paritySpecPath": "config/parity-specs/products-search-pagination-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-search-pagination.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "products-search-read",
+          "operationNames": [
+            "products",
+            "productsCount"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "search-filter-semantics"
+          ],
+          "paritySpecPath": "config/parity-specs/products-search-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-search.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "products-sort-keys-read",
+          "operationNames": [
+            "products"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "sort-order-semantics",
+            "pagination-shape"
+          ],
+          "paritySpecPath": "config/parity-specs/products-sort-keys-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-sort-keys.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "products-variant-search-read",
+          "operationNames": [
+            "products",
+            "productsCount"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "search-filter-semantics"
+          ],
+          "paritySpecPath": "config/parity-specs/products-variant-search-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-variant-search.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "productsCount",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "products-catalog-read",
+        "products-search-read",
+        "products-search-grammar-read",
+        "products-variant-search-read",
+        "products-advanced-search-read",
+        "products-search-pagination-read",
+        "products-or-precedence-read"
+      ],
+      "assertionKinds": [
+        "pagination-shape",
+        "payload-shape",
+        "search-filter-semantics",
+        "selected-fields",
+        "sort-order-semantics"
+      ],
+      "parity": {
+        "readyScenarioCount": 7,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "products-advanced-search-read",
+          "operationNames": [
+            "products",
+            "productsCount"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "search-filter-semantics",
+            "sort-order-semantics",
+            "pagination-shape"
+          ],
+          "paritySpecPath": "config/parity-specs/products-advanced-search-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-advanced-search.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "products-catalog-read",
+          "operationNames": [
+            "products",
+            "productsCount"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "pagination-shape"
+          ],
+          "paritySpecPath": "config/parity-specs/products-catalog-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-catalog-page.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "products-or-precedence-read",
+          "operationNames": [
+            "products",
+            "productsCount"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "search-filter-semantics",
+            "sort-order-semantics",
+            "pagination-shape"
+          ],
+          "paritySpecPath": "config/parity-specs/products-or-precedence-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-or-precedence.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "products-search-grammar-read",
+          "operationNames": [
+            "products",
+            "productsCount"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "search-filter-semantics"
+          ],
+          "paritySpecPath": "config/parity-specs/products-search-grammar-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-search-grammar.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "products-search-pagination-read",
+          "operationNames": [
+            "products",
+            "productsCount"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "search-filter-semantics",
+            "sort-order-semantics",
+            "pagination-shape"
+          ],
+          "paritySpecPath": "config/parity-specs/products-search-pagination-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-search-pagination.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "products-search-read",
+          "operationNames": [
+            "products",
+            "productsCount"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "search-filter-semantics"
+          ],
+          "paritySpecPath": "config/parity-specs/products-search-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-search.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "products-variant-search-read",
+          "operationNames": [
+            "products",
+            "productsCount"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "search-filter-semantics"
+          ],
+          "paritySpecPath": "config/parity-specs/products-variant-search-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-variant-search.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "productVariant",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "product-variants-read"
+      ],
+      "assertionKinds": [
+        "connection-shape",
+        "nested-inventory-shape",
+        "payload-shape",
+        "selected-fields"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "product-variants-read",
+          "operationNames": [
+            "productVariant",
+            "inventoryItem"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "nested-inventory-shape",
+            "connection-shape"
+          ],
+          "paritySpecPath": "config/parity-specs/product-variants-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-variants-matrix.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "inventoryItem",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "product-variants-read"
+      ],
+      "assertionKinds": [
+        "connection-shape",
+        "nested-inventory-shape",
+        "payload-shape",
+        "selected-fields"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "product-variants-read",
+          "operationNames": [
+            "productVariant",
+            "inventoryItem"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "nested-inventory-shape",
+            "connection-shape"
+          ],
+          "paritySpecPath": "config/parity-specs/product-variants-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-variants-matrix.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "collection",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "collection-detail-read"
+      ],
+      "assertionKinds": [
+        "nested-products-connection",
+        "payload-shape",
+        "selected-fields"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "collection-detail-read",
+          "operationNames": [
+            "collection"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "nested-products-connection"
+          ],
+          "paritySpecPath": "config/parity-specs/collection-detail-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collection-detail.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "collections",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "collections-catalog-read"
+      ],
+      "assertionKinds": [
+        "pagination-shape",
+        "payload-shape",
+        "selected-fields"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "collections-catalog-read",
+          "operationNames": [
+            "collections"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "pagination-shape"
+          ],
+          "paritySpecPath": "config/parity-specs/collections-catalog-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collections-catalog.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "locations",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "locations-catalog-read"
+      ],
+      "assertionKinds": [
+        "pagination-shape",
+        "payload-shape",
+        "selected-fields"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "locations-catalog-read",
+          "operationNames": [
+            "locations"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "pagination-shape"
+          ],
+          "paritySpecPath": "config/parity-specs/locations-catalog-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/locations-catalog.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "publications",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "publications-catalog-read"
+      ],
+      "assertionKinds": [
+        "pagination-shape",
+        "payload-shape",
+        "selected-fields"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "publications-catalog-read",
+          "operationNames": [
+            "publications"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "pagination-shape"
+          ],
+          "paritySpecPath": "config/parity-specs/publications-catalog-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/publications-catalog.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "customer",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "customer-detail-parity-plan"
+      ],
+      "assertionKinds": [
+        "null-empty-behavior",
+        "payload-shape",
+        "selected-fields"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "customer-detail-parity-plan",
+          "operationNames": [
+            "customer"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "null-empty-behavior"
+          ],
+          "paritySpecPath": "config/parity-specs/customer-detail-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customer-detail.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "customers",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "customers-catalog-parity-plan",
+        "customers-search-read",
+        "customers-advanced-search-read",
+        "customers-sort-keys-read",
+        "customers-relevance-search-read"
+      ],
+      "assertionKinds": [
+        "pagination-shape",
+        "payload-shape",
+        "search-filter-semantics",
+        "selected-fields",
+        "sort-order-semantics"
+      ],
+      "parity": {
+        "readyScenarioCount": 5,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "customers-advanced-search-read",
+          "operationNames": [
+            "customers"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "search-filter-semantics"
+          ],
+          "paritySpecPath": "config/parity-specs/customers-advanced-search-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customers-advanced-search.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "customers-catalog-parity-plan",
+          "operationNames": [
+            "customers"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "pagination-shape"
+          ],
+          "paritySpecPath": "config/parity-specs/customers-catalog-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customers-catalog.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "customers-relevance-search-read",
+          "operationNames": [
+            "customers"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "search-filter-semantics",
+            "sort-order-semantics"
+          ],
+          "paritySpecPath": "config/parity-specs/customers-relevance-search-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customers-relevance-search.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "customers-search-read",
+          "operationNames": [
+            "customers"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "search-filter-semantics"
+          ],
+          "paritySpecPath": "config/parity-specs/customers-search-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customers-search.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "customers-sort-keys-read",
+          "operationNames": [
+            "customers"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "sort-order-semantics"
+          ],
+          "paritySpecPath": "config/parity-specs/customers-sort-keys-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customers-sort-keys.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "customersCount",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "customers-count-read"
+      ],
+      "assertionKinds": [
+        "payload-shape",
+        "search-filter-semantics",
+        "selected-fields"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "customers-count-read",
+          "operationNames": [
+            "customersCount"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "search-filter-semantics"
+          ],
+          "paritySpecPath": "config/parity-specs/customers-count-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customers-count.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "customerCreate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "customer-create-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "customer-create-live-parity",
+          "operationNames": [
+            "customerCreate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/customerCreate-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customer-create-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "customerUpdate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "customer-update-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "customer-update-live-parity",
+          "operationNames": [
+            "customerUpdate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/customerUpdate-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customer-update-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "customerDelete",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "customer-delete-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "customer-delete-live-parity",
+          "operationNames": [
+            "customerDelete"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/customerDelete-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customer-delete-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "tagsAdd",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "tags-add-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "tags-add-live-parity",
+          "operationNames": [
+            "tagsAdd"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/tagsAdd-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/tags-add-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "tagsRemove",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "tags-remove-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "tags-remove-live-parity",
+          "operationNames": [
+            "tagsRemove"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/tagsRemove-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/tags-remove-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "productCreate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "product-create-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "product-create-live-parity",
+          "operationNames": [
+            "productCreate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/productCreate-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-create-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "productUpdate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "product-update-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "product-update-live-parity",
+          "operationNames": [
+            "productUpdate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/productUpdate-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-update-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "productDelete",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "product-delete-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "product-delete-live-parity",
+          "operationNames": [
+            "productDelete"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/productDelete-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-delete-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "productDuplicate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "product-duplicate-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "product-duplicate-live-parity",
+          "operationNames": [
+            "productDuplicate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/productDuplicate-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-duplicate-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "productSet",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "product-set-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "product-set-live-parity",
+          "operationNames": [
+            "productSet"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/productSet-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-set-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "productChangeStatus",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "product-change-status-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "product-change-status-live-parity",
+          "operationNames": [
+            "productChangeStatus"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/productChangeStatus-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-change-status-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "productPublish",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "productPublish-parity-plan"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 1,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": true,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "productPublish-aggregate-parity-blocker",
+          "operationNames": [
+            "productPublish"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/productPublish-aggregate-parity-blocker.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-publish-parity.json"
+          ],
+          "state": "blocked-with-proxy-request",
+          "blocker": {
+            "kind": "missing-publication-target",
+            "blockerPath": "pending/product-publication-conformance-scope-blocker.md",
+            "details": {
+              "blockedFields": [
+                "publishedOnCurrentPublication",
+                "availablePublicationsCount",
+                "resourcePublicationsCount"
+              ],
+              "blockedMutations": [
+                "productPublish",
+                "productUnpublish"
+              ],
+              "appConfigPath": "/tmp/shopify-conformance-app/hermes-conformance-products/shopify.app.toml",
+              "appId": "0db6d7e08e4ba05ce97440df36c7ed33",
+              "appHandle": "hermes-conformance-products",
+              "publicationTargetStatus": "app-missing-publication",
+              "publicationTargetMessage": "Your app doesn't have a publication for this shop.",
+              "shopifyAppCliAuthStatus": "available",
+              "shopifyAppCliAuthWorkdir": "/tmp/shopify-conformance-app/hermes-conformance-products",
+              "shopifyAppDeployStatus": "deployed-but-app-still-lacks-publication",
+              "shopifyAppDeployCommand": "corepack pnpm exec shopify app deploy --allow-updates",
+              "shopifyAppDeployVersion": "hermes-conformance-products-11",
+              "channelConfigExtensionPath": "/tmp/shopify-conformance-app/hermes-conformance-products/extensions/conformance-publication-target/shopify.extension.toml",
+              "channelConfigHandle": "conformance-publication-target",
+              "channelConfigCreateLegacyChannelOnAppInstall": true,
+              "publicationTargetRemediation": "channel-config-change-still-needs-reinstall",
+              "activeCredentialTokenFamily": "shpca",
+              "activeCredentialHeaderMode": "raw-x-shopify-access-token",
+              "activeCredentialSummary": "the active conformance credential is a Shopify user access token (`shpca_...`) sent as raw `X-Shopify-Access-Token` on this host"
+            }
+          },
+          "declaredOnOperation": false
+        },
+        {
+          "id": "productPublish-parity-plan",
+          "operationNames": [
+            "productPublish"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/productPublish-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-publish-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "productUnpublish",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "productUnpublish-parity-plan"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 1,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": true,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "productUnpublish-aggregate-parity-blocker",
+          "operationNames": [
+            "productUnpublish"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/productUnpublish-aggregate-parity-blocker.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-unpublish-parity.json"
+          ],
+          "state": "blocked-with-proxy-request",
+          "blocker": {
+            "kind": "missing-publication-target",
+            "blockerPath": "pending/product-publication-conformance-scope-blocker.md",
+            "details": {
+              "blockedFields": [
+                "publishedOnCurrentPublication",
+                "availablePublicationsCount",
+                "resourcePublicationsCount"
+              ],
+              "blockedMutations": [
+                "productPublish",
+                "productUnpublish"
+              ],
+              "appConfigPath": "/tmp/shopify-conformance-app/hermes-conformance-products/shopify.app.toml",
+              "appId": "0db6d7e08e4ba05ce97440df36c7ed33",
+              "appHandle": "hermes-conformance-products",
+              "publicationTargetStatus": "app-missing-publication",
+              "publicationTargetMessage": "Your app doesn't have a publication for this shop.",
+              "shopifyAppCliAuthStatus": "available",
+              "shopifyAppCliAuthWorkdir": "/tmp/shopify-conformance-app/hermes-conformance-products",
+              "shopifyAppDeployStatus": "deployed-but-app-still-lacks-publication",
+              "shopifyAppDeployCommand": "corepack pnpm exec shopify app deploy --allow-updates",
+              "shopifyAppDeployVersion": "hermes-conformance-products-11",
+              "channelConfigExtensionPath": "/tmp/shopify-conformance-app/hermes-conformance-products/extensions/conformance-publication-target/shopify.extension.toml",
+              "channelConfigHandle": "conformance-publication-target",
+              "channelConfigCreateLegacyChannelOnAppInstall": true,
+              "publicationTargetRemediation": "channel-config-change-still-needs-reinstall",
+              "activeCredentialTokenFamily": "shpca",
+              "activeCredentialHeaderMode": "raw-x-shopify-access-token",
+              "activeCredentialSummary": "the active conformance credential is a Shopify user access token (`shpca_...`) sent as raw `X-Shopify-Access-Token` on this host"
+            }
+          },
+          "declaredOnOperation": false
+        },
+        {
+          "id": "productUnpublish-parity-plan",
+          "operationNames": [
+            "productUnpublish"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/productUnpublish-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-unpublish-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "productOptionsCreate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "product-options-create-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "product-options-create-live-parity",
+          "operationNames": [
+            "productOptionsCreate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/productOptionsCreate-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-options-create-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "productOptionUpdate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "product-option-update-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "product-option-update-live-parity",
+          "operationNames": [
+            "productOptionUpdate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/productOptionUpdate-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-option-update-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "productOptionsDelete",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "product-options-delete-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "product-options-delete-live-parity",
+          "operationNames": [
+            "productOptionsDelete"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/productOptionsDelete-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-options-delete-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "productVariantsBulkCreate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "product-variants-bulk-create-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "product-variants-bulk-create-live-parity",
+          "operationNames": [
+            "productVariantsBulkCreate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/productVariantsBulkCreate-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-variants-bulk-create-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "productVariantsBulkUpdate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "product-variants-bulk-update-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "product-variants-bulk-update-live-parity",
+          "operationNames": [
+            "productVariantsBulkUpdate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/productVariantsBulkUpdate-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-variants-bulk-update-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "productVariantsBulkDelete",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "product-variants-bulk-delete-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "product-variants-bulk-delete-live-parity",
+          "operationNames": [
+            "productVariantsBulkDelete"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/productVariantsBulkDelete-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-variants-bulk-delete-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "productVariantCreate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "product-variant-create-compatibility-evidence"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "product-variant-create-compatibility-evidence",
+          "operationNames": [
+            "productVariantCreate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/productVariantCreate-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-variants-bulk-create-parity.json",
+            "pending/product-variant-compatibility-live-schema-blocker.md"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "productVariantUpdate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "product-variant-update-compatibility-evidence"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "product-variant-update-compatibility-evidence",
+          "operationNames": [
+            "productVariantUpdate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/productVariantUpdate-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-variants-bulk-update-parity.json",
+            "pending/product-variant-compatibility-live-schema-blocker.md"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "productVariantDelete",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "product-variant-delete-compatibility-evidence"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "product-variant-delete-compatibility-evidence",
+          "operationNames": [
+            "productVariantDelete"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/productVariantDelete-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-variants-bulk-delete-parity.json",
+            "pending/product-variant-compatibility-live-schema-blocker.md"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "productCreateMedia",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "product-create-media-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "product-create-media-live-parity",
+          "operationNames": [
+            "productCreateMedia"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/productCreateMedia-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-create-media-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "productUpdateMedia",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "product-update-media-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "product-update-media-live-parity",
+          "operationNames": [
+            "productUpdateMedia"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/productUpdateMedia-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-update-media-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "productDeleteMedia",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "product-delete-media-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "product-delete-media-live-parity",
+          "operationNames": [
+            "productDeleteMedia"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/productDeleteMedia-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-delete-media-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "inventoryItemUpdate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "inventory-item-update-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "inventory-item-update-live-parity",
+          "operationNames": [
+            "inventoryItemUpdate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/inventoryItemUpdate-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/inventory-item-update-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "inventoryAdjustQuantities",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "inventory-adjust-quantities-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "inventory-adjust-quantities-live-parity",
+          "operationNames": [
+            "inventoryAdjustQuantities"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/inventoryAdjustQuantities-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/inventory-adjust-quantities-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "inventoryActivate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "inventory-activate-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "inventory-activate-live-parity",
+          "operationNames": [
+            "inventoryActivate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/inventoryActivate-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/inventory-linkage-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "inventoryDeactivate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "inventory-deactivate-live-parity"
+      ],
+      "assertionKinds": [
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "inventory-deactivate-live-parity",
+          "operationNames": [
+            "inventoryDeactivate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/inventoryDeactivate-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/inventory-linkage-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "inventoryBulkToggleActivation",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "inventory-bulk-toggle-activation-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "inventory-bulk-toggle-activation-live-parity",
+          "operationNames": [
+            "inventoryBulkToggleActivation"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/inventoryBulkToggleActivation-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/inventory-linkage-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "metafieldsSet",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "metafields-set-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "metafields-set-live-parity",
+          "operationNames": [
+            "metafieldsSet"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/metafieldsSet-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/metafields-set-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "metafieldsDelete",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "metafields-delete-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "metafields-delete-live-parity",
+          "operationNames": [
+            "metafieldsDelete"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/metafieldsDelete-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/metafields-delete-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "metafieldDelete",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "metafield-delete-compatibility-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "metafield-delete-compatibility-live-parity",
+          "operationNames": [
+            "metafieldDelete"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/metafieldDelete-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/metafields-delete-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "collectionCreate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "collection-create-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "collection-create-live-parity",
+          "operationNames": [
+            "collectionCreate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/collectionCreate-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collection-create-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "collectionUpdate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "collection-update-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "collection-update-live-parity",
+          "operationNames": [
+            "collectionUpdate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/collectionUpdate-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collection-update-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "collectionDelete",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "collection-delete-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "collection-delete-live-parity",
+          "operationNames": [
+            "collectionDelete"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/collectionDelete-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collection-delete-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "collectionAddProducts",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "collection-add-products-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "collection-add-products-live-parity",
+          "operationNames": [
+            "collectionAddProducts"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/collectionAddProducts-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collection-add-products-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "collectionRemoveProducts",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "collection-remove-products-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "collection-remove-products-live-parity",
+          "operationNames": [
+            "collectionRemoveProducts"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/collectionRemoveProducts-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collection-remove-products-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "order",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "order-empty-state-read"
+      ],
+      "assertionKinds": [
+        "null-empty-behavior",
+        "pagination-shape",
+        "payload-shape",
+        "selected-fields"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "order-empty-state-read",
+          "operationNames": [
+            "order",
+            "orders",
+            "ordersCount"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "null-empty-behavior",
+            "pagination-shape"
+          ],
+          "paritySpecPath": "config/parity-specs/order-empty-state-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-empty-state.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "orders",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "order-empty-state-read"
+      ],
+      "assertionKinds": [
+        "null-empty-behavior",
+        "pagination-shape",
+        "payload-shape",
+        "selected-fields"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "order-empty-state-read",
+          "operationNames": [
+            "order",
+            "orders",
+            "ordersCount"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "null-empty-behavior",
+            "pagination-shape"
+          ],
+          "paritySpecPath": "config/parity-specs/order-empty-state-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-empty-state.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "ordersCount",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "order-empty-state-read"
+      ],
+      "assertionKinds": [
+        "null-empty-behavior",
+        "pagination-shape",
+        "payload-shape",
+        "selected-fields"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "order-empty-state-read",
+          "operationNames": [
+            "order",
+            "orders",
+            "ordersCount"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "null-empty-behavior",
+            "pagination-shape"
+          ],
+          "paritySpecPath": "config/parity-specs/order-empty-state-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-empty-state.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "orderUpdate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "order-update-inline-missing-id-argument-error",
+        "order-update-inline-null-id-argument-error",
+        "order-update-missing-id-invalid-variable",
+        "order-update-unknown-id-parity",
+        "order-update-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "selected-fields",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 5,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "order-update-inline-missing-id-argument-error",
+          "operationNames": [
+            "orderUpdate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/orderUpdate-inline-missing-id-parity.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-update-inline-missing-id.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "order-update-inline-null-id-argument-error",
+          "operationNames": [
+            "orderUpdate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/orderUpdate-inline-null-id-parity.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-update-inline-null-id.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "order-update-live-parity",
+          "operationNames": [
+            "orderUpdate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/orderUpdate-live-parity.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-update-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "order-update-missing-id-invalid-variable",
+          "operationNames": [
+            "orderUpdate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/orderUpdate-missing-id-parity.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-update-missing-id.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "order-update-unknown-id-parity",
+          "operationNames": [
+            "orderUpdate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/orderUpdate-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-update-unknown-id.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "fulfillmentCreate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "fulfillment-create-invalid-id-parity"
+      ],
+      "assertionKinds": [
+        "payload-shape",
+        "resource-not-found-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "fulfillment-create-invalid-id-parity",
+          "operationNames": [
+            "fulfillmentCreate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "resource-not-found-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/fulfillmentCreate-invalid-id-parity.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/fulfillment-create-invalid-id.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "fulfillmentTrackingInfoUpdate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "fulfillment-tracking-info-update-inline-missing-id-argument-error",
+        "fulfillment-tracking-info-update-inline-null-id-argument-error",
+        "fulfillment-tracking-info-update-missing-id-invalid-variable"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 3,
+        "blockedScenarioCount": 1,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": true,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "fulfillment-tracking-info-update-inline-missing-id-argument-error",
+          "operationNames": [
+            "fulfillmentTrackingInfoUpdate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/fulfillmentTrackingInfoUpdate-inline-missing-id-parity.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/fulfillment-tracking-info-update-inline-missing-id.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "fulfillment-tracking-info-update-inline-null-id-argument-error",
+          "operationNames": [
+            "fulfillmentTrackingInfoUpdate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/fulfillmentTrackingInfoUpdate-inline-null-id-parity.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/fulfillment-tracking-info-update-inline-null-id.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "fulfillment-tracking-info-update-live-parity",
+          "operationNames": [
+            "fulfillmentTrackingInfoUpdate"
+          ],
+          "status": "planned",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/fulfillmentTrackingInfoUpdate-parity-plan.json",
+          "captureFiles": [],
+          "state": "blocked-with-proxy-request",
+          "blocker": {
+            "kind": "missing-live-fulfillment-tracking-update-access",
+            "blockerPath": "pending/fulfillment-lifecycle-conformance-scope-blocker.md",
+            "details": {
+              "requiredScopes": [
+                "write_assigned_fulfillment_orders",
+                "write_merchant_managed_fulfillment_orders",
+                "write_third_party_fulfillment_orders"
+              ],
+              "requiredPermissions": [
+                "fulfill_and_ship_orders"
+              ],
+              "probeRoots": [
+                "fulfillmentTrackingInfoUpdate"
+              ],
+              "blockedMutations": [
+                "fulfillmentTrackingInfoUpdate"
+              ],
+              "failingMessage": "Access denied for fulfillmentTrackingInfoUpdate field. Required access: One of `write_assigned_fulfillment_orders`, `write_merchant_managed_fulfillment_orders`, or `write_third_party_fulfillment_orders` access scopes. Also: The user must have permission to fulfill and ship orders.",
+              "activeCredentialTokenFamily": "shpca",
+              "activeCredentialHeaderMode": "raw-x-shopify-access-token",
+              "activeCredentialSummary": "the active conformance credential is a Shopify user access token (`shpca_...`) sent as raw `X-Shopify-Access-Token` on this host",
+              "manualStoreAuthStatus": "present-shpca-user-token-not-offline-capable",
+              "manualStoreAuthTokenPath": ".manual-store-auth-token.json",
+              "manualStoreAuthCachedScopes": [
+                "read_product_listings",
+                "read_themes",
+                "write_assigned_fulfillment_orders",
+                "write_content",
+                "write_customers",
+                "write_discounts",
+                "write_draft_orders",
+                "write_files",
+                "write_fulfillments",
+                "write_inventory",
+                "write_locations",
+                "write_markets",
+                "write_merchant_managed_fulfillment_orders",
+                "write_metaobject_definitions",
+                "write_metaobjects",
+                "write_order_edits",
+                "write_orders",
+                "write_products",
+                "write_publications",
+                "write_returns",
+                "write_shipping",
+                "write_third_party_fulfillment_orders",
+                "write_translations"
+              ],
+              "manualStoreAuthAssociatedUserScopes": []
+            }
+          },
+          "declaredOnOperation": false
+        },
+        {
+          "id": "fulfillment-tracking-info-update-missing-id-invalid-variable",
+          "operationNames": [
+            "fulfillmentTrackingInfoUpdate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/fulfillmentTrackingInfoUpdate-missing-id-parity.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/fulfillment-tracking-info-update-missing-id.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "fulfillmentCancel",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "fulfillment-cancel-inline-missing-id-argument-error",
+        "fulfillment-cancel-inline-null-id-argument-error",
+        "fulfillment-cancel-missing-id-invalid-variable"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 3,
+        "blockedScenarioCount": 1,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": true,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "fulfillment-cancel-inline-missing-id-argument-error",
+          "operationNames": [
+            "fulfillmentCancel"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/fulfillmentCancel-inline-missing-id-parity.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/fulfillment-cancel-inline-missing-id.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "fulfillment-cancel-inline-null-id-argument-error",
+          "operationNames": [
+            "fulfillmentCancel"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/fulfillmentCancel-inline-null-id-parity.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/fulfillment-cancel-inline-null-id.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "fulfillment-cancel-live-parity",
+          "operationNames": [
+            "fulfillmentCancel"
+          ],
+          "status": "planned",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/fulfillmentCancel-parity-plan.json",
+          "captureFiles": [],
+          "state": "blocked-with-proxy-request",
+          "blocker": {
+            "kind": "missing-live-fulfillment-cancel-access",
+            "blockerPath": "pending/fulfillment-lifecycle-conformance-scope-blocker.md",
+            "details": {
+              "requiredScopes": [],
+              "requiredPermissions": [],
+              "probeRoots": [
+                "fulfillmentCancel"
+              ],
+              "blockedMutations": [
+                "fulfillmentCancel"
+              ],
+              "failingMessage": "Access denied for fulfillmentCancel field.",
+              "activeCredentialTokenFamily": "shpca",
+              "activeCredentialHeaderMode": "raw-x-shopify-access-token",
+              "activeCredentialSummary": "the active conformance credential is a Shopify user access token (`shpca_...`) sent as raw `X-Shopify-Access-Token` on this host",
+              "manualStoreAuthStatus": "present-shpca-user-token-not-offline-capable",
+              "manualStoreAuthTokenPath": ".manual-store-auth-token.json",
+              "manualStoreAuthCachedScopes": [
+                "read_product_listings",
+                "read_themes",
+                "write_assigned_fulfillment_orders",
+                "write_content",
+                "write_customers",
+                "write_discounts",
+                "write_draft_orders",
+                "write_files",
+                "write_fulfillments",
+                "write_inventory",
+                "write_locations",
+                "write_markets",
+                "write_merchant_managed_fulfillment_orders",
+                "write_metaobject_definitions",
+                "write_metaobjects",
+                "write_order_edits",
+                "write_orders",
+                "write_products",
+                "write_publications",
+                "write_returns",
+                "write_shipping",
+                "write_third_party_fulfillment_orders",
+                "write_translations"
+              ],
+              "manualStoreAuthAssociatedUserScopes": []
+            }
+          },
+          "declaredOnOperation": false
+        },
+        {
+          "id": "fulfillment-cancel-missing-id-invalid-variable",
+          "operationNames": [
+            "fulfillmentCancel"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/fulfillmentCancel-missing-id-parity.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/fulfillment-cancel-missing-id.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "orderCreate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "order-create-inline-missing-order-argument-error",
+        "order-create-inline-null-order-argument-error",
+        "order-create-missing-order-invalid-variable",
+        "order-create-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "selected-fields",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 4,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "order-create-inline-missing-order-argument-error",
+          "operationNames": [
+            "orderCreate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/orderCreate-inline-missing-order-parity.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-create-inline-missing-order.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "order-create-inline-null-order-argument-error",
+          "operationNames": [
+            "orderCreate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/orderCreate-inline-null-order-parity.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-create-inline-null-order.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "order-create-live-parity",
+          "operationNames": [
+            "orderCreate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/orderCreate-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-create-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "order-create-missing-order-invalid-variable",
+          "operationNames": [
+            "orderCreate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/orderCreate-missing-order-parity.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-create-missing-order.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "draftOrder",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "draft-order-detail-read"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "selected-fields"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "draft-order-detail-read",
+          "operationNames": [
+            "draftOrder"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/draftOrder-read-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-detail.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "draftOrders",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "draft-orders-catalog-read",
+        "draft-orders-invalid-email-query-read"
+      ],
+      "assertionKinds": [
+        "pagination-shape",
+        "payload-shape",
+        "search-filter-semantics",
+        "selected-fields"
+      ],
+      "parity": {
+        "readyScenarioCount": 2,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "draft-orders-catalog-read",
+          "operationNames": [
+            "draftOrders"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "pagination-shape"
+          ],
+          "paritySpecPath": "config/parity-specs/draftOrders-read-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-orders-catalog.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "draft-orders-invalid-email-query-read",
+          "operationNames": [
+            "draftOrders",
+            "draftOrdersCount"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "search-filter-semantics"
+          ],
+          "paritySpecPath": "config/parity-specs/draftOrders-invalid-email-query-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-orders-invalid-email-query.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "draftOrdersCount",
+      "type": "query",
+      "execution": "overlay-read",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "draft-orders-count-read",
+        "draft-orders-invalid-email-query-read"
+      ],
+      "assertionKinds": [
+        "payload-shape",
+        "search-filter-semantics",
+        "selected-fields"
+      ],
+      "parity": {
+        "readyScenarioCount": 2,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "draft-orders-count-read",
+          "operationNames": [
+            "draftOrdersCount"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields"
+          ],
+          "paritySpecPath": "config/parity-specs/draftOrdersCount-read-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-orders-count.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "draft-orders-invalid-email-query-read",
+          "operationNames": [
+            "draftOrders",
+            "draftOrdersCount"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "search-filter-semantics"
+          ],
+          "paritySpecPath": "config/parity-specs/draftOrders-invalid-email-query-read.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-orders-invalid-email-query.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "draftOrderCreate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "draft-order-create-inline-missing-input-argument-error",
+        "draft-order-create-inline-null-input-argument-error",
+        "draft-order-create-missing-input-invalid-variable",
+        "draft-order-create-live-parity"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "selected-fields",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 4,
+        "blockedScenarioCount": 0,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": false,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "draft-order-create-inline-missing-input-argument-error",
+          "operationNames": [
+            "draftOrderCreate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/draftOrderCreate-inline-missing-input-parity.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-create-inline-missing-input.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "draft-order-create-inline-null-input-argument-error",
+          "operationNames": [
+            "draftOrderCreate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/draftOrderCreate-inline-null-input-parity.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-create-inline-null-input.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "draft-order-create-live-parity",
+          "operationNames": [
+            "draftOrderCreate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "selected-fields",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/draftOrderCreate-parity-plan.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-create-parity.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "draft-order-create-missing-input-invalid-variable",
+          "operationNames": [
+            "draftOrderCreate"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/draftOrderCreate-missing-input-parity.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-create-missing-input.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "draftOrderComplete",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "draft-order-complete-inline-missing-id-argument-error",
+        "draft-order-complete-inline-null-id-argument-error",
+        "draft-order-complete-missing-id-invalid-variable"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 3,
+        "blockedScenarioCount": 1,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": true,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "draft-order-complete-inline-missing-id-argument-error",
+          "operationNames": [
+            "draftOrderComplete"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/draftOrderComplete-inline-missing-id-parity.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-complete-inline-missing-id.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "draft-order-complete-inline-null-id-argument-error",
+          "operationNames": [
+            "draftOrderComplete"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/draftOrderComplete-inline-null-id-parity.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-complete-inline-null-id.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        },
+        {
+          "id": "draft-order-complete-live-parity",
+          "operationNames": [
+            "draftOrderComplete"
+          ],
+          "status": "planned",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/draftOrderComplete-parity-plan.json",
+          "captureFiles": [],
+          "state": "blocked-with-proxy-request",
+          "blocker": {
+            "kind": "missing-live-draft-order-complete-access",
+            "blockerPath": "pending/order-creation-conformance-scope-blocker.md",
+            "details": {
+              "requiredScopes": [
+                "write_draft_orders"
+              ],
+              "probeRoots": [
+                "draftOrderComplete"
+              ],
+              "blockedMutations": [
+                "draftOrderComplete"
+              ],
+              "requiredPermissions": [
+                "mark-as-paid",
+                "set-payment-terms"
+              ],
+              "failingMessage": "Access denied for draftOrderComplete field. Required access: `write_draft_orders` access scope. Also: The user must have access to mark as paid, or set payment terms.",
+              "activeCredentialTokenFamily": "shpca",
+              "activeCredentialHeaderMode": "raw-x-shopify-access-token",
+              "activeCredentialSummary": "the active conformance credential is a Shopify user access token (`shpca_...`) sent as raw `X-Shopify-Access-Token` on this host",
+              "manualStoreAuthStatus": "present-shpca-user-token-not-offline-capable",
+              "manualStoreAuthTokenPath": ".manual-store-auth-token.json",
+              "manualStoreAuthCachedScopes": [
+                "read_product_listings",
+                "read_themes",
+                "write_assigned_fulfillment_orders",
+                "write_content",
+                "write_customers",
+                "write_discounts",
+                "write_draft_orders",
+                "write_files",
+                "write_fulfillments",
+                "write_inventory",
+                "write_locations",
+                "write_markets",
+                "write_merchant_managed_fulfillment_orders",
+                "write_metaobject_definitions",
+                "write_metaobjects",
+                "write_order_edits",
+                "write_orders",
+                "write_products",
+                "write_publications",
+                "write_returns",
+                "write_shipping",
+                "write_third_party_fulfillment_orders",
+                "write_translations"
+              ],
+              "manualStoreAuthAssociatedUserScopes": []
+            }
+          },
+          "declaredOnOperation": false
+        },
+        {
+          "id": "draft-order-complete-missing-id-invalid-variable",
+          "operationNames": [
+            "draftOrderComplete"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/draftOrderComplete-missing-id-parity.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-complete-missing-id.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "orderEditBegin",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "order-edit-begin-missing-id-invalid-variable"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 1,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": true,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "order-edit-begin-live-parity",
+          "operationNames": [
+            "orderEditBegin"
+          ],
+          "status": "planned",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/orderEditBegin-parity-plan.json",
+          "captureFiles": [],
+          "state": "blocked-with-proxy-request",
+          "blocker": {
+            "kind": "missing-live-order-edit-begin-access",
+            "blockerPath": "pending/order-editing-conformance-scope-blocker.md",
+            "details": {
+              "requiredScopes": [
+                "write_order_edits"
+              ],
+              "probeRoots": [
+                "orderEditBegin"
+              ],
+              "blockedMutations": [
+                "orderEditBegin"
+              ],
+              "failingMessage": "Access denied for orderEditBegin field. Required access: Requires `write_order_edits` access scope.",
+              "activeCredentialTokenFamily": "shpca",
+              "activeCredentialHeaderMode": "raw-x-shopify-access-token",
+              "activeCredentialSummary": "the active conformance credential is a Shopify user access token (`shpca_...`) sent as raw `X-Shopify-Access-Token` on this host",
+              "manualStoreAuthStatus": "present-shpca-user-token-not-offline-capable",
+              "manualStoreAuthTokenPath": ".manual-store-auth-token.json",
+              "manualStoreAuthCachedScopes": [
+                "read_product_listings",
+                "read_themes",
+                "write_assigned_fulfillment_orders",
+                "write_content",
+                "write_customers",
+                "write_discounts",
+                "write_draft_orders",
+                "write_files",
+                "write_fulfillments",
+                "write_inventory",
+                "write_locations",
+                "write_markets",
+                "write_merchant_managed_fulfillment_orders",
+                "write_metaobject_definitions",
+                "write_metaobjects",
+                "write_order_edits",
+                "write_orders",
+                "write_products",
+                "write_publications",
+                "write_returns",
+                "write_shipping",
+                "write_third_party_fulfillment_orders",
+                "write_translations"
+              ],
+              "manualStoreAuthAssociatedUserScopes": []
+            }
+          },
+          "declaredOnOperation": false
+        },
+        {
+          "id": "order-edit-begin-missing-id-invalid-variable",
+          "operationNames": [
+            "orderEditBegin"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/orderEditBegin-missing-id-parity.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-edit-begin-missing-id.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "orderEditAddVariant",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "order-edit-add-variant-missing-id-invalid-variable"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 1,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": true,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "order-edit-add-variant-live-parity",
+          "operationNames": [
+            "orderEditAddVariant"
+          ],
+          "status": "planned",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/orderEditAddVariant-parity-plan.json",
+          "captureFiles": [],
+          "state": "blocked-with-proxy-request",
+          "blocker": {
+            "kind": "missing-live-order-edit-add-variant-access",
+            "blockerPath": "pending/order-editing-conformance-scope-blocker.md",
+            "details": {
+              "requiredScopes": [
+                "write_order_edits"
+              ],
+              "probeRoots": [
+                "orderEditAddVariant"
+              ],
+              "blockedMutations": [
+                "orderEditAddVariant"
+              ],
+              "failingMessage": "Access denied for orderEditAddVariant field. Required access: `write_order_edits` access scope.",
+              "activeCredentialTokenFamily": "shpca",
+              "activeCredentialHeaderMode": "raw-x-shopify-access-token",
+              "activeCredentialSummary": "the active conformance credential is a Shopify user access token (`shpca_...`) sent as raw `X-Shopify-Access-Token` on this host",
+              "manualStoreAuthStatus": "present-shpca-user-token-not-offline-capable",
+              "manualStoreAuthTokenPath": ".manual-store-auth-token.json",
+              "manualStoreAuthCachedScopes": [
+                "read_product_listings",
+                "read_themes",
+                "write_assigned_fulfillment_orders",
+                "write_content",
+                "write_customers",
+                "write_discounts",
+                "write_draft_orders",
+                "write_files",
+                "write_fulfillments",
+                "write_inventory",
+                "write_locations",
+                "write_markets",
+                "write_merchant_managed_fulfillment_orders",
+                "write_metaobject_definitions",
+                "write_metaobjects",
+                "write_order_edits",
+                "write_orders",
+                "write_products",
+                "write_publications",
+                "write_returns",
+                "write_shipping",
+                "write_third_party_fulfillment_orders",
+                "write_translations"
+              ],
+              "manualStoreAuthAssociatedUserScopes": []
+            }
+          },
+          "declaredOnOperation": false
+        },
+        {
+          "id": "order-edit-add-variant-missing-id-invalid-variable",
+          "operationNames": [
+            "orderEditAddVariant"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/orderEditAddVariant-missing-id-parity.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-edit-add-variant-missing-id.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "orderEditSetQuantity",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "order-edit-set-quantity-missing-id-invalid-variable"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 1,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": true,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "order-edit-set-quantity-live-parity",
+          "operationNames": [
+            "orderEditSetQuantity"
+          ],
+          "status": "planned",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/orderEditSetQuantity-parity-plan.json",
+          "captureFiles": [],
+          "state": "blocked-with-proxy-request",
+          "blocker": {
+            "kind": "missing-live-order-edit-set-quantity-access",
+            "blockerPath": "pending/order-editing-conformance-scope-blocker.md",
+            "details": {
+              "requiredScopes": [
+                "write_order_edits"
+              ],
+              "probeRoots": [
+                "orderEditSetQuantity"
+              ],
+              "blockedMutations": [
+                "orderEditSetQuantity"
+              ],
+              "failingMessage": "Access denied for orderEditSetQuantity field. Required access: `write_order_edits` access scope.",
+              "activeCredentialTokenFamily": "shpca",
+              "activeCredentialHeaderMode": "raw-x-shopify-access-token",
+              "activeCredentialSummary": "the active conformance credential is a Shopify user access token (`shpca_...`) sent as raw `X-Shopify-Access-Token` on this host",
+              "manualStoreAuthStatus": "present-shpca-user-token-not-offline-capable",
+              "manualStoreAuthTokenPath": ".manual-store-auth-token.json",
+              "manualStoreAuthCachedScopes": [
+                "read_product_listings",
+                "read_themes",
+                "write_assigned_fulfillment_orders",
+                "write_content",
+                "write_customers",
+                "write_discounts",
+                "write_draft_orders",
+                "write_files",
+                "write_fulfillments",
+                "write_inventory",
+                "write_locations",
+                "write_markets",
+                "write_merchant_managed_fulfillment_orders",
+                "write_metaobject_definitions",
+                "write_metaobjects",
+                "write_order_edits",
+                "write_orders",
+                "write_products",
+                "write_publications",
+                "write_returns",
+                "write_shipping",
+                "write_third_party_fulfillment_orders",
+                "write_translations"
+              ],
+              "manualStoreAuthAssociatedUserScopes": []
+            }
+          },
+          "declaredOnOperation": false
+        },
+        {
+          "id": "order-edit-set-quantity-missing-id-invalid-variable",
+          "operationNames": [
+            "orderEditSetQuantity"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/orderEditSetQuantity-missing-id-parity.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-edit-set-quantity-missing-id.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    },
+    {
+      "name": "orderEditCommit",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "covered",
+      "declaredGapReason": null,
+      "scenarioIds": [
+        "order-edit-commit-missing-id-invalid-variable"
+      ],
+      "assertionKinds": [
+        "downstream-read-parity",
+        "payload-shape",
+        "user-errors-parity"
+      ],
+      "parity": {
+        "readyScenarioCount": 1,
+        "blockedScenarioCount": 1,
+        "pendingScenarioCount": 0,
+        "hasReadyScenario": true,
+        "hasBlockedScenario": true,
+        "hasPendingScenario": false
+      },
+      "scenarios": [
+        {
+          "id": "order-edit-commit-live-parity",
+          "operationNames": [
+            "orderEditCommit"
+          ],
+          "status": "planned",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity",
+            "downstream-read-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/orderEditCommit-parity-plan.json",
+          "captureFiles": [],
+          "state": "blocked-with-proxy-request",
+          "blocker": {
+            "kind": "missing-live-order-edit-commit-access",
+            "blockerPath": "pending/order-editing-conformance-scope-blocker.md",
+            "details": {
+              "requiredScopes": [
+                "write_order_edits"
+              ],
+              "probeRoots": [
+                "orderEditCommit"
+              ],
+              "blockedMutations": [
+                "orderEditCommit"
+              ],
+              "failingMessage": "Access denied for orderEditCommit field. Required access: Requires `write_order_edits` access scope.",
+              "activeCredentialTokenFamily": "shpca",
+              "activeCredentialHeaderMode": "raw-x-shopify-access-token",
+              "activeCredentialSummary": "the active conformance credential is a Shopify user access token (`shpca_...`) sent as raw `X-Shopify-Access-Token` on this host",
+              "manualStoreAuthStatus": "present-shpca-user-token-not-offline-capable",
+              "manualStoreAuthTokenPath": ".manual-store-auth-token.json",
+              "manualStoreAuthCachedScopes": [
+                "read_product_listings",
+                "read_themes",
+                "write_assigned_fulfillment_orders",
+                "write_content",
+                "write_customers",
+                "write_discounts",
+                "write_draft_orders",
+                "write_files",
+                "write_fulfillments",
+                "write_inventory",
+                "write_locations",
+                "write_markets",
+                "write_merchant_managed_fulfillment_orders",
+                "write_metaobject_definitions",
+                "write_metaobjects",
+                "write_order_edits",
+                "write_orders",
+                "write_products",
+                "write_publications",
+                "write_returns",
+                "write_shipping",
+                "write_third_party_fulfillment_orders",
+                "write_translations"
+              ],
+              "manualStoreAuthAssociatedUserScopes": []
+            }
+          },
+          "declaredOnOperation": false
+        },
+        {
+          "id": "order-edit-commit-missing-id-invalid-variable",
+          "operationNames": [
+            "orderEditCommit"
+          ],
+          "status": "captured",
+          "assertionKinds": [
+            "payload-shape",
+            "user-errors-parity"
+          ],
+          "paritySpecPath": "config/parity-specs/orderEditCommit-missing-id-parity.json",
+          "captureFiles": [
+            "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-edit-commit-missing-id.json"
+          ],
+          "state": "ready-for-comparison",
+          "blocker": null,
+          "declaredOnOperation": true
+        }
+      ]
+    }
+  ]
+}

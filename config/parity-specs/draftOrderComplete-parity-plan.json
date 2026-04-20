@@ -1,0 +1,70 @@
+{
+  "scenarioId": "draft-order-complete-live-parity",
+  "operationNames": [
+    "draftOrderComplete"
+  ],
+  "scenarioStatus": "planned",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity"
+  ],
+  "liveCaptureFiles": [],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/draftOrderComplete-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/draftOrderComplete-parity-plan.variables.json"
+  },
+  "comparisonMode": "planned",
+  "blocker": {
+    "kind": "missing-live-draft-order-complete-access",
+    "blockerPath": "pending/order-creation-conformance-scope-blocker.md",
+    "details": {
+      "requiredScopes": [
+        "write_draft_orders"
+      ],
+      "probeRoots": [
+        "draftOrderComplete"
+      ],
+      "blockedMutations": [
+        "draftOrderComplete"
+      ],
+      "requiredPermissions": [
+        "mark-as-paid",
+        "set-payment-terms"
+      ],
+      "failingMessage": "Access denied for draftOrderComplete field. Required access: `write_draft_orders` access scope. Also: The user must have access to mark as paid, or set payment terms.",
+      "activeCredentialTokenFamily": "shpca",
+      "activeCredentialHeaderMode": "raw-x-shopify-access-token",
+      "activeCredentialSummary": "the active conformance credential is a Shopify user access token (`shpca_...`) sent as raw `X-Shopify-Access-Token` on this host",
+      "manualStoreAuthStatus": "present-shpca-user-token-not-offline-capable",
+      "manualStoreAuthTokenPath": ".manual-store-auth-token.json",
+      "manualStoreAuthCachedScopes": [
+        "read_product_listings",
+        "read_themes",
+        "write_assigned_fulfillment_orders",
+        "write_content",
+        "write_customers",
+        "write_discounts",
+        "write_draft_orders",
+        "write_files",
+        "write_fulfillments",
+        "write_inventory",
+        "write_locations",
+        "write_markets",
+        "write_merchant_managed_fulfillment_orders",
+        "write_metaobject_definitions",
+        "write_metaobjects",
+        "write_order_edits",
+        "write_orders",
+        "write_products",
+        "write_publications",
+        "write_returns",
+        "write_shipping",
+        "write_third_party_fulfillment_orders",
+        "write_translations"
+      ],
+      "manualStoreAuthAssociatedUserScopes": []
+    }
+  },
+  "notes": "Merchant-realistic draft-to-order completion scaffold. The checked-in proxy request now captures the narrow completion payload merchants care about first — draft order status/ready state, invoice URL, total price, and line items — and avoids the stale non-schema `DraftOrderCompletePayload.order` selection that Shopify rejects on this host. Live capture remains blocked until the conformance install can complete draft orders."
+}

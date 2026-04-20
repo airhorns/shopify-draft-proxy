@@ -1,0 +1,102 @@
+{
+  "mutation": {
+    "variables": {
+      "productId": "gid://shopify/Product/9257219195113",
+      "variantsIds": [
+        "gid://shopify/ProductVariant/50897200316649"
+      ]
+    },
+    "response": {
+      "data": {
+        "productVariantsBulkDelete": {
+          "product": {
+            "id": "gid://shopify/Product/9257219195113",
+            "totalInventory": 0,
+            "tracksInventory": true,
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/50897200349417",
+                  "title": "Blue",
+                  "sku": "HERMES-BULK-669475-BLUE",
+                  "inventoryQuantity": 0,
+                  "selectedOptions": [
+                    {
+                      "name": "Color",
+                      "value": "Blue"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1979,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/9257219195113",
+        "totalInventory": 0,
+        "tracksInventory": true,
+        "variants": {
+          "nodes": [
+            {
+              "id": "gid://shopify/ProductVariant/50897200349417",
+              "title": "Blue",
+              "sku": "HERMES-BULK-669475-BLUE",
+              "barcode": "2222222222222",
+              "price": "26.00",
+              "compareAtPrice": "30.00",
+              "taxable": true,
+              "inventoryPolicy": "DENY",
+              "inventoryQuantity": 0,
+              "selectedOptions": [
+                {
+                  "name": "Color",
+                  "value": "Blue"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53044945715433",
+                "tracked": true,
+                "requiresShipping": false
+              }
+            }
+          ]
+        }
+      },
+      "products": {
+        "nodes": []
+      },
+      "skuCount": {
+        "count": 0,
+        "precision": "EXACT"
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 31,
+        "actualQueryCost": 21,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1979,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

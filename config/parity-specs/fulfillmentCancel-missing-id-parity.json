@@ -1,0 +1,20 @@
+{
+  "scenarioId": "fulfillment-cancel-missing-id-invalid-variable",
+  "operationNames": [
+    "fulfillmentCancel"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/fulfillment-cancel-missing-id.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/fulfillmentCancel-missing-id-parity.graphql",
+    "variablesPath": "config/parity-requests/fulfillmentCancel-missing-id-parity.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured `fulfillmentCancel` missing-id GraphQL validation slice: omitting the required `$id` variable fails at GraphQL coercion time with `INVALID_VARIABLE`, and snapshot/live-hybrid local parity now mirrors that branch without hitting upstream."
+}

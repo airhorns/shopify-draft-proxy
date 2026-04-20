@@ -1,0 +1,146 @@
+{
+  "mutation": {
+    "variables": {
+      "input": {
+        "email": "hermes-customer-create-1776550630836@example.com",
+        "firstName": "Hermes",
+        "lastName": "Create",
+        "locale": "en",
+        "note": "customer create parity probe",
+        "phone": "+14155550123",
+        "tags": [
+          "parity",
+          "create-1776550630836"
+        ],
+        "taxExempt": true
+      }
+    },
+    "response": {
+      "data": {
+        "customerCreate": {
+          "customer": {
+            "id": "gid://shopify/Customer/9079716675817",
+            "firstName": "Hermes",
+            "lastName": "Create",
+            "displayName": "Hermes Create",
+            "email": "hermes-customer-create-1776550630836@example.com",
+            "locale": "en",
+            "note": "customer create parity probe",
+            "verifiedEmail": true,
+            "taxExempt": true,
+            "tags": [
+              "create-1776550630836",
+              "parity"
+            ],
+            "state": "DISABLED",
+            "canDelete": true,
+            "defaultEmailAddress": {
+              "emailAddress": "hermes-customer-create-1776550630836@example.com"
+            },
+            "defaultPhoneNumber": {
+              "phoneNumber": "+14155550123"
+            },
+            "defaultAddress": null,
+            "createdAt": "2026-04-18T22:17:10Z",
+            "updatedAt": "2026-04-18T22:17:10Z"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "customer": {
+        "id": "gid://shopify/Customer/9079716675817",
+        "firstName": "Hermes",
+        "lastName": "Create",
+        "displayName": "Hermes Create",
+        "email": "hermes-customer-create-1776550630836@example.com",
+        "locale": "en",
+        "note": "customer create parity probe",
+        "verifiedEmail": true,
+        "taxExempt": true,
+        "tags": [
+          "create-1776550630836",
+          "parity"
+        ],
+        "state": "DISABLED",
+        "canDelete": true,
+        "defaultEmailAddress": {
+          "emailAddress": "hermes-customer-create-1776550630836@example.com"
+        },
+        "defaultPhoneNumber": {
+          "phoneNumber": "+14155550123"
+        },
+        "defaultAddress": null,
+        "createdAt": "2026-04-18T22:17:10Z",
+        "updatedAt": "2026-04-18T22:17:10Z"
+      },
+      "customers": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false
+        }
+      },
+      "customersCount": {
+        "count": 73,
+        "precision": "EXACT"
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 24,
+        "actualQueryCost": 18,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1982,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "validation": {
+    "variables": {
+      "input": {
+        "email": ""
+      }
+    },
+    "response": {
+      "data": {
+        "customerCreate": {
+          "customer": null,
+          "userErrors": [
+            {
+              "field": null,
+              "message": "A name, phone number, or email address must be present"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

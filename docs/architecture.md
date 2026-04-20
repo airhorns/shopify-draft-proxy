@@ -151,6 +151,13 @@ The server should accept both:
 
 At startup, raw fixture bundles should be compiled into normalized state where possible.
 
+Current implementation note:
+
+- `createApp()` now reads `config.snapshotPath` eagerly when it is set
+- the current supported on-disk format is a normalized snapshot JSON file containing `baseState` plus optional customer catalog/search connection baselines
+- loading that file seeds the in-memory base state before the server handles requests
+- `POST /__meta/reset` restores that startup snapshot baseline rather than wiping snapshot mode back to an empty store
+
 Snapshot misses should return the same kind of empty/null structure Shopify returns when the backing store has no matching data.
 
 ## Meta API
@@ -163,6 +170,13 @@ Recommended endpoints:
 - `GET /__meta/state`
 - `GET /__meta/config`
 - `GET /__meta/health`
+
+Current implementation notes:
+
+- `GET /__meta/config` returns the active `port`, `shopifyAdminOrigin`, `readMode`, and `snapshotPath`
+- mutation-log entries retain the original GraphQL route path as well as the raw document + variables, so commit replay can preserve the original versioned Admin API endpoint
+- `POST /__meta/commit` replays pending `staged` / `proxied` mutations against upstream Shopify in original log order using the caller-provided `X-Shopify-Access-Token`
+- commit replay persists per-entry `committed` / `failed` statuses back into the in-memory log and stops at the first upstream transport or GraphQL failure
 
 Commit response should include:
 

@@ -1,0 +1,21 @@
+{
+  "scenarioId": "inventory-item-update-live-parity",
+  "operationNames": [
+    "inventoryItemUpdate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/inventory-item-update-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/inventoryItemUpdate-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/inventoryItemUpdate-parity-plan.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live capture now covers `inventoryItemUpdate` for the first merchant-facing inventory-item metadata slice (`tracked`, `requiresShipping`, origin codes, harmonizedSystemCode, and `measurement.weight`) together with immediate downstream `inventoryItem` replay and the unknown-id `The product couldn't be updated because it does not exist.` validation path."
+}

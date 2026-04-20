@@ -1,6 +1,6 @@
 import operationRegistryJson from '../../config/operation-registry.json' with { type: 'json' };
 
-export type CapabilityDomain = 'products' | 'unknown';
+export type CapabilityDomain = 'products' | 'customers' | 'orders' | 'unknown';
 export type CapabilityExecution = 'overlay-read' | 'stage-locally' | 'passthrough';
 export type ConformanceStatus = 'covered' | 'declared-gap';
 export type OperationType = 'query' | 'mutation';

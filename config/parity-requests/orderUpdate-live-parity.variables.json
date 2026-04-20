@@ -1,0 +1,7 @@
+{
+  "input": {
+    "id": "gid://shopify/Order/1234567890",
+    "note": "order update live parity plan",
+    "tags": ["live-parity", "order-update"]
+  }
+}

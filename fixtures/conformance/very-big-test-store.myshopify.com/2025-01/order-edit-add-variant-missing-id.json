@@ -1,0 +1,32 @@
+{
+  "query": "mutation OrderEditAddVariantMissingId($id: ID!, $variantId: ID!, $quantity: Int!) {\n    orderEditAddVariant(id: $id, variantId: $variantId, quantity: $quantity) {\n      calculatedOrder {\n        id\n      }\n      calculatedLineItem {\n        id\n      }\n      userErrors { field message }\n    }\n  }",
+  "variables": {
+    "variantId": "gid://shopify/ProductVariant/0",
+    "quantity": 1
+  },
+  "mutation": {
+    "response": {
+      "errors": [
+        {
+          "message": "Variable $id of type ID! was provided invalid value",
+          "locations": [
+            {
+              "line": 2,
+              "column": 41
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": null,
+            "problems": [
+              {
+                "path": [],
+                "explanation": "Expected value to not be null"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "prefixQuery": "How*",
+  "orQuery": "(tag:VIP OR tag:referral) state:DISABLED",
+  "groupedQuery": "state:DISABLED -(tag:VIP OR tag:referral)"
+}

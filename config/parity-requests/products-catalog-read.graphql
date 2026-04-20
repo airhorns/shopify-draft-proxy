@@ -1,0 +1,29 @@
+query ProductsCatalogRead($first: Int!) {
+  productsCount {
+    count
+    precision
+  }
+  products(first: $first, sortKey: UPDATED_AT, reverse: true) {
+    edges {
+      cursor
+      node {
+        id
+        legacyResourceId
+        title
+        handle
+        status
+        vendor
+        productType
+        tags
+        totalInventory
+        tracksInventory
+        createdAt
+        updatedAt
+      }
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}

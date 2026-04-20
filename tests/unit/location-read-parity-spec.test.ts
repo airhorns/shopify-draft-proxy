@@ -1,0 +1,41 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+import { describe, expect, it } from 'vitest';
+
+describe('location read parity spec', () => {
+  it('declares a concrete proxy request scaffold and capture command for locations parity', () => {
+    const repoRoot = resolve(import.meta.dirname, '../..');
+    const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8')) as {
+      scripts?: Record<string, string>;
+    };
+    expect(packageJson.scripts?.['conformance:capture-locations']).toBe('node ./scripts/capture-location-conformance.mjs');
+
+    const specPath = resolve(repoRoot, 'config/parity-specs/locations-catalog-read.json');
+    const spec = JSON.parse(readFileSync(specPath, 'utf8')) as {
+      proxyRequest?: { documentPath?: string | null; variablesPath?: string | null };
+    };
+
+    expect(spec.proxyRequest?.documentPath).toBe('config/parity-requests/locations-catalog-read.graphql');
+    expect(spec.proxyRequest?.variablesPath).toBe('config/parity-requests/locations-catalog-read.variables.json');
+
+    const documentPath = resolve(repoRoot, spec.proxyRequest!.documentPath!);
+    const variablesPath = resolve(repoRoot, spec.proxyRequest!.variablesPath!);
+
+    expect(existsSync(documentPath)).toBe(true);
+    expect(existsSync(variablesPath)).toBe(true);
+
+    const document = readFileSync(documentPath, 'utf8');
+    const variables = JSON.parse(readFileSync(variablesPath, 'utf8')) as { first?: number };
+
+    expect(document).toContain('query LocationsCatalogRead($first: Int!)');
+    expect(document).toContain('locations(first: $first)');
+    expect(document).toContain('edges');
+    expect(document).toContain('cursor');
+    expect(document).toContain('node {');
+    expect(document).toContain('id');
+    expect(document).toContain('name');
+    expect(document).toContain('pageInfo {');
+    expect(variables.first).toBe(10);
+  });
+});

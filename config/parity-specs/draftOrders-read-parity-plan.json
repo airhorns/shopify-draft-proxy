@@ -1,0 +1,21 @@
+{
+  "scenarioId": "draft-orders-catalog-read",
+  "operationNames": [
+    "draftOrders"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "selected-fields",
+    "pagination-shape"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-orders-catalog.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/draftOrders-read-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/draftOrders-read-parity-plan.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "The first non-empty Shopify draft-order catalog baseline is now captured on this host, so parity compares the live newest-first catalog window against the proxy's local replay rather than staying blocked on a missing baseline."
+}

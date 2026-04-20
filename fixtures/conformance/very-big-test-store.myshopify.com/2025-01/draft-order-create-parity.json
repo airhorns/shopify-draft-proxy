@@ -1,0 +1,211 @@
+{
+  "variables": {
+    "input": {
+      "email": "hermes-draft-order-probe-1776610115303@example.com",
+      "note": "draft order create parity probe",
+      "tags": [
+        "parity-probe",
+        "draft-order-create"
+      ],
+      "customAttributes": [
+        {
+          "key": "source",
+          "value": "hermes-parity-plan"
+        },
+        {
+          "key": "channel",
+          "value": "cron-orders-bootstrap"
+        }
+      ],
+      "billingAddress": {
+        "firstName": "Hermes",
+        "lastName": "Operator",
+        "address1": "123 Queen St W",
+        "city": "Toronto",
+        "provinceCode": "ON",
+        "countryCode": "CA",
+        "zip": "M5H 2M9",
+        "phone": "+141****0101"
+      },
+      "shippingAddress": {
+        "firstName": "Hermes",
+        "lastName": "Operator",
+        "address1": "123 Queen St W",
+        "city": "Toronto",
+        "provinceCode": "ON",
+        "countryCode": "CA",
+        "zip": "M5H 2M9",
+        "phone": "+141****0101"
+      },
+      "shippingLine": {
+        "title": "Standard",
+        "priceWithCurrency": {
+          "amount": "5.00",
+          "currencyCode": "CAD"
+        }
+      },
+      "lineItems": [
+        {
+          "title": "Hermes custom draft-order item",
+          "quantity": 1,
+          "originalUnitPrice": "10.00",
+          "requiresShipping": false,
+          "taxable": false,
+          "sku": "hermes-draft-order-probe-1776610115303"
+        }
+      ]
+    }
+  },
+  "mutation": {
+    "response": {
+      "data": {
+        "draftOrderCreate": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1305654067433",
+            "name": "#D40",
+            "status": "OPEN",
+            "email": "hermes-draft-order-probe-1776610115303@example.com",
+            "tags": [
+              "draft-order-create",
+              "parity-probe"
+            ],
+            "invoiceUrl": "https://very-big-test-store.myshopify.com/63755419881/invoices/b38fe38e679bef653641000163b51e14",
+            "customAttributes": [
+              {
+                "key": "source",
+                "value": "hermes-parity-plan"
+              },
+              {
+                "key": "channel",
+                "value": "cron-orders-bootstrap"
+              }
+            ],
+            "billingAddress": {
+              "firstName": "Hermes",
+              "lastName": "Operator",
+              "address1": "123 Queen St W",
+              "city": "Toronto",
+              "provinceCode": "ON",
+              "countryCodeV2": "CA",
+              "zip": "M5H 2M9"
+            },
+            "shippingAddress": {
+              "firstName": "Hermes",
+              "lastName": "Operator",
+              "address1": "123 Queen St W",
+              "city": "Toronto",
+              "provinceCode": "ON",
+              "countryCodeV2": "CA",
+              "zip": "M5H 2M9"
+            },
+            "shippingLine": null,
+            "totalPriceSet": {
+              "shopMoney": {
+                "amount": "10.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "lineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/DraftOrderLineItem/58857629581545",
+                  "title": "Hermes custom draft-order item",
+                  "quantity": 1,
+                  "sku": "hermes-draft-order-probe-1776610115303"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 19,
+          "actualQueryCost": 17,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1983,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "variables": {
+      "id": "gid://shopify/DraftOrder/1305654067433"
+    },
+    "response": {
+      "data": {
+        "draftOrder": {
+          "id": "gid://shopify/DraftOrder/1305654067433",
+          "name": "#D40",
+          "status": "OPEN",
+          "email": "hermes-draft-order-probe-1776610115303@example.com",
+          "tags": [
+            "draft-order-create",
+            "parity-probe"
+          ],
+          "invoiceUrl": "https://very-big-test-store.myshopify.com/63755419881/invoices/b38fe38e679bef653641000163b51e14",
+          "customAttributes": [
+            {
+              "key": "source",
+              "value": "hermes-parity-plan"
+            },
+            {
+              "key": "channel",
+              "value": "cron-orders-bootstrap"
+            }
+          ],
+          "billingAddress": {
+            "firstName": "Hermes",
+            "lastName": "Operator",
+            "address1": "123 Queen St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCodeV2": "CA",
+            "zip": "M5H 2M9"
+          },
+          "shippingAddress": {
+            "firstName": "Hermes",
+            "lastName": "Operator",
+            "address1": "123 Queen St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCodeV2": "CA",
+            "zip": "M5H 2M9"
+          },
+          "shippingLine": null,
+          "totalPriceSet": {
+            "shopMoney": {
+              "amount": "10.0",
+              "currencyCode": "CAD"
+            }
+          },
+          "lineItems": {
+            "nodes": [
+              {
+                "id": "gid://shopify/DraftOrderLineItem/58857629581545",
+                "title": "Hermes custom draft-order item",
+                "quantity": 1,
+                "sku": "hermes-draft-order-probe-1776610115303"
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 8,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1992,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

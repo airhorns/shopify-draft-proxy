@@ -1,0 +1,72 @@
+{
+  "variables": {
+    "input": {
+      "id": "gid://shopify/Order/6824239235305",
+      "note": "order update live parity captured note",
+      "tags": [
+        "live-parity",
+        "order-update"
+      ]
+    }
+  },
+  "mutation": {
+    "response": {
+      "data": {
+        "orderUpdate": {
+          "order": {
+            "id": "gid://shopify/Order/6824239235305",
+            "name": "#1314",
+            "updatedAt": "2026-04-19T14:48:40Z",
+            "note": "order update live parity captured note",
+            "tags": [
+              "live-parity",
+              "order-update"
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "variables": {
+      "id": "gid://shopify/Order/6824239235305"
+    },
+    "response": {
+      "data": {
+        "order": {
+          "id": "gid://shopify/Order/6824239235305",
+          "name": "#1314",
+          "updatedAt": "2026-04-19T14:48:40Z",
+          "note": "order update live parity captured note",
+          "tags": [
+            "live-parity",
+            "order-update"
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 1,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1999,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

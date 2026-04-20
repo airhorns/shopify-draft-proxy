@@ -8,15 +8,16 @@
   "assertionKinds": [
     "payload-shape",
     "selected-fields",
-    "nested-inventory-shape"
+    "nested-inventory-shape",
+    "connection-shape"
   ],
   "liveCaptureFiles": [
     "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-variants-matrix.json"
   ],
   "proxyRequest": {
-    "documentPath": null,
-    "variablesPath": null
+    "documentPath": "config/parity-requests/product-variants-read.graphql",
+    "variablesPath": "config/parity-requests/product-variants-read.variables.json"
   },
   "comparisonMode": "capture-only",
-  "notes": "Fill in proxy request + comparator details as parity coverage is implemented."
+  "notes": "Live top-level productVariant/inventoryItem capture now has a concrete proxy request scaffold covering the current merchandising/inventory slice, nested `inventoryItem.inventoryLevels(first:)` connection fields, and parent-product backreferences used by the overlay serializer. Comparator wiring can reuse this request scaffold once proxy-vs-Shopify comparison is implemented."
 }

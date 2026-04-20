@@ -1,0 +1,28 @@
+mutation InventoryItemUpdateParityPlan($id: ID!, $input: InventoryItemInput!) {
+  inventoryItemUpdate(id: $id, input: $input) {
+    inventoryItem {
+      id
+      tracked
+      requiresShipping
+      countryCodeOfOrigin
+      provinceCodeOfOrigin
+      harmonizedSystemCode
+      measurement {
+        weight {
+          unit
+          value
+        }
+      }
+      variant {
+        id
+        inventoryQuantity
+        product {
+          id
+          title
+          tracksInventory
+        }
+      }
+    }
+    userErrors { field message }
+  }
+}

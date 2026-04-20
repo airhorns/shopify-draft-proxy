@@ -17,5 +17,5 @@
     "variablesPath": "config/parity-requests/tagsRemove-parity-plan.variables.json"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live capture recorded for `tagsRemove`, but Shopify did not reflect the unique tag state in immediate `products(query:)` / `productsCount(query:)` search results, so promotion still requires search-index parity decisions."
+  "notes": "Live capture recorded for `tagsRemove`, and the staged runtime now mirrors Shopify's immediate tag-index lag for hydrated products by dropping removed hydrated/base tags from search immediately while leaving newly added-only tags out of `products(query: \"tag:...\")` / `productsCount(query: \"tag:...\")` until rehydration."
 }

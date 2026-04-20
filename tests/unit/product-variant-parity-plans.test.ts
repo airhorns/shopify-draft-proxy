@@ -65,15 +65,13 @@ describe('product variant mutation parity plan scaffolds', () => {
         variants: [
           {
             id: 'gid://shopify/ProductVariant/200',
-            title: 'Default / Black',
-            sku: 'HAT-DEFAULT-BLACK',
             barcode: '1111111111111',
             price: '24.00',
             compareAtPrice: '30.00',
             taxable: true,
             inventoryPolicy: 'DENY',
-            inventoryQuantity: 4,
             inventoryItem: {
+              sku: 'HAT-DEFAULT-BLACK',
               tracked: true,
               requiresShipping: true,
             },

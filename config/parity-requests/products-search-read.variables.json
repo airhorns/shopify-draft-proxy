@@ -1,0 +1,4 @@
+{
+  "nikeQuery": "vendor:NIKE",
+  "inventoryQuery": "inventory_total:<=0"
+}

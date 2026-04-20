@@ -1,0 +1,22 @@
+{
+  "scenarioId": "products-relevance-search-read",
+  "operationNames": [
+    "products"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "selected-fields",
+    "sort-order-semantics",
+    "pagination-shape"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-relevance-search.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products-relevance-search-read.graphql",
+    "variablesPath": "config/parity-requests/products-relevance-search-read.variables.json"
+  },
+  "comparisonMode": "capture-only",
+  "notes": "Live product relevance capture preserves Shopify opaque cursors and RELEVANCE ordering for a concrete merchant-facing query so staged overlay replay can reuse the hydrated baseline order instead of inventing a synthetic scorer."
+}

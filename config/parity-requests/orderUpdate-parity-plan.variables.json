@@ -1,0 +1,7 @@
+{
+  "input": {
+    "id": "gid://shopify/Order/0",
+    "note": "order update parity plan",
+    "tags": ["parity-plan", "order-update"]
+  }
+}

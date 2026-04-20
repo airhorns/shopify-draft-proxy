@@ -1,0 +1,39 @@
+mutation InventoryBulkToggleActivationParityPlan($inventoryItemId: ID!, $inventoryItemUpdates: [InventoryBulkToggleActivationInput!]!) {
+  inventoryBulkToggleActivation(inventoryItemId: $inventoryItemId, inventoryItemUpdates: $inventoryItemUpdates) {
+    inventoryItem {
+      id
+      tracked
+      inventoryLevels(first: 5) {
+        nodes {
+          id
+          location {
+            id
+          }
+          quantities(names: ["available", "on_hand", "incoming"]) {
+            name
+            quantity
+          }
+        }
+      }
+    }
+    inventoryLevels {
+      id
+      location {
+        id
+      }
+      quantities(names: ["available", "on_hand", "incoming"]) {
+        name
+        quantity
+      }
+      item {
+        id
+        tracked
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

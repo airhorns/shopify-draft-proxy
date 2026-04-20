@@ -1,0 +1,20 @@
+{
+  "scenarioId": "fulfillment-create-invalid-id-parity",
+  "operationNames": [
+    "fulfillmentCreate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "resource-not-found-parity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/fulfillment-create-invalid-id.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/fulfillmentCreate-invalid-id-parity.graphql",
+    "variablesPath": "config/parity-requests/fulfillmentCreate-invalid-id-parity.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "First fulfillment-domain increment: a captured `fulfillmentCreate` invalid-fulfillment-order validation slice that the proxy can mirror locally in snapshot mode without inventing successful fulfillment lifecycle semantics yet."
+}
