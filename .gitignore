@@ -20,6 +20,7 @@ pnpm-debug.log*
 vitest.config.ts.timestamp-*
 .manual-store-auth.json
 .manual-store-auth-token.json
+.manual-store-auth-pkce.json
 
 # OS / editor noise
 .DS_Store

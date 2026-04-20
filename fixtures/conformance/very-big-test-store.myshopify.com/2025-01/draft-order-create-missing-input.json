@@ -1,0 +1,29 @@
+{
+  "query": "mutation DraftOrderCreateMissingInput($input: DraftOrderInput!) {\n    draftOrderCreate(input: $input) {\n      draftOrder { id }\n      userErrors { field message }\n    }\n  }",
+  "variables": {},
+  "mutation": {
+    "response": {
+      "errors": [
+        {
+          "message": "Variable $input of type DraftOrderInput! was provided invalid value",
+          "locations": [
+            {
+              "line": 2,
+              "column": 41
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": null,
+            "problems": [
+              {
+                "path": [],
+                "explanation": "Expected value to not be null"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

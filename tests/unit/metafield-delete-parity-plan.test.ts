@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -22,7 +22,7 @@ describe('metafieldDelete parity plan scaffold', () => {
 
     const document = readFileSync(documentPath, 'utf8');
     const variables = JSON.parse(readFileSync(variablesPath, 'utf8')) as {
-      input?: Record<string, unknown>;
+      input?: { id?: string };
     };
 
     expect(document).toContain('mutation MetafieldDeleteParityPlan($input: MetafieldDeleteInput!)');
@@ -30,7 +30,7 @@ describe('metafieldDelete parity plan scaffold', () => {
     expect(document).toContain('deletedId');
     expect(document).toContain('userErrors {');
 
-    expect(variables.input).toMatchObject({
+    expect(variables.input).toEqual({
       id: 'gid://shopify/Metafield/9001',
     });
   });

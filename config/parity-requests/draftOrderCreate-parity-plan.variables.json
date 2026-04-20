@@ -1,0 +1,54 @@
+{
+  "input": {
+    "email": "hermes-draft-order-parity-plan-20260418@example.com",
+    "note": "draft order create parity plan",
+    "tags": ["parity-plan", "draft-order"],
+    "customAttributes": [
+      {
+        "key": "source",
+        "value": "hermes-parity-plan"
+      },
+      {
+        "key": "channel",
+        "value": "cron-orders-bootstrap"
+      }
+    ],
+    "billingAddress": {
+      "firstName": "Hermes",
+      "lastName": "Operator",
+      "address1": "123 Queen St W",
+      "city": "Toronto",
+      "provinceCode": "ON",
+      "countryCode": "CA",
+      "zip": "M5H 2M9",
+      "phone": "+14165550101"
+    },
+    "shippingAddress": {
+      "firstName": "Hermes",
+      "lastName": "Operator",
+      "address1": "123 Queen St W",
+      "city": "Toronto",
+      "provinceCode": "ON",
+      "countryCode": "CA",
+      "zip": "M5H 2M9",
+      "phone": "+14165550101"
+    },
+    "shippingLine": {
+      "title": "Standard",
+      "priceWithCurrency": {
+        "amount": "5.00",
+        "currencyCode": "CAD"
+      }
+    },
+    "lineItems": [
+      {
+        "title": "Hermes custom draft-order item",
+        "quantity": 1,
+        "originalUnitPrice": "10.00",
+        "requiresShipping": false,
+        "taxable": false,
+        "sku": "hermes-draft-order-parity-plan-20260418"
+      }
+    ]
+  }
+}

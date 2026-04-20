@@ -1,0 +1,35 @@
+{
+  "variables": {
+    "missingId": "gid://shopify/Product/999999999999999",
+    "emptyQuery": "title:__hermes_empty_catalog_probe__"
+  },
+  "response": {
+    "data": {
+      "missingProduct": null,
+      "emptyCount": {
+        "count": 0,
+        "precision": "EXACT"
+      },
+      "emptyProducts": {
+        "edges": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 15,
+        "actualQueryCost": 13,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1987,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

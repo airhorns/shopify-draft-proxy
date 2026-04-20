@@ -1,0 +1,9 @@
+{
+  "productId": "gid://shopify/Product/100",
+  "media": [
+    {
+      "id": "gid://shopify/MediaImage/200",
+      "alt": "Updated front view"
+    }
+  ]
+}

@@ -1,9 +1,9 @@
-query ProductCatalogPage {
-  productsCount(limit: null) {
+query ProductsCatalogRead($first: Int!) {
+  productsCount {
     count
     precision
   }
-  products(first: 3, sortKey: UPDATED_AT, reverse: true) {
+  products(first: $first, sortKey: UPDATED_AT, reverse: true) {
     edges {
       cursor
       node {

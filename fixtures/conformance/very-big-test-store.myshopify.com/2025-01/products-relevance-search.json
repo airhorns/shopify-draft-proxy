@@ -1,0 +1,43 @@
+{
+  "variables": {
+    "first": 3,
+    "query": "swoo* status:active"
+  },
+  "response": {
+    "data": {
+      "products": {
+        "edges": [
+          {
+            "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU3Mzc1OTc3LCJsYXN0X3ZhbHVlIjoxLjA4ODcxOTd9",
+            "node": {
+              "id": "gid://shopify/Product/8397257375977",
+              "legacyResourceId": "8397257375977",
+              "title": "NIKE | SWOOSH PRO FLAT PEAK CAP",
+              "handle": "nike-swoosh-pro-flat-peak-cap",
+              "vendor": "NIKE",
+              "productType": "ACCESSORIES",
+              "tags": ["cap", "egnition-sample-data", "nike"]
+            }
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU3Mzc1OTc3LCJsYXN0X3ZhbHVlIjoxLjA4ODcxOTd9",
+          "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU3Mzc1OTc3LCJsYXN0X3ZhbHVlIjoxLjA4ODcxOTd9"
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 4,
+        "actualQueryCost": 3,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1997,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

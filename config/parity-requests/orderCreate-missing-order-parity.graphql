@@ -1,0 +1,11 @@
+mutation OrderCreateMissingOrderParity($order: OrderCreateOrderInput!) {
+  orderCreate(order: $order) {
+    order {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

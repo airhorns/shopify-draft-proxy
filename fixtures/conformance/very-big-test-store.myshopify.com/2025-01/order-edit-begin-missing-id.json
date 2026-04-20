@@ -1,0 +1,29 @@
+{
+  "query": "mutation OrderEditBeginMissingId($id: ID!) {\n    orderEditBegin(id: $id) {\n      calculatedOrder {\n        id\n      }\n      userErrors { field message }\n    }\n  }",
+  "variables": {},
+  "mutation": {
+    "response": {
+      "errors": [
+        {
+          "message": "Variable $id of type ID! was provided invalid value",
+          "locations": [
+            {
+              "line": 2,
+              "column": 36
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": null,
+            "problems": [
+              {
+                "path": [],
+                "explanation": "Expected value to not be null"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

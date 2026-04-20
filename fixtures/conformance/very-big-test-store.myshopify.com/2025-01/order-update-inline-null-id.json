@@ -1,0 +1,25 @@
+{
+  "query": "mutation InlineNullOrderId {\n    orderUpdate(input: { id: null, note: \"inline null id\", tags: [\"inline\", \"null-id\"] }) {\n      order { id }\n      userErrors { field message }\n    }\n  }",
+  "variables": {},
+  "mutation": {
+    "response": {
+      "errors": [
+        {
+          "message": "Argument 'id' on InputObject 'OrderInput' has an invalid value (null). Expected type 'ID!'.",
+          "locations": [
+            {
+              "line": 3,
+              "column": 24
+            }
+          ],
+          "path": ["mutation InlineNullOrderId", "orderUpdate", "input", "id"],
+          "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "InputObject",
+            "argumentName": "id"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "scenarioId": "fulfillment-cancel-live-parity",
+  "operationNames": ["fulfillmentCancel"],
+  "scenarioStatus": "planned",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/fulfillmentCancel-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/fulfillmentCancel-parity-plan.variables.json"
+  },
+  "comparisonMode": "planned",
+  "blocker": {
+    "kind": "missing-live-fulfillment-cancel-access",
+    "blockerPath": "pending/fulfillment-lifecycle-conformance-scope-blocker.md",
+    "details": {
+      "requiredScopes": [],
+      "requiredPermissions": [],
+      "probeRoots": ["fulfillmentCancel"],
+      "blockedMutations": ["fulfillmentCancel"],
+      "failingMessage": "Access denied for fulfillmentCancel field.",
+      "activeCredentialTokenFamily": "shpca",
+      "activeCredentialHeaderMode": "raw-x-shopify-access-token",
+      "activeCredentialSummary": "the active conformance credential is a Shopify user access token (`shpca_...`) sent as raw `X-Shopify-Access-Token` on this host",
+      "manualStoreAuthStatus": "present-shpca-user-token-not-offline-capable",
+      "manualStoreAuthTokenPath": ".manual-store-auth-token.json",
+      "manualStoreAuthCachedScopes": [
+        "read_product_listings",
+        "read_themes",
+        "write_assigned_fulfillment_orders",
+        "write_content",
+        "write_customers",
+        "write_discounts",
+        "write_draft_orders",
+        "write_files",
+        "write_fulfillments",
+        "write_inventory",
+        "write_locations",
+        "write_markets",
+        "write_merchant_managed_fulfillment_orders",
+        "write_metaobject_definitions",
+        "write_metaobjects",
+        "write_order_edits",
+        "write_orders",
+        "write_products",
+        "write_publications",
+        "write_returns",
+        "write_shipping",
+        "write_third_party_fulfillment_orders",
+        "write_translations"
+      ],
+      "manualStoreAuthAssociatedUserScopes": []
+    }
+  },
+  "notes": "First fulfillment lifecycle parity scaffold for `fulfillmentCancel`. Live capture stays blocked until the conformance credential can cancel fulfillments."
+}

@@ -1,0 +1,129 @@
+{
+  "mutation": {
+    "variables": {
+      "productId": "gid://shopify/Product/9257219162345",
+      "media": [
+        {
+          "mediaContentType": "IMAGE",
+          "originalSource": "https://placehold.co/600x400/png",
+          "alt": "Front view"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "productCreateMedia": {
+          "media": [
+            {
+              "id": "gid://shopify/MediaImage/39467722375401",
+              "alt": "Front view",
+              "mediaContentType": "IMAGE",
+              "status": "UPLOADED",
+              "preview": {
+                "image": null
+              },
+              "image": null
+            }
+          ],
+          "mediaUserErrors": [],
+          "product": {
+            "id": "gid://shopify/Product/9257219162345",
+            "media": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MediaImage/39467722375401",
+                  "alt": "Front view",
+                  "mediaContentType": "IMAGE",
+                  "status": "UPLOADED",
+                  "preview": {
+                    "image": null
+                  },
+                  "image": null
+                }
+              ]
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 41,
+          "actualQueryCost": 28,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1972,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/9257219162345",
+        "media": {
+          "nodes": [
+            {
+              "id": "gid://shopify/MediaImage/39467722375401",
+              "alt": "Front view",
+              "mediaContentType": "IMAGE",
+              "status": "PROCESSING",
+              "preview": {
+                "image": null
+              },
+              "image": null
+            }
+          ]
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 19,
+        "actualQueryCost": 6,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1992,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "readyRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/9257219162345",
+        "media": {
+          "nodes": [
+            {
+              "id": "gid://shopify/MediaImage/39467722375401",
+              "alt": "Front view",
+              "mediaContentType": "IMAGE",
+              "status": "READY",
+              "preview": {
+                "image": {
+                  "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/files/png.png?v=1776550664"
+                }
+              },
+              "image": {
+                "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/files/png.png?v=1776550664"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 19,
+        "actualQueryCost": 6,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1994,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

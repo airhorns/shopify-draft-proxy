@@ -1,0 +1,74 @@
+query ProductsAdvancedSearchRead($prefixQuery: String!, $orQuery: String!, $groupedExclusionQuery: String!) {
+  prefixCount: productsCount(query: $prefixQuery) {
+    count
+    precision
+  }
+  prefix: products(first: 3, query: $prefixQuery, sortKey: UPDATED_AT, reverse: true) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        handle
+        vendor
+        productType
+        tags
+        updatedAt
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  orCount: productsCount(query: $orQuery) {
+    count
+    precision
+  }
+  orMatches: products(first: 5, query: $orQuery, sortKey: UPDATED_AT, reverse: true) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        handle
+        vendor
+        productType
+        tags
+        updatedAt
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  groupedExclusionCount: productsCount(query: $groupedExclusionQuery) {
+    count
+    precision
+  }
+  groupedExclusion: products(first: 5, query: $groupedExclusionQuery, sortKey: UPDATED_AT, reverse: true) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        handle
+        vendor
+        productType
+        tags
+        updatedAt
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "scenarioId": "customers-catalog-parity-plan",
+  "operationNames": ["customers"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "pagination-shape"],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customers-catalog.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers-catalog-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/customers-catalog-parity-plan.variables.json"
+  },
+  "comparisonMode": "capture-only",
+  "notes": "Live customers catalog capture now exercises top-level `customers` pagination with the merchant-facing customer card slice currently supported by the local overlay serializer. Comparator wiring can reuse this request scaffold once proxy-vs-Shopify comparison is implemented.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "blocker": {
+    "kind": "explicit-comparison-targets-needed",
+    "blockerPath": null
+  }
+}

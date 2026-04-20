@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+printf 'shopify-cli requested open: %s\n' "$*" | tee -a /home/airhorns/code/shopify-draft-proxy/.shopify-open.log >&2
+exit 0

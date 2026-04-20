@@ -1,0 +1,1112 @@
+{
+  "capturedAt": "2026-04-18T22:21:54.451Z",
+  "storeDomain": "very-big-test-store.myshopify.com",
+  "apiVersion": "2025-01",
+  "locations": [
+    {
+      "id": "gid://shopify/Location/68509171945",
+      "name": "103 ossington"
+    },
+    {
+      "id": "gid://shopify/Location/89026920681",
+      "name": "Hermes Conformance Annex"
+    }
+  ],
+  "createdProduct": {
+    "id": "gid://shopify/Product/9257220047081",
+    "title": "hermes-inventory-linkage-single-1776550910512",
+    "variants": {
+      "nodes": [
+        {
+          "id": "gid://shopify/ProductVariant/50897202282729",
+          "inventoryQuantity": 0,
+          "inventoryItem": {
+            "id": "gid://shopify/InventoryItem/53044947648745",
+            "tracked": false,
+            "inventoryLevels": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=53044947648745",
+                  "location": {
+                    "id": "gid://shopify/Location/68509171945",
+                    "name": "103 ossington"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 0,
+                      "updatedAt": "2026-04-18T22:21:50Z"
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 0,
+                      "updatedAt": null
+                    },
+                    {
+                      "name": "incoming",
+                      "quantity": 0,
+                      "updatedAt": null
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "inventoryActivateNoOp": {
+    "variables": {
+      "inventoryItemId": "gid://shopify/InventoryItem/53044947648745",
+      "locationId": "gid://shopify/Location/68509171945"
+    },
+    "response": {
+      "data": {
+        "inventoryActivate": {
+          "inventoryLevel": {
+            "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=53044947648745",
+            "location": {
+              "id": "gid://shopify/Location/68509171945",
+              "name": "103 ossington"
+            },
+            "quantities": [
+              {
+                "name": "available",
+                "quantity": 0,
+                "updatedAt": "2026-04-18T22:21:50Z"
+              },
+              {
+                "name": "on_hand",
+                "quantity": 0,
+                "updatedAt": null
+              },
+              {
+                "name": "incoming",
+                "quantity": 0,
+                "updatedAt": null
+              }
+            ],
+            "item": {
+              "id": "gid://shopify/InventoryItem/53044947648745",
+              "tracked": false,
+              "variant": {
+                "id": "gid://shopify/ProductVariant/50897202282729",
+                "inventoryQuantity": 0,
+                "product": {
+                  "id": "gid://shopify/Product/9257220047081",
+                  "totalInventory": 0,
+                  "tracksInventory": false
+                }
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 15,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "inventoryActivateAvailableError": {
+    "variables": {
+      "inventoryItemId": "gid://shopify/InventoryItem/53044947648745",
+      "locationId": "gid://shopify/Location/68509171945",
+      "available": 7
+    },
+    "response": {
+      "data": {
+        "inventoryActivate": {
+          "inventoryLevel": {
+            "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=53044947648745",
+            "location": {
+              "id": "gid://shopify/Location/68509171945",
+              "name": "103 ossington"
+            },
+            "quantities": [
+              {
+                "name": "available",
+                "quantity": 0,
+                "updatedAt": "2026-04-18T22:21:50Z"
+              },
+              {
+                "name": "on_hand",
+                "quantity": 0,
+                "updatedAt": null
+              },
+              {
+                "name": "incoming",
+                "quantity": 0,
+                "updatedAt": null
+              }
+            ],
+            "item": {
+              "id": "gid://shopify/InventoryItem/53044947648745",
+              "tracked": false,
+              "variant": {
+                "id": "gid://shopify/ProductVariant/50897202282729",
+                "inventoryQuantity": 0,
+                "product": {
+                  "id": "gid://shopify/Product/9257220047081",
+                  "totalInventory": 0,
+                  "tracksInventory": false
+                }
+              }
+            }
+          },
+          "userErrors": [
+            {
+              "field": ["available"],
+              "message": "Not allowed to set available quantity when the item is already active at the location."
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 15,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "inventoryActivateUnknownLocation": {
+    "variables": {
+      "inventoryItemId": "gid://shopify/InventoryItem/53044947648745",
+      "locationId": "gid://shopify/Location/999999999999"
+    },
+    "response": {
+      "data": {
+        "inventoryActivate": {
+          "inventoryLevel": null,
+          "userErrors": [
+            {
+              "field": ["locationId"],
+              "message": "The product couldn't be stocked because the location wasn't found."
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "inventoryDeactivateOnlyLocationError": {
+    "variables": {
+      "inventoryLevelId": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=53044947648745"
+    },
+    "response": {
+      "data": {
+        "inventoryDeactivate": {
+          "userErrors": [
+            {
+              "field": null,
+              "message": "The product couldn't be unstocked from 103 ossington because products need to be stocked at a minimum of 1 location."
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "inventoryBulkToggleActivateNoOp": {
+    "variables": {
+      "inventoryItemId": "gid://shopify/InventoryItem/53044947648745",
+      "inventoryItemUpdates": [
+        {
+          "locationId": "gid://shopify/Location/68509171945",
+          "activate": true
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "inventoryBulkToggleActivation": {
+          "inventoryItem": {
+            "id": "gid://shopify/InventoryItem/53044947648745",
+            "tracked": false,
+            "inventoryLevels": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=53044947648745",
+                  "location": {
+                    "id": "gid://shopify/Location/68509171945"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 0
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 0
+                    },
+                    {
+                      "name": "incoming",
+                      "quantity": 0
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "inventoryLevels": [
+            {
+              "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=53044947648745",
+              "location": {
+                "id": "gid://shopify/Location/68509171945"
+              },
+              "quantities": [
+                {
+                  "name": "available",
+                  "quantity": 0
+                },
+                {
+                  "name": "on_hand",
+                  "quantity": 0
+                },
+                {
+                  "name": "incoming",
+                  "quantity": 0
+                }
+              ],
+              "item": {
+                "id": "gid://shopify/InventoryItem/53044947648745",
+                "tracked": false
+              }
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 24,
+          "actualQueryCost": 18,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1982,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "inventoryBulkToggleUnknownLocation": {
+    "variables": {
+      "inventoryItemId": "gid://shopify/InventoryItem/53044947648745",
+      "inventoryItemUpdates": [
+        {
+          "locationId": "gid://shopify/Location/999999999999",
+          "activate": true
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "inventoryBulkToggleActivation": {
+          "inventoryItem": null,
+          "inventoryLevels": null,
+          "userErrors": [
+            {
+              "field": ["inventoryItemUpdates", "0", "locationId"],
+              "message": "The quantity couldn't be updated because the location was not found.",
+              "code": "LOCATION_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 24,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "inventoryBulkToggleDeactivateOnlyLocationError": {
+    "variables": {
+      "inventoryItemId": "gid://shopify/InventoryItem/53044947648745",
+      "inventoryItemUpdates": [
+        {
+          "locationId": "gid://shopify/Location/68509171945",
+          "activate": false
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "inventoryBulkToggleActivation": {
+          "inventoryItem": null,
+          "inventoryLevels": null,
+          "userErrors": [
+            {
+              "field": ["inventoryItemUpdates", "0", "locationId"],
+              "message": "The variant couldn't be unstocked from 103 ossington because products need to be stocked at a minimum of 1 location.",
+              "code": "CANNOT_DEACTIVATE_FROM_ONLY_LOCATION"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 24,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "inventoryActivateSecondLocation": {
+    "variables": {
+      "inventoryItemId": "gid://shopify/InventoryItem/53044947681513",
+      "locationId": "gid://shopify/Location/89026920681",
+      "available": 9
+    },
+    "response": {
+      "data": {
+        "inventoryActivate": {
+          "inventoryLevel": {
+            "id": "gid://shopify/InventoryLevel/127343788265?inventory_item_id=53044947681513",
+            "location": {
+              "id": "gid://shopify/Location/89026920681",
+              "name": "Hermes Conformance Annex"
+            },
+            "quantities": [
+              {
+                "name": "available",
+                "quantity": 0,
+                "updatedAt": "2026-04-18T22:21:53Z"
+              },
+              {
+                "name": "on_hand",
+                "quantity": 0,
+                "updatedAt": null
+              },
+              {
+                "name": "incoming",
+                "quantity": 0,
+                "updatedAt": null
+              }
+            ],
+            "item": {
+              "id": "gid://shopify/InventoryItem/53044947681513",
+              "tracked": false,
+              "variant": {
+                "id": "gid://shopify/ProductVariant/50897202315497",
+                "inventoryQuantity": 0,
+                "product": {
+                  "id": "gid://shopify/Product/9257220079849",
+                  "totalInventory": 0,
+                  "tracksInventory": false
+                }
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 15,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamReadAfterInventoryActivateSecondLocation": {
+    "data": {
+      "inventoryItem": {
+        "id": "gid://shopify/InventoryItem/53044947681513",
+        "tracked": false,
+        "variant": {
+          "id": "gid://shopify/ProductVariant/50897202315497",
+          "inventoryQuantity": 0,
+          "product": {
+            "id": "gid://shopify/Product/9257220079849",
+            "totalInventory": 0,
+            "tracksInventory": false
+          }
+        },
+        "inventoryLevels": {
+          "nodes": [
+            {
+              "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=53044947681513",
+              "location": {
+                "id": "gid://shopify/Location/68509171945",
+                "name": "103 ossington"
+              },
+              "quantities": [
+                {
+                  "name": "available",
+                  "quantity": 0,
+                  "updatedAt": "2026-04-18T22:21:51Z"
+                },
+                {
+                  "name": "on_hand",
+                  "quantity": 0,
+                  "updatedAt": null
+                },
+                {
+                  "name": "incoming",
+                  "quantity": 0,
+                  "updatedAt": null
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/InventoryLevel/127343788265?inventory_item_id=53044947681513",
+              "location": {
+                "id": "gid://shopify/Location/89026920681",
+                "name": "Hermes Conformance Annex"
+              },
+              "quantities": [
+                {
+                  "name": "available",
+                  "quantity": 0,
+                  "updatedAt": "2026-04-18T22:21:53Z"
+                },
+                {
+                  "name": "on_hand",
+                  "quantity": 0,
+                  "updatedAt": null
+                },
+                {
+                  "name": "incoming",
+                  "quantity": 0,
+                  "updatedAt": null
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "productVariant": {
+        "id": "gid://shopify/ProductVariant/50897202315497",
+        "inventoryQuantity": 0,
+        "inventoryItem": {
+          "id": "gid://shopify/InventoryItem/53044947681513",
+          "tracked": false,
+          "inventoryLevels": {
+            "nodes": [
+              {
+                "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=53044947681513",
+                "location": {
+                  "id": "gid://shopify/Location/68509171945",
+                  "name": "103 ossington"
+                },
+                "quantities": [
+                  {
+                    "name": "available",
+                    "quantity": 0,
+                    "updatedAt": "2026-04-18T22:21:51Z"
+                  },
+                  {
+                    "name": "on_hand",
+                    "quantity": 0,
+                    "updatedAt": null
+                  },
+                  {
+                    "name": "incoming",
+                    "quantity": 0,
+                    "updatedAt": null
+                  }
+                ]
+              },
+              {
+                "id": "gid://shopify/InventoryLevel/127343788265?inventory_item_id=53044947681513",
+                "location": {
+                  "id": "gid://shopify/Location/89026920681",
+                  "name": "Hermes Conformance Annex"
+                },
+                "quantities": [
+                  {
+                    "name": "available",
+                    "quantity": 0,
+                    "updatedAt": "2026-04-18T22:21:53Z"
+                  },
+                  {
+                    "name": "on_hand",
+                    "quantity": 0,
+                    "updatedAt": null
+                  },
+                  {
+                    "name": "incoming",
+                    "quantity": 0,
+                    "updatedAt": null
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 27,
+        "actualQueryCost": 17,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1983,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "inventoryDeactivateWithAlternateLocation": {
+    "variables": {
+      "inventoryLevelId": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=53044947681513"
+    },
+    "response": {
+      "data": {
+        "inventoryDeactivate": {
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamReadAfterInventoryDeactivateWithAlternateLocation": {
+    "data": {
+      "inventoryItem": {
+        "id": "gid://shopify/InventoryItem/53044947681513",
+        "tracked": false,
+        "variant": {
+          "id": "gid://shopify/ProductVariant/50897202315497",
+          "inventoryQuantity": 0,
+          "product": {
+            "id": "gid://shopify/Product/9257220079849",
+            "totalInventory": 0,
+            "tracksInventory": false
+          }
+        },
+        "inventoryLevels": {
+          "nodes": [
+            {
+              "id": "gid://shopify/InventoryLevel/127343788265?inventory_item_id=53044947681513",
+              "location": {
+                "id": "gid://shopify/Location/89026920681",
+                "name": "Hermes Conformance Annex"
+              },
+              "quantities": [
+                {
+                  "name": "available",
+                  "quantity": 0,
+                  "updatedAt": "2026-04-18T22:21:53Z"
+                },
+                {
+                  "name": "on_hand",
+                  "quantity": 0,
+                  "updatedAt": null
+                },
+                {
+                  "name": "incoming",
+                  "quantity": 0,
+                  "updatedAt": null
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "productVariant": {
+        "id": "gid://shopify/ProductVariant/50897202315497",
+        "inventoryQuantity": 0,
+        "inventoryItem": {
+          "id": "gid://shopify/InventoryItem/53044947681513",
+          "tracked": false,
+          "inventoryLevels": {
+            "nodes": [
+              {
+                "id": "gid://shopify/InventoryLevel/127343788265?inventory_item_id=53044947681513",
+                "location": {
+                  "id": "gid://shopify/Location/89026920681",
+                  "name": "Hermes Conformance Annex"
+                },
+                "quantities": [
+                  {
+                    "name": "available",
+                    "quantity": 0,
+                    "updatedAt": "2026-04-18T22:21:53Z"
+                  },
+                  {
+                    "name": "on_hand",
+                    "quantity": 0,
+                    "updatedAt": null
+                  },
+                  {
+                    "name": "incoming",
+                    "quantity": 0,
+                    "updatedAt": null
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 27,
+        "actualQueryCost": 15,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1985,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "inventoryBulkToggleActivateSecondLocation": {
+    "variables": {
+      "inventoryItemId": "gid://shopify/InventoryItem/53044947714281",
+      "inventoryItemUpdates": [
+        {
+          "locationId": "gid://shopify/Location/89026920681",
+          "activate": true
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "inventoryBulkToggleActivation": {
+          "inventoryItem": {
+            "id": "gid://shopify/InventoryItem/53044947714281",
+            "tracked": false,
+            "inventoryLevels": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=53044947714281",
+                  "location": {
+                    "id": "gid://shopify/Location/68509171945"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 0
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 0
+                    },
+                    {
+                      "name": "incoming",
+                      "quantity": 0
+                    }
+                  ]
+                },
+                {
+                  "id": "gid://shopify/InventoryLevel/127343788265?inventory_item_id=53044947714281",
+                  "location": {
+                    "id": "gid://shopify/Location/89026920681"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 0
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 0
+                    },
+                    {
+                      "name": "incoming",
+                      "quantity": 0
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "inventoryLevels": [
+            {
+              "id": "gid://shopify/InventoryLevel/127343788265?inventory_item_id=53044947714281",
+              "location": {
+                "id": "gid://shopify/Location/89026920681"
+              },
+              "quantities": [
+                {
+                  "name": "available",
+                  "quantity": 0
+                },
+                {
+                  "name": "on_hand",
+                  "quantity": 0
+                },
+                {
+                  "name": "incoming",
+                  "quantity": 0
+                }
+              ],
+              "item": {
+                "id": "gid://shopify/InventoryItem/53044947714281",
+                "tracked": false
+              }
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 24,
+          "actualQueryCost": 19,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1981,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamReadAfterInventoryBulkToggleActivateSecondLocation": {
+    "data": {
+      "inventoryItem": {
+        "id": "gid://shopify/InventoryItem/53044947714281",
+        "tracked": false,
+        "variant": {
+          "id": "gid://shopify/ProductVariant/50897202348265",
+          "inventoryQuantity": 0,
+          "product": {
+            "id": "gid://shopify/Product/9257220112617",
+            "totalInventory": 0,
+            "tracksInventory": false
+          }
+        },
+        "inventoryLevels": {
+          "nodes": [
+            {
+              "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=53044947714281",
+              "location": {
+                "id": "gid://shopify/Location/68509171945",
+                "name": "103 ossington"
+              },
+              "quantities": [
+                {
+                  "name": "available",
+                  "quantity": 0,
+                  "updatedAt": "2026-04-18T22:21:51Z"
+                },
+                {
+                  "name": "on_hand",
+                  "quantity": 0,
+                  "updatedAt": null
+                },
+                {
+                  "name": "incoming",
+                  "quantity": 0,
+                  "updatedAt": null
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/InventoryLevel/127343788265?inventory_item_id=53044947714281",
+              "location": {
+                "id": "gid://shopify/Location/89026920681",
+                "name": "Hermes Conformance Annex"
+              },
+              "quantities": [
+                {
+                  "name": "available",
+                  "quantity": 0,
+                  "updatedAt": "2026-04-18T22:21:53Z"
+                },
+                {
+                  "name": "on_hand",
+                  "quantity": 0,
+                  "updatedAt": null
+                },
+                {
+                  "name": "incoming",
+                  "quantity": 0,
+                  "updatedAt": null
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "productVariant": {
+        "id": "gid://shopify/ProductVariant/50897202348265",
+        "inventoryQuantity": 0,
+        "inventoryItem": {
+          "id": "gid://shopify/InventoryItem/53044947714281",
+          "tracked": false,
+          "inventoryLevels": {
+            "nodes": [
+              {
+                "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=53044947714281",
+                "location": {
+                  "id": "gid://shopify/Location/68509171945",
+                  "name": "103 ossington"
+                },
+                "quantities": [
+                  {
+                    "name": "available",
+                    "quantity": 0,
+                    "updatedAt": "2026-04-18T22:21:51Z"
+                  },
+                  {
+                    "name": "on_hand",
+                    "quantity": 0,
+                    "updatedAt": null
+                  },
+                  {
+                    "name": "incoming",
+                    "quantity": 0,
+                    "updatedAt": null
+                  }
+                ]
+              },
+              {
+                "id": "gid://shopify/InventoryLevel/127343788265?inventory_item_id=53044947714281",
+                "location": {
+                  "id": "gid://shopify/Location/89026920681",
+                  "name": "Hermes Conformance Annex"
+                },
+                "quantities": [
+                  {
+                    "name": "available",
+                    "quantity": 0,
+                    "updatedAt": "2026-04-18T22:21:53Z"
+                  },
+                  {
+                    "name": "on_hand",
+                    "quantity": 0,
+                    "updatedAt": null
+                  },
+                  {
+                    "name": "incoming",
+                    "quantity": 0,
+                    "updatedAt": null
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 27,
+        "actualQueryCost": 17,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1983,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "inventoryBulkToggleDeactivateSecondLocation": {
+    "variables": {
+      "inventoryItemId": "gid://shopify/InventoryItem/53044947714281",
+      "inventoryItemUpdates": [
+        {
+          "locationId": "gid://shopify/Location/89026920681",
+          "activate": false
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "inventoryBulkToggleActivation": {
+          "inventoryItem": {
+            "id": "gid://shopify/InventoryItem/53044947714281",
+            "tracked": false,
+            "inventoryLevels": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=53044947714281",
+                  "location": {
+                    "id": "gid://shopify/Location/68509171945"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 0
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 0
+                    },
+                    {
+                      "name": "incoming",
+                      "quantity": 0
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "inventoryLevels": [],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 24,
+          "actualQueryCost": 15,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1983,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamReadAfterInventoryBulkToggleDeactivateSecondLocation": {
+    "data": {
+      "inventoryItem": {
+        "id": "gid://shopify/InventoryItem/53044947714281",
+        "tracked": false,
+        "variant": {
+          "id": "gid://shopify/ProductVariant/50897202348265",
+          "inventoryQuantity": 0,
+          "product": {
+            "id": "gid://shopify/Product/9257220112617",
+            "totalInventory": 0,
+            "tracksInventory": false
+          }
+        },
+        "inventoryLevels": {
+          "nodes": [
+            {
+              "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=53044947714281",
+              "location": {
+                "id": "gid://shopify/Location/68509171945",
+                "name": "103 ossington"
+              },
+              "quantities": [
+                {
+                  "name": "available",
+                  "quantity": 0,
+                  "updatedAt": "2026-04-18T22:21:51Z"
+                },
+                {
+                  "name": "on_hand",
+                  "quantity": 0,
+                  "updatedAt": null
+                },
+                {
+                  "name": "incoming",
+                  "quantity": 0,
+                  "updatedAt": null
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "productVariant": {
+        "id": "gid://shopify/ProductVariant/50897202348265",
+        "inventoryQuantity": 0,
+        "inventoryItem": {
+          "id": "gid://shopify/InventoryItem/53044947714281",
+          "tracked": false,
+          "inventoryLevels": {
+            "nodes": [
+              {
+                "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=53044947714281",
+                "location": {
+                  "id": "gid://shopify/Location/68509171945",
+                  "name": "103 ossington"
+                },
+                "quantities": [
+                  {
+                    "name": "available",
+                    "quantity": 0,
+                    "updatedAt": "2026-04-18T22:21:51Z"
+                  },
+                  {
+                    "name": "on_hand",
+                    "quantity": 0,
+                    "updatedAt": null
+                  },
+                  {
+                    "name": "incoming",
+                    "quantity": 0,
+                    "updatedAt": null
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 27,
+        "actualQueryCost": 15,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1985,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

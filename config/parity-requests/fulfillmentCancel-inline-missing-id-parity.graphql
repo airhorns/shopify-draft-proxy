@@ -1,0 +1,12 @@
+mutation FulfillmentCancelInlineMissingId {
+  fulfillmentCancel {
+    fulfillment {
+      id
+      status
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

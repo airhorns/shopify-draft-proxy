@@ -1,18 +1,25 @@
 mutation InventoryAdjustQuantitiesParityPlan($input: InventoryAdjustQuantitiesInput!) {
   inventoryAdjustQuantities(input: $input) {
     inventoryAdjustmentGroup {
+      id
       createdAt
       reason
       referenceDocumentUri
+      app {
+        title
+        handle
+      }
       changes {
         name
         delta
         quantityAfterChange
+        ledgerDocumentUri
         item {
           id
         }
         location {
           id
+          name
         }
       }
     }

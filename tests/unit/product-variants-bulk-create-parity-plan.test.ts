@@ -46,12 +46,12 @@ describe('productVariantsBulkCreate parity plan scaffold', () => {
     expect(variables.productId).toBe('gid://shopify/Product/100');
     expect(variables.variants).toEqual([
       {
-        title: 'Blue',
-        sku: 'HAT-BLUE',
+        optionValues: [{ optionName: 'Color', name: 'Blue' }],
         barcode: '2222222222222',
         price: '26.00',
-        inventoryQuantity: 6,
+        inventoryQuantities: [{ availableQuantity: 6, locationId: 'gid://shopify/Location/1' }],
         inventoryItem: {
+          sku: 'HAT-BLUE',
           tracked: true,
           requiresShipping: false,
         },

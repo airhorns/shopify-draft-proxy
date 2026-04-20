@@ -1,0 +1,136 @@
+{
+  "mutation": {
+    "variables": {
+      "productId": "gid://shopify/Product/9257219195113",
+      "variants": [
+        {
+          "id": "gid://shopify/ProductVariant/50897200316649",
+          "barcode": "1111111111111",
+          "price": "24.00",
+          "compareAtPrice": "30.00",
+          "taxable": true,
+          "inventoryPolicy": "DENY",
+          "inventoryItem": {
+            "sku": "HERMES-BULK-669475-RED",
+            "tracked": true,
+            "requiresShipping": true
+          }
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "productVariantsBulkUpdate": {
+          "product": {
+            "id": "gid://shopify/Product/9257219195113",
+            "totalInventory": 0,
+            "tracksInventory": true,
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/50897200316649",
+                  "title": "Red",
+                  "sku": "HERMES-BULK-669475-RED",
+                  "barcode": "1111111111111",
+                  "price": "24.00",
+                  "compareAtPrice": "30.00",
+                  "taxable": true,
+                  "inventoryPolicy": "DENY",
+                  "inventoryQuantity": 0,
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53044945682665",
+                    "tracked": true,
+                    "requiresShipping": true
+                  }
+                }
+              ]
+            }
+          },
+          "productVariants": [
+            {
+              "id": "gid://shopify/ProductVariant/50897200316649",
+              "title": "Red",
+              "sku": "HERMES-BULK-669475-RED",
+              "barcode": "1111111111111",
+              "price": "24.00",
+              "compareAtPrice": "30.00",
+              "taxable": true,
+              "inventoryPolicy": "DENY",
+              "inventoryQuantity": 0,
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53044945682665",
+                "tracked": true,
+                "requiresShipping": true
+              }
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 21,
+          "actualQueryCost": 15,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/9257219195113",
+        "totalInventory": 0,
+        "tracksInventory": true,
+        "variants": {
+          "nodes": [
+            {
+              "id": "gid://shopify/ProductVariant/50897200316649",
+              "title": "Red",
+              "sku": "HERMES-BULK-669475-RED",
+              "barcode": "1111111111111",
+              "price": "24.00",
+              "compareAtPrice": "30.00",
+              "taxable": true,
+              "inventoryPolicy": "DENY",
+              "inventoryQuantity": 0,
+              "selectedOptions": [
+                {
+                  "name": "Color",
+                  "value": "Red"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53044945682665",
+                "tracked": true,
+                "requiresShipping": true
+              }
+            }
+          ]
+        }
+      },
+      "products": {
+        "nodes": []
+      },
+      "skuCount": {
+        "count": 0,
+        "precision": "EXACT"
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 31,
+        "actualQueryCost": 21,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1979,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

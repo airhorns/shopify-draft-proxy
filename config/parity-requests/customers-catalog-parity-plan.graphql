@@ -1,0 +1,46 @@
+query CustomersCatalogParityPlan($first: Int!) {
+  customers(first: $first) {
+    edges {
+      cursor
+      node {
+        id
+        displayName
+        email
+        legacyResourceId
+        locale
+        note
+        canDelete
+        verifiedEmail
+        taxExempt
+        state
+        numberOfOrders
+        amountSpent {
+          amount
+          currencyCode
+        }
+        defaultEmailAddress {
+          emailAddress
+        }
+        defaultPhoneNumber {
+          phoneNumber
+        }
+        defaultAddress {
+          address1
+          city
+          province
+          country
+          zip
+          formattedArea
+        }
+        createdAt
+        updatedAt
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

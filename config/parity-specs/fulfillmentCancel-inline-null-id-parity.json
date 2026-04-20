@@ -1,0 +1,23 @@
+{
+  "scenarioId": "fulfillment-cancel-inline-null-id-argument-error",
+  "operationNames": ["fulfillmentCancel"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/fulfillment-cancel-inline-null-id.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/fulfillmentCancel-inline-null-id-parity.graphql",
+    "variablesPath": "config/parity-requests/fulfillmentCancel-inline-null-id-parity.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured `fulfillmentCancel` inline null-literal GraphQL validation slice: inline `id: null` fails with `argumentLiteralsIncompatible`, and snapshot/live-hybrid local parity now mirrors that branch without hitting upstream.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "blocker": {
+    "kind": "explicit-comparison-targets-needed",
+    "blockerPath": null
+  }
+}

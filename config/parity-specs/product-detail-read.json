@@ -3,22 +3,22 @@
   "operationNames": ["product"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "selected-fields", "null-empty-behavior"],
-  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-detail.json"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-detail.json",
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-empty-state.json"
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/product-detail-read.graphql",
     "variablesPath": "config/parity-requests/product-detail-read.variables.json"
   },
-  "notes": "Executed by the conformance parity runner against a local proxy harness with the captured Shopify payload supplied as the upstream read response; no live Shopify writes are performed.",
+  "comparisonMode": "capture-only",
+  "notes": "Live product read capture now couples the concrete product-detail request scaffold with extra empty/null evidence: a real product whose collections/media connections are empty plus a dedicated empty-state fixture covering missing-product null behavior and unmatched `products` / `productsCount` responses. Comparator wiring can reuse the same request scaffold once proxy-vs-Shopify comparison is implemented.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [],
-    "targets": [
-      {
-        "name": "captured read payload",
-        "capturePath": "$.data",
-        "proxyPath": "$.data",
-        "upstreamCapturePath": "$"
-      }
-    ]
+    "expectedDifferences": []
+  },
+  "blocker": {
+    "kind": "explicit-comparison-targets-needed",
+    "blockerPath": null
   }
 }

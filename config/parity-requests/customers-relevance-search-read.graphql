@@ -1,0 +1,21 @@
+query CustomersRelevanceSearchRead($first: Int!, $query: String!) {
+  customers(first: $first, query: $query, sortKey: RELEVANCE) {
+    edges {
+      cursor
+      node {
+        id
+        displayName
+        email
+        legacyResourceId
+        tags
+        updatedAt
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

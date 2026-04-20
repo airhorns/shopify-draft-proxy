@@ -1,12 +1,23 @@
 {
-  "scenarioId": "inventoryAdjustQuantities-parity-plan",
+  "scenarioId": "inventory-adjust-quantities-live-parity",
   "operationNames": ["inventoryAdjustQuantities"],
-  "scenarioStatus": "planned",
+  "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
-  "liveCaptureFiles": [],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/inventory-adjust-quantities-parity.json"
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/inventoryAdjustQuantities-parity-plan.graphql",
     "variablesPath": "config/parity-requests/inventoryAdjustQuantities-parity-plan.variables.json"
   },
-  "notes": "Proxy request scaffold now mirrors the staged available-quantity adjustment runtime slice (`name`, `reason`, `referenceDocumentUri`, per-item deltas, and payload `inventoryAdjustmentGroup` / `userErrors`). Next step is to run the same safe inventory-adjustment scenario against a dedicated dev-store write pack and compare the mutation payload together with immediate downstream product/variant/inventoryItem/count parity."
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live capture now covers `inventoryAdjustQuantities`. Shopify mirrored each `available` delta into an additional `on_hand` change, returned a real `InventoryAdjustmentGroup.id`, exposed `inventoryAdjustmentGroup.app` and `changes.location.name` on the successful payload, left `quantityAfterChange` null in the mutation payload, echoed per-change `ledgerDocumentUri` values separately from the group-level `referenceDocumentUri`, updated `productVariant` / `inventoryItem.variant` quantities before product-level `totalInventory` and `inventory_total:` catalog search caught up, accepted non-available names like `incoming` only when each change carried a ledger document URI, rejected invalid names like `on_hand` with an explicit valid-values error plus the same ledger document URI requirement, and surfaced `inventoryAdjustmentGroup.staffMember` as a top-level `ACCESS_DENIED` companion error requiring `read_users` while the rest of the mutation payload still succeeded. Missing required nested change fields (`inventoryItemId`, `locationId`, `delta`) still surfaced as top-level `INVALID_VARIABLE` GraphQL errors before the mutation resolver ran.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "blocker": {
+    "kind": "explicit-comparison-targets-needed",
+    "blockerPath": null
+  }
 }

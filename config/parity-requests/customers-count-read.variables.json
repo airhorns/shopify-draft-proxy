@@ -1,0 +1,4 @@
+{
+  "query": "email:grace@example.com",
+  "disabledQuery": "state:DISABLED"
+}

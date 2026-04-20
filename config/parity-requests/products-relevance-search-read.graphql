@@ -1,0 +1,22 @@
+query ProductsRelevanceSearchRead($first: Int!, $query: String!) {
+  products(first: $first, query: $query, sortKey: RELEVANCE) {
+    edges {
+      cursor
+      node {
+        id
+        legacyResourceId
+        title
+        handle
+        vendor
+        productType
+        tags
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

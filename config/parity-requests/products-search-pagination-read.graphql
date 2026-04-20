@@ -1,0 +1,66 @@
+query ProductsSearchPaginationRead($query: String!, $afterCursor: String!, $beforeCursor: String!) {
+  count: productsCount(query: $query) {
+    count
+    precision
+  }
+  firstPage: products(first: 1, query: $query, sortKey: UPDATED_AT, reverse: true) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        handle
+        vendor
+        productType
+        tags
+        updatedAt
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  nextPage: products(first: 1, after: $afterCursor, query: $query, sortKey: UPDATED_AT, reverse: true) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        handle
+        vendor
+        productType
+        tags
+        updatedAt
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  previousPage: products(last: 1, before: $beforeCursor, query: $query, sortKey: UPDATED_AT, reverse: true) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        handle
+        vendor
+        productType
+        tags
+        updatedAt
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

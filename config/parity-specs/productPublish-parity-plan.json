@@ -1,12 +1,21 @@
 {
   "scenarioId": "productPublish-parity-plan",
   "operationNames": ["productPublish"],
-  "scenarioStatus": "planned",
+  "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
-  "liveCaptureFiles": [],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-publish-parity.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/productPublish-parity-plan.graphql",
     "variablesPath": "config/parity-requests/productPublish-parity-plan.variables.json"
   },
-  "notes": "Proxy request scaffold now mirrors the staged product publication runtime slice (`productPublish(input:)` returning aggregate publication fields plus `userErrors`). Next step is to run the same safe publication scenario against a dedicated dev-store write pack and compare mutation payload plus immediate downstream publication aggregate read parity."
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Minimal live `productPublish` mutation payload capture now succeeds against a real publication id on this host, so this parity spec tracks the ready-for-comparison minimal live payload slice (`userErrors` + successful mutation execution) separately from the still-blocked aggregate publication fields.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "blocker": {
+    "kind": "explicit-comparison-targets-needed",
+    "blockerPath": null
+  }
 }

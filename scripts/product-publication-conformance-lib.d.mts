@@ -1,0 +1,10 @@
+export function extractCliIdentityFromConfig(config: unknown): any;
+export function extractManualStoreAuthTokenSummary(value: unknown): any;
+export function extractScopesFromShopifyAppToml(value: unknown): any;
+export function extractShopifyAppDeployVersion(value: unknown): any;
+export function findConfiguredShopifyApp(...args: unknown[]): any;
+export function findShopifyChannelConfigExtensions(...args: unknown[]): any;
+export function isInvalidGrantRefreshResponse(value: unknown): boolean;
+export function parsePublicationTargetBlocker(value: unknown): any;
+export function shouldAttemptShopifyAppDeploy(...args: unknown[]): boolean;
+export function shouldProbeManualStoreAuthFallback(...args: unknown[]): boolean;

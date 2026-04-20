@@ -1,16 +1,16 @@
 {
   "mutation": {
     "variables": {
-      "productId": "gid://shopify/Product/9255305347305",
+      "productId": "gid://shopify/Product/9257219064041",
       "status": "ARCHIVED"
     },
     "response": {
       "data": {
         "productChangeStatus": {
           "product": {
-            "id": "gid://shopify/Product/9255305347305",
+            "id": "gid://shopify/Product/9257219064041",
             "status": "ARCHIVED",
-            "updatedAt": "2026-04-16T00:56:24Z"
+            "updatedAt": "2026-04-18T22:17:21Z"
           },
           "userErrors": []
         }
@@ -28,17 +28,71 @@
       }
     }
   },
+  "validation": {
+    "unknownProduct": {
+      "variables": {
+        "productId": "gid://shopify/Product/999999999999999",
+        "status": "ARCHIVED"
+      },
+      "response": {
+        "data": {
+          "productChangeStatus": {
+            "product": null,
+            "userErrors": [
+              {
+                "field": ["productId"],
+                "message": "Product does not exist"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "nullLiteralProductId": {
+      "query": "#graphql\n  mutation ProductChangeStatusNullLiteralConformance {\n    productChangeStatus(productId: null, status: ARCHIVED) {\n      product {\n        id\n        status\n        updatedAt\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "response": {
+        "errors": [
+          {
+            "message": "Argument 'productId' on Field 'productChangeStatus' has an invalid value (null). Expected type 'ID!'.",
+            "locations": [
+              {
+                "line": 3,
+                "column": 5
+              }
+            ],
+            "path": ["mutation ProductChangeStatusNullLiteralConformance", "productChangeStatus", "productId"],
+            "extensions": {
+              "code": "argumentLiteralsIncompatible",
+              "typeName": "Field",
+              "argumentName": "productId"
+            }
+          }
+        ]
+      }
+    }
+  },
   "downstreamRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/9255305347305",
+        "id": "gid://shopify/Product/9257219064041",
         "status": "ARCHIVED",
-        "updatedAt": "2026-04-16T00:56:24Z"
+        "updatedAt": "2026-04-18T22:17:22Z"
       },
       "products": {
         "nodes": [
           {
-            "id": "gid://shopify/Product/9255305347305",
+            "id": "gid://shopify/Product/9257219064041",
             "status": "ARCHIVED"
           }
         ]
