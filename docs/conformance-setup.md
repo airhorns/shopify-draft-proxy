@@ -52,6 +52,35 @@ ln -sfn /home/airhorns/code/shopify-draft-proxy/.env .env
 
 If a workspace already has a placeholder `.env`, replace it with the symlink before running live conformance. Do not commit the symlink or any secret-bearing `.env` file; `.gitignore` excludes them. The link only proves where to load credentials from. `corepack pnpm conformance:probe` is still the required gate for proving the current token is valid before any live capture.
 
+#### Shopify CLI token refresh fallback
+
+Prefer a dedicated `shpat_...` Admin API token for unattended conformance. If the host is still using a Shopify CLI account bearer token, the refresh material lives in:
+
+```text
+~/.config/shopify-cli-kit-nodejs/config.json
+```
+
+That file stores a JSON string at `sessionStore`. Parse it, use `currentSessionId` to find `accounts.shopify.com[<currentSessionId>].identity.refreshToken`, and refresh against Shopify Accounts with a **form-encoded** request:
+
+```text
+POST https://accounts.shopify.com/oauth/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=refresh_token
+client_id=fbdb2649-e327-4907-8f67-908d24cfd7e3
+refresh_token=<stored identity refresh token>
+```
+
+Do not perform a non-persisting "test" refresh. A successful response can rotate the refresh token immediately, so the first successful response must be persisted in the same step:
+
+- update `identity.accessToken`, `identity.refreshToken`, and `identity.expiresAt`
+- update any application entries that mirror the old `accessToken`
+- write the updated `sessionStore` back to `~/.config/shopify-cli-kit-nodejs/config.json`
+- update `SHOPIFY_CONFORMANCE_ADMIN_ACCESS_TOKEN` in `/home/airhorns/code/shopify-draft-proxy/.env`
+- update the workspace `.env` too if it is not a symlink to the original checkout file
+
+After persisting, run `corepack pnpm conformance:probe`. If the refresh response is `invalid_grant`, the stored CLI grant is no longer recoverable non-interactively; stop retrying it and switch to a dedicated dev-store Admin API token or have a human re-authenticate Shopify CLI and persist the fresh pair into both files.
+
 ### 4. Validate structural conformance coverage before live probing
 
 Before probing the live target, run:

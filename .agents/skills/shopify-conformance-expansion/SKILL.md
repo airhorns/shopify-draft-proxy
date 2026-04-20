@@ -22,6 +22,32 @@ Treat conformance as the fidelity source of truth. Do not guess Shopify behavior
 9. Make sure every root operation in the parity spec's `operationNames` exists in `config/operation-registry.json`.
 10. Add new helper scripts as TypeScript and run them with `tsx` or an equivalent TypeScript runner.
 
+## Credential Recovery
+
+Start by reading `docs/conformance-setup.md`, especially the Symphony workspace credential link and Shopify CLI token refresh fallback.
+
+On the unattended Symphony host, the repo-local `.env` should usually be a symlink to:
+
+```text
+/home/airhorns/code/shopify-draft-proxy/.env
+```
+
+If `corepack pnpm conformance:probe` fails and the token is a Shopify CLI bearer token rather than a dedicated `shpat_...` Admin API token, find the stored refresh token in:
+
+```text
+~/.config/shopify-cli-kit-nodejs/config.json
+```
+
+Parse `sessionStore`, then use `currentSessionId` to locate:
+
+```text
+accounts.shopify.com[<currentSessionId>].identity.refreshToken
+```
+
+Refresh with a form-encoded request to `https://accounts.shopify.com/oauth/token` using Shopify CLI client id `fbdb2649-e327-4907-8f67-908d24cfd7e3`. Do not dry-run this request without persistence: a successful response can rotate the refresh token immediately. The first successful response must be persisted in the same step to the Shopify CLI config and to `SHOPIFY_CONFORMANCE_ADMIN_ACCESS_TOKEN` in the original checkout `.env`; update the workspace `.env` too if it is not a symlink.
+
+If the refresh endpoint returns `invalid_grant`, the stored pair is no longer recoverable non-interactively. Stop retrying that pair, record the blocker, and use a dedicated dev-store Admin API token or a freshly re-authenticated Shopify CLI session before attempting live capture.
+
 ## Scenario Convention
 
 Do not add a central scenario manifest. Standard scenarios are discovered by convention from `config/parity-specs/*.json`.
