@@ -125,6 +125,18 @@ export interface StateSnapshot {
   deletedCollectionIds: Record<string, true>;
 }
 
+export interface MutationLogInterpretedMetadata {
+  operationType: 'query' | 'mutation';
+  operationName: string | null;
+  rootFields: string[];
+  primaryRootField: string | null;
+  capability: {
+    operationName: string | null;
+    domain: string;
+    execution: string;
+  };
+}
+
 export interface MutationLogEntry {
   id: string;
   receivedAt: string;
@@ -132,5 +144,6 @@ export interface MutationLogEntry {
   query: string;
   variables: Record<string, unknown>;
   status: 'staged' | 'proxied' | 'committed' | 'failed';
+  interpreted: MutationLogInterpretedMetadata;
   notes?: string;
 }
