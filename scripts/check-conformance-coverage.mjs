@@ -271,6 +271,30 @@ const coveredEntries = implementedEntries.filter((entry) => entry.conformance.st
 const gapEntries = implementedEntries.filter((entry) => entry.conformance.status === 'declared-gap');
 const capturedScenarios = scenarioRegistry.filter((scenario) => scenario.status === 'captured');
 const plannedScenarios = scenarioRegistry.filter((scenario) => scenario.status === 'planned');
+const regrettableDivergences = capturedScenarios.flatMap((scenario) => {
+  const paritySpec = JSON.parse(readFileSync(path.join(repoRoot, scenario.paritySpecPath), 'utf8'));
+  const allowedDifferences = Array.isArray(paritySpec?.comparison?.allowedDifferences)
+    ? paritySpec.comparison.allowedDifferences
+    : [];
+
+  return allowedDifferences.flatMap((difference, index) => {
+    if (difference?.regrettable !== true) {
+      return [];
+    }
+
+    return [
+      {
+        scenarioId: scenario.id,
+        paritySpecPath: scenario.paritySpecPath,
+        allowedDifferenceIndex: index,
+        path: difference.path,
+        reason: difference.reason,
+        matcher: difference.matcher ?? null,
+        ignored: difference.ignore === true,
+      },
+    ];
+  });
+});
 const statusJson = {
   generatedAt: new Date().toISOString(),
   implementedOperations: implementedEntries.map((entry) => ({
@@ -285,6 +309,7 @@ const statusJson = {
   declaredGapOperationNames: gapEntries.map((entry) => entry.name),
   capturedScenarioIds: capturedScenarios.map((scenario) => scenario.id),
   plannedScenarioIds: plannedScenarios.map((scenario) => scenario.id),
+  regrettableDivergences,
 };
 
 const coverageReport = [
@@ -297,6 +322,7 @@ const coverageReport = [
   `- Declared gaps: ${gapEntries.length}`,
   `- Captured scenarios: ${capturedScenarios.length}`,
   `- Planned scenarios: ${plannedScenarios.length}`,
+  `- Regrettable divergences: ${regrettableDivergences.length}`,
   '',
   '## Covered operations',
   '',
@@ -322,6 +348,13 @@ const coverageReport = [
   '## Planned scenarios',
   '',
   ...plannedScenarios.map((scenario) => `- \`${scenario.id}\` → \`${scenario.paritySpecPath}\``),
+  '',
+  '## Regrettable divergences',
+  '',
+  ...regrettableDivergences.map(
+    (difference) =>
+      `- \`${difference.scenarioId}\` ${difference.path} — ${difference.reason} (\`${difference.paritySpecPath}\`)`,
+  ),
   '',
 ];
 

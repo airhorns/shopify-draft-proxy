@@ -15,6 +15,17 @@ const status = {
   declaredGapOperationNames: ['productUpdate'],
   capturedScenarioIds: ['product-detail-read', 'product-create-live-parity'],
   plannedScenarioIds: ['productUpdate-parity-plan'],
+  regrettableDivergences: [
+    {
+      scenarioId: 'product-create-live-parity',
+      paritySpecPath: 'config/parity-specs/productCreate-parity-plan.json',
+      allowedDifferenceIndex: 0,
+      path: '$.data.productCreate.product.id',
+      reason: 'Shopify and the proxy allocate different product ids.',
+      matcher: 'shopify-gid:Product',
+      ignored: false,
+    },
+  ],
 } satisfies ConformanceStatusDocument;
 
 describe('conformance status reporting', () => {
@@ -26,6 +37,8 @@ describe('conformance status reporting', () => {
       coveredOperations: 2,
       implementedOperations: 3,
       declaredGapOperations: 1,
+      regrettableDivergences: 1,
+      regrettableDivergenceScenarios: 1,
     });
   });
 
@@ -38,6 +51,8 @@ describe('conformance status reporting', () => {
       conformanceRatio: 1 / 3,
       coveredOperations: 1,
       declaredGapOperations: 2,
+      regrettableDivergences: 0,
+      regrettableDivergenceScenarios: 0,
     };
 
     expect(compareConformanceSummaries(current, baseline)).toMatchObject({
@@ -46,6 +61,8 @@ describe('conformance status reporting', () => {
       coveredOperations: 1,
       implementedOperations: 0,
       declaredGapOperations: -1,
+      regrettableDivergences: 1,
+      regrettableDivergenceScenarios: 1,
     });
   });
 
@@ -67,5 +84,8 @@ describe('conformance status reporting', () => {
     expect(renderConformanceComment(report)).toContain('<!-- shopify-draft-proxy-conformance-status -->');
     expect(renderConformanceComment(report)).toContain('Current branch: 2 / 3 scenarios conforming');
     expect(renderConformanceComment(report)).toContain('Improvement over main: +1 conforming scenarios');
+    expect(renderConformanceComment(report)).toContain(
+      'Regrettable divergences: 1 allowed differences across 1 scenarios',
+    );
   });
 });

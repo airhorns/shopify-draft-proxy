@@ -16,6 +16,7 @@ export interface ConformanceStatusDocument {
   coveredOperationNames?: unknown[] | null;
   declaredGapOperationNames?: unknown[] | null;
   implementedOperations?: unknown[] | null;
+  regrettableDivergences?: unknown[] | null;
 }
 
 export interface ConformanceSummary {
@@ -28,6 +29,8 @@ export interface ConformanceSummary {
   implementedOperations: number;
   declaredGapOperations: number;
   operationCoverageRatio: number;
+  regrettableDivergences: number;
+  regrettableDivergenceScenarios: number;
 }
 
 export interface ConformanceDelta {
@@ -37,6 +40,8 @@ export interface ConformanceDelta {
   coveredOperations: number;
   implementedOperations: number;
   declaredGapOperations: number;
+  regrettableDivergences: number;
+  regrettableDivergenceScenarios: number;
 }
 
 export interface ConformanceReport {
@@ -160,6 +165,13 @@ export function summarizeConformanceStatus(status: ConformanceStatusDocument): C
     ? status.declaredGapOperationNames
     : [];
   const implementedOperations = Array.isArray(status.implementedOperations) ? status.implementedOperations : [];
+  const regrettableDivergences = Array.isArray(status.regrettableDivergences) ? status.regrettableDivergences : [];
+  const regrettableDivergenceScenarioIds = new Set<string>();
+  for (const divergence of regrettableDivergences) {
+    if (isRecord(divergence) && typeof divergence['scenarioId'] === 'string') {
+      regrettableDivergenceScenarioIds.add(divergence['scenarioId']);
+    }
+  }
   const totalScenarios = conformingScenarioIds.length + pendingScenarioIds.length;
 
   return {
@@ -172,6 +184,8 @@ export function summarizeConformanceStatus(status: ConformanceStatusDocument): C
     implementedOperations: implementedOperations.length,
     declaredGapOperations: declaredGapOperationNames.length,
     operationCoverageRatio: ratio(coveredOperationNames.length, implementedOperations.length),
+    regrettableDivergences: regrettableDivergences.length,
+    regrettableDivergenceScenarios: regrettableDivergenceScenarioIds.size,
   };
 }
 
@@ -187,11 +201,17 @@ function normalizeBaseline(
   rawBaseline: ConformanceStatusDocument | ConformanceSummary | ConformanceReport,
 ): ConformanceSummary {
   if (isConformanceSummary(rawBaseline)) {
-    return rawBaseline;
+    return {
+      ...rawBaseline,
+      regrettableDivergences:
+        typeof rawBaseline.regrettableDivergences === 'number' ? rawBaseline.regrettableDivergences : 0,
+      regrettableDivergenceScenarios:
+        typeof rawBaseline.regrettableDivergenceScenarios === 'number' ? rawBaseline.regrettableDivergenceScenarios : 0,
+    };
   }
 
   if (isConformanceReport(rawBaseline)) {
-    return rawBaseline.conformance;
+    return normalizeBaseline(rawBaseline.conformance);
   }
 
   return summarizeConformanceStatus(rawBaseline);
@@ -212,6 +232,8 @@ export function compareConformanceSummaries(
     coveredOperations: current.coveredOperations - baseline.coveredOperations,
     implementedOperations: current.implementedOperations - baseline.implementedOperations,
     declaredGapOperations: current.declaredGapOperations - baseline.declaredGapOperations,
+    regrettableDivergences: current.regrettableDivergences - baseline.regrettableDivergences,
+    regrettableDivergenceScenarios: current.regrettableDivergenceScenarios - baseline.regrettableDivergenceScenarios,
   };
 }
 
@@ -225,6 +247,10 @@ export function renderConformanceComment(report: ConformanceReport): string {
   const improvementLine = delta
     ? `- Improvement over main: ${formatSignedInteger(delta.conformingScenarios)} conforming scenarios (${formatSignedPercentPoints(delta.conformanceRatio * 100)})`
     : '- Improvement over main: unavailable until a main baseline artifact exists.';
+  const regrettableDivergenceLine =
+    baseline && delta
+      ? `- Regrettable divergences: ${current.regrettableDivergences} allowed differences across ${current.regrettableDivergenceScenarios} scenarios (main: ${baseline.regrettableDivergences}, delta: ${formatSignedInteger(delta.regrettableDivergences)})`
+      : `- Regrettable divergences: ${current.regrettableDivergences} allowed differences across ${current.regrettableDivergenceScenarios} scenarios`;
   const commit = report.commit ? report.commit.slice(0, 12) : 'unknown';
 
   return [
@@ -234,6 +260,7 @@ export function renderConformanceComment(report: ConformanceReport): string {
     `- Current branch: ${current.conformingScenarios} / ${current.totalScenarios} scenarios conforming (${formatPercent(current.conformanceRatio)})`,
     baselineLine,
     improvementLine,
+    regrettableDivergenceLine,
     `- Covered operations: ${current.coveredOperations} / ${current.implementedOperations} (${current.declaredGapOperations} declared gaps)`,
     `- Commit: \`${commit}\``,
     '',
