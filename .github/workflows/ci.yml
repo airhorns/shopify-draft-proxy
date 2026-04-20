@@ -67,6 +67,8 @@ jobs:
         if: github.event_name == 'pull_request' && steps.main_conformance_baseline.outputs.found == 'true'
         uses: actions/download-artifact@v4
         with:
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.main_conformance_baseline.outputs.run_id }}
           artifact-ids: ${{ steps.main_conformance_baseline.outputs.artifact_id }}
           path: .conformance/main
           merge-multiple: true
