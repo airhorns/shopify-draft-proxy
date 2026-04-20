@@ -9,17 +9,10 @@
     "variablesPath": "config/parity-requests/tagsRemove-parity-plan.variables.json",
     "variablesCapturePath": "$.mutation.variables"
   },
-  "notes": "Executed by the conformance parity runner against the local staged-mutation path with live fixture variables; allowed differences are path-scoped to nondeterministic ids, timestamps, throttle metadata, or documented declared-gap fields.",
+  "notes": "Executed by the conformance parity runner against the local staged-mutation path with live fixture variables; expected differences are path-scoped to nondeterministic ids, timestamps, throttle metadata, or documented declared-gap fields.",
   "comparison": {
     "mode": "strict-json",
-    "allowedDifferences": [
-      {
-        "path": "$.tagsRemove.node",
-        "ignore": true,
-        "regrettable": true,
-        "reason": "This field is a documented fidelity gap for the current staged local implementation."
-      }
-    ],
+    "expectedDifferences": [],
     "targets": [
       {
         "name": "mutation-data",

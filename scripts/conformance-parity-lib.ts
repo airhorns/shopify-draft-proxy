@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 
 import { parseOperation } from '../src/graphql/parse-operation.js';
 import { getOperationCapability } from '../src/proxy/capabilities.js';
@@ -25,7 +26,7 @@ export type ParityScenarioState =
 
 type Matcher = 'any-string' | 'non-empty-string' | 'any-number' | 'iso-timestamp' | `shopify-gid:${string}`;
 
-export interface AllowedDifference {
+export interface ExpectedDifference {
   path: string;
   ignore?: boolean;
   matcher?: Matcher;
@@ -50,7 +51,7 @@ export interface ComparisonTarget {
 
 export interface ComparisonContract {
   mode?: string | null;
-  allowedDifferences?: AllowedDifference[] | null;
+  expectedDifferences?: ExpectedDifference[] | null;
   targets?: ComparisonTarget[] | null;
 }
 
@@ -76,7 +77,8 @@ interface Difference {
   actual: unknown;
 }
 
-interface CompiledRule extends AllowedDifference {
+interface CompiledRule extends ExpectedDifference {
+  index: number;
   segments: PathSegment[];
 }
 
@@ -112,20 +114,24 @@ export function validateComparisonContract(comparison: unknown): string[] {
     errors.push('Comparison contract mode must be `strict-json`.');
   }
 
-  if (!Array.isArray(candidate['allowedDifferences'])) {
-    errors.push('Comparison contract must declare an `allowedDifferences` array.');
+  if ('allowedDifferences' in candidate) {
+    errors.push('Comparison contract must use `expectedDifferences`; `allowedDifferences` is no longer supported.');
+  }
+
+  if (!Array.isArray(candidate['expectedDifferences'])) {
+    errors.push('Comparison contract must declare an `expectedDifferences` array.');
     return errors;
   }
 
-  for (const [index, rawRule] of candidate['allowedDifferences'].entries()) {
+  for (const [index, rawRule] of candidate['expectedDifferences'].entries()) {
     const rule = isPlainObject(rawRule) ? rawRule : {};
-    const label = `allowedDifferences[${index}]`;
+    const label = `expectedDifferences[${index}]`;
     if (typeof rule['path'] !== 'string' || rule['path'].length === 0) {
       errors.push(`${label} must declare a non-empty JSON path.`);
     }
 
     if (typeof rule['reason'] !== 'string' || rule['reason'].length === 0) {
-      errors.push(`${label} must document why the difference is allowed.`);
+      errors.push(`${label} must document why the expected difference is accepted.`);
     }
 
     const hasMatcher = typeof rule['matcher'] === 'string';
@@ -273,9 +279,10 @@ function pathMatches(ruleSegments: PathSegment[], pathSegments: PathSegment[]): 
   return ruleSegments.every((segment, index) => segment === '*' || segment === pathSegments[index]);
 }
 
-function makeRule(rawRule: AllowedDifference): CompiledRule {
+function makeRule(rawRule: ExpectedDifference, index: number): CompiledRule {
   return {
     ...rawRule,
+    index,
     segments: parsePath(rawRule.path),
   };
 }
@@ -333,8 +340,17 @@ function diffValues(
   pathSegments: PathSegment[],
   rules: CompiledRule[],
   differences: Difference[],
+  observedRuleIndexes: Set<number>,
+  applicableRuleIndexes: Set<number>,
 ): void {
   const rule = findRule(rules, pathSegments);
+  if (rule) {
+    applicableRuleIndexes.add(rule.index);
+  }
+  if (rule && !isDeepStrictEqual(expected, actual)) {
+    observedRuleIndexes.add(rule.index);
+  }
+
   if (rule?.ignore === true) {
     return;
   }
@@ -371,6 +387,8 @@ function diffValues(
         [...pathSegments, index],
         rules,
         differences,
+        observedRuleIndexes,
+        applicableRuleIndexes,
       );
     }
     return;
@@ -388,11 +406,21 @@ function diffValues(
       const childSegments = [...pathSegments, key];
       const childRule = findRule(rules, childSegments);
 
+      if (childRule) {
+        applicableRuleIndexes.add(childRule.index);
+      }
+
       if (childRule?.ignore === true) {
+        if (!isDeepStrictEqual(expected[key], actual[key])) {
+          observedRuleIndexes.add(childRule.index);
+        }
         continue;
       }
 
       if (!Object.prototype.hasOwnProperty.call(expected, key)) {
+        if (childRule) {
+          observedRuleIndexes.add(childRule.index);
+        }
         differences.push({
           path: childPath,
           message: 'Unexpected field in actual payload.',
@@ -403,6 +431,9 @@ function diffValues(
       }
 
       if (!Object.prototype.hasOwnProperty.call(actual, key)) {
+        if (childRule) {
+          observedRuleIndexes.add(childRule.index);
+        }
         differences.push({
           path: childPath,
           message: 'Missing field in actual payload.',
@@ -412,7 +443,16 @@ function diffValues(
         continue;
       }
 
-      diffValues(expected[key], actual[key], childPath, childSegments, rules, differences);
+      diffValues(
+        expected[key],
+        actual[key],
+        childPath,
+        childSegments,
+        rules,
+        differences,
+        observedRuleIndexes,
+        applicableRuleIndexes,
+      );
     }
     return;
   }
@@ -423,13 +463,26 @@ function diffValues(
 export function compareJsonPayloads(
   expected: unknown,
   actual: unknown,
-  comparison: Pick<ComparisonContract, 'allowedDifferences'> = {},
+  comparison: Pick<ComparisonContract, 'expectedDifferences'> = {},
 ): { ok: boolean; differences: Difference[] } {
-  const allowedDifferences = Array.isArray(comparison.allowedDifferences) ? comparison.allowedDifferences : [];
-  const rules = allowedDifferences.map(makeRule);
+  const expectedDifferences = Array.isArray(comparison.expectedDifferences) ? comparison.expectedDifferences : [];
+  const rules = expectedDifferences.map(makeRule);
   const differences: Difference[] = [];
+  const observedRuleIndexes = new Set<number>();
+  const applicableRuleIndexes = new Set<number>();
 
-  diffValues(expected, actual, '$', [], rules, differences);
+  diffValues(expected, actual, '$', [], rules, differences, observedRuleIndexes, applicableRuleIndexes);
+
+  for (const rule of rules) {
+    if (applicableRuleIndexes.has(rule.index) && !observedRuleIndexes.has(rule.index)) {
+      differences.push({
+        path: rule.path,
+        message: 'Expected difference was not observed.',
+        expected: undefined,
+        actual: undefined,
+      });
+    }
+  }
 
   return {
     ok: differences.length === 0,

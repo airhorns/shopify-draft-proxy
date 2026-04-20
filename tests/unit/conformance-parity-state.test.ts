@@ -31,7 +31,7 @@ describe('classifyParityScenarioState', () => {
         {
           comparison: {
             mode: 'strict-json',
-            allowedDifferences: [],
+            expectedDifferences: [],
           },
         },
       ),
@@ -48,7 +48,7 @@ describe('classifyParityScenarioState', () => {
         },
         comparison: {
           mode: 'strict-json',
-          allowedDifferences: [],
+          expectedDifferences: [],
         },
       },
     );
@@ -92,11 +92,11 @@ describe('summarizeParityResults', () => {
 });
 
 describe('validateComparisonContract', () => {
-  it('requires allowed differences to be path-scoped, documented, and typed', () => {
+  it('requires expected differences to be path-scoped, documented, and typed', () => {
     expect(
       validateComparisonContract({
         mode: 'strict-json',
-        allowedDifferences: [
+        expectedDifferences: [
           {
             path: '$.data.product.id',
             matcher: 'shopify-gid:Product',
@@ -109,7 +109,7 @@ describe('validateComparisonContract', () => {
     expect(
       validateComparisonContract({
         mode: 'strict-json',
-        allowedDifferences: [
+        expectedDifferences: [
           {
             path: '$.data.product.tags',
             ignore: true,
@@ -123,7 +123,7 @@ describe('validateComparisonContract', () => {
     expect(
       validateComparisonContract({
         mode: 'strict-json',
-        allowedDifferences: [
+        expectedDifferences: [
           {
             path: '$.data.product.id',
             matcher: 'everything',
@@ -145,13 +145,25 @@ describe('validateComparisonContract', () => {
         ],
       }),
     ).toEqual([
-      'allowedDifferences[0] must document why the difference is allowed.',
-      'allowedDifferences[0] declares unknown matcher `everything`.',
-      'allowedDifferences[1] must declare a non-empty JSON path.',
-      'allowedDifferences[1] must declare exactly one of `matcher` or `ignore: true`.',
-      'allowedDifferences[2] with `ignore: true` must set `regrettable: true` for the parity gap.',
-      'allowedDifferences[3] `regrettable`, when declared, must be true.',
-      'allowedDifferences[3] with `ignore: true` must set `regrettable: true` for the parity gap.',
+      'expectedDifferences[0] must document why the expected difference is accepted.',
+      'expectedDifferences[0] declares unknown matcher `everything`.',
+      'expectedDifferences[1] must declare a non-empty JSON path.',
+      'expectedDifferences[1] must declare exactly one of `matcher` or `ignore: true`.',
+      'expectedDifferences[2] with `ignore: true` must set `regrettable: true` for the parity gap.',
+      'expectedDifferences[3] `regrettable`, when declared, must be true.',
+      'expectedDifferences[3] with `ignore: true` must set `regrettable: true` for the parity gap.',
+    ]);
+  });
+
+  it('rejects the legacy allowedDifferences contract key', () => {
+    expect(
+      validateComparisonContract({
+        mode: 'strict-json',
+        allowedDifferences: [],
+      }),
+    ).toEqual([
+      'Comparison contract must use `expectedDifferences`; `allowedDifferences` is no longer supported.',
+      'Comparison contract must declare an `expectedDifferences` array.',
     ]);
   });
 
@@ -165,7 +177,7 @@ describe('validateComparisonContract', () => {
       .sort()) {
       const spec = JSON.parse(readFileSync(resolve(paritySpecRoot, fileName), 'utf8')) as {
         comparison?: {
-          allowedDifferences?: Array<{
+          expectedDifferences?: Array<{
             path?: string;
             ignore?: boolean;
             regrettable?: true;
@@ -173,7 +185,7 @@ describe('validateComparisonContract', () => {
         };
       };
 
-      for (const difference of spec.comparison?.allowedDifferences ?? []) {
+      for (const difference of spec.comparison?.expectedDifferences ?? []) {
         if (difference.ignore === true && difference.regrettable !== true) {
           unmarkedIgnores.push(`${fileName}:${difference.path ?? '<missing path>'}`);
         }
@@ -264,7 +276,7 @@ describe('compareJsonPayloads', () => {
 
     expect(
       compareJsonPayloads(expected, actual, {
-        allowedDifferences: [
+        expectedDifferences: [
           {
             path: '$.data.productCreate.product.id',
             matcher: 'shopify-gid:Product',
@@ -294,7 +306,7 @@ describe('compareJsonPayloads', () => {
           },
         },
         {
-          allowedDifferences: [{ path: '$.data.productCreate.product.id', matcher: 'shopify-gid:Product' }],
+          expectedDifferences: [{ path: '$.data.productCreate.product.id', matcher: 'shopify-gid:Product' }],
         },
       ).differences,
     ).toEqual([
@@ -315,6 +327,46 @@ describe('compareJsonPayloads', () => {
         message: 'Value differs.',
         expected: 1988,
         actual: 42,
+      },
+    ]);
+  });
+
+  it('fails when an expected difference is not observed', () => {
+    const result = compareJsonPayloads(
+      {
+        data: {
+          product: {
+            id: 'gid://shopify/Product/123',
+            title: 'Hat',
+          },
+        },
+      },
+      {
+        data: {
+          product: {
+            id: 'gid://shopify/Product/123',
+            title: 'Hat',
+          },
+        },
+      },
+      {
+        expectedDifferences: [
+          {
+            path: '$.data.product.id',
+            matcher: 'shopify-gid:Product',
+            reason: 'Product ids should differ between Shopify and the proxy harness.',
+          },
+        ],
+      },
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.differences).toEqual([
+      {
+        path: '$.data.product.id',
+        message: 'Expected difference was not observed.',
+        expected: undefined,
+        actual: undefined,
       },
     ]);
   });
@@ -346,7 +398,7 @@ describe('compareJsonPayloads', () => {
         },
       },
       {
-        allowedDifferences: [
+        expectedDifferences: [
           {
             path: '$.data.product.options[*].id',
             matcher: 'shopify-gid:ProductOption',
@@ -386,28 +438,16 @@ describe('executeParityScenario', () => {
         },
         comparison: {
           mode: 'strict-json',
-          allowedDifferences: [
+          expectedDifferences: [
             {
               path: '$.productCreate.product.id',
               matcher: 'shopify-gid:Product',
               reason: 'Synthetic local product id.',
             },
             {
-              path: '$.productCreate.product.tags',
-              ignore: true,
-              regrettable: true,
-              reason: 'Local tag order is a documented parity gap.',
-            },
-            {
               path: '$.product.id',
               matcher: 'shopify-gid:Product',
               reason: 'Synthetic local product id.',
-            },
-            {
-              path: '$.product.tags',
-              ignore: true,
-              regrettable: true,
-              reason: 'Local tag order is a documented parity gap.',
             },
           ],
           targets: [
@@ -455,7 +495,7 @@ describe('executeParityScenario', () => {
         },
         comparison: {
           mode: 'strict-json',
-          allowedDifferences: [],
+          expectedDifferences: [],
           targets: [
             {
               name: 'read-data',
