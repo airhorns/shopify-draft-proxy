@@ -1,11 +1,12 @@
 import Router from '@koa/router';
 import type Koa from 'koa';
-import { parseOperation } from '../graphql/parse-operation.js';
+import { parseOperation, type ParsedOperation } from '../graphql/parse-operation.js';
 import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
+import type { MutationLogInterpretedMetadata } from '../state/types.js';
 import type { AppConfig } from '../config.js';
 import { createUpstreamGraphQLClient } from '../shopify/upstream-client.js';
-import { getOperationCapability } from './capabilities.js';
+import { getOperationCapability, type OperationCapability } from './capabilities.js';
 import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamResponse } from './products.js';
 
 interface GraphQLBody {
@@ -15,6 +16,23 @@ interface GraphQLBody {
 
 function readVariables(raw: unknown): Record<string, unknown> {
   return typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
+}
+
+function interpretMutationLogEntry(
+  parsed: ParsedOperation,
+  capability: OperationCapability,
+): MutationLogInterpretedMetadata {
+  return {
+    operationType: parsed.type,
+    operationName: parsed.name,
+    rootFields: parsed.rootFields,
+    primaryRootField: parsed.rootFields[0] ?? null,
+    capability: {
+      operationName: capability.operationName,
+      domain: capability.domain,
+      execution: capability.execution,
+    },
+  };
 }
 
 export function createProxyRouter(config: AppConfig): Router {
@@ -42,6 +60,7 @@ export function createProxyRouter(config: AppConfig): Router {
         query: body.query,
         variables,
         status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
         notes: 'Staged locally in the in-memory product draft store.',
       });
 
@@ -85,6 +104,7 @@ export function createProxyRouter(config: AppConfig): Router {
         query: body.query,
         variables,
         status: 'proxied',
+        interpreted: interpretMutationLogEntry(parsed, capability),
         notes: 'Mutation passthrough placeholder until supported local staging is implemented.',
       });
     }

@@ -189,7 +189,7 @@ Status legend:
 ### Meta API
 - [ ] `POST /__meta/reset`
 - [ ] `POST /__meta/commit`
-- [ ] `GET /__meta/log`
+- [x] `GET /__meta/log` (ordered staged mutation log with raw documents, variables, interpreted metadata, and passthrough visibility)
 - [ ] `GET /__meta/state`
 - [ ] `GET /__meta/config`
 - [ ] `GET /__meta/health`
@@ -197,7 +197,7 @@ Status legend:
 ### State engine
 - [ ] normalized object graph
 - [ ] staged overlay engine
-- [ ] raw mutation log retention
+- [x] raw mutation log retention
 - [ ] original-order commit replay
 - [ ] stop-on-first-error commit semantics
 
