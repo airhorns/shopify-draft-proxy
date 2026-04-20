@@ -2155,6 +2155,176 @@ describe('product draft flow', () => {
     });
   });
 
+  it('keeps product-scoped metafield replacement semantics across staged set and delete writes', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as { query?: string }) : {};
+      const query = body.query ?? '';
+
+      if (query.includes('product(id:')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              product: {
+                id: 'gid://shopify/Product/1',
+                title: 'Hydrated Metafield Hat',
+                handle: 'hydrated-metafield-hat',
+                status: 'ACTIVE',
+                createdAt: '2024-01-01T00:00:00.000Z',
+                updatedAt: '2024-01-02T00:00:00.000Z',
+                metafields: {
+                  edges: [
+                    {
+                      node: {
+                        id: 'gid://shopify/Metafield/9001',
+                        namespace: 'custom',
+                        key: 'material',
+                        type: 'single_line_text_field',
+                        value: 'Canvas',
+                      },
+                    },
+                    {
+                      node: {
+                        id: 'gid://shopify/Metafield/9002',
+                        namespace: 'details',
+                        key: 'origin',
+                        type: 'single_line_text_field',
+                        value: 'VN',
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+
+      throw new Error(`Unexpected fetch during metafield replacement/delete test: ${String(input)}`);
+    });
+
+    const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
+
+    const hydrateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query ($id: ID!) { product(id: $id) { id metafields(first: 10) { edges { node { id namespace key type value } } } } }',
+        variables: { id: 'gid://shopify/Product/1' },
+      });
+
+    expect(hydrateResponse.status).toBe(200);
+    expect(hydrateResponse.body.data.product.metafields.edges).toEqual([
+      {
+        node: {
+          id: 'gid://shopify/Metafield/9001',
+          namespace: 'custom',
+          key: 'material',
+          type: 'single_line_text_field',
+          value: 'Canvas',
+        },
+      },
+      {
+        node: {
+          id: 'gid://shopify/Metafield/9002',
+          namespace: 'details',
+          key: 'origin',
+          type: 'single_line_text_field',
+          value: 'VN',
+        },
+      },
+    ]);
+
+    const setQuery =
+      'mutation SetMetafields($metafields: [MetafieldsSetInput!]!) { metafieldsSet(metafields: $metafields) { metafields { id namespace key type value } userErrors { field message } } }';
+    const setVariables = {
+      metafields: [
+        {
+          ownerId: 'gid://shopify/Product/1',
+          namespace: 'custom',
+          key: 'material',
+          type: 'single_line_text_field',
+          value: 'Denim',
+        },
+      ],
+    };
+    const setResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query: setQuery,
+      variables: setVariables,
+    });
+
+    expect(setResponse.status).toBe(200);
+    expect(setResponse.body.data.metafieldsSet).toEqual({
+      metafields: [
+        {
+          id: 'gid://shopify/Metafield/9001',
+          namespace: 'custom',
+          key: 'material',
+          type: 'single_line_text_field',
+          value: 'Denim',
+        },
+      ],
+      userErrors: [],
+    });
+
+    const deleteQuery =
+      'mutation DeleteMetafield($input: MetafieldDeleteInput!) { metafieldDelete(input: $input) { deletedId userErrors { field message } } }';
+    const deleteVariables = { input: { id: 'gid://shopify/Metafield/9001' } };
+    const deleteResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query: deleteQuery,
+      variables: deleteVariables,
+    });
+
+    expect(deleteResponse.status).toBe(200);
+    expect(deleteResponse.body.data.metafieldDelete).toEqual({
+      deletedId: 'gid://shopify/Metafield/9001',
+      userErrors: [],
+    });
+
+    const overlayResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query ($id: ID!) { product(id: $id) { id material: metafield(namespace: "custom", key: "material") { id namespace key type value } origin: metafield(namespace: "details", key: "origin") { id namespace key type value } metafields(first: 10) { nodes { id namespace key type value } } } }',
+        variables: { id: 'gid://shopify/Product/1' },
+      });
+
+    expect(overlayResponse.status).toBe(200);
+    expect(overlayResponse.body.data.product.material).toBeNull();
+    expect(overlayResponse.body.data.product.origin).toEqual({
+      id: 'gid://shopify/Metafield/9002',
+      namespace: 'details',
+      key: 'origin',
+      type: 'single_line_text_field',
+      value: 'VN',
+    });
+    expect(overlayResponse.body.data.product.metafields.nodes).toEqual([
+      {
+        id: 'gid://shopify/Metafield/9002',
+        namespace: 'details',
+        key: 'origin',
+        type: 'single_line_text_field',
+        value: 'VN',
+      },
+    ]);
+
+    const logResponse = await request(app).get('/__meta/log');
+
+    expect(logResponse.status).toBe(200);
+    expect(logResponse.body.entries).toHaveLength(2);
+    expect(logResponse.body.entries.map((entry: { query: string }) => entry.query)).toEqual([setQuery, deleteQuery]);
+    expect(logResponse.body.entries[0]).toMatchObject({
+      operationName: 'metafieldsSet',
+      variables: setVariables,
+      status: 'staged',
+    });
+    expect(logResponse.body.entries[1]).toMatchObject({
+      operationName: 'metafieldDelete',
+      variables: deleteVariables,
+      status: 'staged',
+    });
+  });
+
   it('returns Shopify-like empty defaults in snapshot mode when no product exists', async () => {
     const snapshotApp = createApp({ ...config, readMode: 'snapshot' }).callback();
 

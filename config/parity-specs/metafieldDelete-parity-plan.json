@@ -5,8 +5,9 @@
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": [],
   "proxyRequest": {
-    "documentPath": null,
-    "variablesPath": null
+    "documentPath": "config/parity-requests/metafieldDelete-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/metafieldDelete-parity-plan.variables.json"
   },
-  "notes": "Metafield mutation parity still needs dedicated live-write scenarios and payload assertions."
+  "comparisonMode": "planned",
+  "notes": "Proxy request scaffold now mirrors the staged product metafield delete runtime slice (`metafieldDelete(input:)` returning `deletedId` plus `userErrors`). Next step is to run the same safe metafield-delete scenario against a dedicated dev-store write pack and compare mutation payload together with immediate downstream `product.metafield(...)` / `product.metafields` parity."
 }
