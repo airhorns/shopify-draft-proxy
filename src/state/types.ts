@@ -90,6 +90,7 @@ export interface CollectionRecord {
 
 export interface ProductCollectionRecord extends CollectionRecord {
   productId: string;
+  position?: number;
 }
 
 export interface ProductMediaRecord {

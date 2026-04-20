@@ -197,7 +197,7 @@ describe('product draft flow', () => {
     expect(addTagsResponse.body.data.tagsAdd.userErrors).toEqual([]);
     expect(addTagsResponse.body.data.tagsAdd.node).toEqual({
       id: productId,
-      tags: ['existing', 'summer', 'sale'],
+      tags: ['existing', 'sale', 'summer'],
     });
 
     const queryResponse = await request(app)
@@ -211,12 +211,12 @@ describe('product draft flow', () => {
     expect(queryResponse.status).toBe(200);
     expect(queryResponse.body.data.product).toEqual({
       id: productId,
-      tags: ['existing', 'summer', 'sale'],
+      tags: ['existing', 'sale', 'summer'],
     });
     expect(queryResponse.body.data.products.nodes).toEqual([
       {
         id: productId,
-        tags: ['existing', 'summer', 'sale'],
+        tags: ['existing', 'sale', 'summer'],
       },
     ]);
     expect(queryResponse.body.data.productsCount).toEqual({
@@ -2653,7 +2653,7 @@ describe('product draft flow', () => {
       status: 'DRAFT',
       vendor: 'BURTON',
       productType: 'SNOWBOARD',
-      tags: ['winter', 'featured'],
+      tags: ['featured', 'winter'],
     });
     expect(setResponse.body.data.productSet.product.options).toEqual([
       {

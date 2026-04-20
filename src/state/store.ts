@@ -57,6 +57,10 @@ function buildCollectionStorageKey(collection: ProductCollectionRecord): string 
   return `${collection.productId}::${collection.id}`;
 }
 
+function readCollectionPosition(collection: ProductCollectionRecord): number | null {
+  return typeof collection.position === 'number' && Number.isFinite(collection.position) ? collection.position : null;
+}
+
 function mergeCollectionRecords(
   base: CollectionRecord | null,
   staged: CollectionRecord | null,
@@ -152,6 +156,36 @@ export class InMemoryStore {
     }
   }
 
+  private nextCollectionPosition(collectionId: string): number {
+    const positions = [
+      ...Object.values(this.baseState.productCollections),
+      ...Object.values(this.stagedState.productCollections),
+    ]
+      .filter((collection) => collection.id === collectionId)
+      .map(readCollectionPosition)
+      .filter((position): position is number => position !== null);
+
+    return positions.length > 0 ? Math.max(...positions) + 1 : 0;
+  }
+
+  private withCollectionPositions(
+    collections: ProductCollectionRecord[],
+    previousCollections: ProductCollectionRecord[],
+  ): ProductCollectionRecord[] {
+    const previousById = new Map(previousCollections.map((collection) => [collection.id, collection]));
+
+    return collections.map((collection) => {
+      const requestedPosition = readCollectionPosition(collection);
+      const previousPosition = readCollectionPosition(previousById.get(collection.id) ?? collection);
+      const position = requestedPosition ?? previousPosition ?? this.nextCollectionPosition(collection.id);
+
+      return {
+        ...structuredClone(collection),
+        position,
+      };
+    });
+  }
+
   stageCreateCollection(collection: CollectionRecord): CollectionRecord {
     delete this.stagedState.deletedCollectionIds[collection.id];
     this.stagedState.collections[collection.id] = structuredClone(collection);
@@ -228,18 +262,26 @@ export class InMemoryStore {
   }
 
   replaceBaseCollectionsForProduct(productId: string, collections: ProductCollectionRecord[]): void {
+    const previousCollections = Object.values(this.baseState.productCollections)
+      .filter((collection) => collection.productId === productId)
+      .map((collection) => structuredClone(collection));
+
     for (const [storageKey, collection] of Object.entries(this.baseState.productCollections)) {
       if (collection.productId === productId) {
         delete this.baseState.productCollections[storageKey];
       }
     }
 
-    for (const collection of collections) {
+    for (const collection of this.withCollectionPositions(collections, previousCollections)) {
       this.baseState.productCollections[buildCollectionStorageKey(collection)] = structuredClone(collection);
     }
   }
 
   replaceStagedCollectionsForProduct(productId: string, collections: ProductCollectionRecord[]): void {
+    const previousCollections = Object.values(this.stagedState.productCollections)
+      .filter((collection) => collection.productId === productId)
+      .map((collection) => structuredClone(collection));
+
     for (const [storageKey, collection] of Object.entries(this.stagedState.productCollections)) {
       if (collection.productId === productId) {
         delete this.stagedState.productCollections[storageKey];
@@ -247,7 +289,7 @@ export class InMemoryStore {
     }
 
     this.stagedCollectionFamilies.add(productId);
-    for (const collection of collections) {
+    for (const collection of this.withCollectionPositions(collections, previousCollections)) {
       this.stagedState.productCollections[buildCollectionStorageKey(collection)] = structuredClone(collection);
     }
   }
