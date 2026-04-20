@@ -1,18 +1,9 @@
 {
   "scenarioId": "products-variant-search-read",
-  "operationNames": [
-    "products",
-    "productsCount"
-  ],
+  "operationNames": ["products", "productsCount"],
   "scenarioStatus": "captured",
-  "assertionKinds": [
-    "payload-shape",
-    "selected-fields",
-    "search-filter-semantics"
-  ],
-  "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-variant-search.json"
-  ],
+  "assertionKinds": ["payload-shape", "selected-fields", "search-filter-semantics"],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-variant-search.json"],
   "proxyRequest": {
     "documentPath": null,
     "variablesPath": null

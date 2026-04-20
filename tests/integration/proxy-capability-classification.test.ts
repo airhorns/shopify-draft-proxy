@@ -42,7 +42,8 @@ describe('proxy capability classification', () => {
       .post('/admin/api/2025-01/graphql.json')
       .set('x-shopify-access-token', 'shpat_test')
       .send({
-        query: 'mutation ProductCreate { productCreate(product: { title: "Hat" }) { product { id } userErrors { field message } } }',
+        query:
+          'mutation ProductCreate { productCreate(product: { title: "Hat" }) { product { id } userErrors { field message } } }',
       });
 
     expect(response.status).toBe(200);

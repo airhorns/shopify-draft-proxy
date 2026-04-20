@@ -15,12 +15,15 @@ The proxy can be implemented without a live Shopify target, but **high-fidelity 
 ## What we need
 
 ### 1. A Shopify dev/test store
+
 A store we can safely mutate during conformance runs.
 
 ### 2. A Shopify app installation with Admin API access
+
 For early conformance work, a single installed app or custom app with a valid Admin API access token is enough.
 
 ### 3. Stable configuration
+
 Set these variables in a local `.env` or shell session:
 
 - `SHOPIFY_CONFORMANCE_STORE_DOMAIN`
@@ -34,6 +37,7 @@ See `.env.example` for the canonical variable names.
 The server now loads `.env` automatically via `dotenv`, so a local `.env` file is enough for normal `pnpm dev` / `pnpm start` workflows.
 
 ### 4. Validate structural conformance coverage before live probing
+
 Before probing the live target, run:
 
 ```bash
@@ -46,6 +50,7 @@ corepack pnpm conformance:parity
 `conformance:parity` is the parity-runner scaffold. Today it reports whether each scenario is still planned, captured-but-missing a proxy request spec, or ready for actual proxy-vs-Shopify comparison once the request/comparator details are filled in.
 
 ### 5. Probe the live target before writing parity fixtures
+
 Once the vars are present, run:
 
 ```bash
@@ -55,6 +60,7 @@ corepack pnpm conformance:probe
 This performs a minimal Admin GraphQL `shop` query against the configured store and fails fast if the domain/origin/token combination is wrong.
 
 ### 5. Capture product-domain fixtures from the live store
+
 Run:
 
 ```bash
@@ -73,6 +79,7 @@ fixtures/conformance/<store-domain>/<api-version>/
 ```
 
 The current capture set records:
+
 - catalog page / cursor sample
 - detailed product shape
 - variant matrix shape

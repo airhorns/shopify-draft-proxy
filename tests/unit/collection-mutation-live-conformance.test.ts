@@ -58,7 +58,8 @@ const expectedLiveFamilies = [
     operationName: 'collectionRemoveProducts',
     scenarioId: 'collection-remove-products-live-parity',
     paritySpecPath: 'config/parity-specs/collectionRemoveProducts-parity-plan.json',
-    captureFile: 'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collection-remove-products-parity.json',
+    captureFile:
+      'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collection-remove-products-parity.json',
   },
 ] as const;
 

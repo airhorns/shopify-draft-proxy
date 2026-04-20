@@ -1,18 +1,15 @@
 {
   "product": {
-    "title": "Rich Hat",
+    "title": "Hermes Product Conformance 1776299742511",
     "status": "DRAFT",
-    "vendor": "NIKE",
+    "vendor": "HERMES",
     "productType": "ACCESSORIES",
-    "tags": [
-      "cap",
-      "summer"
-    ],
-    "descriptionHtml": "<p>Rich hat description</p>",
-    "templateSuffix": "custom-product",
+    "tags": ["1776299742511", "conformance", "product-mutation"],
+    "descriptionHtml": "<p>Hermes product mutation conformance 1776299742511</p>",
+    "templateSuffix": "product-mutation-parity",
     "seo": {
-      "title": "Rich Hat SEO",
-      "description": "Search-ready rich hat description"
+      "title": "Hermes Product 1776299742511",
+      "description": "Hermes product mutation conformance 1776299742511"
     }
   }
 }

@@ -2,20 +2,14 @@
   "mutation": {
     "variables": {
       "id": "gid://shopify/Product/9255305347305",
-      "tags": [
-        "hermes-sale-1776300983359",
-        "missing"
-      ]
+      "tags": ["hermes-sale-1776300983359", "missing"]
     },
     "response": {
       "data": {
         "tagsRemove": {
           "node": {
             "id": "gid://shopify/Product/9255305347305",
-            "tags": [
-              "existing",
-              "hermes-summer-1776300983359"
-            ]
+            "tags": ["existing", "hermes-summer-1776300983359"]
           },
           "userErrors": []
         }
@@ -37,10 +31,7 @@
     "data": {
       "product": {
         "id": "gid://shopify/Product/9255305347305",
-        "tags": [
-          "existing",
-          "hermes-summer-1776300983359"
-        ]
+        "tags": ["existing", "hermes-summer-1776300983359"]
       },
       "remaining": {
         "nodes": []

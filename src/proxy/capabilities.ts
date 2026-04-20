@@ -14,9 +14,7 @@ export interface OperationCapability {
 
 const implementedEntries = listImplementedOperationRegistryEntries();
 const CAPABILITY_ENTRY_BY_MATCH_NAME = new Map(
-  implementedEntries.flatMap((entry) =>
-    entry.matchNames.map((matchName) => [matchName, entry] as const),
-  ),
+  implementedEntries.flatMap((entry) => entry.matchNames.map((matchName) => [matchName, entry] as const)),
 );
 
 function getCandidateOperationNames(operation: ParsedOperation): string[] {
@@ -33,7 +31,7 @@ export function getOperationCapability(operation: ParsedOperation): OperationCap
     const entry = CAPABILITY_ENTRY_BY_MATCH_NAME.get(candidate);
     return entry?.type === operation.type;
   });
-  const matchedEntry = matchedCandidate ? CAPABILITY_ENTRY_BY_MATCH_NAME.get(matchedCandidate) ?? null : null;
+  const matchedEntry = matchedCandidate ? (CAPABILITY_ENTRY_BY_MATCH_NAME.get(matchedCandidate) ?? null) : null;
 
   if (matchedCandidate && matchedEntry) {
     return {

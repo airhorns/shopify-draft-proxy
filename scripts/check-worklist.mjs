@@ -24,8 +24,11 @@ for (const entry of registry) {
     continue;
   }
   if (!implementedWorklistOperations.has(entry.name)) {
-    throw new Error(`Implemented registry operation ${entry.name} must appear as [x] in docs/shopify-admin-worklist.md.`);
+    throw new Error(
+      `Implemented registry operation ${entry.name} must appear as [x] in docs/shopify-admin-worklist.md.`,
+    );
   }
 }
 
+// oxlint-disable-next-line no-console -- CLI status output is intentionally written to stdout.
 console.log('worklist ok');

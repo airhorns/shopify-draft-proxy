@@ -1,14 +1,8 @@
 {
   "scenarioId": "collection-parity-plan",
-  "operationNames": [
-    "collection"
-  ],
+  "operationNames": ["collection"],
   "scenarioStatus": "planned",
-  "assertionKinds": [
-    "payload-shape",
-    "selected-fields",
-    "membership-derived-read-parity"
-  ],
+  "assertionKinds": ["payload-shape", "selected-fields", "membership-derived-read-parity"],
   "liveCaptureFiles": [],
   "proxyRequest": {
     "documentPath": null,
