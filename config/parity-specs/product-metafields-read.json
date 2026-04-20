@@ -11,7 +11,7 @@
   "notes": "Executed by the conformance parity runner against a local proxy harness with the captured Shopify payload supplied as the upstream read response; no live Shopify writes are performed.",
   "comparison": {
     "mode": "strict-json",
-    "allowedDifferences": [],
+    "expectedDifferences": [],
     "targets": [
       {
         "name": "captured read payload",

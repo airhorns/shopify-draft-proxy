@@ -50,9 +50,23 @@ function listEffectiveCollections(): CollectionRecord[] {
 function listEffectiveProductsForCollection(collectionId: string): ProductRecord[] {
   return store
     .listEffectiveProducts()
-    .filter((product) =>
-      store.getEffectiveCollectionsByProductId(product.id).some((collection) => collection.id === collectionId),
-    );
+    .map((product) => ({
+      product,
+      membership:
+        store.getEffectiveCollectionsByProductId(product.id).find((collection) => collection.id === collectionId) ??
+        null,
+    }))
+    .filter(
+      (entry): entry is { product: ProductRecord; membership: ProductCollectionRecord } => entry.membership !== null,
+    )
+    .sort((left, right) => {
+      const leftPosition =
+        typeof left.membership.position === 'number' ? left.membership.position : Number.POSITIVE_INFINITY;
+      const rightPosition =
+        typeof right.membership.position === 'number' ? right.membership.position : Number.POSITIVE_INFINITY;
+      return leftPosition - rightPosition || left.product.id.localeCompare(right.product.id);
+    })
+    .map((entry) => entry.product);
 }
 
 function makeProductCollectionRecord(productId: string, collection: CollectionRecord): ProductCollectionRecord {
@@ -94,7 +108,7 @@ function addProductsToCollection(
     };
   }
 
-  for (const productId of normalizedProductIds) {
+  for (const productId of [...normalizedProductIds].reverse()) {
     const nextCollections = [
       ...store.getEffectiveCollectionsByProductId(productId),
       makeProductCollectionRecord(productId, collection),
@@ -320,6 +334,16 @@ function readTagInputs(raw: unknown, options: { allowCommaSeparatedString: boole
   return [...new Set(values)];
 }
 
+function normalizeProductTags(tags: string[]): string[] {
+  return [...new Set(tags.map((tag) => tag.trim()).filter((tag) => tag.length > 0))].sort((left, right) => {
+    if (left === right) {
+      return 0;
+    }
+
+    return left < right ? -1 : 1;
+  });
+}
+
 function removePublicationTargets(existing: string[], removals: string[]): string[] {
   const next = [...existing];
 
@@ -395,7 +419,7 @@ function makeProductRecord(input: Record<string, unknown>, existing?: ProductRec
     vendor: typeof rawVendor === 'string' ? rawVendor : (existing?.vendor ?? null),
     productType: typeof rawProductType === 'string' ? rawProductType : (existing?.productType ?? null),
     tags: Array.isArray(rawTags)
-      ? rawTags.filter((tag): tag is string => typeof tag === 'string')
+      ? normalizeProductTags(rawTags.filter((tag): tag is string => typeof tag === 'string'))
       : structuredClone(existing?.tags ?? []),
     totalInventory: existing?.totalInventory ?? null,
     tracksInventory: existing?.tracksInventory ?? null,
@@ -1684,6 +1708,25 @@ function normalizeUpstreamCollection(productId: string, value: unknown): Product
   };
 }
 
+function normalizeUpstreamCollectionRecord(value: unknown): CollectionRecord | null {
+  if (!isObject(value)) {
+    return null;
+  }
+
+  const rawId = value['id'];
+  const rawTitle = value['title'];
+  const rawHandle = value['handle'];
+  if (typeof rawId !== 'string' || typeof rawTitle !== 'string' || typeof rawHandle !== 'string') {
+    return null;
+  }
+
+  return {
+    id: rawId,
+    title: rawTitle,
+    handle: rawHandle,
+  };
+}
+
 function normalizeUpstreamMedia(productId: string, value: unknown, position: number): ProductMediaRecord | null {
   if (!isObject(value)) {
     return null;
@@ -1816,6 +1859,24 @@ function readProductNodes(value: unknown): unknown[] {
 
   if (Array.isArray(value['edges'])) {
     return value['edges'].map((edge) => (isObject(edge) ? edge['node'] : null)).filter((node) => node !== null);
+  }
+
+  return [];
+}
+
+function readConnectionNodeEntries(value: unknown): Array<{ node: unknown; position: number }> {
+  if (!isObject(value)) {
+    return [];
+  }
+
+  if (Array.isArray(value['nodes'])) {
+    return value['nodes'].map((node, position) => ({ node, position }));
+  }
+
+  if (Array.isArray(value['edges'])) {
+    return value['edges']
+      .map((edge, position) => (isObject(edge) ? { node: edge['node'], position } : null))
+      .filter((entry): entry is { node: unknown; position: number } => entry !== null && entry.node !== null);
   }
 
   return [];
@@ -2278,6 +2339,7 @@ function serializeCollectionObject(
           args['sortKey'],
           args['reverse'],
           variables,
+          { preserveDefaultOrder: true },
         );
         break;
       }
@@ -3263,15 +3325,20 @@ function compareProductsDefaultOrder(left: ProductRecord, right: ProductRecord):
   return right.createdAt.localeCompare(left.createdAt) || right.id.localeCompare(left.id);
 }
 
-function sortProducts(products: ProductRecord[], rawSortKey: unknown, rawReverse: unknown): ProductRecord[] {
-  const direction = rawReverse === true ? -1 : 1;
-  return [...products].sort((left, right) => {
-    const comparison = compareProductsBySortKey(left, right, rawSortKey);
-    return (
-      (rawSortKey === undefined || rawSortKey === null ? compareProductsDefaultOrder(left, right) : comparison) *
-      direction
-    );
-  });
+function sortProducts(
+  products: ProductRecord[],
+  rawSortKey: unknown,
+  rawReverse: unknown,
+  options: { preserveDefaultOrder?: boolean } = {},
+): ProductRecord[] {
+  const sortedProducts =
+    rawSortKey === undefined || rawSortKey === null
+      ? options.preserveDefaultOrder === true
+        ? [...products]
+        : [...products].sort(compareProductsDefaultOrder)
+      : [...products].sort((left, right) => compareProductsBySortKey(left, right, rawSortKey));
+
+  return rawReverse === true ? sortedProducts.reverse() : sortedProducts;
 }
 
 function parseProductsCursor(rawCursor: unknown): string | null {
@@ -3294,9 +3361,10 @@ function serializeProductsConnection(
   rawSortKey: unknown,
   rawReverse: unknown,
   variables: Record<string, unknown>,
+  options: { preserveDefaultOrder?: boolean } = {},
 ): Record<string, unknown> {
   const filteredProducts = applyProductsQuery(products, rawQuery);
-  const sortedProducts = sortProducts(filteredProducts, rawSortKey, rawReverse);
+  const sortedProducts = sortProducts(filteredProducts, rawSortKey, rawReverse, options);
   const afterProductId = parseProductsCursor(rawAfter);
   const beforeProductId = parseProductsCursor(rawBefore);
   const startIndex =
@@ -3494,7 +3562,9 @@ function normalizeUpstreamProduct(value: unknown): {
       updatedAt: typeof rawUpdatedAt === 'string' ? rawUpdatedAt : '1970-01-01T00:00:00.000Z',
       vendor: typeof rawVendor === 'string' ? rawVendor : null,
       productType: typeof rawProductType === 'string' ? rawProductType : null,
-      tags: Array.isArray(rawTags) ? rawTags.filter((tag): tag is string => typeof tag === 'string') : [],
+      tags: Array.isArray(rawTags)
+        ? normalizeProductTags(rawTags.filter((tag): tag is string => typeof tag === 'string'))
+        : [],
       totalInventory: typeof rawTotalInventory === 'number' ? rawTotalInventory : null,
       tracksInventory: typeof rawTracksInventory === 'boolean' ? rawTracksInventory : null,
       descriptionHtml: typeof rawDescriptionHtml === 'string' ? rawDescriptionHtml : null,
@@ -3555,6 +3625,54 @@ export function hydrateProductsFromUpstreamResponse(responseBody: unknown): void
     if (maybeProduct.hasMetafields) {
       store.replaceBaseMetafieldsForProduct(maybeProduct.product.id, maybeProduct.metafields);
     }
+  }
+
+  const hydrateCollection = (value: unknown): void => {
+    const collection = normalizeUpstreamCollectionRecord(value);
+    if (!collection || !isObject(value)) {
+      return;
+    }
+
+    store.upsertBaseCollections([collection]);
+
+    const productEntries = readConnectionNodeEntries(value['products']);
+    for (const productEntry of productEntries) {
+      const normalizedProduct = normalizeUpstreamProduct(productEntry.node);
+      if (!normalizedProduct) {
+        continue;
+      }
+
+      store.upsertBaseProducts([normalizedProduct.product]);
+      if (normalizedProduct.hasOptions) {
+        store.replaceBaseOptionsForProduct(normalizedProduct.product.id, normalizedProduct.options);
+      }
+      if (normalizedProduct.hasVariants) {
+        store.replaceBaseVariantsForProduct(normalizedProduct.product.id, normalizedProduct.variants);
+      }
+      if (normalizedProduct.hasMedia) {
+        store.replaceBaseMediaForProduct(normalizedProduct.product.id, normalizedProduct.media);
+      }
+      if (normalizedProduct.hasMetafields) {
+        store.replaceBaseMetafieldsForProduct(normalizedProduct.product.id, normalizedProduct.metafields);
+      }
+
+      const nextCollections = [
+        ...store
+          .getEffectiveCollectionsByProductId(normalizedProduct.product.id)
+          .filter((candidate) => candidate.id !== collection.id),
+        {
+          ...collection,
+          productId: normalizedProduct.product.id,
+          position: productEntry.position,
+        },
+      ];
+      store.replaceBaseCollectionsForProduct(normalizedProduct.product.id, nextCollections);
+    }
+  };
+
+  hydrateCollection(rawData['collection']);
+  for (const collection of readCollectionNodes(rawData['collections'])) {
+    hydrateCollection(collection);
   }
 
   const rawProducts = rawData['products'];
@@ -3652,7 +3770,9 @@ export function handleProductMutation(document: string, variables: Record<string
         }
       }
 
-      store.stageUpdateProduct(makeProductRecord({ id: productId, tags: nextTags }, existingProduct));
+      store.stageUpdateProduct(
+        makeProductRecord({ id: productId, tags: normalizeProductTags(nextTags) }, existingProduct),
+      );
       const product = store.getEffectiveProductById(productId);
       return {
         data: {
@@ -3701,7 +3821,7 @@ export function handleProductMutation(document: string, variables: Record<string
         };
       }
 
-      const nextTags = existingProduct.tags.filter((tag) => !tags.includes(tag));
+      const nextTags = normalizeProductTags(existingProduct.tags.filter((tag) => !tags.includes(tag)));
       store.stageUpdateProduct(makeProductRecord({ id: productId, tags: nextTags }, existingProduct));
       const product = store.getEffectiveProductById(productId);
       return {

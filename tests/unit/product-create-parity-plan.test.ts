@@ -9,7 +9,11 @@ describe('productCreate parity plan scaffold', () => {
     const specPath = resolve(repoRoot, 'config/parity-specs/productCreate-parity-plan.json');
     const spec = JSON.parse(readFileSync(specPath, 'utf8')) as {
       proxyRequest?: { documentPath?: string | null; variablesPath?: string | null };
-      comparison?: { mode?: string; targets?: Array<{ name?: string }>; allowedDifferences?: Array<{ path?: string }> };
+      comparison?: {
+        mode?: string;
+        targets?: Array<{ name?: string }>;
+        expectedDifferences?: Array<{ path?: string }>;
+      };
     };
 
     expect(spec.proxyRequest?.documentPath).toBe('config/parity-requests/productCreate-parity-plan.graphql');
@@ -53,11 +57,9 @@ describe('productCreate parity plan scaffold', () => {
 
     expect(spec.comparison?.mode).toBe('strict-json');
     expect(spec.comparison?.targets?.map((target) => target.name)).toEqual(['mutation-data', 'downstream-read-data']);
-    expect(spec.comparison?.allowedDifferences?.map((difference) => difference.path)).toEqual([
+    expect(spec.comparison?.expectedDifferences?.map((difference) => difference.path)).toEqual([
       '$.productCreate.product.id',
-      '$.productCreate.product.tags',
       '$.product.id',
-      '$.product.tags',
     ]);
   });
 });

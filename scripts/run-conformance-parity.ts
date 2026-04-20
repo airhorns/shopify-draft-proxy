@@ -43,7 +43,7 @@ for (const scenario of selectedScenarios) {
       ? {
           status: 'valid',
           mode: paritySpec.comparison.mode,
-          allowedDifferences: paritySpec.comparison.allowedDifferences?.length ?? 0,
+          expectedDifferences: paritySpec.comparison.expectedDifferences?.length ?? 0,
         }
       : paritySpec.comparison
         ? {

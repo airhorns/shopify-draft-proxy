@@ -436,4 +436,114 @@ describe('collection query shapes', () => {
     });
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
+
+  it('hydrates collection product order from upstream collection reads before applying staged overlays', async () => {
+    store.upsertBaseProducts([
+      {
+        id: 'gid://shopify/Product/1',
+        legacyResourceId: '1',
+        title: 'Alpha Hat',
+        handle: 'alpha-hat',
+        status: 'ACTIVE',
+        publicationIds: [],
+        createdAt: '1970-01-01T00:00:00.000Z',
+        updatedAt: '1970-01-01T00:00:00.000Z',
+        vendor: 'NIKE',
+        productType: 'ACCESSORIES',
+        tags: ['hat'],
+        totalInventory: 9,
+        tracksInventory: true,
+        descriptionHtml: null,
+        onlineStorePreviewUrl: null,
+        templateSuffix: null,
+        seo: { title: null, description: null },
+        category: null,
+      },
+    ]);
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          data: {
+            collection: {
+              id: 'gid://shopify/Collection/700',
+              title: 'Manual Hats',
+              handle: 'manual-hats',
+              products: {
+                edges: [
+                  {
+                    cursor: 'upstream-alpha',
+                    node: {
+                      id: 'gid://shopify/Product/1',
+                      title: 'Alpha Hat',
+                      handle: 'alpha-hat',
+                      tags: ['hat'],
+                    },
+                  },
+                  {
+                    cursor: 'upstream-beta',
+                    node: {
+                      id: 'gid://shopify/Product/2',
+                      title: 'Beta Hat',
+                      handle: 'beta-hat',
+                      tags: ['hat'],
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+
+    const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
+
+    const updateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation StageTitle($product: ProductUpdateInput!) { productUpdate(product: $product) { product { id title } userErrors { field message } } }',
+        variables: {
+          product: {
+            id: 'gid://shopify/Product/1',
+            title: 'Alpha Hat Draft',
+          },
+        },
+      });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body.data.productUpdate.userErrors).toEqual([]);
+
+    const collectionResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query OrderedCollection($id: ID!) { collection(id: $id) { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } }',
+        variables: { id: 'gid://shopify/Collection/700' },
+      });
+
+    expect(collectionResponse.status).toBe(200);
+    expect(collectionResponse.body).toEqual({
+      data: {
+        collection: {
+          id: 'gid://shopify/Collection/700',
+          title: 'Manual Hats',
+          handle: 'manual-hats',
+          products: {
+            nodes: [
+              { id: 'gid://shopify/Product/1', title: 'Alpha Hat Draft', handle: 'alpha-hat' },
+              { id: 'gid://shopify/Product/2', title: 'Beta Hat', handle: 'beta-hat' },
+            ],
+            pageInfo: {
+              hasNextPage: false,
+              hasPreviousPage: false,
+            },
+          },
+        },
+      },
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
 });

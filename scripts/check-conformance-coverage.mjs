@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -23,6 +24,13 @@ function assert(condition, message) {
 
 function relativeExists(relativePath) {
   return existsSync(path.join(repoRoot, relativePath));
+}
+
+function formatGeneratedJson(filePath) {
+  execFileSync('corepack', ['pnpm', 'exec', 'oxfmt', '--write', filePath], {
+    cwd: repoRoot,
+    stdio: 'ignore',
+  });
 }
 
 const allowedExecution = new Set(['overlay-read', 'stage-locally', 'passthrough']);
@@ -75,13 +83,17 @@ function validateComparisonContract(scenarioId, comparison) {
     `Captured scenario ${scenarioId} comparison contract must use mode strict-json.`,
   );
   assert(
-    Array.isArray(comparison.allowedDifferences),
-    `Captured scenario ${scenarioId} comparison contract must declare allowedDifferences.`,
+    !Object.prototype.hasOwnProperty.call(comparison, 'allowedDifferences'),
+    `Captured scenario ${scenarioId} comparison contract must use expectedDifferences, not allowedDifferences.`,
+  );
+  assert(
+    Array.isArray(comparison.expectedDifferences),
+    `Captured scenario ${scenarioId} comparison contract must declare expectedDifferences.`,
   );
 
-  for (const [index, rawRule] of (comparison.allowedDifferences ?? []).entries()) {
+  for (const [index, rawRule] of (comparison.expectedDifferences ?? []).entries()) {
     const rule = isPlainObject(rawRule) ? rawRule : {};
-    const label = `allowedDifferences[${index}]`;
+    const label = `expectedDifferences[${index}]`;
     assert(
       typeof rule.path === 'string' && rule.path.length > 0,
       `Captured scenario ${scenarioId} ${label} must declare a non-empty path.`,
@@ -121,7 +133,7 @@ function validateComparisonContract(scenarioId, comparison) {
     }
   }
 
-  return comparison.mode === 'strict-json' && Array.isArray(comparison.allowedDifferences);
+  return comparison.mode === 'strict-json' && Array.isArray(comparison.expectedDifferences);
 }
 
 for (const scenario of scenarioRegistry) {
@@ -273,11 +285,11 @@ const capturedScenarios = scenarioRegistry.filter((scenario) => scenario.status 
 const plannedScenarios = scenarioRegistry.filter((scenario) => scenario.status === 'planned');
 const regrettableDivergences = capturedScenarios.flatMap((scenario) => {
   const paritySpec = JSON.parse(readFileSync(path.join(repoRoot, scenario.paritySpecPath), 'utf8'));
-  const allowedDifferences = Array.isArray(paritySpec?.comparison?.allowedDifferences)
-    ? paritySpec.comparison.allowedDifferences
+  const expectedDifferences = Array.isArray(paritySpec?.comparison?.expectedDifferences)
+    ? paritySpec.comparison.expectedDifferences
     : [];
 
-  return allowedDifferences.flatMap((difference, index) => {
+  return expectedDifferences.flatMap((difference, index) => {
     if (difference?.regrettable !== true) {
       return [];
     }
@@ -286,7 +298,7 @@ const regrettableDivergences = capturedScenarios.flatMap((scenario) => {
       {
         scenarioId: scenario.id,
         paritySpecPath: scenario.paritySpecPath,
-        allowedDifferenceIndex: index,
+        expectedDifferenceIndex: index,
         path: difference.path,
         reason: difference.reason,
         matcher: difference.matcher ?? null,
@@ -377,6 +389,7 @@ const worklistStatusReport = [
 mkdirSync(path.dirname(reportPath), { recursive: true });
 writeFileSync(reportPath, coverageReport.join('\n'));
 writeFileSync(statusJsonPath, JSON.stringify(statusJson, null, 2) + '\n');
+formatGeneratedJson(statusJsonPath);
 writeFileSync(statusMarkdownPath, worklistStatusReport.join('\n'));
 
 // oxlint-disable-next-line no-console -- CLI status output is intentionally written to stdout.

@@ -249,8 +249,8 @@ export function renderConformanceComment(report: ConformanceReport): string {
     : '- Improvement over main: unavailable until a main baseline artifact exists.';
   const regrettableDivergenceLine =
     baseline && delta
-      ? `- Regrettable divergences: ${current.regrettableDivergences} allowed differences across ${current.regrettableDivergenceScenarios} scenarios (main: ${baseline.regrettableDivergences}, delta: ${formatSignedInteger(delta.regrettableDivergences)})`
-      : `- Regrettable divergences: ${current.regrettableDivergences} allowed differences across ${current.regrettableDivergenceScenarios} scenarios`;
+      ? `- Regrettable divergences: ${current.regrettableDivergences} expected differences across ${current.regrettableDivergenceScenarios} scenarios (main: ${baseline.regrettableDivergences}, delta: ${formatSignedInteger(delta.regrettableDivergences)})`
+      : `- Regrettable divergences: ${current.regrettableDivergences} expected differences across ${current.regrettableDivergenceScenarios} scenarios`;
   const commit = report.commit ? report.commit.slice(0, 12) : 'unknown';
 
   return [

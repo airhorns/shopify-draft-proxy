@@ -19,7 +19,7 @@ const status = {
     {
       scenarioId: 'product-create-live-parity',
       paritySpecPath: 'config/parity-specs/productCreate-parity-plan.json',
-      allowedDifferenceIndex: 0,
+      expectedDifferenceIndex: 0,
       path: '$.data.productCreate.product.id',
       reason: 'Shopify and the proxy allocate different product ids.',
       matcher: 'shopify-gid:Product',
@@ -85,7 +85,7 @@ describe('conformance status reporting', () => {
     expect(renderConformanceComment(report)).toContain('Current branch: 2 / 3 scenarios conforming');
     expect(renderConformanceComment(report)).toContain('Improvement over main: +1 conforming scenarios');
     expect(renderConformanceComment(report)).toContain(
-      'Regrettable divergences: 1 allowed differences across 1 scenarios',
+      'Regrettable divergences: 1 expected differences across 1 scenarios',
     );
   });
 });
