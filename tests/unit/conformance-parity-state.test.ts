@@ -1,3 +1,6 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -108,20 +111,76 @@ describe('validateComparisonContract', () => {
         mode: 'strict-json',
         allowedDifferences: [
           {
+            path: '$.data.product.tags',
+            ignore: true,
+            regrettable: true,
+            reason: 'The proxy preserves tag membership but does not yet preserve Shopify tag ordering.',
+          },
+        ],
+      }),
+    ).toEqual([]);
+
+    expect(
+      validateComparisonContract({
+        mode: 'strict-json',
+        allowedDifferences: [
+          {
             path: '$.data.product.id',
             matcher: 'everything',
           },
           {
             reason: 'This rule is missing a path and action.',
           },
+          {
+            path: '$.data.product.tags',
+            ignore: true,
+            reason: 'This ignored gap must be explicitly marked regrettable.',
+          },
+          {
+            path: '$.data.product.options',
+            ignore: true,
+            regrettable: false,
+            reason: 'Regrettable is only a positive marker.',
+          },
         ],
       }),
     ).toEqual([
-      'allowedDifferences[0] must document why the difference is nondeterministic.',
+      'allowedDifferences[0] must document why the difference is allowed.',
       'allowedDifferences[0] declares unknown matcher `everything`.',
       'allowedDifferences[1] must declare a non-empty JSON path.',
       'allowedDifferences[1] must declare exactly one of `matcher` or `ignore: true`.',
+      'allowedDifferences[2] with `ignore: true` must set `regrettable: true` for the parity gap.',
+      'allowedDifferences[3] `regrettable`, when declared, must be true.',
+      'allowedDifferences[3] with `ignore: true` must set `regrettable: true` for the parity gap.',
     ]);
+  });
+
+  it('requires every repository ignore rule to be explicitly regrettable', () => {
+    const repoRoot = resolve(import.meta.dirname, '../..');
+    const paritySpecRoot = resolve(repoRoot, 'config/parity-specs');
+    const unmarkedIgnores: string[] = [];
+
+    for (const fileName of readdirSync(paritySpecRoot)
+      .filter((name) => name.endsWith('.json'))
+      .sort()) {
+      const spec = JSON.parse(readFileSync(resolve(paritySpecRoot, fileName), 'utf8')) as {
+        comparison?: {
+          allowedDifferences?: Array<{
+            path?: string;
+            ignore?: boolean;
+            regrettable?: true;
+          }>;
+        };
+      };
+
+      for (const difference of spec.comparison?.allowedDifferences ?? []) {
+        if (difference.ignore === true && difference.regrettable !== true) {
+          unmarkedIgnores.push(`${fileName}:${difference.path ?? '<missing path>'}`);
+        }
+      }
+    }
+
+    expect(unmarkedIgnores).toEqual([]);
   });
 });
 
@@ -336,6 +395,7 @@ describe('executeParityScenario', () => {
             {
               path: '$.productCreate.product.tags',
               ignore: true,
+              regrettable: true,
               reason: 'Local tag order is a documented parity gap.',
             },
             {
@@ -346,6 +406,7 @@ describe('executeParityScenario', () => {
             {
               path: '$.product.tags',
               ignore: true,
+              regrettable: true,
               reason: 'Local tag order is a documented parity gap.',
             },
           ],

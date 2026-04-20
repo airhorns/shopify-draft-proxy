@@ -18,6 +18,7 @@
       {
         "path": "$.collectionAddProducts.collection",
         "ignore": true,
+        "regrettable": true,
         "reason": "This field is a documented fidelity gap for the current staged local implementation."
       }
     ],

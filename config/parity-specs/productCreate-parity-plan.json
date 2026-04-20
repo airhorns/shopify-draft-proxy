@@ -20,6 +20,7 @@
       {
         "path": "$.productCreate.product.tags",
         "ignore": true,
+        "regrettable": true,
         "reason": "The staged product path preserves tag membership but does not yet preserve Shopify's returned tag ordering."
       },
       {
@@ -30,6 +31,7 @@
       {
         "path": "$.product.tags",
         "ignore": true,
+        "regrettable": true,
         "reason": "The downstream staged read preserves tag membership but does not yet preserve Shopify's returned tag ordering."
       }
     ],

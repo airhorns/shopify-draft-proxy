@@ -30,6 +30,7 @@ export interface AllowedDifference {
   ignore?: boolean;
   matcher?: Matcher;
   reason?: string;
+  regrettable?: true;
 }
 
 export interface ProxyRequestSpec {
@@ -124,7 +125,7 @@ export function validateComparisonContract(comparison: unknown): string[] {
     }
 
     if (typeof rule['reason'] !== 'string' || rule['reason'].length === 0) {
-      errors.push(`${label} must document why the difference is nondeterministic.`);
+      errors.push(`${label} must document why the difference is allowed.`);
     }
 
     const hasMatcher = typeof rule['matcher'] === 'string';
@@ -135,6 +136,14 @@ export function validateComparisonContract(comparison: unknown): string[] {
 
     if (hasMatcher && !isKnownMatcher(rule['matcher'] as string)) {
       errors.push(`${label} declares unknown matcher \`${String(rule['matcher'])}\`.`);
+    }
+
+    if ('regrettable' in rule && rule['regrettable'] !== true) {
+      errors.push(`${label} \`regrettable\`, when declared, must be true.`);
+    }
+
+    if (isIgnored && rule['regrettable'] !== true) {
+      errors.push(`${label} with \`ignore: true\` must set \`regrettable: true\` for the parity gap.`);
     }
   }
 

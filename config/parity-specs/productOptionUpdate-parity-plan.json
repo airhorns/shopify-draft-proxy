@@ -18,6 +18,7 @@
       {
         "path": "$.productOptionUpdate.product.options",
         "ignore": true,
+        "regrettable": true,
         "reason": "This field is a documented fidelity gap for the current staged local implementation."
       }
     ],
