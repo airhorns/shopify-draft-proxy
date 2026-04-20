@@ -2,8 +2,8 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 
-import { parseOperation } from '../src/graphql/parse-operation.js';
-import { getOperationCapability } from '../src/proxy/capabilities.js';
+import { parseOperation, type ParsedOperation } from '../src/graphql/parse-operation.js';
+import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
 import {
   handleProductMutation,
   handleProductQuery,
@@ -13,11 +13,29 @@ import { makeSyntheticGid, makeSyntheticTimestamp, resetSyntheticIdentity } from
 import { store } from '../src/state/store.js';
 import type {
   CollectionRecord,
+  MutationLogInterpretedMetadata,
   ProductCollectionRecord,
   ProductOptionRecord,
   ProductRecord,
   ProductVariantRecord,
 } from '../src/state/types.js';
+
+function interpretMutationLogEntry(
+  parsed: ParsedOperation,
+  capability: OperationCapability,
+): MutationLogInterpretedMetadata {
+  return {
+    operationType: parsed.type,
+    operationName: parsed.name,
+    rootFields: parsed.rootFields,
+    primaryRootField: parsed.rootFields[0] ?? null,
+    capability: {
+      operationName: capability.operationName,
+      domain: capability.domain,
+      execution: capability.execution,
+    },
+  };
+}
 
 export type ParityScenarioState =
   | 'ready-for-comparison'
@@ -551,6 +569,7 @@ async function executeGraphQLAgainstLocalProxy(
       query: document,
       variables,
       status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
       notes: 'Staged locally in the conformance parity proxy harness.',
     });
 

@@ -28,8 +28,7 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 5. **Match Shopify's empty/no-data behavior**
    - In snapshot mode and local reads, prefer the same null/empty structures Shopify returns when the backend lacks data.
 
-6. **Docs and worklist must stay current**
-   - Update `docs/shopify-admin-worklist.md` when adding or scoping support.
+6. **Docs must stay current**
    - Update `docs/architecture.md` if runtime architecture changes.
    - Update `docs/original-intent.md` only if the product goal truly changes.
 
@@ -48,9 +47,9 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 1. Read `docs/original-intent.md`.
 2. Read `docs/architecture.md`.
 3. Read `docs/hard-and-weird-notes.md` before making fidelity assumptions.
-4. Check `docs/shopify-admin-worklist.md` for the next operation.
+4. Check Linear for the next operation to implement.
 5. Add/adjust tests before implementation.
-6. Update docs/worklist after shipping behavior.
+6. Update docs after shipping behavior.
 
 ## Repo status note
 

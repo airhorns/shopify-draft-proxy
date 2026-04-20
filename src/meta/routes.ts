@@ -1,15 +1,32 @@
 import Router from '@koa/router';
 import type Koa from 'koa';
+import type { AppConfig } from '../config.js';
 import { store } from '../state/store.js';
 import { resetSyntheticIdentity } from '../state/synthetic-identity.js';
 
-export function createMetaRouter(): Router {
+export function createMetaRouter(config: AppConfig): Router {
   const router = new Router();
 
   router.get('/__meta/health', (ctx: Koa.Context) => {
     ctx.body = {
       ok: true,
       message: 'shopify-draft-proxy is running',
+    };
+  });
+
+  router.get('/__meta/config', (ctx: Koa.Context) => {
+    ctx.body = {
+      runtime: {
+        readMode: config.readMode,
+      },
+      proxy: {
+        port: config.port,
+        shopifyAdminOrigin: config.shopifyAdminOrigin,
+      },
+      snapshot: {
+        enabled: Boolean(config.snapshotPath),
+        path: config.snapshotPath ?? null,
+      },
     };
   });
 
