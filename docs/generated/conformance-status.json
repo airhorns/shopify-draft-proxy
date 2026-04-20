@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-20T12:17:10.041Z",
+  "generatedAt": "2026-04-20T20:35:11.898Z",
   "implementedOperations": [
     {
       "name": "product",
@@ -234,6 +234,14 @@
       "reason": "Media mutation parity still needs dedicated live-write scenarios and payload assertions."
     },
     {
+      "name": "fileCreate",
+      "type": "mutation",
+      "execution": "stage-locally",
+      "conformanceStatus": "declared-gap",
+      "scenarioIds": ["fileCreate-parity-plan"],
+      "reason": "Store-level Files API create parity still needs dedicated live-write scenarios and payload assertions."
+    },
+    {
       "name": "inventoryAdjustQuantities",
       "type": "mutation",
       "execution": "stage-locally",
@@ -335,6 +343,7 @@
     "productCreateMedia",
     "productUpdateMedia",
     "productDeleteMedia",
+    "fileCreate",
     "inventoryAdjustQuantities",
     "metafieldsSet",
     "metafieldDelete"
@@ -369,6 +378,7 @@
     "metafieldsSet-parity-plan",
     "productCreateMedia-parity-plan",
     "productDeleteMedia-parity-plan",
+    "fileCreate-parity-plan",
     "productDuplicate-parity-plan",
     "productPublish-parity-plan",
     "productSet-parity-plan",

@@ -1,8 +1,8 @@
 ---
 tracker:
   kind: linear
-  project_slug: "{{LINEAR_PROJECT_SLUG}}"
-  assignee: "{{LINEAR_ASSIGNEE}}"
+  project_slug: '{{LINEAR_PROJECT_SLUG}}'
+  assignee: '{{LINEAR_ASSIGNEE}}'
   active_states:
     - Todo
     - In Progress
@@ -18,7 +18,7 @@ tracker:
 polling:
   interval_ms: 10000
 workspace:
-  root: {{WORKSPACE_ROOT}}
+  root: { { WORKSPACE_ROOT } }
 hooks:
   after_create: |
     git clone --depth 1 {{SOURCE_REPO_URL}} .
@@ -33,12 +33,12 @@ agent:
   max_concurrent_agents: 3
   max_turns: 24
 codex:
-  command: {{CODEX_COMMAND}}
+  command: { { CODEX_COMMAND } }
   approval_policy: never
   thread_sandbox: danger-full-access
 server:
   dashboard_enabled: true
-  host: "{{SYMPHONY_HOST}}"
+  host: '{{SYMPHONY_HOST}}'
 ---
 
 ## Repository-specific guidance for `shopify-draft-proxy`
@@ -46,10 +46,12 @@ server:
 You are working in the `shopify-draft-proxy` repository.
 
 Identity requirements:
+
 - The Linear user for this workflow should be the `harrymees` user.
 - The GitHub user for this workflow should be the `harrymees` user.
 
 GitHub execution requirements:
+
 - Do **not** use any Codex/OpenAI GitHub connector, MCP GitHub server, or `mcp__codex_apps__github_*` tool for branch, PR, review, or comment actions.
 - Perform all GitHub work via the local shell using the checked-out repo's `git` remote plus the host's authenticated `gh` CLI.
 - Create pull requests with `gh pr create`; inspect/update them with local `gh pr ...` / `gh api ...` commands only.
@@ -58,30 +60,33 @@ GitHub execution requirements:
 - If a connector/MCP GitHub tool is offered, ignore it and continue with local `git`/`gh` commands so PRs are authored as the host's `harrymees` account.
 
 Comment marker requirements:
+
 - On both Linear comments and GitHub PR/review comments, when you have seen a comment and are actively working from it, mark that comment with a `👀` reaction.
 - Once the requested action is complete or the comment has been fully handled, replace the `👀` reaction with a `🟢` reaction.
 - Do not leave both markers on the same comment at once; `👀` means in progress, `🟢` means done.
 
 Primary mission:
+
 - Preserve the intent in `docs/original-intent.md`.
 - This project is a Shopify Admin GraphQL digital twin / draft proxy, not a generic mock server.
 
 Non-negotiables:
+
 1. Products first, but deep.
 2. Domain fidelity over hacks.
 3. Do not send supported mutations to Shopify at runtime.
 4. Keep original raw mutations for commit.
 5. Match Shopify's empty/no-data behavior.
-6. Keep docs and worklists current.
+6. Keep docs current.
 
 Required reading order:
+
 1. `AGENTS.md`
 2. `docs/original-intent.md`
 3. `docs/architecture.md`
-4. `docs/hard-and-weird-notes.md`
-5. `docs/shopify-admin-worklist.md`
 
 Implementation guidance:
+
 - Use strict TypeScript.
 - Prefer conformance fixtures over assumptions.
 - Add tests for every supported operation you touch.
@@ -89,7 +94,8 @@ Implementation guidance:
 - If live credentials are required beyond `.env.example`, only treat that as a blocker after exhausting local/snapshot/conformance-fixture paths documented in the repo.
 
 Tooling guidance:
-- Use `corepack pnpm ...` for package management and scripts.
+
+- Use `pnpm ...` for package management and scripts.
 - `tsx watch` is used for dev runs; `tsc` builds to `dist`; Vitest covers tests.
 - If you need repo-local Codex skills and `.codex` is missing in the workspace, inspect the repo root carefully before assuming the skill exists.
 

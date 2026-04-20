@@ -171,6 +171,15 @@
     "notes": "Media mutation parity still needs dedicated live-write scenarios and payload assertions."
   },
   {
+    "id": "fileCreate-parity-plan",
+    "operationNames": ["fileCreate"],
+    "status": "planned",
+    "assertionKinds": ["payload-shape", "user-errors-parity", "state-inspection"],
+    "captureFiles": [],
+    "paritySpecPath": "config/parity-specs/fileCreate-parity-plan.json",
+    "notes": "Store-level Files API create parity still needs dedicated live-write scenarios and payload assertions. This differs from productCreateMedia because fileCreate creates store file assets and does not attach media to a product."
+  },
+  {
     "id": "productDuplicate-parity-plan",
     "operationNames": ["productDuplicate"],
     "status": "planned",

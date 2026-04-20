@@ -29,7 +29,6 @@ This project is not a generic mock server. It is a **digital twin** / **draft la
 - `docs/original-intent.md` — project intent and non-goals; preserve this vision
 - `docs/architecture.md` — system design and execution model
 - `docs/implementation-plan.md` — milestone plan and ordered build steps
-- `docs/shopify-admin-worklist.md` — exhaustive query/mutation worklist
 - `docs/hard-and-weird-notes.md` — fidelity traps and oddities discovered during implementation
 - `docs/conformance-setup.md` — how to connect a real Shopify dev store/app for parity testing
 

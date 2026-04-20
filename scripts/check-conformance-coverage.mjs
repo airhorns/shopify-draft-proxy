@@ -5,14 +5,12 @@ import path from 'node:path';
 const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const operationRegistryPath = path.join(repoRoot, 'config', 'operation-registry.json');
 const scenarioRegistryPath = path.join(repoRoot, 'config', 'conformance-scenarios.json');
-const worklistPath = path.join(repoRoot, 'docs', 'shopify-admin-worklist.md');
 const reportPath = path.join(repoRoot, 'docs', 'generated', 'conformance-coverage.md');
 const statusJsonPath = path.join(repoRoot, 'docs', 'generated', 'conformance-status.json');
 const statusMarkdownPath = path.join(repoRoot, 'docs', 'generated', 'worklist-conformance-status.md');
 
 const operationRegistry = JSON.parse(readFileSync(operationRegistryPath, 'utf8'));
 const scenarioRegistry = JSON.parse(readFileSync(scenarioRegistryPath, 'utf8'));
-const worklist = readFileSync(worklistPath, 'utf8');
 
 const errors = [];
 
@@ -34,7 +32,7 @@ function formatGeneratedJson(filePath) {
 }
 
 const allowedExecution = new Set(['overlay-read', 'stage-locally', 'passthrough']);
-const allowedDomain = new Set(['products', 'unknown']);
+const allowedDomain = new Set(['products', 'media', 'unknown']);
 const allowedType = new Set(['query', 'mutation']);
 const allowedConformanceStatus = new Set(['covered', 'declared-gap']);
 const allowedScenarioStatus = new Set(['captured', 'planned']);
@@ -252,20 +250,6 @@ for (const scenario of scenarioRegistry) {
   for (const operationName of scenario.operationNames) {
     assert(operationNames.has(operationName), `Scenario ${scenario.id} references unknown operation ${operationName}.`);
   }
-}
-
-const implementedWorklistOperations = new Set(
-  worklist
-    .split('\n')
-    .filter((line) => line.includes('[x]'))
-    .flatMap((line) => Array.from(line.matchAll(/`([^`]+)`/g), (match) => match[1])),
-);
-
-for (const entry of operationRegistry.filter((candidate) => candidate.implemented)) {
-  assert(
-    implementedWorklistOperations.has(entry.name),
-    `Implemented operation ${entry.name} must appear as [x] in docs/shopify-admin-worklist.md.`,
-  );
 }
 
 if (errors.length > 0) {
