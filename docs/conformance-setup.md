@@ -36,6 +36,22 @@ See `.env.example` for the canonical variable names.
 
 The server now loads `.env` automatically via `dotenv`, so a local `.env` file is enough for normal `pnpm dev` / `pnpm start` workflows.
 
+#### Symphony workspace credential link
+
+On the current unattended Symphony host, the durable conformance credential file lives in the original checkout:
+
+```text
+/home/airhorns/code/shopify-draft-proxy/.env
+```
+
+New Symphony workspaces should link their repo-local `.env` to that file instead of copying secret values into the workspace:
+
+```bash
+ln -sfn /home/airhorns/code/shopify-draft-proxy/.env .env
+```
+
+If a workspace already has a placeholder `.env`, replace it with the symlink before running live conformance. Do not commit the symlink or any secret-bearing `.env` file; `.gitignore` excludes them. The link only proves where to load credentials from. `corepack pnpm conformance:probe` is still the required gate for proving the current token is valid before any live capture.
+
 ### 4. Validate structural conformance coverage before live probing
 
 Before probing the live target, run:
