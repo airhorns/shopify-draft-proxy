@@ -37,6 +37,44 @@ describe('meta routes', () => {
     });
   });
 
+  it('exposes safe effective proxy configuration and runtime mode', async () => {
+    const app = createApp({
+      ...config,
+      port: 4123,
+      readMode: 'snapshot',
+      snapshotPath: '/tmp/shopify-snapshot.json',
+    });
+
+    const response = await request(app.callback()).get('/__meta/config');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      runtime: {
+        readMode: 'snapshot',
+      },
+      proxy: {
+        port: 4123,
+        shopifyAdminOrigin: 'https://example.myshopify.com',
+      },
+      snapshot: {
+        enabled: true,
+        path: '/tmp/shopify-snapshot.json',
+      },
+    });
+  });
+
+  it('reports disabled snapshot configuration without inventing a path', async () => {
+    const app = createApp(config);
+
+    const response = await request(app.callback()).get('/__meta/config');
+
+    expect(response.status).toBe(200);
+    expect(response.body.snapshot).toEqual({
+      enabled: false,
+      path: null,
+    });
+  });
+
   it('exposes an empty ordered mutation log before anything is staged', async () => {
     const app = createApp(config);
 

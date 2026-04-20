@@ -191,7 +191,7 @@ Status legend:
 - [ ] `POST /__meta/commit`
 - [x] `GET /__meta/log` (ordered staged mutation log with raw documents, variables, interpreted metadata, and passthrough visibility)
 - [ ] `GET /__meta/state`
-- [ ] `GET /__meta/config`
+- [x] `GET /__meta/config` (safe effective proxy config plus runtime read mode)
 - [ ] `GET /__meta/health`
 
 ### State engine
