@@ -42,6 +42,12 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 - Add tests for every supported operation.
 - Prefer conformance fixtures over hand-wavy comments about expected behavior.
 
+## GitHub repository
+
+- The canonical GitHub repository is `airhorns/shopify-draft-proxy`.
+- Open pull requests against `airhorns/shopify-draft-proxy`; do not target personal forks such as `harrymees/shopify-draft-proxy`.
+- If a workspace remote points at a personal fork, retarget it to `git@github.com:airhorns/shopify-draft-proxy.git` before pushing or creating a PR.
+
 ## Suggested workflow
 
 1. Read `docs/original-intent.md`.

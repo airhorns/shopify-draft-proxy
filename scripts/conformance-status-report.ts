@@ -3,8 +3,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { buildConformanceStatusDocument } from './conformance-scenario-registry.js';
+
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const defaultStatusPath = path.join(repoRoot, 'docs', 'generated', 'conformance-status.json');
 const defaultOutputJsonPath = path.join(repoRoot, '.conformance', 'current', 'conformance-status-report.json');
 const defaultOutputMarkdownPath = path.join(repoRoot, '.conformance', 'current', 'conformance-status-comment.md');
 const commentMarker = '<!-- shopify-draft-proxy-conformance-status -->';
@@ -64,7 +65,7 @@ interface ConformanceReportInput {
 }
 
 interface WriteConformanceReportInput {
-  statusPath: string;
+  statusPath: string | null;
   baselinePath: string | null;
   outputJsonPath: string;
   outputMarkdownPath: string;
@@ -264,7 +265,7 @@ export function renderConformanceComment(report: ConformanceReport): string {
     `- Covered operations: ${current.coveredOperations} / ${current.implementedOperations} (${current.declaredGapOperations} declared gaps)`,
     `- Commit: \`${commit}\``,
     '',
-    '_Generated from `corepack pnpm conformance:check`._',
+    '_Generated from convention-discovered conformance parity specs._',
     '',
   ].join('\n');
 }
@@ -297,7 +298,8 @@ export function writeConformanceReport({
   outputJsonPath,
   outputMarkdownPath,
 }: WriteConformanceReportInput): void {
-  const status = readConformanceStatus(statusPath);
+  const status =
+    statusPath && existsSync(statusPath) ? readConformanceStatus(statusPath) : buildConformanceStatusDocument(repoRoot);
   const baseline = baselinePath && existsSync(baselinePath) ? readBaseline(baselinePath) : null;
   const report = buildConformanceReport({
     status,
@@ -327,7 +329,7 @@ function printHelp(): void {
   process.stdout.write(`Usage: tsx scripts/conformance-status-report.ts [options]
 
 Options:
-  --status-json <path>       Source conformance status JSON. Defaults to docs/generated/conformance-status.json.
+  --status-json <path>       Optional source conformance status JSON. Defaults to discovered parity specs.
   --baseline <path>          Optional main baseline report JSON.
   --output-json <path>       Output report JSON. Defaults to .conformance/current/conformance-status-report.json.
   --output-markdown <path>   Output PR comment markdown. Defaults to .conformance/current/conformance-status-comment.md.
@@ -343,7 +345,7 @@ if (invokedPath && import.meta.url === pathToFileURL(invokedPath).href) {
     printHelp();
   } else {
     writeConformanceReport({
-      statusPath: path.resolve(repoRoot, args.get('status-json') ?? defaultStatusPath),
+      statusPath: args.has('status-json') ? path.resolve(repoRoot, args.get('status-json') ?? '') : null,
       baselinePath: args.has('baseline') ? path.resolve(repoRoot, args.get('baseline') ?? '') : null,
       outputJsonPath: path.resolve(repoRoot, args.get('output-json') ?? defaultOutputJsonPath),
       outputMarkdownPath: path.resolve(repoRoot, args.get('output-markdown') ?? defaultOutputMarkdownPath),

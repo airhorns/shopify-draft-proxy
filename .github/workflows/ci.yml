@@ -74,8 +74,7 @@ jobs:
         if: github.event_name == 'pull_request' && steps.main_conformance_baseline.outputs.found != 'true'
         run: |
           mkdir -p .conformance/main
-          git fetch origin main:refs/remotes/origin/main --depth=1
-          git show origin/main:docs/generated/conformance-status.json > .conformance/main/conformance-status-report.json
+          echo "No main conformance baseline artifact found; PR status will omit the baseline comparison."
 
       - name: Generate conformance status report
         id: conformance_status

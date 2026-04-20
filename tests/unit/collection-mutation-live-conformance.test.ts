@@ -3,21 +3,16 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { loadConformanceScenarios } from '../../scripts/conformance-scenario-registry.js';
+
 type PackageJson = {
   scripts?: Record<string, string>;
-};
-
-type OperationRegistryEntry = {
-  name: string;
-  conformance?: {
-    status?: string;
-    scenarioIds?: string[];
-  };
 };
 
 type ConformanceScenario = {
   id: string;
   status: string;
+  operationNames: string[];
   captureFiles: string[];
   paritySpecPath: string;
 };
@@ -78,28 +73,14 @@ describe('collection mutation live conformance wiring', () => {
 
   it('marks the collection mutation family covered by captured live scenarios', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
-    const registry = JSON.parse(
-      readFileSync(resolve(repoRoot, 'config/operation-registry.json'), 'utf8'),
-    ) as OperationRegistryEntry[];
-    const scenarios = JSON.parse(
-      readFileSync(resolve(repoRoot, 'config/conformance-scenarios.json'), 'utf8'),
-    ) as ConformanceScenario[];
+    const scenarios = loadConformanceScenarios(repoRoot) as ConformanceScenario[];
 
     for (const expected of expectedLiveFamilies) {
-      expect(registry).toContainEqual(
-        expect.objectContaining({
-          name: expected.operationName,
-          conformance: expect.objectContaining({
-            status: 'covered',
-            scenarioIds: [expected.scenarioId],
-          }),
-        }),
-      );
-
       expect(scenarios).toContainEqual(
         expect.objectContaining({
           id: expected.scenarioId,
           status: 'captured',
+          operationNames: [expected.operationName],
           paritySpecPath: expected.paritySpecPath,
           captureFiles: [expected.captureFile],
         }),

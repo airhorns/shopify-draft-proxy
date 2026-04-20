@@ -13,6 +13,7 @@ dist/
 # Test and runtime output
 coverage/
 .conformance/
+docs/generated/
 *.log
 npm-debug.log*
 pnpm-debug.log*

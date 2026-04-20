@@ -41,11 +41,29 @@ The server now loads `.env` automatically via `dotenv`, so a local `.env` file i
 Before probing the live target, run:
 
 ```bash
-corepack pnpm conformance:check
-corepack pnpm conformance:parity
+pnpm conformance:check
+pnpm conformance:parity
 ```
 
-`conformance:check` verifies the canonical operation registry, conformance scenario registry, parity-spec files, worklist sync, and captured fixture references. Any implemented operation must declare runtime-test coverage plus one or more conformance scenario manifests.
+`conformance:check` runs the normal Vitest structural checks for the canonical operation registry, convention-discovered parity specs, captured fixture references, and proxy request files. Any implemented operation must declare runtime-test coverage and be named by at least one discovered parity spec.
+
+There is no central conformance scenario manifest. Standard scenarios are discovered from:
+
+```text
+config/parity-specs/*.json
+```
+
+Each parity spec is the scenario metadata source and must include:
+
+- `scenarioId`
+- `operationNames`
+- `scenarioStatus` (`planned` or `captured`)
+- `assertionKinds`
+- `liveCaptureFiles`
+- `proxyRequest.documentPath` / `proxyRequest.variablesPath` when a proxy parity request exists
+- `comparison` for captured scenarios that are ready to execute as strict JSON comparisons
+
+Every operation named by a discovered parity spec must exist in `config/operation-registry.json`, and every implemented operation in the registry must be named by at least one discovered parity spec. The scenario-to-operation mapping lives in each parity spec's `operationNames` field; the registry stays focused on runtime capability classification and runtime-test files.
 
 `conformance:parity` executes captured scenarios only after they declare both a proxy request and a strict JSON comparison contract. Valid high-assurance scenarios must compare explicit targets and list every allowed difference as a path-scoped rule with a reason. Use matchers for legitimate nondeterminism such as Shopify IDs, timestamps, and throttle metadata. An `ignore: true` rule means the proxy has not reached parity for that path; it must also set `regrettable: true` and should only be used for hard temporary gaps that will be fixed later.
 
@@ -54,7 +72,7 @@ corepack pnpm conformance:parity
 Once the vars are present, run:
 
 ```bash
-corepack pnpm conformance:probe
+pnpm conformance:probe
 ```
 
 This performs a minimal Admin GraphQL `shop` query against the configured store and fails fast if the domain/origin/token combination is wrong.
@@ -64,12 +82,12 @@ This performs a minimal Admin GraphQL `shop` query against the configured store 
 Run:
 
 ```bash
-corepack pnpm conformance:capture-products
-corepack pnpm conformance:capture-product-mutations
-corepack pnpm conformance:capture-product-state-mutations
-corepack pnpm conformance:capture-product-option-mutations
-corepack pnpm conformance:capture-collections
-corepack pnpm conformance:capture-collection-mutations
+pnpm conformance:capture-products
+pnpm conformance:capture-product-mutations
+pnpm conformance:capture-product-state-mutations
+pnpm conformance:capture-product-option-mutations
+pnpm conformance:capture-collections
+pnpm conformance:capture-collection-mutations
 ```
 
 This writes live Admin GraphQL captures under:
@@ -90,12 +108,12 @@ The current capture set records:
 
 ## Near-term workflow
 
-1. Install Shopify CLI on the host.
-2. Authenticate via Shopify CLI device flow.
-3. Identify a suitable test app and test store.
-4. Record the chosen store domain, API version, and access token source.
-5. Add recorder scripts that can issue real Admin GraphQL requests and store fixtures under `fixtures/`.
-6. Compare proxy responses against recorded Shopify responses.
+1. Pick the product-first Shopify behavior to model and add/update runtime tests for the proxy behavior.
+2. Add or update a parity spec in `config/parity-specs/`; do not edit a central scenario manifest.
+3. Add a proxy request pair under `config/parity-requests/` for scenarios ready to replay through the proxy.
+4. Add captured live fixtures under `fixtures/conformance/<store-domain>/<api-version>/` when credentials and store safety allow it.
+5. Ensure the parity spec's `operationNames` list matches existing root operations in `config/operation-registry.json`.
+6. Run `pnpm conformance:check` and `pnpm conformance:parity`.
 
 ## Important safety note
 
