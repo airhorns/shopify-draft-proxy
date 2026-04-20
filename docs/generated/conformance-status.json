@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-20T01:07:50.158Z",
+  "generatedAt": "2026-04-20T01:27:29.258Z",
   "implementedOperations": [
     {
       "name": "product",
@@ -380,5 +380,115 @@
     "productVariantsBulkCreate-parity-plan",
     "productVariantsBulkDelete-parity-plan",
     "productVariantsBulkUpdate-parity-plan"
+  ],
+  "regrettableDivergences": [
+    {
+      "scenarioId": "collection-add-products-live-parity",
+      "paritySpecPath": "config/parity-specs/collectionAddProducts-parity-plan.json",
+      "allowedDifferenceIndex": 0,
+      "path": "$.collectionAddProducts.collection",
+      "reason": "This field is a documented fidelity gap for the current staged local implementation.",
+      "matcher": null,
+      "ignored": true
+    },
+    {
+      "scenarioId": "collection-update-live-parity",
+      "paritySpecPath": "config/parity-specs/collectionUpdate-parity-plan.json",
+      "allowedDifferenceIndex": 0,
+      "path": "$.collectionUpdate.collection.handle",
+      "reason": "This field is a documented fidelity gap for the current staged local implementation.",
+      "matcher": null,
+      "ignored": true
+    },
+    {
+      "scenarioId": "collection-update-live-parity",
+      "paritySpecPath": "config/parity-specs/collectionUpdate-parity-plan.json",
+      "allowedDifferenceIndex": 1,
+      "path": "$.collectionUpdate.collection.products",
+      "reason": "This field is a documented fidelity gap for the current staged local implementation.",
+      "matcher": null,
+      "ignored": true
+    },
+    {
+      "scenarioId": "product-option-update-live-parity",
+      "paritySpecPath": "config/parity-specs/productOptionUpdate-parity-plan.json",
+      "allowedDifferenceIndex": 0,
+      "path": "$.productOptionUpdate.product.options",
+      "reason": "This field is a documented fidelity gap for the current staged local implementation.",
+      "matcher": null,
+      "ignored": true
+    },
+    {
+      "scenarioId": "product-options-create-live-parity",
+      "paritySpecPath": "config/parity-specs/productOptionsCreate-parity-plan.json",
+      "allowedDifferenceIndex": 0,
+      "path": "$.productOptionsCreate.product.options",
+      "reason": "This field is a documented fidelity gap for the current staged local implementation.",
+      "matcher": null,
+      "ignored": true
+    },
+    {
+      "scenarioId": "product-options-delete-live-parity",
+      "paritySpecPath": "config/parity-specs/productOptionsDelete-parity-plan.json",
+      "allowedDifferenceIndex": 0,
+      "path": "$.productOptionsDelete.product.options",
+      "reason": "This field is a documented fidelity gap for the current staged local implementation.",
+      "matcher": null,
+      "ignored": true
+    },
+    {
+      "scenarioId": "tags-add-live-parity",
+      "paritySpecPath": "config/parity-specs/tagsAdd-parity-plan.json",
+      "allowedDifferenceIndex": 0,
+      "path": "$.tagsAdd.node",
+      "reason": "This field is a documented fidelity gap for the current staged local implementation.",
+      "matcher": null,
+      "ignored": true
+    },
+    {
+      "scenarioId": "tags-remove-live-parity",
+      "paritySpecPath": "config/parity-specs/tagsRemove-parity-plan.json",
+      "allowedDifferenceIndex": 0,
+      "path": "$.tagsRemove.node",
+      "reason": "This field is a documented fidelity gap for the current staged local implementation.",
+      "matcher": null,
+      "ignored": true
+    },
+    {
+      "scenarioId": "product-create-live-parity",
+      "paritySpecPath": "config/parity-specs/productCreate-parity-plan.json",
+      "allowedDifferenceIndex": 1,
+      "path": "$.productCreate.product.tags",
+      "reason": "The staged product path preserves tag membership but does not yet preserve Shopify's returned tag ordering.",
+      "matcher": null,
+      "ignored": true
+    },
+    {
+      "scenarioId": "product-create-live-parity",
+      "paritySpecPath": "config/parity-specs/productCreate-parity-plan.json",
+      "allowedDifferenceIndex": 3,
+      "path": "$.product.tags",
+      "reason": "The downstream staged read preserves tag membership but does not yet preserve Shopify's returned tag ordering.",
+      "matcher": null,
+      "ignored": true
+    },
+    {
+      "scenarioId": "product-update-live-parity",
+      "paritySpecPath": "config/parity-specs/productUpdate-parity-plan.json",
+      "allowedDifferenceIndex": 0,
+      "path": "$.productUpdate.product.tags",
+      "reason": "This field is a documented fidelity gap for the current staged local implementation.",
+      "matcher": null,
+      "ignored": true
+    },
+    {
+      "scenarioId": "product-update-live-parity",
+      "paritySpecPath": "config/parity-specs/productUpdate-parity-plan.json",
+      "allowedDifferenceIndex": 1,
+      "path": "$.productUpdate.product.onlineStorePreviewUrl",
+      "reason": "This field is a documented fidelity gap for the current staged local implementation.",
+      "matcher": null,
+      "ignored": true
+    }
   ]
 }

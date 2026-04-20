@@ -1,0 +1,91 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  buildConformanceReport,
+  compareConformanceSummaries,
+  renderConformanceComment,
+  summarizeConformanceStatus,
+  type ConformanceStatusDocument,
+} from '../../scripts/conformance-status-report.js';
+
+const status = {
+  generatedAt: '2026-04-19T00:00:00.000Z',
+  implementedOperations: [{ name: 'product' }, { name: 'productCreate' }, { name: 'productUpdate' }],
+  coveredOperationNames: ['product', 'productCreate'],
+  declaredGapOperationNames: ['productUpdate'],
+  capturedScenarioIds: ['product-detail-read', 'product-create-live-parity'],
+  plannedScenarioIds: ['productUpdate-parity-plan'],
+  regrettableDivergences: [
+    {
+      scenarioId: 'product-create-live-parity',
+      paritySpecPath: 'config/parity-specs/productCreate-parity-plan.json',
+      allowedDifferenceIndex: 0,
+      path: '$.data.productCreate.product.id',
+      reason: 'Shopify and the proxy allocate different product ids.',
+      matcher: 'shopify-gid:Product',
+      ignored: false,
+    },
+  ],
+} satisfies ConformanceStatusDocument;
+
+describe('conformance status reporting', () => {
+  it('summarizes captured scenarios as conforming scenarios', () => {
+    expect(summarizeConformanceStatus(status)).toMatchObject({
+      conformingScenarios: 2,
+      totalScenarios: 3,
+      pendingScenarios: 1,
+      coveredOperations: 2,
+      implementedOperations: 3,
+      declaredGapOperations: 1,
+      regrettableDivergences: 1,
+      regrettableDivergenceScenarios: 1,
+    });
+  });
+
+  it('computes improvement against the main baseline', () => {
+    const current = summarizeConformanceStatus(status);
+    const baseline = {
+      ...current,
+      conformingScenarios: 1,
+      totalScenarios: 3,
+      conformanceRatio: 1 / 3,
+      coveredOperations: 1,
+      declaredGapOperations: 2,
+      regrettableDivergences: 0,
+      regrettableDivergenceScenarios: 0,
+    };
+
+    expect(compareConformanceSummaries(current, baseline)).toMatchObject({
+      conformingScenarios: 1,
+      totalScenarios: 0,
+      coveredOperations: 1,
+      implementedOperations: 0,
+      declaredGapOperations: -1,
+      regrettableDivergences: 1,
+      regrettableDivergenceScenarios: 1,
+    });
+  });
+
+  it('renders a stable marker-delimited PR comment', () => {
+    const report = buildConformanceReport({
+      status,
+      baseline: {
+        ...status,
+        capturedScenarioIds: ['product-detail-read'],
+        plannedScenarioIds: ['product-create-live-parity', 'productUpdate-parity-plan'],
+        coveredOperationNames: ['product'],
+        declaredGapOperationNames: ['productCreate', 'productUpdate'],
+      },
+      commit: '1234567890abcdef',
+      refName: 'example',
+      runId: '42',
+    });
+
+    expect(renderConformanceComment(report)).toContain('<!-- shopify-draft-proxy-conformance-status -->');
+    expect(renderConformanceComment(report)).toContain('Current branch: 2 / 3 scenarios conforming');
+    expect(renderConformanceComment(report)).toContain('Improvement over main: +1 conforming scenarios');
+    expect(renderConformanceComment(report)).toContain(
+      'Regrettable divergences: 1 allowed differences across 1 scenarios',
+    );
+  });
+});

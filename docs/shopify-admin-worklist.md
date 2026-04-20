@@ -227,6 +227,7 @@ Status legend:
   - [x] parity runner/helper entrypoints are TypeScript and `conformance:parity` runs through `tsx` without a pre-build
   - [ ] broaden executed comparison contracts beyond the first productCreate scenario, including cost/throttle extension modeling or explicit contract decisions per scenario
 - [ ] operation coverage matrix
+- [x] CI conformance status reporting (TypeScript/tsx utilities, main baseline artifact, and idempotent PR comment with scenario totals and improvement over main)
 - [ ] product scenario pack
 - [ ] mutation userErrors parity harness
 - [ ] empty/null behavior parity harness
