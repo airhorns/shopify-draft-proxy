@@ -105,6 +105,19 @@ export interface ProductMediaRecord {
   previewImageUrl: string | null;
 }
 
+export interface FileRecord {
+  id: string;
+  alt: string | null;
+  contentType: string | null;
+  createdAt: string;
+  fileStatus: string;
+  filename: string | null;
+  originalSource: string;
+  imageUrl: string | null;
+  imageWidth: number | null;
+  imageHeight: number | null;
+}
+
 export interface ProductMetafieldRecord {
   id: string;
   productId: string;
@@ -121,9 +134,22 @@ export interface StateSnapshot {
   collections: Record<string, CollectionRecord>;
   productCollections: Record<string, ProductCollectionRecord>;
   productMedia: Record<string, ProductMediaRecord>;
+  files: Record<string, FileRecord>;
   productMetafields: Record<string, ProductMetafieldRecord>;
   deletedProductIds: Record<string, true>;
   deletedCollectionIds: Record<string, true>;
+}
+
+export interface MutationLogInterpretedMetadata {
+  operationType: 'query' | 'mutation';
+  operationName: string | null;
+  rootFields: string[];
+  primaryRootField: string | null;
+  capability: {
+    operationName: string | null;
+    domain: string;
+    execution: string;
+  };
 }
 
 export interface MutationLogEntry {
@@ -133,5 +159,6 @@ export interface MutationLogEntry {
   query: string;
   variables: Record<string, unknown>;
   status: 'staged' | 'proxied' | 'committed' | 'failed';
+  interpreted: MutationLogInterpretedMetadata;
   notes?: string;
 }

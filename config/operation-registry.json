@@ -402,6 +402,20 @@
     }
   },
   {
+    "name": "fileCreate",
+    "type": "mutation",
+    "domain": "media",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["fileCreate", "FileCreate"],
+    "runtimeTests": ["tests/integration/media-draft-flow.test.ts"],
+    "conformance": {
+      "status": "declared-gap",
+      "reason": "Store-level Files API create parity still needs dedicated live-write scenarios and payload assertions.",
+      "scenarioIds": ["fileCreate-parity-plan"]
+    }
+  },
+  {
     "name": "inventoryAdjustQuantities",
     "type": "mutation",
     "domain": "products",

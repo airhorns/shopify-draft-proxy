@@ -303,6 +303,15 @@ describe('getOperationCapability', () => {
     });
   });
 
+  it('marks generic media fileCreate as a locally staged media mutation', () => {
+    expect(getOperationCapability({ type: 'mutation', name: 'FileCreate', rootFields: ['fileCreate'] })).toEqual({
+      domain: 'media',
+      execution: 'stage-locally',
+      operationName: 'FileCreate',
+      type: 'mutation',
+    });
+  });
+
   it('marks inventoryAdjustQuantities as a locally staged mutation', () => {
     expect(
       getOperationCapability({
