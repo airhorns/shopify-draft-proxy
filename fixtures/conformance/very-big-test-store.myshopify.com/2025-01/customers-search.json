@@ -1,0 +1,69 @@
+{
+  "data": {
+    "customers": {
+      "edges": [
+        {
+          "cursor": "eyJsYXN0X2lkIjo5MDc5NzAwNTIxMTkzLCJsYXN0X3ZhbHVlIjoxNzc2NTQ5ODc1MDAwfQ==",
+          "node": {
+            "id": "gid://shopify/Customer/9079700521193",
+            "displayName": "Hermes Operator",
+            "email": "hermes-order-parity-manual-1776549874815@example.com",
+            "legacyResourceId": "9079700521193",
+            "verifiedEmail": true,
+            "state": "DISABLED",
+            "tags": [],
+            "defaultPhoneNumber": null,
+            "defaultAddress": {
+              "address1": "123 Queen St W",
+              "city": "Toronto",
+              "province": "Ontario",
+              "country": "Canada",
+              "zip": "M5H 2M9",
+              "formattedArea": "Toronto ON, Canada"
+            },
+            "updatedAt": "2026-04-18T22:04:35Z"
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo5MDc5NjgzNDQ5MDY1LCJsYXN0X3ZhbHVlIjoxNzc2NTQ5MTMyMDAwfQ==",
+          "node": {
+            "id": "gid://shopify/Customer/9079683449065",
+            "displayName": "Hermes Operator",
+            "email": "hermes-order-probe-1776549129247@example.com",
+            "legacyResourceId": "9079683449065",
+            "verifiedEmail": true,
+            "state": "DISABLED",
+            "tags": [],
+            "defaultPhoneNumber": null,
+            "defaultAddress": {
+              "address1": "123 Queen St W",
+              "city": "Toronto",
+              "province": "Ontario",
+              "country": "Canada",
+              "zip": "M5H 2M9",
+              "formattedArea": "Toronto ON, Canada"
+            },
+            "updatedAt": "2026-04-18T21:52:12Z"
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": true,
+        "hasPreviousPage": false,
+        "startCursor": "eyJsYXN0X2lkIjo5MDc5NzAwNTIxMTkzLCJsYXN0X3ZhbHVlIjoxNzc2NTQ5ODc1MDAwfQ==",
+        "endCursor": "eyJsYXN0X2lkIjo5MDc5NjgzNDQ5MDY1LCJsYXN0X3ZhbHVlIjoxNzc2NTQ5MTMyMDAwfQ=="
+      }
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 4,
+      "actualQueryCost": 4,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1996,
+        "restoreRate": 100
+      }
+    }
+  }
+}

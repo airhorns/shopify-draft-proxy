@@ -1,0 +1,29 @@
+{
+  "query": "mutation FulfillmentCancelMissingId($id: ID!) {\n    fulfillmentCancel(id: $id) {\n      fulfillment {\n        id\n        status\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+  "variables": {},
+  "mutation": {
+    "response": {
+      "errors": [
+        {
+          "message": "Variable $id of type ID! was provided invalid value",
+          "locations": [
+            {
+              "line": 2,
+              "column": 39
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": null,
+            "problems": [
+              {
+                "path": [],
+                "explanation": "Expected value to not be null"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

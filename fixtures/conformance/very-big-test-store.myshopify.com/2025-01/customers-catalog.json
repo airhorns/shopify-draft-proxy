@@ -1,0 +1,133 @@
+{
+  "data": {
+    "customers": {
+      "edges": [
+        {
+          "cursor": "eyJsYXN0X2lkIjo2MTU3NjU0NTU2OTA1LCJsYXN0X3ZhbHVlIjoiNjE1NzY1NDU1NjkwNSJ9",
+          "node": {
+            "id": "gid://shopify/Customer/6157654556905",
+            "displayName": "Henry Short",
+            "email": "egnition_sample_29@egnition.com",
+            "legacyResourceId": "6157654556905",
+            "locale": "en",
+            "note": null,
+            "canDelete": false,
+            "verifiedEmail": true,
+            "taxExempt": false,
+            "state": "DISABLED",
+            "numberOfOrders": "12",
+            "amountSpent": {
+              "amount": "1.6",
+              "currencyCode": "CAD"
+            },
+            "defaultEmailAddress": {
+              "emailAddress": "egnition_sample_29@egnition.com"
+            },
+            "defaultPhoneNumber": {
+              "phoneNumber": "+2911120123"
+            },
+            "defaultAddress": {
+              "address1": "Ap #147-5705 Nonummy Street",
+              "city": "Maubeuge",
+              "province": null,
+              "country": "Eritrea",
+              "zip": "7759",
+              "formattedArea": "Maubeuge, Eritrea"
+            },
+            "createdAt": "2022-04-06T14:51:36Z",
+            "updatedAt": "2024-03-14T01:55:09Z"
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo2MTU3NjU0NTg5NjczLCJsYXN0X3ZhbHVlIjoiNjE1NzY1NDU4OTY3MyJ9",
+          "node": {
+            "id": "gid://shopify/Customer/6157654589673",
+            "displayName": "Xander Holloway",
+            "email": "egnition_sample_92@egnition.com",
+            "legacyResourceId": "6157654589673",
+            "locale": "en",
+            "note": null,
+            "canDelete": false,
+            "verifiedEmail": true,
+            "taxExempt": false,
+            "state": "DISABLED",
+            "numberOfOrders": "14",
+            "amountSpent": {
+              "amount": "2.2",
+              "currencyCode": "CAD"
+            },
+            "defaultEmailAddress": {
+              "emailAddress": "egnition_sample_92@egnition.com"
+            },
+            "defaultPhoneNumber": {
+              "phoneNumber": "+22320221200"
+            },
+            "defaultAddress": {
+              "address1": "489-960 Mi Rd.",
+              "city": "Detroit",
+              "province": "Michigan",
+              "country": "Mali",
+              "zip": "97993",
+              "formattedArea": "Detroit, Mali"
+            },
+            "createdAt": "2022-04-06T14:51:37Z",
+            "updatedAt": "2022-04-11T22:24:05Z"
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo2MTU3NjU0NjIyNDQxLCJsYXN0X3ZhbHVlIjoiNjE1NzY1NDYyMjQ0MSJ9",
+          "node": {
+            "id": "gid://shopify/Customer/6157654622441",
+            "displayName": "Isaiah Marquez",
+            "email": "egnition_sample_99@egnition.com",
+            "legacyResourceId": "6157654622441",
+            "locale": "en",
+            "note": null,
+            "canDelete": false,
+            "verifiedEmail": true,
+            "taxExempt": false,
+            "state": "DISABLED",
+            "numberOfOrders": "6",
+            "amountSpent": {
+              "amount": "0.6",
+              "currencyCode": "CAD"
+            },
+            "defaultEmailAddress": {
+              "emailAddress": "egnition_sample_99@egnition.com"
+            },
+            "defaultPhoneNumber": {
+              "phoneNumber": "+61423475219"
+            },
+            "defaultAddress": {
+              "address1": "954 Dui. St.",
+              "city": "Leganes",
+              "province": "Australian Capital Territory",
+              "country": "Australia",
+              "zip": "16205",
+              "formattedArea": "Leganes ACT, Australia"
+            },
+            "createdAt": "2022-04-06T14:51:38Z",
+            "updatedAt": "2022-04-06T21:24:10Z"
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": true,
+        "hasPreviousPage": false,
+        "startCursor": "eyJsYXN0X2lkIjo2MTU3NjU0NTU2OTA1LCJsYXN0X3ZhbHVlIjoiNjE1NzY1NDU1NjkwNSJ9",
+        "endCursor": "eyJsYXN0X2lkIjo2MTU3NjU0NjIyNDQxLCJsYXN0X3ZhbHVlIjoiNjE1NzY1NDYyMjQ0MSJ9"
+      }
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 8,
+      "actualQueryCost": 8,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1992,
+        "restoreRate": 100
+      }
+    }
+  }
+}

@@ -2,23 +2,20 @@
   "scenarioId": "product-variants-read",
   "operationNames": ["productVariant", "inventoryItem"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "selected-fields", "nested-inventory-shape"],
+  "assertionKinds": ["payload-shape", "selected-fields", "nested-inventory-shape", "connection-shape"],
   "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-variants-matrix.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/product-variants-read.graphql",
     "variablesPath": "config/parity-requests/product-variants-read.variables.json"
   },
-  "notes": "Executed by the conformance parity runner against a local proxy harness with the captured Shopify payload supplied as the upstream read response; no live Shopify writes are performed.",
+  "comparisonMode": "capture-only",
+  "notes": "Live top-level productVariant/inventoryItem capture now has a concrete proxy request scaffold covering the current merchandising/inventory slice, nested `inventoryItem.inventoryLevels(first:)` connection fields, and parent-product backreferences used by the overlay serializer. Comparator wiring can reuse this request scaffold once proxy-vs-Shopify comparison is implemented.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [],
-    "targets": [
-      {
-        "name": "captured read payload",
-        "capturePath": "$.data",
-        "proxyPath": "$.data",
-        "upstreamCapturePath": "$"
-      }
-    ]
+    "expectedDifferences": []
+  },
+  "blocker": {
+    "kind": "explicit-comparison-targets-needed",
+    "blockerPath": null
   }
 }

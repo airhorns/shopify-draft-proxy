@@ -1,0 +1,17 @@
+mutation FulfillmentCreateInvalidIdParity($fulfillment: FulfillmentInput!, $message: String) {
+  fulfillmentCreate(fulfillment: $fulfillment, message: $message) {
+    fulfillment {
+      id
+      status
+      trackingInfo(first: 5) {
+        number
+        url
+        company
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

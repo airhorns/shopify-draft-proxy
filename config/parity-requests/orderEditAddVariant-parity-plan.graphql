@@ -1,0 +1,14 @@
+mutation OrderEditAddVariantParityPlan($id: ID!, $variantId: ID!, $quantity: Int!) {
+  orderEditAddVariant(id: $id, variantId: $variantId, quantity: $quantity) {
+    calculatedOrder {
+      id
+    }
+    calculatedLineItem {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

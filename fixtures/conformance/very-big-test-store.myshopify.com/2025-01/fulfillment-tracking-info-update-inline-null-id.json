@@ -1,0 +1,36 @@
+{
+  "query": "mutation FulfillmentTrackingInfoUpdateInlineNullId($trackingInfoInput: FulfillmentTrackingInput!, $notifyCustomer: Boolean) {\n    fulfillmentTrackingInfoUpdate(\n      fulfillmentId: null\n      trackingInfoInput: $trackingInfoInput\n      notifyCustomer: $notifyCustomer\n    ) {\n      fulfillment {\n        id\n        status\n        trackingInfo {\n          number\n          url\n          company\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+  "variables": {
+    "notifyCustomer": false,
+    "trackingInfoInput": {
+      "number": "HERMES-TRACK-UPDATE",
+      "url": "https://example.com/track/HERMES-TRACK-UPDATE",
+      "company": "Hermes"
+    }
+  },
+  "mutation": {
+    "response": {
+      "errors": [
+        {
+          "message": "Argument 'fulfillmentId' on Field 'fulfillmentTrackingInfoUpdate' has an invalid value (null). Expected type 'ID!'.",
+          "locations": [
+            {
+              "line": 3,
+              "column": 5
+            }
+          ],
+          "path": [
+            "mutation FulfillmentTrackingInfoUpdateInlineNullId",
+            "fulfillmentTrackingInfoUpdate",
+            "fulfillmentId"
+          ],
+          "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "Field",
+            "argumentName": "fulfillmentId"
+          }
+        }
+      ]
+    }
+  }
+}

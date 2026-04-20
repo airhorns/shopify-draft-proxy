@@ -1,0 +1,27 @@
+{
+  "scenarioId": "products-advanced-search-read",
+  "operationNames": ["products", "productsCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "selected-fields",
+    "search-filter-semantics",
+    "sort-order-semantics",
+    "pagination-shape"
+  ],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-advanced-search.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products-advanced-search-read.graphql",
+    "variablesPath": "config/parity-requests/products-advanced-search-read.variables.json"
+  },
+  "comparisonMode": "capture-only",
+  "notes": "Live product advanced search capture exercises trailing prefix matching, grouped OR vendor filters, grouped negation, and UPDATED_AT-desc ordering with pageInfo across both `products` and `productsCount`.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "blocker": {
+    "kind": "explicit-comparison-targets-needed",
+    "blockerPath": null
+  }
+}

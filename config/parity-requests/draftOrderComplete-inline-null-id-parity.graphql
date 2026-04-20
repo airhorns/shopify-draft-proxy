@@ -1,0 +1,15 @@
+mutation DraftOrderCompleteInlineNullIdParity {
+  draftOrderComplete(id: null, paymentGatewayId: null, sourceName: "hermes-cron-orders") {
+    draftOrder {
+      id
+      name
+      status
+      ready
+      invoiceUrl
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

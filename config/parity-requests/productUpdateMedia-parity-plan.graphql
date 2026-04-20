@@ -1,0 +1,24 @@
+mutation ProductUpdateMediaParityPlan($productId: ID!, $media: [UpdateMediaInput!]!) {
+  productUpdateMedia(productId: $productId, media: $media) {
+    media {
+      id
+      alt
+      mediaContentType
+      status
+      preview {
+        image {
+          url
+        }
+      }
+      ... on MediaImage {
+        image {
+          url
+        }
+      }
+    }
+    mediaUserErrors {
+      field
+      message
+    }
+  }
+}

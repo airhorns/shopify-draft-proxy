@@ -1,0 +1,18 @@
+{
+  "kind": "normalized-state-snapshot",
+  "baseState": {
+    "products": {},
+    "productVariants": {},
+    "productOptions": {},
+    "collections": {},
+    "customers": {},
+    "productCollections": {},
+    "productMedia": {},
+    "productMetafields": {},
+    "deletedProductIds": {},
+    "deletedCollectionIds": {},
+    "deletedCustomerIds": {}
+  },
+  "customerCatalogConnection": null,
+  "customerSearchConnections": {}
+}

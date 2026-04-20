@@ -1,0 +1,26 @@
+{
+  "query": "mutation InlineMissingDraftOrderInput {\n    draftOrderCreate {\n      draftOrder { id }\n      userErrors { field message }\n    }\n  }",
+  "variables": {},
+  "mutation": {
+    "response": {
+      "errors": [
+        {
+          "message": "Field 'draftOrderCreate' is missing required arguments: input",
+          "locations": [
+            {
+              "line": 3,
+              "column": 5
+            }
+          ],
+          "path": ["mutation InlineMissingDraftOrderInput", "draftOrderCreate"],
+          "extensions": {
+            "code": "missingRequiredArguments",
+            "className": "Field",
+            "name": "draftOrderCreate",
+            "arguments": "input"
+          }
+        }
+      ]
+    }
+  }
+}

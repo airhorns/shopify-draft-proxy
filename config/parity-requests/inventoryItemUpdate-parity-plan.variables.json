@@ -1,0 +1,16 @@
+{
+  "id": "gid://shopify/InventoryItem/8061",
+  "input": {
+    "tracked": true,
+    "requiresShipping": false,
+    "countryCodeOfOrigin": "CA",
+    "provinceCodeOfOrigin": "ON",
+    "harmonizedSystemCode": "620343",
+    "measurement": {
+      "weight": {
+        "unit": "KILOGRAMS",
+        "value": 2.5
+      }
+    }
+  }
+}

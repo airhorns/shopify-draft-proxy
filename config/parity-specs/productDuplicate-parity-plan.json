@@ -1,12 +1,21 @@
 {
-  "scenarioId": "productDuplicate-parity-plan",
+  "scenarioId": "product-duplicate-live-parity",
   "operationNames": ["productDuplicate"],
-  "scenarioStatus": "planned",
+  "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
-  "liveCaptureFiles": [],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-duplicate-parity.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/productDuplicate-parity-plan.graphql",
     "variablesPath": "config/parity-requests/productDuplicate-parity-plan.variables.json"
   },
-  "notes": "Proxy request scaffold now mirrors the staged duplicate-of-effective-product-graph runtime slice (detail fields plus duplicated options, variants, collections, media, and metafields). Next step is to capture the same safe duplicate scenario against a dedicated dev-store write pack and compare both mutation payload and immediate downstream read parity."
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live safe-write capture now covers `productDuplicate` against a rich source product graph. On this host, Shopify preserved collection memberships and product metafields on the duplicate, but the duplicate's immediate `media` connection came back empty even when the source product already had ready image media.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "blocker": {
+    "kind": "explicit-comparison-targets-needed",
+    "blockerPath": null
+  }
 }

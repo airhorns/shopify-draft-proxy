@@ -1,0 +1,112 @@
+{
+  "mutation": {
+    "variables": {
+      "metafields": [
+        {
+          "ownerId": "gid://shopify/Product/9257219227881",
+          "namespace": "custom",
+          "key": "material",
+          "type": "single_line_text_field",
+          "value": "Canvas"
+        },
+        {
+          "ownerId": "gid://shopify/Product/9257219227881",
+          "namespace": "details",
+          "key": "origin",
+          "type": "single_line_text_field",
+          "value": "VN"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "metafieldsSet": {
+          "metafields": [
+            {
+              "id": "gid://shopify/Metafield/35246226997481",
+              "namespace": "custom",
+              "key": "material",
+              "type": "single_line_text_field",
+              "value": "Canvas"
+            },
+            {
+              "id": "gid://shopify/Metafield/35246227030249",
+              "namespace": "details",
+              "key": "origin",
+              "type": "single_line_text_field",
+              "value": "VN"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/9257219227881",
+        "primarySpec": {
+          "id": "gid://shopify/Metafield/35246226997481",
+          "namespace": "custom",
+          "key": "material",
+          "type": "single_line_text_field",
+          "value": "Canvas"
+        },
+        "origin": {
+          "id": "gid://shopify/Metafield/35246227030249",
+          "namespace": "details",
+          "key": "origin",
+          "type": "single_line_text_field",
+          "value": "VN"
+        },
+        "metafields": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Metafield/35246226997481",
+              "namespace": "custom",
+              "key": "material",
+              "type": "single_line_text_field",
+              "value": "Canvas"
+            },
+            {
+              "id": "gid://shopify/Metafield/35246227030249",
+              "namespace": "details",
+              "key": "origin",
+              "type": "single_line_text_field",
+              "value": "VN"
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjozNTI0NjIyNjk5NzQ4MSwibGFzdF92YWx1ZSI6IjM1MjQ2MjI2OTk3NDgxIn0=",
+            "endCursor": "eyJsYXN0X2lkIjozNTI0NjIyNzAzMDI0OSwibGFzdF92YWx1ZSI6IjM1MjQ2MjI3MDMwMjQ5In0="
+          }
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 9,
+        "actualQueryCost": 7,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1993,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

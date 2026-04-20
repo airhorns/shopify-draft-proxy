@@ -1,0 +1,32 @@
+{
+  "query": "mutation DraftOrderCompleteMissingId($id: ID!, $paymentGatewayId: ID, $sourceName: String) {\n    draftOrderComplete(id: $id, paymentGatewayId: $paymentGatewayId, sourceName: $sourceName) {\n      draftOrder {\n        id\n        name\n      }\n      userErrors { field message }\n    }\n  }",
+  "variables": {
+    "paymentGatewayId": null,
+    "sourceName": "hermes-cron-orders"
+  },
+  "mutation": {
+    "response": {
+      "errors": [
+        {
+          "message": "Variable $id of type ID! was provided invalid value",
+          "locations": [
+            {
+              "line": 2,
+              "column": 40
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": null,
+            "problems": [
+              {
+                "path": [],
+                "explanation": "Expected value to not be null"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

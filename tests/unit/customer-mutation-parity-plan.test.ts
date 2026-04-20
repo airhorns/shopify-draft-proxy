@@ -1,0 +1,86 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+import { describe, expect, it } from 'vitest';
+
+const repoRoot = resolve(import.meta.dirname, '../..');
+
+describe('customer mutation parity request scaffolds', () => {
+  it('keep the customer CRUD request slices aligned with the supported overlay serializer', () => {
+    const createDocumentPath = resolve(repoRoot, 'config/parity-requests/customerCreate-parity-plan.graphql');
+    const createVariablesPath = resolve(repoRoot, 'config/parity-requests/customerCreate-parity-plan.variables.json');
+    const updateDocumentPath = resolve(repoRoot, 'config/parity-requests/customerUpdate-parity-plan.graphql');
+    const updateVariablesPath = resolve(repoRoot, 'config/parity-requests/customerUpdate-parity-plan.variables.json');
+    const deleteDocumentPath = resolve(repoRoot, 'config/parity-requests/customerDelete-parity-plan.graphql');
+    const deleteVariablesPath = resolve(repoRoot, 'config/parity-requests/customerDelete-parity-plan.variables.json');
+
+    expect(existsSync(createDocumentPath)).toBe(true);
+    expect(existsSync(createVariablesPath)).toBe(true);
+    expect(existsSync(updateDocumentPath)).toBe(true);
+    expect(existsSync(updateVariablesPath)).toBe(true);
+    expect(existsSync(deleteDocumentPath)).toBe(true);
+    expect(existsSync(deleteVariablesPath)).toBe(true);
+
+    const createDocument = readFileSync(createDocumentPath, 'utf8');
+    const createVariables = JSON.parse(readFileSync(createVariablesPath, 'utf8')) as Record<string, unknown>;
+    const updateDocument = readFileSync(updateDocumentPath, 'utf8');
+    const updateVariables = JSON.parse(readFileSync(updateVariablesPath, 'utf8')) as Record<string, unknown>;
+    const deleteDocument = readFileSync(deleteDocumentPath, 'utf8');
+    const deleteVariables = JSON.parse(readFileSync(deleteVariablesPath, 'utf8')) as Record<string, unknown>;
+
+    for (const document of [createDocument, updateDocument]) {
+      expect(document).toContain('firstName');
+      expect(document).toContain('lastName');
+      expect(document).toContain('displayName');
+      expect(document).toContain('email');
+      expect(document).toContain('locale');
+      expect(document).toContain('note');
+      expect(document).toContain('verifiedEmail');
+      expect(document).toContain('taxExempt');
+      expect(document).toContain('tags');
+      expect(document).toContain('state');
+      expect(document).toContain('canDelete');
+      expect(document).toContain('defaultEmailAddress {');
+      expect(document).toContain('defaultPhoneNumber {');
+      expect(document).toContain('createdAt');
+      expect(document).toContain('updatedAt');
+      expect(document).toContain('userErrors {');
+      expect(document).toContain('field');
+      expect(document).toContain('message');
+    }
+
+    expect(createVariables).toMatchObject({
+      input: {
+        email: 'hermes-customer-create@example.com',
+        firstName: 'Hermes',
+        lastName: 'Create',
+        locale: 'en',
+        note: 'customer create parity probe',
+        phone: '+14155550123',
+        tags: ['parity', 'create'],
+        taxExempt: true,
+      },
+    });
+
+    expect(updateVariables).toMatchObject({
+      input: {
+        id: 'gid://shopify/Customer/1',
+        firstName: 'Hermes',
+        lastName: 'Updated',
+        note: 'customer update parity probe',
+        tags: ['parity', 'updated'],
+        taxExempt: false,
+      },
+    });
+
+    expect(deleteDocument).toContain('deletedCustomerId');
+    expect(deleteDocument).toContain('shop {');
+    expect(deleteDocument).toContain('id');
+    expect(deleteDocument).toContain('userErrors {');
+    expect(deleteDocument).toContain('field');
+    expect(deleteDocument).toContain('message');
+    expect(deleteVariables).toMatchObject({
+      input: { id: 'gid://shopify/Customer/1' },
+    });
+  });
+});

@@ -1,0 +1,210 @@
+{
+  "capturedAt": "2026-04-18T22:21:48.657Z",
+  "storeDomain": "very-big-test-store.myshopify.com",
+  "apiVersion": "2025-01",
+  "mutation": {
+    "create": {
+      "variables": {
+        "product": {
+          "title": "hermes-inventory-item-update-1776550908657",
+          "status": "DRAFT"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/9257220014313",
+              "title": "hermes-inventory-item-update-1776550908657",
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/50897202249961",
+                    "inventoryQuantity": 0,
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53044947583209",
+                      "tracked": false,
+                      "requiresShipping": true,
+                      "countryCodeOfOrigin": null,
+                      "provinceCodeOfOrigin": null,
+                      "harmonizedSystemCode": null,
+                      "measurement": {
+                        "weight": {
+                          "unit": "KILOGRAMS",
+                          "value": 0
+                        }
+                      },
+                      "variant": {
+                        "id": "gid://shopify/ProductVariant/50897202249961",
+                        "inventoryQuantity": 0,
+                        "product": {
+                          "id": "gid://shopify/Product/9257220014313",
+                          "title": "hermes-inventory-item-update-1776550908657"
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 16,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1984,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "variables": {
+      "id": "gid://shopify/InventoryItem/53044947583209",
+      "input": {
+        "tracked": true,
+        "requiresShipping": false,
+        "countryCodeOfOrigin": "CA",
+        "provinceCodeOfOrigin": "ON",
+        "harmonizedSystemCode": "620343",
+        "measurement": {
+          "weight": {
+            "unit": "KILOGRAMS",
+            "value": 2.5
+          }
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "inventoryItemUpdate": {
+          "inventoryItem": {
+            "id": "gid://shopify/InventoryItem/53044947583209",
+            "tracked": true,
+            "requiresShipping": false,
+            "countryCodeOfOrigin": "CA",
+            "provinceCodeOfOrigin": "ON",
+            "harmonizedSystemCode": "620343",
+            "measurement": {
+              "weight": {
+                "unit": "KILOGRAMS",
+                "value": 2.5
+              }
+            },
+            "variant": {
+              "id": "gid://shopify/ProductVariant/50897202249961",
+              "inventoryQuantity": 0,
+              "product": {
+                "id": "gid://shopify/Product/9257220014313",
+                "title": "hermes-inventory-item-update-1776550908657"
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "downstreamRead": {
+      "data": {
+        "productVariant": {
+          "id": "gid://shopify/ProductVariant/50897202249961",
+          "inventoryQuantity": 0,
+          "inventoryItem": {
+            "id": "gid://shopify/InventoryItem/53044947583209",
+            "tracked": true,
+            "requiresShipping": false,
+            "countryCodeOfOrigin": "CA",
+            "provinceCodeOfOrigin": "ON",
+            "harmonizedSystemCode": "620343",
+            "measurement": {
+              "weight": {
+                "unit": "KILOGRAMS",
+                "value": 2.5
+              }
+            }
+          }
+        },
+        "inventoryItem": {
+          "id": "gid://shopify/InventoryItem/53044947583209",
+          "tracked": true,
+          "requiresShipping": false,
+          "countryCodeOfOrigin": "CA",
+          "provinceCodeOfOrigin": "ON",
+          "harmonizedSystemCode": "620343",
+          "measurement": {
+            "weight": {
+              "unit": "KILOGRAMS",
+              "value": 2.5
+            }
+          },
+          "variant": {
+            "id": "gid://shopify/ProductVariant/50897202249961",
+            "inventoryQuantity": 0,
+            "product": {
+              "id": "gid://shopify/Product/9257220014313",
+              "title": "hermes-inventory-item-update-1776550908657"
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 5,
+          "actualQueryCost": 5,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1995,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "validation": {
+    "variables": {
+      "id": "gid://shopify/InventoryItem/99999999999999",
+      "input": {
+        "tracked": true
+      }
+    },
+    "response": {
+      "data": {
+        "inventoryItemUpdate": {
+          "inventoryItem": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "The product couldn't be updated because it does not exist."
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

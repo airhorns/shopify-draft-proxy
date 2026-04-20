@@ -1,0 +1,14 @@
+query CustomersCountRead($query: String!, $disabledQuery: String!) {
+  total: customersCount {
+    count
+    precision
+  }
+  matching: customersCount(query: $query) {
+    count
+    precision
+  }
+  disabled: customersCount(query: $disabledQuery) {
+    count
+    precision
+  }
+}

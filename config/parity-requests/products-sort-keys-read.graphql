@@ -1,0 +1,90 @@
+query ProductsSortKeysRead($first: Int!, $query: String!) {
+  titleOrder: products(first: $first, query: $query, sortKey: TITLE) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        handle
+        status
+        vendor
+        productType
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  vendorOrder: products(first: $first, query: $query, sortKey: VENDOR) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        handle
+        status
+        vendor
+        productType
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  productTypeOrder: products(first: $first, query: $query, sortKey: PRODUCT_TYPE, reverse: true) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        handle
+        status
+        vendor
+        productType
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  publishedAtOrder: products(first: $first, query: $query, sortKey: PUBLISHED_AT, reverse: true) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        publishedAt
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  idOrder: products(first: $first, query: $query, sortKey: ID, reverse: true) {
+    edges {
+      cursor
+      node {
+        id
+        legacyResourceId
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

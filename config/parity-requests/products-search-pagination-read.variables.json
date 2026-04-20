@@ -1,0 +1,5 @@
+{
+  "query": "tag:egnition-sample-data product_type:ACCESSORIES",
+  "afterCursor": "eyJsYXN0X2lkIjo4Mzk3MjU3NTcyNTg1LCJsYXN0X3ZhbHVlIjoxNzc2NDMwMzYyMDAwfQ==",
+  "beforeCursor": "eyJsYXN0X2lkIjo4Mzk3MjU3NDc0MjgxLCJsYXN0X3ZhbHVlIjoxNzc2NDMwMzYyMDAwfQ=="
+}

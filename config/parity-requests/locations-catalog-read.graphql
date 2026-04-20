@@ -1,0 +1,17 @@
+query LocationsCatalogRead($first: Int!) {
+  locations(first: $first) {
+    edges {
+      cursor
+      node {
+        id
+        name
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

@@ -1,9 +1,9 @@
-query ProductSearchConformance {
-  total: productsCount(limit: null) {
+query ProductsSearchRead($nikeQuery: String!, $inventoryQuery: String!) {
+  total: productsCount {
     count
     precision
   }
-  nike: products(first: 2, query: "vendor:NIKE status:active", sortKey: TITLE) {
+  nike: products(first: 2, query: $nikeQuery) {
     edges {
       node {
         id
@@ -17,7 +17,7 @@ query ProductSearchConformance {
       hasNextPage
     }
   }
-  lowInventory: products(first: 2, query: "inventory_total:<=5 status:active", sortKey: INVENTORY_TOTAL) {
+  lowInventory: products(first: 2, query: $inventoryQuery) {
     edges {
       node {
         id

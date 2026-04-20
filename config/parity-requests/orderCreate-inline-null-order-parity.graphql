@@ -1,0 +1,11 @@
+mutation InlineNullOrderArg {
+  orderCreate(order: null) {
+    order {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

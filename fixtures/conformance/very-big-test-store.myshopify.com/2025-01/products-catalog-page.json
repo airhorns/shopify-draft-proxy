@@ -1,66 +1,66 @@
 {
   "data": {
     "productsCount": {
-      "count": 13531,
+      "count": 13552,
       "precision": "EXACT"
     },
     "products": {
       "edges": [
         {
-          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU2NzIwNjE3LCJsYXN0X3ZhbHVlIjoiMjAyNi0wMy0yNSAxOTozNToxMy4wMDAwMDAifQ==",
+          "cursor": "eyJsYXN0X2lkIjo4OTcxODQyODQ2OTUzLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNC0xOCAwMDo1ODoyMS4wMDAwMDAifQ==",
           "node": {
-            "id": "gid://shopify/Product/8397256720617",
-            "legacyResourceId": "8397256720617",
-            "title": "CONVERSE | TODDLER CHUCK TAYLOR ALL STAR AXEL MID",
-            "handle": "converse-toddler-chuck-taylor-all-star-axel-mid",
+            "id": "gid://shopify/Product/8971842846953",
+            "legacyResourceId": "8971842846953",
+            "title": "Test Product - 6635",
+            "handle": "test-product-ge91cbbd6",
             "status": "ACTIVE",
-            "vendor": "CONVERSE",
-            "productType": "SHOES",
-            "tags": ["converse", "egnition-sample-data", "kid"],
-            "totalInventory": 45,
-            "tracksInventory": true,
-            "createdAt": "2024-03-14T01:53:02Z",
-            "updatedAt": "2026-03-25T19:35:13Z"
+            "vendor": "very-big-test-store",
+            "productType": "",
+            "tags": [],
+            "totalInventory": 0,
+            "tracksInventory": false,
+            "createdAt": "2025-07-01T23:57:25Z",
+            "updatedAt": "2026-04-18T00:58:21Z"
           }
         },
         {
-          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU3Mzc1OTc3LCJsYXN0X3ZhbHVlIjoiMjAyNi0wMy0yNSAxNjo0OTozNS4wMDAwMDAifQ==",
+          "cursor": "eyJsYXN0X2lkIjo5MjU2ODAyMjU1MDgxLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNC0xNyAyMzozNjowOC4wMDAwMDAifQ==",
           "node": {
-            "id": "gid://shopify/Product/8397257375977",
-            "legacyResourceId": "8397257375977",
-            "title": "NIKE | SWOOSH PRO FLAT PEAK CAP",
-            "handle": "nike-swoosh-pro-flat-peak-cap",
+            "id": "gid://shopify/Product/9256802255081",
+            "legacyResourceId": "9256802255081",
+            "title": "Handle probe admin 1776468960120",
+            "handle": "admin",
             "status": "ACTIVE",
-            "vendor": "NIKE",
-            "productType": "ACCESSORIES",
-            "tags": ["cap", "egnition-sample-data", "nike"],
-            "totalInventory": 20,
-            "tracksInventory": true,
-            "createdAt": "2024-03-14T01:53:33Z",
-            "updatedAt": "2026-03-25T16:49:35Z"
+            "vendor": "very-big-test-store",
+            "productType": "",
+            "tags": [],
+            "totalInventory": 0,
+            "tracksInventory": false,
+            "createdAt": "2026-04-17T23:36:00Z",
+            "updatedAt": "2026-04-17T23:36:08Z"
           }
         },
         {
-          "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU3MDgxMDY1LCJsYXN0X3ZhbHVlIjoiMjAyNi0wMy0yNSAxNDoyNzo1Ni4wMDAwMDAifQ==",
+          "cursor": "eyJsYXN0X2lkIjo5MjU2ODAyNDE4OTIxLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNC0xNyAyMzozNjowNy4wMDAwMDAifQ==",
           "node": {
-            "id": "gid://shopify/Product/8397257081065",
-            "legacyResourceId": "8397257081065",
-            "title": "VANS APPAREL AND ACCESSORIES | CLASSIC SUPER NO SHOW SOCKS 3 PACK WHITE",
-            "handle": "vans-apparel-and-accessories-classic-super-no-show-socks-3-pack-white",
+            "id": "gid://shopify/Product/9256802418921",
+            "legacyResourceId": "9256802418921",
+            "title": "Handle probe apps 1776468962313",
+            "handle": "apps",
             "status": "ACTIVE",
-            "vendor": "VANS",
-            "productType": "ACCESSORIES",
-            "tags": ["egnition-sample-data", "unisex", "vans"],
-            "totalInventory": 11,
-            "tracksInventory": true,
-            "createdAt": "2024-03-14T01:53:17Z",
-            "updatedAt": "2026-03-25T14:27:56Z"
+            "vendor": "very-big-test-store",
+            "productType": "",
+            "tags": [],
+            "totalInventory": 0,
+            "tracksInventory": false,
+            "createdAt": "2026-04-17T23:36:02Z",
+            "updatedAt": "2026-04-17T23:36:07Z"
           }
         }
       ],
       "pageInfo": {
         "hasNextPage": true,
-        "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU3MDgxMDY1LCJsYXN0X3ZhbHVlIjoiMjAyNi0wMy0yNSAxNDoyNzo1Ni4wMDAwMDAifQ=="
+        "endCursor": "eyJsYXN0X2lkIjo5MjU2ODAyNDE4OTIxLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNC0xNyAyMzozNjowNy4wMDAwMDAifQ=="
       }
     }
   },

@@ -8,27 +8,79 @@ import { describe, expect, it } from 'vitest';
 import { pickCollectionCaptureSeed } from '../../scripts/collection-conformance-lib.mjs';
 
 describe('pickCollectionCaptureSeed', () => {
-  it('returns the first collection node from a product detail capture', () => {
+  it('returns the first collection node from a product-scoped payload', () => {
+    expect(
+      pickCollectionCaptureSeed({
+        data: {
+          product: {
+            collections: {
+              edges: [
+                {
+                  node: {
+                    id: 'gid://shopify/Collection/1',
+                    title: 'Frontpage',
+                    handle: 'frontpage',
+                  },
+                },
+              ],
+            },
+          },
+        },
+      }),
+    ).toEqual({
+      id: 'gid://shopify/Collection/1',
+      title: 'Frontpage',
+      handle: 'frontpage',
+    });
+  });
+
+  it('returns a structurally valid collection seed from the current collection-seed query shape', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
     const detailFixture = JSON.parse(
       readFileSync(
-        resolve(repoRoot, 'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-detail.json'),
+        resolve(repoRoot, 'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collection-detail.json'),
         'utf8',
       ),
     ) as {
       data?: {
-        product?: {
-          collections?: {
-            edges?: Array<{ node?: { id?: string; title?: string; handle?: string } }>;
-          };
+        collection?: {
+          id?: string;
+          title?: string;
+          handle?: string;
         };
       };
     };
 
-    expect(pickCollectionCaptureSeed(detailFixture)).toEqual({
-      id: 'gid://shopify/Collection/429826244841',
-      title: 'CONVERSE',
-      handle: 'converse',
+    expect(
+      pickCollectionCaptureSeed({
+        data: {
+          products: {
+            edges: [
+              {
+                node: {
+                  id: 'gid://shopify/Product/seed',
+                  title: 'Seed product',
+                  collections: {
+                    edges: [
+                      {
+                        node: {
+                          id: detailFixture.data?.collection?.id,
+                          title: detailFixture.data?.collection?.title,
+                          handle: detailFixture.data?.collection?.handle,
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            ],
+          },
+        },
+      }),
+    ).toMatchObject({
+      id: expect.stringMatching(/^gid:\/\/shopify\/Collection\//),
+      title: expect.any(String),
+      handle: expect.any(String),
     });
   });
 

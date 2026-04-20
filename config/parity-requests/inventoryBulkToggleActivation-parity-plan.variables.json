@@ -1,0 +1,9 @@
+{
+  "inventoryItemId": "gid://shopify/InventoryItem/8001",
+  "inventoryItemUpdates": [
+    {
+      "locationId": "gid://shopify/Location/1",
+      "activate": true
+    }
+  ]
+}

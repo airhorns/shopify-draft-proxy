@@ -1,42 +1,4 @@
 {
-  "sku": {
-    "value": "C-03-black-5",
-    "response": {
-      "data": {
-        "matches": {
-          "count": 1,
-          "precision": "EXACT"
-        },
-        "products": {
-          "edges": [
-            {
-              "node": {
-                "id": "gid://shopify/Product/8397256720617",
-                "title": "CONVERSE | TODDLER CHUCK TAYLOR ALL STAR AXEL MID",
-                "handle": "converse-toddler-chuck-taylor-all-star-axel-mid"
-              }
-            }
-          ],
-          "pageInfo": {
-            "hasNextPage": false,
-            "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU2NzIwNjE3LCJsYXN0X3ZhbHVlIjo4Mzk3MjU2NzIwNjE3fQ==",
-            "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU2NzIwNjE3LCJsYXN0X3ZhbHVlIjo4Mzk3MjU2NzIwNjE3fQ=="
-          }
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 15,
-          "actualQueryCost": 14,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1986,
-            "restoreRate": 100
-          }
-        }
-      }
-    }
-  },
+  "sku": null,
   "barcode": null
 }

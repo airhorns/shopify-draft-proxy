@@ -1,0 +1,9 @@
+{
+  "fulfillmentId": "gid://shopify/Fulfillment/0",
+  "notifyCustomer": false,
+  "trackingInfoInput": {
+    "number": "HERMES-TRACK-UPDATE",
+    "url": "https://example.com/track/HERMES-TRACK-UPDATE",
+    "company": "Hermes"
+  }
+}

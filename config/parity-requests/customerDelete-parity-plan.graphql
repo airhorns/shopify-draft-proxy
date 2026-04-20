@@ -1,0 +1,12 @@
+mutation CustomerDeleteParityPlan($input: CustomerDeleteInput!) {
+  customerDelete(input: $input) {
+    deletedCustomerId
+    shop {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

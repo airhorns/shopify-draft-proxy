@@ -1,0 +1,32 @@
+{
+  "query": "mutation OrderEditCommitMissingId($id: ID!, $notifyCustomer: Boolean, $staffNote: String) {\n    orderEditCommit(id: $id, notifyCustomer: $notifyCustomer, staffNote: $staffNote) {\n      order {\n        id\n        name\n      }\n      userErrors { field message }\n    }\n  }",
+  "variables": {
+    "notifyCustomer": false,
+    "staffNote": "missing id probe"
+  },
+  "mutation": {
+    "response": {
+      "errors": [
+        {
+          "message": "Variable $id of type ID! was provided invalid value",
+          "locations": [
+            {
+              "line": 2,
+              "column": 37
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": null,
+            "problems": [
+              {
+                "path": [],
+                "explanation": "Expected value to not be null"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

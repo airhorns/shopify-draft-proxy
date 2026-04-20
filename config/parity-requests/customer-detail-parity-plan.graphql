@@ -1,0 +1,38 @@
+query CustomerDetailParityPlan($id: ID!) {
+  customer(id: $id) {
+    id
+    firstName
+    lastName
+    displayName
+    email
+    legacyResourceId
+    locale
+    note
+    canDelete
+    verifiedEmail
+    taxExempt
+    state
+    tags
+    numberOfOrders
+    amountSpent {
+      amount
+      currencyCode
+    }
+    defaultEmailAddress {
+      emailAddress
+    }
+    defaultPhoneNumber {
+      phoneNumber
+    }
+    defaultAddress {
+      address1
+      city
+      province
+      country
+      zip
+      formattedArea
+    }
+    createdAt
+    updatedAt
+  }
+}

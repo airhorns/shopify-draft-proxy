@@ -36,6 +36,58 @@ describe('getOperationCapability', () => {
     });
   });
 
+  it('marks customer queries and customersCount as overlay-capable reads', () => {
+    expect(getOperationCapability({ type: 'query', name: 'Customer', rootFields: ['customer'] })).toEqual({
+      domain: 'customers',
+      execution: 'overlay-read',
+      operationName: 'Customer',
+      type: 'query',
+    });
+
+    expect(getOperationCapability({ type: 'query', name: 'Customers', rootFields: ['customers'] })).toEqual({
+      domain: 'customers',
+      execution: 'overlay-read',
+      operationName: 'Customers',
+      type: 'query',
+    });
+
+    expect(getOperationCapability({ type: 'query', name: 'CustomersCount', rootFields: ['customersCount'] })).toEqual({
+      domain: 'customers',
+      execution: 'overlay-read',
+      operationName: 'CustomersCount',
+      type: 'query',
+    });
+  });
+
+  it('marks customer create, update, and delete as locally staged mutations', () => {
+    expect(
+      getOperationCapability({ type: 'mutation', name: 'CustomerCreate', rootFields: ['customerCreate'] }),
+    ).toEqual({
+      domain: 'customers',
+      execution: 'stage-locally',
+      operationName: 'CustomerCreate',
+      type: 'mutation',
+    });
+
+    expect(
+      getOperationCapability({ type: 'mutation', name: 'CustomerUpdate', rootFields: ['customerUpdate'] }),
+    ).toEqual({
+      domain: 'customers',
+      execution: 'stage-locally',
+      operationName: 'CustomerUpdate',
+      type: 'mutation',
+    });
+
+    expect(
+      getOperationCapability({ type: 'mutation', name: 'CustomerDelete', rootFields: ['customerDelete'] }),
+    ).toEqual({
+      domain: 'customers',
+      execution: 'stage-locally',
+      operationName: 'CustomerDelete',
+      type: 'mutation',
+    });
+  });
+
   it('marks top-level product variant and inventory item queries as overlay-capable reads', () => {
     expect(getOperationCapability({ type: 'query', name: 'ProductVariant', rootFields: ['productVariant'] })).toEqual({
       domain: 'products',
@@ -236,6 +288,15 @@ describe('getOperationCapability', () => {
     });
 
     expect(
+      getOperationCapability({ type: 'mutation', name: 'MetafieldsDelete', rootFields: ['metafieldsDelete'] }),
+    ).toEqual({
+      domain: 'products',
+      execution: 'stage-locally',
+      operationName: 'MetafieldsDelete',
+      type: 'mutation',
+    });
+
+    expect(
       getOperationCapability({ type: 'mutation', name: 'MetafieldDelete', rootFields: ['metafieldDelete'] }),
     ).toEqual({
       domain: 'products',
@@ -329,11 +390,53 @@ describe('getOperationCapability', () => {
 
   it('falls back to passthrough for unknown operations', () => {
     expect(
-      getOperationCapability({ type: 'mutation', name: 'InventoryActivate', rootFields: ['inventoryActivate'] }),
+      getOperationCapability({ type: 'mutation', name: 'UnknownMutation', rootFields: ['unknownMutation'] }),
     ).toEqual({
       domain: 'unknown',
       execution: 'passthrough',
+      operationName: 'UnknownMutation',
+      type: 'mutation',
+    });
+  });
+
+  it('marks inventoryItemUpdate as a locally staged mutation', () => {
+    expect(
+      getOperationCapability({ type: 'mutation', name: 'InventoryItemUpdate', rootFields: ['inventoryItemUpdate'] }),
+    ).toEqual({
+      domain: 'products',
+      execution: 'stage-locally',
+      operationName: 'InventoryItemUpdate',
+      type: 'mutation',
+    });
+  });
+
+  it('marks inventory linkage mutations as locally staged mutations', () => {
+    expect(
+      getOperationCapability({ type: 'mutation', name: 'InventoryActivate', rootFields: ['inventoryActivate'] }),
+    ).toEqual({
+      domain: 'products',
+      execution: 'stage-locally',
       operationName: 'InventoryActivate',
+      type: 'mutation',
+    });
+    expect(
+      getOperationCapability({ type: 'mutation', name: 'InventoryDeactivate', rootFields: ['inventoryDeactivate'] }),
+    ).toEqual({
+      domain: 'products',
+      execution: 'stage-locally',
+      operationName: 'InventoryDeactivate',
+      type: 'mutation',
+    });
+    expect(
+      getOperationCapability({
+        type: 'mutation',
+        name: 'InventoryBulkToggleActivation',
+        rootFields: ['inventoryBulkToggleActivation'],
+      }),
+    ).toEqual({
+      domain: 'products',
+      execution: 'stage-locally',
+      operationName: 'InventoryBulkToggleActivation',
       type: 'mutation',
     });
   });

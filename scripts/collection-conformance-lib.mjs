@@ -33,5 +33,19 @@ export function pickCollectionCaptureSeed(payload) {
     }
   }
 
+  const topLevelCollectionEdges = payload?.data?.collections?.edges;
+  if (Array.isArray(topLevelCollectionEdges)) {
+    for (const collectionEdge of topLevelCollectionEdges) {
+      const node = collectionEdge?.node;
+      if (typeof node?.id === 'string' && typeof node?.title === 'string' && typeof node?.handle === 'string') {
+        return {
+          id: node.id,
+          title: node.title,
+          handle: node.handle,
+        };
+      }
+    }
+  }
+
   throw new Error('Could not find a sample collection from ProductDetail capture');
 }

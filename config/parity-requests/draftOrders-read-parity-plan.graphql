@@ -1,0 +1,28 @@
+query DraftOrdersReadParityPlan($first: Int!) {
+  draftOrders(first: $first, reverse: true) {
+    edges {
+      cursor
+      node {
+        id
+        name
+        status
+        email
+        tags
+        createdAt
+        updatedAt
+        totalPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

@@ -8,17 +8,14 @@
     "documentPath": "config/parity-requests/products-catalog-read.graphql",
     "variablesPath": "config/parity-requests/products-catalog-read.variables.json"
   },
-  "notes": "Executed by the conformance parity runner against a local proxy harness with the captured Shopify payload supplied as the upstream read response; no live Shopify writes are performed.",
+  "comparisonMode": "capture-only",
+  "notes": "Live products catalog capture now has a concrete proxy request scaffold covering top-level `productsCount` plus the current catalog merchandising/pagination slice used by overlay reads. Comparator wiring can reuse this request scaffold once proxy-vs-Shopify comparison is implemented.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [],
-    "targets": [
-      {
-        "name": "captured read payload",
-        "capturePath": "$.data",
-        "proxyPath": "$.data",
-        "upstreamCapturePath": "$"
-      }
-    ]
+    "expectedDifferences": []
+  },
+  "blocker": {
+    "kind": "explicit-comparison-targets-needed",
+    "blockerPath": null
   }
 }

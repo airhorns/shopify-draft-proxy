@@ -1,0 +1,23 @@
+{
+  "scenarioId": "draft-orders-invalid-email-query-read",
+  "operationNames": ["draftOrders", "draftOrdersCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "search-filter-semantics"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-orders-invalid-email-query.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/draftOrders-invalid-email-query-read.graphql",
+    "variablesPath": "config/parity-requests/draftOrders-invalid-email-query-read.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "The first captured filtered draft-order search slice on this host preserves Shopify's invalid `email:` query behavior: the proxy request stays executable while comparing the warning-bearing no-op catalog/count response instead of pretending email filtering is supported.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "blocker": {
+    "kind": "explicit-comparison-targets-needed",
+    "blockerPath": null
+  }
+}

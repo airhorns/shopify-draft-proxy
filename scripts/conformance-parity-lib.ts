@@ -40,6 +40,7 @@ function interpretMutationLogEntry(
 export type ParityScenarioState =
   | 'ready-for-comparison'
   | 'invalid-missing-comparison-contract'
+  | 'blocked-with-proxy-request'
   | 'not-yet-implemented';
 
 type Matcher = 'any-string' | 'non-empty-string' | 'any-number' | 'iso-timestamp' | `shopify-gid:${string}`;
@@ -77,6 +78,10 @@ export interface ParitySpec {
   proxyRequest?: ProxyRequestSpec;
   comparison?: ComparisonContract;
   liveCaptureFiles?: string[];
+  blocker?: {
+    kind?: string;
+    blockerPath?: string;
+  };
 }
 
 export interface Scenario {
@@ -199,6 +204,10 @@ export function classifyParityScenarioState(
   scenario: Pick<Scenario, 'status'>,
   paritySpec: ParitySpec | null | undefined,
 ): ParityScenarioState {
+  if (paritySpec?.blocker && hasProxyRequest(paritySpec)) {
+    return 'blocked-with-proxy-request';
+  }
+
   if (scenario.status === 'captured') {
     return hasProxyRequest(paritySpec) && hasComparisonContract(paritySpec)
       ? 'ready-for-comparison'
@@ -566,6 +575,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
+      path: '/admin/api/2025-01/graphql.json',
       query: document,
       variables,
       status: 'staged',
@@ -575,13 +585,13 @@ async function executeGraphQLAgainstLocalProxy(
 
     return {
       status: 200,
-      body: handleProductMutation(document, variables),
+      body: handleProductMutation(document, variables, 'snapshot'),
     };
   }
 
   if (capability.execution === 'overlay-read' && capability.domain === 'products') {
     if (upstreamPayload !== undefined) {
-      hydrateProductsFromUpstreamResponse(upstreamPayload);
+      hydrateProductsFromUpstreamResponse(document, variables, upstreamPayload);
       if (!hasStagedState()) {
         return {
           status: 200,
@@ -816,7 +826,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     readStringField(payload, 'deletedProductId');
   const productId = rawProductId?.startsWith('gid://shopify/Product/') ? rawProductId : null;
 
-  if (productId) {
+  const shouldSeedProduct =
+    productId !== null && !(mutationName === 'productCreate' && readStringField(productInput, 'id') === null);
+
+  if (shouldSeedProduct) {
     store.upsertBaseProducts([makeSeedProduct(productId, productPayload ?? productInput)]);
     if (readArrayField(variables, 'options').length > 0 || readRecordField(variables, 'option')) {
       seedProductOptionState(productId, variables);

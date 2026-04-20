@@ -1,0 +1,11 @@
+mutation OrderEditBeginParityPlan($id: ID!) {
+  orderEditBegin(id: $id) {
+    calculatedOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

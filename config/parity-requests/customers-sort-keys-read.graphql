@@ -1,0 +1,62 @@
+query CustomersSortKeysRead($first: Int!) {
+  nameOrder: customers(first: $first, sortKey: NAME) {
+    edges {
+      cursor
+      node {
+        id
+        displayName
+        legacyResourceId
+        defaultAddress {
+          country
+          province
+          city
+          formattedArea
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  idOrder: customers(first: $first, sortKey: ID) {
+    edges {
+      cursor
+      node {
+        id
+        displayName
+        legacyResourceId
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  locationOrder: customers(first: $first, sortKey: LOCATION) {
+    edges {
+      cursor
+      node {
+        id
+        displayName
+        legacyResourceId
+        defaultAddress {
+          country
+          province
+          city
+          formattedArea
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

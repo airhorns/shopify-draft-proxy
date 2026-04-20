@@ -1,0 +1,23 @@
+{
+  "scenarioId": "order-edit-set-quantity-missing-id-invalid-variable",
+  "operationNames": ["orderEditSetQuantity"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-edit-set-quantity-missing-id.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orderEditSetQuantity-missing-id-parity.graphql",
+    "variablesPath": "config/parity-requests/orderEditSetQuantity-missing-id-parity.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured `orderEditSetQuantity` missing-id variable validation slice: Shopify fails the variables payload at GraphQL coercion time with `INVALID_VARIABLE` before the root's separate `write_order_edits` blocker, and snapshot/live-hybrid local parity now mirrors that branch without hitting upstream.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "blocker": {
+    "kind": "explicit-comparison-targets-needed",
+    "blockerPath": null
+  }
+}

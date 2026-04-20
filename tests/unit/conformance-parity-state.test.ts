@@ -517,4 +517,40 @@ describe('executeParityScenario', () => {
       },
     ]);
   });
+
+  it('marks blocked planned scenarios with a proxy request distinctly from generic planned work', () => {
+    const state = classifyParityScenarioState(
+      { status: 'planned' },
+      {
+        proxyRequest: {
+          documentPath: 'config/parity-requests/productPublish.graphql',
+          variablesPath: 'config/parity-requests/productPublish.json',
+        },
+        blocker: {
+          kind: 'missing-live-scopes',
+          blockerPath: 'pending/product-publication-conformance-scope-blocker.md',
+        },
+      },
+    );
+
+    expect(state).toBe('blocked-with-proxy-request');
+  });
+
+  it('keeps captured scenarios with blockers out of ready-for-comparison counts', () => {
+    const state = classifyParityScenarioState(
+      { status: 'captured' },
+      {
+        proxyRequest: {
+          documentPath: 'config/parity-requests/productPublish.graphql',
+          variablesPath: 'config/parity-requests/productPublish.json',
+        },
+        blocker: {
+          kind: 'missing-publication-target',
+          blockerPath: 'pending/product-publication-conformance-scope-blocker.md',
+        },
+      },
+    );
+
+    expect(state).toBe('blocked-with-proxy-request');
+  });
 });

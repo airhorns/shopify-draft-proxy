@@ -1,13 +1,21 @@
 import type {
+  CalculatedOrderRecord,
   CollectionRecord,
+  CustomerCatalogConnectionRecord,
+  CustomerRecord,
+  DraftOrderRecord,
   FileRecord,
   MutationLogEntry,
+  NormalizedStateSnapshotFile,
+  OrderRecord,
+  ProductCatalogConnectionRecord,
   ProductCollectionRecord,
   ProductMediaRecord,
   ProductMetafieldRecord,
   ProductOptionRecord,
   ProductRecord,
   ProductVariantRecord,
+  PublicationRecord,
   StateSnapshot,
 } from './types.js';
 
@@ -16,12 +24,15 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   productVariants: {},
   productOptions: {},
   collections: {},
+  publications: {},
+  customers: {},
   productCollections: {},
   productMedia: {},
   files: {},
   productMetafields: {},
   deletedProductIds: {},
   deletedCollectionIds: {},
+  deletedCustomerIds: {},
 };
 
 function cloneSnapshot(snapshot: StateSnapshot): StateSnapshot {
@@ -30,6 +41,10 @@ function cloneSnapshot(snapshot: StateSnapshot): StateSnapshot {
 
 function compareProductsNewestFirst(left: ProductRecord, right: ProductRecord): number {
   return right.createdAt.localeCompare(left.createdAt) || right.id.localeCompare(left.id);
+}
+
+function compareCustomersNewestFirst(left: CustomerRecord, right: CustomerRecord): number {
+  return (right.updatedAt ?? '').localeCompare(left.updatedAt ?? '') || right.id.localeCompare(left.id);
 }
 
 function compareResourceIds(leftId: string, rightId: string): number {
@@ -82,6 +97,10 @@ function mergeCollectionRecords(
   return structuredClone(staged);
 }
 
+function mergePublicationRecord(base: PublicationRecord | null): PublicationRecord | null {
+  return base ? structuredClone(base) : null;
+}
+
 function mergeProductRecords(base: ProductRecord | null, staged: ProductRecord | null): ProductRecord | null {
   if (!base && !staged) {
     return null;
@@ -117,17 +136,104 @@ function mergeProductRecords(base: ProductRecord | null, staged: ProductRecord |
   };
 }
 
+function mergeCustomerRecords(base: CustomerRecord | null, staged: CustomerRecord | null): CustomerRecord | null {
+  if (!base && !staged) {
+    return null;
+  }
+
+  if (!base) {
+    return staged ? structuredClone(staged) : null;
+  }
+
+  if (!staged) {
+    return structuredClone(base);
+  }
+
+  return {
+    id: staged.id,
+    firstName: staged.firstName,
+    lastName: staged.lastName,
+    displayName: staged.displayName,
+    email: staged.email ?? base.email,
+    legacyResourceId: staged.legacyResourceId ?? base.legacyResourceId,
+    locale: staged.locale ?? base.locale,
+    note: staged.note ?? base.note,
+    canDelete: staged.canDelete ?? base.canDelete,
+    verifiedEmail: staged.verifiedEmail ?? base.verifiedEmail,
+    taxExempt: staged.taxExempt ?? base.taxExempt,
+    state: staged.state ?? base.state,
+    tags: structuredClone(staged.tags),
+    numberOfOrders: staged.numberOfOrders ?? base.numberOfOrders,
+    amountSpent: staged.amountSpent ?? base.amountSpent,
+    defaultEmailAddress: staged.defaultEmailAddress ?? base.defaultEmailAddress,
+    defaultPhoneNumber: staged.defaultPhoneNumber ?? base.defaultPhoneNumber,
+    defaultAddress: staged.defaultAddress ?? base.defaultAddress,
+    createdAt: base.createdAt,
+    updatedAt:
+      base.updatedAt && staged.updatedAt
+        ? ensureUpdatedAtAfterBase(base.updatedAt, staged.updatedAt)
+        : (staged.updatedAt ?? base.updatedAt),
+  };
+}
+
 export class InMemoryStore {
+  private initialBaseState: StateSnapshot = cloneSnapshot(EMPTY_SNAPSHOT);
+  private initialProductSearchConnections: Record<string, ProductCatalogConnectionRecord> = {};
+  private initialCustomerCatalogConnection: CustomerCatalogConnectionRecord | null = null;
+  private initialCustomerSearchConnections: Record<string, CustomerCatalogConnectionRecord> = {};
+  private initialBaseOrders: Record<string, OrderRecord> = {};
+  private initialDraftOrders: Record<string, DraftOrderRecord> = {};
   private baseState: StateSnapshot = cloneSnapshot(EMPTY_SNAPSHOT);
   private stagedState: StateSnapshot = cloneSnapshot(EMPTY_SNAPSHOT);
   private mutationLog: MutationLogEntry[] = [];
   private stagedCollectionFamilies = new Set<string>();
+  private laggedTagSearchProductIds = new Set<string>();
+  private laggedVariantSearchProductIds = new Set<string>();
+  private baseProductSearchConnections: Record<string, ProductCatalogConnectionRecord> = {};
+  private baseCustomerCatalogConnection: CustomerCatalogConnectionRecord | null = null;
+  private baseCustomerSearchConnections: Record<string, CustomerCatalogConnectionRecord> = {};
+  private baseOrders: Record<string, OrderRecord> = {};
+  private stagedOrders: Record<string, OrderRecord> = {};
+  private calculatedOrders: Record<string, CalculatedOrderRecord> = {};
+  private stagedDraftOrders: Record<string, DraftOrderRecord> = {};
 
-  reset(): void {
-    this.baseState = cloneSnapshot(EMPTY_SNAPSHOT);
+  installSnapshot(snapshotFile: NormalizedStateSnapshotFile): void {
+    this.initialBaseState = cloneSnapshot(snapshotFile.baseState);
+    this.initialProductSearchConnections = {};
+    this.initialCustomerCatalogConnection = snapshotFile.customerCatalogConnection
+      ? structuredClone(snapshotFile.customerCatalogConnection)
+      : null;
+    this.initialCustomerSearchConnections = structuredClone(snapshotFile.customerSearchConnections ?? {});
+    this.initialBaseOrders = {};
+    this.restoreInitialState();
+  }
+
+  restoreInitialState(): void {
+    this.baseState = cloneSnapshot(this.initialBaseState);
     this.stagedState = cloneSnapshot(EMPTY_SNAPSHOT);
     this.mutationLog = [];
     this.stagedCollectionFamilies = new Set<string>();
+    this.laggedTagSearchProductIds = new Set<string>();
+    this.laggedVariantSearchProductIds = new Set<string>();
+    this.baseProductSearchConnections = structuredClone(this.initialProductSearchConnections);
+    this.baseCustomerCatalogConnection = this.initialCustomerCatalogConnection
+      ? structuredClone(this.initialCustomerCatalogConnection)
+      : null;
+    this.baseCustomerSearchConnections = structuredClone(this.initialCustomerSearchConnections);
+    this.baseOrders = structuredClone(this.initialBaseOrders);
+    this.stagedOrders = {};
+    this.calculatedOrders = {};
+    this.stagedDraftOrders = structuredClone(this.initialDraftOrders);
+  }
+
+  reset(): void {
+    this.initialBaseState = cloneSnapshot(EMPTY_SNAPSHOT);
+    this.initialProductSearchConnections = {};
+    this.initialCustomerCatalogConnection = null;
+    this.initialCustomerSearchConnections = {};
+    this.initialBaseOrders = {};
+    this.initialDraftOrders = {};
+    this.restoreInitialState();
   }
 
   getState(): { baseState: StateSnapshot; stagedState: StateSnapshot } {
@@ -138,17 +244,177 @@ export class InMemoryStore {
   }
 
   appendLog(entry: MutationLogEntry): void {
-    this.mutationLog.push(entry);
+    this.mutationLog.push(structuredClone(entry));
   }
 
   getLog(): MutationLogEntry[] {
     return structuredClone(this.mutationLog);
   }
 
+  updateLogEntry(
+    entryId: string,
+    updates: Partial<Pick<MutationLogEntry, 'status' | 'notes'>>,
+  ): MutationLogEntry | null {
+    const entry = this.mutationLog.find((candidate) => candidate.id === entryId);
+    if (!entry) {
+      return null;
+    }
+
+    if (updates.status) {
+      entry.status = updates.status;
+    }
+
+    if (updates.notes !== undefined) {
+      entry.notes = updates.notes;
+    }
+
+    return structuredClone(entry);
+  }
+
   upsertBaseProducts(products: ProductRecord[]): void {
     for (const product of products) {
       this.baseState.products[product.id] = structuredClone(product);
     }
+  }
+
+  upsertBaseCustomers(customers: CustomerRecord[]): void {
+    for (const customer of customers) {
+      delete this.baseState.deletedCustomerIds[customer.id];
+      delete this.stagedState.deletedCustomerIds[customer.id];
+      this.baseState.customers[customer.id] = structuredClone(customer);
+    }
+  }
+
+  stageCreateCustomer(customer: CustomerRecord): CustomerRecord {
+    delete this.stagedState.deletedCustomerIds[customer.id];
+    this.stagedState.customers[customer.id] = structuredClone(customer);
+    return structuredClone(customer);
+  }
+
+  stageUpdateCustomer(customer: CustomerRecord): CustomerRecord {
+    delete this.stagedState.deletedCustomerIds[customer.id];
+    this.stagedState.customers[customer.id] = structuredClone(customer);
+    return structuredClone(customer);
+  }
+
+  stageDeleteCustomer(customerId: string): void {
+    delete this.stagedState.customers[customerId];
+    this.stagedState.deletedCustomerIds[customerId] = true;
+  }
+
+  upsertBaseOrders(orders: OrderRecord[]): void {
+    for (const order of orders) {
+      this.baseOrders[order.id] = structuredClone(order);
+    }
+  }
+
+  stageCreateOrder(order: OrderRecord): OrderRecord {
+    this.stagedOrders[order.id] = structuredClone(order);
+    return structuredClone(order);
+  }
+
+  getOrderById(orderId: string): OrderRecord | null {
+    const order = this.stagedOrders[orderId] ?? this.baseOrders[orderId];
+    return order ? structuredClone(order) : null;
+  }
+
+  getOrders(): OrderRecord[] {
+    const mergedOrders = new Map<string, OrderRecord>();
+    for (const order of Object.values(this.baseOrders)) {
+      mergedOrders.set(order.id, structuredClone(order));
+    }
+    for (const order of Object.values(this.stagedOrders)) {
+      mergedOrders.set(order.id, structuredClone(order));
+    }
+
+    return Array.from(mergedOrders.values()).sort(
+      (left, right) => right.createdAt.localeCompare(left.createdAt) || compareResourceIds(right.id, left.id),
+    );
+  }
+
+  stageCalculatedOrder(calculatedOrder: CalculatedOrderRecord): CalculatedOrderRecord {
+    this.calculatedOrders[calculatedOrder.id] = structuredClone(calculatedOrder);
+    return structuredClone(calculatedOrder);
+  }
+
+  getCalculatedOrderById(calculatedOrderId: string): CalculatedOrderRecord | null {
+    const calculatedOrder = this.calculatedOrders[calculatedOrderId];
+    return calculatedOrder ? structuredClone(calculatedOrder) : null;
+  }
+
+  updateCalculatedOrder(calculatedOrder: CalculatedOrderRecord): CalculatedOrderRecord {
+    this.calculatedOrders[calculatedOrder.id] = structuredClone(calculatedOrder);
+    return structuredClone(calculatedOrder);
+  }
+
+  discardCalculatedOrder(calculatedOrderId: string): void {
+    delete this.calculatedOrders[calculatedOrderId];
+  }
+
+  updateOrder(order: OrderRecord): OrderRecord {
+    this.stagedOrders[order.id] = structuredClone(order);
+    return structuredClone(order);
+  }
+
+  stageCreateDraftOrder(draftOrder: DraftOrderRecord): DraftOrderRecord {
+    this.stagedDraftOrders[draftOrder.id] = structuredClone(draftOrder);
+    return structuredClone(draftOrder);
+  }
+
+  updateDraftOrder(draftOrder: DraftOrderRecord): DraftOrderRecord {
+    this.stagedDraftOrders[draftOrder.id] = structuredClone(draftOrder);
+    return structuredClone(draftOrder);
+  }
+
+  getDraftOrderById(draftOrderId: string): DraftOrderRecord | null {
+    const draftOrder = this.stagedDraftOrders[draftOrderId];
+    return draftOrder ? structuredClone(draftOrder) : null;
+  }
+
+  getDraftOrders(): DraftOrderRecord[] {
+    return Object.values(this.stagedDraftOrders)
+      .map((draftOrder) => structuredClone(draftOrder))
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt) || compareResourceIds(right.id, left.id));
+  }
+
+  hasDraftOrders(): boolean {
+    return Object.keys(this.stagedDraftOrders).length > 0;
+  }
+
+  setBaseProductSearchConnection(key: string, connection: ProductCatalogConnectionRecord | null): void {
+    if (!connection) {
+      delete this.baseProductSearchConnections[key];
+      return;
+    }
+
+    this.baseProductSearchConnections[key] = structuredClone(connection);
+  }
+
+  getBaseProductSearchConnection(key: string): ProductCatalogConnectionRecord | null {
+    const connection = this.baseProductSearchConnections[key];
+    return connection ? structuredClone(connection) : null;
+  }
+
+  setBaseCustomerCatalogConnection(connection: CustomerCatalogConnectionRecord | null): void {
+    this.baseCustomerCatalogConnection = connection ? structuredClone(connection) : null;
+  }
+
+  getBaseCustomerCatalogConnection(): CustomerCatalogConnectionRecord | null {
+    return this.baseCustomerCatalogConnection ? structuredClone(this.baseCustomerCatalogConnection) : null;
+  }
+
+  setBaseCustomerSearchConnection(key: string, connection: CustomerCatalogConnectionRecord | null): void {
+    if (!connection) {
+      delete this.baseCustomerSearchConnections[key];
+      return;
+    }
+
+    this.baseCustomerSearchConnections[key] = structuredClone(connection);
+  }
+
+  getBaseCustomerSearchConnection(key: string): CustomerCatalogConnectionRecord | null {
+    const connection = this.baseCustomerSearchConnections[key];
+    return connection ? structuredClone(connection) : null;
   }
 
   upsertBaseCollections(collections: CollectionRecord[]): void {
@@ -188,6 +454,12 @@ export class InMemoryStore {
     });
   }
 
+  upsertBasePublications(publications: PublicationRecord[]): void {
+    for (const publication of publications) {
+      this.baseState.publications[publication.id] = structuredClone(publication);
+    }
+  }
+
   stageCreateCollection(collection: CollectionRecord): CollectionRecord {
     delete this.stagedState.deletedCollectionIds[collection.id];
     this.stagedState.collections[collection.id] = structuredClone(collection);
@@ -225,6 +497,8 @@ export class InMemoryStore {
     for (const variant of variants) {
       this.baseState.productVariants[variant.id] = structuredClone(variant);
     }
+
+    this.laggedVariantSearchProductIds.delete(productId);
   }
 
   replaceStagedVariantsForProduct(productId: string, variants: ProductVariantRecord[]): void {
@@ -394,6 +668,31 @@ export class InMemoryStore {
     this.stagedState.deletedProductIds[productId] = true;
   }
 
+  getBaseProductById(productId: string): ProductRecord | null {
+    if (this.stagedState.deletedProductIds[productId]) {
+      return null;
+    }
+
+    const baseProduct = this.baseState.products[productId];
+    return baseProduct ? structuredClone(baseProduct) : null;
+  }
+
+  markTagSearchLagged(productId: string): void {
+    this.laggedTagSearchProductIds.add(productId);
+  }
+
+  isTagSearchLagged(productId: string): boolean {
+    return this.laggedTagSearchProductIds.has(productId);
+  }
+
+  markVariantSearchLagged(productId: string): void {
+    this.laggedVariantSearchProductIds.add(productId);
+  }
+
+  isVariantSearchLagged(productId: string): boolean {
+    return this.laggedVariantSearchProductIds.has(productId);
+  }
+
   getEffectiveProductById(productId: string): ProductRecord | null {
     if (this.stagedState.deletedProductIds[productId]) {
       return null;
@@ -426,6 +725,59 @@ export class InMemoryStore {
     return merged.sort(compareProductsNewestFirst);
   }
 
+  getEffectiveCustomerById(customerId: string): CustomerRecord | null {
+    if (this.stagedState.deletedCustomerIds[customerId]) {
+      return null;
+    }
+
+    return mergeCustomerRecords(
+      this.baseState.customers[customerId] ?? null,
+      this.stagedState.customers[customerId] ?? null,
+    );
+  }
+
+  listEffectiveCustomers(): CustomerRecord[] {
+    const customerIds = new Set([...Object.keys(this.baseState.customers), ...Object.keys(this.stagedState.customers)]);
+    const merged: CustomerRecord[] = [];
+
+    for (const customerId of Array.from(customerIds)) {
+      if (this.stagedState.deletedCustomerIds[customerId]) {
+        continue;
+      }
+
+      const customer = mergeCustomerRecords(
+        this.baseState.customers[customerId] ?? null,
+        this.stagedState.customers[customerId] ?? null,
+      );
+      if (customer) {
+        merged.push(customer);
+      }
+    }
+
+    return merged.sort(compareCustomersNewestFirst);
+  }
+
+  hasBaseCustomers(): boolean {
+    return Object.keys(this.baseState.customers).length > 0;
+  }
+
+  hasStagedCustomers(): boolean {
+    return (
+      Object.keys(this.stagedState.customers).length > 0 || Object.keys(this.stagedState.deletedCustomerIds).length > 0
+    );
+  }
+
+  getBaseVariantsByProductId(productId: string): ProductVariantRecord[] {
+    if (this.stagedState.deletedProductIds[productId]) {
+      return [];
+    }
+
+    return Object.values(this.baseState.productVariants)
+      .filter((variant) => variant.productId === productId)
+      .map((variant) => structuredClone(variant))
+      .sort((left, right) => compareResourceIds(left.id, right.id));
+  }
+
   getEffectiveVariantsByProductId(productId: string): ProductVariantRecord[] {
     if (this.stagedState.deletedProductIds[productId]) {
       return [];
@@ -435,12 +787,7 @@ export class InMemoryStore {
       .filter((variant) => variant.productId === productId)
       .map((variant) => structuredClone(variant));
 
-    const sourceVariants =
-      stagedVariants.length > 0
-        ? stagedVariants
-        : Object.values(this.baseState.productVariants)
-            .filter((variant) => variant.productId === productId)
-            .map((variant) => structuredClone(variant));
+    const sourceVariants = stagedVariants.length > 0 ? stagedVariants : this.getBaseVariantsByProductId(productId);
 
     return sourceVariants.sort((left, right) => compareResourceIds(left.id, right.id));
   }
@@ -567,6 +914,30 @@ export class InMemoryStore {
     return Array.from(collectionsById.values()).sort(
       (left, right) => left.title.localeCompare(right.title) || compareResourceIds(left.id, right.id),
     );
+  }
+
+  listEffectivePublications(): PublicationRecord[] {
+    const publicationsById = new Map<string, PublicationRecord>();
+
+    for (const publicationId of Object.keys(this.baseState.publications)) {
+      const publication = mergePublicationRecord(this.baseState.publications[publicationId] ?? null);
+      if (publication) {
+        publicationsById.set(publication.id, publication);
+      }
+    }
+
+    for (const product of this.listEffectiveProducts()) {
+      for (const publicationId of product.publicationIds) {
+        if (!publicationsById.has(publicationId)) {
+          publicationsById.set(publicationId, {
+            id: publicationId,
+            name: null,
+          });
+        }
+      }
+    }
+
+    return Array.from(publicationsById.values()).sort((left, right) => compareResourceIds(left.id, right.id));
   }
 
   getEffectiveCollectionsByProductId(productId: string): ProductCollectionRecord[] {

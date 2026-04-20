@@ -1,9 +1,9 @@
-query ProductVariantSearchConformance {
-  matches: productsCount(query: "sku:C-03-black-5") {
+query ProductsVariantSearchRead($query: String!) {
+  matches: productsCount(query: $query) {
     count
     precision
   }
-  products(first: 5, query: "sku:C-03-black-5") {
+  products(first: 5, query: $query) {
     edges {
       node {
         id

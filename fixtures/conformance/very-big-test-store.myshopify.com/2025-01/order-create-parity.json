@@ -1,0 +1,233 @@
+{
+  "variables": {
+    "order": {
+      "email": "hermes-order-probe-1776610115303@example.com",
+      "note": "order create parity probe",
+      "tags": ["parity-probe", "order-create"],
+      "test": true,
+      "customAttributes": [
+        {
+          "key": "source",
+          "value": "hermes-parity-plan"
+        },
+        {
+          "key": "channel",
+          "value": "cron-orders-bootstrap"
+        }
+      ],
+      "billingAddress": {
+        "firstName": "Hermes",
+        "lastName": "Operator",
+        "address1": "123 Queen St W",
+        "city": "Toronto",
+        "provinceCode": "ON",
+        "countryCode": "CA",
+        "zip": "M5H 2M9",
+        "phone": "+141****0101"
+      },
+      "shippingAddress": {
+        "firstName": "Hermes",
+        "lastName": "Operator",
+        "address1": "123 Queen St W",
+        "city": "Toronto",
+        "provinceCode": "ON",
+        "countryCode": "CA",
+        "zip": "M5H 2M9",
+        "phone": "+141****0101"
+      },
+      "shippingLines": [
+        {
+          "title": "Standard",
+          "code": "STANDARD",
+          "source": "hermes-parity-plan",
+          "priceSet": {
+            "shopMoney": {
+              "amount": "5.00",
+              "currencyCode": "CAD"
+            }
+          }
+        }
+      ],
+      "lineItems": [
+        {
+          "title": "Hermes custom order line item",
+          "quantity": 1,
+          "priceSet": {
+            "shopMoney": {
+              "amount": "10.00",
+              "currencyCode": "CAD"
+            }
+          },
+          "requiresShipping": false,
+          "taxable": false,
+          "sku": "hermes-order-probe-1776610115303"
+        }
+      ],
+      "transactions": [
+        {
+          "kind": "SALE",
+          "status": "SUCCESS",
+          "gateway": "manual",
+          "test": true,
+          "amountSet": {
+            "shopMoney": {
+              "amount": "15.00",
+              "currencyCode": "CAD"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "mutation": {
+    "response": {
+      "data": {
+        "orderCreate": {
+          "order": {
+            "id": "gid://shopify/Order/6824239235305",
+            "name": "#1314",
+            "email": "hermes-order-probe-1776610115303@example.com",
+            "note": "order create parity probe",
+            "tags": ["order-create", "parity-probe"],
+            "customAttributes": [
+              {
+                "key": "source",
+                "value": "hermes-parity-plan"
+              },
+              {
+                "key": "channel",
+                "value": "cron-orders-bootstrap"
+              }
+            ],
+            "billingAddress": {
+              "firstName": "Hermes",
+              "lastName": "Operator",
+              "address1": "123 Queen St W",
+              "city": "Toronto",
+              "provinceCode": "ON",
+              "countryCodeV2": "CA",
+              "zip": "M5H 2M9"
+            },
+            "shippingAddress": {
+              "firstName": "Hermes",
+              "lastName": "Operator",
+              "address1": "123 Queen St W",
+              "city": "Toronto",
+              "provinceCode": "ON",
+              "countryCodeV2": "CA",
+              "zip": "M5H 2M9"
+            },
+            "shippingLines": {
+              "nodes": [
+                {
+                  "title": "Standard",
+                  "code": "STANDARD",
+                  "source": "hermes-parity-plan",
+                  "originalPriceSet": {
+                    "shopMoney": {
+                      "amount": "5.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            },
+            "displayFinancialStatus": "PAID",
+            "displayFulfillmentStatus": "UNFULFILLED",
+            "currentTotalPriceSet": {
+              "shopMoney": {
+                "amount": "15.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "lineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/LineItem/16190346854633",
+                  "title": "Hermes custom order line item",
+                  "quantity": 1,
+                  "sku": "hermes-order-probe-1776610115303"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 23,
+          "actualQueryCost": 19,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1981,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "variables": {
+      "id": "gid://shopify/Order/6824239235305"
+    },
+    "response": {
+      "data": {
+        "order": {
+          "id": "gid://shopify/Order/6824239235305",
+          "name": "#1314",
+          "email": "hermes-order-probe-1776610115303@example.com",
+          "note": "order create parity probe",
+          "tags": ["order-create", "parity-probe"],
+          "customAttributes": [
+            {
+              "key": "source",
+              "value": "hermes-parity-plan"
+            },
+            {
+              "key": "channel",
+              "value": "cron-orders-bootstrap"
+            }
+          ],
+          "billingAddress": {
+            "firstName": "Hermes",
+            "lastName": "Operator",
+            "address1": "123 Queen St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCodeV2": "CA",
+            "zip": "M5H 2M9"
+          },
+          "shippingAddress": {
+            "firstName": "Hermes",
+            "lastName": "Operator",
+            "address1": "123 Queen St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCodeV2": "CA",
+            "zip": "M5H 2M9"
+          },
+          "displayFinancialStatus": "PAID",
+          "displayFulfillmentStatus": "UNFULFILLED",
+          "currentTotalPriceSet": {
+            "shopMoney": {
+              "amount": "15.0",
+              "currencyCode": "CAD"
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 4,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

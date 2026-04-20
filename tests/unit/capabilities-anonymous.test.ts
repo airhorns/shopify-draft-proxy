@@ -136,6 +136,22 @@ describe('getOperationCapability anonymous operations', () => {
     });
   });
 
+  it('classifies anonymous metafield delete mutations by root field name', () => {
+    expect(getOperationCapability({ type: 'mutation', name: null, rootFields: ['metafieldsDelete'] })).toEqual({
+      domain: 'products',
+      execution: 'stage-locally',
+      operationName: 'metafieldsDelete',
+      type: 'mutation',
+    });
+
+    expect(getOperationCapability({ type: 'mutation', name: null, rootFields: ['metafieldDelete'] })).toEqual({
+      domain: 'products',
+      execution: 'stage-locally',
+      operationName: 'metafieldDelete',
+      type: 'mutation',
+    });
+  });
+
   it('classifies anonymous collection mutations by root field name', () => {
     expect(getOperationCapability({ type: 'mutation', name: null, rootFields: ['collectionCreate'] })).toEqual({
       domain: 'products',
@@ -232,6 +248,29 @@ describe('getOperationCapability anonymous operations', () => {
       domain: 'products',
       execution: 'overlay-read',
       operationName: 'collections',
+      type: 'query',
+    });
+  });
+
+  it('classifies anonymous customer queries and customersCount by root field name', () => {
+    expect(getOperationCapability({ type: 'query', name: null, rootFields: ['customer'] })).toEqual({
+      domain: 'customers',
+      execution: 'overlay-read',
+      operationName: 'customer',
+      type: 'query',
+    });
+
+    expect(getOperationCapability({ type: 'query', name: null, rootFields: ['customers'] })).toEqual({
+      domain: 'customers',
+      execution: 'overlay-read',
+      operationName: 'customers',
+      type: 'query',
+    });
+
+    expect(getOperationCapability({ type: 'query', name: null, rootFields: ['customersCount'] })).toEqual({
+      domain: 'customers',
+      execution: 'overlay-read',
+      operationName: 'customersCount',
       type: 'query',
     });
   });

@@ -1,12 +1,23 @@
 {
-  "scenarioId": "productVariantsBulkCreate-parity-plan",
+  "scenarioId": "product-variants-bulk-create-live-parity",
   "operationNames": ["productVariantsBulkCreate"],
-  "scenarioStatus": "planned",
+  "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
-  "liveCaptureFiles": [],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-variants-bulk-create-parity.json"
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/productVariantsBulkCreate-parity-plan.graphql",
     "variablesPath": "config/parity-requests/productVariantsBulkCreate-parity-plan.variables.json"
   },
-  "notes": "Proxy request scaffold now mirrors the staged variant bulk-create runtime slice (`productVariantsBulkCreate(productId:, variants:)` returning product inventory aggregates, nested `product.variants`, created `productVariants`, and `userErrors`). Next step is to run the same safe variant-create scenario against a dedicated dev-store write pack and compare the mutation payload together with immediate downstream variant/search/count parity."
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live capture now covers `productVariantsBulkCreate` on the current token without location-scoped inventory quantities. Shopify accepted `optionValues` plus `inventoryItem.sku`, returned the new variant immediately on `product.variants`, and still left immediate sku-filtered `products` / `productsCount` empty.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "blocker": {
+    "kind": "explicit-comparison-targets-needed",
+    "blockerPath": null
+  }
 }

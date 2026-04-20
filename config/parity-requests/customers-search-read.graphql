@@ -1,0 +1,34 @@
+query CustomersSearchRead($first: Int!, $query: String!) {
+  customers(first: $first, query: $query, sortKey: UPDATED_AT, reverse: true) {
+    edges {
+      cursor
+      node {
+        id
+        displayName
+        email
+        legacyResourceId
+        verifiedEmail
+        state
+        tags
+        defaultPhoneNumber {
+          phoneNumber
+        }
+        defaultAddress {
+          address1
+          city
+          province
+          country
+          zip
+          formattedArea
+        }
+        updatedAt
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}
