@@ -42,6 +42,7 @@ Use it as the source of truth for which implemented root operations are structur
 - [x] `productCreateMedia` — Media mutation parity still needs dedicated live-write scenarios and payload assertions.
 - [x] `productUpdateMedia` — Media mutation parity still needs dedicated live-write scenarios and payload assertions.
 - [x] `productDeleteMedia` — Media mutation parity still needs dedicated live-write scenarios and payload assertions.
+- [x] `fileCreate` — Store-level Files API create parity still needs dedicated live-write scenarios and payload assertions.
 - [x] `inventoryAdjustQuantities` — Inventory adjustment parity still needs dedicated live-write scenarios and payload assertions.
 - [x] `metafieldsSet` — Metafield mutation parity still needs dedicated live-write scenarios and payload assertions.
 - [x] `metafieldDelete` — Metafield mutation parity still needs dedicated live-write scenarios and payload assertions.

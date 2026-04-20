@@ -1,5 +1,6 @@
 import type {
   CollectionRecord,
+  FileRecord,
   MutationLogEntry,
   ProductCollectionRecord,
   ProductMediaRecord,
@@ -17,6 +18,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   collections: {},
   productCollections: {},
   productMedia: {},
+  files: {},
   productMetafields: {},
   deletedProductIds: {},
   deletedCollectionIds: {},
@@ -271,6 +273,14 @@ export class InMemoryStore {
     for (const mediaRecord of media) {
       this.stagedState.productMedia[mediaRecord.key] = structuredClone(mediaRecord);
     }
+  }
+
+  stageCreateFiles(files: FileRecord[]): FileRecord[] {
+    for (const file of files) {
+      this.stagedState.files[file.id] = structuredClone(file);
+    }
+
+    return files.map((file) => structuredClone(file));
   }
 
   replaceBaseMetafieldsForProduct(productId: string, metafields: ProductMetafieldRecord[]): void {

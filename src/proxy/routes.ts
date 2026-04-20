@@ -7,6 +7,7 @@ import type { MutationLogInterpretedMetadata } from '../state/types.js';
 import type { AppConfig } from '../config.js';
 import { createUpstreamGraphQLClient } from '../shopify/upstream-client.js';
 import { getOperationCapability, type OperationCapability } from './capabilities.js';
+import { handleMediaMutation } from './media.js';
 import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamResponse } from './products.js';
 
 interface GraphQLBody {
@@ -66,6 +67,23 @@ export function createProxyRouter(config: AppConfig): Router {
 
       ctx.status = 200;
       ctx.body = handleProductMutation(body.query, variables);
+      return;
+    }
+
+    if (capability.execution === 'stage-locally' && capability.domain === 'media') {
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        query: body.query,
+        variables,
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        notes: 'Staged locally in the in-memory media draft store.',
+      });
+
+      ctx.status = 200;
+      ctx.body = handleMediaMutation(body.query, variables);
       return;
     }
 
