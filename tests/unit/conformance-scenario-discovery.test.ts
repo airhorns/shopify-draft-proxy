@@ -1,0 +1,142 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+import { describe, expect, it } from 'vitest';
+
+import { validateComparisonContract } from '../../scripts/conformance-parity-lib.js';
+import {
+  buildConformanceStatusDocument,
+  listConformanceParitySpecPaths,
+  loadConformanceScenarioOverrides,
+  loadConformanceScenarios,
+} from '../../scripts/conformance-scenario-registry.js';
+
+type OperationRegistryEntry = {
+  name: string;
+  implemented?: boolean;
+  runtimeTests?: string[];
+};
+
+type ParitySpec = {
+  scenarioId: string;
+  operationNames: string[];
+  scenarioStatus: string;
+  assertionKinds: string[];
+  liveCaptureFiles: string[];
+  proxyRequest?: {
+    documentPath?: string | null;
+    variablesPath?: string | null;
+  };
+  comparison?: unknown;
+};
+
+const repoRoot = resolve(import.meta.dirname, '../..');
+const allowedScenarioStatuses = new Set(['captured', 'planned']);
+
+function readJson<T>(relativePath: string): T {
+  return JSON.parse(readFileSync(resolve(repoRoot, relativePath), 'utf8')) as T;
+}
+
+describe('conformance scenario discovery', () => {
+  const paritySpecPaths = listConformanceParitySpecPaths(repoRoot);
+  const scenarioOverrides = loadConformanceScenarioOverrides(repoRoot);
+  const scenarios = loadConformanceScenarios(repoRoot);
+
+  it('uses parity specs as the scenario convention instead of generated or central manifests', () => {
+    expect(existsSync(resolve(repoRoot, 'config/conformance-scenarios.json'))).toBe(false);
+    expect(existsSync(resolve(repoRoot, 'docs/generated'))).toBe(false);
+
+    expect(paritySpecPaths.length).toBeGreaterThan(0);
+    expect(scenarios.map((scenario) => scenario.paritySpecPath)).toEqual(paritySpecPaths);
+  });
+
+  it('keeps discovered scenario ids unique and structurally complete', () => {
+    const scenarioIds = scenarios.map((scenario) => scenario.id);
+    expect(new Set(scenarioIds).size).toBe(scenarioIds.length);
+
+    for (const scenario of scenarios) {
+      expect(scenario.id.length, `${scenario.paritySpecPath} should declare scenarioId`).toBeGreaterThan(0);
+      expect(scenario.operationNames.length, `${scenario.id} should declare operationNames`).toBeGreaterThan(0);
+      expect(allowedScenarioStatuses.has(scenario.status), `${scenario.id} has invalid status`).toBe(true);
+      expect(scenario.assertionKinds.length, `${scenario.id} should declare assertionKinds`).toBeGreaterThan(0);
+      if (scenario.status === 'captured') {
+        expect(scenario.captureFiles.length, `${scenario.id} should reference capture files`).toBeGreaterThan(0);
+      }
+    }
+
+    for (const scenarioId of scenarioOverrides.keys()) {
+      expect(scenarioIds).toContain(scenarioId);
+    }
+  });
+
+  it('derives scenario metadata from each parity spec by convention', () => {
+    const productCreate = scenarios.find((scenario) => scenario.id === 'product-create-live-parity');
+
+    expect(productCreate).toEqual(
+      expect.objectContaining({
+        operationNames: ['productCreate'],
+        status: 'captured',
+        assertionKinds: ['payload-shape', 'user-errors-parity', 'downstream-read-parity'],
+        captureFiles: ['fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-create-parity.json'],
+        paritySpecPath: 'config/parity-specs/productCreate-parity-plan.json',
+      }),
+    );
+  });
+
+  it.each(scenarios.map((scenario) => [scenario.id, scenario] as const))(
+    'keeps parity spec file references present on disk for %s',
+    (_scenarioId, scenario) => {
+      const paritySpec = readJson<ParitySpec>(scenario.paritySpecPath);
+      expect(paritySpec.scenarioId).toBe(scenario.id);
+      expect(paritySpec.operationNames).toEqual(scenario.operationNames);
+      expect(paritySpec.scenarioStatus).toBe(scenario.status);
+      expect(paritySpec.assertionKinds).toEqual(scenario.assertionKinds);
+      expect(paritySpec.liveCaptureFiles).toEqual(scenario.captureFiles);
+
+      for (const captureFile of paritySpec.liveCaptureFiles) {
+        expect(existsSync(resolve(repoRoot, captureFile)), `${captureFile} should exist`).toBe(true);
+      }
+
+      if (paritySpec.proxyRequest?.documentPath) {
+        expect(existsSync(resolve(repoRoot, paritySpec.proxyRequest.documentPath))).toBe(true);
+      }
+      if (paritySpec.proxyRequest?.variablesPath) {
+        expect(existsSync(resolve(repoRoot, paritySpec.proxyRequest.variablesPath))).toBe(true);
+      }
+
+      if (scenario.status === 'captured') {
+        expect(validateComparisonContract(paritySpec.comparison), `${scenario.id} comparison contract`).toEqual([]);
+      } else if (paritySpec.comparison) {
+        expect(validateComparisonContract(paritySpec.comparison)).not.toEqual([]);
+      }
+    },
+  );
+
+  it.each(
+    scenarios.flatMap((scenario) =>
+      scenario.operationNames.map((operationName) => [`${scenario.id} -> ${operationName}`, operationName] as const),
+    ),
+  )('keeps discovered scenario operation reachable from the operation registry: %s', (_label, operationName) => {
+    const registry = readJson<OperationRegistryEntry[]>('config/operation-registry.json');
+    expect(registry.some((entry) => entry.name === operationName)).toBe(true);
+  });
+
+  it('keeps every implemented operation covered by at least one discovered scenario', () => {
+    const registry = readJson<OperationRegistryEntry[]>('config/operation-registry.json');
+    const scenarioOperationNames = new Set(scenarios.flatMap((scenario) => scenario.operationNames));
+
+    for (const entry of registry.filter((candidate) => candidate.implemented)) {
+      expect(entry.runtimeTests?.length ?? 0).toBeGreaterThan(0);
+      expect(scenarioOperationNames.has(entry.name), `${entry.name} should have a parity spec`).toBe(true);
+    }
+  });
+
+  it('builds conformance status from discovered parity specs', () => {
+    const status = buildConformanceStatusDocument(repoRoot);
+
+    expect(status.implementedOperations.length).toBeGreaterThan(0);
+    expect(status.capturedScenarioIds).toContain('product-create-live-parity');
+    expect(status.plannedScenarioIds).toContain('productDuplicate-parity-plan');
+    expect(status.implementedOperations.every((entry) => entry.scenarioIds.length > 0)).toBe(true);
+  });
+});

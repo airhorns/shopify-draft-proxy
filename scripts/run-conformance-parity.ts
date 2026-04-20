@@ -9,18 +9,17 @@ import {
   validateComparisonContract,
 } from './conformance-parity-lib.js';
 import type { ParitySpec, Scenario } from './conformance-parity-lib.js';
-
-interface RegisteredScenario extends Scenario {
-  operationNames: string[];
-  assertionKinds: string[];
-  captureFiles: string[];
-  paritySpecPath: string;
-}
+import { loadConformanceScenarios } from './conformance-scenario-registry.js';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const scenarioRegistry = JSON.parse(
-  readFileSync(path.join(repoRoot, 'config', 'conformance-scenarios.json'), 'utf8'),
-) as RegisteredScenario[];
+const scenarioRegistry = loadConformanceScenarios(repoRoot) as Array<
+  Scenario & {
+    operationNames: string[];
+    assertionKinds: string[];
+    captureFiles: string[];
+    paritySpecPath: string;
+  }
+>;
 
 const filterId = process.argv[2] ?? null;
 const selectedScenarios = filterId ? scenarioRegistry.filter((scenario) => scenario.id === filterId) : scenarioRegistry;

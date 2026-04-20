@@ -6,11 +6,7 @@
     "execution": "overlay-read",
     "implemented": true,
     "matchNames": ["product", "Product"],
-    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
-    "conformance": {
-      "status": "covered",
-      "scenarioIds": ["product-detail-read"]
-    }
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"]
   },
   {
     "name": "products",
@@ -19,11 +15,7 @@
     "execution": "overlay-read",
     "implemented": true,
     "matchNames": ["products", "Products"],
-    "runtimeTests": ["tests/integration/product-query-shapes.test.ts", "tests/integration/product-draft-flow.test.ts"],
-    "conformance": {
-      "status": "covered",
-      "scenarioIds": ["products-catalog-read", "products-search-read", "products-variant-search-read"]
-    }
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts", "tests/integration/product-draft-flow.test.ts"]
   },
   {
     "name": "productsCount",
@@ -32,11 +24,7 @@
     "execution": "overlay-read",
     "implemented": true,
     "matchNames": ["productsCount", "ProductsCount"],
-    "runtimeTests": ["tests/integration/product-query-shapes.test.ts", "tests/integration/product-draft-flow.test.ts"],
-    "conformance": {
-      "status": "covered",
-      "scenarioIds": ["products-catalog-read", "products-search-read", "products-variant-search-read"]
-    }
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts", "tests/integration/product-draft-flow.test.ts"]
   },
   {
     "name": "productVariant",
@@ -45,11 +33,7 @@
     "execution": "overlay-read",
     "implemented": true,
     "matchNames": ["productVariant", "ProductVariant"],
-    "runtimeTests": ["tests/integration/product-query-shapes.test.ts", "tests/integration/product-draft-flow.test.ts"],
-    "conformance": {
-      "status": "covered",
-      "scenarioIds": ["product-variants-read"]
-    }
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts", "tests/integration/product-draft-flow.test.ts"]
   },
   {
     "name": "inventoryItem",
@@ -58,11 +42,7 @@
     "execution": "overlay-read",
     "implemented": true,
     "matchNames": ["inventoryItem", "InventoryItem"],
-    "runtimeTests": ["tests/integration/product-query-shapes.test.ts", "tests/integration/product-draft-flow.test.ts"],
-    "conformance": {
-      "status": "covered",
-      "scenarioIds": ["product-variants-read"]
-    }
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts", "tests/integration/product-draft-flow.test.ts"]
   },
   {
     "name": "collection",
@@ -74,11 +54,7 @@
     "runtimeTests": [
       "tests/integration/collection-query-shapes.test.ts",
       "tests/integration/collection-draft-flow.test.ts"
-    ],
-    "conformance": {
-      "status": "covered",
-      "scenarioIds": ["collection-detail-read"]
-    }
+    ]
   },
   {
     "name": "collections",
@@ -90,11 +66,7 @@
     "runtimeTests": [
       "tests/integration/collection-query-shapes.test.ts",
       "tests/integration/collection-draft-flow.test.ts"
-    ],
-    "conformance": {
-      "status": "covered",
-      "scenarioIds": ["collections-catalog-read"]
-    }
+    ]
   },
   {
     "name": "tagsAdd",
@@ -103,12 +75,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["tagsAdd"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
-    "conformance": {
-      "status": "declared-gap",
-      "scenarioIds": ["tags-add-live-parity"],
-      "reason": "Live capture exists, but Shopify did not reflect a freshly added unique tag in immediate `products(query:)` / `productsCount(query:)` search results, so the staged instant tag-filter parity assumption is too optimistic to mark covered yet."
-    }
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
     "name": "tagsRemove",
@@ -117,12 +84,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["tagsRemove"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
-    "conformance": {
-      "status": "declared-gap",
-      "scenarioIds": ["tags-remove-live-parity"],
-      "reason": "Live capture exists, but Shopify did not reflect unique tag writes in immediate `products(query:)` / `productsCount(query:)` search results, so the staged instant tag-filter removal parity assumption still needs alignment before promotion."
-    }
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
     "name": "productCreate",
@@ -134,11 +96,7 @@
     "runtimeTests": [
       "tests/integration/product-draft-flow.test.ts",
       "tests/integration/proxy-capability-classification.test.ts"
-    ],
-    "conformance": {
-      "status": "covered",
-      "scenarioIds": ["product-create-live-parity"]
-    }
+    ]
   },
   {
     "name": "productUpdate",
@@ -147,11 +105,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["productUpdate", "ProductUpdate"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
-    "conformance": {
-      "status": "covered",
-      "scenarioIds": ["product-update-live-parity"]
-    }
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
     "name": "productDelete",
@@ -160,11 +114,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["productDelete", "ProductDelete"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
-    "conformance": {
-      "status": "covered",
-      "scenarioIds": ["product-delete-live-parity"]
-    }
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
     "name": "productDuplicate",
@@ -173,12 +123,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["productDuplicate", "ProductDuplicate"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
-    "conformance": {
-      "status": "declared-gap",
-      "reason": "Write-path parity for staged productDuplicate still needs a dedicated safe live scenario pack and payload comparison harness.",
-      "scenarioIds": ["productDuplicate-parity-plan"]
-    }
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
     "name": "productSet",
@@ -187,12 +132,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["productSet", "ProductSet"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
-    "conformance": {
-      "status": "declared-gap",
-      "reason": "Write-path parity for staged productSet still needs a dedicated safe live scenario pack and payload comparison harness.",
-      "scenarioIds": ["productSet-parity-plan"]
-    }
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
     "name": "productChangeStatus",
@@ -201,12 +141,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["productChangeStatus", "ProductChangeStatus"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
-    "conformance": {
-      "status": "declared-gap",
-      "scenarioIds": ["product-change-status-live-parity"],
-      "reason": "Live capture exists, but Shopify returned a later `updatedAt` on the immediate downstream `product(id:)` read than in the `productChangeStatus` mutation payload, so the staged exact-timestamp parity assumption still needs alignment before promotion."
-    }
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
     "name": "productPublish",
@@ -215,12 +150,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["productPublish", "ProductPublish"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
-    "conformance": {
-      "status": "declared-gap",
-      "reason": "Write-path parity for staged productPublish still needs a dedicated safe live scenario pack and payload comparison harness.",
-      "scenarioIds": ["productPublish-parity-plan"]
-    }
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
     "name": "productUnpublish",
@@ -229,12 +159,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["productUnpublish", "ProductUnpublish"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
-    "conformance": {
-      "status": "declared-gap",
-      "reason": "Write-path parity for staged productUnpublish still needs a dedicated safe live scenario pack and payload comparison harness.",
-      "scenarioIds": ["productUnpublish-parity-plan"]
-    }
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
     "name": "productOptionsCreate",
@@ -243,11 +168,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["productOptionsCreate", "ProductOptionsCreate"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
-    "conformance": {
-      "status": "covered",
-      "scenarioIds": ["product-options-create-live-parity"]
-    }
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
     "name": "productOptionUpdate",
@@ -256,11 +177,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["productOptionUpdate", "ProductOptionUpdate"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
-    "conformance": {
-      "status": "covered",
-      "scenarioIds": ["product-option-update-live-parity"]
-    }
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
     "name": "productOptionsDelete",
@@ -269,11 +186,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["productOptionsDelete", "ProductOptionsDelete"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
-    "conformance": {
-      "status": "covered",
-      "scenarioIds": ["product-options-delete-live-parity"]
-    }
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
     "name": "productVariantsBulkCreate",
@@ -282,12 +195,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["productVariantsBulkCreate", "ProductVariantsBulkCreate"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
-    "conformance": {
-      "status": "declared-gap",
-      "reason": "Variant bulk mutation parity still needs dedicated live-write scenarios and payload assertions.",
-      "scenarioIds": ["productVariantsBulkCreate-parity-plan"]
-    }
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
     "name": "productVariantsBulkUpdate",
@@ -296,12 +204,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["productVariantsBulkUpdate", "ProductVariantsBulkUpdate"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
-    "conformance": {
-      "status": "declared-gap",
-      "reason": "Variant bulk mutation parity still needs dedicated live-write scenarios and payload assertions.",
-      "scenarioIds": ["productVariantsBulkUpdate-parity-plan"]
-    }
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
     "name": "productVariantsBulkDelete",
@@ -310,12 +213,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["productVariantsBulkDelete", "ProductVariantsBulkDelete"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
-    "conformance": {
-      "status": "declared-gap",
-      "reason": "Variant bulk mutation parity still needs dedicated live-write scenarios and payload assertions.",
-      "scenarioIds": ["productVariantsBulkDelete-parity-plan"]
-    }
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
     "name": "productVariantCreate",
@@ -324,12 +222,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["productVariantCreate", "ProductVariantCreate"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
-    "conformance": {
-      "status": "declared-gap",
-      "reason": "Single-variant mutation parity still needs dedicated live-write scenarios and payload assertions.",
-      "scenarioIds": ["productVariantCreate-parity-plan"]
-    }
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
     "name": "productVariantUpdate",
@@ -338,12 +231,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["productVariantUpdate", "ProductVariantUpdate"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
-    "conformance": {
-      "status": "declared-gap",
-      "reason": "Single-variant mutation parity still needs dedicated live-write scenarios and payload assertions.",
-      "scenarioIds": ["productVariantUpdate-parity-plan"]
-    }
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
     "name": "productVariantDelete",
@@ -352,12 +240,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["productVariantDelete", "ProductVariantDelete"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
-    "conformance": {
-      "status": "declared-gap",
-      "reason": "Single-variant mutation parity still needs dedicated live-write scenarios and payload assertions.",
-      "scenarioIds": ["productVariantDelete-parity-plan"]
-    }
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
     "name": "productCreateMedia",
@@ -366,12 +249,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["productCreateMedia", "ProductCreateMedia"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
-    "conformance": {
-      "status": "declared-gap",
-      "reason": "Media mutation parity still needs dedicated live-write scenarios and payload assertions.",
-      "scenarioIds": ["productCreateMedia-parity-plan"]
-    }
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
     "name": "productUpdateMedia",
@@ -380,12 +258,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["productUpdateMedia", "ProductUpdateMedia"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
-    "conformance": {
-      "status": "declared-gap",
-      "reason": "Media mutation parity still needs dedicated live-write scenarios and payload assertions.",
-      "scenarioIds": ["productUpdateMedia-parity-plan"]
-    }
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
     "name": "productDeleteMedia",
@@ -394,12 +267,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["productDeleteMedia", "ProductDeleteMedia"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
-    "conformance": {
-      "status": "declared-gap",
-      "reason": "Media mutation parity still needs dedicated live-write scenarios and payload assertions.",
-      "scenarioIds": ["productDeleteMedia-parity-plan"]
-    }
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
     "name": "fileCreate",
@@ -408,12 +276,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["fileCreate", "FileCreate"],
-    "runtimeTests": ["tests/integration/media-draft-flow.test.ts"],
-    "conformance": {
-      "status": "declared-gap",
-      "reason": "Store-level Files API create parity still needs dedicated live-write scenarios and payload assertions.",
-      "scenarioIds": ["fileCreate-parity-plan"]
-    }
+    "runtimeTests": ["tests/integration/media-draft-flow.test.ts"]
   },
   {
     "name": "inventoryAdjustQuantities",
@@ -422,12 +285,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["inventoryAdjustQuantities", "InventoryAdjustQuantities"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
-    "conformance": {
-      "status": "declared-gap",
-      "reason": "Inventory adjustment parity still needs dedicated live-write scenarios and payload assertions.",
-      "scenarioIds": ["inventoryAdjustQuantities-parity-plan"]
-    }
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
     "name": "metafieldsSet",
@@ -436,12 +294,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["metafieldsSet", "MetafieldsSet"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
-    "conformance": {
-      "status": "declared-gap",
-      "reason": "Metafield mutation parity still needs dedicated live-write scenarios and payload assertions.",
-      "scenarioIds": ["metafieldsSet-parity-plan"]
-    }
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
     "name": "metafieldDelete",
@@ -450,12 +303,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["metafieldDelete", "MetafieldDelete"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
-    "conformance": {
-      "status": "declared-gap",
-      "reason": "Metafield mutation parity still needs dedicated live-write scenarios and payload assertions.",
-      "scenarioIds": ["metafieldDelete-parity-plan"]
-    }
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
     "name": "collectionCreate",
@@ -464,11 +312,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["collectionCreate", "CollectionCreate"],
-    "runtimeTests": ["tests/integration/collection-draft-flow.test.ts"],
-    "conformance": {
-      "status": "covered",
-      "scenarioIds": ["collection-create-live-parity"]
-    }
+    "runtimeTests": ["tests/integration/collection-draft-flow.test.ts"]
   },
   {
     "name": "collectionUpdate",
@@ -477,11 +321,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["collectionUpdate", "CollectionUpdate"],
-    "runtimeTests": ["tests/integration/collection-draft-flow.test.ts"],
-    "conformance": {
-      "status": "covered",
-      "scenarioIds": ["collection-update-live-parity"]
-    }
+    "runtimeTests": ["tests/integration/collection-draft-flow.test.ts"]
   },
   {
     "name": "collectionDelete",
@@ -490,11 +330,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["collectionDelete", "CollectionDelete"],
-    "runtimeTests": ["tests/integration/collection-draft-flow.test.ts"],
-    "conformance": {
-      "status": "covered",
-      "scenarioIds": ["collection-delete-live-parity"]
-    }
+    "runtimeTests": ["tests/integration/collection-draft-flow.test.ts"]
   },
   {
     "name": "collectionAddProducts",
@@ -503,11 +339,7 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["collectionAddProducts", "CollectionAddProducts"],
-    "runtimeTests": ["tests/integration/collection-draft-flow.test.ts"],
-    "conformance": {
-      "status": "covered",
-      "scenarioIds": ["collection-add-products-live-parity"]
-    }
+    "runtimeTests": ["tests/integration/collection-draft-flow.test.ts"]
   },
   {
     "name": "collectionRemoveProducts",
@@ -516,10 +348,6 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["collectionRemoveProducts", "CollectionRemoveProducts"],
-    "runtimeTests": ["tests/integration/collection-draft-flow.test.ts"],
-    "conformance": {
-      "status": "covered",
-      "scenarioIds": ["collection-remove-products-live-parity"]
-    }
+    "runtimeTests": ["tests/integration/collection-draft-flow.test.ts"]
   }
 ]

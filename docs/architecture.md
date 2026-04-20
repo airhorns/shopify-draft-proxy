@@ -102,6 +102,13 @@ App -> Koa server -> operation classifier
 - recorder/replayer helpers
 - parity comparators
 
+### `scripts/conformance-scenario-registry.ts`
+
+- discovers standard conformance scenarios from `config/parity-specs/*.json`
+- keeps scenario-to-operation mapping in parity specs instead of the runtime operation registry
+- builds conformance status JSON for CI comments from discovered specs
+- supports optional override config only for unusual scenario shapes
+
 ### `scripts/conformance-parity-lib.ts`
 
 - classifies conformance scenarios by capture/proxy-request/comparison-contract readiness

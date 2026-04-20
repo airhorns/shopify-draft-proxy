@@ -41,6 +41,15 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 - Expose and test the meta API.
 - Add tests for every supported operation.
 - Prefer conformance fixtures over hand-wavy comments about expected behavior.
+- Repo scripts should be TypeScript files executed with `tsx` or similar, not
+  `.mjs` files. Existing `.mjs` capture helpers are legacy and should not be
+  used as the pattern for new scripts.
+
+## GitHub repository
+
+- The canonical GitHub repository is `airhorns/shopify-draft-proxy`.
+- Open pull requests against `airhorns/shopify-draft-proxy`; do not target personal forks.
+- If a workspace remote points at a personal fork, retarget it to `git@github.com:airhorns/shopify-draft-proxy.git` before pushing or creating a PR.
 
 ## Suggested workflow
 
