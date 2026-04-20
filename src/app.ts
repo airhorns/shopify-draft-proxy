@@ -6,7 +6,7 @@ import { createProxyRouter } from './proxy/routes.js';
 
 export function createApp(config: AppConfig): Koa {
   const app = new Koa();
-  const metaRouter = createMetaRouter();
+  const metaRouter = createMetaRouter(config);
   const proxyRouter = createProxyRouter(config);
 
   app.use(bodyParser());
