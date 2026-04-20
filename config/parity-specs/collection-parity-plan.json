@@ -8,6 +8,5 @@
     "documentPath": null,
     "variablesPath": null
   },
-  "comparisonMode": "planned",
-  "notes": "Top-level collection parity is derived from hydrated product\u2194collection memberships today; there is not yet a dedicated live collection scenario/parity runner for this surface."
+  "notes": "Top-level collection parity is derived from hydrated product↔collection memberships today; there is not yet a dedicated live collection scenario/parity runner for this surface."
 }

@@ -26,7 +26,10 @@ type ParitySpec = {
   scenarioId: string;
   scenarioStatus: string;
   liveCaptureFiles: string[];
-  comparisonMode: string;
+  comparison?: {
+    mode?: string;
+    targets?: Array<{ name?: string }>;
+  };
 };
 
 const expectedLiveFamilies = [
@@ -91,7 +94,7 @@ describe('product option mutation live conformance wiring', () => {
     }
   });
 
-  it('upgrades the product option mutation parity specs to captured-vs-proxy-request mode', () => {
+  it('upgrades the product option mutation parity specs to strict comparison contracts', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
 
     for (const expected of expectedLiveFamilies) {
@@ -102,9 +105,10 @@ describe('product option mutation live conformance wiring', () => {
           scenarioId: expected.scenarioId,
           scenarioStatus: 'captured',
           liveCaptureFiles: [expected.captureFile],
-          comparisonMode: 'captured-vs-proxy-request',
         }),
       );
+      expect(spec.comparison?.mode).toBe('strict-json');
+      expect(spec.comparison?.targets?.map((target) => target.name)).toEqual(['mutation-data']);
     }
   });
 });

@@ -6,8 +6,25 @@
   "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collection-create-parity.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/collectionCreate-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/collectionCreate-parity-plan.variables.json"
+    "variablesPath": "config/parity-requests/collectionCreate-parity-plan.variables.json",
+    "variablesCapturePath": "$.mutation.variables"
   },
-  "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live capture recorded for safe `collectionCreate` plus downstream collection visibility parity. Fill in comparator implementation to turn this into executed proxy-vs-Shopify comparison."
+  "notes": "Executed by the conformance parity runner against the local staged-mutation path with live fixture variables; allowed differences are path-scoped to nondeterministic ids, timestamps, throttle metadata, or documented declared-gap fields.",
+  "comparison": {
+    "mode": "strict-json",
+    "allowedDifferences": [
+      {
+        "path": "$.collectionCreate.collection.id",
+        "matcher": "shopify-gid:Collection",
+        "reason": "Shopify and the local parity harness allocate resource identifiers independently."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
 }

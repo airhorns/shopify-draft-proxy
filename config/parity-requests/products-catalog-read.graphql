@@ -1,0 +1,29 @@
+query ProductCatalogPage {
+  productsCount(limit: null) {
+    count
+    precision
+  }
+  products(first: 3, sortKey: UPDATED_AT, reverse: true) {
+    edges {
+      cursor
+      node {
+        id
+        legacyResourceId
+        title
+        handle
+        status
+        vendor
+        productType
+        tags
+        totalInventory
+        tracksInventory
+        createdAt
+        updatedAt
+      }
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}

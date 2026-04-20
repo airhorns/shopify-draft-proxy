@@ -5,9 +5,20 @@
   "assertionKinds": ["payload-shape", "selected-fields", "search-filter-semantics"],
   "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-variant-search.json"],
   "proxyRequest": {
-    "documentPath": null,
-    "variablesPath": null
+    "documentPath": "config/parity-requests/products-variant-search-read.graphql",
+    "variablesPath": "config/parity-requests/products-variant-search-read.variables.json"
   },
-  "comparisonMode": "capture-only",
-  "notes": "Fill in proxy request + comparator details as parity coverage is implemented."
+  "notes": "Executed by the conformance parity runner against a local proxy harness with the captured Shopify payload supplied as the upstream read response; no live Shopify writes are performed.",
+  "comparison": {
+    "mode": "strict-json",
+    "allowedDifferences": [],
+    "targets": [
+      {
+        "name": "captured read payload",
+        "capturePath": "$.sku.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.sku.response"
+      }
+    ]
+  }
 }

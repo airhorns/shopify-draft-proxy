@@ -34,6 +34,96 @@ const operationNames = new Set();
 const matchNames = new Map();
 const scenarioIds = new Map();
 
+function isPlainObject(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function validateProxyRequest(scenarioId, label, proxyRequest, options = {}) {
+  assert(isPlainObject(proxyRequest), `Scenario ${scenarioId} ${label} must declare a proxyRequest.`);
+  if (!isPlainObject(proxyRequest)) {
+    return;
+  }
+
+  assert(
+    typeof proxyRequest.documentPath === 'string' && relativeExists(proxyRequest.documentPath),
+    `Scenario ${scenarioId} ${label} references missing proxy document.`,
+  );
+
+  const hasVariablesPath = typeof proxyRequest.variablesPath === 'string';
+  const hasVariables = isPlainObject(proxyRequest.variables);
+  const hasVariablesCapturePath = typeof proxyRequest.variablesCapturePath === 'string';
+  assert(
+    hasVariablesPath || hasVariables || hasVariablesCapturePath || options.allowNoVariables === true,
+    `Scenario ${scenarioId} ${label} must declare variablesPath, variables, or variablesCapturePath.`,
+  );
+  if (hasVariablesPath) {
+    assert(
+      relativeExists(proxyRequest.variablesPath),
+      `Scenario ${scenarioId} ${label} references missing proxy variables.`,
+    );
+  }
+}
+
+function validateComparisonContract(scenarioId, comparison) {
+  assert(isPlainObject(comparison), `Captured scenario ${scenarioId} must declare a comparison contract.`);
+  if (!isPlainObject(comparison)) {
+    return false;
+  }
+
+  assert(
+    comparison.mode === 'strict-json',
+    `Captured scenario ${scenarioId} comparison contract must use mode strict-json.`,
+  );
+  assert(
+    Array.isArray(comparison.allowedDifferences),
+    `Captured scenario ${scenarioId} comparison contract must declare allowedDifferences.`,
+  );
+
+  for (const [index, rawRule] of (comparison.allowedDifferences ?? []).entries()) {
+    const rule = isPlainObject(rawRule) ? rawRule : {};
+    const label = `allowedDifferences[${index}]`;
+    assert(
+      typeof rule.path === 'string' && rule.path.length > 0,
+      `Captured scenario ${scenarioId} ${label} must declare a non-empty path.`,
+    );
+    assert(
+      typeof rule.reason === 'string' && rule.reason.length > 0,
+      `Captured scenario ${scenarioId} ${label} must document its reason.`,
+    );
+    assert(
+      (typeof rule.matcher === 'string') !== (rule.ignore === true),
+      `Captured scenario ${scenarioId} ${label} must declare exactly one matcher or ignore.`,
+    );
+  }
+
+  const targets = comparison.targets;
+  assert(
+    Array.isArray(targets) && targets.length > 0,
+    `Captured scenario ${scenarioId} comparison contract must declare at least one target.`,
+  );
+  for (const [index, rawTarget] of (targets ?? []).entries()) {
+    const target = isPlainObject(rawTarget) ? rawTarget : {};
+    const label = `target ${index}`;
+    assert(
+      typeof target.name === 'string' && target.name.length > 0,
+      `Captured scenario ${scenarioId} ${label} must declare a non-empty name.`,
+    );
+    assert(
+      typeof target.capturePath === 'string' && target.capturePath.length > 0,
+      `Captured scenario ${scenarioId} ${label} must declare capturePath.`,
+    );
+    assert(
+      typeof target.proxyPath === 'string' && target.proxyPath.length > 0,
+      `Captured scenario ${scenarioId} ${label} must declare proxyPath.`,
+    );
+    if (target.proxyRequest !== undefined) {
+      validateProxyRequest(scenarioId, label, target.proxyRequest, { allowNoVariables: true });
+    }
+  }
+
+  return comparison.mode === 'strict-json' && Array.isArray(comparison.allowedDifferences);
+}
+
 for (const scenario of scenarioRegistry) {
   assert(
     typeof scenario.id === 'string' && scenario.id.length > 0,
@@ -59,6 +149,9 @@ for (const scenario of scenarioRegistry) {
     relativeExists(scenario.paritySpecPath),
     `Scenario ${scenario.id} references missing parity spec: ${scenario.paritySpecPath}`,
   );
+  const paritySpec = relativeExists(scenario.paritySpecPath)
+    ? JSON.parse(readFileSync(path.join(repoRoot, scenario.paritySpecPath), 'utf8'))
+    : null;
   if (scenario.status === 'captured') {
     assert(
       scenario.captureFiles.length > 0,
@@ -67,6 +160,13 @@ for (const scenario of scenarioRegistry) {
     for (const captureFile of scenario.captureFiles) {
       assert(relativeExists(captureFile), `Scenario ${scenario.id} references missing capture file: ${captureFile}`);
     }
+    validateProxyRequest(scenario.id, 'primary proxy request', paritySpec?.proxyRequest);
+    validateComparisonContract(scenario.id, paritySpec?.comparison);
+  } else {
+    assert(
+      !paritySpec?.comparison || paritySpec.comparison.mode !== 'strict-json',
+      `Planned scenario ${scenario.id} must stay not-yet-implemented until it has captured fixtures.`,
+    );
   }
 }
 

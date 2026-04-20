@@ -1,0 +1,21 @@
+query ProductVariantSearchConformance {
+  matches: productsCount(query: "sku:C-03-black-5") {
+    count
+    precision
+  }
+  products(first: 5, query: "sku:C-03-black-5") {
+    edges {
+      node {
+        id
+        title
+        handle
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

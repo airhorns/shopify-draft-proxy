@@ -8,6 +8,5 @@
     "documentPath": "config/parity-requests/productVariantsBulkCreate-parity-plan.graphql",
     "variablesPath": "config/parity-requests/productVariantsBulkCreate-parity-plan.variables.json"
   },
-  "comparisonMode": "planned",
   "notes": "Proxy request scaffold now mirrors the staged variant bulk-create runtime slice (`productVariantsBulkCreate(productId:, variants:)` returning product inventory aggregates, nested `product.variants`, created `productVariants`, and `userErrors`). Next step is to run the same safe variant-create scenario against a dedicated dev-store write pack and compare the mutation payload together with immediate downstream variant/search/count parity."
 }

@@ -2880,13 +2880,6 @@ function serializeProductsCount(rawQuery: unknown, selections: readonly Selectio
   return result;
 }
 
-function matchesProductVariantTerm(product: ProductRecord, field: 'sku' | 'barcode', value: string): boolean {
-  const normalizedValue = value.toLowerCase();
-  return store
-    .getEffectiveVariantsByProductId(product.id)
-    .some((variant) => typeof variant[field] === 'string' && variant[field]!.toLowerCase() === normalizedValue);
-}
-
 function matchesProductTimestampTerm(productValue: string, rawValue: string): boolean {
   const match = rawValue.match(/^(<=|>=|<|>|=)?\s*(.+)$/);
   if (!match) {
@@ -4661,7 +4654,6 @@ export function handleProductMutation(document: string, variables: Record<string
       if (firstInvalidInput) {
         const ownerId = firstInvalidInput['ownerId'];
         const namespace = firstInvalidInput['namespace'];
-        const key = firstInvalidInput['key'];
         const fieldName =
           typeof ownerId !== 'string'
             ? 'ownerId'

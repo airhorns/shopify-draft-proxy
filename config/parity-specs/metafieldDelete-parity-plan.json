@@ -8,6 +8,5 @@
     "documentPath": null,
     "variablesPath": null
   },
-  "comparisonMode": "planned",
   "notes": "Metafield mutation parity still needs dedicated live-write scenarios and payload assertions."
 }

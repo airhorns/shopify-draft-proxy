@@ -47,7 +47,7 @@ corepack pnpm conformance:parity
 
 `conformance:check` verifies the canonical operation registry, conformance scenario registry, parity-spec files, worklist sync, and captured fixture references. Any implemented operation must declare runtime-test coverage plus one or more conformance scenario manifests.
 
-`conformance:parity` is the parity-runner scaffold. Today it reports whether each scenario is still planned, captured-but-missing a proxy request spec, or ready for actual proxy-vs-Shopify comparison once the request/comparator details are filled in.
+`conformance:parity` executes captured scenarios only after they declare both a proxy request and a strict JSON comparison contract. Valid high-assurance scenarios must compare explicit targets and list every allowed difference as a path-scoped rule with a reason. Use matchers for legitimate nondeterminism such as Shopify IDs, timestamps, and throttle metadata. An `ignore: true` rule means the proxy has not reached parity for that path; it must also set `regrettable: true` and should only be used for hard temporary gaps that will be fixed later.
 
 ### 5. Probe the live target before writing parity fixtures
 

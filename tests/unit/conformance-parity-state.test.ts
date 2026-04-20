@@ -1,3 +1,6 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -9,18 +12,30 @@ import {
 } from '../../scripts/conformance-parity-lib.js';
 
 describe('classifyParityScenarioState', () => {
-  it('does not mark captured scenarios ready until an explicit strict comparison contract exists', () => {
-    const state = classifyParityScenarioState(
-      { status: 'captured' },
-      {
-        proxyRequest: {
-          documentPath: 'config/parity-requests/productCreate.graphql',
-          variablesPath: 'config/parity-requests/productCreate.json',
+  it('marks captured scenarios invalid until they have a strict comparison contract and proxy request', () => {
+    expect(
+      classifyParityScenarioState(
+        { status: 'captured' },
+        {
+          proxyRequest: {
+            documentPath: 'config/parity-requests/productCreate.graphql',
+            variablesPath: 'config/parity-requests/productCreate.json',
+          },
         },
-      },
-    );
+      ),
+    ).toBe('invalid-missing-comparison-contract');
 
-    expect(state).toBe('captured-awaiting-comparison-contract');
+    expect(
+      classifyParityScenarioState(
+        { status: 'captured' },
+        {
+          comparison: {
+            mode: 'strict-json',
+            allowedDifferences: [],
+          },
+        },
+      ),
+    ).toBe('invalid-missing-comparison-contract');
   });
 
   it('marks captured scenarios with proxy requests and comparison contracts as ready', () => {
@@ -41,29 +56,7 @@ describe('classifyParityScenarioState', () => {
     expect(state).toBe('ready-for-comparison');
   });
 
-  it('does not mark captured scenarios ready when the comparison contract has undocumented allowances', () => {
-    const state = classifyParityScenarioState(
-      { status: 'captured' },
-      {
-        proxyRequest: {
-          documentPath: 'config/parity-requests/productCreate.graphql',
-        },
-        comparison: {
-          mode: 'strict-json',
-          allowedDifferences: [
-            {
-              path: '$.data.productCreate.product.id',
-              matcher: 'shopify-gid:Product',
-            },
-          ],
-        },
-      },
-    );
-
-    expect(state).toBe('captured-awaiting-comparison-contract');
-  });
-
-  it('marks planned scenarios with a proxy request as planned-with-proxy-request', () => {
+  it('keeps planned scenarios as not-yet-implemented even when a proxy request scaffold exists', () => {
     const state = classifyParityScenarioState(
       { status: 'planned' },
       {
@@ -74,31 +67,27 @@ describe('classifyParityScenarioState', () => {
       },
     );
 
-    expect(state).toBe('planned-with-proxy-request');
+    expect(state).toBe('not-yet-implemented');
   });
 });
 
 describe('summarizeParityResults', () => {
-  it('separates strict comparison readiness from captured scenarios awaiting contracts', () => {
+  it('separates ready, invalid, and not-yet-implemented scenario states', () => {
     const summary = summarizeParityResults([
       { state: 'ready-for-comparison' },
-      { state: 'captured-awaiting-comparison-contract' },
-      { state: 'captured-awaiting-comparison-contract' },
-      { state: 'captured-awaiting-proxy-request' },
-      { state: 'planned-with-proxy-request' },
-      { state: 'planned' },
+      { state: 'invalid-missing-comparison-contract' },
+      { state: 'invalid-missing-comparison-contract' },
+      { state: 'not-yet-implemented' },
     ]);
 
     expect(summary.readyForComparison).toBe(1);
-    expect(summary.pending).toBe(5);
+    expect(summary.pending).toBe(3);
     expect(summary.statusCounts).toEqual({
       readyForComparison: 1,
-      capturedAwaitingComparisonContract: 2,
-      capturedAwaitingProxyRequest: 1,
-      plannedWithProxyRequest: 1,
-      planned: 1,
+      invalidMissingComparisonContract: 2,
+      notYetImplemented: 1,
     });
-    expect(summary.statusNote).toContain('not parity failures');
+    expect(summary.statusNote).toContain('notYetImplemented');
   });
 });
 
@@ -122,20 +111,76 @@ describe('validateComparisonContract', () => {
         mode: 'strict-json',
         allowedDifferences: [
           {
+            path: '$.data.product.tags',
+            ignore: true,
+            regrettable: true,
+            reason: 'The proxy preserves tag membership but does not yet preserve Shopify tag ordering.',
+          },
+        ],
+      }),
+    ).toEqual([]);
+
+    expect(
+      validateComparisonContract({
+        mode: 'strict-json',
+        allowedDifferences: [
+          {
             path: '$.data.product.id',
             matcher: 'everything',
           },
           {
             reason: 'This rule is missing a path and action.',
           },
+          {
+            path: '$.data.product.tags',
+            ignore: true,
+            reason: 'This ignored gap must be explicitly marked regrettable.',
+          },
+          {
+            path: '$.data.product.options',
+            ignore: true,
+            regrettable: false,
+            reason: 'Regrettable is only a positive marker.',
+          },
         ],
       }),
     ).toEqual([
-      'allowedDifferences[0] must document why the difference is nondeterministic.',
+      'allowedDifferences[0] must document why the difference is allowed.',
       'allowedDifferences[0] declares unknown matcher `everything`.',
       'allowedDifferences[1] must declare a non-empty JSON path.',
       'allowedDifferences[1] must declare exactly one of `matcher` or `ignore: true`.',
+      'allowedDifferences[2] with `ignore: true` must set `regrettable: true` for the parity gap.',
+      'allowedDifferences[3] `regrettable`, when declared, must be true.',
+      'allowedDifferences[3] with `ignore: true` must set `regrettable: true` for the parity gap.',
     ]);
+  });
+
+  it('requires every repository ignore rule to be explicitly regrettable', () => {
+    const repoRoot = resolve(import.meta.dirname, '../..');
+    const paritySpecRoot = resolve(repoRoot, 'config/parity-specs');
+    const unmarkedIgnores: string[] = [];
+
+    for (const fileName of readdirSync(paritySpecRoot)
+      .filter((name) => name.endsWith('.json'))
+      .sort()) {
+      const spec = JSON.parse(readFileSync(resolve(paritySpecRoot, fileName), 'utf8')) as {
+        comparison?: {
+          allowedDifferences?: Array<{
+            path?: string;
+            ignore?: boolean;
+            regrettable?: true;
+          }>;
+        };
+      };
+
+      for (const difference of spec.comparison?.allowedDifferences ?? []) {
+        if (difference.ignore === true && difference.regrettable !== true) {
+          unmarkedIgnores.push(`${fileName}:${difference.path ?? '<missing path>'}`);
+        }
+      }
+    }
+
+    expect(unmarkedIgnores).toEqual([]);
   });
 });
 
@@ -337,6 +382,7 @@ describe('executeParityScenario', () => {
         proxyRequest: {
           documentPath: 'config/parity-requests/productCreate-parity-plan.graphql',
           variablesPath: 'config/parity-requests/productCreate-parity-plan.variables.json',
+          variablesCapturePath: '$.mutation.variables',
         },
         comparison: {
           mode: 'strict-json',
@@ -347,9 +393,21 @@ describe('executeParityScenario', () => {
               reason: 'Synthetic local product id.',
             },
             {
+              path: '$.productCreate.product.tags',
+              ignore: true,
+              regrettable: true,
+              reason: 'Local tag order is a documented parity gap.',
+            },
+            {
               path: '$.product.id',
               matcher: 'shopify-gid:Product',
               reason: 'Synthetic local product id.',
+            },
+            {
+              path: '$.product.tags',
+              ignore: true,
+              regrettable: true,
+              reason: 'Local tag order is a documented parity gap.',
             },
           ],
           targets: [
@@ -379,5 +437,44 @@ describe('executeParityScenario', () => {
     expect(result.ok).toBe(true);
     expect(result.primaryProxyStatus).toBe(200);
     expect(result.comparisons.map((comparison) => comparison.name)).toEqual(['mutation-data', 'downstream-read-data']);
+  });
+
+  it('returns captured upstream payloads for no-write overlay reads', async () => {
+    const repoRoot = new URL('../..', import.meta.url).pathname;
+    const result = await executeParityScenario({
+      repoRoot,
+      scenario: {
+        id: 'product-detail-read',
+        status: 'captured',
+        captureFiles: ['fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-detail.json'],
+      },
+      paritySpec: {
+        proxyRequest: {
+          documentPath: 'config/parity-requests/product-detail-read.graphql',
+          variablesPath: 'config/parity-requests/product-detail-read.variables.json',
+        },
+        comparison: {
+          mode: 'strict-json',
+          allowedDifferences: [],
+          targets: [
+            {
+              name: 'read-data',
+              capturePath: '$.data',
+              proxyPath: '$.data',
+              upstreamCapturePath: '$',
+            },
+          ],
+        },
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.comparisons).toEqual([
+      {
+        name: 'read-data',
+        ok: true,
+        differences: [],
+      },
+    ]);
   });
 });

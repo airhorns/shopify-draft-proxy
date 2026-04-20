@@ -8,8 +8,25 @@
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/productChangeStatus-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/productChangeStatus-parity-plan.variables.json"
+    "variablesPath": "config/parity-requests/productChangeStatus-parity-plan.variables.json",
+    "variablesCapturePath": "$.mutation.variables"
   },
-  "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live capture recorded for `productChangeStatus`, but the immediate downstream `product(id:)` read returned a later `updatedAt` than the mutation payload, so promotion still requires timestamp-alignment decisions."
+  "notes": "Executed by the conformance parity runner against the local staged-mutation path with live fixture variables; allowed differences are path-scoped to nondeterministic ids, timestamps, throttle metadata, or documented declared-gap fields.",
+  "comparison": {
+    "mode": "strict-json",
+    "allowedDifferences": [
+      {
+        "path": "$.productChangeStatus.product.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "Shopify and the local parity harness allocate timestamps independently."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
 }

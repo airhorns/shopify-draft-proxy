@@ -55,7 +55,9 @@ describe('productCreate parity plan scaffold', () => {
     expect(spec.comparison?.targets?.map((target) => target.name)).toEqual(['mutation-data', 'downstream-read-data']);
     expect(spec.comparison?.allowedDifferences?.map((difference) => difference.path)).toEqual([
       '$.productCreate.product.id',
+      '$.productCreate.product.tags',
       '$.product.id',
+      '$.product.tags',
     ]);
   });
 });

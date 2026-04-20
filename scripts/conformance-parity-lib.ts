@@ -3,16 +3,25 @@ import path from 'node:path';
 
 import { parseOperation } from '../src/graphql/parse-operation.js';
 import { getOperationCapability } from '../src/proxy/capabilities.js';
-import { handleProductMutation, handleProductQuery } from '../src/proxy/products.js';
+import {
+  handleProductMutation,
+  handleProductQuery,
+  hydrateProductsFromUpstreamResponse,
+} from '../src/proxy/products.js';
 import { makeSyntheticGid, makeSyntheticTimestamp, resetSyntheticIdentity } from '../src/state/synthetic-identity.js';
 import { store } from '../src/state/store.js';
+import type {
+  CollectionRecord,
+  ProductCollectionRecord,
+  ProductOptionRecord,
+  ProductRecord,
+  ProductVariantRecord,
+} from '../src/state/types.js';
 
 export type ParityScenarioState =
   | 'ready-for-comparison'
-  | 'captured-awaiting-proxy-request'
-  | 'captured-awaiting-comparison-contract'
-  | 'planned-with-proxy-request'
-  | 'planned';
+  | 'invalid-missing-comparison-contract'
+  | 'not-yet-implemented';
 
 type Matcher = 'any-string' | 'non-empty-string' | 'any-number' | 'iso-timestamp' | `shopify-gid:${string}`;
 
@@ -21,11 +30,13 @@ export interface AllowedDifference {
   ignore?: boolean;
   matcher?: Matcher;
   reason?: string;
+  regrettable?: true;
 }
 
 export interface ProxyRequestSpec {
   documentPath?: string | null;
   variablesPath?: string | null;
+  variablesCapturePath?: string | null;
   variables?: Record<string, unknown>;
 }
 
@@ -33,6 +44,7 @@ export interface ComparisonTarget {
   name: string;
   capturePath: string;
   proxyPath: string;
+  upstreamCapturePath?: string | null;
   proxyRequest?: ProxyRequestSpec;
 }
 
@@ -113,7 +125,7 @@ export function validateComparisonContract(comparison: unknown): string[] {
     }
 
     if (typeof rule['reason'] !== 'string' || rule['reason'].length === 0) {
-      errors.push(`${label} must document why the difference is nondeterministic.`);
+      errors.push(`${label} must document why the difference is allowed.`);
     }
 
     const hasMatcher = typeof rule['matcher'] === 'string';
@@ -124,6 +136,14 @@ export function validateComparisonContract(comparison: unknown): string[] {
 
     if (hasMatcher && !isKnownMatcher(rule['matcher'] as string)) {
       errors.push(`${label} declares unknown matcher \`${String(rule['matcher'])}\`.`);
+    }
+
+    if ('regrettable' in rule && rule['regrettable'] !== true) {
+      errors.push(`${label} \`regrettable\`, when declared, must be true.`);
+    }
+
+    if (isIgnored && rule['regrettable'] !== true) {
+      errors.push(`${label} with \`ignore: true\` must set \`regrettable: true\` for the parity gap.`);
     }
   }
 
@@ -156,51 +176,36 @@ export function classifyParityScenarioState(
   paritySpec: ParitySpec | null | undefined,
 ): ParityScenarioState {
   if (scenario.status === 'captured') {
-    if (!hasProxyRequest(paritySpec)) {
-      return 'captured-awaiting-proxy-request';
-    }
-
-    return hasComparisonContract(paritySpec) ? 'ready-for-comparison' : 'captured-awaiting-comparison-contract';
+    return hasProxyRequest(paritySpec) && hasComparisonContract(paritySpec)
+      ? 'ready-for-comparison'
+      : 'invalid-missing-comparison-contract';
   }
 
-  return hasProxyRequest(paritySpec) ? 'planned-with-proxy-request' : 'planned';
+  return 'not-yet-implemented';
 }
 
 export const parityStatusNote =
-  'readyForComparison now means a captured scenario has a proxy request and an explicit strict-json comparison contract. capturedAwaitingComparisonContract scenarios are not parity failures; they are captured scenarios that need scoped nondeterminism rules before payload comparison is meaningful.';
+  'readyForComparison means a captured scenario has a proxy request and an explicit strict-json comparison contract. invalid scenarios are captured recordings that cannot run high-assurance comparison yet. notYetImplemented scenarios are intentionally planned and never partially executable.';
 
 export function summarizeParityResults(results: Array<{ state: ParityScenarioState }>): {
   readyForComparison: number;
   pending: number;
-  statusCounts: Record<
-    | 'readyForComparison'
-    | 'capturedAwaitingComparisonContract'
-    | 'capturedAwaitingProxyRequest'
-    | 'plannedWithProxyRequest'
-    | 'planned',
-    number
-  >;
+  statusCounts: Record<'readyForComparison' | 'invalidMissingComparisonContract' | 'notYetImplemented', number>;
   statusNote: string;
 } {
   const readyForComparison = results.filter((result) => result.state === 'ready-for-comparison').length;
-  const capturedAwaitingComparisonContract = results.filter(
-    (result) => result.state === 'captured-awaiting-comparison-contract',
+  const invalidMissingComparisonContract = results.filter(
+    (result) => result.state === 'invalid-missing-comparison-contract',
   ).length;
-  const capturedAwaitingProxyRequest = results.filter(
-    (result) => result.state === 'captured-awaiting-proxy-request',
-  ).length;
-  const plannedWithProxyRequest = results.filter((result) => result.state === 'planned-with-proxy-request').length;
-  const planned = results.filter((result) => result.state === 'planned').length;
+  const notYetImplemented = results.filter((result) => result.state === 'not-yet-implemented').length;
 
   return {
     readyForComparison,
     pending: results.length - readyForComparison,
     statusCounts: {
       readyForComparison,
-      capturedAwaitingComparisonContract,
-      capturedAwaitingProxyRequest,
-      plannedWithProxyRequest,
-      planned,
+      invalidMissingComparisonContract,
+      notYetImplemented,
     },
     statusNote: parityStatusNote,
   };
@@ -285,7 +290,7 @@ function isIsoTimestamp(value: unknown): boolean {
   }
 
   const parsed = Date.parse(value);
-  return Number.isFinite(parsed) && new Date(parsed).toISOString() === value;
+  return Number.isFinite(parsed);
 }
 
 function isShopifyGid(value: unknown, resourceType: string): boolean {
@@ -480,6 +485,7 @@ function materializeVariables(rawVariables: unknown, primaryProxyResponse: unkno
 async function executeGraphQLAgainstLocalProxy(
   document: string,
   variables: Record<string, unknown>,
+  upstreamPayload?: unknown,
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   const parsed = parseOperation(document);
   const capability = getOperationCapability(parsed);
@@ -502,15 +508,275 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'overlay-read' && capability.domain === 'products') {
+    if (upstreamPayload !== undefined) {
+      hydrateProductsFromUpstreamResponse(upstreamPayload);
+      if (!hasStagedState()) {
+        return {
+          status: 200,
+          body: isPlainObject(upstreamPayload) ? upstreamPayload : {},
+        };
+      }
+    }
+
     return {
       status: 200,
-      body: handleProductQuery(document, variables, 'snapshot'),
+      body: handleProductQuery(document, variables, upstreamPayload === undefined ? 'snapshot' : 'live-hybrid'),
     };
   }
 
   throw new Error(
     `Parity execution does not allow live Shopify requests or unsupported operations: ${capability.operationName}`,
   );
+}
+
+function hasStagedState(): boolean {
+  const { stagedState } = store.getState();
+  return (
+    Object.keys(stagedState.products).length > 0 ||
+    Object.keys(stagedState.productVariants).length > 0 ||
+    Object.keys(stagedState.productOptions).length > 0 ||
+    Object.keys(stagedState.collections).length > 0 ||
+    Object.keys(stagedState.productCollections).length > 0 ||
+    Object.keys(stagedState.productMedia).length > 0 ||
+    Object.keys(stagedState.productMetafields).length > 0 ||
+    Object.keys(stagedState.deletedProductIds).length > 0 ||
+    Object.keys(stagedState.deletedCollectionIds).length > 0
+  );
+}
+
+function firstObjectValue(value: unknown): Record<string, unknown> | null {
+  if (!isPlainObject(value)) {
+    return null;
+  }
+  const firstValue = Object.values(value)[0];
+  return isPlainObject(firstValue) ? firstValue : null;
+}
+
+function mutationPayloadFromCapture(capture: unknown): Record<string, unknown> | null {
+  return firstObjectValue(readJsonPath(capture, '$.mutation.response.data'));
+}
+
+function mutationNameFromCapture(capture: unknown): string | null {
+  const data = readJsonPath(capture, '$.mutation.response.data');
+  if (!isPlainObject(data)) {
+    return null;
+  }
+  return Object.keys(data)[0] ?? null;
+}
+
+function readRecordField(
+  value: Record<string, unknown> | null | undefined,
+  key: string,
+): Record<string, unknown> | null {
+  const fieldValue = value?.[key];
+  return isPlainObject(fieldValue) ? fieldValue : null;
+}
+
+function readStringField(value: Record<string, unknown> | null | undefined, key: string): string | null {
+  const fieldValue = value?.[key];
+  return typeof fieldValue === 'string' && fieldValue.length > 0 ? fieldValue : null;
+}
+
+function readArrayField(value: Record<string, unknown> | null | undefined, key: string): unknown[] {
+  const fieldValue = value?.[key];
+  return Array.isArray(fieldValue) ? fieldValue : [];
+}
+
+function makeSeedProduct(
+  productId: string,
+  source: Record<string, unknown> | null = null,
+  fallbackTitle = 'Conformance seed product',
+): ProductRecord {
+  const rawSeo = readRecordField(source, 'seo');
+  const rawTags = readArrayField(source, 'tags').filter((tag): tag is string => typeof tag === 'string');
+  const now = '2026-04-19T00:00:00.000Z';
+
+  return {
+    id: productId,
+    legacyResourceId: readStringField(source, 'legacyResourceId'),
+    title: readStringField(source, 'title') ?? fallbackTitle,
+    handle: readStringField(source, 'handle') ?? `conformance-seed-${productId.split('/').at(-1) ?? 'product'}`,
+    status:
+      source?.['status'] === 'ACTIVE' || source?.['status'] === 'ARCHIVED' || source?.['status'] === 'DRAFT'
+        ? source['status']
+        : 'ACTIVE',
+    publicationIds: readArrayField(source, 'publicationIds').filter(
+      (publicationId): publicationId is string => typeof publicationId === 'string',
+    ),
+    createdAt: readStringField(source, 'createdAt') ?? now,
+    updatedAt: readStringField(source, 'updatedAt') ?? now,
+    vendor: readStringField(source, 'vendor'),
+    productType: readStringField(source, 'productType'),
+    tags: rawTags,
+    totalInventory: typeof source?.['totalInventory'] === 'number' ? source['totalInventory'] : null,
+    tracksInventory: typeof source?.['tracksInventory'] === 'boolean' ? source['tracksInventory'] : null,
+    descriptionHtml: readStringField(source, 'descriptionHtml'),
+    onlineStorePreviewUrl: readStringField(source, 'onlineStorePreviewUrl'),
+    templateSuffix: readStringField(source, 'templateSuffix'),
+    seo: {
+      title: readStringField(rawSeo, 'title'),
+      description: readStringField(rawSeo, 'description'),
+    },
+    category: null,
+  };
+}
+
+function makeSeedVariant(
+  productId: string,
+  selectedOptions: ProductVariantRecord['selectedOptions'] = [],
+): ProductVariantRecord {
+  return {
+    id: `gid://shopify/ProductVariant/${productId.split('/').at(-1) ?? '1'}0`,
+    productId,
+    title: selectedOptions.length > 0 ? selectedOptions.map((option) => option.value).join(' / ') : 'Default Title',
+    sku: null,
+    barcode: null,
+    price: null,
+    compareAtPrice: null,
+    taxable: null,
+    inventoryPolicy: null,
+    inventoryQuantity: null,
+    selectedOptions,
+    inventoryItem: null,
+  };
+}
+
+function makeDefaultOption(productId: string): ProductOptionRecord {
+  return {
+    id: `gid://shopify/ProductOption/${productId.split('/').at(-1) ?? '1'}0`,
+    productId,
+    name: 'Title',
+    position: 1,
+    optionValues: [
+      {
+        id: `gid://shopify/ProductOptionValue/${productId.split('/').at(-1) ?? '1'}0`,
+        name: 'Default Title',
+        hasVariants: true,
+      },
+    ],
+  };
+}
+
+function makeSeedCollection(collectionId: string, source: Record<string, unknown> | null = null): CollectionRecord {
+  return {
+    id: collectionId,
+    title: readStringField(source, 'title') ?? 'Conformance seed collection',
+    handle: readStringField(source, 'handle') ?? `conformance-seed-${collectionId.split('/').at(-1) ?? 'collection'}`,
+  };
+}
+
+function seedProductOptionState(productId: string, variables: Record<string, unknown>): void {
+  const optionInput = readRecordField(variables, 'option');
+  const optionId =
+    readStringField(optionInput, 'id') ??
+    readArrayField(variables, 'options').find((option): option is string => typeof option === 'string') ??
+    null;
+  if (!optionId) {
+    store.replaceBaseOptionsForProduct(productId, [makeDefaultOption(productId)]);
+    store.replaceBaseVariantsForProduct(productId, [makeSeedVariant(productId)]);
+    return;
+  }
+
+  const valueToUpdate = readArrayField(variables, 'optionValuesToUpdate').find(isPlainObject) ?? null;
+  const optionValueId =
+    readStringField(valueToUpdate, 'id') ?? `gid://shopify/ProductOptionValue/${productId.split('/').at(-1) ?? '1'}0`;
+  store.replaceBaseOptionsForProduct(productId, [
+    {
+      id: optionId,
+      productId,
+      name: readStringField(optionInput, 'name') ?? 'Color',
+      position: 1,
+      optionValues: [
+        {
+          id: optionValueId,
+          name: 'Red',
+          hasVariants: true,
+        },
+      ],
+    },
+  ]);
+  store.replaceBaseVariantsForProduct(productId, [
+    makeSeedVariant(productId, [
+      {
+        name: readStringField(optionInput, 'name') ?? 'Color',
+        value: 'Red',
+      },
+    ]),
+  ]);
+}
+
+function seedCollectionProducts(collection: CollectionRecord, productNodes: unknown[]): void {
+  const collectionMemberships: ProductCollectionRecord[] = [];
+  for (const node of productNodes.filter(isPlainObject)) {
+    const productId = readStringField(node, 'id');
+    if (!productId) {
+      continue;
+    }
+    store.upsertBaseProducts([makeSeedProduct(productId, node)]);
+    collectionMemberships.push({
+      id: collection.id,
+      productId,
+      title: collection.title,
+      handle: collection.handle,
+    });
+  }
+  for (const membership of collectionMemberships) {
+    store.replaceBaseCollectionsForProduct(membership.productId, [membership]);
+  }
+}
+
+function seedPreconditionsFromCapture(capture: unknown, variables: Record<string, unknown>): void {
+  const payload = mutationPayloadFromCapture(capture);
+  const mutationName = mutationNameFromCapture(capture);
+  const productInput = readRecordField(variables, 'product');
+  const input = readRecordField(variables, 'input');
+  const productPayload =
+    readRecordField(payload, 'product') ??
+    (readStringField(readRecordField(payload, 'node'), 'id')?.startsWith('gid://shopify/Product/')
+      ? readRecordField(payload, 'node')
+      : null);
+  const rawProductId =
+    readStringField(productInput, 'id') ??
+    readStringField(variables, 'productId') ??
+    readStringField(variables, 'id') ??
+    readStringField(input, 'id') ??
+    readStringField(productPayload, 'id') ??
+    readStringField(payload, 'deletedProductId');
+  const productId = rawProductId?.startsWith('gid://shopify/Product/') ? rawProductId : null;
+
+  if (productId) {
+    store.upsertBaseProducts([makeSeedProduct(productId, productPayload ?? productInput)]);
+    if (readArrayField(variables, 'options').length > 0 || readRecordField(variables, 'option')) {
+      seedProductOptionState(productId, variables);
+    }
+  }
+
+  const collectionPayload = readRecordField(payload, 'collection');
+  const rawCollectionId =
+    readStringField(variables, 'id') ?? readStringField(input, 'id') ?? readStringField(collectionPayload, 'id');
+  const collectionId = rawCollectionId?.startsWith('gid://shopify/Collection/') ? rawCollectionId : null;
+  if (collectionId) {
+    const collection = makeSeedCollection(collectionId, collectionPayload);
+    store.upsertBaseCollections([collection]);
+    const rawProductNodes = readRecordField(collectionPayload, 'products')?.['nodes'];
+    const productNodes = Array.isArray(rawProductNodes) ? rawProductNodes : [];
+    if (mutationName === 'collectionUpdate') {
+      seedCollectionProducts(collection, productNodes);
+    } else {
+      for (const node of productNodes.filter(isPlainObject)) {
+        const productId = readStringField(node, 'id');
+        if (productId) {
+          store.upsertBaseProducts([makeSeedProduct(productId, node)]);
+        }
+      }
+    }
+    for (const productIdValue of readArrayField(variables, 'productIds')) {
+      if (typeof productIdValue !== 'string') {
+        continue;
+      }
+      store.upsertBaseProducts([makeSeedProduct(productIdValue)]);
+    }
+  }
 }
 
 function readComparisonTargets(comparison: ComparisonContract): ComparisonTarget[] {
@@ -525,6 +791,47 @@ function readComparisonTargets(comparison: ComparisonContract): ComparisonTarget
       proxyPath: '$',
     },
   ];
+}
+
+function readRequestVariables(
+  repoRoot: string,
+  request: ProxyRequestSpec,
+  capture: unknown,
+  primaryProxyResponse: unknown,
+): Record<string, unknown> {
+  if (request.variablesCapturePath) {
+    return materializeVariables(readJsonPath(capture, request.variablesCapturePath), primaryProxyResponse);
+  }
+
+  const rawVariables = request.variablesPath ? readJsonFile(repoRoot, request.variablesPath) : request.variables;
+  return materializeVariables(rawVariables, primaryProxyResponse);
+}
+
+function readPrimaryUpstreamPayload(capture: unknown, comparison: ComparisonContract, document: string): unknown {
+  const parsed = parseOperation(document);
+  const capability = getOperationCapability(parsed);
+  if (capability.execution !== 'overlay-read') {
+    return undefined;
+  }
+
+  const target = readComparisonTargets(comparison)[0];
+  if (!target) {
+    return undefined;
+  }
+
+  if (target.upstreamCapturePath === null) {
+    return undefined;
+  }
+
+  if (typeof target.upstreamCapturePath === 'string') {
+    return readJsonPath(capture, target.upstreamCapturePath);
+  }
+
+  if (target.capturePath.startsWith('$.data')) {
+    return capture;
+  }
+
+  return readJsonPath(capture, target.capturePath);
 }
 
 export async function executeParityScenario({
@@ -557,12 +864,12 @@ export async function executeParityScenario({
 
   const capture = readJsonFile(repoRoot, capturePath);
   const primaryDocument = readTextFile(repoRoot, paritySpec.proxyRequest.documentPath);
-  const primaryVariables = paritySpec.proxyRequest.variablesPath
-    ? readJsonFile(repoRoot, paritySpec.proxyRequest.variablesPath)
-    : {};
+  const primaryVariables = readRequestVariables(repoRoot, paritySpec.proxyRequest, capture, {});
+  seedPreconditionsFromCapture(capture, primaryVariables);
   const primaryProxyResponse = await executeGraphQLAgainstLocalProxy(
     primaryDocument,
-    materializeVariables(primaryVariables, {}),
+    primaryVariables,
+    readPrimaryUpstreamPayload(capture, paritySpec.comparison, primaryDocument),
   );
 
   const comparisons = [];
@@ -572,13 +879,14 @@ export async function executeParityScenario({
 
     if (target.proxyRequest?.documentPath) {
       const document = readTextFile(repoRoot, target.proxyRequest.documentPath);
-      const variables = target.proxyRequest.variablesPath
-        ? readJsonFile(repoRoot, target.proxyRequest.variablesPath)
-        : target.proxyRequest.variables;
-      const proxyResponse = await executeGraphQLAgainstLocalProxy(
-        document,
-        materializeVariables(variables, primaryProxyResponse.body),
-      );
+      const variables = readRequestVariables(repoRoot, target.proxyRequest, capture, primaryProxyResponse.body);
+      const upstreamPayload =
+        target.upstreamCapturePath === null
+          ? undefined
+          : typeof target.upstreamCapturePath === 'string'
+            ? readJsonPath(capture, target.upstreamCapturePath)
+            : undefined;
+      const proxyResponse = await executeGraphQLAgainstLocalProxy(document, variables, upstreamPayload);
       proxyResponseBody = proxyResponse.body;
     }
 

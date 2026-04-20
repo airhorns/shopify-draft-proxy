@@ -8,6 +8,5 @@
     "documentPath": "config/parity-requests/productDuplicate-parity-plan.graphql",
     "variablesPath": "config/parity-requests/productDuplicate-parity-plan.variables.json"
   },
-  "comparisonMode": "planned",
   "notes": "Proxy request scaffold now mirrors the staged duplicate-of-effective-product-graph runtime slice (detail fields plus duplicated options, variants, collections, media, and metafields). Next step is to capture the same safe duplicate scenario against a dedicated dev-store write pack and compare both mutation payload and immediate downstream read parity."
 }

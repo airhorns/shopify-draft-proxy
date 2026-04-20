@@ -1,0 +1,41 @@
+query ProductDetail($id: ID!) {
+  product(id: $id) {
+    id
+    title
+    handle
+    status
+    descriptionHtml
+    onlineStorePreviewUrl
+    templateSuffix
+    seo {
+      title
+      description
+    }
+    category {
+      id
+      fullName
+    }
+    collections(first: 5) {
+      edges {
+        node {
+          id
+          title
+          handle
+        }
+      }
+    }
+    media(first: 5) {
+      edges {
+        node {
+          mediaContentType
+          alt
+          preview {
+            image {
+              url
+            }
+          }
+        }
+      }
+    }
+  }
+}

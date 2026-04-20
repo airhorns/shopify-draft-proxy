@@ -1,0 +1,24 @@
+query ProductMetafieldsConnection($id: ID!) {
+  product(id: $id) {
+    id
+    title
+    metafields(first: 5) {
+      edges {
+        cursor
+        node {
+          id
+          namespace
+          key
+          type
+          value
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}

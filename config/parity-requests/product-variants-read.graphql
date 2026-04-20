@@ -1,0 +1,49 @@
+query ProductVariantsMatrix($id: ID!) {
+  product(id: $id) {
+    id
+    title
+    options(first: 10) {
+      id
+      name
+      position
+      optionValues {
+        id
+        name
+        hasVariants
+      }
+    }
+    variants(first: 10) {
+      edges {
+        node {
+          id
+          title
+          sku
+          barcode
+          price
+          compareAtPrice
+          taxable
+          inventoryPolicy
+          inventoryQuantity
+          selectedOptions {
+            name
+            value
+          }
+          inventoryItem {
+            id
+            tracked
+            requiresShipping
+            measurement {
+              weight {
+                unit
+                value
+              }
+            }
+            countryCodeOfOrigin
+            provinceCodeOfOrigin
+            harmonizedSystemCode
+          }
+        }
+      }
+    }
+  }
+}
