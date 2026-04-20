@@ -200,7 +200,7 @@ Status legend:
 
 ### Meta API
 
-- [ ] `POST /__meta/reset`
+- [x] `POST /__meta/reset`
 - [ ] `POST /__meta/commit`
 - [ ] `GET /__meta/log`
 - [ ] `GET /__meta/state`
