@@ -1,0 +1,7 @@
+interface:
+  display_name: 'Shopify Conformance Expansion'
+  short_description: 'Extend Shopify conformance coverage safely'
+  default_prompt: 'Use $shopify-conformance-expansion to add or update Shopify Admin GraphQL conformance coverage.'
+
+policy:
+  allow_implicit_invocation: true

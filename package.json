@@ -12,7 +12,6 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "oxlint -D no-console . && oxfmt --check .",
-    "worklist:check": "node ./scripts/check-worklist.mjs",
     "conformance:check": "vitest run tests/unit/conformance-scenario-discovery.test.ts tests/unit/operation-registry.test.ts",
     "conformance:status": "tsx ./scripts/conformance-status-report.ts",
     "conformance:parity": "tsx ./scripts/run-conformance-parity.ts",

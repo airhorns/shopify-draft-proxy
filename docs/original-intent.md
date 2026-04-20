@@ -92,7 +92,7 @@ The system should start with **products** and go deep there first, but the archi
 
 ## Development strategy
 
-We will intentionally maintain a very detailed worklist that enumerates Shopify Admin GraphQL queries and mutations as implementation items.
+Implementation tracking lives in Linear. Repository conformance coverage should be expressed by the operation registry, parity specs, runtime tests, and captured fixtures rather than a checked-in project-management worklist.
 
 We are **not** trying to support every domain on day one. We are trying to:
 

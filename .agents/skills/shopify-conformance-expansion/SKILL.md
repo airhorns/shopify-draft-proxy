@@ -11,14 +11,16 @@ Treat conformance as the fidelity source of truth. Do not guess Shopify behavior
 
 ## Required Workflow
 
-1. Read `AGENTS.md`, `docs/original-intent.md`, `docs/architecture.md`, `docs/hard-and-weird-notes.md`, and `docs/shopify-admin-worklist.md`.
-2. Identify the root operation and whether it is already implemented in `config/operation-registry.json`.
-3. Add or update runtime tests for the proxy behavior before relying on parity evidence.
-4. Add or update exactly one parity spec for each scenario under `config/parity-specs/`.
-5. Add proxy replay files under `config/parity-requests/` when the scenario can be replayed locally.
-6. Add live captures under `fixtures/conformance/<store-domain>/<api-version>/` only when credentials and store safety allow it.
-7. Make sure every root operation in the parity spec's `operationNames` exists in `config/operation-registry.json`.
-8. Run `pnpm conformance:check`, `pnpm conformance:parity`, relevant Vitest tests, and `pnpm typecheck`.
+1. Read `AGENTS.md`, `docs/original-intent.md`, and `docs/architecture.md`.
+2. Read `docs/hard-and-weird-notes.md` only when making or changing a Shopify fidelity assumption.
+3. Use Linear for operation/project tracking; do not recreate `docs/shopify-admin-worklist.md`.
+4. Identify the root operation and whether it is already implemented in `config/operation-registry.json`.
+5. Add or update runtime tests for proxy behavior before relying on parity evidence.
+6. Add or update exactly one parity spec for each scenario under `config/parity-specs/`.
+7. Add proxy replay files under `config/parity-requests/` when the scenario can be replayed locally.
+8. Add live captures under `fixtures/conformance/<store-domain>/<api-version>/` only when credentials and store safety allow it.
+9. Make sure every root operation in the parity spec's `operationNames` exists in `config/operation-registry.json`.
+10. Add new helper scripts as TypeScript and run them with `tsx` or an equivalent TypeScript runner.
 
 ## Scenario Convention
 
@@ -53,12 +55,12 @@ Use the strongest feasible evidence:
 Always run:
 
 ```bash
-pnpm conformance:check
-pnpm conformance:parity
-pnpm typecheck
+corepack pnpm conformance:check
+corepack pnpm conformance:parity
+corepack pnpm typecheck
 ```
 
-Run targeted Vitest files for the changed operation or conformance wiring. Run `pnpm test` before handoff when the change is broader than one isolated fixture/spec.
+Run targeted Vitest files for the changed operation or conformance wiring. Run `corepack pnpm test` before handoff when the change is broader than one isolated fixture/spec.
 
 ## Safety
 
