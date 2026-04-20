@@ -79,18 +79,14 @@ describe('meta routes', () => {
 
     const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
 
-    await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query: 'query { products(first: 10) { nodes { id title handle status createdAt updatedAt } } }',
-      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query: 'query { products(first: 10) { nodes { id title handle status createdAt updatedAt } } }',
+    });
 
-    const createResponse = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productCreate(product: { title: "Staged Reset Hat" }) { product { id title createdAt } userErrors { field message } } }',
-      });
+    const createResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Staged Reset Hat" }) { product { id title createdAt } userErrors { field message } } }',
+    });
 
     const createdProduct = createResponse.body.data.productCreate.product;
     const stateBeforeReset = await request(app).get('/__meta/state');
@@ -123,12 +119,10 @@ describe('meta routes', () => {
     });
     expect(logAfterReset.body).toEqual({ entries: [] });
 
-    const createAfterReset = await request(app)
-      .post('/admin/api/2025-01/graphql.json')
-      .send({
-        query:
-          'mutation { productCreate(product: { title: "Staged Reset Hat" }) { product { id title createdAt } userErrors { field message } } }',
-      });
+    const createAfterReset = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Staged Reset Hat" }) { product { id title createdAt } userErrors { field message } } }',
+    });
 
     expect(createAfterReset.body.data.productCreate.product).toEqual(createdProduct);
   });
