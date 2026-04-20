@@ -6,8 +6,8 @@
   "type": "module",
   "packageManager": "pnpm@10.18.3",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "start": "node dist/server.js",
+    "dev": "tsx watch --no-experimental-require-module src/server.ts",
+    "start": "node dist/src/server.js",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
