@@ -1,0 +1,19 @@
+{
+  "scenarioId": "fileCreate-parity-plan",
+  "operationNames": [
+    "fileCreate"
+  ],
+  "scenarioStatus": "planned",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "state-inspection"
+  ],
+  "liveCaptureFiles": [],
+  "proxyRequest": {
+    "documentPath": null,
+    "variablesPath": null
+  },
+  "comparisonMode": "planned",
+  "notes": "Store-level Files API create parity still needs dedicated live-write scenarios and payload assertions. The initial proxy slice stages FileCreateInput records locally and confirms they do not create product.media attachments."
+}

@@ -168,7 +168,8 @@ Status legend:
 - [ ] media-on-product read coverage
 
 ### Mutations
-- [ ] media create family
+- [x] media create family
+  - [x] `fileCreate` first pass for store-level Files API assets, staged locally with synthetic file ids/status/timestamps and meta-state visibility; intentionally distinct from `productCreateMedia` because it does not attach media to a product
 - [ ] media update family
 - [ ] media delete family
 

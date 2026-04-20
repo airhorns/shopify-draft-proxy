@@ -804,3 +804,14 @@ That yields a useful merchant-facing slice, but with explicit limits:
 - mutation inputs still accept `locationId`, and the mutation payload echoes it back on `changes.location { id }`, but the staged quantity is currently collapsed into the variant's single `inventoryQuantity`
 - downstream read-after-write fidelity stays aligned because `product.totalInventory`, top-level `productVariant`, top-level `inventoryItem`, and `products` / `productsCount` inventory filters all recompute from that same effective variant set
 - this is **not** yet true inventory-level parity; distinct per-location quantities, additional quantity names, and richer `InventoryAdjustmentGroup` / `InventoryChange` detail will need a broader inventory-domain state model later
+
+## 39. `fileCreate` is store-level Files API staging, not product media attachment
+
+The generic media create worklist item maps to `fileCreate`, not another spelling of `productCreateMedia`.
+
+That distinction matters:
+
+- `productCreateMedia` takes a `productId` and writes the product-scoped `product.media` connection
+- `fileCreate` takes store-level `FileCreateInput` records and creates Files API assets from URLs or staged uploads
+- current `FileCreateInput` fields do not include a product reference, so locally staged `fileCreate` records should not appear under downstream `product.media`
+- the first useful local slice is therefore mutation-payload fidelity plus meta-state visibility and raw mutation log retention, while richer `files` query behavior can come later as a separate read-surface increment

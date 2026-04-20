@@ -26,7 +26,7 @@ function relativeExists(relativePath) {
 }
 
 const allowedExecution = new Set(['overlay-read', 'stage-locally', 'passthrough']);
-const allowedDomain = new Set(['products', 'unknown']);
+const allowedDomain = new Set(['products', 'media', 'unknown']);
 const allowedType = new Set(['query', 'mutation']);
 const allowedConformanceStatus = new Set(['covered', 'declared-gap']);
 const allowedScenarioStatus = new Set(['captured', 'planned']);
