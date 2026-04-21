@@ -15,6 +15,7 @@ import type {
   CollectionRecord,
   MutationLogInterpretedMetadata,
   ProductCollectionRecord,
+  ProductMetafieldRecord,
   ProductOptionRecord,
   ProductRecord,
   ProductVariantRecord,
@@ -848,6 +849,67 @@ function seedCollectionProducts(collection: CollectionRecord, productNodes: unkn
   }
 }
 
+function seedMetafieldsSetOwnerProducts(capture: unknown, variables: Record<string, unknown>): void {
+  const downstreamProduct = readRecordField(
+    readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data'),
+    'product',
+  );
+  for (const input of readArrayField(variables, 'metafields').filter(isPlainObject)) {
+    const ownerId = readStringField(input, 'ownerId');
+    if (!ownerId?.startsWith('gid://shopify/Product/') || store.getEffectiveProductById(ownerId)) {
+      continue;
+    }
+
+    const source = readStringField(downstreamProduct, 'id') === ownerId ? downstreamProduct : null;
+    store.upsertBaseProducts([makeSeedProduct(ownerId, source)]);
+    if (source) {
+      store.replaceBaseMetafieldsForProduct(ownerId, readCapturedProductMetafields(ownerId, source));
+    }
+  }
+}
+
+function readCapturedProductMetafields(productId: string, product: Record<string, unknown>): ProductMetafieldRecord[] {
+  const byIdentity = new Map<string, ProductMetafieldRecord>();
+  const addMetafield = (candidate: unknown): void => {
+    if (!isPlainObject(candidate)) {
+      return;
+    }
+    const id = readStringField(candidate, 'id');
+    const namespace = readStringField(candidate, 'namespace');
+    const key = readStringField(candidate, 'key');
+    if (!id?.startsWith('gid://shopify/Metafield/') || !namespace || !key) {
+      return;
+    }
+    byIdentity.set(`${namespace}:${key}`, {
+      id,
+      productId,
+      namespace,
+      key,
+      type: readStringField(candidate, 'type'),
+      value: readStringField(candidate, 'value'),
+    });
+  };
+
+  for (const value of Object.values(product)) {
+    addMetafield(value);
+  }
+
+  const metafieldsConnection = readRecordField(product, 'metafields');
+  for (const node of readArrayField(metafieldsConnection, 'nodes')) {
+    addMetafield(node);
+  }
+  for (const edge of readArrayField(metafieldsConnection, 'edges').filter(isPlainObject)) {
+    addMetafield(readRecordField(edge, 'node'));
+  }
+
+  return Array.from(byIdentity.values()).sort(
+    (left, right) =>
+      left.namespace.localeCompare(right.namespace) ||
+      left.key.localeCompare(right.key) ||
+      left.id.localeCompare(right.id),
+  );
+}
+
 function seedPreconditionsFromCapture(capture: unknown, variables: Record<string, unknown>): void {
   const payload = mutationPayloadFromCapture(capture);
   const mutationName = mutationNameFromCapture(capture);
@@ -875,6 +937,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     if (readArrayField(variables, 'options').length > 0 || readRecordField(variables, 'option')) {
       seedProductOptionState(productId, variables);
     }
+  }
+
+  if (mutationName === 'metafieldsSet') {
+    seedMetafieldsSetOwnerProducts(capture, variables);
   }
 
   const collectionPayload = readRecordField(payload, 'collection');
