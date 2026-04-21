@@ -1,0 +1,7 @@
+query ProductVariantCreateDownstreamRead($id: ID!) {
+  product(id: $id) {
+    id
+    totalInventory
+    tracksInventory
+  }
+}

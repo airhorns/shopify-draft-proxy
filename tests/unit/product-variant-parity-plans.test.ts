@@ -8,6 +8,16 @@ type ProxyRequestSpec = {
     documentPath?: string | null;
     variablesPath?: string | null;
   };
+  blocker?: unknown;
+  comparison?: {
+    targets?: Array<{
+      name?: string;
+      capturePath?: string;
+      proxyPath?: string;
+      proxyRequest?: { documentPath?: string };
+    }>;
+    expectedDifferences?: Array<{ path?: string; matcher?: string; reason?: string }>;
+  };
 };
 
 function expectParityPlanScaffold(options: {
@@ -107,6 +117,30 @@ describe('product variant mutation parity plan scaffolds', () => {
   });
 
   it('declares a concrete proxy request scaffold for productVariantCreate', () => {
+    const repoRoot = resolve(import.meta.dirname, '../..');
+    const spec = JSON.parse(
+      readFileSync(resolve(repoRoot, 'config/parity-specs/productVariantCreate-parity-plan.json'), 'utf8'),
+    ) as ProxyRequestSpec;
+
+    expect(spec.blocker).toBeUndefined();
+    expect(spec.comparison?.targets?.map((target) => target.name)).toEqual([
+      'variant-payload',
+      'product-id',
+      'product-totalInventory',
+      'product-tracksInventory',
+      'user-errors',
+      'downstream-product-id',
+      'downstream-product-totalInventory',
+      'downstream-product-tracksInventory',
+    ]);
+    expect(spec.comparison?.expectedDifferences).toEqual([
+      expect.objectContaining({ path: '$.id', matcher: 'shopify-gid:ProductVariant' }),
+      expect.objectContaining({ path: '$.inventoryItem.id', matcher: 'shopify-gid:InventoryItem' }),
+    ]);
+    expect(spec.comparison?.targets?.at(-1)?.proxyRequest?.documentPath).toBe(
+      'config/parity-requests/productVariantCreate-downstream-read.graphql',
+    );
+
     expectParityPlanScaffold({
       specPath: 'config/parity-specs/productVariantCreate-parity-plan.json',
       documentPath: 'config/parity-requests/productVariantCreate-parity-plan.graphql',
@@ -125,16 +159,13 @@ describe('product variant mutation parity plan scaffolds', () => {
       ],
       expectedVariables: {
         input: {
-          productId: 'gid://shopify/Product/100',
-          title: 'Blue / Large',
-          sku: 'SVH-BL-L',
-          barcode: '3333333333333',
-          price: '29.00',
-          inventoryQuantity: 8,
-          selectedOptions: [
-            { name: 'Color', value: 'Blue' },
-            { name: 'Size', value: 'Large' },
-          ],
+          productId: 'gid://shopify/Product/9259552407785',
+          title: 'Blue',
+          sku: 'HERMES-BULK-810153-BLUE',
+          barcode: '2222222222222',
+          price: '26.00',
+          inventoryQuantity: 0,
+          selectedOptions: [{ name: 'Color', value: 'Blue' }],
           inventoryItem: {
             tracked: true,
             requiresShipping: false,
