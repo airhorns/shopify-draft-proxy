@@ -3,6 +3,27 @@ import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 
 import { parseOperation, type ParsedOperation } from '../src/graphql/parse-operation.js';
+import {
+  graphqlVariablesSchema,
+  jsonValueSchema,
+  parseJsonFileWithSchema,
+  type BlockerDetails,
+  type ComparisonContract,
+  type ComparisonTarget,
+  type ExpectedDifference,
+  type Matcher,
+  type ParitySpec,
+  type ProxyRequestSpec,
+} from '../src/json-schemas.js';
+export type {
+  BlockerDetails,
+  ComparisonContract,
+  ComparisonTarget,
+  ExpectedDifference,
+  Matcher,
+  ParitySpec,
+  ProxyRequestSpec,
+} from '../src/json-schemas.js';
 import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
 import {
   handleProductMutation,
@@ -44,88 +65,6 @@ export type ParityScenarioState =
   | 'invalid-missing-comparison-contract'
   | 'blocked-with-proxy-request'
   | 'not-yet-implemented';
-
-type Matcher = 'any-string' | 'non-empty-string' | 'any-number' | 'iso-timestamp' | `shopify-gid:${string}`;
-
-export interface ExpectedDifference {
-  path: string;
-  ignore?: boolean;
-  matcher?: Matcher;
-  reason?: string;
-  regrettable?: true;
-}
-
-export interface ProxyRequestSpec {
-  documentPath?: string | null;
-  variablesPath?: string | null;
-  variablesCapturePath?: string | null;
-  variables?: Record<string, unknown>;
-}
-
-export interface ComparisonTarget {
-  name: string;
-  capturePath: string;
-  proxyPath: string;
-  upstreamCapturePath?: string | null;
-  proxyRequest?: ProxyRequestSpec;
-}
-
-export interface ComparisonContract {
-  mode?: string | null;
-  expectedDifferences?: ExpectedDifference[] | null;
-  targets?: ComparisonTarget[] | null;
-}
-
-export interface BlockerDetails {
-  requiredApproval?: string;
-  requiredScopes?: string[];
-  requiredPermissions?: string[];
-  requiredTokenMode?: string;
-  probeRoots?: string[];
-  blockedFields?: string[];
-  blockedMutations?: string[];
-  failingMessage?: string;
-  docsUrl?: string;
-  manualStoreAuthStatus?: string;
-  manualStoreAuthTokenPath?: string;
-  manualStoreAuthCachedScopes?: string[];
-  manualStoreAuthAssociatedUserScopes?: string[];
-  appConfigPath?: string;
-  appId?: string;
-  appHandle?: string;
-  publicationTargetStatus?: string;
-  publicationTargetMessage?: string;
-  publicationTargetRemediation?: string;
-  shopifyAppCliAuthStatus?: string;
-  shopifyAppCliAuthWorkdir?: string;
-  shopifyAppDeployStatus?: string;
-  shopifyAppDeployCommand?: string;
-  shopifyAppDeployVersion?: string;
-  channelConfigExtensionPath?: string;
-  channelConfigHandle?: string;
-  channelConfigCreateLegacyChannelOnAppInstall?: boolean;
-  activeCredentialTokenFamily?: string;
-  activeCredentialHeaderMode?: string;
-  activeCredentialSummary?: string;
-  [key: string]: unknown;
-}
-
-export interface ParitySpec {
-  scenarioId?: string;
-  operationNames?: string[];
-  scenarioStatus?: string;
-  assertionKinds?: string[];
-  comparisonMode?: string;
-  proxyRequest?: ProxyRequestSpec;
-  comparison?: ComparisonContract;
-  liveCaptureFiles?: string[];
-  notes?: string;
-  blocker?: {
-    kind?: string;
-    blockerPath?: string;
-    details?: BlockerDetails;
-  };
-}
 
 export interface Scenario {
   id: string;
@@ -561,7 +500,7 @@ export function compareJsonPayloads(
 }
 
 function readJsonFile(repoRoot: string, relativePath: string): unknown {
-  return JSON.parse(readFileSync(path.join(repoRoot, relativePath), 'utf8')) as unknown;
+  return parseJsonFileWithSchema(path.join(repoRoot, relativePath), jsonValueSchema);
 }
 
 function readTextFile(repoRoot: string, relativePath: string): string {
@@ -1157,7 +1096,9 @@ function readRequestVariables(
     return materializeVariables(readJsonPath(capture, request.variablesCapturePath), primaryProxyResponse);
   }
 
-  const rawVariables = request.variablesPath ? readJsonFile(repoRoot, request.variablesPath) : request.variables;
+  const rawVariables = request.variablesPath
+    ? parseJsonFileWithSchema(path.join(repoRoot, request.variablesPath), graphqlVariablesSchema)
+    : request.variables;
   return materializeVariables(rawVariables, primaryProxyResponse);
 }
 

@@ -29,6 +29,9 @@ importers:
       pino-pretty:
         specifier: ^13.1.3
         version: 13.1.3
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
     devDependencies:
       '@types/koa':
         specifier: ^2.15.0
@@ -1387,6 +1390,9 @@ packages:
     resolution: {integrity: sha512-2OQsPNEmBCvXuFlIni/a+Rn+R2pHW9INm0BxXJ4hVDA8TirqMj+J/Rp9ItLatT/5pZqWwefVrTQcHpixsxnVlA==}
     engines: {node: '>= 4.0.0'}
 
+  zod@4.3.6:
+    resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
+
 snapshots:
 
   '@esbuild/aix-ppc64@0.27.7':
@@ -2575,3 +2581,5 @@ snapshots:
   wrappy@1.0.2: {}
 
   ylru@1.4.0: {}
+
+  zod@4.3.6: {}

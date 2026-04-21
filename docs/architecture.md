@@ -186,6 +186,7 @@ Current implementation note:
 
 - `createApp()` now reads `config.snapshotPath` eagerly when it is set
 - the current supported on-disk format is a normalized snapshot JSON file containing `baseState` plus optional customer catalog/search connection baselines
+- normalized snapshot JSON is parsed through Zod schemas at the file boundary; the same schemas derive the runtime snapshot TypeScript types
 - loading that file seeds the in-memory base state before the server handles requests
 - `POST /__meta/reset` restores that startup snapshot baseline rather than wiping snapshot mode back to an empty store
 
@@ -250,3 +251,5 @@ The conformance suite should include:
    - map every query/mutation to implementation and parity status
 
 Current proxy parity execution is intentionally contract-gated. A captured scenario with a proxy request is not executed until its parity spec declares strict JSON comparison targets and expected differences. Within a declared comparison target, missing fields, extra fields, null/empty mismatches, array shape drift, changed `userErrors`, and selected-field changes fail by default. Declared expected differences are also checked in the other direction: if an expected difference no longer appears in the proxy-vs-Shopify comparison, the scenario fails until the stale expectation is removed. Expected differences are a last resort after modeling, hydration, or fixture-seeding options have been exhausted; they should not be used just to make parity tests pass. Opaque Shopify connection cursors are an accepted difference because clients cannot rely on their internal encoding. The first promoted comparison is `product-create-live-parity`, which compares mutation `data` and immediate downstream product read `data`; Shopify cost/throttle `extensions` remain outside that first explicit contract until the proxy models cost metadata.
+
+Conformance registry JSON, parity specs, parity request variables, and conformance fixture JSON are validated with Zod when read by the registry/parity helpers. Types for operation registry entries, parity specs, proxy request specs, and blocker details are derived from those schemas instead of maintained as separate hand-written TypeScript interfaces.

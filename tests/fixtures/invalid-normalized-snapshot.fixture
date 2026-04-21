@@ -1,0 +1,17 @@
+{
+  "products": {
+    "gid://shopify/Product/1": "not a product record"
+  },
+  "productVariants": {},
+  "productOptions": {},
+  "collections": {},
+  "publications": {},
+  "customers": {},
+  "productCollections": {},
+  "productMedia": {},
+  "files": {},
+  "productMetafields": {},
+  "deletedProductIds": {},
+  "deletedCollectionIds": {},
+  "deletedCustomerIds": {}
+}
