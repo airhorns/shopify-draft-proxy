@@ -1,0 +1,23 @@
+query ProductCreateMediaDownstreamRead($id: ID!) {
+  product(id: $id) {
+    id
+    media(first: 10) {
+      nodes {
+        id
+        alt
+        mediaContentType
+        status
+        preview {
+          image {
+            url
+          }
+        }
+        ... on MediaImage {
+          image {
+            url
+          }
+        }
+      }
+    }
+  }
+}
