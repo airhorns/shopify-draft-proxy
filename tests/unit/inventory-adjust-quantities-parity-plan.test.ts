@@ -11,6 +11,7 @@ describe('inventoryAdjustQuantities parity plan scaffold', () => {
       blocker?: unknown;
       proxyRequest?: { documentPath?: string | null; variablesCapturePath?: string | null };
       comparison?: {
+        expectedDifferences?: Array<{ path?: string; matcher?: string; reason?: string }>;
         targets?: Array<{
           name?: string;
           proxyRequest?: { documentPath?: string | null; variablesPath?: string | null };
@@ -23,6 +24,13 @@ describe('inventoryAdjustQuantities parity plan scaffold', () => {
     );
     expect(spec.proxyRequest?.variablesCapturePath).toBe('$.mutation.variables');
     expect(spec.blocker).toBeUndefined();
+    expect(spec.comparison?.expectedDifferences).toEqual([
+      {
+        path: '$.matchingCount.count',
+        matcher: 'any-number',
+        reason: expect.stringContaining('Only the numeric `productsCount(query: "inventory_total:>=14").count` is wildcarded'),
+      },
+    ]);
 
     const documentPath = resolve(repoRoot, spec.proxyRequest!.documentPath!);
 

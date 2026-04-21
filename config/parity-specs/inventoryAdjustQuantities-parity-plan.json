@@ -18,7 +18,7 @@
       {
         "path": "$.matchingCount.count",
         "matcher": "any-number",
-        "reason": "The live fixture records Shopify's full matching catalog count, while local replay hydrates only the captured first page; the matching product page and count precision remain strictly asserted."
+        "reason": "Only the numeric `productsCount(query: \"inventory_total:>=14\").count` is wildcarded. The live fixture ran against the full Shopify catalog, so this count can include products outside the captured first page that local replay intentionally does not hydrate. The paired `products(first: 10, query: \"inventory_total:>=14\")` page, each returned product's inventory fields, and the count `precision` value are still compared strictly."
       }
     ],
     "targets": [
