@@ -218,7 +218,7 @@ const expectedBlockedScenarios = [
 describe('fulfillment lifecycle scaffolding', () => {
   it('keeps the order capture harness aligned with fulfillment lifecycle blocker refreshes', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
-    const captureScript = readFileSync(resolve(repoRoot, 'scripts/capture-order-conformance.mjs'), 'utf8');
+    const captureScript = readFileSync(resolve(repoRoot, 'scripts/capture-order-conformance.mts'), 'utf8');
     expect(captureScript).toContain('fulfillmentCreateInvalidIdFixturePath');
     expect(captureScript).toContain('fulfillmentTrackingInfoUpdateInlineMissingIdFixturePath');
     expect(captureScript).toContain('fulfillmentTrackingInfoUpdateInlineNullIdFixturePath');

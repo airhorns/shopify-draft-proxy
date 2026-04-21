@@ -10,7 +10,7 @@ describe('location read parity spec', () => {
       scripts?: Record<string, string>;
     };
     expect(packageJson.scripts?.['conformance:capture-locations']).toBe(
-      'node ./scripts/capture-location-conformance.mjs',
+      'tsx ./scripts/capture-location-conformance.mts',
     );
 
     const specPath = resolve(repoRoot, 'config/parity-specs/locations-catalog-read.json');

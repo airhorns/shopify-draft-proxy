@@ -89,7 +89,7 @@ describe('inventoryItemUpdate live conformance wiring', () => {
   it('exposes a package script for the inventory item update capture harness', () => {
     const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8')) as PackageJson;
     expect(packageJson.scripts?.['conformance:capture-inventory-item-mutations']).toBe(
-      'node ./scripts/capture-inventory-item-mutation-conformance.mjs',
+      'tsx ./scripts/capture-inventory-item-mutation-conformance.mts',
     );
   });
 

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /* oxlint-disable no-console -- CLI scripts intentionally write status and error output to stdio. */
 import 'dotenv/config';
 

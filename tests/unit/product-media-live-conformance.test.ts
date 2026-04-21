@@ -55,7 +55,7 @@ describe('product media live conformance wiring', () => {
   it('exposes a package script for the product media mutation capture harness', () => {
     const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8')) as PackageJson;
     expect(packageJson.scripts?.['conformance:capture-product-media-mutations']).toBe(
-      'node ./scripts/capture-product-media-mutation-conformance.mjs',
+      'tsx ./scripts/capture-product-media-mutation-conformance.mts',
     );
   });
 

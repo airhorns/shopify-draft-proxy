@@ -60,7 +60,7 @@ function expectCoveredOperation(options: { name: string; scenarioId: string }) {
 describe('product variant live conformance coverage', () => {
   it('adds a runnable capture script for the variant mutation family', () => {
     expect(packageJson.scripts?.['conformance:capture-product-variant-mutations']).toBe(
-      'node ./scripts/capture-product-variant-mutation-conformance.mjs',
+      'tsx ./scripts/capture-product-variant-mutation-conformance.mts',
     );
   });
 

@@ -1,4 +1,8 @@
-export function resolveRefreshClientId(manualStoreAuthPayload, fallbackSources = []) {
+// @ts-nocheck
+export function resolveRefreshClientId(
+  manualStoreAuthPayload: any,
+  fallbackSources: Array<{ payload?: any; sourceName?: string }> = [],
+): { clientId: string; sourceName: string } {
   const directClientId = pickClientId(manualStoreAuthPayload);
   if (directClientId) {
     return {
@@ -20,7 +24,9 @@ export function resolveRefreshClientId(manualStoreAuthPayload, fallbackSources =
   throw new Error('.manual-store-auth-token.json is missing required string field client_id.');
 }
 
-export function classifyRefreshFailure(payload) {
+export function classifyRefreshFailure(
+  payload: any,
+): { kind: string; recommendedNextStep: string; summary: string } | null {
   const error = typeof payload?.error === 'string' ? payload.error.toLowerCase() : '';
   const description = typeof payload?.error_description === 'string' ? payload.error_description.toLowerCase() : '';
 
@@ -35,7 +41,7 @@ export function classifyRefreshFailure(payload) {
   return null;
 }
 
-function pickClientId(payload) {
+function pickClientId(payload: any): string | null {
   const clientId = payload?.['client_id'];
   if (typeof clientId === 'string' && clientId.length > 0) {
     return clientId;

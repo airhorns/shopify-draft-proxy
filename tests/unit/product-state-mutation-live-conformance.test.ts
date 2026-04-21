@@ -92,7 +92,7 @@ describe('product state mutation live conformance wiring', () => {
     const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8')) as PackageJson;
 
     expect(packageJson.scripts?.['conformance:capture-product-state-mutations']).toBe(
-      'node ./scripts/capture-product-state-mutation-conformance.mjs',
+      'tsx ./scripts/capture-product-state-mutation-conformance.mts',
     );
   });
 

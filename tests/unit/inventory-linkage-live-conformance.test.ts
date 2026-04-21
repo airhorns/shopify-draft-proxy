@@ -48,10 +48,10 @@ describe('inventory linkage live conformance wiring', () => {
   it('wires a dedicated capture script for the inventory linkage mutation family', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
     const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8')) as PackageJson;
-    const scriptPath = resolve(repoRoot, 'scripts/capture-inventory-linkage-mutation-conformance.mjs');
+    const scriptPath = resolve(repoRoot, 'scripts/capture-inventory-linkage-mutation-conformance.mts');
 
     expect(packageJson.scripts?.['conformance:capture-inventory-linkage-mutations']).toBe(
-      'node ./scripts/capture-inventory-linkage-mutation-conformance.mjs',
+      'tsx ./scripts/capture-inventory-linkage-mutation-conformance.mts',
     );
     expect(existsSync(scriptPath)).toBe(true);
 

@@ -63,7 +63,7 @@ describe('customer mutation live conformance wiring', () => {
   it('exposes a package script for the customer mutation capture harness', () => {
     const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8')) as PackageJson;
     expect(packageJson.scripts?.['conformance:capture-customer-mutations']).toBe(
-      'node ./scripts/capture-customer-mutation-conformance.mjs',
+      'tsx ./scripts/capture-customer-mutation-conformance.mts',
     );
   });
 

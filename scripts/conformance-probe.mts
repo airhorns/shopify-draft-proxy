@@ -1,3 +1,4 @@
+// @ts-nocheck
 import 'dotenv/config';
 
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
@@ -39,7 +40,6 @@ const query = `#graphql
     }
   }
 `;
-
 
 const response = await fetch(`${adminOrigin}/admin/api/${apiVersion}/graphql.json`, {
   method: 'POST',

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import 'dotenv/config';
 
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -23,7 +24,6 @@ const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, api
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
 const pendingDir = 'pending';
 const blockerPath = path.join(pendingDir, 'collection-mutation-conformance-scope-blocker.md');
-
 
 async function runGraphql(query, variables = {}) {
   const response = await fetch(`${adminOrigin}/admin/api/${apiVersion}/graphql.json`, {
