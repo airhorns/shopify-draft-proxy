@@ -2869,15 +2869,14 @@ function collectProductCatalogConnection(
   }
 
   const productsConnection = raw[responseKey];
-  const connectionEdges = Array.isArray(productsConnection['edges'])
-    ? productsConnection['edges'].filter((edge): edge is Record<string, unknown> => isObject(edge))
-    : [];
+  const connectionEntries = readConnectionNodeEntries(productsConnection);
 
   const orderedProductIds: string[] = [];
   const cursorByProductId: Record<string, string> = {};
-  for (const edge of connectionEdges) {
-    const normalized = normalizeUpstreamProduct(edge['node']);
-    const cursor = typeof edge['cursor'] === 'string' ? edge['cursor'] : null;
+  for (const entry of connectionEntries) {
+    const normalized = normalizeUpstreamProduct(entry.node);
+    const edge = Array.isArray(productsConnection['edges']) ? productsConnection['edges'][entry.position] : null;
+    const cursor = isObject(edge) && typeof edge['cursor'] === 'string' ? edge['cursor'] : null;
     if (!normalized) {
       continue;
     }
@@ -5529,6 +5528,57 @@ export function hydrateProductsFromUpstreamResponse(
   const rawProductNodes = readProductNodes(rawProducts);
   if (rawProductNodes.length > 0) {
     const products = rawProductNodes
+      .map((product) => normalizeUpstreamProduct(product))
+      .filter(
+        (
+          product,
+        ): product is {
+          product: ProductRecord;
+          options: ProductOptionRecord[];
+          hasOptions: boolean;
+          variants: ProductVariantRecord[];
+          hasVariants: boolean;
+          collections: ProductCollectionRecord[];
+          hasCollections: boolean;
+          media: ProductMediaRecord[];
+          hasMedia: boolean;
+          metafields: ProductMetafieldRecord[];
+          hasMetafields: boolean;
+        } => product !== null,
+      );
+
+    store.upsertBaseProducts(products.map((entry) => entry.product));
+    for (const entry of products) {
+      if (entry.hasOptions) {
+        store.replaceBaseOptionsForProduct(entry.product.id, entry.options);
+      }
+      if (entry.hasVariants) {
+        store.replaceBaseVariantsForProduct(entry.product.id, entry.variants);
+      }
+      if (entry.hasCollections) {
+        store.replaceBaseCollectionsForProduct(entry.product.id, entry.collections);
+      }
+      if (entry.hasMedia) {
+        store.replaceBaseMediaForProduct(entry.product.id, entry.media);
+      }
+      if (entry.hasMetafields) {
+        store.replaceBaseMetafieldsForProduct(entry.product.id, entry.metafields);
+      }
+    }
+  }
+
+  for (const field of getRootFields(document)) {
+    if (field.name.value !== 'products') {
+      continue;
+    }
+
+    const responseKey = field.alias?.value ?? field.name.value;
+    const productNodes = readProductNodes(rawData[responseKey]);
+    if (productNodes.length === 0) {
+      continue;
+    }
+
+    const products = productNodes
       .map((product) => normalizeUpstreamProduct(product))
       .filter(
         (

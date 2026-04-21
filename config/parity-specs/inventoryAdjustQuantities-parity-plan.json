@@ -8,16 +8,50 @@
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/inventoryAdjustQuantities-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/inventoryAdjustQuantities-parity-plan.variables.json"
+    "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "notes": "Live capture now covers `inventoryAdjustQuantities`. Shopify mirrored each `available` delta into an additional `on_hand` change, returned a real `InventoryAdjustmentGroup.id`, exposed `inventoryAdjustmentGroup.app` and `changes.location.name` on the successful payload, left `quantityAfterChange` null in the mutation payload, echoed per-change `ledgerDocumentUri` values separately from the group-level `referenceDocumentUri`, updated `productVariant` / `inventoryItem.variant` quantities before product-level `totalInventory` and `inventory_total:` catalog search caught up, accepted non-available names like `incoming` only when each change carried a ledger document URI, rejected invalid names like `on_hand` with an explicit valid-values error plus the same ledger document URI requirement, and surfaced `inventoryAdjustmentGroup.staffMember` as a top-level `ACCESS_DENIED` companion error requiring `read_users` while the rest of the mutation payload still succeeded. Missing required nested change fields (`inventoryItemId`, `locationId`, `delta`) still surfaced as top-level `INVALID_VARIABLE` GraphQL errors before the mutation resolver ran.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [
+      {
+        "path": "$.matchingCount.count",
+        "matcher": "any-number",
+        "reason": "The live fixture records Shopify's full matching catalog count, while local replay hydrates only the captured first page; the matching product page and count precision remain strictly asserted."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-user-errors",
+        "capturePath": "$.mutation.response.data.inventoryAdjustQuantities.userErrors",
+        "proxyPath": "$.data.inventoryAdjustQuantities.userErrors"
+      },
+      {
+        "name": "mutation-reason",
+        "capturePath": "$.mutation.response.data.inventoryAdjustQuantities.inventoryAdjustmentGroup.reason",
+        "proxyPath": "$.data.inventoryAdjustQuantities.inventoryAdjustmentGroup.reason"
+      },
+      {
+        "name": "mutation-reference-document-uri",
+        "capturePath": "$.mutation.response.data.inventoryAdjustQuantities.inventoryAdjustmentGroup.referenceDocumentUri",
+        "proxyPath": "$.data.inventoryAdjustQuantities.inventoryAdjustmentGroup.referenceDocumentUri"
+      },
+      {
+        "name": "mutation-changes",
+        "capturePath": "$.mutation.response.data.inventoryAdjustQuantities.inventoryAdjustmentGroup.changes",
+        "proxyPath": "$.data.inventoryAdjustQuantities.inventoryAdjustmentGroup.changes"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.downstreamRead",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/inventoryAdjustQuantities-downstream-read.graphql",
+          "variablesPath": "config/parity-requests/inventoryAdjustQuantities-downstream-read.variables.json"
+        }
+      }
+    ]
   }
 }

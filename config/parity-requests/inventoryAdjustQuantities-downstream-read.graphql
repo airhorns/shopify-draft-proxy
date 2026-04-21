@@ -1,0 +1,96 @@
+query InventoryAdjustQuantitiesDownstreamParity(
+  $firstProductId: ID!
+  $secondProductId: ID!
+  $firstVariantId: ID!
+  $secondVariantId: ID!
+  $firstInventoryItemId: ID!
+  $secondInventoryItemId: ID!
+) {
+  firstProduct: product(id: $firstProductId) {
+    id
+    totalInventory
+    tracksInventory
+    variants(first: 10) {
+      nodes {
+        id
+        inventoryQuantity
+        inventoryItem {
+          id
+          tracked
+        }
+      }
+    }
+  }
+  secondProduct: product(id: $secondProductId) {
+    id
+    totalInventory
+    tracksInventory
+    variants(first: 10) {
+      nodes {
+        id
+        inventoryQuantity
+        inventoryItem {
+          id
+          tracked
+        }
+      }
+    }
+  }
+  firstVariant: productVariant(id: $firstVariantId) {
+    id
+    inventoryQuantity
+    inventoryItem {
+      id
+      tracked
+    }
+  }
+  secondVariant: productVariant(id: $secondVariantId) {
+    id
+    inventoryQuantity
+    inventoryItem {
+      id
+      tracked
+    }
+  }
+  firstInventoryItem: inventoryItem(id: $firstInventoryItemId) {
+    id
+    tracked
+    variant {
+      id
+      inventoryQuantity
+      product {
+        id
+        totalInventory
+      }
+    }
+  }
+  secondInventoryItem: inventoryItem(id: $secondInventoryItemId) {
+    id
+    tracked
+    variant {
+      id
+      inventoryQuantity
+      product {
+        id
+        totalInventory
+      }
+    }
+  }
+  matching: products(first: 10, query: "inventory_total:>=14", sortKey: RELEVANCE) {
+    nodes {
+      id
+      totalInventory
+      tracksInventory
+      variants(first: 10) {
+        nodes {
+          id
+          inventoryQuantity
+        }
+      }
+    }
+  }
+  matchingCount: productsCount(query: "inventory_total:>=14") {
+    count
+    precision
+  }
+}
