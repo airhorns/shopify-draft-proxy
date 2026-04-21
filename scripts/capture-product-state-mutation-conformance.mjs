@@ -3,13 +3,11 @@ import 'dotenv/config';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+
 import { parseWriteScopeBlocker, renderWriteScopeBlockerNote } from './product-mutation-conformance-lib.mjs';
 
-const requiredVars = [
-  'SHOPIFY_CONFORMANCE_STORE_DOMAIN',
-  'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN',
-  'SHOPIFY_CONFORMANCE_ADMIN_ACCESS_TOKEN',
-];
+const requiredVars = ['SHOPIFY_CONFORMANCE_STORE_DOMAIN', 'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
 
 const missingVars = requiredVars.filter((name) => !process.env[name]);
 if (missingVars.length > 0) {
@@ -20,27 +18,14 @@ if (missingVars.length > 0) {
 
 const storeDomain = process.env['SHOPIFY_CONFORMANCE_STORE_DOMAIN'];
 const adminOrigin = process.env['SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
-const adminAccessToken = process.env['SHOPIFY_CONFORMANCE_ADMIN_ACCESS_TOKEN'];
 const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || '2025-01';
+const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
 const pendingDir = 'pending';
 const blockerPath = path.join(pendingDir, 'product-state-mutation-conformance-scope-blocker.md');
 
-function buildAdminAuthHeaders(token) {
-  if (token.startsWith('shpat_')) {
-    return {
-      'X-Shopify-Access-Token': token,
-    };
-  }
 
-  const bearerToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
-  return {
-    Authorization: bearerToken,
-    'X-Shopify-Access-Token': bearerToken,
-  };
-}
-
-async function runGraphql(query, variables = {}) {
+async function postGraphql(query, variables = {}) {
   const response = await fetch(`${adminOrigin}/admin/api/${apiVersion}/graphql.json`, {
     method: 'POST',
     headers: {
@@ -51,12 +36,22 @@ async function runGraphql(query, variables = {}) {
   });
 
   const payload = await response.json();
-  if (!response.ok || payload.errors) {
-    const error = new Error(JSON.stringify({ status: response.status, payload }, null, 2));
-    error.result = { status: response.status, payload };
+  return { status: response.status, payload };
+}
+
+async function runGraphql(query, variables = {}) {
+  const { status, payload } = await postGraphql(query, variables);
+  if (status < 200 || status >= 300 || payload.errors) {
+    const error = new Error(JSON.stringify({ status, payload }, null, 2));
+    error.result = { status, payload };
     throw error;
   }
 
+  return payload;
+}
+
+async function runGraphqlAllowErrors(query, variables = {}) {
+  const { payload } = await postGraphql(query, variables);
   return payload;
 }
 
@@ -93,6 +88,22 @@ const deleteMutation = `#graphql
 const changeStatusMutation = `#graphql
   mutation ProductChangeStatusConformance($productId: ID!, $status: ProductStatus!) {
     productChangeStatus(productId: $productId, status: $status) {
+      product {
+        id
+        status
+        updatedAt
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const changeStatusNullLiteralMutation = `#graphql
+  mutation ProductChangeStatusNullLiteralConformance {
+    productChangeStatus(productId: null, status: ARCHIVED) {
       product {
         id
         status
@@ -246,11 +257,14 @@ const uniqueSummerTag = `hermes-summer-${runId}`;
 const uniqueSaleTag = `hermes-sale-${runId}`;
 const createVariables = buildCreateVariables(runId);
 const statusVariables = { productId: null, status: 'ARCHIVED' };
+const unknownStatusVariables = { productId: 'gid://shopify/Product/999999999999999', status: 'ARCHIVED' };
 const tagsAddVariables = { id: null, tags: ['existing', uniqueSummerTag, uniqueSaleTag] };
 const tagsRemoveVariables = { id: null, tags: [uniqueSaleTag, 'missing'] };
 let createdProductId = null;
 let createResponse = null;
 let statusResponse = null;
+let unknownStatusResponse = null;
+let nullLiteralStatusResponse = null;
 let tagsAddResponse = null;
 let tagsRemoveResponse = null;
 
@@ -266,6 +280,8 @@ try {
   tagsRemoveVariables.id = createdProductId;
 
   statusResponse = await runGraphql(changeStatusMutation, statusVariables);
+  unknownStatusResponse = await runGraphql(changeStatusMutation, unknownStatusVariables);
+  nullLiteralStatusResponse = await runGraphqlAllowErrors(changeStatusNullLiteralMutation);
   const postStatusRead = await runGraphql(postStatusReadQuery, {
     id: createdProductId,
     query: 'status:archived',
@@ -289,6 +305,16 @@ try {
       mutation: {
         variables: statusVariables,
         response: statusResponse,
+      },
+      validation: {
+        unknownProduct: {
+          variables: unknownStatusVariables,
+          response: unknownStatusResponse,
+        },
+        nullLiteralProductId: {
+          query: changeStatusNullLiteralMutation,
+          response: nullLiteralStatusResponse,
+        },
       },
       downstreamRead: postStatusRead,
     },

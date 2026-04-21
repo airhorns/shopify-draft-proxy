@@ -1,0 +1,26 @@
+{
+  "query": "mutation InlineMissingOrderArg {\n    orderCreate {\n      order { id }\n      userErrors { field message }\n    }\n  }",
+  "variables": {},
+  "mutation": {
+    "response": {
+      "errors": [
+        {
+          "message": "Field 'orderCreate' is missing required arguments: order",
+          "locations": [
+            {
+              "line": 3,
+              "column": 5
+            }
+          ],
+          "path": ["mutation InlineMissingOrderArg", "orderCreate"],
+          "extensions": {
+            "code": "missingRequiredArguments",
+            "className": "Field",
+            "name": "orderCreate",
+            "arguments": "order"
+          }
+        }
+      ]
+    }
+  }
+}

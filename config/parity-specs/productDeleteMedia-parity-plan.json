@@ -1,12 +1,23 @@
 {
-  "scenarioId": "productDeleteMedia-parity-plan",
+  "scenarioId": "product-delete-media-live-parity",
   "operationNames": ["productDeleteMedia"],
-  "scenarioStatus": "planned",
+  "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
-  "liveCaptureFiles": [],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-delete-media-parity.json"
+  ],
   "proxyRequest": {
-    "documentPath": null,
-    "variablesPath": null
+    "documentPath": "config/parity-requests/productDeleteMedia-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/productDeleteMedia-parity-plan.variables.json"
   },
-  "notes": "Media mutation parity still needs dedicated live-write scenarios and payload assertions."
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live capture now covers `productDeleteMedia`, including immediate downstream `product.media` removal parity and Shopify's current empty `deletedProductImageIds` response for MediaImage deletes.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "blocker": {
+    "kind": "explicit-comparison-targets-needed",
+    "blockerPath": null
+  }
 }

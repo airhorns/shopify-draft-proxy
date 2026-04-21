@@ -1,0 +1,12 @@
+{
+  "input": {
+    "email": "hermes-customer-create@example.com",
+    "firstName": "Hermes",
+    "lastName": "Create",
+    "locale": "en",
+    "note": "customer create parity probe",
+    "phone": "+14155550123",
+    "tags": ["parity", "create"],
+    "taxExempt": true
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "data": {
+    "customers": {
+      "edges": [
+        {
+          "cursor": "eyJsYXN0X2lkIjo3MjU0NDU2MzM2NjE3LCJsYXN0X3ZhbHVlIjoxLjB9",
+          "node": {
+            "id": "gid://shopify/Customer/7254456336617",
+            "displayName": "Ira Kirk",
+            "email": "egnition_sample_104@egnition.com",
+            "legacyResourceId": "7254456336617",
+            "tags": ["egnition-sample-data", "VIP"],
+            "updatedAt": "2024-03-14T01:55:02Z"
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo3MjU0NDU2MzAzODQ5LCJsYXN0X3ZhbHVlIjoxLjB9",
+          "node": {
+            "id": "gid://shopify/Customer/7254456303849",
+            "displayName": "Conan Daniels",
+            "email": "egnition_sample_41@egnition.com",
+            "legacyResourceId": "7254456303849",
+            "tags": ["egnition-sample-data", "referral"],
+            "updatedAt": "2024-03-14T01:55:01Z"
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo3MjU0NDU2MjcxMDgxLCJsYXN0X3ZhbHVlIjoxLjB9",
+          "node": {
+            "id": "gid://shopify/Customer/7254456271081",
+            "displayName": "Colt Marquez",
+            "email": "egnition_sample_103@egnition.com",
+            "legacyResourceId": "7254456271081",
+            "tags": ["egnition-sample-data", "referral"],
+            "updatedAt": "2024-03-14T01:55:00Z"
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo3MjU0NDU2MjM4MzEzLCJsYXN0X3ZhbHVlIjoxLjB9",
+          "node": {
+            "id": "gid://shopify/Customer/7254456238313",
+            "displayName": "Barry Anderson",
+            "email": "egnition_sample_78@egnition.com",
+            "legacyResourceId": "7254456238313",
+            "tags": ["egnition-sample-data", "referral"],
+            "updatedAt": "2024-03-14T01:55:00Z"
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo3MjU0NDU2MTcyNzc3LCJsYXN0X3ZhbHVlIjoxLjB9",
+          "node": {
+            "id": "gid://shopify/Customer/7254456172777",
+            "displayName": "Dane Buck",
+            "email": "egnition_sample_76@egnition.com",
+            "legacyResourceId": "7254456172777",
+            "tags": ["egnition-sample-data"],
+            "updatedAt": "2024-03-14T01:54:59Z"
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": true,
+        "hasPreviousPage": false,
+        "startCursor": "eyJsYXN0X2lkIjo3MjU0NDU2MzM2NjE3LCJsYXN0X3ZhbHVlIjoxLjB9",
+        "endCursor": "eyJsYXN0X2lkIjo3MjU0NDU2MTcyNzc3LCJsYXN0X3ZhbHVlIjoxLjB9"
+      }
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 5,
+      "actualQueryCost": 5,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1995,
+        "restoreRate": 100
+      }
+    }
+  }
+}

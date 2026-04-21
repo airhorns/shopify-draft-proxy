@@ -1,12 +1,21 @@
 {
-  "scenarioId": "productSet-parity-plan",
+  "scenarioId": "product-set-live-parity",
   "operationNames": ["productSet"],
-  "scenarioStatus": "planned",
+  "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
-  "liveCaptureFiles": [],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-set-parity.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/productSet-parity-plan.graphql",
     "variablesPath": "config/parity-requests/productSet-parity-plan.variables.json"
   },
-  "notes": "Proxy request scaffold now mirrors the staged synchronous productSet create slice (scalar/detail fields plus `productOptions`, `variants`, and `metafields`). Next step is to run the same safe productSet scenario against a dedicated dev-store write pack and compare mutation payload plus immediate downstream product read parity."
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live safe-write capture now covers the synchronous create slice of `productSet` plus immediate downstream `product(id:)` parity. The current live API requires `variants[].inventoryQuantities[]` entries to include both `locationId` and quantity `name` (for this capture, `available`) rather than only a bare quantity.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "blocker": {
+    "kind": "explicit-comparison-targets-needed",
+    "blockerPath": null
+  }
 }

@@ -1,0 +1,21 @@
+{
+  "scenarioId": "draft-order-create-live-parity",
+  "operationNames": ["draftOrderCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "downstream-read-parity"],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-create-parity.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/draftOrderCreate-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/draftOrderCreate-parity-plan.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "The first merchant-realistic draft-order creation slice is now live-captured: the current bearer-token conformance credential can create an open draft order with custom line items, addresses, tags, and customAttributes, and the created draft is immediately readable through `draftOrder(id:)`.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "blocker": {
+    "kind": "explicit-comparison-targets-needed",
+    "blockerPath": null
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "scenarioId": "fulfillment-tracking-info-update-inline-null-id-argument-error",
+  "operationNames": ["fulfillmentTrackingInfoUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/fulfillment-tracking-info-update-inline-null-id.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/fulfillmentTrackingInfoUpdate-inline-null-id-parity.graphql",
+    "variablesPath": "config/parity-requests/fulfillmentTrackingInfoUpdate-inline-null-id-parity.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured `fulfillmentTrackingInfoUpdate` inline null-literal GraphQL validation slice: inline `fulfillmentId: null` fails with `argumentLiteralsIncompatible`, and snapshot/live-hybrid local parity now mirrors that branch without hitting upstream.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "blocker": {
+    "kind": "explicit-comparison-targets-needed",
+    "blockerPath": null
+  }
+}

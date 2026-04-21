@@ -1,0 +1,51 @@
+{
+  "variables": {
+    "fulfillment": {
+      "notifyCustomer": false,
+      "trackingInfo": {
+        "number": "HERMES-PROBE",
+        "url": "https://example.com/track/HERMES-PROBE",
+        "company": "Hermes"
+      },
+      "lineItemsByFulfillmentOrder": [
+        {
+          "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/0"
+        }
+      ]
+    },
+    "message": "hermes fulfillment probe"
+  },
+  "mutation": {
+    "response": {
+      "errors": [
+        {
+          "message": "invalid id",
+          "locations": [
+            {
+              "line": 3,
+              "column": 5
+            }
+          ],
+          "extensions": {
+            "code": "RESOURCE_NOT_FOUND"
+          },
+          "path": ["fulfillmentCreate"]
+        }
+      ],
+      "data": {
+        "fulfillmentCreate": null
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

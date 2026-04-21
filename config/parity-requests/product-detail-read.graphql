@@ -1,4 +1,4 @@
-query ProductDetail($id: ID!) {
+query ProductDetailRead($id: ID!) {
   product(id: $id) {
     id
     title
@@ -15,7 +15,7 @@ query ProductDetail($id: ID!) {
       id
       fullName
     }
-    collections(first: 5) {
+    collections(first: 3) {
       edges {
         node {
           id

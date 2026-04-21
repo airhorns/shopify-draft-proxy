@@ -1,0 +1,5 @@
+{
+  "prefixQuery": "swoo* status:active",
+  "orQuery": "(vendor:NIKE OR vendor:VANS) tag:egnition-sample-data product_type:ACCESSORIES",
+  "groupedExclusionQuery": "tag:egnition-sample-data product_type:ACCESSORIES -(vendor:VANS)"
+}

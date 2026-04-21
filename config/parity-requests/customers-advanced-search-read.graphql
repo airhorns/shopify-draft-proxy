@@ -1,0 +1,95 @@
+query CustomersAdvancedSearchRead($prefixQuery: String!, $orQuery: String!, $groupedQuery: String!) {
+  prefix: customers(first: 2, query: $prefixQuery, sortKey: UPDATED_AT, reverse: true) {
+    edges {
+      cursor
+      node {
+        id
+        displayName
+        legacyResourceId
+        verifiedEmail
+        state
+        tags
+        defaultPhoneNumber {
+          phoneNumber
+        }
+        defaultAddress {
+          address1
+          city
+          province
+          country
+          zip
+          formattedArea
+        }
+        updatedAt
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  orMatches: customers(first: 5, query: $orQuery, sortKey: UPDATED_AT, reverse: true) {
+    edges {
+      cursor
+      node {
+        id
+        displayName
+        legacyResourceId
+        verifiedEmail
+        state
+        tags
+        defaultPhoneNumber {
+          phoneNumber
+        }
+        defaultAddress {
+          address1
+          city
+          province
+          country
+          zip
+          formattedArea
+        }
+        updatedAt
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  groupedExclusion: customers(first: 5, query: $groupedQuery, sortKey: UPDATED_AT, reverse: true) {
+    edges {
+      cursor
+      node {
+        id
+        displayName
+        legacyResourceId
+        verifiedEmail
+        state
+        tags
+        defaultPhoneNumber {
+          phoneNumber
+        }
+        defaultAddress {
+          address1
+          city
+          province
+          country
+          zip
+          formattedArea
+        }
+        updatedAt
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "input": {
+    "id": "gid://shopify/Customer/1",
+    "firstName": "Hermes",
+    "lastName": "Updated",
+    "note": "customer update parity probe",
+    "tags": ["parity", "updated"],
+    "taxExempt": false
+  }
+}

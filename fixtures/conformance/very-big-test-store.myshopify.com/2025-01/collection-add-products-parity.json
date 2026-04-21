@@ -1,41 +1,41 @@
 {
   "seedProducts": [
     {
-      "id": "gid://shopify/Product/8397256720617",
-      "title": "CONVERSE | TODDLER CHUCK TAYLOR ALL STAR AXEL MID",
-      "handle": "converse-toddler-chuck-taylor-all-star-axel-mid",
-      "status": "ACTIVE"
+      "id": "gid://shopify/Product/9257219916009",
+      "title": "Hermes Product Set Normalization 1776550889941",
+      "handle": "another-weird-handle-300",
+      "status": "DRAFT"
     },
     {
-      "id": "gid://shopify/Product/8397257375977",
-      "title": "NIKE | SWOOSH PRO FLAT PEAK CAP",
-      "handle": "nike-swoosh-pro-flat-peak-cap",
+      "id": "gid://shopify/Product/8971842846953",
+      "title": "Test Product - 6635",
+      "handle": "test-product-ge91cbbd6",
       "status": "ACTIVE"
     }
   ],
   "mutation": {
     "variables": {
-      "id": "gid://shopify/Collection/468025606377",
-      "productIds": ["gid://shopify/Product/8397256720617", "gid://shopify/Product/8397257375977"]
+      "id": "gid://shopify/Collection/468144029929",
+      "productIds": ["gid://shopify/Product/9257219916009", "gid://shopify/Product/8971842846953"]
     },
     "response": {
       "data": {
         "collectionAddProducts": {
           "collection": {
-            "id": "gid://shopify/Collection/468025606377",
-            "title": "Hermes Collection Conformance 1776300936685",
-            "handle": "hermes-collection-conformance-1776300936685",
+            "id": "gid://shopify/Collection/468144029929",
+            "title": "Hermes Collection Conformance 1776550981845",
+            "handle": "hermes-collection-conformance-1776550981845",
             "products": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Product/8397257375977",
-                  "title": "NIKE | SWOOSH PRO FLAT PEAK CAP",
-                  "handle": "nike-swoosh-pro-flat-peak-cap"
+                  "id": "gid://shopify/Product/9257219916009",
+                  "title": "Hermes Product Set Normalization 1776550889941",
+                  "handle": "another-weird-handle-300"
                 },
                 {
-                  "id": "gid://shopify/Product/8397256720617",
-                  "title": "CONVERSE | TODDLER CHUCK TAYLOR ALL STAR AXEL MID",
-                  "handle": "converse-toddler-chuck-taylor-all-star-axel-mid"
+                  "id": "gid://shopify/Product/8971842846953",
+                  "title": "Test Product - 6635",
+                  "handle": "test-product-ge91cbbd6"
                 }
               ],
               "pageInfo": {
@@ -53,7 +53,7 @@
           "actualQueryCost": 14,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1976,
+            "currentlyAvailable": 1986,
             "restoreRate": 100
           }
         }
@@ -63,20 +63,20 @@
   "downstreamRead": {
     "data": {
       "collection": {
-        "id": "gid://shopify/Collection/468025606377",
-        "title": "Hermes Collection Conformance 1776300936685",
-        "handle": "hermes-collection-conformance-1776300936685",
+        "id": "gid://shopify/Collection/468144029929",
+        "title": "Hermes Collection Conformance 1776550981845",
+        "handle": "hermes-collection-conformance-1776550981845",
         "products": {
           "nodes": [
             {
-              "id": "gid://shopify/Product/8397257375977",
-              "title": "NIKE | SWOOSH PRO FLAT PEAK CAP",
-              "handle": "nike-swoosh-pro-flat-peak-cap"
+              "id": "gid://shopify/Product/9257219916009",
+              "title": "Hermes Product Set Normalization 1776550889941",
+              "handle": "another-weird-handle-300"
             },
             {
-              "id": "gid://shopify/Product/8397256720617",
-              "title": "CONVERSE | TODDLER CHUCK TAYLOR ALL STAR AXEL MID",
-              "handle": "converse-toddler-chuck-taylor-all-star-axel-mid"
+              "id": "gid://shopify/Product/8971842846953",
+              "title": "Test Product - 6635",
+              "handle": "test-product-ge91cbbd6"
             }
           ],
           "pageInfo": {
@@ -86,23 +86,13 @@
         }
       },
       "first": {
-        "id": "gid://shopify/Product/8397256720617",
+        "id": "gid://shopify/Product/9257219916009",
         "collections": {
           "nodes": [
             {
-              "id": "gid://shopify/Collection/429826244841",
-              "title": "CONVERSE",
-              "handle": "converse"
-            },
-            {
-              "id": "gid://shopify/Collection/429826605289",
-              "title": "KID",
-              "handle": "kid"
-            },
-            {
-              "id": "gid://shopify/Collection/468025606377",
-              "title": "Hermes Collection Conformance 1776300936685",
-              "handle": "hermes-collection-conformance-1776300936685"
+              "id": "gid://shopify/Collection/468144029929",
+              "title": "Hermes Collection Conformance 1776550981845",
+              "handle": "hermes-collection-conformance-1776550981845"
             }
           ],
           "pageInfo": {
@@ -112,18 +102,13 @@
         }
       },
       "second": {
-        "id": "gid://shopify/Product/8397257375977",
+        "id": "gid://shopify/Product/8971842846953",
         "collections": {
           "nodes": [
             {
-              "id": "gid://shopify/Collection/429826212073",
-              "title": "NIKE",
-              "handle": "nike"
-            },
-            {
-              "id": "gid://shopify/Collection/468025606377",
-              "title": "Hermes Collection Conformance 1776300936685",
-              "handle": "hermes-collection-conformance-1776300936685"
+              "id": "gid://shopify/Collection/468144029929",
+              "title": "Hermes Collection Conformance 1776550981845",
+              "handle": "hermes-collection-conformance-1776550981845"
             }
           ],
           "pageInfo": {
@@ -136,10 +121,10 @@
     "extensions": {
       "cost": {
         "requestedQueryCost": 21,
-        "actualQueryCost": 15,
+        "actualQueryCost": 13,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1983,
+          "currentlyAvailable": 1987,
           "restoreRate": 100
         }
       }

@@ -1,47 +1,21 @@
 {
   "data": {
     "collection": {
-      "id": "gid://shopify/Collection/429826244841",
-      "title": "CONVERSE",
-      "handle": "converse",
+      "id": "gid://shopify/Collection/402476531945",
+      "title": "Home page",
+      "handle": "frontpage",
       "products": {
         "edges": [
           {
-            "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU2NDkxMjQxLCJsYXN0X3ZhbHVlIjoiMyJ9",
+            "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDI2ODU3LCJsYXN0X3ZhbHVlIjoiMiJ9",
             "node": {
-              "id": "gid://shopify/Product/8397256491241",
-              "title": "CONVERSE | CHUCK TAYLOR ALL STAR LO",
-              "handle": "converse-chuck-taylor-all-star-lo",
-              "vendor": "CONVERSE",
+              "id": "gid://shopify/Product/8397254426857",
+              "title": "VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE",
+              "handle": "vans-authentic-lo-pro-burgandy-white",
+              "vendor": "VANS",
               "productType": "SHOES",
-              "tags": ["converse", "egnition-sample-data", "men", "summer"],
-              "totalInventory": 121,
-              "tracksInventory": true
-            }
-          },
-          {
-            "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU2NTg5NTQ1LCJsYXN0X3ZhbHVlIjoiMSJ9",
-            "node": {
-              "id": "gid://shopify/Product/8397256589545",
-              "title": "CONVERSE | CHUCK TAYLOR ALL STAR II HI",
-              "handle": "converse-chuck-taylor-all-star-ii-hi",
-              "vendor": "CONVERSE",
-              "productType": "SHOES",
-              "tags": ["converse", "egnition-sample-data", "men", "summer"],
-              "totalInventory": 81,
-              "tracksInventory": true
-            }
-          },
-          {
-            "cursor": "eyJsYXN0X2lkIjo4Mzk3MjU2NzIwNjE3LCJsYXN0X3ZhbHVlIjoiMCJ9",
-            "node": {
-              "id": "gid://shopify/Product/8397256720617",
-              "title": "CONVERSE | TODDLER CHUCK TAYLOR ALL STAR AXEL MID",
-              "handle": "converse-toddler-chuck-taylor-all-star-axel-mid",
-              "vendor": "CONVERSE",
-              "productType": "SHOES",
-              "tags": ["converse", "egnition-sample-data", "kid"],
-              "totalInventory": 45,
+              "tags": ["egnition-sample-data", "men", "sale", "summer", "vans"],
+              "totalInventory": 25,
               "tracksInventory": true
             }
           }
@@ -49,8 +23,8 @@
         "pageInfo": {
           "hasNextPage": false,
           "hasPreviousPage": false,
-          "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU2NDkxMjQxLCJsYXN0X3ZhbHVlIjoiMyJ9",
-          "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU2NzIwNjE3LCJsYXN0X3ZhbHVlIjoiMCJ9"
+          "startCursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDI2ODU3LCJsYXN0X3ZhbHVlIjoiMiJ9",
+          "endCursor": "eyJsYXN0X2lkIjo4Mzk3MjU0NDI2ODU3LCJsYXN0X3ZhbHVlIjoiMiJ9"
         }
       }
     }
@@ -58,10 +32,10 @@
   "extensions": {
     "cost": {
       "requestedQueryCost": 5,
-      "actualQueryCost": 5,
+      "actualQueryCost": 4,
       "throttleStatus": {
         "maximumAvailable": 2000,
-        "currentlyAvailable": 1985,
+        "currentlyAvailable": 1987,
         "restoreRate": 100
       }
     }

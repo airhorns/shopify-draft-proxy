@@ -1,0 +1,26 @@
+{
+  "query": "mutation InlineMissingOrderId {\n    orderUpdate(input: { note: \"inline missing id\", tags: [\"inline\", \"missing-id\"] }) {\n      order { id }\n      userErrors { field message }\n    }\n  }",
+  "variables": {},
+  "mutation": {
+    "response": {
+      "errors": [
+        {
+          "message": "Argument 'id' on InputObject 'OrderInput' is required. Expected type ID!",
+          "locations": [
+            {
+              "line": 3,
+              "column": 24
+            }
+          ],
+          "path": ["mutation InlineMissingOrderId", "orderUpdate", "input", "id"],
+          "extensions": {
+            "code": "missingRequiredInputObjectAttribute",
+            "argumentName": "id",
+            "argumentType": "ID!",
+            "inputObjectType": "OrderInput"
+          }
+        }
+      ]
+    }
+  }
+}

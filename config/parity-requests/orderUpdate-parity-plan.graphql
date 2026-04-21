@@ -1,0 +1,15 @@
+mutation OrderUpdateParityPlan($input: OrderInput!) {
+  orderUpdate(input: $input) {
+    order {
+      id
+      name
+      updatedAt
+      note
+      tags
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

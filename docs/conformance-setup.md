@@ -28,33 +28,60 @@ Set these variables in a local `.env` or shell session:
 
 - `SHOPIFY_CONFORMANCE_STORE_DOMAIN`
 - `SHOPIFY_CONFORMANCE_ADMIN_ORIGIN`
-- `SHOPIFY_CONFORMANCE_ADMIN_ACCESS_TOKEN`
 - `SHOPIFY_CONFORMANCE_API_VERSION`
 - `SHOPIFY_CONFORMANCE_APP_HANDLE` (optional but useful)
+- `SHOPIFY_CONFORMANCE_APP_ID` (optional; lets local inventory-adjust replay mirror `inventoryAdjustmentGroup.app.id`)
+- `SHOPIFY_CONFORMANCE_APP_API_KEY` (optional; lets local inventory-adjust replay mirror `inventoryAdjustmentGroup.app.apiKey` when `SHOPIFY_API_KEY` is not set)
 
 See `.env.example` for the canonical variable names.
 
 The server now loads `.env` automatically via `dotenv`, so a local `.env` file is enough for normal `pnpm dev` / `pnpm start` workflows.
 
+The live conformance access token is no longer stored in repo `.env`. The canonical credential lives at:
+
+```text
+~/.shopify-draft-proxy/conformance-admin-auth.json
+```
+
+Generate a fresh grant link with:
+
+```bash
+corepack pnpm conformance:auth-link
+```
+
+Then exchange the browser callback URL with:
+
+```bash
+corepack pnpm conformance:exchange-auth -- '<full callback url>'
+```
+
 #### Symphony workspace credential link
 
-On the current unattended Symphony host, the durable conformance credential file lives in the original checkout:
+On the current unattended Symphony host, older workspaces may still have a
+repo-local `.env` linked to the original checkout:
 
 ```text
 /home/airhorns/code/shopify-draft-proxy/.env
 ```
 
-New Symphony workspaces should link their repo-local `.env` to that file instead of copying secret values into the workspace:
+New Symphony workspaces should prefer the home-folder credential file above.
+If a workspace still needs the original checkout `.env`, link it instead of
+copying secret values into the workspace:
 
 ```bash
 ln -sfn /home/airhorns/code/shopify-draft-proxy/.env .env
 ```
 
-If a workspace already has a placeholder `.env`, replace it with the symlink before running live conformance. Do not commit the symlink or any secret-bearing `.env` file; `.gitignore` excludes them. The link only proves where to load credentials from. `corepack pnpm conformance:probe` is still the required gate for proving the current token is valid before any live capture.
+Do not commit the symlink or any secret-bearing `.env` file; `.gitignore`
+excludes them. The link only proves where to load credentials from.
+`corepack pnpm conformance:probe` is still the required gate for proving the
+current token is valid before any live capture.
 
-#### Shopify CLI token refresh fallback
+#### Legacy Shopify CLI token refresh fallback
 
-Prefer a dedicated `shpat_...` Admin API token for unattended conformance. If the host is still using a Shopify CLI account bearer token, the refresh material lives in:
+Prefer `corepack pnpm conformance:refresh-auth` and the store-auth flow below.
+If an older host is still using a Shopify CLI account bearer token, the refresh
+material lives in:
 
 ```text
 ~/.config/shopify-cli-kit-nodejs/config.json
@@ -79,7 +106,10 @@ Do not perform a non-persisting "test" refresh. A successful response can rotate
 - update `SHOPIFY_CONFORMANCE_ADMIN_ACCESS_TOKEN` in `/home/airhorns/code/shopify-draft-proxy/.env`
 - update the workspace `.env` too if it is not a symlink to the original checkout file
 
-After persisting, run `corepack pnpm conformance:probe`. If the refresh response is `invalid_grant`, the stored CLI grant is no longer recoverable non-interactively; stop retrying it and switch to a dedicated dev-store Admin API token or have a human re-authenticate Shopify CLI and persist the fresh pair into both files.
+After persisting, run `corepack pnpm conformance:probe`. If the refresh
+response is `invalid_grant`, the stored CLI grant is no longer recoverable
+non-interactively; stop retrying it and switch to the store-auth flow below, a
+dedicated dev-store Admin API token, or a fresh Shopify CLI authentication.
 
 ### 4. Validate structural conformance coverage before live probing
 
@@ -120,9 +150,48 @@ Once the vars are present, run:
 pnpm conformance:probe
 ```
 
-This performs a minimal Admin GraphQL `shop` query against the configured store and fails fast if the domain/origin/token combination is wrong.
+This performs a minimal Admin GraphQL `shop` query against the configured store and fails fast if the domain/origin/token combination is wrong. Internally it now resolves the token via `getValidConformanceAccessToken(...)`, which probes the stored token, refreshes it when possible, and reports a clear error when the home-folder credential is missing or dead.
 
-### 5. Capture product-domain fixtures from the live store
+### 6. Refresh expiring conformance auth before it strands the repo
+
+The current host now uses a **refreshable expiring store-auth token** persisted in:
+
+- `.manual-store-auth-token.json`
+- `.env` (`SHOPIFY_CONFORMANCE_ADMIN_ACCESS_TOKEN`)
+
+When the access token expires, the repo should be repaired with the refresh path first, not by guessing or generating a brand-new auth link unnecessarily.
+
+Run:
+
+```bash
+corepack pnpm conformance:refresh-auth
+corepack pnpm conformance:probe
+```
+
+What `conformance:refresh-auth` does:
+
+- reads the current `refresh_token` + `client_id` from `.manual-store-auth-token.json`
+- reads `SHOPIFY_API_SECRET` from the linked app `.env`
+  - default candidate: `/tmp/shopify-conformance-app/<SHOPIFY_CONFORMANCE_APP_HANDLE>/.env`
+  - override with `SHOPIFY_CONFORMANCE_APP_ENV_PATH=/path/to/app/.env`
+- calls:
+  - `POST https://<store>/admin/oauth/access_token`
+  - form-encoded body with `client_id`, `client_secret`, `grant_type=refresh_token`, and `refresh_token`
+- persists the returned rotated token pair back into both:
+  - `.manual-store-auth-token.json`
+  - `.env`
+- verifies the refreshed token immediately with a live `shop` probe
+
+Important current-host findings:
+
+- Shopify's newer refreshable store-auth flow may still return a token shaped like `shpca_...`, not only `shpat_...`
+- treat Shopify token families with the broader `^shp[a-z]+_` rule
+- those tokens must still be sent as raw `X-Shopify-Access-Token: <token>`
+- the refresh response can rotate **both** the access token and refresh token, so persisting them atomically matters
+
+If `conformance:refresh-auth` fails, inspect the returned JSON before retrying. On this host, a repo-local refresh can now fail with `invalid_request` / `This request requires an active refresh_token`, which means the saved manual store-auth grant is no longer refreshable and you should stop retrying it. In that branch, generate a new store-auth link, complete the browser approval flow, exchange the callback in one step, and only then probe again.
+
+### 7. Capture product-domain fixtures from the live store
 
 Run:
 

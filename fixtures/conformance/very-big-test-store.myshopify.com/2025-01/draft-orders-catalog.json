@@ -1,0 +1,120 @@
+{
+  "variables": {
+    "first": 5
+  },
+  "response": {
+    "data": {
+      "draftOrders": {
+        "edges": [
+          {
+            "cursor": "eyJsYXN0X2lkIjoxMzA1NjU0MDY3NDMzLCJsYXN0X3ZhbHVlIjoiMTMwNTY1NDA2NzQzMyJ9",
+            "node": {
+              "id": "gid://shopify/DraftOrder/1305654067433",
+              "name": "#D40",
+              "status": "OPEN",
+              "email": "hermes-draft-order-probe-1776610115303@example.com",
+              "tags": ["draft-order-create", "parity-probe"],
+              "createdAt": "2026-04-19T14:48:38Z",
+              "updatedAt": "2026-04-19T14:48:38Z",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjoxMzA1NjQ5OTcxNDMzLCJsYXN0X3ZhbHVlIjoiMTMwNTY0OTk3MTQzMyJ9",
+            "node": {
+              "id": "gid://shopify/DraftOrder/1305649971433",
+              "name": "#D39",
+              "status": "OPEN",
+              "email": "hermes-draft-order-probe-1776608693443@example.com",
+              "tags": ["draft-order-create", "parity-probe"],
+              "createdAt": "2026-04-19T14:24:56Z",
+              "updatedAt": "2026-04-19T14:24:56Z",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjoxMzA1NjQ2NDk4MDI1LCJsYXN0X3ZhbHVlIjoiMTMwNTY0NjQ5ODAyNSJ9",
+            "node": {
+              "id": "gid://shopify/DraftOrder/1305646498025",
+              "name": "#D38",
+              "status": "OPEN",
+              "email": "hermes-draft-order-probe-1776607659984@example.com",
+              "tags": ["draft-order-create", "parity-probe"],
+              "createdAt": "2026-04-19T14:07:43Z",
+              "updatedAt": "2026-04-19T14:07:43Z",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjoxMzA1NjQyNzI5NzA1LCJsYXN0X3ZhbHVlIjoiMTMwNTY0MjcyOTcwNSJ9",
+            "node": {
+              "id": "gid://shopify/DraftOrder/1305642729705",
+              "name": "#D37",
+              "status": "OPEN",
+              "email": "hermes-draft-order-probe-1776606272529@example.com",
+              "tags": ["draft-order-create", "parity-probe"],
+              "createdAt": "2026-04-19T13:44:35Z",
+              "updatedAt": "2026-04-19T13:44:35Z",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjoxMzA1NjM5OTc3MTkzLCJsYXN0X3ZhbHVlIjoiMTMwNTYzOTk3NzE5MyJ9",
+            "node": {
+              "id": "gid://shopify/DraftOrder/1305639977193",
+              "name": "#D36",
+              "status": "OPEN",
+              "email": "hermes-draft-order-probe-1776605277643@example.com",
+              "tags": ["draft-order-create", "parity-probe"],
+              "createdAt": "2026-04-19T13:28:00Z",
+              "updatedAt": "2026-04-19T13:28:00Z",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": true,
+          "hasPreviousPage": false,
+          "startCursor": "eyJsYXN0X2lkIjoxMzA1NjU0MDY3NDMzLCJsYXN0X3ZhbHVlIjoiMTMwNTY1NDA2NzQzMyJ9",
+          "endCursor": "eyJsYXN0X2lkIjoxMzA1NjM5OTc3MTkzLCJsYXN0X3ZhbHVlIjoiMTMwNTYzOTk3NzE5MyJ9"
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 5,
+        "actualQueryCost": 5,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1995,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

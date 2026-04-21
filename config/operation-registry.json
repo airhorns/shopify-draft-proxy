@@ -69,6 +69,78 @@
     ]
   },
   {
+    "name": "locations",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["locations", "Locations"],
+    "runtimeTests": ["tests/integration/location-query-shapes.test.ts"]
+  },
+  {
+    "name": "publications",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["publications", "Publications"],
+    "runtimeTests": ["tests/integration/publication-query-shapes.test.ts"]
+  },
+  {
+    "name": "customer",
+    "type": "query",
+    "domain": "customers",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["customer", "Customer"],
+    "runtimeTests": ["tests/integration/customer-query-shapes.test.ts"]
+  },
+  {
+    "name": "customers",
+    "type": "query",
+    "domain": "customers",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["customers", "Customers"],
+    "runtimeTests": ["tests/integration/customer-query-shapes.test.ts"]
+  },
+  {
+    "name": "customersCount",
+    "type": "query",
+    "domain": "customers",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["customersCount", "CustomersCount"],
+    "runtimeTests": ["tests/integration/customer-query-shapes.test.ts"]
+  },
+  {
+    "name": "customerCreate",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["customerCreate", "CustomerCreate"],
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
+  },
+  {
+    "name": "customerUpdate",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["customerUpdate", "CustomerUpdate"],
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
+  },
+  {
+    "name": "customerDelete",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["customerDelete", "CustomerDelete"],
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
+  },
+  {
     "name": "tagsAdd",
     "type": "mutation",
     "domain": "products",
@@ -270,13 +342,13 @@
     "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
-    "name": "fileCreate",
+    "name": "inventoryItemUpdate",
     "type": "mutation",
-    "domain": "media",
+    "domain": "products",
     "execution": "stage-locally",
     "implemented": true,
-    "matchNames": ["fileCreate", "FileCreate"],
-    "runtimeTests": ["tests/integration/media-draft-flow.test.ts"]
+    "matchNames": ["inventoryItemUpdate", "InventoryItemUpdate"],
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
     "name": "inventoryAdjustQuantities",
@@ -288,12 +360,48 @@
     "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
+    "name": "inventoryActivate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryActivate", "InventoryActivate"],
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
+  },
+  {
+    "name": "inventoryDeactivate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryDeactivate", "InventoryDeactivate"],
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
+  },
+  {
+    "name": "inventoryBulkToggleActivation",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryBulkToggleActivation", "InventoryBulkToggleActivation"],
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
+  },
+  {
     "name": "metafieldsSet",
     "type": "mutation",
     "domain": "products",
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["metafieldsSet", "MetafieldsSet"],
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
+  },
+  {
+    "name": "metafieldsDelete",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["metafieldsDelete", "MetafieldsDelete"],
     "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
@@ -349,5 +457,167 @@
     "implemented": true,
     "matchNames": ["collectionRemoveProducts", "CollectionRemoveProducts"],
     "runtimeTests": ["tests/integration/collection-draft-flow.test.ts"]
+  },
+  {
+    "name": "order",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["order", "Order"],
+    "runtimeTests": ["tests/integration/order-query-shapes.test.ts"]
+  },
+  {
+    "name": "orders",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["orders", "Orders"],
+    "runtimeTests": ["tests/integration/order-query-shapes.test.ts"]
+  },
+  {
+    "name": "ordersCount",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["ordersCount", "OrdersCount"],
+    "runtimeTests": ["tests/integration/order-query-shapes.test.ts"]
+  },
+  {
+    "name": "orderUpdate",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["orderUpdate", "OrderUpdate"],
+    "runtimeTests": ["tests/integration/order-draft-flow.test.ts", "tests/integration/order-edit-flow.test.ts"]
+  },
+  {
+    "name": "fulfillmentCreate",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["fulfillmentCreate", "FulfillmentCreate"],
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"]
+  },
+  {
+    "name": "fulfillmentTrackingInfoUpdate",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["fulfillmentTrackingInfoUpdate", "FulfillmentTrackingInfoUpdate"],
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"]
+  },
+  {
+    "name": "fulfillmentCancel",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["fulfillmentCancel", "FulfillmentCancel"],
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"]
+  },
+  {
+    "name": "orderCreate",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["orderCreate", "OrderCreate"],
+    "runtimeTests": ["tests/integration/order-creation-flow.test.ts"]
+  },
+  {
+    "name": "draftOrder",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["draftOrder", "DraftOrder"],
+    "runtimeTests": ["tests/integration/order-creation-flow.test.ts"]
+  },
+  {
+    "name": "draftOrders",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["draftOrders", "DraftOrders"],
+    "runtimeTests": ["tests/integration/order-creation-flow.test.ts"]
+  },
+  {
+    "name": "draftOrdersCount",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["draftOrdersCount", "DraftOrdersCount"],
+    "runtimeTests": ["tests/integration/order-creation-flow.test.ts"]
+  },
+  {
+    "name": "draftOrderCreate",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["draftOrderCreate", "DraftOrderCreate"],
+    "runtimeTests": ["tests/integration/order-creation-flow.test.ts"]
+  },
+  {
+    "name": "draftOrderComplete",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["draftOrderComplete", "DraftOrderComplete"],
+    "runtimeTests": ["tests/integration/order-creation-flow.test.ts"]
+  },
+  {
+    "name": "orderEditBegin",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["orderEditBegin", "OrderEditBegin"],
+    "runtimeTests": ["tests/integration/order-edit-flow.test.ts"]
+  },
+  {
+    "name": "orderEditAddVariant",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["orderEditAddVariant", "OrderEditAddVariant"],
+    "runtimeTests": ["tests/integration/order-edit-flow.test.ts"]
+  },
+  {
+    "name": "orderEditSetQuantity",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["orderEditSetQuantity", "OrderEditSetQuantity"],
+    "runtimeTests": ["tests/integration/order-edit-flow.test.ts"]
+  },
+  {
+    "name": "orderEditCommit",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["orderEditCommit", "OrderEditCommit"],
+    "runtimeTests": ["tests/integration/order-edit-flow.test.ts"]
+  },
+  {
+    "name": "fileCreate",
+    "type": "mutation",
+    "domain": "media",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["fileCreate", "FileCreate"],
+    "runtimeTests": ["tests/integration/media-draft-flow.test.ts"]
   }
 ]

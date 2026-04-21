@@ -8,17 +8,14 @@
     "documentPath": "config/parity-requests/products-variant-search-read.graphql",
     "variablesPath": "config/parity-requests/products-variant-search-read.variables.json"
   },
-  "notes": "Executed by the conformance parity runner against a local proxy harness with the captured Shopify payload supplied as the upstream read response; no live Shopify writes are performed.",
+  "comparisonMode": "capture-only",
+  "notes": "Live variant-backed product search capture now has a concrete proxy request scaffold covering sku-filtered `products` plus `productsCount` cursor fields used by the current overlay serializer. Comparator wiring can reuse this request scaffold once proxy-vs-Shopify comparison is implemented.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [],
-    "targets": [
-      {
-        "name": "captured read payload",
-        "capturePath": "$.sku.response.data",
-        "proxyPath": "$.data",
-        "upstreamCapturePath": "$.sku.response"
-      }
-    ]
+    "expectedDifferences": []
+  },
+  "blocker": {
+    "kind": "explicit-comparison-targets-needed",
+    "blockerPath": null
   }
 }

@@ -44,5 +44,6 @@
       }
     ]
   },
+  "comparisonMode": "captured-vs-proxy-request",
   "notes": "Live capture recorded for safe productCreate plus downstream read parity. This scenario is promoted to executed proxy-vs-Shopify comparison for mutation data and immediate downstream product read data. Shopify cost extensions remain outside this first explicit contract until the proxy synthesizes cost metadata."
 }

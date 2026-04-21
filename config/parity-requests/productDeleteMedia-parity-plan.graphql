@@ -1,0 +1,31 @@
+mutation ProductDeleteMediaParityPlan($productId: ID!, $mediaIds: [ID!]!) {
+  productDeleteMedia(productId: $productId, mediaIds: $mediaIds) {
+    deletedMediaIds
+    deletedProductImageIds
+    mediaUserErrors {
+      field
+      message
+    }
+    product {
+      id
+      media(first: 10) {
+        nodes {
+          id
+          alt
+          mediaContentType
+          status
+          preview {
+            image {
+              url
+            }
+          }
+          ... on MediaImage {
+            image {
+              url
+            }
+          }
+        }
+      }
+    }
+  }
+}

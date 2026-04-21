@@ -1,0 +1,11 @@
+mutation InlineMissingOrderArg {
+  orderCreate {
+    order {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

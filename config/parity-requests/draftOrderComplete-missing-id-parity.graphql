@@ -1,0 +1,15 @@
+mutation DraftOrderCompleteMissingIdParity($id: ID!, $paymentGatewayId: ID, $sourceName: String) {
+  draftOrderComplete(id: $id, paymentGatewayId: $paymentGatewayId, sourceName: $sourceName) {
+    draftOrder {
+      id
+      name
+      status
+      ready
+      invoiceUrl
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

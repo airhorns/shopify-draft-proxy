@@ -1,0 +1,17 @@
+query ProductsSearchGrammarRead($phraseQuery: String!) {
+  phraseCount: productsCount(query: $phraseQuery) {
+    count
+    precision
+  }
+  phraseMatches: products(first: 5, query: $phraseQuery) {
+    edges {
+      node {
+        id
+        title
+        vendor
+        productType
+        tags
+      }
+    }
+  }
+}

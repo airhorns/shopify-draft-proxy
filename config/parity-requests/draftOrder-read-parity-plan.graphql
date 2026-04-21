@@ -1,0 +1,73 @@
+query DraftOrderReadParityPlan($id: ID!) {
+  draftOrder(id: $id) {
+    id
+    name
+    invoiceUrl
+    status
+    email
+    tags
+    customAttributes {
+      key
+      value
+    }
+    billingAddress {
+      firstName
+      lastName
+      address1
+      city
+      provinceCode
+      countryCodeV2
+      zip
+      phone
+    }
+    shippingAddress {
+      firstName
+      lastName
+      address1
+      city
+      provinceCode
+      countryCodeV2
+      zip
+      phone
+    }
+    shippingLine {
+      title
+      code
+      originalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    createdAt
+    updatedAt
+    subtotalPriceSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+    totalPriceSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+    lineItems(first: 5) {
+      nodes {
+        id
+        title
+        quantity
+        sku
+        variantTitle
+        originalUnitPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+  }
+}

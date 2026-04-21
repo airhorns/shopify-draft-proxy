@@ -2,16 +2,16 @@
   "mutation": {
     "variables": {
       "product": {
-        "id": "gid://shopify/Product/9255299580137",
-        "title": "Hermes Product Conformance 1776299742511 Updated",
+        "id": "gid://shopify/Product/9257218801897",
+        "title": "Hermes Product Conformance 1776550632328 Updated",
         "vendor": "HERMES-LABS",
         "productType": "TEST-GOODS",
-        "tags": ["conformance", "product-mutation", "1776299742511-updated"],
-        "descriptionHtml": "<p>Updated Hermes product mutation conformance 1776299742511</p>",
+        "tags": ["conformance", "product-mutation", "1776550632328-updated"],
+        "descriptionHtml": "<p>Updated Hermes product mutation conformance 1776550632328</p>",
         "templateSuffix": "product-mutation-updated",
         "seo": {
-          "title": "Hermes Product 1776299742511 Updated",
-          "description": "Updated Hermes product mutation conformance 1776299742511"
+          "title": "Hermes Product 1776550632328 Updated",
+          "description": "Updated Hermes product mutation conformance 1776550632328"
         }
       }
     },
@@ -19,20 +19,20 @@
       "data": {
         "productUpdate": {
           "product": {
-            "id": "gid://shopify/Product/9255299580137",
-            "title": "Hermes Product Conformance 1776299742511 Updated",
-            "handle": "hermes-product-conformance-1776299742511",
+            "id": "gid://shopify/Product/9257218801897",
+            "title": "Hermes Product Conformance 1776550632328 Updated",
+            "handle": "hermes-product-conformance-1776550632328",
             "status": "DRAFT",
             "vendor": "HERMES-LABS",
             "productType": "TEST-GOODS",
-            "tags": ["1776299742511-updated", "conformance", "product-mutation"],
-            "descriptionHtml": "<p>Updated Hermes product mutation conformance 1776299742511</p>",
+            "tags": ["1776550632328-updated", "conformance", "product-mutation"],
+            "descriptionHtml": "<p>Updated Hermes product mutation conformance 1776550632328</p>",
             "templateSuffix": "product-mutation-updated",
             "seo": {
-              "title": "Hermes Product 1776299742511 Updated",
-              "description": "Updated Hermes product mutation conformance 1776299742511"
+              "title": "Hermes Product 1776550632328 Updated",
+              "description": "Updated Hermes product mutation conformance 1776550632328"
             },
-            "onlineStorePreviewUrl": "https://398wkt1vuyygoqqu-63755419881.shopifypreview.com/products_preview?preview_key=f5180b225ddf6eac7fa551884cf0bfd6&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaVoyWlhKNUxXSnBaeTEwWlhOMExYTjBiM0psTG0xNWMyaHZjR2xtZVM1amIyMEdPZ1pGVkE9PSIsImV4cCI6IjIwMjYtMDQtMTZUMDE6MzU6NDQuMDk5WiIsInB1ciI6InBlcm1hbmVudF9wYXNzd29yZF9ieXBhc3MifX0=--80269b28f439f5444623f9789f8a4e853670f146"
+            "onlineStorePreviewUrl": "https://v58oon56ip2ba84y-63755419881.shopifypreview.com/products_preview?preview_key=64a6a0047b7af368792e0d0782ff70e2&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaVoyWlhKNUxXSnBaeTEwWlhOMExYTjBiM0psTG0xNWMyaHZjR2xtZVM1amIyMEdPZ1pGVkE9PSIsImV4cCI6IjIwMjYtMDQtMThUMjM6MTc6MTguNTk4WiIsInB1ciI6InBlcm1hbmVudF9wYXNzd29yZF9ieXBhc3MifX0=--564071b359e5c8c45633d8d94d0231244e70f336"
           },
           "userErrors": []
         }
@@ -50,21 +50,350 @@
       }
     }
   },
+  "validation": {
+    "unknownId": {
+      "variables": {
+        "product": {
+          "id": "gid://shopify/Product/999999999999999",
+          "title": "Ghost Product"
+        }
+      },
+      "response": {
+        "data": {
+          "productUpdate": {
+            "product": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Product does not exist"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "missingId": {
+      "variables": {
+        "product": {
+          "title": "Ghost Product Missing Id"
+        }
+      },
+      "response": {
+        "data": {
+          "productUpdate": {
+            "product": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Product does not exist"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "blankTitle": {
+      "variables": {
+        "product": {
+          "id": "gid://shopify/Product/9257218801897",
+          "title": ""
+        }
+      },
+      "response": {
+        "data": {
+          "productUpdate": {
+            "product": {
+              "id": "gid://shopify/Product/9257218801897",
+              "title": "Hermes Product Conformance 1776550632328",
+              "handle": "hermes-product-conformance-1776550632328",
+              "status": "DRAFT",
+              "vendor": "HERMES",
+              "productType": "ACCESSORIES",
+              "tags": ["1776550632328", "conformance", "product-mutation"],
+              "descriptionHtml": "<p>Hermes product mutation conformance 1776550632328</p>",
+              "templateSuffix": "product-mutation-parity",
+              "seo": {
+                "title": "Hermes Product 1776550632328",
+                "description": "Hermes product mutation conformance 1776550632328"
+              },
+              "onlineStorePreviewUrl": "https://v58oon56ip2ba84y-63755419881.shopifypreview.com/products_preview?preview_key=2f0bc21b2c1f4b4ac387b19f560fb279&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaVoyWlhKNUxXSnBaeTEwWlhOMExYTjBiM0psTG0xNWMyaHZjR2xtZVM1amIyMEdPZ1pGVkE9PSIsImV4cCI6IjIwMjYtMDQtMThUMjM6MTc6MTYuNDQwWiIsInB1ciI6InBlcm1hbmVudF9wYXNzd29yZF9ieXBhc3MifX0=--60ef7ae138bce4d7735c412467a5e8fddf2947af"
+            },
+            "userErrors": [
+              {
+                "field": ["title"],
+                "message": "Title can't be blank"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "handleValidation": {
+    "updateNormalization": {
+      "variables": {
+        "product": {
+          "id": "gid://shopify/Product/9257218965737",
+          "handle": "  Mixed CASE/ Weird 200 % "
+        }
+      },
+      "response": {
+        "data": {
+          "productUpdate": {
+            "product": {
+              "id": "gid://shopify/Product/9257218965737",
+              "title": "Hermes Product Handle Challenger 1776550632328",
+              "handle": "mixed-case-weird-200",
+              "status": "DRAFT",
+              "vendor": "very-big-test-store",
+              "productType": "",
+              "tags": [],
+              "descriptionHtml": "",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              },
+              "onlineStorePreviewUrl": "https://v58oon56ip2ba84y-63755419881.shopifypreview.com/products_preview?preview_key=ad4bee8d27facc77a6b187029102122f&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaVoyWlhKNUxXSnBaeTEwWlhOMExYTjBiM0psTG0xNWMyaHZjR2xtZVM1amIyMEdPZ1pGVkE9PSIsImV4cCI6IjIwMjYtMDQtMThUMjM6MTc6MTcuMDAyWiIsInB1ciI6InBlcm1hbmVudF9wYXNzd29yZF9ieXBhc3MifX0=--01fbb07c144a4bf213e147d2917a17dce334a1ea"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "updateWhitespacePreservesHandle": {
+      "variables": {
+        "product": {
+          "id": "gid://shopify/Product/9257218900201",
+          "handle": "   "
+        }
+      },
+      "response": {
+        "data": {
+          "productUpdate": {
+            "product": {
+              "id": "gid://shopify/Product/9257218900201",
+              "title": "Whitespace Handle Probe 1776550632328",
+              "handle": "whitespace-handle-probe-1776550632328",
+              "status": "ACTIVE",
+              "vendor": "very-big-test-store",
+              "productType": "",
+              "tags": [],
+              "descriptionHtml": "",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              },
+              "onlineStorePreviewUrl": "https://v58oon56ip2ba84y-63755419881.shopifypreview.com/products_preview?preview_key=92047fc075afaed46a80485134315400&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaVoyWlhKNUxXSnBaeTEwWlhOMExYTjBiM0psTG0xNWMyaHZjR2xtZVM1amIyMEdPZ1pGVkE9PSIsImV4cCI6IjIwMjYtMDQtMThUMjM6MTc6MTcuMjkwWiIsInB1ciI6InBlcm1hbmVudF9wYXNzd29yZF9ieXBhc3MifX0=--696983095f055101814f94059ac18291aba42694"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "updatePunctuationNormalization": {
+      "variables": {
+        "product": {
+          "id": "gid://shopify/Product/9257218965737",
+          "handle": "%%%"
+        }
+      },
+      "response": {
+        "data": {
+          "productUpdate": {
+            "product": {
+              "id": "gid://shopify/Product/9257218965737",
+              "title": "Hermes Product Handle Challenger 1776550632328",
+              "handle": "product-1",
+              "status": "DRAFT",
+              "vendor": "very-big-test-store",
+              "productType": "",
+              "tags": [],
+              "descriptionHtml": "",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              },
+              "onlineStorePreviewUrl": "https://v58oon56ip2ba84y-63755419881.shopifypreview.com/products_preview?preview_key=86414c7eb1dde9dc349cd169a1b15768&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaVoyWlhKNUxXSnBaeTEwWlhOMExYTjBiM0psTG0xNWMyaHZjR2xtZVM1amIyMEdPZ1pGVkE9PSIsImV4cCI6IjIwMjYtMDQtMThUMjM6MTc6MTcuNzIzWiIsInB1ciI6InBlcm1hbmVudF9wYXNzd29yZF9ieXBhc3MifX0=--6484d07d16ae30b1be4b680c1646492166141f99"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "updateCollision": {
+      "variables": {
+        "product": {
+          "id": "gid://shopify/Product/9257218965737",
+          "handle": "hermes-product-conformance-1776550632328"
+        }
+      },
+      "response": {
+        "data": {
+          "productUpdate": {
+            "product": {
+              "id": "gid://shopify/Product/9257218965737",
+              "title": "Hermes Product Handle Challenger 1776550632328",
+              "handle": "product-1",
+              "status": "DRAFT",
+              "vendor": "very-big-test-store",
+              "productType": "",
+              "tags": [],
+              "descriptionHtml": "",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              },
+              "onlineStorePreviewUrl": "https://v58oon56ip2ba84y-63755419881.shopifypreview.com/products_preview?preview_key=86414c7eb1dde9dc349cd169a1b15768&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaVoyWlhKNUxXSnBaeTEwWlhOMExYTjBiM0psTG0xNWMyaHZjR2xtZVM1amIyMEdPZ1pGVkE9PSIsImV4cCI6IjIwMjYtMDQtMThUMjM6MTc6MTcuODY2WiIsInB1ciI6InBlcm1hbmVudF9wYXNzd29yZF9ieXBhc3MifX0=--74968b1fa3b040d718b56fe2d8862448670ce75b"
+            },
+            "userErrors": [
+              {
+                "field": ["input", "handle"],
+                "message": "Handle 'hermes-product-conformance-1776550632328' already in use. Please provide a new handle."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "updateTitleOnlyPreservesHandle": {
+      "variables": {
+        "product": {
+          "id": "gid://shopify/Product/9257218998505",
+          "title": "Hermes Title Only Handle Probe 1776550632328 Updated"
+        }
+      },
+      "response": {
+        "data": {
+          "productUpdate": {
+            "product": {
+              "id": "gid://shopify/Product/9257218998505",
+              "title": "Hermes Title Only Handle Probe 1776550632328 Updated",
+              "handle": "title-only-handle-probe-1776550632328",
+              "status": "DRAFT",
+              "vendor": "very-big-test-store",
+              "productType": "",
+              "tags": [],
+              "descriptionHtml": "",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              },
+              "onlineStorePreviewUrl": "https://v58oon56ip2ba84y-63755419881.shopifypreview.com/products_preview?preview_key=e53ec9508e3af8f66d455b292cb74148&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaVoyWlhKNUxXSnBaeTEwWlhOMExYTjBiM0psTG0xNWMyaHZjR2xtZVM1amIyMEdPZ1pGVkE9PSIsImV4cCI6IjIwMjYtMDQtMThUMjM6MTc6MTguMTk2WiIsInB1ciI6InBlcm1hbmVudF9wYXNzd29yZF9ieXBhc3MifX0=--8237159a96b90193bebdb2ae4c0c87617338fa91"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
   "downstreamRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/9255299580137",
-        "title": "Hermes Product Conformance 1776299742511 Updated",
-        "handle": "hermes-product-conformance-1776299742511",
+        "id": "gid://shopify/Product/9257218801897",
+        "title": "Hermes Product Conformance 1776550632328 Updated",
+        "handle": "hermes-product-conformance-1776550632328",
         "status": "DRAFT",
         "vendor": "HERMES-LABS",
         "productType": "TEST-GOODS",
-        "tags": ["1776299742511-updated", "conformance", "product-mutation"],
-        "descriptionHtml": "<p>Updated Hermes product mutation conformance 1776299742511</p>",
+        "tags": ["1776550632328-updated", "conformance", "product-mutation"],
+        "descriptionHtml": "<p>Updated Hermes product mutation conformance 1776550632328</p>",
         "templateSuffix": "product-mutation-updated",
         "seo": {
-          "title": "Hermes Product 1776299742511 Updated",
-          "description": "Updated Hermes product mutation conformance 1776299742511"
+          "title": "Hermes Product 1776550632328 Updated",
+          "description": "Updated Hermes product mutation conformance 1776550632328"
         }
       }
     },

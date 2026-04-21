@@ -1,0 +1,59 @@
+{
+  "data": {
+    "total": {
+      "count": 73,
+      "precision": "EXACT"
+    },
+    "matching": {
+      "count": 73,
+      "precision": "EXACT"
+    },
+    "disabled": {
+      "count": 73,
+      "precision": "EXACT"
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 30,
+      "actualQueryCost": 30,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1970,
+        "restoreRate": 100
+      }
+    },
+    "search": [
+      {
+        "path": ["matching"],
+        "query": "email:grace@example.com",
+        "parsed": {
+          "field": "email",
+          "match_all": "grace@example.com"
+        },
+        "warnings": [
+          {
+            "field": "email",
+            "message": "Invalid search field for this query.",
+            "code": "invalid_field"
+          }
+        ]
+      },
+      {
+        "path": ["disabled"],
+        "query": "state:DISABLED",
+        "parsed": {
+          "field": "state",
+          "match_all": "DISABLED"
+        },
+        "warnings": [
+          {
+            "field": "state",
+            "message": "Invalid search field for this query.",
+            "code": "invalid_field"
+          }
+        ]
+      }
+    ]
+  }
+}

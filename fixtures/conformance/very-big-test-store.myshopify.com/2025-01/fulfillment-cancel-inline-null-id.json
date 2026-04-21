@@ -1,0 +1,25 @@
+{
+  "query": "mutation FulfillmentCancelInlineNullId {\n    fulfillmentCancel(id: null) {\n      fulfillment {\n        id\n        status\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+  "variables": {},
+  "mutation": {
+    "response": {
+      "errors": [
+        {
+          "message": "Argument 'id' on Field 'fulfillmentCancel' has an invalid value (null). Expected type 'ID!'.",
+          "locations": [
+            {
+              "line": 3,
+              "column": 5
+            }
+          ],
+          "path": ["mutation FulfillmentCancelInlineNullId", "fulfillmentCancel", "id"],
+          "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "Field",
+            "argumentName": "id"
+          }
+        }
+      ]
+    }
+  }
+}

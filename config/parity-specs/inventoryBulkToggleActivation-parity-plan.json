@@ -1,0 +1,21 @@
+{
+  "scenarioId": "inventory-bulk-toggle-activation-live-parity",
+  "operationNames": ["inventoryBulkToggleActivation"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/inventory-linkage-parity.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/inventoryBulkToggleActivation-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/inventoryBulkToggleActivation-parity-plan.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live capture now covers the first safe `inventoryBulkToggleActivation` slice on this host: `activate: true` against the already-active only location is a no-op success, while `activate: false` returns the captured `CANNOT_DEACTIVATE_FROM_ONLY_LOCATION` userError.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "blocker": {
+    "kind": "explicit-comparison-targets-needed",
+    "blockerPath": null
+  }
+}

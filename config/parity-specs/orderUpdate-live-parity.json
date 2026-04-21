@@ -1,0 +1,21 @@
+{
+  "scenarioId": "order-update-live-parity",
+  "operationNames": ["orderUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "downstream-read-parity"],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-update-parity.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orderUpdate-live-parity.graphql",
+    "variablesPath": "config/parity-requests/orderUpdate-live-parity.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "The first live happy-path `orderUpdate` slice is now captured on this host and aligned with the narrow local runtime: the request updates only `note` and `tags`, compares the mutation payload, and preserves immediate downstream `order(id:)` visibility without overclaiming broader non-local order editing semantics.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "blocker": {
+    "kind": "explicit-comparison-targets-needed",
+    "blockerPath": null
+  }
+}

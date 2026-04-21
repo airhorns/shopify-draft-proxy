@@ -51,6 +51,14 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 - Open pull requests against `airhorns/shopify-draft-proxy`; do not target personal forks.
 - If a workspace remote points at a personal fork, retarget it to `git@github.com:airhorns/shopify-draft-proxy.git` before pushing or creating a PR.
 
+## Shopify conformance auth rule
+
+- Do **not** read `SHOPIFY_CONFORMANCE_ADMIN_ACCESS_TOKEN` from repo `.env` in scripts anymore.
+- All live conformance scripts must get credentials through `scripts/shopify-conformance-auth.mjs`.
+- The canonical credential file is `~/.shopify-draft-proxy/conformance-admin-auth.json`.
+- `getValidConformanceAccessToken(...)` is the single entry point for token access. It probes the stored access token, refreshes it when possible, and throws a clear error when the stored credential is missing or unrecoverable.
+- New auth grants should be generated with `corepack pnpm conformance:auth-link`, and callback exchange should go through `corepack pnpm conformance:exchange-auth -- '<full callback url>'`.
+
 ## Suggested workflow
 
 1. Read `docs/original-intent.md`.
