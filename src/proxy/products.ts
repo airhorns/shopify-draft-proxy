@@ -7265,6 +7265,7 @@ export function handleProductMutation(
         productId,
         syncProductOptionsWithVariants(productId, undefined, nextVariants),
       );
+      store.markVariantSearchLagged(productId);
       const product = syncProductInventorySummary(productId);
       const updatedVariant = updatedVariants[0] ?? null;
       return {

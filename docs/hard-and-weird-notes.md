@@ -1086,7 +1086,7 @@ Adding version-relevant `productVariantCreate`, `productVariantUpdate`, and `pro
 - `productVariantCreate(input: ...)` can synthesize one variant record, append it to the product's effective variant set, and then reuse the same inventory-summary recomputation path as bulk create
 - `productVariantUpdate(input: { id, ... })` needs a variant-id lookup across the effective product set before it can stage the updated normalized variant record
 - `productVariantDelete(id: ...)` similarly needs variant-id-to-product resolution before replacing the staged variant set for that product
-- downstream read-after-write behavior should stay aligned with the existing overlay model, so the single-variant family should update `product.variants`, variant-backed `products(query: "sku:...")`, and `productsCount` immediately without hitting upstream
+- downstream read-after-write behavior should stay aligned with the existing overlay model: single-variant updates should refresh `product.variants` immediately while `products(query: "sku:...")` and `productsCount` preserve the same variant search-index lag now captured for the bulk variant family
 
 This is a good example of the digital-twin architecture paying off: once variant reads and the bulk mutation family exist, the older single-variant surface can ride the same normalized state model instead of adding a parallel ad hoc code path.
 

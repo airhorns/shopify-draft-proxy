@@ -4,6 +4,24 @@ mutation ProductVariantUpdateParityPlan($input: ProductVariantInput!) {
       id
       totalInventory
       tracksInventory
+      variants(first: 10) {
+        nodes {
+          id
+          title
+          sku
+          barcode
+          price
+          compareAtPrice
+          taxable
+          inventoryPolicy
+          inventoryQuantity
+          inventoryItem {
+            id
+            tracked
+            requiresShipping
+          }
+        }
+      }
     }
     productVariant {
       id
@@ -11,6 +29,9 @@ mutation ProductVariantUpdateParityPlan($input: ProductVariantInput!) {
       sku
       barcode
       price
+      compareAtPrice
+      taxable
+      inventoryPolicy
       inventoryQuantity
       selectedOptions {
         name
