@@ -1,20 +1,11 @@
 import operationRegistryJson from '../../config/operation-registry.json' with { type: 'json' };
+import { operationRegistrySchema, type OperationRegistryEntry } from '../json-schemas.js';
 
 export type CapabilityDomain = 'products' | 'media' | 'customers' | 'orders' | 'unknown';
 export type CapabilityExecution = 'overlay-read' | 'stage-locally' | 'passthrough';
 export type OperationType = 'query' | 'mutation';
 
-export interface OperationRegistryEntry {
-  name: string;
-  type: OperationType;
-  domain: CapabilityDomain;
-  execution: CapabilityExecution;
-  implemented: boolean;
-  matchNames: string[];
-  runtimeTests: string[];
-}
-
-const operationRegistry = operationRegistryJson as OperationRegistryEntry[];
+const operationRegistry = operationRegistrySchema.parse(operationRegistryJson);
 
 export function listOperationRegistryEntries(): OperationRegistryEntry[] {
   return operationRegistry.map((entry) => ({

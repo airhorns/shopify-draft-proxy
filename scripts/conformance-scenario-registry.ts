@@ -1,14 +1,20 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { ParitySpec } from './conformance-parity-lib.js';
+import {
+  conformanceScenarioOverridesSchema,
+  operationRegistrySchema,
+  parseJsonFileWithSchema,
+  paritySpecSchema,
+  type ConformanceScenarioOverride,
+  type OperationRegistryEntry,
+  type ParitySpec,
+} from '../src/json-schemas.js';
 
 export const defaultRepoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const paritySpecDirectory = path.join('config', 'parity-specs');
 const overrideConfigPath = path.join('config', 'conformance-scenario-overrides.json');
-
-type JsonRecord = Record<string, unknown>;
 
 export type ConformanceScenario = {
   id: string;
@@ -18,16 +24,6 @@ export type ConformanceScenario = {
   captureFiles: string[];
   paritySpecPath: string;
   notes?: string;
-};
-
-export type ConformanceScenarioOverride = Partial<Omit<ConformanceScenario, 'id' | 'paritySpecPath'>>;
-
-export type OperationRegistryEntry = {
-  name: string;
-  type: string;
-  execution: string;
-  implemented?: boolean;
-  runtimeTests?: string[];
 };
 
 export type ConformanceStatusDocument = {
@@ -55,14 +51,6 @@ export type ConformanceStatusDocument = {
   }>;
 };
 
-function readJson<T>(filePath: string): T {
-  return JSON.parse(readFileSync(filePath, 'utf8')) as T;
-}
-
-function isJsonRecord(value: unknown): value is JsonRecord {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 function stringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 }
@@ -73,13 +61,8 @@ export function loadConformanceScenarioOverrides(repoRoot = defaultRepoRoot): Ma
     return new Map();
   }
 
-  const parsed = readJson<JsonRecord>(absolutePath);
-  return new Map(
-    Object.entries(parsed).map(([scenarioId, override]) => [
-      scenarioId,
-      isJsonRecord(override) ? (override as ConformanceScenarioOverride) : {},
-    ]),
-  );
+  const parsed = parseJsonFileWithSchema(absolutePath, conformanceScenarioOverridesSchema);
+  return new Map(Object.entries(parsed));
 }
 
 export function listConformanceParitySpecPaths(repoRoot = defaultRepoRoot): string[] {
@@ -95,28 +78,25 @@ export function loadConformanceScenarios(repoRoot = defaultRepoRoot): Conformanc
   const overrides = loadConformanceScenarioOverrides(repoRoot);
 
   return listConformanceParitySpecPaths(repoRoot).map((paritySpecPath) => {
-    const paritySpec = readJson<ParitySpec>(path.join(repoRoot, paritySpecPath));
+    const paritySpec = parseJsonFileWithSchema(path.join(repoRoot, paritySpecPath), paritySpecSchema);
     const scenarioId = typeof paritySpec.scenarioId === 'string' ? paritySpec.scenarioId : '';
     const override = overrides.get(scenarioId) ?? {};
-    const baseScenario = {
-      operationNames: stringArray(paritySpec.operationNames),
-      status: typeof paritySpec.scenarioStatus === 'string' ? paritySpec.scenarioStatus : '',
-      assertionKinds: stringArray(paritySpec.assertionKinds),
-      captureFiles: stringArray(paritySpec.liveCaptureFiles),
-      ...(typeof paritySpec.notes === 'string' ? { notes: paritySpec.notes } : {}),
-      ...override,
-    };
+    const notes = override.notes ?? paritySpec.notes;
 
     return {
-      ...baseScenario,
       id: scenarioId,
+      operationNames: override.operationNames ?? stringArray(paritySpec.operationNames),
+      status: override.status ?? (typeof paritySpec.scenarioStatus === 'string' ? paritySpec.scenarioStatus : ''),
+      assertionKinds: override.assertionKinds ?? stringArray(paritySpec.assertionKinds),
+      captureFiles: override.captureFiles ?? stringArray(paritySpec.liveCaptureFiles),
       paritySpecPath,
+      ...(notes ? { notes } : {}),
     };
   });
 }
 
 export function loadOperationRegistry(repoRoot = defaultRepoRoot): OperationRegistryEntry[] {
-  return readJson<OperationRegistryEntry[]>(path.join(repoRoot, 'config', 'operation-registry.json'));
+  return parseJsonFileWithSchema(path.join(repoRoot, 'config', 'operation-registry.json'), operationRegistrySchema);
 }
 
 export function groupScenariosByOperation(scenarios: ConformanceScenario[]): Map<string, ConformanceScenario[]> {
@@ -133,7 +113,7 @@ export function groupScenariosByOperation(scenarios: ConformanceScenario[]): Map
 }
 
 function readParitySpec(repoRoot: string, scenario: ConformanceScenario): ParitySpec {
-  return readJson<ParitySpec>(path.join(repoRoot, scenario.paritySpecPath));
+  return parseJsonFileWithSchema(path.join(repoRoot, scenario.paritySpecPath), paritySpecSchema);
 }
 
 function listRegrettableDivergences(repoRoot: string, scenarios: ConformanceScenario[]) {
