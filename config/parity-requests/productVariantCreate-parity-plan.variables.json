@@ -1,19 +1,15 @@
 {
   "input": {
-    "productId": "gid://shopify/Product/100",
-    "title": "Blue / Large",
-    "sku": "SVH-BL-L",
-    "barcode": "3333333333333",
-    "price": "29.00",
-    "inventoryQuantity": 8,
+    "productId": "gid://shopify/Product/9259552407785",
+    "title": "Blue",
+    "sku": "HERMES-BULK-810153-BLUE",
+    "barcode": "2222222222222",
+    "price": "26.00",
+    "inventoryQuantity": 0,
     "selectedOptions": [
       {
         "name": "Color",
         "value": "Blue"
-      },
-      {
-        "name": "Size",
-        "value": "Large"
       }
     ],
     "inventoryItem": {

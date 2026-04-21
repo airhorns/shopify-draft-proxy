@@ -479,6 +479,41 @@ describe('executeParityScenario', () => {
     expect(result.comparisons.map((comparison) => comparison.name)).toEqual(['mutation-data', 'downstream-read-data']);
   });
 
+  it('executes the promoted productVariantCreate compatibility scenario against the local proxy harness', async () => {
+    const repoRoot = new URL('../..', import.meta.url).pathname;
+    const paritySpec = JSON.parse(
+      readFileSync(resolve(repoRoot, 'config/parity-specs/productVariantCreate-parity-plan.json'), 'utf8'),
+    ) as Parameters<typeof executeParityScenario>[0]['paritySpec'];
+
+    expect(classifyParityScenarioState({ status: 'captured' }, paritySpec)).toBe('ready-for-comparison');
+
+    const result = await executeParityScenario({
+      repoRoot,
+      scenario: {
+        id: 'product-variant-create-compatibility-evidence',
+        status: 'captured',
+        captureFiles: [
+          'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-variants-bulk-create-parity.json',
+          'pending/product-variant-compatibility-live-schema-blocker.md',
+        ],
+      },
+      paritySpec,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.primaryProxyStatus).toBe(200);
+    expect(result.comparisons.map((comparison) => comparison.name)).toEqual([
+      'variant-payload',
+      'product-id',
+      'product-totalInventory',
+      'product-tracksInventory',
+      'user-errors',
+      'downstream-product-id',
+      'downstream-product-totalInventory',
+      'downstream-product-tracksInventory',
+    ]);
+  });
+
   it('returns captured upstream payloads for no-write overlay reads', async () => {
     const repoRoot = new URL('../..', import.meta.url).pathname;
     const result = await executeParityScenario({

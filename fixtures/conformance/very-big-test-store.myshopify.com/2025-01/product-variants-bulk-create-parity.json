@@ -1,7 +1,7 @@
 {
   "mutation": {
     "variables": {
-      "productId": "gid://shopify/Product/9257219195113",
+      "productId": "gid://shopify/Product/9259552407785",
       "variants": [
         {
           "optionValues": [
@@ -13,7 +13,7 @@
           "barcode": "2222222222222",
           "price": "26.00",
           "inventoryItem": {
-            "sku": "HERMES-BULK-669475-BLUE",
+            "sku": "HERMES-BULK-810153-BLUE",
             "tracked": true,
             "requiresShipping": false
           }
@@ -24,15 +24,15 @@
       "data": {
         "productVariantsBulkCreate": {
           "product": {
-            "id": "gid://shopify/Product/9257219195113",
+            "id": "gid://shopify/Product/9259552407785",
             "totalInventory": 0,
             "tracksInventory": true,
             "variants": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ProductVariant/50897200316649",
+                  "id": "gid://shopify/ProductVariant/50905436913897",
                   "title": "Red",
-                  "sku": "HERMES-BULK-669475-RED",
+                  "sku": "HERMES-BULK-810153-RED",
                   "barcode": "1111111111111",
                   "price": "24.00",
                   "inventoryQuantity": 0,
@@ -43,15 +43,15 @@
                     }
                   ],
                   "inventoryItem": {
-                    "id": "gid://shopify/InventoryItem/53044945682665",
+                    "id": "gid://shopify/InventoryItem/53053417160937",
                     "tracked": true,
                     "requiresShipping": true
                   }
                 },
                 {
-                  "id": "gid://shopify/ProductVariant/50897200349417",
+                  "id": "gid://shopify/ProductVariant/50905437012201",
                   "title": "Blue",
-                  "sku": "HERMES-BULK-669475-BLUE",
+                  "sku": "HERMES-BULK-810153-BLUE",
                   "barcode": "2222222222222",
                   "price": "26.00",
                   "inventoryQuantity": 0,
@@ -62,7 +62,7 @@
                     }
                   ],
                   "inventoryItem": {
-                    "id": "gid://shopify/InventoryItem/53044945715433",
+                    "id": "gid://shopify/InventoryItem/53053417259241",
                     "tracked": true,
                     "requiresShipping": false
                   }
@@ -72,9 +72,9 @@
           },
           "productVariants": [
             {
-              "id": "gid://shopify/ProductVariant/50897200349417",
+              "id": "gid://shopify/ProductVariant/50905437012201",
               "title": "Blue",
-              "sku": "HERMES-BULK-669475-BLUE",
+              "sku": "HERMES-BULK-810153-BLUE",
               "barcode": "2222222222222",
               "price": "26.00",
               "inventoryQuantity": 0,
@@ -85,7 +85,7 @@
                 }
               ],
               "inventoryItem": {
-                "id": "gid://shopify/InventoryItem/53044945715433",
+                "id": "gid://shopify/InventoryItem/53053417259241",
                 "tracked": true,
                 "requiresShipping": false
               }
@@ -100,7 +100,7 @@
           "actualQueryCost": 17,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1981,
+            "currentlyAvailable": 1980,
             "restoreRate": 100
           }
         }
@@ -110,15 +110,15 @@
   "downstreamRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/9257219195113",
+        "id": "gid://shopify/Product/9259552407785",
         "totalInventory": 0,
         "tracksInventory": true,
         "variants": {
           "nodes": [
             {
-              "id": "gid://shopify/ProductVariant/50897200316649",
+              "id": "gid://shopify/ProductVariant/50905436913897",
               "title": "Red",
-              "sku": "HERMES-BULK-669475-RED",
+              "sku": "HERMES-BULK-810153-RED",
               "barcode": "1111111111111",
               "price": "24.00",
               "compareAtPrice": "30.00",
@@ -132,15 +132,15 @@
                 }
               ],
               "inventoryItem": {
-                "id": "gid://shopify/InventoryItem/53044945682665",
+                "id": "gid://shopify/InventoryItem/53053417160937",
                 "tracked": true,
                 "requiresShipping": true
               }
             },
             {
-              "id": "gid://shopify/ProductVariant/50897200349417",
+              "id": "gid://shopify/ProductVariant/50905437012201",
               "title": "Blue",
-              "sku": "HERMES-BULK-669475-BLUE",
+              "sku": "HERMES-BULK-810153-BLUE",
               "barcode": "2222222222222",
               "price": "26.00",
               "compareAtPrice": "30.00",
@@ -154,7 +154,7 @@
                 }
               ],
               "inventoryItem": {
-                "id": "gid://shopify/InventoryItem/53044945715433",
+                "id": "gid://shopify/InventoryItem/53053417259241",
                 "tracked": true,
                 "requiresShipping": false
               }
