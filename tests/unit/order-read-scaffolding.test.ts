@@ -284,7 +284,7 @@ describe('order read scaffolding', () => {
       expect(blockerNote).toContain('draft-orders-count.json');
     }
 
-    const captureScript = readFileSync(resolve(repoRoot, 'scripts/capture-order-conformance.mjs'), 'utf8');
+    const captureScript = readFileSync(resolve(repoRoot, 'scripts/capture-order-conformance.mts'), 'utf8');
     expect(captureScript).toContain(
       "const draftOrdersCatalogFixturePath = path.join(fixtureDir, 'draft-orders-catalog.json');",
     );

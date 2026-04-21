@@ -35,7 +35,7 @@ describe('product metafield mutation conformance wiring', () => {
     const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8')) as PackageJson;
 
     expect(packageJson.scripts?.['conformance:capture-product-metafield-mutations']).toBe(
-      'node ./scripts/capture-product-metafield-mutation-conformance.mjs',
+      'tsx ./scripts/capture-product-metafield-mutation-conformance.mts',
     );
   });
 

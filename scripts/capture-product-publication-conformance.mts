@@ -1,9 +1,12 @@
+// @ts-nocheck
 /* oxlint-disable no-console -- CLI scripts intentionally write status and error output to stdio. */
 import 'dotenv/config';
 
 import { execFileSync } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+
+import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 import {
   clearPublicationScopeBlocker,
@@ -29,11 +32,7 @@ import {
   renderWriteScopeBlockerNote,
 } from './product-mutation-conformance-lib.mjs';
 
-const requiredVars = [
-  'SHOPIFY_CONFORMANCE_STORE_DOMAIN',
-  'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN',
-  'SHOPIFY_CONFORMANCE_ADMIN_ACCESS_TOKEN',
-];
+const requiredVars = ['SHOPIFY_CONFORMANCE_STORE_DOMAIN', 'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
 
 const missingVars = requiredVars.filter((name) => !process.env[name]);
 if (missingVars.length > 0) {
@@ -43,9 +42,9 @@ if (missingVars.length > 0) {
 
 const storeDomain = process.env['SHOPIFY_CONFORMANCE_STORE_DOMAIN'];
 const adminOrigin = process.env['SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
-const adminAccessToken = process.env['SHOPIFY_CONFORMANCE_ADMIN_ACCESS_TOKEN'];
 const conformanceAppHandle = process.env['SHOPIFY_CONFORMANCE_APP_HANDLE'] || null;
 const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || '2025-01';
+const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
 const pendingDir = 'pending';
 const blockerPath = path.join(pendingDir, 'product-publication-conformance-scope-blocker.md');
@@ -107,20 +106,6 @@ function describeCredentialObservation(token) {
     tokenFamily,
     headerMode: 'authorization-bearer-and-x-shopify-access-token-bearer',
     summary: 'the active conformance credential is a bearer-style Shopify account / CLI token',
-  };
-}
-
-function buildAdminAuthHeaders(token) {
-  if (/^shp[a-z]+_/.test(token)) {
-    return {
-      'X-Shopify-Access-Token': token,
-    };
-  }
-
-  const bearerToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
-  return {
-    Authorization: bearerToken,
-    'X-Shopify-Access-Token': bearerToken,
   };
 }
 

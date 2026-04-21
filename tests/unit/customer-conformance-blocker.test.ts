@@ -125,7 +125,7 @@ describe('customer conformance coverage state', () => {
 
   it('keeps the dedicated live customer capture script while removing the stale protected-data blocker note after successful capture', () => {
     expect(packageJson.scripts?.['conformance:capture-customers']).toBe(
-      'node ./scripts/capture-customer-conformance.mjs',
+      'tsx ./scripts/capture-customer-conformance.mts',
     );
 
     const blockerPath = resolve(repoRoot, 'pending/customer-conformance-protected-data-blocker.md');

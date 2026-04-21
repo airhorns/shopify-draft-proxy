@@ -41,9 +41,8 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 - Expose and test the meta API.
 - Add tests for every supported operation.
 - Prefer conformance fixtures over hand-wavy comments about expected behavior.
-- Repo scripts should be TypeScript files executed with `tsx` or similar, not
-  `.mjs` files. Existing `.mjs` capture helpers are legacy and should not be
-  used as the pattern for new scripts.
+- Repo scripts must be TypeScript files executed with `tsx` or similar, not
+  `.mjs` files. Do not add `.mjs` files anywhere in this repository.
 
 ## GitHub repository
 
@@ -54,7 +53,7 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 ## Shopify conformance auth rule
 
 - Do **not** read `SHOPIFY_CONFORMANCE_ADMIN_ACCESS_TOKEN` from repo `.env` in scripts anymore.
-- All live conformance scripts must get credentials through `scripts/shopify-conformance-auth.mjs`.
+- All live conformance scripts must get credentials through `scripts/shopify-conformance-auth.mts`.
 - The canonical credential file is `~/.shopify-draft-proxy/conformance-admin-auth.json`.
 - `getValidConformanceAccessToken(...)` is the single entry point for token access. It probes the stored access token, refreshes it when possible, and throws a clear error when the stored credential is missing or unrecoverable.
 - New auth grants should be generated with `corepack pnpm conformance:auth-link`, and callback exchange should go through `corepack pnpm conformance:exchange-auth -- '<full callback url>'`.

@@ -235,14 +235,14 @@ describe('order creation scaffolding', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
     const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8')) as PackageJson;
 
-    expect(packageJson.scripts?.['conformance:capture-orders']).toBe('node ./scripts/capture-order-conformance.mjs');
+    expect(packageJson.scripts?.['conformance:capture-orders']).toBe('tsx ./scripts/capture-order-conformance.mts');
   });
 
   it('keeps the order capture script syntactically valid so conformance:capture-orders can execute', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
 
     expect(() =>
-      execFileSync(process.execPath, ['--check', resolve(repoRoot, 'scripts/capture-order-conformance.mjs')], {
+      execFileSync(process.execPath, ['--check', resolve(repoRoot, 'scripts/capture-order-conformance.mts')], {
         cwd: repoRoot,
         stdio: 'pipe',
       }),
@@ -624,7 +624,7 @@ describe('order creation scaffolding', () => {
 
   it('keeps the live order capture harness aligned with the richer merchant-realistic order-creation parity scaffolds and validation slices', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
-    const captureScript = readFileSync(resolve(repoRoot, 'scripts/capture-order-conformance.mjs'), 'utf8');
+    const captureScript = readFileSync(resolve(repoRoot, 'scripts/capture-order-conformance.mts'), 'utf8');
 
     expect(captureScript).toContain('customAttributes');
     expect(captureScript).toContain('billingAddress');

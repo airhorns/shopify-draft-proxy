@@ -340,7 +340,7 @@ describe('orderUpdate live conformance', () => {
         'utf8',
       ),
     ) as Record<string, unknown>;
-    const captureScript = readFileSync(resolve(repoRoot, 'scripts/capture-order-conformance.mjs'), 'utf8');
+    const captureScript = readFileSync(resolve(repoRoot, 'scripts/capture-order-conformance.mts'), 'utf8');
     const weirdNotes = readFileSync(resolve(repoRoot, 'docs/hard-and-weird-notes.md'), 'utf8');
 
     expect(registry).toContainEqual(

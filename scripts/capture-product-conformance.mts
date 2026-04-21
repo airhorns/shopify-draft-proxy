@@ -1,3 +1,4 @@
+// @ts-nocheck
 import 'dotenv/config';
 
 import { mkdir, writeFile } from 'node:fs/promises';

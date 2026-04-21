@@ -1,3 +1,4 @@
+// @ts-nocheck
 import 'dotenv/config';
 
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';

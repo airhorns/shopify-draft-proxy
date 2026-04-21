@@ -3,8 +3,7 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-// scripts/ is intentionally outside tsconfig's checked sources; runtime coverage here verifies the JS helper.
-// @ts-expect-error local .mjs helper is exercised via Vitest rather than TS declarations
+// scripts/ is intentionally exercised through Vitest runtime coverage.
 import { pickCollectionCaptureSeed } from '../../scripts/collection-conformance-lib.mjs';
 
 describe('pickCollectionCaptureSeed', () => {

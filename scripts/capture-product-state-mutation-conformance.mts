@@ -1,3 +1,4 @@
+// @ts-nocheck
 import 'dotenv/config';
 
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -243,7 +244,7 @@ async function writeScopeBlocker(blocker) {
       'aligned the mutation and downstream read slices with the existing parity-request scaffolds so future runs capture the same merchant-relevant shapes directly',
     ],
     recommendedNextStep:
-      'Switch the repo conformance credential to a safe dev-store token with product write permissions, then rerun `node ./scripts/capture-product-state-mutation-conformance.mjs` (or a packaged wrapper script if added).',
+      'Switch the repo conformance credential to a safe dev-store token with product write permissions, then rerun `tsx ./scripts/capture-product-state-mutation-conformance.mts` (or a packaged wrapper script if added).',
   });
 
   await writeFile(blockerPath, `${note}\n`, 'utf8');

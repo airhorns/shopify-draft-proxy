@@ -1,3 +1,4 @@
+// @ts-nocheck
 import 'dotenv/config';
 
 import { randomBytes, createHash } from 'node:crypto';
@@ -37,7 +38,9 @@ function tokenFamily(token) {
   return match?.[1] ?? null;
 }
 
-export function buildAdminAuthHeaders(token) {
+type FetchImpl = typeof fetch;
+
+export function buildAdminAuthHeaders(token: string): Record<string, string> {
   if (typeof token === 'string' && /^shp[a-z]+_/i.test(token)) {
     return {
       'X-Shopify-Access-Token': token,
@@ -219,7 +222,11 @@ export async function refreshConformanceAccessToken({
   credentialPath = SHOPIFY_CONFORMANCE_AUTH_PATH,
   appEnvPath = resolveDefaultAppEnvPath(),
   fetchImpl = fetch,
-} = {}) {
+}: {
+  credentialPath?: string;
+  appEnvPath?: string;
+  fetchImpl?: FetchImpl;
+} = {}): Promise<Record<string, any>> {
   const storedAuth = await loadStoredConformanceAuth(credentialPath);
   const refreshToken = storedAuth['refresh_token'];
   const clientId = storedAuth['client_id'] ?? storedAuth['clientId'];
@@ -295,7 +302,13 @@ export async function getValidConformanceAccessToken({
   credentialPath = SHOPIFY_CONFORMANCE_AUTH_PATH,
   appEnvPath = resolveDefaultAppEnvPath(),
   fetchImpl = fetch,
-} = {}) {
+}: {
+  adminOrigin: string;
+  apiVersion?: string;
+  credentialPath?: string;
+  appEnvPath?: string;
+  fetchImpl?: FetchImpl;
+}): Promise<string> {
   if (typeof adminOrigin !== 'string' || adminOrigin.length === 0) {
     throw new Error('getValidConformanceAccessToken requires adminOrigin.');
   }
@@ -351,7 +364,14 @@ export async function createConformanceAuthRequest({
   redirectUri = DEFAULT_REDIRECT_URI,
   authRequestPath = SHOPIFY_CONFORMANCE_AUTH_REQUEST_PATH,
   pkcePath = SHOPIFY_CONFORMANCE_PKCE_PATH,
-} = {}) {
+}: {
+  storeDomain: string;
+  clientId: string;
+  scopes: string[];
+  redirectUri?: string;
+  authRequestPath?: string;
+  pkcePath?: string;
+}): Promise<Record<string, any>> {
   if (typeof storeDomain !== 'string' || storeDomain.length === 0) {
     throw new Error('createConformanceAuthRequest requires storeDomain.');
   }
@@ -398,7 +418,13 @@ export async function exchangeConformanceAuthCallback({
   authRequestPath = SHOPIFY_CONFORMANCE_AUTH_REQUEST_PATH,
   appEnvPath = resolveDefaultAppEnvPath(),
   fetchImpl = fetch,
-} = {}) {
+}: {
+  callbackUrl: string;
+  credentialPath?: string;
+  authRequestPath?: string;
+  appEnvPath?: string;
+  fetchImpl?: FetchImpl;
+}): Promise<Record<string, any>> {
   if (typeof callbackUrl !== 'string' || callbackUrl.length === 0) {
     throw new Error('exchangeConformanceAuthCallback requires callbackUrl.');
   }

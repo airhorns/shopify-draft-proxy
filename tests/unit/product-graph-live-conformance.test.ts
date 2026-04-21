@@ -139,7 +139,7 @@ function expectCoveredOperation(options: { name: string; scenarioId: string }) {
 describe('product graph live conformance coverage', () => {
   it('adds a runnable capture script for the duplicate + set mutation family', () => {
     expect(packageJson.scripts?.['conformance:capture-product-graph-mutations']).toBe(
-      'node ./scripts/capture-product-graph-mutation-conformance.mjs',
+      'tsx ./scripts/capture-product-graph-mutation-conformance.mts',
     );
   });
 

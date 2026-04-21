@@ -67,7 +67,7 @@ describe('collection mutation live conformance wiring', () => {
     const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8')) as PackageJson;
 
     expect(packageJson.scripts?.['conformance:capture-collection-mutations']).toBe(
-      'node ./scripts/capture-collection-mutation-conformance.mjs',
+      'tsx ./scripts/capture-collection-mutation-conformance.mts',
     );
   });
 

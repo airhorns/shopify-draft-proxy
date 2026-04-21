@@ -1,4 +1,5 @@
-export function pickCollectionCaptureSeed(payload) {
+// @ts-nocheck
+export function pickCollectionCaptureSeed(payload: any): any {
   const directEdges = payload?.data?.product?.collections?.edges;
   if (Array.isArray(directEdges)) {
     for (const edge of directEdges) {

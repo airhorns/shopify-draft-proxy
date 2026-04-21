@@ -11,10 +11,10 @@ describe('product variant compatibility live schema blocker', () => {
   it('wires a dedicated schema probe command and script for the single-variant compatibility family', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
     const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8')) as PackageJson;
-    const scriptPath = resolve(repoRoot, 'scripts/probe-product-variant-compatibility-roots.mjs');
+    const scriptPath = resolve(repoRoot, 'scripts/probe-product-variant-compatibility-roots.mts');
 
     expect(packageJson.scripts?.['conformance:probe-product-variant-compatibility-roots']).toBe(
-      'node ./scripts/probe-product-variant-compatibility-roots.mjs',
+      'tsx ./scripts/probe-product-variant-compatibility-roots.mts',
     );
     expect(existsSync(scriptPath)).toBe(true);
 

@@ -3,7 +3,6 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-// @ts-expect-error scripts/ is intentionally runtime-only in this repo; Vitest can still execute the .mjs helper.
 import { parseAccessDeniedErrors } from '../../scripts/product-mutation-conformance-lib.mjs';
 
 type PackageJson = {
@@ -21,7 +20,6 @@ describe('product publication live conformance harness', () => {
     await fs.writeFile(blockerPath, 'stale blocker\n', 'utf8');
 
     try {
-      // @ts-expect-error scripts/ is intentionally runtime-only in this repo; Vitest can still execute the .mjs helper.
       const { clearPublicationScopeBlocker } = await import('../../scripts/product-publication-conformance-lib.mjs');
       await clearPublicationScopeBlocker(blockerPath);
       expect(existsSync(blockerPath)).toBe(false);
@@ -78,10 +76,10 @@ describe('product publication live conformance harness', () => {
   it('wires a dedicated publication capture command and script before the family can be promoted', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
     const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8')) as PackageJson;
-    const scriptPath = resolve(repoRoot, 'scripts/capture-product-publication-conformance.mjs');
+    const scriptPath = resolve(repoRoot, 'scripts/capture-product-publication-conformance.mts');
 
     expect(packageJson.scripts?.['conformance:capture-product-publications']).toBe(
-      'node ./scripts/capture-product-publication-conformance.mjs',
+      'tsx ./scripts/capture-product-publication-conformance.mts',
     );
     expect(existsSync(scriptPath)).toBe(true);
 
