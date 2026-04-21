@@ -28,7 +28,6 @@ Set these variables in a local `.env` or shell session:
 
 - `SHOPIFY_CONFORMANCE_STORE_DOMAIN`
 - `SHOPIFY_CONFORMANCE_ADMIN_ORIGIN`
-- `SHOPIFY_CONFORMANCE_ADMIN_ACCESS_TOKEN`
 - `SHOPIFY_CONFORMANCE_API_VERSION`
 - `SHOPIFY_CONFORMANCE_APP_HANDLE` (optional but useful)
 - `SHOPIFY_CONFORMANCE_APP_ID` (optional; lets local inventory-adjust replay mirror `inventoryAdjustmentGroup.app.id`)
@@ -37,6 +36,24 @@ Set these variables in a local `.env` or shell session:
 See `.env.example` for the canonical variable names.
 
 The server now loads `.env` automatically via `dotenv`, so a local `.env` file is enough for normal `pnpm dev` / `pnpm start` workflows.
+
+The live conformance access token is no longer stored in repo `.env`. The canonical credential lives at:
+
+```text
+~/.shopify-draft-proxy/conformance-admin-auth.json
+```
+
+Generate a fresh grant link with:
+
+```bash
+corepack pnpm conformance:auth-link
+```
+
+Then exchange the browser callback URL with:
+
+```bash
+corepack pnpm conformance:exchange-auth -- '<full callback url>'
+```
 
 ### 4. Validate structural conformance coverage before live probing
 
@@ -77,7 +94,7 @@ Once the vars are present, run:
 pnpm conformance:probe
 ```
 
-This performs a minimal Admin GraphQL `shop` query against the configured store and fails fast if the domain/origin/token combination is wrong.
+This performs a minimal Admin GraphQL `shop` query against the configured store and fails fast if the domain/origin/token combination is wrong. Internally it now resolves the token via `getValidConformanceAccessToken(...)`, which probes the stored token, refreshes it when possible, and reports a clear error when the home-folder credential is missing or dead.
 
 ### 6. Refresh expiring conformance auth before it strands the repo
 

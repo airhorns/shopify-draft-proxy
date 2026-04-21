@@ -15,6 +15,8 @@
     "conformance:check": "vitest run tests/unit/conformance-scenario-discovery.test.ts tests/unit/operation-registry.test.ts",
     "conformance:status": "tsx ./scripts/conformance-status-report.ts",
     "conformance:parity": "tsx ./scripts/run-conformance-parity.ts",
+    "conformance:auth-link": "node ./scripts/generate-conformance-auth-link.mjs",
+    "conformance:exchange-auth": "node ./scripts/exchange-conformance-auth-callback.mjs",
     "conformance:probe": "node ./scripts/conformance-probe.mjs",
     "conformance:refresh-auth": "node ./scripts/refresh-conformance-auth.mjs",
     "conformance:capture-products": "node ./scripts/capture-product-conformance.mjs",
