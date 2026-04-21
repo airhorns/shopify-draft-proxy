@@ -3,16 +3,13 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import type { ParitySpec } from '../../scripts/conformance-parity-lib.js';
+
 import { loadConformanceScenarios } from '../../scripts/conformance-scenario-registry.js';
 
 type ConformanceScenario = {
   id: string;
   captureFiles?: string[];
-};
-
-type ParitySpec = {
-  scenarioId: string;
-  liveCaptureFiles?: string[];
 };
 
 describe('product empty/null live conformance evidence', () => {

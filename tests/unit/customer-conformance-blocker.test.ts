@@ -3,6 +3,8 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import type { ParitySpec } from '../../scripts/conformance-parity-lib.js';
+
 import { loadConformanceScenarios } from '../../scripts/conformance-scenario-registry.js';
 
 type OperationRegistryEntry = {
@@ -15,28 +17,6 @@ type ScenarioRegistryEntry = {
   status: string;
   captureFiles: string[];
   paritySpecPath: string;
-  notes?: string;
-};
-
-type ParitySpec = {
-  scenarioId: string;
-  scenarioStatus: string;
-  proxyRequest?: {
-    documentPath?: string | null;
-    variablesPath?: string | null;
-  };
-  blocker?: {
-    kind?: string;
-    blockerPath?: string;
-    details?: {
-      requiredApproval?: string;
-      probeRoots?: string[];
-      blockedFields?: string[];
-      failingMessage?: string;
-      docsUrl?: string;
-    };
-  };
-  comparisonMode?: string;
   notes?: string;
 };
 

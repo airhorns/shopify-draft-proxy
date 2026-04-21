@@ -17,9 +17,7 @@
   "countries": [
     {
       "code": "AU",
-      "languages": [
-        "en"
-      ],
+      "languages": ["en"],
       "currency": "AUD"
     }
   ]

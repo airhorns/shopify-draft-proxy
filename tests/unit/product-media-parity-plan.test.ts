@@ -3,6 +3,8 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import type { ParitySpec } from '../../scripts/conformance-parity-lib.js';
+
 const expectedPlans = [
   {
     scenarioId: 'product-create-media-live-parity',
@@ -30,11 +32,6 @@ const expectedPlans = [
   },
 ] as const;
 
-type ParitySpec = {
-  scenarioId: string;
-  proxyRequest?: { documentPath?: string | null; variablesPath?: string | null };
-};
-
 describe('product media parity plan scaffolds', () => {
   it('declares concrete proxy request scaffolds for the staged media mutation family', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
@@ -42,10 +39,12 @@ describe('product media parity plan scaffolds', () => {
     for (const expected of expectedPlans) {
       const spec = JSON.parse(readFileSync(resolve(repoRoot, expected.specPath), 'utf8')) as ParitySpec;
       expect(spec.scenarioId).toBe(expected.scenarioId);
-      expect(spec.proxyRequest).toEqual({
-        documentPath: expected.documentPath,
-        variablesPath: expected.variablesPath,
-      });
+      expect(spec.proxyRequest).toEqual(
+        expect.objectContaining({
+          documentPath: expected.documentPath,
+          variablesPath: expected.variablesPath,
+        }),
+      );
 
       const documentPath = resolve(repoRoot, expected.documentPath);
       const variablesPath = resolve(repoRoot, expected.variablesPath);
@@ -66,5 +65,52 @@ describe('product media parity plan scaffolds', () => {
         expect(document).toContain('... on MediaImage {');
       }
     }
+  });
+
+  it('promotes productCreateMedia to explicit mutation and downstream read comparisons', () => {
+    const repoRoot = resolve(import.meta.dirname, '../..');
+    const spec = JSON.parse(
+      readFileSync(resolve(repoRoot, 'config/parity-specs/productCreateMedia-parity-plan.json'), 'utf8'),
+    ) as ParitySpec;
+
+    expect(spec.blocker).toBeUndefined();
+    expect(spec.proxyRequest?.variablesCapturePath).toBe('$.mutation.variables');
+    expect(spec.comparison?.targets).toEqual([
+      {
+        name: 'mutation-data',
+        capturePath: '$.mutation.response.data',
+        proxyPath: '$.data',
+      },
+      {
+        name: 'downstream-read-data',
+        capturePath: '$.downstreamRead.data',
+        proxyRequest: {
+          documentPath: 'config/parity-requests/productCreateMedia-downstream-read.graphql',
+          variables: {
+            id: {
+              fromPrimaryProxyPath: '$.data.productCreateMedia.product.id',
+            },
+          },
+        },
+        proxyPath: '$.data',
+      },
+    ]);
+    expect(spec.comparison?.expectedDifferences).toEqual([
+      expect.objectContaining({
+        path: '$.productCreateMedia.media[0].id',
+        matcher: 'shopify-gid:MediaImage',
+      }),
+      expect.objectContaining({
+        path: '$.productCreateMedia.product.media.nodes[0].id',
+        matcher: 'shopify-gid:MediaImage',
+      }),
+      expect.objectContaining({
+        path: '$.product.media.nodes[0].id',
+        matcher: 'shopify-gid:MediaImage',
+      }),
+    ]);
+    expect(existsSync(resolve(repoRoot, 'config/parity-requests/productCreateMedia-downstream-read.graphql'))).toBe(
+      true,
+    );
   });
 });

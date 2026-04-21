@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { validateComparisonContract } from '../../scripts/conformance-parity-lib.js';
+import { validateComparisonContract, type ParitySpec } from '../../scripts/conformance-parity-lib.js';
 import {
   buildConformanceStatusDocument,
   listConformanceParitySpecPaths,
@@ -15,19 +15,6 @@ type OperationRegistryEntry = {
   name: string;
   implemented?: boolean;
   runtimeTests?: string[];
-};
-
-type ParitySpec = {
-  scenarioId: string;
-  operationNames: string[];
-  scenarioStatus: string;
-  assertionKinds: string[];
-  liveCaptureFiles: string[];
-  proxyRequest?: {
-    documentPath?: string | null;
-    variablesPath?: string | null;
-  };
-  comparison?: unknown;
 };
 
 const repoRoot = resolve(import.meta.dirname, '../..');
@@ -93,7 +80,7 @@ describe('conformance scenario discovery', () => {
       expect(paritySpec.assertionKinds).toEqual(scenario.assertionKinds);
       expect(paritySpec.liveCaptureFiles).toEqual(scenario.captureFiles);
 
-      for (const captureFile of paritySpec.liveCaptureFiles) {
+      for (const captureFile of paritySpec.liveCaptureFiles ?? []) {
         expect(existsSync(resolve(repoRoot, captureFile)), `${captureFile} should exist`).toBe(true);
       }
 

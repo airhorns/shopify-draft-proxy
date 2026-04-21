@@ -74,13 +74,54 @@ export interface ComparisonContract {
   targets?: ComparisonTarget[] | null;
 }
 
+export interface BlockerDetails {
+  requiredApproval?: string;
+  requiredScopes?: string[];
+  requiredPermissions?: string[];
+  requiredTokenMode?: string;
+  probeRoots?: string[];
+  blockedFields?: string[];
+  blockedMutations?: string[];
+  failingMessage?: string;
+  docsUrl?: string;
+  manualStoreAuthStatus?: string;
+  manualStoreAuthTokenPath?: string;
+  manualStoreAuthCachedScopes?: string[];
+  manualStoreAuthAssociatedUserScopes?: string[];
+  appConfigPath?: string;
+  appId?: string;
+  appHandle?: string;
+  publicationTargetStatus?: string;
+  publicationTargetMessage?: string;
+  publicationTargetRemediation?: string;
+  shopifyAppCliAuthStatus?: string;
+  shopifyAppCliAuthWorkdir?: string;
+  shopifyAppDeployStatus?: string;
+  shopifyAppDeployCommand?: string;
+  shopifyAppDeployVersion?: string;
+  channelConfigExtensionPath?: string;
+  channelConfigHandle?: string;
+  channelConfigCreateLegacyChannelOnAppInstall?: boolean;
+  activeCredentialTokenFamily?: string;
+  activeCredentialHeaderMode?: string;
+  activeCredentialSummary?: string;
+  [key: string]: unknown;
+}
+
 export interface ParitySpec {
+  scenarioId?: string;
+  operationNames?: string[];
+  scenarioStatus?: string;
+  assertionKinds?: string[];
+  comparisonMode?: string;
   proxyRequest?: ProxyRequestSpec;
   comparison?: ComparisonContract;
   liveCaptureFiles?: string[];
+  notes?: string;
   blocker?: {
     kind?: string;
     blockerPath?: string;
+    details?: BlockerDetails;
   };
 }
 
