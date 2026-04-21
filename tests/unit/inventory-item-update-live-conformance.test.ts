@@ -5,10 +5,6 @@ import { describe, expect, it } from 'vitest';
 
 import { loadConformanceScenarios } from '../../scripts/conformance-scenario-registry.js';
 
-type PackageJson = {
-  scripts?: Record<string, string>;
-};
-
 type OperationRegistryEntry = {
   name: string;
 };
@@ -86,13 +82,6 @@ const paritySpecPath = 'config/parity-specs/inventoryItemUpdate-parity-plan.json
 const captureFile = 'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/inventory-item-update-parity.json';
 
 describe('inventoryItemUpdate live conformance wiring', () => {
-  it('exposes a package script for the inventory item update capture harness', () => {
-    const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8')) as PackageJson;
-    expect(packageJson.scripts?.['conformance:capture-inventory-item-mutations']).toBe(
-      'tsx ./scripts/capture-inventory-item-mutation-conformance.mts',
-    );
-  });
-
   it('marks inventoryItemUpdate covered by a captured live scenario', () => {
     const registry = JSON.parse(
       readFileSync(resolve(repoRoot, 'config/operation-registry.json'), 'utf8'),

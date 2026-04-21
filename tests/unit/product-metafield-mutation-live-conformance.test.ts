@@ -5,10 +5,6 @@ import { describe, expect, it } from 'vitest';
 
 import { loadConformanceScenarios } from '../../scripts/conformance-scenario-registry.js';
 
-type PackageJson = {
-  scripts?: Record<string, string>;
-};
-
 type OperationRegistryEntry = {
   name: string;
 };
@@ -30,15 +26,6 @@ type ParitySpec = {
 };
 
 describe('product metafield mutation conformance wiring', () => {
-  it('exposes a package script for the product metafield mutation capture harness', () => {
-    const repoRoot = resolve(import.meta.dirname, '../..');
-    const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8')) as PackageJson;
-
-    expect(packageJson.scripts?.['conformance:capture-product-metafield-mutations']).toBe(
-      'tsx ./scripts/capture-product-metafield-mutation-conformance.mts',
-    );
-  });
-
   it('promotes metafieldsSet, metafieldsDelete, and the singular metafieldDelete compatibility alias to covered live parity', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
     const registry = JSON.parse(

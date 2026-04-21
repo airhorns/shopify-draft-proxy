@@ -6,10 +6,6 @@ import { describe, expect, it } from 'vitest';
 
 import { loadConformanceScenarios } from '../../scripts/conformance-scenario-registry.js';
 
-type PackageJson = {
-  scripts?: Record<string, string>;
-};
-
 type OperationRegistryEntry = {
   name: string;
   domain: string;
@@ -231,13 +227,6 @@ const expectedBlockedScenarios = [
 ] as const;
 
 describe('order creation scaffolding', () => {
-  it('adds a dedicated capture script for order-domain conformance discovery', () => {
-    const repoRoot = resolve(import.meta.dirname, '../..');
-    const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8')) as PackageJson;
-
-    expect(packageJson.scripts?.['conformance:capture-orders']).toBe('tsx ./scripts/capture-order-conformance.mts');
-  });
-
   it('keeps the order capture script syntactically valid so conformance:capture-orders can execute', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
 

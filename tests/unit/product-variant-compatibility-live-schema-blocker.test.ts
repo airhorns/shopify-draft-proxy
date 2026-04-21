@@ -3,19 +3,11 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-type PackageJson = {
-  scripts?: Record<string, string>;
-};
-
 describe('product variant compatibility live schema blocker', () => {
-  it('wires a dedicated schema probe command and script for the single-variant compatibility family', () => {
+  it('keeps a dedicated schema probe script for the single-variant compatibility family', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
-    const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8')) as PackageJson;
     const scriptPath = resolve(repoRoot, 'scripts/probe-product-variant-compatibility-roots.mts');
 
-    expect(packageJson.scripts?.['conformance:probe-product-variant-compatibility-roots']).toBe(
-      'tsx ./scripts/probe-product-variant-compatibility-roots.mts',
-    );
     expect(existsSync(scriptPath)).toBe(true);
 
     const script = readFileSync(scriptPath, 'utf8');

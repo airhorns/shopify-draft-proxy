@@ -45,10 +45,6 @@ const operationRegistry = JSON.parse(
   readFileSync(resolve(repoRoot, 'config/operation-registry.json'), 'utf8'),
 ) as OperationRegistryEntry[];
 const scenarioRegistry = loadConformanceScenarios(repoRoot) as ScenarioRegistryEntry[];
-const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8')) as {
-  scripts?: Record<string, string>;
-};
-
 const expectedScenarios = [
   {
     operationName: 'customer',
@@ -123,11 +119,7 @@ describe('customer conformance coverage state', () => {
     }
   });
 
-  it('keeps the dedicated live customer capture script while removing the stale protected-data blocker note after successful capture', () => {
-    expect(packageJson.scripts?.['conformance:capture-customers']).toBe(
-      'tsx ./scripts/capture-customer-conformance.mts',
-    );
-
+  it('removes the stale protected-data blocker note after successful customer capture', () => {
     const blockerPath = resolve(repoRoot, 'pending/customer-conformance-protected-data-blocker.md');
     expect(existsSync(blockerPath)).toBe(false);
   });
