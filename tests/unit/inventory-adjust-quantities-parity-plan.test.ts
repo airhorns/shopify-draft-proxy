@@ -8,31 +8,37 @@ describe('inventoryAdjustQuantities parity plan scaffold', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
     const specPath = resolve(repoRoot, 'config/parity-specs/inventoryAdjustQuantities-parity-plan.json');
     const spec = JSON.parse(readFileSync(specPath, 'utf8')) as {
-      proxyRequest?: { documentPath?: string | null; variablesPath?: string | null };
+      blocker?: unknown;
+      proxyRequest?: { documentPath?: string | null; variablesCapturePath?: string | null };
+      comparison?: {
+        expectedDifferences?: Array<{ path?: string; matcher?: string; reason?: string }>;
+        targets?: Array<{
+          name?: string;
+          proxyRequest?: { documentPath?: string | null; variablesPath?: string | null };
+        }>;
+      };
     };
 
     expect(spec.proxyRequest?.documentPath).toBe(
       'config/parity-requests/inventoryAdjustQuantities-parity-plan.graphql',
     );
-    expect(spec.proxyRequest?.variablesPath).toBe(
-      'config/parity-requests/inventoryAdjustQuantities-parity-plan.variables.json',
-    );
+    expect(spec.proxyRequest?.variablesCapturePath).toBe('$.mutation.variables');
+    expect(spec.blocker).toBeUndefined();
+    expect(spec.comparison?.expectedDifferences).toEqual([
+      {
+        path: '$.matchingCount.count',
+        matcher: 'any-number',
+        reason: expect.stringContaining(
+          'Only the numeric `productsCount(query: "inventory_total:>=14").count` is wildcarded',
+        ),
+      },
+    ]);
 
     const documentPath = resolve(repoRoot, spec.proxyRequest!.documentPath!);
-    const variablesPath = resolve(repoRoot, spec.proxyRequest!.variablesPath!);
 
     expect(existsSync(documentPath)).toBe(true);
-    expect(existsSync(variablesPath)).toBe(true);
 
     const document = readFileSync(documentPath, 'utf8');
-    const variables = JSON.parse(readFileSync(variablesPath, 'utf8')) as {
-      input?: {
-        name?: string;
-        reason?: string;
-        referenceDocumentUri?: string;
-        changes?: Array<Record<string, unknown>>;
-      };
-    };
 
     expect(document).toContain('mutation InventoryAdjustQuantitiesParityPlan($input: InventoryAdjustQuantitiesInput!)');
     expect(document).toContain('inventoryAdjustQuantities(input: $input)');
@@ -46,22 +52,20 @@ describe('inventoryAdjustQuantities parity plan scaffold', () => {
     expect(document).toContain('name');
     expect(document).toContain('userErrors {');
 
-    expect(variables.input).toMatchObject({
-      name: 'available',
-      reason: 'correction',
-      referenceDocumentUri: 'logistics://cycle-count/2026-04-15',
-      changes: [
-        {
-          inventoryItemId: 'gid://shopify/InventoryItem/8001',
-          locationId: 'gid://shopify/Location/1',
-          delta: -2,
-        },
-        {
-          inventoryItemId: 'gid://shopify/InventoryItem/8002',
-          locationId: 'gid://shopify/Location/1',
-          delta: 4,
-        },
-      ],
+    expect(spec.comparison?.targets?.map((target) => target.name)).toEqual([
+      'mutation-user-errors',
+      'mutation-reason',
+      'mutation-reference-document-uri',
+      'mutation-changes',
+      'downstream-read-data',
+    ]);
+
+    const downstreamTarget = spec.comparison?.targets?.find((target) => target.name === 'downstream-read-data');
+    expect(downstreamTarget?.proxyRequest).toEqual({
+      documentPath: 'config/parity-requests/inventoryAdjustQuantities-downstream-read.graphql',
+      variablesPath: 'config/parity-requests/inventoryAdjustQuantities-downstream-read.variables.json',
     });
+    expect(existsSync(resolve(repoRoot, downstreamTarget!.proxyRequest!.documentPath!))).toBe(true);
+    expect(existsSync(resolve(repoRoot, downstreamTarget!.proxyRequest!.variablesPath!))).toBe(true);
   });
 });

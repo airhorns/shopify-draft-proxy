@@ -13,6 +13,7 @@ import { makeSyntheticGid, makeSyntheticTimestamp, resetSyntheticIdentity } from
 import { store } from '../src/state/store.js';
 import type {
   CollectionRecord,
+  InventoryLevelRecord,
   MutationLogInterpretedMetadata,
   ProductCollectionRecord,
   ProductMetafieldRecord,
@@ -701,6 +702,16 @@ function readStringField(value: Record<string, unknown> | null | undefined, key:
   return typeof fieldValue === 'string' && fieldValue.length > 0 ? fieldValue : null;
 }
 
+function readNumberField(value: Record<string, unknown> | null | undefined, key: string): number | null {
+  const fieldValue = value?.[key];
+  return typeof fieldValue === 'number' ? fieldValue : null;
+}
+
+function readBooleanField(value: Record<string, unknown> | null | undefined, key: string): boolean | null {
+  const fieldValue = value?.[key];
+  return typeof fieldValue === 'boolean' ? fieldValue : null;
+}
+
 function readArrayField(value: Record<string, unknown> | null | undefined, key: string): unknown[] {
   const fieldValue = value?.[key];
   return Array.isArray(fieldValue) ? fieldValue : [];
@@ -849,6 +860,152 @@ function seedCollectionProducts(collection: CollectionRecord, productNodes: unkn
   }
 }
 
+function inventoryAdjustmentPayload(capture: unknown): Record<string, unknown> | null {
+  const mutationData = readJsonPath(capture, '$.mutation.response.data');
+  return readRecordField(
+    readRecordField(isPlainObject(mutationData) ? mutationData : null, 'inventoryAdjustQuantities'),
+    'inventoryAdjustmentGroup',
+  );
+}
+
+function inventoryAdjustmentLocation(capture: unknown): { id: string; name: string | null } | null {
+  const changes = readArrayField(inventoryAdjustmentPayload(capture), 'changes');
+  for (const change of changes.filter(isPlainObject)) {
+    const location = readRecordField(change, 'location');
+    const id = readStringField(location, 'id');
+    if (id) {
+      return { id, name: readStringField(location, 'name') };
+    }
+  }
+
+  return null;
+}
+
+function seededAvailableQuantity(capture: unknown, inventoryItemId: string): number | null {
+  const seedAdjustment = readJsonPath(capture, '$.setup.seedAdjustment.data.inventoryAdjustQuantities');
+  const changes = readArrayField(
+    readRecordField(isPlainObject(seedAdjustment) ? seedAdjustment : null, 'inventoryAdjustmentGroup'),
+    'changes',
+  );
+  let quantity = 0;
+  let found = false;
+
+  for (const change of changes.filter(isPlainObject)) {
+    const item = readRecordField(change, 'item');
+    if (readStringField(change, 'name') !== 'available' || readStringField(item, 'id') !== inventoryItemId) {
+      continue;
+    }
+    const delta = readNumberField(change, 'delta');
+    if (delta !== null) {
+      quantity += delta;
+      found = true;
+    }
+  }
+
+  return found ? quantity : null;
+}
+
+function makeInventoryAdjustmentSeedLevel(
+  inventoryItemId: string,
+  location: { id: string; name: string | null },
+  availableQuantity: number,
+): InventoryLevelRecord {
+  return {
+    id: `gid://shopify/InventoryLevel/${location.id.split('/').at(-1) ?? '1'}?inventory_item_id=${encodeURIComponent(
+      inventoryItemId,
+    )}`,
+    cursor: `cursor:${inventoryItemId}:${location.id}`,
+    location,
+    quantities: [
+      { name: 'available', quantity: availableQuantity, updatedAt: '2026-04-18T22:21:57Z' },
+      { name: 'on_hand', quantity: availableQuantity, updatedAt: null },
+      { name: 'incoming', quantity: 0, updatedAt: null },
+    ],
+  };
+}
+
+function makeInventoryAdjustmentSeedVariant(
+  productId: string,
+  source: Record<string, unknown>,
+  location: { id: string; name: string | null },
+  capture: unknown,
+): ProductVariantRecord | null {
+  const id = readStringField(source, 'id');
+  const inventoryItem = readRecordField(source, 'inventoryItem');
+  const inventoryItemId = readStringField(inventoryItem, 'id');
+  if (!id || !inventoryItemId) {
+    return null;
+  }
+
+  const inventoryQuantity =
+    seededAvailableQuantity(capture, inventoryItemId) ?? readNumberField(source, 'inventoryQuantity');
+
+  return {
+    id,
+    productId,
+    title: readStringField(source, 'title') ?? 'Default Title',
+    sku: readStringField(source, 'sku'),
+    barcode: readStringField(source, 'barcode'),
+    price: readStringField(source, 'price'),
+    compareAtPrice: readStringField(source, 'compareAtPrice'),
+    taxable: readBooleanField(source, 'taxable'),
+    inventoryPolicy: readStringField(source, 'inventoryPolicy'),
+    inventoryQuantity,
+    selectedOptions: [],
+    inventoryItem: {
+      id: inventoryItemId,
+      tracked: readBooleanField(inventoryItem, 'tracked'),
+      requiresShipping: readBooleanField(inventoryItem, 'requiresShipping'),
+      measurement: null,
+      countryCodeOfOrigin: null,
+      provinceCodeOfOrigin: null,
+      harmonizedSystemCode: null,
+      inventoryLevels: [makeInventoryAdjustmentSeedLevel(inventoryItemId, location, inventoryQuantity ?? 0)],
+    },
+  };
+}
+
+function seedInventoryAdjustmentPreconditions(capture: unknown): void {
+  const location = inventoryAdjustmentLocation(capture);
+  if (!location) {
+    return;
+  }
+
+  const trackedInventory = readRecordField(
+    readRecordField(capture as Record<string, unknown>, 'setup'),
+    'trackedInventory',
+  );
+  for (const setupKey of ['first', 'second']) {
+    const productPayload = readRecordField(
+      readRecordField(
+        readRecordField(readRecordField(trackedInventory, setupKey), 'data'),
+        'productVariantsBulkUpdate',
+      ),
+      'product',
+    );
+    const productId = readStringField(productPayload, 'id');
+    if (!productId) {
+      continue;
+    }
+
+    const variants = readArrayField(
+      readRecordField(
+        readRecordField(readRecordField(trackedInventory, setupKey), 'data'),
+        'productVariantsBulkUpdate',
+      ),
+      'productVariants',
+    )
+      .filter(isPlainObject)
+      .map((variant) => makeInventoryAdjustmentSeedVariant(productId, variant, location, capture))
+      .filter((variant): variant is ProductVariantRecord => variant !== null);
+
+    store.upsertBaseProducts([makeSeedProduct(productId, productPayload, 'Inventory adjustment conformance seed')]);
+    if (variants.length > 0) {
+      store.replaceBaseVariantsForProduct(productId, variants);
+    }
+  }
+}
+
 function seedMetafieldsSetOwnerProducts(capture: unknown, variables: Record<string, unknown>): void {
   const downstreamProduct = readRecordField(
     readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data'),
@@ -913,6 +1070,11 @@ function readCapturedProductMetafields(productId: string, product: Record<string
 function seedPreconditionsFromCapture(capture: unknown, variables: Record<string, unknown>): void {
   const payload = mutationPayloadFromCapture(capture);
   const mutationName = mutationNameFromCapture(capture);
+  if (mutationName === 'inventoryAdjustQuantities') {
+    seedInventoryAdjustmentPreconditions(capture);
+    return;
+  }
+
   const productInput = readRecordField(variables, 'product');
   const input = readRecordField(variables, 'input');
   const productPayload =
