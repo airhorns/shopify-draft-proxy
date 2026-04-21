@@ -17,6 +17,7 @@ import type {
   MutationLogInterpretedMetadata,
   ProductCollectionRecord,
   ProductMetafieldRecord,
+  ProductMediaRecord,
   ProductOptionRecord,
   ProductRecord,
   ProductVariantRecord,
@@ -1067,6 +1068,40 @@ function readCapturedProductMetafields(productId: string, product: Record<string
   );
 }
 
+function readCapturedProductMedia(
+  productId: string,
+  product: Record<string, unknown> | null | undefined,
+): ProductMediaRecord[] {
+  const mediaConnection = readRecordField(product, 'media');
+  return readArrayField(mediaConnection, 'nodes')
+    .filter(isPlainObject)
+    .map((node, index): ProductMediaRecord | null => {
+      const id = readStringField(node, 'id');
+      if (!id) {
+        return null;
+      }
+
+      const previewImage = readRecordField(readRecordField(node, 'preview'), 'image');
+      const image = readRecordField(node, 'image');
+      const previewImageUrl = readStringField(previewImage, 'url');
+      const imageUrl = readStringField(image, 'url') ?? previewImageUrl;
+
+      return {
+        key: `${productId}:media:${index}`,
+        productId,
+        position: index,
+        id,
+        mediaContentType: readStringField(node, 'mediaContentType'),
+        alt: readStringField(node, 'alt'),
+        status: readStringField(node, 'status'),
+        imageUrl,
+        previewImageUrl,
+        sourceUrl: imageUrl ?? previewImageUrl,
+      };
+    })
+    .filter((mediaRecord): mediaRecord is ProductMediaRecord => mediaRecord !== null);
+}
+
 function seedPreconditionsFromCapture(capture: unknown, variables: Record<string, unknown>): void {
   const payload = mutationPayloadFromCapture(capture);
   const mutationName = mutationNameFromCapture(capture);
@@ -1098,6 +1133,18 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     store.upsertBaseProducts([makeSeedProduct(productId, productPayload ?? productInput)]);
     if (readArrayField(variables, 'options').length > 0 || readRecordField(variables, 'option')) {
       seedProductOptionState(productId, variables);
+    }
+
+    if (mutationName === 'productUpdateMedia') {
+      const downstreamProduct = readRecordField(
+        readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data'),
+        'product',
+      );
+      const mediaSource = readStringField(downstreamProduct, 'id') === productId ? downstreamProduct : null;
+      const capturedMedia = readCapturedProductMedia(productId, mediaSource);
+      if (capturedMedia.length > 0) {
+        store.replaceBaseMediaForProduct(productId, capturedMedia);
+      }
     }
   }
 
