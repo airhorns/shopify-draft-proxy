@@ -88,6 +88,11 @@ describe('product metafield mutation conformance wiring', () => {
         comparisonMode: 'captured-vs-proxy-request',
       }),
     );
+    expect(setSpec.blocker).toBeUndefined();
+    expect(setSpec.comparison?.targets?.map((target) => target.name)).toEqual([
+      'mutation-data',
+      'downstream-read-data',
+    ]);
 
     const deleteSpec = JSON.parse(
       readFileSync(resolve(repoRoot, 'config/parity-specs/metafieldsDelete-parity-plan.json'), 'utf8'),
