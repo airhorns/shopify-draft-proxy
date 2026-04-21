@@ -8,16 +8,34 @@
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/productVariantsBulkDelete-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/productVariantsBulkDelete-parity-plan.variables.json"
+    "variablesPath": "config/parity-requests/productVariantsBulkDelete-parity-plan.variables.json",
+    "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live capture now covers `productVariantsBulkDelete`, including immediate downstream `product.variants` removal parity while sku-filtered `products` / `productsCount` still remain empty on the just-written product surface.",
+  "notes": "Executed by the conformance parity runner against the local staged-mutation path with live fixture variables. Live capture covers immediate downstream `product.variants` removal parity while sku-filtered `products` / `productsCount` remain empty on the just-written product surface.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/productVariantsBulkDelete-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productVariantsBulkDelete.product.id"
+            },
+            "query": "sku:HERMES-BULK-810153-RED"
+          }
+        },
+        "proxyPath": "$.data"
+      }
+    ]
   }
 }
