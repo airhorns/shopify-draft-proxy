@@ -26,6 +26,7 @@ This project is not a generic mock server. It is a **digital twin** / **draft la
 
 ## Key docs
 
+- `docs/simple-demo-guide.md` — copy-pasteable local demo for read/write staging, reset, and commit
 - `docs/original-intent.md` — project intent and non-goals; preserve this vision
 - `docs/architecture.md` — system design and execution model
 - `docs/implementation-plan.md` — milestone plan and ordered build steps
