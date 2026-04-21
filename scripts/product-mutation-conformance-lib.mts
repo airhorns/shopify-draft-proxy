@@ -1,4 +1,5 @@
-export function pickProductMutationSeed(payload) {
+// @ts-nocheck
+export function pickProductMutationSeed(payload: any): any {
   const productEdges = payload?.data?.products?.edges;
   if (Array.isArray(productEdges)) {
     for (const edge of productEdges) {
@@ -24,7 +25,7 @@ export function pickProductMutationSeed(payload) {
   throw new Error('Could not find a sample product from ProductCatalogPage capture');
 }
 
-export function parseAccessDeniedErrors(result) {
+export function parseAccessDeniedErrors(result: any): any[] {
   const errors = Array.isArray(result?.payload?.errors) ? result.payload.errors : [];
   const blockers = [];
 
@@ -50,7 +51,7 @@ export function parseAccessDeniedErrors(result) {
   return blockers;
 }
 
-export function parseWriteScopeBlocker(result) {
+export function parseWriteScopeBlocker(result: any): any {
   return parseAccessDeniedErrors(result)[0] ?? null;
 }
 
@@ -62,7 +63,7 @@ export function renderWriteScopeBlockerNote({
   whyBlocked,
   completedSteps,
   recommendedNextStep,
-}) {
+}: any): string {
   const operationLines = operations.map((operation) => `- \`${operation}\``);
   const completedLines = completedSteps.map((step, index) => `${index + 1}. ${step}`);
 

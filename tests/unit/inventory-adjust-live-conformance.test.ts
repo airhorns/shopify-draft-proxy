@@ -146,7 +146,7 @@ describe('inventoryAdjustQuantities live conformance wiring', () => {
     const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8')) as PackageJson;
 
     expect(packageJson.scripts?.['conformance:capture-inventory-adjustments']).toBe(
-      'node ./scripts/capture-inventory-adjustment-conformance.mjs',
+      'tsx ./scripts/capture-inventory-adjustment-conformance.mts',
     );
   });
 

@@ -243,7 +243,7 @@ Practical rule:
 
 - when `corepack pnpm conformance:capture-orders` hits only the current invalid-token regression, refresh the blocker note to say that explicitly and label the prior order-family access-denied details as the **last verified family-specific access-denied evidence**
 - do **not** overwrite the checked-in order validation fixtures with `401` auth payloads during that run; keep the last verified safe captures as the source of truth until auth is repaired
-- practical capture-harness rule learned later: `scripts/capture-order-conformance.mjs` must detect the auth-regressed `401` / `Invalid API key or access token` state **before** writing fixtures, or it will clobber the safe order-domain validation fixtures with unusable auth payloads and break the repo's evidence-backed regression tests
+- practical capture-harness rule learned later: `scripts/capture-order-conformance.mts` must detect the auth-regressed `401` / `Invalid API key or access token` state **before** writing fixtures, or it will clobber the safe order-domain validation fixtures with unusable auth payloads and break the repo's evidence-backed regression tests
 - do **not** keep the worklist phrased as if the host credential is still healthy enough for direct-order empty-state probing once the current run is returning `401`
 - durable next step: switch the repo to a dedicated Admin API token for orders work or re-authenticate Shopify CLI and persist the rotated grant pair before trusting any new order-domain capture output
 

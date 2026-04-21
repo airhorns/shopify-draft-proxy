@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 describe('refresh conformance auth client id resolution', () => {
   it('falls back to saved PKCE/auth metadata when the persisted token payload lacks client_id', async () => {
-    // @ts-expect-error scripts/ is intentionally runtime-only in this repo's Vitest coverage.
     const { resolveRefreshClientId } = await import('../../scripts/refresh-conformance-auth-lib.mjs');
 
     expect(
@@ -35,7 +34,6 @@ describe('refresh conformance auth client id resolution', () => {
 
 describe('refresh conformance auth failure classification', () => {
   it('classifies active-refresh-token failures as requiring manual store reauthorization', async () => {
-    // @ts-expect-error scripts/ is intentionally runtime-only in this repo's Vitest coverage.
     const { classifyRefreshFailure } = await import('../../scripts/refresh-conformance-auth-lib.mjs');
 
     expect(
@@ -51,7 +49,6 @@ describe('refresh conformance auth failure classification', () => {
   });
 
   it('does not classify unrelated refresh failures as inactive refresh-token failures', async () => {
-    // @ts-expect-error scripts/ is intentionally runtime-only in this repo's Vitest coverage.
     const { classifyRefreshFailure } = await import('../../scripts/refresh-conformance-auth-lib.mjs');
 
     expect(

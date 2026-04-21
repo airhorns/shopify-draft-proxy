@@ -5,10 +5,7 @@ import * as path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // scripts/ is intentionally outside tsconfig's checked sources; runtime coverage here verifies the JS helper.
-import {
-  buildAdminAuthHeaders,
-  getValidConformanceAccessToken,
-} from '../../scripts/shopify-conformance-auth.mjs';
+import { buildAdminAuthHeaders, getValidConformanceAccessToken } from '../../scripts/shopify-conformance-auth.mjs';
 
 async function createTempDir(prefix: string): Promise<string> {
   return await mkdtemp(path.join(tmpdir(), prefix));
@@ -39,12 +36,16 @@ describe('getValidConformanceAccessToken', () => {
     const credentialPath = path.join(dir, 'conformance-admin-auth.json');
     await writeFile(
       credentialPath,
-      `${JSON.stringify({
-        shop: 'very-big-test-store.myshopify.com',
-        client_id: 'client-id',
-        access_token: 'shpca_valid_token',
-        refresh_token: 'shprt_valid_refresh',
-      }, null, 2)}\n`,
+      `${JSON.stringify(
+        {
+          shop: 'very-big-test-store.myshopify.com',
+          client_id: 'client-id',
+          access_token: 'shpca_valid_token',
+          refresh_token: 'shprt_valid_refresh',
+        },
+        null,
+        2,
+      )}\n`,
       'utf8',
     );
 
@@ -74,12 +75,16 @@ describe('getValidConformanceAccessToken', () => {
     const appEnvPath = path.join(dir, 'app.env');
     await writeFile(
       credentialPath,
-      `${JSON.stringify({
-        shop: 'very-big-test-store.myshopify.com',
-        client_id: 'client-id',
-        access_token: 'shpca_expired_token',
-        refresh_token: 'shprt_old_refresh',
-      }, null, 2)}\n`,
+      `${JSON.stringify(
+        {
+          shop: 'very-big-test-store.myshopify.com',
+          client_id: 'client-id',
+          access_token: 'shpca_expired_token',
+          refresh_token: 'shprt_old_refresh',
+        },
+        null,
+        2,
+      )}\n`,
       'utf8',
     );
     await writeFile(appEnvPath, 'SHOPIFY_API_SECRET=secret-value\n', 'utf8');
@@ -156,12 +161,16 @@ describe('getValidConformanceAccessToken', () => {
     const appEnvPath = path.join(dir, 'app.env');
     await writeFile(
       credentialPath,
-      `${JSON.stringify({
-        shop: 'very-big-test-store.myshopify.com',
-        client_id: 'client-id',
-        access_token: 'shpca_expired_token',
-        refresh_token: 'shprt_dead_refresh',
-      }, null, 2)}\n`,
+      `${JSON.stringify(
+        {
+          shop: 'very-big-test-store.myshopify.com',
+          client_id: 'client-id',
+          access_token: 'shpca_expired_token',
+          refresh_token: 'shprt_dead_refresh',
+        },
+        null,
+        2,
+      )}\n`,
       'utf8',
     );
     await writeFile(appEnvPath, 'SHOPIFY_API_SECRET=secret-value\n', 'utf8');
@@ -192,7 +201,9 @@ describe('getValidConformanceAccessToken', () => {
         appEnvPath,
         fetchImpl: fetchMock,
       }),
-    ).rejects.toThrow('Stored Shopify conformance access token is invalid and refresh failed: This request requires an active refresh_token');
+    ).rejects.toThrow(
+      'Stored Shopify conformance access token is invalid and refresh failed: This request requires an active refresh_token',
+    );
   });
 
   it('fails clearly when the stored token is invalid and refresh also fails', async () => {
@@ -201,12 +212,16 @@ describe('getValidConformanceAccessToken', () => {
     const appEnvPath = path.join(dir, 'app.env');
     await writeFile(
       credentialPath,
-      `${JSON.stringify({
-        shop: 'very-big-test-store.myshopify.com',
-        client_id: 'client-id',
-        access_token: 'shpca_expired_token',
-        refresh_token: 'shprt_dead_refresh',
-      }, null, 2)}\n`,
+      `${JSON.stringify(
+        {
+          shop: 'very-big-test-store.myshopify.com',
+          client_id: 'client-id',
+          access_token: 'shpca_expired_token',
+          refresh_token: 'shprt_dead_refresh',
+        },
+        null,
+        2,
+      )}\n`,
       'utf8',
     );
     await writeFile(appEnvPath, 'SHOPIFY_API_SECRET=secret-value\n', 'utf8');
@@ -220,10 +235,13 @@ describe('getValidConformanceAccessToken', () => {
         }),
       )
       .mockResolvedValueOnce(
-        new Response('Oops, something went wrong. Oauth error invalid_request: This request requires an active refresh_token', {
-          status: 401,
-          headers: { 'Content-Type': 'text/html' },
-        }),
+        new Response(
+          'Oops, something went wrong. Oauth error invalid_request: This request requires an active refresh_token',
+          {
+            status: 401,
+            headers: { 'Content-Type': 'text/html' },
+          },
+        ),
       );
 
     await expect(
@@ -234,6 +252,8 @@ describe('getValidConformanceAccessToken', () => {
         appEnvPath,
         fetchImpl: fetchMock,
       }),
-    ).rejects.toThrow('Stored Shopify conformance access token is invalid and refresh failed: This request requires an active refresh_token');
+    ).rejects.toThrow(
+      'Stored Shopify conformance access token is invalid and refresh failed: This request requires an active refresh_token',
+    );
   });
 });

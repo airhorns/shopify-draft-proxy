@@ -1,3 +1,4 @@
+// @ts-nocheck
 /* oxlint-disable no-console -- CLI scripts intentionally write status and error output to stdio. */
 import 'dotenv/config';
 
@@ -5,12 +6,9 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { extractManualStoreAuthTokenSummary } from './product-publication-conformance-lib.mjs';
+import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
-const requiredVars = [
-  'SHOPIFY_CONFORMANCE_STORE_DOMAIN',
-  'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN',
-  'SHOPIFY_CONFORMANCE_ADMIN_ACCESS_TOKEN',
-];
+const requiredVars = ['SHOPIFY_CONFORMANCE_STORE_DOMAIN', 'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
 
 const missingVars = requiredVars.filter((name) => !process.env[name]);
 if (missingVars.length > 0) {
@@ -20,8 +18,8 @@ if (missingVars.length > 0) {
 
 const storeDomain = process.env['SHOPIFY_CONFORMANCE_STORE_DOMAIN'];
 const adminOrigin = process.env['SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
-const adminAccessToken = process.env['SHOPIFY_CONFORMANCE_ADMIN_ACCESS_TOKEN'];
 const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || '2025-01';
+const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 
 const orderCreationBlockerNotePath = path.join('pending', 'order-creation-conformance-scope-blocker.md');
 const orderEditingBlockerNotePath = path.join('pending', 'order-editing-conformance-scope-blocker.md');
@@ -77,20 +75,6 @@ const orderEditBeginMissingIdFixturePath = path.join(fixtureDir, 'order-edit-beg
 const orderEditAddVariantMissingIdFixturePath = path.join(fixtureDir, 'order-edit-add-variant-missing-id.json');
 const orderEditSetQuantityMissingIdFixturePath = path.join(fixtureDir, 'order-edit-set-quantity-missing-id.json');
 const orderEditCommitMissingIdFixturePath = path.join(fixtureDir, 'order-edit-commit-missing-id.json');
-
-function buildAdminAuthHeaders(token) {
-  if (/^shp[a-z]+_/i.test(token)) {
-    return {
-      'X-Shopify-Access-Token': token,
-    };
-  }
-
-  const bearerToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
-  return {
-    Authorization: bearerToken,
-    'X-Shopify-Access-Token': bearerToken,
-  };
-}
 
 function summarizeCredential(token) {
   if (/^shpca_/i.test(token)) {

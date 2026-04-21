@@ -1,3 +1,5 @@
+// @ts-nocheck
+/* oxlint-disable no-console -- CLI scripts intentionally write status output to stdio. */
 import 'dotenv/config';
 
 import { readFile } from 'node:fs/promises';

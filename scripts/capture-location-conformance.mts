@@ -1,14 +1,13 @@
+// @ts-nocheck
 /* oxlint-disable no-console -- CLI scripts intentionally write status and error output to stdio. */
 import 'dotenv/config';
 
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-const requiredVars = [
-  'SHOPIFY_CONFORMANCE_STORE_DOMAIN',
-  'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN',
-  'SHOPIFY_CONFORMANCE_ADMIN_ACCESS_TOKEN',
-];
+import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+
+const requiredVars = ['SHOPIFY_CONFORMANCE_STORE_DOMAIN', 'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
 
 const missingVars = requiredVars.filter((name) => !process.env[name]);
 if (missingVars.length > 0) {
@@ -18,23 +17,9 @@ if (missingVars.length > 0) {
 
 const storeDomain = process.env['SHOPIFY_CONFORMANCE_STORE_DOMAIN'];
 const adminOrigin = process.env['SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
-const adminAccessToken = process.env['SHOPIFY_CONFORMANCE_ADMIN_ACCESS_TOKEN'];
+const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || '2025-01';
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
-
-function buildAdminAuthHeaders(token) {
-  if (/^shp[a-z]+_/.test(token)) {
-    return {
-      'X-Shopify-Access-Token': token,
-    };
-  }
-
-  const bearerToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
-  return {
-    Authorization: bearerToken,
-    'X-Shopify-Access-Token': bearerToken,
-  };
-}
 
 async function runGraphql(query, variables = {}) {
   const response = await fetch(`${adminOrigin}/admin/api/${apiVersion}/graphql.json`, {

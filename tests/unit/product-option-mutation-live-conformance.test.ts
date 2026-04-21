@@ -54,7 +54,7 @@ describe('product option mutation live conformance wiring', () => {
     const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8')) as PackageJson;
 
     expect(packageJson.scripts?.['conformance:capture-product-option-mutations']).toBe(
-      'node ./scripts/capture-product-option-mutation-conformance.mjs',
+      'tsx ./scripts/capture-product-option-mutation-conformance.mts',
     );
   });
 

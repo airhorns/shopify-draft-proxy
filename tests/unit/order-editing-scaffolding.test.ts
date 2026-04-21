@@ -337,7 +337,7 @@ describe('order editing scaffolding', () => {
 
   it('refreshes a dedicated blocker note with the current write_order_edits access-denied evidence', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
-    const captureScript = readFileSync(resolve(repoRoot, 'scripts/capture-order-conformance.mjs'), 'utf8');
+    const captureScript = readFileSync(resolve(repoRoot, 'scripts/capture-order-conformance.mts'), 'utf8');
     const blockerNote = readFileSync(resolve(repoRoot, 'pending/order-editing-conformance-scope-blocker.md'), 'utf8');
 
     expect(captureScript).toContain(
