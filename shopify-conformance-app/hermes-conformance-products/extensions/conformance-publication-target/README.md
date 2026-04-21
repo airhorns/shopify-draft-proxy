@@ -2,15 +2,15 @@
 
 The Channel Config Extension allows channel apps to describe channel capabilities (including for example regional coverage and listing functionality).
 
-
 ## Preparing your SVG icon for specifications
-  App icon guidelines https://shopify.dev/docs/apps/design/visual-design#app-icon
 
-  The viewbox of the svg icon MUST be 20 x 20 with origin in 0.
+App icon guidelines https://shopify.dev/docs/apps/design/visual-design#app-icon
 
-  Recommended: 
+The viewbox of the svg icon MUST be 20 x 20 with origin in 0.
 
-    Design your app icon at 1200px x 1200px. 
+Recommended:
+
+    Design your app icon at 1200px x 1200px.
 
     Your icon should not include rounded corners.
 

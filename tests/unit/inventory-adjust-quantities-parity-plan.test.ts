@@ -28,7 +28,9 @@ describe('inventoryAdjustQuantities parity plan scaffold', () => {
       {
         path: '$.matchingCount.count',
         matcher: 'any-number',
-        reason: expect.stringContaining('Only the numeric `productsCount(query: "inventory_total:>=14").count` is wildcarded'),
+        reason: expect.stringContaining(
+          'Only the numeric `productsCount(query: "inventory_total:>=14").count` is wildcarded',
+        ),
       },
     ]);
 
