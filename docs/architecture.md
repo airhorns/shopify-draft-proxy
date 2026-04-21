@@ -195,6 +195,7 @@ Snapshot misses should return the same kind of empty/null structure Shopify retu
 
 Recommended endpoints:
 
+- `GET /__meta`
 - `POST /__meta/reset`
 - `POST /__meta/commit`
 - `GET /__meta/log`
@@ -204,6 +205,7 @@ Recommended endpoints:
 
 Current implementation notes:
 
+- `GET /__meta` serves a small operator web UI backed by the existing meta API and in-memory store; it renders the current mutation log/state and exposes reset/commit controls without adding separate persistent UI state
 - `GET /__meta/config` returns the active `port`, `shopifyAdminOrigin`, `readMode`, and `snapshotPath`
 - mutation-log entries retain the original GraphQL route path as well as the raw document + variables, so commit replay can preserve the original versioned Admin API endpoint
 - `POST /__meta/commit` replays pending `staged` / `proxied` mutations against upstream Shopify in original log order using the caller-provided `X-Shopify-Access-Token`

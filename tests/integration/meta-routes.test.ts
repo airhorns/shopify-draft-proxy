@@ -46,6 +46,50 @@ describe('meta routes', () => {
     });
   });
 
+  it('serves an operator web UI from the meta surface', async () => {
+    const app = createApp(config);
+    const server = app.callback();
+
+    const response = await request(server).get('/__meta');
+
+    expect(response.status).toBe(200);
+    expect(response.headers['content-type']).toContain('text/html');
+    expect(response.text).toContain('<h1>Shopify Draft Proxy</h1>');
+    expect(response.text).toContain('data-action-path="/__meta/commit"');
+    expect(response.text).toContain('data-action-path="/__meta/reset"');
+    expect(response.text).toContain('id="operation-log-json"');
+    expect(response.text).toContain('No operations staged.');
+  });
+
+  it('renders the current operation log and staged state in the operator web UI', async () => {
+    const app = createApp(config);
+    const server = app.callback();
+
+    const createResponse = await request(server)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateDraft($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }',
+        variables: {
+          product: {
+            title: 'Staged <Hat>',
+            status: 'DRAFT',
+          },
+        },
+      });
+
+    expect(createResponse.status).toBe(200);
+    expect(createResponse.body.data.productCreate.userErrors).toEqual([]);
+
+    const response = await request(server).get('/__meta');
+
+    expect(response.status).toBe(200);
+    expect(response.text).toContain('productCreate');
+    expect(response.text).toContain('staged');
+    expect(response.text).toContain('Staged &lt;Hat&gt;');
+    expect(response.text).toContain('gid://shopify/MutationLogEntry/1');
+  });
+
   it('exposes a reset endpoint', async () => {
     const app = createApp(config);
     const server = app.callback();
