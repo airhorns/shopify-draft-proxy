@@ -43,6 +43,14 @@ The live conformance access token is no longer stored in repo `.env`. The canoni
 ~/.shopify-draft-proxy/conformance-admin-auth.json
 ```
 
+The linked Shopify app now also has a checked-in repo copy at:
+
+```text
+shopify-conformance-app/hermes-conformance-products/
+```
+
+When present, auth helper scripts prefer that repo-local app copy over the legacy `/tmp/shopify-conformance-app/...` location for reading app config and `.env` secrets. Secrets are still intentionally untracked — create a local `.env` in that app directory via `shopify app env pull` or equivalent.
+
 Generate a fresh grant link with:
 
 ```bash
