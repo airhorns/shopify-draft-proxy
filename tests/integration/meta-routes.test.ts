@@ -25,6 +25,9 @@ const emptySnapshot = {
   deletedProductIds: {},
   deletedCollectionIds: {},
   deletedCustomerIds: {},
+  orders: {},
+  draftOrders: {},
+  calculatedOrders: {},
 };
 
 describe('meta routes', () => {
@@ -100,6 +103,129 @@ describe('meta routes', () => {
       ok: true,
       message: 'state reset',
     });
+  });
+
+  it('exposes runtime-only staged object graph state without mutating it', async () => {
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const orderCreateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation MetaStateOrderCreate($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              name
+              note
+              tags
+              lineItems(first: 5) {
+                nodes {
+                  id
+                  title
+                  quantity
+                }
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          order: {
+            email: 'meta-state-order@example.com',
+            note: 'meta state order',
+            tags: ['meta-state', 'order'],
+            lineItems: [
+              {
+                title: 'Meta state order line',
+                quantity: 1,
+                priceSet: {
+                  shopMoney: {
+                    amount: '3.00',
+                    currencyCode: 'CAD',
+                  },
+                },
+              },
+            ],
+          },
+        },
+      });
+
+    expect(orderCreateResponse.status).toBe(200);
+    expect(orderCreateResponse.body.data.orderCreate.userErrors).toEqual([]);
+
+    const draftOrderCreateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation MetaStateDraftOrderCreate($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              id
+              name
+              email
+              tags
+              lineItems(first: 5) {
+                nodes {
+                  id
+                  title
+                  quantity
+                }
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          input: {
+            email: 'meta-state-draft-order@example.com',
+            tags: ['meta-state', 'draft-order'],
+            lineItems: [
+              {
+                title: 'Meta state draft-order line',
+                quantity: 1,
+                originalUnitPrice: '4.00',
+                requiresShipping: false,
+                taxable: false,
+                sku: 'meta-state-draft-order',
+              },
+            ],
+          },
+        },
+      });
+
+    expect(draftOrderCreateResponse.status).toBe(200);
+    expect(draftOrderCreateResponse.body.data.draftOrderCreate.userErrors).toEqual([]);
+
+    const stateResponse = await request(app).get('/__meta/state');
+    const repeatedStateResponse = await request(app).get('/__meta/state');
+    const logResponse = await request(app).get('/__meta/log');
+    const orderId = orderCreateResponse.body.data.orderCreate.order.id;
+    const draftOrderId = draftOrderCreateResponse.body.data.draftOrderCreate.draftOrder.id;
+
+    expect(stateResponse.status).toBe(200);
+    expect(stateResponse.body.baseState.orders).toEqual({});
+    expect(stateResponse.body.baseState.draftOrders).toEqual({});
+    expect(stateResponse.body.baseState.calculatedOrders).toEqual({});
+    expect(stateResponse.body.stagedState.orders[orderId]).toMatchObject({
+      id: orderId,
+      name: '#1',
+      note: 'meta state order',
+      tags: ['meta-state', 'order'],
+    });
+    expect(stateResponse.body.stagedState.draftOrders[draftOrderId]).toMatchObject({
+      id: draftOrderId,
+      name: '#D1',
+      email: 'meta-state-draft-order@example.com',
+      tags: ['draft-order', 'meta-state'],
+    });
+    expect(stateResponse.body.stagedState.calculatedOrders).toEqual({});
+    expect(repeatedStateResponse.body).toEqual(stateResponse.body);
+    expect(logResponse.body.entries).toHaveLength(2);
   });
 
   it('replays staged mutations in original order, stops on the first upstream failure, and persists commit statuses in the log', async () => {

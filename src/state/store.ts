@@ -19,6 +19,17 @@ import type {
   StateSnapshot,
 } from './types.js';
 
+type MetaStateSnapshot = StateSnapshot & {
+  orders: Record<string, OrderRecord>;
+  draftOrders: Record<string, DraftOrderRecord>;
+  calculatedOrders: Record<string, CalculatedOrderRecord>;
+};
+
+interface MetaRuntimeState {
+  baseState: MetaStateSnapshot;
+  stagedState: MetaStateSnapshot;
+}
+
 const EMPTY_SNAPSHOT: StateSnapshot = {
   products: {},
   productVariants: {},
@@ -37,6 +48,22 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
 
 function cloneSnapshot(snapshot: StateSnapshot): StateSnapshot {
   return structuredClone(snapshot);
+}
+
+function buildMetaStateSnapshot(
+  snapshot: StateSnapshot,
+  extraState: {
+    orders?: Record<string, OrderRecord>;
+    draftOrders?: Record<string, DraftOrderRecord>;
+    calculatedOrders?: Record<string, CalculatedOrderRecord>;
+  } = {},
+): MetaStateSnapshot {
+  return {
+    ...cloneSnapshot(snapshot),
+    orders: structuredClone(extraState.orders ?? {}),
+    draftOrders: structuredClone(extraState.draftOrders ?? {}),
+    calculatedOrders: structuredClone(extraState.calculatedOrders ?? {}),
+  };
 }
 
 function compareProductsNewestFirst(left: ProductRecord, right: ProductRecord): number {
@@ -236,10 +263,16 @@ export class InMemoryStore {
     this.restoreInitialState();
   }
 
-  getState(): { baseState: StateSnapshot; stagedState: StateSnapshot } {
+  getState(): MetaRuntimeState {
     return {
-      baseState: cloneSnapshot(this.baseState),
-      stagedState: cloneSnapshot(this.stagedState),
+      baseState: buildMetaStateSnapshot(this.baseState, {
+        orders: this.baseOrders,
+      }),
+      stagedState: buildMetaStateSnapshot(this.stagedState, {
+        orders: this.stagedOrders,
+        draftOrders: this.stagedDraftOrders,
+        calculatedOrders: this.calculatedOrders,
+      }),
     };
   }
 
