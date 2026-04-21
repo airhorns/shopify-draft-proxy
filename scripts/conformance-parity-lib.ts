@@ -807,6 +807,22 @@ function seedCollectionProducts(collection: CollectionRecord, productNodes: unkn
   }
 }
 
+function seedMetafieldsSetOwnerProducts(capture: unknown, variables: Record<string, unknown>): void {
+  const downstreamProduct = readRecordField(
+    readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data'),
+    'product',
+  );
+  for (const input of readArrayField(variables, 'metafields').filter(isPlainObject)) {
+    const ownerId = readStringField(input, 'ownerId');
+    if (!ownerId?.startsWith('gid://shopify/Product/') || store.getEffectiveProductById(ownerId)) {
+      continue;
+    }
+
+    const source = readStringField(downstreamProduct, 'id') === ownerId ? downstreamProduct : null;
+    store.upsertBaseProducts([makeSeedProduct(ownerId, source)]);
+  }
+}
+
 function seedPreconditionsFromCapture(capture: unknown, variables: Record<string, unknown>): void {
   const payload = mutationPayloadFromCapture(capture);
   const mutationName = mutationNameFromCapture(capture);
@@ -834,6 +850,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     if (readArrayField(variables, 'options').length > 0 || readRecordField(variables, 'option')) {
       seedProductOptionState(productId, variables);
     }
+  }
+
+  if (mutationName === 'metafieldsSet') {
+    seedMetafieldsSetOwnerProducts(capture, variables);
   }
 
   const collectionPayload = readRecordField(payload, 'collection');

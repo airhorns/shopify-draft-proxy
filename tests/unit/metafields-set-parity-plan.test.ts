@@ -8,19 +8,55 @@ describe('metafieldsSet parity plan scaffold', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
     const specPath = resolve(repoRoot, 'config/parity-specs/metafieldsSet-parity-plan.json');
     const spec = JSON.parse(readFileSync(specPath, 'utf8')) as {
-      proxyRequest?: { documentPath?: string | null; variablesPath?: string | null };
+      blocker?: unknown;
+      comparison?: {
+        targets?: Array<{
+          name?: string;
+          capturePath?: string;
+          proxyPath?: string;
+          proxyRequest?: { documentPath?: string };
+        }>;
+      };
+      proxyRequest?: {
+        documentPath?: string | null;
+        variablesPath?: string | null;
+        variablesCapturePath?: string | null;
+      };
     };
 
     expect(spec.proxyRequest?.documentPath).toBe('config/parity-requests/metafieldsSet-parity-plan.graphql');
     expect(spec.proxyRequest?.variablesPath).toBe('config/parity-requests/metafieldsSet-parity-plan.variables.json');
+    expect(spec.proxyRequest?.variablesCapturePath).toBe('$.mutation.variables');
+    expect(spec.blocker).toBeUndefined();
+    expect(spec.comparison?.targets).toEqual([
+      {
+        name: 'mutation-data',
+        capturePath: '$.mutation.response.data',
+        proxyPath: '$.data',
+      },
+      {
+        name: 'downstream-read-data',
+        capturePath: '$.downstreamRead.data',
+        proxyRequest: {
+          documentPath: 'config/parity-requests/metafieldsSet-downstream-read.graphql',
+          variables: {
+            id: 'gid://shopify/Product/9257219227881',
+          },
+        },
+        proxyPath: '$.data',
+      },
+    ]);
 
     const documentPath = resolve(repoRoot, spec.proxyRequest!.documentPath!);
     const variablesPath = resolve(repoRoot, spec.proxyRequest!.variablesPath!);
+    const downstreamDocumentPath = resolve(repoRoot, 'config/parity-requests/metafieldsSet-downstream-read.graphql');
 
     expect(existsSync(documentPath)).toBe(true);
     expect(existsSync(variablesPath)).toBe(true);
+    expect(existsSync(downstreamDocumentPath)).toBe(true);
 
     const document = readFileSync(documentPath, 'utf8');
+    const downstreamDocument = readFileSync(downstreamDocumentPath, 'utf8');
     const variables = JSON.parse(readFileSync(variablesPath, 'utf8')) as {
       metafields?: Array<Record<string, unknown>>;
     };
@@ -34,6 +70,9 @@ describe('metafieldsSet parity plan scaffold', () => {
     expect(document).toContain('type');
     expect(document).toContain('value');
     expect(document).toContain('userErrors {');
+    expect(downstreamDocument).toContain('primarySpec: metafield(namespace: "custom", key: "material")');
+    expect(downstreamDocument).toContain('origin: metafield(namespace: "details", key: "origin")');
+    expect(downstreamDocument).toContain('metafields(first: 10)');
 
     expect(variables.metafields).toEqual([
       {

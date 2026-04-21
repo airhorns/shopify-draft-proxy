@@ -3030,6 +3030,170 @@ describe('product draft flow', () => {
     });
   });
 
+  it('upserts metafieldsSet against hydrated product metafields with product-scoped downstream replacement reads', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as { query?: string }) : {};
+      const query = body.query ?? '';
+
+      if (query.includes('product(id:')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              product: {
+                id: 'gid://shopify/Product/2',
+                title: 'Hydrated Metafields Hat',
+                handle: 'hydrated-metafields-hat',
+                status: 'ACTIVE',
+                createdAt: '2024-01-01T00:00:00.000Z',
+                updatedAt: '2024-01-02T00:00:00.000Z',
+                metafields: {
+                  edges: [
+                    {
+                      node: {
+                        id: 'gid://shopify/Metafield/9001',
+                        namespace: 'custom',
+                        key: 'material',
+                        type: 'single_line_text_field',
+                        value: 'Canvas',
+                      },
+                    },
+                    {
+                      node: {
+                        id: 'gid://shopify/Metafield/9002',
+                        namespace: 'details',
+                        key: 'origin',
+                        type: 'single_line_text_field',
+                        value: 'VN',
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        );
+      }
+
+      throw new Error(`Unexpected fetch during metafieldsSet upsert test: ${String(input)}`);
+    });
+
+    const app = createApp(config).callback();
+
+    const hydrateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query ($id: ID!) { product(id: $id) { id title handle status createdAt updatedAt metafields(first: 10) { edges { node { id namespace key type value } } } } }',
+        variables: { id: 'gid://shopify/Product/2' },
+      });
+
+    expect(hydrateResponse.status).toBe(200);
+    expect(hydrateResponse.body.data.product.metafields.edges).toHaveLength(2);
+    const fetchCountBeforeMutation = fetchSpy.mock.calls.length;
+
+    const setResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation SetMetafields($metafields: [MetafieldsSetInput!]!) { metafieldsSet(metafields: $metafields) { metafields { id namespace key type value } userErrors { field message } } }',
+        variables: {
+          metafields: [
+            {
+              ownerId: 'gid://shopify/Product/2',
+              namespace: 'custom',
+              key: 'material',
+              type: 'single_line_text_field',
+              value: 'Wool',
+            },
+            {
+              ownerId: 'gid://shopify/Product/2',
+              namespace: 'marketing',
+              key: 'campaign',
+              type: 'single_line_text_field',
+              value: 'Spring',
+            },
+          ],
+        },
+      });
+
+    expect(setResponse.status).toBe(200);
+    expect(fetchSpy.mock.calls.length).toBe(fetchCountBeforeMutation);
+    expect(setResponse.body.data.metafieldsSet).toEqual({
+      metafields: [
+        {
+          id: 'gid://shopify/Metafield/9001',
+          namespace: 'custom',
+          key: 'material',
+          type: 'single_line_text_field',
+          value: 'Wool',
+        },
+        {
+          id: expect.stringMatching(/^gid:\/\/shopify\/Metafield\//),
+          namespace: 'marketing',
+          key: 'campaign',
+          type: 'single_line_text_field',
+          value: 'Spring',
+        },
+      ],
+      userErrors: [],
+    });
+
+    const newMetafield = setResponse.body.data.metafieldsSet.metafields[1];
+    const overlayResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query ($id: ID!) { product(id: $id) { id primarySpec: metafield(namespace: "custom", key: "material") { id namespace key type value } origin: metafield(namespace: "details", key: "origin") { id namespace key type value } campaign: metafield(namespace: "marketing", key: "campaign") { id namespace key type value } metafields(first: 10) { nodes { id namespace key type value } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }',
+        variables: { id: 'gid://shopify/Product/2' },
+      });
+
+    expect(overlayResponse.status).toBe(200);
+    expect(overlayResponse.body.data.product.primarySpec).toEqual({
+      id: 'gid://shopify/Metafield/9001',
+      namespace: 'custom',
+      key: 'material',
+      type: 'single_line_text_field',
+      value: 'Wool',
+    });
+    expect(overlayResponse.body.data.product.origin).toEqual({
+      id: 'gid://shopify/Metafield/9002',
+      namespace: 'details',
+      key: 'origin',
+      type: 'single_line_text_field',
+      value: 'VN',
+    });
+    expect(overlayResponse.body.data.product.campaign).toEqual(newMetafield);
+    expect(overlayResponse.body.data.product.metafields).toEqual({
+      nodes: [
+        {
+          id: 'gid://shopify/Metafield/9001',
+          namespace: 'custom',
+          key: 'material',
+          type: 'single_line_text_field',
+          value: 'Wool',
+        },
+        {
+          id: 'gid://shopify/Metafield/9002',
+          namespace: 'details',
+          key: 'origin',
+          type: 'single_line_text_field',
+          value: 'VN',
+        },
+        newMetafield,
+      ],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: 'cursor:gid://shopify/Metafield/9001',
+        endCursor: `cursor:${newMetafield.id}`,
+      },
+    });
+  });
+
   it('stages metafieldDelete locally against hydrated product metafields and removes the deleted metafield from downstream reads', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as { query?: string }) : {};
