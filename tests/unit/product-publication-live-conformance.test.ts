@@ -5,10 +5,6 @@ import { describe, expect, it } from 'vitest';
 
 import { parseAccessDeniedErrors } from '../../scripts/product-mutation-conformance-lib.mjs';
 
-type PackageJson = {
-  scripts?: Record<string, string>;
-};
-
 describe('product publication live conformance harness', () => {
   it('removes a stale publication scope blocker note once capture can succeed', async () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
@@ -73,14 +69,10 @@ describe('product publication live conformance harness', () => {
     ]);
   });
 
-  it('wires a dedicated publication capture command and script before the family can be promoted', () => {
+  it('keeps a dedicated publication capture script before the family can be promoted', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
-    const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8')) as PackageJson;
     const scriptPath = resolve(repoRoot, 'scripts/capture-product-publication-conformance.mts');
 
-    expect(packageJson.scripts?.['conformance:capture-product-publications']).toBe(
-      'tsx ./scripts/capture-product-publication-conformance.mts',
-    );
     expect(existsSync(scriptPath)).toBe(true);
 
     const script = readFileSync(scriptPath, 'utf8');

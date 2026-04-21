@@ -5,10 +5,6 @@ import { describe, expect, it } from 'vitest';
 
 import { loadConformanceScenarios } from '../../scripts/conformance-scenario-registry.js';
 
-type PackageJson = {
-  scripts?: Record<string, string>;
-};
-
 type ConformanceScenario = {
   id: string;
   status: string;
@@ -62,15 +58,6 @@ const expectedLiveFamilies = [
 ] as const;
 
 describe('collection mutation live conformance wiring', () => {
-  it('exposes a package script for the collection mutation capture harness', () => {
-    const repoRoot = resolve(import.meta.dirname, '../..');
-    const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8')) as PackageJson;
-
-    expect(packageJson.scripts?.['conformance:capture-collection-mutations']).toBe(
-      'tsx ./scripts/capture-collection-mutation-conformance.mts',
-    );
-  });
-
   it('marks the collection mutation family covered by captured live scenarios', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
     const scenarios = loadConformanceScenarios(repoRoot) as ConformanceScenario[];

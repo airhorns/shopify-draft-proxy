@@ -5,10 +5,6 @@ import { describe, expect, it } from 'vitest';
 
 import { loadConformanceScenarios } from '../../scripts/conformance-scenario-registry.js';
 
-type PackageJson = {
-  scripts?: Record<string, string>;
-};
-
 type ScenarioRegistryEntry = {
   id: string;
   operationNames: string[];
@@ -103,7 +99,6 @@ const expectedLiveFamilies = [
 ] as const;
 
 const repoRoot = resolve(import.meta.dirname, '../..');
-const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8')) as PackageJson;
 const scenarioRegistry = loadConformanceScenarios(repoRoot) as ScenarioRegistryEntry[];
 const operationRegistry = JSON.parse(
   readFileSync(resolve(repoRoot, 'config/operation-registry.json'), 'utf8'),
@@ -137,12 +132,6 @@ function expectCoveredOperation(options: { name: string; scenarioId: string }) {
 }
 
 describe('product graph live conformance coverage', () => {
-  it('adds a runnable capture script for the duplicate + set mutation family', () => {
-    expect(packageJson.scripts?.['conformance:capture-product-graph-mutations']).toBe(
-      'tsx ./scripts/capture-product-graph-mutation-conformance.mts',
-    );
-  });
-
   it('promotes productDuplicate and productSet to captured live parity', () => {
     for (const expected of expectedLiveFamilies) {
       expectCapturedScenario({

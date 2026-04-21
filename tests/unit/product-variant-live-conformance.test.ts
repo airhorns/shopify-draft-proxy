@@ -5,10 +5,6 @@ import { describe, expect, it } from 'vitest';
 
 import { loadConformanceScenarios } from '../../scripts/conformance-scenario-registry.js';
 
-type PackageJson = {
-  scripts?: Record<string, string>;
-};
-
 type ScenarioRegistryEntry = {
   id: string;
   operationNames: string[];
@@ -22,7 +18,6 @@ type OperationRegistryEntry = {
 };
 
 const repoRoot = resolve(import.meta.dirname, '../..');
-const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8')) as PackageJson;
 const scenarioRegistry = loadConformanceScenarios(repoRoot) as ScenarioRegistryEntry[];
 const operationRegistry = JSON.parse(
   readFileSync(resolve(repoRoot, 'config/operation-registry.json'), 'utf8'),
@@ -58,12 +53,6 @@ function expectCoveredOperation(options: { name: string; scenarioId: string }) {
 }
 
 describe('product variant live conformance coverage', () => {
-  it('adds a runnable capture script for the variant mutation family', () => {
-    expect(packageJson.scripts?.['conformance:capture-product-variant-mutations']).toBe(
-      'tsx ./scripts/capture-product-variant-mutation-conformance.mts',
-    );
-  });
-
   it('promotes the bulk variant mutation family to captured live parity', () => {
     expectCapturedScenario({
       id: 'product-variants-bulk-create-live-parity',

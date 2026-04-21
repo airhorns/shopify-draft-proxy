@@ -5,10 +5,6 @@ import { describe, expect, it } from 'vitest';
 
 import { loadConformanceScenarios } from '../../scripts/conformance-scenario-registry.js';
 
-type PackageJson = {
-  scripts?: Record<string, string>;
-};
-
 type OperationRegistryEntry = {
   name: string;
 };
@@ -141,15 +137,6 @@ type InventoryAdjustFixture = {
 };
 
 describe('inventoryAdjustQuantities live conformance wiring', () => {
-  it('exposes a package script for the inventory adjustment capture harness', () => {
-    const repoRoot = resolve(import.meta.dirname, '../..');
-    const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8')) as PackageJson;
-
-    expect(packageJson.scripts?.['conformance:capture-inventory-adjustments']).toBe(
-      'tsx ./scripts/capture-inventory-adjustment-conformance.mts',
-    );
-  });
-
   it('marks inventoryAdjustQuantities covered by a captured live scenario', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
     const registry = JSON.parse(

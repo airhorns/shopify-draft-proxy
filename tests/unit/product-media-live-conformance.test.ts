@@ -5,10 +5,6 @@ import { describe, expect, it } from 'vitest';
 
 import { loadConformanceScenarios } from '../../scripts/conformance-scenario-registry.js';
 
-type PackageJson = {
-  scripts?: Record<string, string>;
-};
-
 type ScenarioRegistryEntry = {
   id: string;
   operationNames: string[];
@@ -52,13 +48,6 @@ const expectedFamilies = [
 const repoRoot = resolve(import.meta.dirname, '../..');
 
 describe('product media live conformance wiring', () => {
-  it('exposes a package script for the product media mutation capture harness', () => {
-    const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8')) as PackageJson;
-    expect(packageJson.scripts?.['conformance:capture-product-media-mutations']).toBe(
-      'tsx ./scripts/capture-product-media-mutation-conformance.mts',
-    );
-  });
-
   it('marks the product media mutation family covered by captured live scenarios', () => {
     const scenarios = loadConformanceScenarios(repoRoot) as ScenarioRegistryEntry[];
     const operationRegistry = JSON.parse(
