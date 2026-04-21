@@ -1,0 +1,22 @@
+handle = "example-us"
+label = "example.com"
+productFeedManagement = "automatic"
+
+[capabilities]
+bundles = true
+digitalProducts = true
+subscriptions = false
+combinedListings = true
+unlistedProducts = true
+scheduledPublishing = true
+
+[requirements]
+expectsOnlineStoreParity = true
+merchantOfRecord = "merchant"
+
+[[countries]]
+code = "US"
+languages = [
+  "en"
+]
+currency = "USD"

@@ -4,6 +4,8 @@ export declare const SHOPIFY_CONFORMANCE_PKCE_PATH: string;
 export declare const SHOPIFY_CONFORMANCE_AUTH_REQUEST_PATH: string;
 
 export declare function buildAdminAuthHeaders(token: string): Record<string, string>;
+export declare function resolveDefaultAppRoot(options?: { repoRoot?: string }): string;
+export declare function resolveDefaultAppEnvPath(options?: { repoRoot?: string }): string;
 
 export declare function refreshConformanceAccessToken(options?: {
   credentialPath?: string;

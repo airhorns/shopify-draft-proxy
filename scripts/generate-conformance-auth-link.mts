@@ -9,6 +9,7 @@ import {
   SHOPIFY_CONFORMANCE_AUTH_REQUEST_PATH,
   SHOPIFY_CONFORMANCE_PKCE_PATH,
   createConformanceAuthRequest,
+  resolveDefaultAppRoot,
 } from './shopify-conformance-auth.mjs';
 
 function extractTomlString(source, key) {
@@ -41,8 +42,8 @@ if (!storeDomain) {
   throw new Error('SHOPIFY_CONFORMANCE_STORE_DOMAIN is required to generate a Shopify auth link.');
 }
 
-const appHandle = process.env['SHOPIFY_CONFORMANCE_APP_HANDLE'] || 'hermes-conformance-products';
-const appConfigPath = path.join('/tmp/shopify-conformance-app', appHandle, 'shopify.app.toml');
+const appRoot = resolveDefaultAppRoot();
+const appConfigPath = path.join(appRoot, 'shopify.app.toml');
 const appConfig = await readFile(appConfigPath, 'utf8');
 const clientId = extractTomlString(appConfig, 'client_id');
 const scopes = extractTomlScopes(appConfig);
