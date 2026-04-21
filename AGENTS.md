@@ -41,6 +41,10 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 - Expose and test the meta API.
 - Add tests for every supported operation.
 - Prefer conformance fixtures over hand-wavy comments about expected behavior.
+- Treat conformance `expectedDifferences` as a last resort after modeling or
+  fixture seeding has been exhausted; do not add them merely to make parity
+  tests pass. Opaque Shopify connection cursors are an acceptable expected
+  difference because clients must not depend on their internal encoding.
 - Repo scripts must be TypeScript files executed with `tsx` or similar, not
   `.mjs` files. Do not add `.mjs` files anywhere in this repository.
 

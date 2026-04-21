@@ -15,26 +15,6 @@
     "mode": "strict-json",
     "expectedDifferences": [
       {
-        "path": "$.metafieldsSet.metafields[*].id",
-        "matcher": "shopify-gid:Metafield",
-        "reason": "Shopify and the local parity harness allocate metafield identifiers independently."
-      },
-      {
-        "path": "$.product.primarySpec.id",
-        "matcher": "shopify-gid:Metafield",
-        "reason": "The downstream proxy read returns the local metafield identifier created by the staged mutation."
-      },
-      {
-        "path": "$.product.origin.id",
-        "matcher": "shopify-gid:Metafield",
-        "reason": "The downstream proxy read returns the local metafield identifier created by the staged mutation."
-      },
-      {
-        "path": "$.product.metafields.nodes[*].id",
-        "matcher": "shopify-gid:Metafield",
-        "reason": "The downstream proxy connection returns local metafield identifiers created by the staged mutation."
-      },
-      {
         "path": "$.product.metafields.pageInfo.startCursor",
         "matcher": "non-empty-string",
         "reason": "Shopify returns opaque base64 cursors while the local serializer uses stable synthetic cursors for staged metafields."

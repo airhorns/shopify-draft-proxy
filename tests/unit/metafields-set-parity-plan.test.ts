@@ -10,6 +10,7 @@ describe('metafieldsSet parity plan scaffold', () => {
     const spec = JSON.parse(readFileSync(specPath, 'utf8')) as {
       blocker?: unknown;
       comparison?: {
+        expectedDifferences?: Array<{ path?: string }>;
         targets?: Array<{
           name?: string;
           capturePath?: string;
@@ -28,6 +29,10 @@ describe('metafieldsSet parity plan scaffold', () => {
     expect(spec.proxyRequest?.variablesPath).toBe('config/parity-requests/metafieldsSet-parity-plan.variables.json');
     expect(spec.proxyRequest?.variablesCapturePath).toBe('$.mutation.variables');
     expect(spec.blocker).toBeUndefined();
+    expect(spec.comparison?.expectedDifferences?.map((difference) => difference.path)).toEqual([
+      '$.product.metafields.pageInfo.startCursor',
+      '$.product.metafields.pageInfo.endCursor',
+    ]);
     expect(spec.comparison?.targets).toEqual([
       {
         name: 'mutation-data',
