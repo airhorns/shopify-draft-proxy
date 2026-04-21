@@ -1,7 +1,7 @@
-import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { parseJsonFileWithSchema, paritySpecSchema } from '../src/json-schemas.js';
 import {
   classifyParityScenarioState,
   executeParityScenario,
@@ -33,7 +33,7 @@ if (selectedScenarios.length === 0) {
 const results = [];
 for (const scenario of selectedScenarios) {
   const paritySpecPath = path.join(repoRoot, scenario.paritySpecPath);
-  const paritySpec = JSON.parse(readFileSync(paritySpecPath, 'utf8')) as ParitySpec;
+  const paritySpec = parseJsonFileWithSchema(paritySpecPath, paritySpecSchema) as ParitySpec;
 
   const state = classifyParityScenarioState(scenario, paritySpec);
   const comparisonContractErrors = validateComparisonContract(paritySpec.comparison);
