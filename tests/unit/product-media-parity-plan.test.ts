@@ -113,4 +113,34 @@ describe('product media parity plan scaffolds', () => {
       true,
     );
   });
+
+  it('promotes productUpdateMedia to explicit mutation and downstream read comparisons', () => {
+    const repoRoot = resolve(import.meta.dirname, '../..');
+    const spec = JSON.parse(
+      readFileSync(resolve(repoRoot, 'config/parity-specs/productUpdateMedia-parity-plan.json'), 'utf8'),
+    ) as ParitySpec;
+
+    expect(spec.blocker).toBeUndefined();
+    expect(spec.proxyRequest?.variablesCapturePath).toBe('$.mutation.variables');
+    expect(spec.comparison?.targets).toEqual([
+      {
+        name: 'mutation-data',
+        capturePath: '$.mutation.response.data',
+        proxyPath: '$.data',
+      },
+      {
+        name: 'downstream-read-data',
+        capturePath: '$.downstreamRead.data',
+        proxyRequest: {
+          documentPath: 'config/parity-requests/productUpdateMedia-downstream-read.graphql',
+          variablesCapturePath: '$.mutation.variables',
+        },
+        proxyPath: '$.data',
+      },
+    ]);
+    expect(spec.comparison?.expectedDifferences).toEqual([]);
+    expect(existsSync(resolve(repoRoot, 'config/parity-requests/productUpdateMedia-downstream-read.graphql'))).toBe(
+      true,
+    );
+  });
 });
