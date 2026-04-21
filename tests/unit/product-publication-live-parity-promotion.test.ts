@@ -3,6 +3,8 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import type { ParitySpec } from '../../scripts/conformance-parity-lib.js';
+
 import { loadConformanceScenarios } from '../../scripts/conformance-scenario-registry.js';
 
 type ScenarioRegistryEntry = {
@@ -16,39 +18,6 @@ type ScenarioRegistryEntry = {
 
 type OperationRegistryEntry = {
   name: string;
-};
-
-type ParitySpec = {
-  scenarioId: string;
-  scenarioStatus: string;
-  liveCaptureFiles: string[];
-  comparisonMode: string;
-  notes?: string;
-  blocker?: {
-    kind?: string;
-    blockerPath?: string;
-    details?: {
-      blockedFields?: string[];
-      blockedMutations?: string[];
-      appConfigPath?: string;
-      appId?: string;
-      appHandle?: string;
-      publicationTargetStatus?: string;
-      publicationTargetMessage?: string;
-      shopifyAppCliAuthStatus?: string;
-      shopifyAppCliAuthWorkdir?: string;
-      shopifyAppDeployStatus?: string;
-      shopifyAppDeployCommand?: string;
-      shopifyAppDeployVersion?: string;
-      channelConfigExtensionPath?: string;
-      channelConfigHandle?: string;
-      channelConfigCreateLegacyChannelOnAppInstall?: boolean;
-      publicationTargetRemediation?: string;
-      activeCredentialTokenFamily?: string;
-      activeCredentialHeaderMode?: string;
-      activeCredentialSummary?: string;
-    };
-  };
 };
 
 const expectedCoveredFamilies = [

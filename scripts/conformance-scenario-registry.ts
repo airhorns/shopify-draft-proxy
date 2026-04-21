@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { ParitySpec } from './conformance-parity-lib.js';
 
 export const defaultRepoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -8,24 +9,6 @@ const paritySpecDirectory = path.join('config', 'parity-specs');
 const overrideConfigPath = path.join('config', 'conformance-scenario-overrides.json');
 
 type JsonRecord = Record<string, unknown>;
-
-type ParitySpec = {
-  scenarioId?: unknown;
-  operationNames?: unknown;
-  scenarioStatus?: unknown;
-  assertionKinds?: unknown;
-  liveCaptureFiles?: unknown;
-  comparison?: {
-    expectedDifferences?: Array<{
-      path?: string;
-      reason?: string;
-      matcher?: string;
-      ignore?: boolean;
-      regrettable?: true;
-    }>;
-  };
-  notes?: unknown;
-};
 
 export type ConformanceScenario = {
   id: string;

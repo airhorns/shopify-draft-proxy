@@ -3,6 +3,8 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import type { ParitySpec } from '../../scripts/conformance-parity-lib.js';
+
 const expectedPlans = [
   {
     scenarioId: 'product-create-media-live-parity',
@@ -29,25 +31,6 @@ const expectedPlans = [
     rootCall: 'productDeleteMedia(productId: $productId, mediaIds: $mediaIds)',
   },
 ] as const;
-
-type ParitySpec = {
-  scenarioId: string;
-  proxyRequest?: {
-    documentPath?: string | null;
-    variablesPath?: string | null;
-    variablesCapturePath?: string | null;
-  };
-  comparison?: {
-    expectedDifferences?: Array<{ path?: string; matcher?: string }>;
-    targets?: Array<{
-      name?: string;
-      capturePath?: string;
-      proxyPath?: string;
-      proxyRequest?: { documentPath?: string | null };
-    }>;
-  };
-  blocker?: unknown;
-};
 
 describe('product media parity plan scaffolds', () => {
   it('declares concrete proxy request scaffolds for the staged media mutation family', () => {
