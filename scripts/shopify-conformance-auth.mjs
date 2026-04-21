@@ -7,7 +7,10 @@ import path from 'node:path';
 
 export const SHOPIFY_CONFORMANCE_AUTH_DIR = path.join(homedir(), '.shopify-draft-proxy');
 export const SHOPIFY_CONFORMANCE_AUTH_PATH = path.join(SHOPIFY_CONFORMANCE_AUTH_DIR, 'conformance-admin-auth.json');
-export const SHOPIFY_CONFORMANCE_PKCE_PATH = path.join(SHOPIFY_CONFORMANCE_AUTH_DIR, 'conformance-admin-auth-pkce.json');
+export const SHOPIFY_CONFORMANCE_PKCE_PATH = path.join(
+  SHOPIFY_CONFORMANCE_AUTH_DIR,
+  'conformance-admin-auth-pkce.json',
+);
 export const SHOPIFY_CONFORMANCE_AUTH_REQUEST_PATH = path.join(
   SHOPIFY_CONFORMANCE_AUTH_DIR,
   'conformance-admin-auth-request.json',
@@ -92,7 +95,9 @@ function isLikelyAuthFailure(result) {
   }
 
   const payloadErrors = Array.isArray(result.payload?.errors) ? result.payload.errors : [];
-  return payloadErrors.some((entry) => typeof entry?.message === 'string' && /access token|authentication|invalid api key/i.test(entry.message));
+  return payloadErrors.some(
+    (entry) => typeof entry?.message === 'string' && /access token|authentication|invalid api key/i.test(entry.message),
+  );
 }
 
 function normalizeErrorText(input) {
@@ -101,7 +106,9 @@ function normalizeErrorText(input) {
 
 function extractClearErrorMessage(payload, fallbackStatus) {
   if (typeof payload === 'string') {
-    const htmlStripped = normalizeErrorText(payload.replace(/<style[\s\S]*?<\/style>/giu, ' ').replace(/<[^>]+>/gu, ' '));
+    const htmlStripped = normalizeErrorText(
+      payload.replace(/<style[\s\S]*?<\/style>/giu, ' ').replace(/<[^>]+>/gu, ' '),
+    );
     const activeRefreshTokenMatch = htmlStripped.match(/This request requires an active refresh_token/iu);
     if (activeRefreshTokenMatch?.[0]) {
       return activeRefreshTokenMatch[0];
@@ -247,28 +254,30 @@ export async function refreshConformanceAccessToken({
   }
 
   if (typeof payload?.access_token !== 'string' || payload.access_token.length === 0) {
-    throw new Error(`Shopify refresh response from https://${shop}/admin/oauth/access_token did not include access_token.`);
+    throw new Error(
+      `Shopify refresh response from https://${shop}/admin/oauth/access_token did not include access_token.`,
+    );
   }
 
   const obtainedAt = new Date().toISOString();
   const updatedAuth = {
     ...storedAuth,
     access_token: payload.access_token,
-    refresh_token: typeof payload.refresh_token === 'string' && payload.refresh_token.length > 0 ? payload.refresh_token : refreshToken,
-    scope: typeof payload.scope === 'string' ? payload.scope : storedAuth['scope'] ?? null,
-    expires_in: Number.isInteger(payload.expires_in) ? payload.expires_in : storedAuth['expires_in'] ?? null,
-    expires_at:
-      Number.isInteger(payload.expires_in)
-        ? new Date(Date.now() + payload.expires_in * 1000).toISOString()
-        : storedAuth['expires_at'] ?? null,
-    refresh_token_expires_in:
-      Number.isInteger(payload.refresh_token_expires_in)
-        ? payload.refresh_token_expires_in
-        : storedAuth['refresh_token_expires_in'] ?? null,
-    refresh_token_expires_at:
-      Number.isInteger(payload.refresh_token_expires_in)
-        ? new Date(Date.now() + payload.refresh_token_expires_in * 1000).toISOString()
-        : storedAuth['refresh_token_expires_at'] ?? null,
+    refresh_token:
+      typeof payload.refresh_token === 'string' && payload.refresh_token.length > 0
+        ? payload.refresh_token
+        : refreshToken,
+    scope: typeof payload.scope === 'string' ? payload.scope : (storedAuth['scope'] ?? null),
+    expires_in: Number.isInteger(payload.expires_in) ? payload.expires_in : (storedAuth['expires_in'] ?? null),
+    expires_at: Number.isInteger(payload.expires_in)
+      ? new Date(Date.now() + payload.expires_in * 1000).toISOString()
+      : (storedAuth['expires_at'] ?? null),
+    refresh_token_expires_in: Number.isInteger(payload.refresh_token_expires_in)
+      ? payload.refresh_token_expires_in
+      : (storedAuth['refresh_token_expires_in'] ?? null),
+    refresh_token_expires_at: Number.isInteger(payload.refresh_token_expires_in)
+      ? new Date(Date.now() + payload.refresh_token_expires_in * 1000).toISOString()
+      : (storedAuth['refresh_token_expires_at'] ?? null),
     obtained_at: obtainedAt,
     token_family: tokenFamily(payload.access_token),
     client_id: clientId,
@@ -303,7 +312,9 @@ export async function getValidConformanceAccessToken({
   }
 
   if (!isLikelyAuthFailure(probeResult)) {
-    throw new Error(`Stored Shopify conformance access token probe failed: ${extractClearErrorMessage(probeResult.payload, probeResult.status)}`);
+    throw new Error(
+      `Stored Shopify conformance access token probe failed: ${extractClearErrorMessage(probeResult.payload, probeResult.status)}`,
+    );
   }
 
   try {
@@ -320,7 +331,7 @@ export async function getValidConformanceAccessToken({
     return refreshedAuth['access_token'];
   } catch (error) {
     throw new Error(
-      `Stored Shopify conformance access token is invalid and refresh failed: ${(error instanceof Error ? error.message : String(error))}`,
+      `Stored Shopify conformance access token is invalid and refresh failed: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 }
@@ -393,7 +404,9 @@ export async function exchangeConformanceAuthCallback({
   }
 
   if (!(await fileExists(authRequestPath))) {
-    throw new Error(`Shopify conformance auth request file not found at ${authRequestPath}. Generate a fresh auth link first.`);
+    throw new Error(
+      `Shopify conformance auth request file not found at ${authRequestPath}. Generate a fresh auth link first.`,
+    );
   }
 
   const requestState = await readJsonFile(authRequestPath);
@@ -440,12 +453,13 @@ export async function exchangeConformanceAuthCallback({
     refresh_token: payload['refresh_token'] ?? null,
     scope: payload['scope'] ?? requestState['scopes']?.join(',') ?? null,
     expires_in: payload['expires_in'] ?? null,
-    expires_at: Number.isInteger(payload['expires_in']) ? new Date(Date.now() + payload['expires_in'] * 1000).toISOString() : null,
+    expires_at: Number.isInteger(payload['expires_in'])
+      ? new Date(Date.now() + payload['expires_in'] * 1000).toISOString()
+      : null,
     refresh_token_expires_in: payload['refresh_token_expires_in'] ?? null,
-    refresh_token_expires_at:
-      Number.isInteger(payload['refresh_token_expires_in'])
-        ? new Date(Date.now() + payload['refresh_token_expires_in'] * 1000).toISOString()
-        : null,
+    refresh_token_expires_at: Number.isInteger(payload['refresh_token_expires_in'])
+      ? new Date(Date.now() + payload['refresh_token_expires_in'] * 1000).toISOString()
+      : null,
     obtained_at: obtainedAt,
     source_callback_url: callbackUrl,
     grant_mode: 'expiring-offline-token-pkce',

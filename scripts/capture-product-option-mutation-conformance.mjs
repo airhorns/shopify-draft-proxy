@@ -24,7 +24,6 @@ const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
 const pendingDir = 'pending';
 const blockerPath = path.join(pendingDir, 'product-option-mutation-conformance-scope-blocker.md');
 
-
 async function runGraphql(query, variables = {}) {
   const response = await fetch(`${adminOrigin}/admin/api/${apiVersion}/graphql.json`, {
     method: 'POST',

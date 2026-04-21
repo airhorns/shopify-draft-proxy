@@ -22,7 +22,6 @@ const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || '2025-01';
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
 
-
 async function runGraphql(query, variables = {}) {
   const response = await fetch(`${adminOrigin}/admin/api/${apiVersion}/graphql.json`, {
     method: 'POST',

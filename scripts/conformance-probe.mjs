@@ -40,7 +40,6 @@ const query = `#graphql
   }
 `;
 
-
 const response = await fetch(`${adminOrigin}/admin/api/${apiVersion}/graphql.json`, {
   method: 'POST',
   headers: {

@@ -21,7 +21,7 @@ const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || '2025-01';
 const persisted = await exchangeConformanceAuthCallback({ callbackUrl });
 const accessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 
-console.log(
+process.stdout.write(
   JSON.stringify(
     {
       ok: true,
@@ -34,5 +34,5 @@ console.log(
     },
     null,
     2,
-  ),
+  ) + '\n',
 );
