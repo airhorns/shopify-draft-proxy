@@ -17,7 +17,5 @@ merchantOfRecord = "merchant"
 
 [[countries]]
 code = "DE"
-languages = [
-  "de"
-]
+languages = ["de"]
 currency = "EUR"

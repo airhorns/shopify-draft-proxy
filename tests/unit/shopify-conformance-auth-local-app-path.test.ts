@@ -4,10 +4,7 @@ import * as path from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  resolveDefaultAppEnvPath,
-  resolveDefaultAppRoot,
-} from '../../scripts/shopify-conformance-auth.mjs';
+import { resolveDefaultAppEnvPath, resolveDefaultAppRoot } from '../../scripts/shopify-conformance-auth.mjs';
 
 async function createTempDir(prefix: string): Promise<string> {
   return await mkdtemp(path.join(tmpdir(), prefix));
@@ -47,12 +44,7 @@ describe('resolveDefaultAppEnvPath', () => {
   it('prefers a repo-local checked-in app env path when present', async () => {
     const repoRoot = await createTempDir('shopify-auth-repo-');
     process.env['SHOPIFY_CONFORMANCE_APP_HANDLE'] = 'hermes-conformance-products';
-    const envPath = path.join(
-      repoRoot,
-      'shopify-conformance-app',
-      'hermes-conformance-products',
-      '.env',
-    );
+    const envPath = path.join(repoRoot, 'shopify-conformance-app', 'hermes-conformance-products', '.env');
     await mkdir(path.dirname(envPath), { recursive: true });
     await writeFile(envPath, 'SHOPIFY_API_SECRET=repo-local-secret\n', 'utf8');
 

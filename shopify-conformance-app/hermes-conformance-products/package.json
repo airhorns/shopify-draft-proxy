@@ -1,7 +1,12 @@
 {
   "name": "hermes-conformance-products",
   "version": "1.0.0",
+  "private": true,
   "license": "UNLICENSED",
+  "author": "airhorns",
+  "workspaces": [
+    "extensions/*"
+  ],
   "scripts": {
     "shopify": "shopify",
     "build": "shopify app build",
@@ -15,10 +20,5 @@
   },
   "trustedDependencies": [
     "@shopify/plugin-cloudflare"
-  ],
-  "author": "airhorns",
-  "private": true,
-  "workspaces": [
-    "extensions/*"
   ]
 }
