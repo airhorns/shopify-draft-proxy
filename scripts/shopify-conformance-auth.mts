@@ -2,6 +2,7 @@
 import 'dotenv/config';
 
 import { randomBytes, createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
@@ -179,13 +180,22 @@ async function probeAccessToken({ adminOrigin, apiVersion = DEFAULT_API_VERSION,
   };
 }
 
-function resolveDefaultAppEnvPath() {
+export function resolveDefaultAppRoot({ repoRoot = process.cwd() } = {}) {
+  const appHandle = process.env['SHOPIFY_CONFORMANCE_APP_HANDLE'] || 'hermes-conformance-products';
+  const repoLocalRoot = path.join(repoRoot, 'shopify-conformance-app', appHandle);
+  if (existsSync(repoLocalRoot)) {
+    return repoLocalRoot;
+  }
+
+  return path.join('/tmp/shopify-conformance-app', appHandle);
+}
+
+export function resolveDefaultAppEnvPath({ repoRoot = process.cwd() } = {}) {
   if (process.env['SHOPIFY_CONFORMANCE_APP_ENV_PATH']) {
     return process.env['SHOPIFY_CONFORMANCE_APP_ENV_PATH'];
   }
 
-  const appHandle = process.env['SHOPIFY_CONFORMANCE_APP_HANDLE'] || 'hermes-conformance-products';
-  return path.join('/tmp/shopify-conformance-app', appHandle, '.env');
+  return path.join(resolveDefaultAppRoot({ repoRoot }), '.env');
 }
 
 async function readShopifyApiSecret(appEnvPath) {

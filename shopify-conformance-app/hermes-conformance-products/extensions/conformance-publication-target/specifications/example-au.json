@@ -1,0 +1,26 @@
+{
+  "handle": "example-au",
+  "label": "example.au",
+  "icon": "icons/example-channel-icon.svg",
+  "capabilities": {
+    "bundles": true,
+    "digitalProducts": true,
+    "subscriptions": false,
+    "combinedListings": true,
+    "unlistedProducts": true,
+    "scheduledPublishing": true
+  },
+  "requirements": {
+    "expectsOnlineStoreParity": true,
+    "merchantOfRecord": "merchant"
+  },
+  "countries": [
+    {
+      "code": "AU",
+      "languages": [
+        "en"
+      ],
+      "currency": "AUD"
+    }
+  ]
+}
