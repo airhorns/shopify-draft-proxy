@@ -8,16 +8,29 @@
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/productUpdateMedia-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/productUpdateMedia-parity-plan.variables.json"
+    "variablesPath": "config/parity-requests/productUpdateMedia-parity-plan.variables.json",
+    "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live capture now covers `productUpdateMedia` once the asset is `READY`; a pre-ready update returns `mediaUserErrors` instead of a successful payload, so the staged runtime keeps that non-ready rejection explicit.",
+  "notes": "Executed by the conformance parity runner against the local staged-mutation path with live fixture variables. Live capture covers `productUpdateMedia` once the asset is `READY`; a pre-ready update returns `mediaUserErrors` instead of a successful payload, so the staged runtime keeps that non-ready rejection explicit.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/productUpdateMedia-downstream-read.graphql",
+          "variablesCapturePath": "$.mutation.variables"
+        },
+        "proxyPath": "$.data"
+      }
+    ]
   }
 }
