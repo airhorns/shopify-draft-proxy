@@ -6,16 +6,29 @@
   "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/inventory-linkage-parity.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/inventoryBulkToggleActivation-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/inventoryBulkToggleActivation-parity-plan.variables.json"
+    "variablesPath": "config/parity-requests/inventoryBulkToggleActivation-parity-plan.variables.json",
+    "variablesCapturePath": "$.inventoryBulkToggleActivateNoOp.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "notes": "Live capture now covers the first safe `inventoryBulkToggleActivation` slice on this host: `activate: true` against the already-active only location is a no-op success, while `activate: false` returns the captured `CANNOT_DEACTIVATE_FROM_ONLY_LOCATION` userError.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "activate-already-active-no-op-mutation-data",
+        "capturePath": "$.inventoryBulkToggleActivateNoOp.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "deactivate-only-location-error-mutation-data",
+        "capturePath": "$.inventoryBulkToggleDeactivateOnlyLocationError.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/inventoryBulkToggleActivation-parity-plan.graphql",
+          "variablesCapturePath": "$.inventoryBulkToggleDeactivateOnlyLocationError.variables"
+        }
+      }
+    ]
   }
 }
