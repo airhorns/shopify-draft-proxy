@@ -3,7 +3,7 @@ import type Koa from 'koa';
 import type { AppConfig } from '../config.js';
 import { createUpstreamGraphQLClient } from '../shopify/upstream-client.js';
 import { store } from '../state/store.js';
-import { resetSyntheticIdentity } from '../state/synthetic-identity.js';
+import { isProxySyntheticGid, resetSyntheticIdentity } from '../state/synthetic-identity.js';
 import type { MutationLogEntry } from '../state/types.js';
 
 interface CommitAttempt {
@@ -53,6 +53,92 @@ function buildCommitReplayBody(entry: MutationLogEntry): Record<string, unknown>
       variables: entry.variables,
     },
   );
+}
+
+function readGidResourceType(value: string): string | null {
+  const match = /^gid:\/\/shopify\/([^/?]+)\//u.exec(value);
+  return match?.[1] ?? null;
+}
+
+function replaceMappedSyntheticGids(value: unknown, idMap: Map<string, string>): unknown {
+  if (typeof value === 'string') {
+    let replaced = idMap.get(value) ?? value;
+    for (const [syntheticId, authoritativeId] of idMap.entries()) {
+      replaced = replaced.replaceAll(syntheticId, authoritativeId);
+    }
+    return replaced;
+  }
+
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => replaceMappedSyntheticGids(item, idMap));
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => {
+      return [key, replaceMappedSyntheticGids(item, idMap)];
+    }),
+  );
+}
+
+function collectAuthoritativeGidsByType(
+  value: unknown,
+  gidsByType = new Map<string, string[]>(),
+): Map<string, string[]> {
+  if (typeof value === 'string') {
+    if (value.startsWith('gid://shopify/') && !isProxySyntheticGid(value)) {
+      const resourceType = readGidResourceType(value);
+      if (resourceType) {
+        const gids = gidsByType.get(resourceType) ?? [];
+        if (!gids.includes(value)) {
+          gids.push(value);
+          gidsByType.set(resourceType, gids);
+        }
+      }
+    }
+    return gidsByType;
+  }
+
+  if (!value || typeof value !== 'object') {
+    return gidsByType;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectAuthoritativeGidsByType(item, gidsByType);
+    }
+    return gidsByType;
+  }
+
+  for (const item of Object.values(value)) {
+    collectAuthoritativeGidsByType(item, gidsByType);
+  }
+
+  return gidsByType;
+}
+
+function recordCommitIdMappings(entry: MutationLogEntry, responseBody: unknown, idMap: Map<string, string>): void {
+  const stagedResourceIds = entry.stagedResourceIds ?? [];
+  if (stagedResourceIds.length === 0) {
+    return;
+  }
+
+  const responseGidsByType = collectAuthoritativeGidsByType(responseBody);
+
+  for (const stagedId of stagedResourceIds) {
+    if (!isProxySyntheticGid(stagedId) || idMap.has(stagedId)) {
+      continue;
+    }
+
+    const resourceType = readGidResourceType(stagedId);
+    const authoritativeId = resourceType ? responseGidsByType.get(resourceType)?.[0] : null;
+    if (authoritativeId) {
+      idMap.set(stagedId, authoritativeId);
+    }
+  }
 }
 
 function escapeHtml(value: string): string {
@@ -581,18 +667,24 @@ export function createMetaRouter(config: AppConfig): Router {
   router.post('/__meta/commit', async (ctx: Koa.Context) => {
     const pendingEntries = store.getLog().filter(logEntryRequiresCommit);
     const attempts: CommitAttempt[] = [];
+    const syntheticIdMap = new Map<string, string>();
     let stopIndex: number | null = null;
 
     for (const [index, entry] of pendingEntries.entries()) {
       try {
+        const replayBody = replaceMappedSyntheticGids(buildCommitReplayBody(entry), syntheticIdMap);
         const response = await upstream.request({
           path: entry.path,
           headers: buildCommitReplayHeaders(ctx),
-          body: buildCommitReplayBody(entry),
+          body: replayBody,
         });
         const responseBody = await response.json();
         const failed = response.status >= 400 || responseBodyHasGraphQLErrors(responseBody);
         const nextStatus: MutationLogEntry['status'] = failed ? 'failed' : 'committed';
+
+        if (!failed) {
+          recordCommitIdMappings(entry, responseBody, syntheticIdMap);
+        }
 
         store.updateLogEntry(entry.id, {
           status: nextStatus,

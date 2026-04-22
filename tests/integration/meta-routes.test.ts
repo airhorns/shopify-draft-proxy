@@ -414,6 +414,181 @@ describe('meta routes', () => {
     expect(log.body.entries.map((entry: { status: string }) => entry.status)).toEqual(['proxied', 'committed']);
   });
 
+  it('maps proxy-created product ids to upstream ids across chained commit replay attempts', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              productCreate: {
+                product: { id: 'gid://shopify/Product/9001', title: 'Chained Commit Draft' },
+                userErrors: [],
+              },
+            },
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              productPublish: {
+                product: { id: 'gid://shopify/Product/9001' },
+                userErrors: [],
+              },
+            },
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              productSet: {
+                product: { id: 'gid://shopify/Product/9001', title: 'Chained Commit Final' },
+                productSetOperation: null,
+                userErrors: [],
+              },
+            },
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
+      );
+
+    const app = createApp(config);
+    const server = app.callback();
+
+    const createResponse = await request(server)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateDraft($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }',
+        variables: {
+          product: {
+            title: 'Chained Commit Draft',
+            status: 'DRAFT',
+          },
+        },
+      });
+    const proxyProductId = createResponse.body.data.productCreate.product.id as string;
+    const publishResponse = await request(server)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation PublishInline { productPublish(input: { id: "${proxyProductId}", productPublications: [{ publicationId: "gid://shopify/Publication/1" }] }) { product { id } userErrors { field message } } }`,
+      });
+    const productSetResponse = await request(server)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation ProductSetUpdate($identifier: ProductSetIdentifiers, $input: ProductSetInput!, $synchronous: Boolean!) { productSet(identifier: $identifier, input: $input, synchronous: $synchronous) { product { id title } productSetOperation { id status } userErrors { field message } } }',
+        variables: {
+          identifier: {
+            id: proxyProductId,
+          },
+          input: {
+            title: 'Chained Commit Final',
+          },
+          synchronous: true,
+        },
+      });
+
+    expect(createResponse.status).toBe(200);
+    expect(proxyProductId).toMatch(/^gid:\/\/shopify\/Product\/[0-9]+\?shopify-draft-proxy=synthetic$/u);
+    expect(publishResponse.status).toBe(200);
+    expect(publishResponse.body.data.productPublish.userErrors).toEqual([]);
+    expect(productSetResponse.status).toBe(200);
+    expect(productSetResponse.body.data.productSet.userErrors).toEqual([]);
+
+    const commitResponse = await request(server)
+      .post('/__meta/commit')
+      .set('x-shopify-access-token', 'shpat_commit_test');
+
+    expect(commitResponse.status).toBe(200);
+    expect(commitResponse.body).toEqual({
+      ok: true,
+      stopIndex: null,
+      attempts: [
+        expect.objectContaining({
+          operationName: 'productCreate',
+          status: 'committed',
+          upstreamStatus: 200,
+        }),
+        expect.objectContaining({
+          operationName: 'productPublish',
+          status: 'committed',
+          upstreamStatus: 200,
+        }),
+        expect.objectContaining({
+          operationName: 'productSet',
+          status: 'committed',
+          upstreamStatus: 200,
+        }),
+      ],
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+    expect(fetchSpy.mock.calls[0]?.[1]?.body).toBe(
+      JSON.stringify({
+        query:
+          'mutation CreateDraft($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }',
+        variables: {
+          product: {
+            title: 'Chained Commit Draft',
+            status: 'DRAFT',
+          },
+        },
+      }),
+    );
+    expect(fetchSpy.mock.calls[1]?.[1]?.body).toBe(
+      JSON.stringify({
+        query:
+          'mutation PublishInline { productPublish(input: { id: "gid://shopify/Product/9001", productPublications: [{ publicationId: "gid://shopify/Publication/1" }] }) { product { id } userErrors { field message } } }',
+      }),
+    );
+    expect(fetchSpy.mock.calls[2]?.[1]?.body).toBe(
+      JSON.stringify({
+        query:
+          'mutation ProductSetUpdate($identifier: ProductSetIdentifiers, $input: ProductSetInput!, $synchronous: Boolean!) { productSet(identifier: $identifier, input: $input, synchronous: $synchronous) { product { id title } productSetOperation { id status } userErrors { field message } } }',
+        variables: {
+          identifier: {
+            id: 'gid://shopify/Product/9001',
+          },
+          input: {
+            title: 'Chained Commit Final',
+          },
+          synchronous: true,
+        },
+      }),
+    );
+
+    const log = await request(server).get('/__meta/log');
+    expect(log.body.entries).toEqual([
+      expect.objectContaining({
+        status: 'committed',
+        stagedResourceIds: [proxyProductId],
+      }),
+      expect.objectContaining({
+        status: 'committed',
+        stagedResourceIds: [proxyProductId],
+      }),
+      expect.objectContaining({
+        status: 'committed',
+        stagedResourceIds: [proxyProductId],
+      }),
+    ]);
+  });
+
   it('records transport failures and leaves later staged mutations pending', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new Error('network down'));
 
@@ -614,6 +789,7 @@ describe('meta routes', () => {
         query,
         variables,
       },
+      stagedResourceIds: [expect.stringMatching(/^gid:\/\/shopify\/Product\/[0-9]+\?shopify-draft-proxy=synthetic$/u)],
       status: 'staged',
       interpreted: {
         operationType: 'mutation',
@@ -634,6 +810,7 @@ describe('meta routes', () => {
       requestBody: {
         query: secondQuery,
       },
+      stagedResourceIds: [expect.stringMatching(/^gid:\/\/shopify\/Product\/[0-9]+\?shopify-draft-proxy=synthetic$/u)],
       status: 'staged',
       interpreted: {
         operationType: 'mutation',

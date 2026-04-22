@@ -2,7 +2,7 @@ import Router from '@koa/router';
 import type Koa from 'koa';
 import { logger } from '../logger.js';
 import { parseOperation, type ParsedOperation } from '../graphql/parse-operation.js';
-import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
+import { isProxySyntheticGid, makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type { MutationLogInterpretedMetadata } from '../state/types.js';
 import type { AppConfig } from '../config.js';
@@ -46,6 +46,32 @@ function readOriginalRequestBody(body: GraphQLBody): Record<string, unknown> {
   }
 
   return structuredClone(requestBody);
+}
+
+function collectProxySyntheticGids(value: unknown, seen = new Set<string>()): string[] {
+  if (typeof value === 'string') {
+    if (isProxySyntheticGid(value)) {
+      seen.add(value);
+    }
+    return [...seen];
+  }
+
+  if (!value || typeof value !== 'object') {
+    return [...seen];
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectProxySyntheticGids(item, seen);
+    }
+    return [...seen];
+  }
+
+  for (const item of Object.values(value)) {
+    collectProxySyntheticGids(item, seen);
+  }
+
+  return [...seen];
 }
 
 function interpretMutationLogEntry(
@@ -95,21 +121,26 @@ export function createProxyRouter(config: AppConfig): Router {
         'staging supported mutation locally',
       );
 
+      const logEntryId = makeSyntheticGid('MutationLogEntry');
+      const receivedAt = makeSyntheticTimestamp();
+      const responseBody = handleProductMutation(body.query, variables, config.readMode);
+
       store.appendLog({
-        id: makeSyntheticGid('MutationLogEntry'),
-        receivedAt: makeSyntheticTimestamp(),
+        id: logEntryId,
+        receivedAt,
         operationName: capability.operationName,
         path: ctx.path,
         query: body.query,
         variables,
         requestBody,
+        stagedResourceIds: collectProxySyntheticGids(responseBody),
         status: 'staged',
         interpreted: interpretMutationLogEntry(parsed, capability),
         notes: 'Staged locally in the in-memory product draft store.',
       });
 
       ctx.status = 200;
-      ctx.body = handleProductMutation(body.query, variables, config.readMode);
+      ctx.body = responseBody;
       return;
     }
 
