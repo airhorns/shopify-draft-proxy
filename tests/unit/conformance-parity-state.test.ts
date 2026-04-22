@@ -49,11 +49,53 @@ describe('classifyParityScenarioState', () => {
         comparison: {
           mode: 'strict-json',
           expectedDifferences: [],
+          targets: [
+            {
+              name: 'mutation-data',
+              capturePath: '$.mutation.response.data',
+              proxyPath: '$.data',
+            },
+          ],
         },
       },
     );
 
     expect(state).toBe('ready-for-comparison');
+  });
+
+  it('marks captured scenarios without comparison targets as invalid even when the contract shape is valid', () => {
+    expect(
+      classifyParityScenarioState(
+        { status: 'captured' },
+        {
+          proxyRequest: {
+            documentPath: 'config/parity-requests/productCreate.graphql',
+            variablesPath: 'config/parity-requests/productCreate.json',
+          },
+          comparison: {
+            mode: 'strict-json',
+            expectedDifferences: [],
+          },
+        },
+      ),
+    ).toBe('invalid-missing-comparison-contract');
+
+    expect(
+      classifyParityScenarioState(
+        { status: 'captured' },
+        {
+          proxyRequest: {
+            documentPath: 'config/parity-requests/productCreate.graphql',
+            variablesPath: 'config/parity-requests/productCreate.json',
+          },
+          comparison: {
+            mode: 'strict-json',
+            expectedDifferences: [],
+            targets: [],
+          },
+        },
+      ),
+    ).toBe('invalid-missing-comparison-contract');
   });
 
   it('keeps planned scenarios as not-yet-implemented even when a proxy request scaffold exists', () => {
