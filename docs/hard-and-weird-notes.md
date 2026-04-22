@@ -1390,7 +1390,7 @@ Practical rule:
 - on this host, the root mutations themselves can still succeed live when you select only the minimal payload slice (`userErrors`), even though aggregate publication fields remain blocked for the configured app
 - the publication catalog therefore needs its own hydrated local state: product `publicationIds` preserve target ids for staged publish/unpublish replay, but only a dedicated `publications` catalog probe teaches the proxy the merchant-facing publication names
 - when local overlay reads replay hydrated publication catalogs, preserve those captured opaque publication edge/pageInfo cursors instead of regenerating synthetic `cursor:<gid>` values or pagination parity drifts as soon as staged product state is present
-- that means `productPublish` / `productUnpublish` can be promoted from declared-gap to covered using explicit minimal live mutation captures plus a checked-in field-level blocker note, rather than pretending the aggregate field slice is already settled
+- `productUnpublish` now has an executable strict-json parity target for the minimal live mutation payload (`userErrors`) using variables from the captured safe live fixture, while `productPublish` still has only the captured payload scaffold
 - keep the aggregate publication-field blocker attached to the parity specs until the conformance app is installed/configured with a real publication target and the dedicated harness can refresh the fixtures with successful aggregate-field payloads and downstream reads
 - once the app has a publication, the dedicated harness remains the shortest path to refreshing the family because it already aligns the live mutation and downstream-read slices with the checked-in parity plans
 

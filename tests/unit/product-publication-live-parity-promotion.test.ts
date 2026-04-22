@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { ParitySpec } from '../../scripts/conformance-parity-lib.js';
 
+import { classifyParityScenarioState } from '../../scripts/conformance-parity-lib.js';
 import { loadConformanceScenarios } from '../../scripts/conformance-scenario-registry.js';
 
 type ScenarioRegistryEntry = {
@@ -79,22 +80,50 @@ describe('product publication live parity promotion state', () => {
     }
   });
 
-  it('upgrades the publication parity specs to captured mode while keeping no-target captures out of parity execution', () => {
-    for (const expected of expectedCoveredFamilies) {
-      const spec = JSON.parse(readFileSync(resolve(repoRoot, expected.paritySpecPath), 'utf8')) as ParitySpec;
-      expect(spec).toMatchObject({
-        scenarioId: expected.scenarioId,
-        scenarioStatus: 'captured',
-        liveCaptureFiles: [expected.captureFile],
-        comparisonMode: 'captured-vs-proxy-request',
-      });
+  it('keeps productPublish captured but blocked until explicit comparison targets are added', () => {
+    const expected = expectedCoveredFamilies.find((candidate) => candidate.operationName === 'productPublish');
+    expect(expected).toBeDefined();
 
-      expect(spec.blocker).toEqual({
-        kind: 'explicit-comparison-targets-needed',
-        blockerPath: null,
-      });
-      expect(spec.notes).toContain('minimal live payload slice');
-    }
+    const spec = JSON.parse(readFileSync(resolve(repoRoot, expected!.paritySpecPath), 'utf8')) as ParitySpec;
+    expect(spec).toMatchObject({
+      scenarioId: expected!.scenarioId,
+      scenarioStatus: 'captured',
+      liveCaptureFiles: [expected!.captureFile],
+      comparisonMode: 'captured-vs-proxy-request',
+    });
+
+    expect(spec.blocker).toEqual({
+      kind: 'explicit-comparison-targets-needed',
+      blockerPath: null,
+    });
+    expect(spec.notes).toContain('minimal live payload slice');
+  });
+
+  it('executes productUnpublish minimal write-path parity with explicit strict-json targets', () => {
+    const scenario = scenarioRegistry.find((candidate) => candidate.id === 'productUnpublish-parity-plan');
+    expect(scenario).toBeDefined();
+
+    const spec = JSON.parse(
+      readFileSync(resolve(repoRoot, 'config/parity-specs/productUnpublish-parity-plan.json'), 'utf8'),
+    ) as ParitySpec;
+
+    expect(spec.blocker).toBeUndefined();
+    expect(classifyParityScenarioState(scenario!, spec)).toBe('ready-for-comparison');
+    expect(spec.proxyRequest).toMatchObject({
+      documentPath: 'config/parity-requests/productUnpublish-parity-plan.graphql',
+      variablesCapturePath: '$.mutation.variables',
+    });
+    expect(spec.comparison).toMatchObject({
+      mode: 'strict-json',
+      expectedDifferences: [],
+      targets: [
+        {
+          name: 'minimal mutation payload',
+          capturePath: '$.mutation.response.data.productUnpublish',
+          proxyPath: '$.data.productUnpublish',
+        },
+      ],
+    });
   });
 
   it('keeps the aggregate publication-field blocker as a separate captured scenario per mutation root', () => {
