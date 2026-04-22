@@ -148,7 +148,9 @@ Each parity spec is the scenario metadata source and must include:
 
 Every operation named by a discovered parity spec must exist in `config/operation-registry.json`, and every implemented operation in the registry must be named by at least one discovered parity spec. The scenario-to-operation mapping lives in each parity spec's `operationNames` field; the registry stays focused on runtime capability classification and runtime-test files.
 
-`conformance:parity` executes captured scenarios only after they declare both a proxy request and a strict JSON comparison contract. Valid high-assurance scenarios must compare explicit targets and list every allowed difference as a path-scoped rule with a reason. Use matchers for legitimate nondeterminism such as Shopify IDs, timestamps, and throttle metadata. An `ignore: true` rule means the proxy has not reached parity for that path; it must also set `regrettable: true` and should only be used for hard temporary gaps that will be fixed later.
+`conformance:parity` runs the convention-driven vitest suite at `tests/unit/conformance-parity-scenarios.test.ts`. That suite discovers every parity spec, filters to `ready-for-comparison`, and executes `executeParityScenario` against each. Scenarios become `ready-for-comparison` only after they declare both a proxy request and a strict JSON comparison contract. Valid high-assurance scenarios must compare explicit targets and list every allowed difference as a path-scoped rule with a reason. Use matchers for legitimate nondeterminism such as Shopify IDs, timestamps, and throttle metadata. An `ignore: true` rule means the proxy has not reached parity for that path; it must also set `regrettable: true` and should only be used for hard temporary gaps that will be fixed later.
+
+Do not add a dedicated `it(...)` block that runs one specific captured scenario — the suite above already covers it by convention. Encode scenario-specific expectations (comparison targets, expected differences, blockers) in the parity spec itself.
 
 ### 5. Probe the live target before writing parity fixtures
 

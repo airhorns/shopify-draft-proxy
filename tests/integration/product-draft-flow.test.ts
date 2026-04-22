@@ -16,6 +16,9 @@ describe('product draft flow', () => {
     store.reset();
     resetSyntheticIdentity();
     vi.restoreAllMocks();
+    delete process.env['SHOPIFY_CONFORMANCE_APP_HANDLE'];
+    delete process.env['SHOPIFY_CONFORMANCE_APP_API_KEY'];
+    delete process.env['SHOPIFY_CONFORMANCE_APP_ID'];
   });
 
   it('stages productCreate locally and returns it from a subsequent product query without upstream mutation', async () => {
