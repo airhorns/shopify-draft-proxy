@@ -1094,6 +1094,23 @@ function seedMetafieldsSetOwnerProducts(capture: unknown, variables: Record<stri
   }
 }
 
+function seedProductDuplicateSource(capture: unknown): boolean {
+  if (mutationNameFromCapture(capture) !== 'productDuplicate') {
+    return false;
+  }
+
+  const sourceRead = readRecordField(
+    readRecordField(capture as Record<string, unknown>, 'setup'),
+    'sourceReadBeforeDuplicate',
+  );
+  if (!sourceRead) {
+    return false;
+  }
+
+  hydrateProductsFromUpstreamResponse('query ProductDuplicateSourceSeed { product { id } }', {}, sourceRead);
+  return true;
+}
+
 function readCapturedProductMetafields(productId: string, product: Record<string, unknown>): ProductMetafieldRecord[] {
   const byIdentity = new Map<string, ProductMetafieldRecord>();
   const addMetafield = (candidate: unknown): void => {
@@ -1200,6 +1217,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
 
   const shouldSeedProduct =
     productId !== null && !(mutationName === 'productCreate' && readStringField(productInput, 'id') === null);
+
+  if (seedProductDuplicateSource(capture)) {
+    return;
+  }
 
   if (shouldSeedProduct) {
     store.upsertBaseProducts([makeSeedProduct(productId, productPayload ?? productInput)]);

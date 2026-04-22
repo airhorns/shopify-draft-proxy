@@ -739,23 +739,6 @@ function makeSyntheticMediaId(mediaContentType: string | null | undefined): stri
   return makeSyntheticGid('Media');
 }
 
-function duplicateMediaRecord(media: ProductMediaRecord, productId: string): ProductMediaRecord {
-  const duplicatedId = makeSyntheticMediaId(media.mediaContentType);
-
-  return {
-    key: `${productId}:media:${media.position}`,
-    productId,
-    position: media.position,
-    id: duplicatedId,
-    mediaContentType: media.mediaContentType,
-    alt: media.alt,
-    status: media.status ?? null,
-    imageUrl: media.imageUrl ?? media.previewImageUrl,
-    previewImageUrl: media.previewImageUrl,
-    sourceUrl: media.sourceUrl ?? media.imageUrl ?? media.previewImageUrl ?? null,
-  };
-}
-
 function duplicateMetafieldRecord(metafield: ProductMetafieldRecord, productId: string): ProductMetafieldRecord {
   return {
     id: makeSyntheticGid('Metafield'),
@@ -5955,10 +5938,8 @@ export function handleProductMutation(
           .getEffectiveCollectionsByProductId(productId)
           .map((collection) => duplicateCollectionRecord(collection, duplicatedProduct.id)),
       );
-      store.replaceStagedMediaForProduct(
-        duplicatedProduct.id,
-        store.getEffectiveMediaByProductId(productId).map((media) => duplicateMediaRecord(media, duplicatedProduct.id)),
-      );
+      // Captured Shopify duplicate responses keep immediate duplicate media empty even when the source has ready media.
+      store.replaceStagedMediaForProduct(duplicatedProduct.id, []);
       store.replaceStagedMetafieldsForProduct(
         duplicatedProduct.id,
         store
