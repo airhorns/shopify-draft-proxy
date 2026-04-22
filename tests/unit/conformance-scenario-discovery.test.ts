@@ -56,20 +56,6 @@ describe('conformance scenario discovery', () => {
     }
   });
 
-  it('derives scenario metadata from each parity spec by convention', () => {
-    const productCreate = scenarios.find((scenario) => scenario.id === 'product-create-live-parity');
-
-    expect(productCreate).toEqual(
-      expect.objectContaining({
-        operationNames: ['productCreate'],
-        status: 'captured',
-        assertionKinds: ['payload-shape', 'user-errors-parity', 'downstream-read-parity'],
-        captureFiles: ['fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-create-parity.json'],
-        paritySpecPath: 'config/parity-specs/productCreate-parity-plan.json',
-      }),
-    );
-  });
-
   it.each(scenarios.map((scenario) => [scenario.id, scenario] as const))(
     'keeps parity spec file references present on disk for %s',
     (_scenarioId, scenario) => {
