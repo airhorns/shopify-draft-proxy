@@ -12,6 +12,10 @@ mutation ProductVariantsBulkCreateParityPlan($productId: ID!, $variants: [Produc
           barcode
           price
           inventoryQuantity
+          selectedOptions {
+            name
+            value
+          }
           inventoryItem {
             id
             tracked
@@ -27,6 +31,10 @@ mutation ProductVariantsBulkCreateParityPlan($productId: ID!, $variants: [Produc
       barcode
       price
       inventoryQuantity
+      selectedOptions {
+        name
+        value
+      }
       inventoryItem {
         id
         tracked

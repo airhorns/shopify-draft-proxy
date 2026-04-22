@@ -214,6 +214,7 @@ export class InMemoryStore {
   private stagedState: StateSnapshot = cloneSnapshot(EMPTY_SNAPSHOT);
   private mutationLog: MutationLogEntry[] = [];
   private stagedCollectionFamilies = new Set<string>();
+  private stagedMediaFamilies = new Set<string>();
   private laggedTagSearchProductIds = new Map<string, number>();
   private laggedVariantSearchProductIds = new Set<string>();
   private baseProductSearchConnections: Record<string, ProductCatalogConnectionRecord> = {};
@@ -240,6 +241,7 @@ export class InMemoryStore {
     this.stagedState = cloneSnapshot(EMPTY_SNAPSHOT);
     this.mutationLog = [];
     this.stagedCollectionFamilies = new Set<string>();
+    this.stagedMediaFamilies = new Set<string>();
     this.laggedTagSearchProductIds = new Map<string, number>();
     this.laggedVariantSearchProductIds = new Set<string>();
     this.baseProductSearchConnections = structuredClone(this.initialProductSearchConnections);
@@ -622,6 +624,7 @@ export class InMemoryStore {
       }
     }
 
+    this.stagedMediaFamilies.add(productId);
     for (const mediaRecord of media) {
       this.stagedState.productMedia[mediaRecord.key] = structuredClone(mediaRecord);
     }
@@ -815,8 +818,7 @@ export class InMemoryStore {
 
     return Object.values(this.baseState.productVariants)
       .filter((variant) => variant.productId === productId)
-      .map((variant) => structuredClone(variant))
-      .sort((left, right) => compareResourceIds(left.id, right.id));
+      .map((variant) => structuredClone(variant));
   }
 
   getEffectiveVariantsByProductId(productId: string): ProductVariantRecord[] {
@@ -830,7 +832,7 @@ export class InMemoryStore {
 
     const sourceVariants = stagedVariants.length > 0 ? stagedVariants : this.getBaseVariantsByProductId(productId);
 
-    return sourceVariants.sort((left, right) => compareResourceIds(left.id, right.id));
+    return sourceVariants;
   }
 
   getEffectiveVariantById(variantId: string): ProductVariantRecord | null {
@@ -1028,12 +1030,11 @@ export class InMemoryStore {
       .filter((mediaRecord) => mediaRecord.productId === productId)
       .map((mediaRecord) => structuredClone(mediaRecord));
 
-    const sourceMedia =
-      stagedMedia.length > 0
-        ? stagedMedia
-        : Object.values(this.baseState.productMedia)
-            .filter((mediaRecord) => mediaRecord.productId === productId)
-            .map((mediaRecord) => structuredClone(mediaRecord));
+    const sourceMedia = this.stagedMediaFamilies.has(productId)
+      ? stagedMedia
+      : Object.values(this.baseState.productMedia)
+          .filter((mediaRecord) => mediaRecord.productId === productId)
+          .map((mediaRecord) => structuredClone(mediaRecord));
 
     return sourceMedia.sort((left, right) => left.position - right.position || left.key.localeCompare(right.key));
   }
@@ -1071,6 +1072,7 @@ export class InMemoryStore {
       Object.keys(this.stagedState.productCollections).length > 0 ||
       this.stagedCollectionFamilies.size > 0 ||
       Object.keys(this.stagedState.productMedia).length > 0 ||
+      this.stagedMediaFamilies.size > 0 ||
       Object.keys(this.stagedState.productMetafields).length > 0 ||
       Object.keys(this.stagedState.deletedProductIds).length > 0 ||
       Object.keys(this.stagedState.deletedCollectionIds).length > 0
