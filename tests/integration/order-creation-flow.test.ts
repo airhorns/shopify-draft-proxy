@@ -1352,6 +1352,278 @@ describe('order creation flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('filters staged draftOrders by captured query fields and applies count limits in snapshot mode without hitting upstream', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('draft-order filtered catalog/count replay should not hit upstream in snapshot mode');
+    });
+
+    const app = createApp(snapshotConfig).callback();
+    const createdDraftOrders: Array<{ id: string; createdAt: string; updatedAt: string }> = [];
+    for (const input of [
+      {
+        email: 'older-filtered-draft-orders@example.com',
+        tags: ['priority', 'source-alpha'],
+        customAttributes: [{ key: 'source', value: 'alpha' }],
+        lineItems: [
+          {
+            title: 'Older filtered staged draft-order row',
+            quantity: 1,
+            originalUnitPrice: '8.00',
+            requiresShipping: false,
+            taxable: false,
+            sku: 'older-filtered-draft-order',
+          },
+        ],
+      },
+      {
+        email: 'middle-filtered-draft-orders@example.com',
+        tags: ['priority', 'source-beta'],
+        customAttributes: [{ key: 'source', value: 'beta' }],
+        lineItems: [
+          {
+            title: 'Middle filtered staged draft-order row',
+            quantity: 1,
+            originalUnitPrice: '9.00',
+            requiresShipping: false,
+            taxable: false,
+            sku: 'middle-filtered-draft-order',
+          },
+        ],
+      },
+      {
+        email: 'newer-filtered-draft-orders@example.com',
+        tags: ['priority', 'source-alpha'],
+        customAttributes: [{ key: 'source', value: 'alpha' }],
+        lineItems: [
+          {
+            title: 'Newer filtered staged draft-order row',
+            quantity: 1,
+            originalUnitPrice: '10.00',
+            requiresShipping: false,
+            taxable: false,
+            sku: 'newer-filtered-draft-order',
+          },
+        ],
+      },
+    ]) {
+      const createResponse = await request(app)
+        .post('/admin/api/2025-01/graphql.json')
+        .send({
+          query: `mutation DraftOrderCreateForFilteredReads($input: DraftOrderInput!) {
+            draftOrderCreate(input: $input) {
+              draftOrder {
+                id
+                createdAt
+                updatedAt
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }`,
+          variables: { input },
+        });
+
+      expect(createResponse.status).toBe(200);
+      expect(createResponse.body.data.draftOrderCreate.userErrors).toEqual([]);
+      createdDraftOrders.push(createResponse.body.data.draftOrderCreate.draftOrder);
+    }
+
+    const idTail = createdDraftOrders[1]!.id.split('/').at(-1);
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query DraftOrdersFilteredSnapshot(
+          $sourceQuery: String!
+          $statusTagQuery: String!
+          $idQuery: String!
+          $createdAtQuery: String!
+          $updatedAtQuery: String!
+          $customerIdQuery: String!
+          $limit: Int!
+          $savedSearchId: ID!
+        ) {
+          sourceMatches: draftOrders(first: 10, query: $sourceQuery, sortKey: CREATED_AT, reverse: true) {
+            edges { cursor node { id email tags createdAt updatedAt } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          statusTagMatches: draftOrders(first: 10, query: $statusTagQuery, sortKey: CREATED_AT, reverse: true) {
+            nodes { id email tags }
+          }
+          idMatches: draftOrders(first: 2, query: $idQuery) {
+            nodes { id email }
+          }
+          createdAtMatches: draftOrders(first: 10, query: $createdAtQuery, sortKey: CREATED_AT, reverse: true) {
+            nodes { id email createdAt }
+          }
+          updatedAtMatches: draftOrders(first: 10, query: $updatedAtQuery, sortKey: UPDATED_AT, reverse: true) {
+            nodes { id email updatedAt }
+          }
+          emptyCustomer: draftOrders(first: 5, query: $customerIdQuery) {
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          savedSearchEmpty: draftOrders(first: 5, savedSearchId: $savedSearchId) {
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          openLimitCount: draftOrdersCount(query: "status:open", limit: $limit) {
+            count
+            precision
+          }
+          sourceCount: draftOrdersCount(query: $sourceQuery) {
+            count
+            precision
+          }
+          emptyCustomerCount: draftOrdersCount(query: $customerIdQuery) {
+            count
+            precision
+          }
+          savedSearchCount: draftOrdersCount(savedSearchId: $savedSearchId) {
+            count
+            precision
+          }
+        }`,
+        variables: {
+          sourceQuery: 'source:alpha',
+          statusTagQuery: 'status:open tag:priority',
+          idQuery: `id:${idTail}`,
+          createdAtQuery: `created_at:>=${createdDraftOrders[1]!.createdAt}`,
+          updatedAtQuery: `updated_at:>=${createdDraftOrders[1]!.updatedAt}`,
+          customerIdQuery: 'customer_id:0',
+          limit: 2,
+          savedSearchId: 'gid://shopify/SavedSearch/1',
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        sourceMatches: {
+          edges: [
+            {
+              cursor: `cursor:${createdDraftOrders[2]!.id}`,
+              node: {
+                id: createdDraftOrders[2]!.id,
+                email: 'newer-filtered-draft-orders@example.com',
+                tags: ['priority', 'source-alpha'],
+                createdAt: createdDraftOrders[2]!.createdAt,
+                updatedAt: createdDraftOrders[2]!.updatedAt,
+              },
+            },
+            {
+              cursor: `cursor:${createdDraftOrders[0]!.id}`,
+              node: {
+                id: createdDraftOrders[0]!.id,
+                email: 'older-filtered-draft-orders@example.com',
+                tags: ['priority', 'source-alpha'],
+                createdAt: createdDraftOrders[0]!.createdAt,
+                updatedAt: createdDraftOrders[0]!.updatedAt,
+              },
+            },
+          ],
+          pageInfo: {
+            hasNextPage: false,
+            hasPreviousPage: false,
+            startCursor: `cursor:${createdDraftOrders[2]!.id}`,
+            endCursor: `cursor:${createdDraftOrders[0]!.id}`,
+          },
+        },
+        statusTagMatches: {
+          nodes: [
+            {
+              id: createdDraftOrders[2]!.id,
+              email: 'newer-filtered-draft-orders@example.com',
+              tags: ['priority', 'source-alpha'],
+            },
+            {
+              id: createdDraftOrders[1]!.id,
+              email: 'middle-filtered-draft-orders@example.com',
+              tags: ['priority', 'source-beta'],
+            },
+            {
+              id: createdDraftOrders[0]!.id,
+              email: 'older-filtered-draft-orders@example.com',
+              tags: ['priority', 'source-alpha'],
+            },
+          ],
+        },
+        idMatches: {
+          nodes: [
+            {
+              id: createdDraftOrders[1]!.id,
+              email: 'middle-filtered-draft-orders@example.com',
+            },
+          ],
+        },
+        createdAtMatches: {
+          nodes: [
+            {
+              id: createdDraftOrders[2]!.id,
+              email: 'newer-filtered-draft-orders@example.com',
+              createdAt: createdDraftOrders[2]!.createdAt,
+            },
+            {
+              id: createdDraftOrders[1]!.id,
+              email: 'middle-filtered-draft-orders@example.com',
+              createdAt: createdDraftOrders[1]!.createdAt,
+            },
+          ],
+        },
+        updatedAtMatches: {
+          nodes: [
+            {
+              id: createdDraftOrders[2]!.id,
+              email: 'newer-filtered-draft-orders@example.com',
+              updatedAt: createdDraftOrders[2]!.updatedAt,
+            },
+            {
+              id: createdDraftOrders[1]!.id,
+              email: 'middle-filtered-draft-orders@example.com',
+              updatedAt: createdDraftOrders[1]!.updatedAt,
+            },
+          ],
+        },
+        emptyCustomer: {
+          edges: [],
+          pageInfo: {
+            hasNextPage: false,
+            hasPreviousPage: false,
+            startCursor: null,
+            endCursor: null,
+          },
+        },
+        savedSearchEmpty: {
+          edges: [],
+          pageInfo: {
+            hasNextPage: false,
+            hasPreviousPage: false,
+            startCursor: null,
+            endCursor: null,
+          },
+        },
+        openLimitCount: {
+          count: 2,
+          precision: 'AT_LEAST',
+        },
+        sourceCount: {
+          count: 2,
+          precision: 'EXACT',
+        },
+        emptyCustomerCount: {
+          count: 0,
+          precision: 'EXACT',
+        },
+        savedSearchCount: {
+          count: 0,
+          precision: 'EXACT',
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('replays the captured draft-order email query warning locally in snapshot mode without filtering staged draft orders', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('draft-order invalid query warning replay should not hit upstream in snapshot mode');
@@ -1669,6 +1941,95 @@ describe('order creation flow', () => {
             ],
           },
         ],
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('serves supported staged draft-order query filters locally in live-hybrid mode without hitting upstream', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('supported draft-order filter replay should not hit upstream in live-hybrid mode');
+    });
+
+    const app = createApp(liveHybridConfig).callback();
+    const createResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .set('x-shopify-access-token', 'shpat_test_token')
+      .send({
+        query: `mutation DraftOrderCreateForLiveHybridFilteredRead($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              id
+              email
+              tags
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          input: {
+            email: 'live-hybrid-filtered-draft-orders@example.com',
+            tags: ['live-filter'],
+            customAttributes: [{ key: 'source', value: 'live-hybrid' }],
+            lineItems: [
+              {
+                title: 'Live-hybrid filtered staged draft-order row',
+                quantity: 1,
+                originalUnitPrice: '10.00',
+                requiresShipping: false,
+                taxable: false,
+                sku: 'live-hybrid-filtered-draft-order',
+              },
+            ],
+          },
+        },
+      });
+
+    expect(createResponse.status).toBe(200);
+    expect(createResponse.body.data.draftOrderCreate.userErrors).toEqual([]);
+    const draftOrderId = createResponse.body.data.draftOrderCreate.draftOrder.id;
+
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .set('x-shopify-access-token', 'shpat_test_token')
+      .send({
+        query: `query DraftOrdersLiveHybridSupportedSearch($query: String!) {
+          draftOrders(first: 5, query: $query) {
+            nodes {
+              id
+              email
+              tags
+            }
+          }
+          draftOrdersCount(query: $query) {
+            count
+            precision
+          }
+        }`,
+        variables: {
+          query: 'source:live-hybrid tag:live-filter status:open',
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        draftOrders: {
+          nodes: [
+            {
+              id: draftOrderId,
+              email: 'live-hybrid-filtered-draft-orders@example.com',
+              tags: ['live-filter'],
+            },
+          ],
+        },
+        draftOrdersCount: {
+          count: 1,
+          precision: 'EXACT',
+        },
       },
     });
     expect(fetchSpy).not.toHaveBeenCalled();

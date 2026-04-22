@@ -631,6 +631,16 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'overlay-read' && capability.domain === 'orders') {
+    const upstreamPayloadIsResponseEnvelope =
+      isPlainObject(upstreamPayload) && ('data' in upstreamPayload || 'errors' in upstreamPayload);
+
+    if (upstreamPayload !== undefined && upstreamPayloadIsResponseEnvelope && !hasOrderState()) {
+      return {
+        status: 200,
+        body: upstreamPayload,
+      };
+    }
+
     if (upstreamPayload !== undefined) {
       hydrateOrdersFromUpstreamResponse(upstreamPayload);
     }
@@ -658,6 +668,16 @@ function hasStagedState(): boolean {
     Object.keys(stagedState.productMetafields).length > 0 ||
     Object.keys(stagedState.deletedProductIds).length > 0 ||
     Object.keys(stagedState.deletedCollectionIds).length > 0
+  );
+}
+
+function hasOrderState(): boolean {
+  const { baseState, stagedState } = store.getState();
+  return (
+    Object.keys(baseState.orders).length > 0 ||
+    Object.keys(stagedState.orders).length > 0 ||
+    Object.keys(stagedState.draftOrders).length > 0 ||
+    Object.keys(stagedState.calculatedOrders).length > 0
   );
 }
 

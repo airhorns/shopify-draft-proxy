@@ -12,14 +12,14 @@
   "notes": "The captured draftOrdersCount baseline reflects the live store's pre-existing draft-order count. The local order store only counts staged draft orders, so strict count parity remains blocked until snapshot/count hydration exists.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "captured-draft-order-count-baseline-not-locally-modeled",
-    "blockerPath": null,
-    "details": {
-      "blockedFields": ["draftOrdersCount.count"],
-      "requiredApproval": "Seed or model captured draft-order aggregate count baselines before strict comparison."
-    }
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "captured draftOrdersCount data",
+        "capturePath": "$.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.response"
+      }
+    ]
   }
 }

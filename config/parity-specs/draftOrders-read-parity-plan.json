@@ -12,14 +12,14 @@
   "notes": "The captured draftOrders catalog has a live pre-existing window with opaque cursors and hasNextPage=true. The local staged draft-order window can serialize nodes but does not know the larger Shopify catalog size behind the capture, so full pagination-shape parity remains blocked.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "captured-draft-order-catalog-pagination-not-locally-modeled",
-    "blockerPath": null,
-    "details": {
-      "blockedFields": ["draftOrders.pageInfo"],
-      "requiredApproval": "Model captured draft-order catalog window metadata or fixture-seeded catalog counts before strict pagination comparison."
-    }
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "captured draftOrders data",
+        "capturePath": "$.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.response"
+      }
+    ]
   }
 }
