@@ -3117,12 +3117,15 @@ function serializeInventoryLevelsConnection(
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
+  const getLevelCursor = (
+    level: NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']>[number],
+  ): string => level.cursor ?? `cursor:${level.id}`;
   const allLevels = getEffectiveInventoryLevels(variant);
   const {
     items: levels,
     hasNextPage,
     hasPreviousPage,
-  } = paginateConnectionItems(allLevels, field, variables, (level) => level.cursor ?? `cursor:${level.id}`);
+  } = paginateConnectionItems(allLevels, field, variables, getLevelCursor);
   const result: Record<string, unknown> = {};
 
   for (const selection of field.selectionSet?.selections ?? []) {
@@ -3191,7 +3194,7 @@ function serializeInventoryLevelsConnection(
             const edgeKey = edgeSelection.alias?.value ?? edgeSelection.name.value;
             switch (edgeSelection.name.value) {
               case 'cursor':
-                edgeResult[edgeKey] = level.cursor ?? `cursor:${level.id}`;
+                edgeResult[edgeKey] = getLevelCursor(level);
                 break;
               case 'node': {
                 const nodeResult: Record<string, unknown> = {};
@@ -3253,13 +3256,9 @@ function serializeInventoryLevelsConnection(
         });
         break;
       case 'pageInfo':
-        result[key] = serializeConnectionPageInfo(
-          selection,
-          levels,
-          hasNextPage,
-          hasPreviousPage,
-          (level) => level.cursor ?? `cursor:${level.id}`,
-        );
+        result[key] = serializeConnectionPageInfo(selection, levels, hasNextPage, hasPreviousPage, getLevelCursor, {
+          prefixCursors: false,
+        });
         break;
       default:
         result[key] = null;
@@ -3661,7 +3660,13 @@ function serializeConnectionPageInfo<T>(
   hasNextPage: boolean,
   hasPreviousPage: boolean,
   getCursorValue: (item: T) => string,
+  options: { prefixCursors?: boolean } = {},
 ): Record<string, unknown> {
+  const formatCursor = (item: T): string => {
+    const cursor = getCursorValue(item);
+    return options.prefixCursors === false ? cursor : `cursor:${cursor}`;
+  };
+
   return Object.fromEntries(
     (selection.selectionSet?.selections ?? [])
       .filter((pageInfoSelection): pageInfoSelection is FieldNode => pageInfoSelection.kind === Kind.FIELD)
@@ -3673,9 +3678,9 @@ function serializeConnectionPageInfo<T>(
           case 'hasPreviousPage':
             return [pageInfoKey, hasPreviousPage];
           case 'startCursor':
-            return [pageInfoKey, items[0] ? `cursor:${getCursorValue(items[0])}` : null];
+            return [pageInfoKey, items[0] ? formatCursor(items[0]) : null];
           case 'endCursor':
-            return [pageInfoKey, items.length > 0 ? `cursor:${getCursorValue(items[items.length - 1]!)}` : null];
+            return [pageInfoKey, items.length > 0 ? formatCursor(items[items.length - 1]!) : null];
           default:
             return [pageInfoKey, null];
         }

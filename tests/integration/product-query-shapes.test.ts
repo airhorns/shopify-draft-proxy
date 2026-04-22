@@ -3600,8 +3600,8 @@ describe('product query shapes', () => {
           pageInfo: {
             hasNextPage: false,
             hasPreviousPage: false,
-            startCursor: 'cursor:opaque-live-level-cursor',
-            endCursor: 'cursor:opaque-live-level-cursor',
+            startCursor: 'opaque-live-level-cursor',
+            endCursor: 'opaque-live-level-cursor',
           },
         },
       },
@@ -3636,8 +3636,8 @@ describe('product query shapes', () => {
         pageInfo: {
           hasNextPage: false,
           hasPreviousPage: false,
-          startCursor: 'cursor:opaque-live-level-cursor',
-          endCursor: 'cursor:opaque-live-level-cursor',
+          startCursor: 'opaque-live-level-cursor',
+          endCursor: 'opaque-live-level-cursor',
         },
       },
       variant: {
