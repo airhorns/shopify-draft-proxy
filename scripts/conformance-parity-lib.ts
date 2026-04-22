@@ -783,6 +783,29 @@ function readCapturedProductVariants(
     .filter((variant): variant is ProductVariantRecord => variant !== null);
 }
 
+function readBulkUpdateSeedVariants(
+  productId: string,
+  product: Record<string, unknown> | null,
+): ProductVariantRecord[] {
+  return readCapturedProductVariants(productId, product).map((variant) => ({
+    ...variant,
+    // Seed the pre-update searchable variant state; the mutation under test must stage the captured values.
+    sku: null,
+    barcode: null,
+    price: null,
+    compareAtPrice: null,
+    taxable: null,
+    inventoryPolicy: null,
+    inventoryItem: variant.inventoryItem
+      ? {
+          ...variant.inventoryItem,
+          tracked: null,
+          requiresShipping: null,
+        }
+      : null,
+  }));
+}
+
 function makeDefaultOption(productId: string): ProductOptionRecord {
   return {
     id: `gid://shopify/ProductOption/${productId.split('/').at(-1) ?? '1'}0`,
@@ -1285,6 +1308,18 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   if (shouldSeedProduct) {
     const seedSource = mutationName === 'tagsAdd' ? null : (productPayload ?? productInput);
     store.upsertBaseProducts([makeSeedProduct(productId, seedSource)]);
+    if (mutationName === 'productVariantsBulkUpdate') {
+      const downstreamProduct = readRecordField(
+        readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data'),
+        'product',
+      );
+      const variantsSource =
+        readStringField(downstreamProduct, 'id') === productId ? downstreamProduct : productPayload;
+      const variants = readBulkUpdateSeedVariants(productId, variantsSource);
+      if (variants.length > 0) {
+        store.replaceBaseVariantsForProduct(productId, variants);
+      }
+    }
     if (mutationName === 'productVariantsBulkDelete') {
       const downstreamProduct = readRecordField(
         readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data'),
