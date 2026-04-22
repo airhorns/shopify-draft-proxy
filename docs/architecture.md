@@ -212,6 +212,7 @@ Current implementation notes:
 - mutation-log entries retain the original GraphQL route path as well as the raw document + variables, so commit replay can preserve the original versioned Admin API endpoint
 - `POST /__meta/commit` replays pending `staged` / `proxied` mutations against upstream Shopify in original log order using the caller-provided `X-Shopify-Access-Token`
 - commit replay persists per-entry `committed` / `failed` statuses back into the in-memory log and stops at the first upstream transport or GraphQL failure
+- local draft-order completion for staged synthetic drafts creates a staged regular order and links it back through the completed draft order, so `draftOrder(id:)`, nested `DraftOrder.order`, `order(id:)`, `orders`, and `ordersCount` all observe the conversion without sending the supported mutation upstream
 
 Commit response should include:
 
