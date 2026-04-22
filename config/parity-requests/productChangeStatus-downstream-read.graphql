@@ -1,0 +1,17 @@
+query ProductChangeStatusDownstreamRead($id: ID!, $query: String!) {
+  product(id: $id) {
+    id
+    status
+    updatedAt
+  }
+  products(first: 10, query: $query) {
+    nodes {
+      id
+      status
+    }
+  }
+  productsCount(query: $query) {
+    count
+    precision
+  }
+}
