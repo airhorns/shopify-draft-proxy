@@ -250,12 +250,15 @@ describe('meta routes', () => {
     const app = createApp(config);
     const server = app.callback();
 
+    const mutationDocument =
+      'mutation CreateDraft($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }';
+
     for (const title of ['First Commit Draft', 'Second Commit Draft', 'Third Commit Draft']) {
       const createResponse = await request(server)
         .post('/admin/api/2025-01/graphql.json')
         .send({
-          query:
-            'mutation CreateDraft($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }',
+          query: mutationDocument,
+          operationName: 'CreateDraft',
           variables: {
             product: {
               title,
@@ -270,7 +273,8 @@ describe('meta routes', () => {
 
     const commitResponse = await request(server)
       .post('/__meta/commit')
-      .set('x-shopify-access-token', 'shpat_commit_test');
+      .set('x-shopify-access-token', 'shpat_commit_test')
+      .set('authorization', 'Bearer commit_authorization');
 
     expect(commitResponse.status).toBe(200);
     expect(commitResponse.body).toEqual({
@@ -299,10 +303,23 @@ describe('meta routes', () => {
     expect(fetchSpy.mock.calls[0]?.[1]).toMatchObject({
       method: 'POST',
       headers: {
+        authorization: 'Bearer commit_authorization',
         'content-type': 'application/json',
         'x-shopify-access-token': 'shpat_commit_test',
       },
     });
+    expect(fetchSpy.mock.calls[0]?.[1]?.body).toBe(
+      JSON.stringify({
+        query: mutationDocument,
+        variables: {
+          product: {
+            title: 'First Commit Draft',
+            status: 'DRAFT',
+          },
+        },
+        operationName: 'CreateDraft',
+      }),
+    );
 
     const log = await request(server).get('/__meta/log');
     expect(log.status).toBe(200);
@@ -312,6 +329,133 @@ describe('meta routes', () => {
       'failed',
       'staged',
     ]);
+  });
+
+  it('does not replay unsupported mutations that already proxied upstream', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: { unsupportedMutation: { ok: true } } }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ data: { productCreate: { product: { id: 'gid://shopify/Product/1' }, userErrors: [] } } }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
+      );
+
+    const app = createApp(config);
+    const server = app.callback();
+
+    const proxiedResponse = await request(server)
+      .post('/admin/api/2025-01/graphql.json')
+      .set('x-shopify-access-token', 'shpat_passthrough_test')
+      .send({
+        query: 'mutation Passthrough { unsupportedMutation { ok } }',
+      });
+    const stagedResponse = await request(server)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateDraft($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }',
+        variables: {
+          product: {
+            title: 'Only Staged Replays',
+            status: 'DRAFT',
+          },
+        },
+      });
+    const commitResponse = await request(server)
+      .post('/__meta/commit')
+      .set('x-shopify-access-token', 'shpat_commit_test');
+
+    expect(proxiedResponse.status).toBe(200);
+    expect(stagedResponse.status).toBe(200);
+    expect(commitResponse.status).toBe(200);
+    expect(commitResponse.body).toEqual({
+      ok: true,
+      stopIndex: null,
+      attempts: [
+        expect.objectContaining({
+          operationName: 'productCreate',
+          path: '/admin/api/2025-01/graphql.json',
+          status: 'committed',
+          upstreamStatus: 200,
+        }),
+      ],
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(fetchSpy.mock.calls[0]?.[1]?.body).toBe(
+      JSON.stringify({
+        query: 'mutation Passthrough { unsupportedMutation { ok } }',
+        variables: {},
+      }),
+    );
+    expect(fetchSpy.mock.calls[1]?.[1]?.body).toBe(
+      JSON.stringify({
+        query:
+          'mutation CreateDraft($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }',
+        variables: {
+          product: {
+            title: 'Only Staged Replays',
+            status: 'DRAFT',
+          },
+        },
+      }),
+    );
+
+    const log = await request(server).get('/__meta/log');
+    expect(log.body.entries.map((entry: { status: string }) => entry.status)).toEqual(['proxied', 'committed']);
+  });
+
+  it('records transport failures and leaves later staged mutations pending', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new Error('network down'));
+
+    const app = createApp(config);
+    const server = app.callback();
+
+    for (const title of ['First Transport Failure Draft', 'Second Transport Failure Draft']) {
+      const createResponse = await request(server)
+        .post('/admin/api/2025-01/graphql.json')
+        .send({
+          query:
+            'mutation CreateDraft($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }',
+          variables: {
+            product: {
+              title,
+              status: 'DRAFT',
+            },
+          },
+        });
+
+      expect(createResponse.status).toBe(200);
+    }
+
+    const commitResponse = await request(server).post('/__meta/commit');
+
+    expect(commitResponse.status).toBe(200);
+    expect(commitResponse.body).toEqual({
+      ok: false,
+      stopIndex: 0,
+      attempts: [
+        expect.objectContaining({
+          operationName: 'productCreate',
+          path: '/admin/api/2025-01/graphql.json',
+          status: 'failed',
+          upstreamStatus: null,
+          responseBody: { errors: [{ message: 'network down' }] },
+        }),
+      ],
+    });
+
+    const log = await request(server).get('/__meta/log');
+    expect(log.body.entries.map((entry: { status: string }) => entry.status)).toEqual(['failed', 'staged']);
   });
 
   it('resets staged state, hydrated cache state, mutation logs, and synthetic IDs', async () => {
@@ -466,6 +610,10 @@ describe('meta routes', () => {
       operationName: 'productCreate',
       query,
       variables,
+      requestBody: {
+        query,
+        variables,
+      },
       status: 'staged',
       interpreted: {
         operationType: 'mutation',
@@ -483,6 +631,9 @@ describe('meta routes', () => {
       operationName: 'productCreate',
       query: secondQuery,
       variables: {},
+      requestBody: {
+        query: secondQuery,
+      },
       status: 'staged',
       interpreted: {
         operationType: 'mutation',

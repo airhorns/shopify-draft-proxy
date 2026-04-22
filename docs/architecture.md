@@ -209,8 +209,8 @@ Current implementation notes:
 - `GET /__meta` serves a small operator web UI backed by the existing meta API and in-memory store; it renders the current mutation log/state and exposes reset/commit controls without adding separate persistent UI state
 - `GET /__meta/config` returns the active `port`, `shopifyAdminOrigin`, `readMode`, and `snapshotPath`
 - `GET /__meta/state` returns cloned `baseState` / `stagedState` buckets for debug inspection, including runtime-only object graph maps such as staged orders, draft orders, and calculated orders that are not part of the normalized snapshot file schema
-- mutation-log entries retain the original GraphQL route path as well as the raw document + variables, so commit replay can preserve the original versioned Admin API endpoint
-- `POST /__meta/commit` replays pending `staged` / `proxied` mutations against upstream Shopify in original log order using the caller-provided `X-Shopify-Access-Token`
+- mutation-log entries retain the original GraphQL route path as well as the raw request body, so commit replay can preserve the original versioned Admin API endpoint and GraphQL request fields such as `operationName`
+- `POST /__meta/commit` replays pending locally `staged` mutations against upstream Shopify in original log order using the caller-provided `X-Shopify-Access-Token`; `proxied` unsupported mutations are intentionally not replayed because they already went upstream at runtime
 - commit replay persists per-entry `committed` / `failed` statuses back into the in-memory log and stops at the first upstream transport or GraphQL failure
 
 Commit response should include:

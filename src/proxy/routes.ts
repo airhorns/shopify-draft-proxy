@@ -16,10 +16,36 @@ import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamR
 interface GraphQLBody {
   query?: unknown;
   variables?: unknown;
+  operationName?: unknown;
+  extensions?: unknown;
 }
 
 function readVariables(raw: unknown): Record<string, unknown> {
   return typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
+}
+
+function hasOwnProperty(value: object, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function readOriginalRequestBody(body: GraphQLBody): Record<string, unknown> {
+  const requestBody: Record<string, unknown> = {
+    query: body.query,
+  };
+
+  if (hasOwnProperty(body, 'variables')) {
+    requestBody['variables'] = body.variables;
+  }
+
+  if (hasOwnProperty(body, 'operationName')) {
+    requestBody['operationName'] = body.operationName;
+  }
+
+  if (hasOwnProperty(body, 'extensions')) {
+    requestBody['extensions'] = body.extensions;
+  }
+
+  return structuredClone(requestBody);
 }
 
 function interpretMutationLogEntry(
@@ -54,6 +80,7 @@ export function createProxyRouter(config: AppConfig): Router {
     }
 
     const variables = readVariables(body.variables);
+    const requestBody = readOriginalRequestBody(body);
     const parsed = parseOperation(body.query);
     const capability = getOperationCapability(parsed);
 
@@ -75,6 +102,7 @@ export function createProxyRouter(config: AppConfig): Router {
         path: ctx.path,
         query: body.query,
         variables,
+        requestBody,
         status: 'staged',
         interpreted: interpretMutationLogEntry(parsed, capability),
         notes: 'Staged locally in the in-memory product draft store.',
@@ -93,6 +121,7 @@ export function createProxyRouter(config: AppConfig): Router {
         path: ctx.path,
         query: body.query,
         variables,
+        requestBody,
         status: 'staged',
         interpreted: interpretMutationLogEntry(parsed, capability),
         notes: 'Staged locally in the in-memory customer draft store.',
@@ -111,6 +140,7 @@ export function createProxyRouter(config: AppConfig): Router {
         path: ctx.path,
         query: body.query,
         variables,
+        requestBody,
         status: 'staged',
         interpreted: interpretMutationLogEntry(parsed, capability),
         notes: 'Staged locally in the in-memory media draft store.',
@@ -246,6 +276,7 @@ export function createProxyRouter(config: AppConfig): Router {
         path: ctx.path,
         query: body.query,
         variables,
+        requestBody,
         status: 'staged',
         interpreted: interpretMutationLogEntry(parsed, capability),
         notes: 'Staged locally in the in-memory order draft store.',
@@ -302,6 +333,7 @@ export function createProxyRouter(config: AppConfig): Router {
           path: ctx.path,
           query: body.query,
           variables,
+          requestBody,
           status: 'staged',
           interpreted: interpretMutationLogEntry(parsed, capability),
           notes:
@@ -347,6 +379,7 @@ export function createProxyRouter(config: AppConfig): Router {
         path: ctx.path,
         query: body.query,
         variables,
+        requestBody,
         status: 'proxied',
         interpreted: interpretMutationLogEntry(parsed, capability),
         notes: 'Mutation passthrough placeholder until supported local staging is implemented.',

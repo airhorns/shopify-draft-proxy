@@ -16,7 +16,7 @@ interface CommitAttempt {
 }
 
 function logEntryRequiresCommit(entry: MutationLogEntry): boolean {
-  return entry.status === 'staged' || entry.status === 'proxied';
+  return entry.status === 'staged';
 }
 
 function responseBodyHasGraphQLErrors(body: unknown): boolean {
@@ -26,6 +26,33 @@ function responseBodyHasGraphQLErrors(body: unknown): boolean {
 
   const errors = (body as Record<string, unknown>)['errors'];
   return Array.isArray(errors) && errors.length > 0;
+}
+
+function buildCommitReplayHeaders(ctx: Koa.Context): Record<string, string> {
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+  };
+  const shopifyAccessToken = ctx.get('x-shopify-access-token');
+  const authorization = ctx.get('authorization');
+
+  if (shopifyAccessToken) {
+    headers['x-shopify-access-token'] = shopifyAccessToken;
+  }
+
+  if (authorization) {
+    headers['authorization'] = authorization;
+  }
+
+  return headers;
+}
+
+function buildCommitReplayBody(entry: MutationLogEntry): Record<string, unknown> {
+  return structuredClone(
+    entry.requestBody ?? {
+      query: entry.query,
+      variables: entry.variables,
+    },
+  );
 }
 
 function escapeHtml(value: string): string {
@@ -560,14 +587,8 @@ export function createMetaRouter(config: AppConfig): Router {
       try {
         const response = await upstream.request({
           path: entry.path,
-          headers: {
-            'content-type': 'application/json',
-            'x-shopify-access-token': ctx.get('x-shopify-access-token'),
-          },
-          body: {
-            query: entry.query,
-            variables: entry.variables,
-          },
+          headers: buildCommitReplayHeaders(ctx),
+          body: buildCommitReplayBody(entry),
         });
         const responseBody = await response.json();
         const failed = response.status >= 400 || responseBodyHasGraphQLErrors(responseBody);
