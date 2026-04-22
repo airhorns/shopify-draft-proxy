@@ -4,12 +4,8 @@ mutation OrderCreateParityPlan($order: OrderCreateOrderInput!, $options: OrderCr
       id
       name
       email
-      createdAt
-      updatedAt
       displayFinancialStatus
       displayFulfillmentStatus
-      canMarkAsPaid
-      paymentGatewayNames
       note
       tags
       customAttributes {
@@ -24,7 +20,6 @@ mutation OrderCreateParityPlan($order: OrderCreateOrderInput!, $options: OrderCr
         provinceCode
         countryCodeV2
         zip
-        phone
       }
       shippingAddress {
         firstName
@@ -34,25 +29,8 @@ mutation OrderCreateParityPlan($order: OrderCreateOrderInput!, $options: OrderCr
         provinceCode
         countryCodeV2
         zip
-        phone
-      }
-      subtotalPriceSet {
-        shopMoney {
-          amount
-          currencyCode
-        }
-        presentmentMoney {
-          amount
-          currencyCode
-        }
       }
       currentTotalPriceSet {
-        shopMoney {
-          amount
-          currencyCode
-        }
-      }
-      totalPriceSet {
         shopMoney {
           amount
           currencyCode
@@ -71,25 +49,6 @@ mutation OrderCreateParityPlan($order: OrderCreateOrderInput!, $options: OrderCr
         }
       }
       discountCodes
-      discountApplications(first: 5) {
-        nodes {
-          code
-          value {
-            ... on MoneyV2 {
-              amount
-              currencyCode
-            }
-            ... on PricingPercentageValue {
-              percentage
-            }
-          }
-        }
-      }
-      customer {
-        id
-        email
-        displayName
-      }
       shippingLines(first: 5) {
         nodes {
           title
@@ -142,17 +101,6 @@ mutation OrderCreateParityPlan($order: OrderCreateOrderInput!, $options: OrderCr
                 currencyCode
               }
             }
-          }
-        }
-      }
-      transactions {
-        kind
-        status
-        gateway
-        amountSet {
-          shopMoney {
-            amount
-            currencyCode
           }
         }
       }

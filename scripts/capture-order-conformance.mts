@@ -724,6 +724,11 @@ const orderCreateProbe = `#graphql
             quantity
             sku
             variant { id }
+            variantTitle
+            originalUnitPriceSet {
+              shopMoney { amount currencyCode }
+              presentmentMoney { amount currencyCode }
+            }
             taxLines {
               title
               rate

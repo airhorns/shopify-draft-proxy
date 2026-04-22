@@ -1,5 +1,6 @@
 query OrderCreateDownstreamRead($id: ID!) {
   order(id: $id) {
+    id
     name
     email
     note
