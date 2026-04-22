@@ -997,7 +997,7 @@ describe('order edit flow', () => {
       tags: ['expanded', 'vip'],
       customer: {
         id: 'gid://shopify/Customer/7203',
-        email: 'after@example.com',
+        email: 'before@example.com',
         displayName: 'Before Customer',
       },
       customAttributes: [
@@ -1100,7 +1100,7 @@ describe('order edit flow', () => {
           note: 'expanded order update note',
           tags: ['expanded', 'vip'],
           customer: {
-            email: 'after@example.com',
+            email: 'before@example.com',
           },
           shippingAddress: {
             address1: '190 MacLaren',

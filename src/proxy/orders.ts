@@ -2899,25 +2899,6 @@ function serializeSelectedOrderMutationPayload(field: FieldNode): Record<string,
   return result;
 }
 
-function updateOrderCustomerForInput(order: OrderRecord, input: Record<string, unknown>): OrderCustomerRecord | null {
-  if (typeof input['email'] !== 'string') {
-    return order.customer ? structuredClone(order.customer) : null;
-  }
-
-  if (order.customer) {
-    return {
-      ...structuredClone(order.customer),
-      email: input['email'],
-    };
-  }
-
-  return {
-    id: makeSyntheticGid('Customer'),
-    email: input['email'],
-    displayName: input['email'],
-  };
-}
-
 function applyOrderUpdateInput(existingOrder: OrderRecord, input: Record<string, unknown>): OrderRecord {
   const updatedOrder: OrderRecord = {
     ...existingOrder,
@@ -2941,7 +2922,7 @@ function applyOrderUpdateInput(existingOrder: OrderRecord, input: Record<string,
       typeof input['shippingAddress'] === 'object' && input['shippingAddress'] !== null
         ? normalizeDraftOrderAddress(input['shippingAddress'])
         : existingOrder.shippingAddress,
-    customer: updateOrderCustomerForInput(existingOrder, input),
+    customer: existingOrder.customer ? structuredClone(existingOrder.customer) : null,
   };
 
   return recalculateOrderTotals(updatedOrder);

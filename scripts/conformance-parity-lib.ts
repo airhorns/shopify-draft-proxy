@@ -40,7 +40,9 @@ import type {
   DraftOrderShippingLineRecord,
   InventoryLevelRecord,
   MutationLogInterpretedMetadata,
+  OrderCustomerRecord,
   OrderLineItemRecord,
+  OrderMetafieldRecord,
   OrderRecord,
   OrderShippingLineRecord,
   ProductCollectionRecord,
@@ -773,6 +775,62 @@ function readCapturedOrderShippingLines(order: Record<string, unknown> | null): 
     }));
 }
 
+function readCapturedOrderCustomer(order: Record<string, unknown> | null): OrderCustomerRecord | null {
+  const customer = readRecordField(order, 'customer');
+  const id = readStringField(customer, 'id');
+  if (!id) {
+    return null;
+  }
+
+  return {
+    id,
+    email: readStringField(customer, 'email'),
+    displayName: readStringField(customer, 'displayName'),
+  };
+}
+
+function readCapturedOrderMetafields(orderId: string, order: Record<string, unknown> | null): OrderMetafieldRecord[] {
+  const byIdentity = new Map<string, OrderMetafieldRecord>();
+  const addMetafield = (candidate: unknown): void => {
+    if (!isPlainObject(candidate)) {
+      return;
+    }
+    const id = readStringField(candidate, 'id');
+    const namespace = readStringField(candidate, 'namespace');
+    const key = readStringField(candidate, 'key');
+    if (!id?.startsWith('gid://shopify/Metafield/') || !namespace || !key) {
+      return;
+    }
+    byIdentity.set(`${namespace}:${key}`, {
+      id,
+      orderId,
+      namespace,
+      key,
+      type: readStringField(candidate, 'type'),
+      value: readStringField(candidate, 'value'),
+    });
+  };
+
+  for (const value of Object.values(order ?? {})) {
+    addMetafield(value);
+  }
+
+  const metafieldsConnection = readRecordField(order, 'metafields');
+  for (const node of readArrayField(metafieldsConnection, 'nodes')) {
+    addMetafield(node);
+  }
+  for (const edge of readArrayField(metafieldsConnection, 'edges').filter(isPlainObject)) {
+    addMetafield(readRecordField(edge, 'node'));
+  }
+
+  return Array.from(byIdentity.values()).sort(
+    (left, right) =>
+      left.namespace.localeCompare(right.namespace) ||
+      left.key.localeCompare(right.key) ||
+      left.id.localeCompare(right.id),
+  );
+}
+
 function makeSeedOrder(orderId: string, source: Record<string, unknown> | null = null): OrderRecord {
   const now = '2026-04-19T00:00:00.000Z';
   const totalPriceSet = readMoneySetField(source, 'totalPriceSet');
@@ -799,7 +857,7 @@ function makeSeedOrder(orderId: string, source: Record<string, unknown> | null =
         value: readStringField(attribute, 'value'),
       }))
       .filter((attribute) => attribute.key.length > 0),
-    metafields: [],
+    metafields: readCapturedOrderMetafields(orderId, source),
     billingAddress: readCapturedAddress(source, 'billingAddress'),
     shippingAddress: readCapturedAddress(source, 'shippingAddress'),
     subtotalPriceSet,
@@ -811,7 +869,7 @@ function makeSeedOrder(orderId: string, source: Record<string, unknown> | null =
         currencyCode,
       },
     },
-    customer: null,
+    customer: readCapturedOrderCustomer(source),
     shippingLines: readCapturedOrderShippingLines(source),
     lineItems: readCapturedOrderLineItems(source),
     transactions: [],
