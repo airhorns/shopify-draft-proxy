@@ -1336,7 +1336,7 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
             )
           : mutationName === 'productVariantsBulkUpdate'
             ? readBulkUpdateSeedVariants(productId, variantsSource)
-          : readCapturedProductVariants(productId, variantsSource);
+            : readCapturedProductVariants(productId, variantsSource);
       if (variants.length > 0) {
         store.replaceBaseVariantsForProduct(productId, variants);
       }
