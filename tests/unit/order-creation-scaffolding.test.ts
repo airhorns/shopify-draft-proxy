@@ -198,7 +198,8 @@ const expectedBlockedScenarios = [
     probeRoots: ['draftOrderComplete'],
     failingMessageIncludes: 'mark as paid',
     requiredTokenMode: undefined,
-    operationLine: 'mutation DraftOrderCompleteParityPlan($id: ID!, $paymentGatewayId: ID, $sourceName: String)',
+    operationLine:
+      'mutation DraftOrderCompleteParityPlan($id: ID!, $paymentGatewayId: ID, $sourceName: String, $paymentPending: Boolean)',
   },
 ] as const;
 
@@ -575,13 +576,17 @@ describe('order creation scaffolding', () => {
       if (expected.id === 'draft-order-complete-live-parity') {
         expect(document).toContain('draftOrderComplete');
         expect(document).toContain('draftOrder {');
-        expect(document).not.toContain('\n      order {');
+        expect(document).not.toContain('\n    order {');
+        expect(document).toContain('\n      order {');
         expect(document).toContain('ready');
         expect(document).toContain('invoiceUrl');
+        expect(document).toContain('completedAt');
         expect(document).toContain('totalPriceSet');
+        expect(document).toContain('paymentGatewayNames');
         expect(variables).toMatchObject({
           id: 'gid://shopify/DraftOrder/0',
           sourceName: 'hermes-cron-orders',
+          paymentPending: false,
         });
       }
     }
@@ -637,7 +642,8 @@ describe('order creation scaffolding', () => {
     expect(blockerNote).toContain('draftOrderComplete');
     expect(blockerNote).toContain('last verified family-specific access-denied evidence');
     expect(blockerNote).toContain('mark-as-paid');
-    expect(blockerNote).toContain('.manual-store-auth-token.json');
+    expect(blockerNote).toContain('~/.shopify-draft-proxy/conformance-admin-auth.json');
+    expect(blockerNote).toContain('/tmp/shopify-conformance-app/hermes-conformance-products/.env');
     expect(blockerNote).toContain('corepack pnpm conformance:capture-orders');
     expect(blockerNote).toContain(
       'current run is auth-regressed before the family-specific creation roots can be reprobed',

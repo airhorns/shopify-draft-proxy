@@ -301,6 +301,8 @@ export type DraftOrderLineItemRecord = z.infer<typeof draftOrderLineItemRecordSc
 export const draftOrderRecordSchema = z.strictObject({
   id: z.string(),
   name: z.string(),
+  orderId: nullableStringSchema.optional(),
+  completedAt: nullableStringSchema.optional(),
   invoiceUrl: nullableStringSchema,
   status: nullableStringSchema,
   ready: nullableBooleanSchema,
@@ -384,6 +386,8 @@ export const orderRecordSchema = z.strictObject({
   name: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  sourceName: nullableStringSchema.optional(),
+  paymentGatewayNames: z.array(z.string()).optional(),
   displayFinancialStatus: nullableStringSchema,
   displayFulfillmentStatus: nullableStringSchema,
   note: nullableStringSchema,

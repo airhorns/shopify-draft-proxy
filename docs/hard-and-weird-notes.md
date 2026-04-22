@@ -182,9 +182,14 @@ Current live findings on this host:
     - Shopify also required the acting install/user to be able to mark draft orders as paid, or set payment terms
 - additional schema trap for that same root on this host: `DraftOrderCompletePayload` does **not** expose a top-level `order` field
   - probing `draftOrderComplete { order { ... } }` fails schema validation with `Field 'order' doesn't exist on type 'DraftOrderCompletePayload'`
-  - practical rule: keep the completion parity scaffold on `draftOrder { id name status ready invoiceUrl totalPriceSet lineItems(...) }` plus `userErrors` until live capture proves a richer post-completion order link is actually selectable
+  - current 2026-04 docs instead expose the created order through `draftOrder { order { ... } }`; keep the parity scaffold on that nested link and do not reintroduce the stale top-level payload `order` selection
 - nearby runtime routing rule: once that missing-`$id` `INVALID_VARIABLE` branch is captured, do not keep proxying it upstream in `live-hybrid`; the proxy now short-circuits that obviously invalid `draftOrderComplete` request locally in both snapshot and live-hybrid mode while still leaving live Shopify happy-path completion blocked on access
-- a narrow local-only follow-up slice is now safe without overclaiming the real Shopify completion bridge: for a synthetic/local staged draft, `draftOrderComplete` can flip the local draft payload to `status: COMPLETED` and `ready: true` while preserving the current `invoiceUrl` and replaying the same completed draft detail locally
+- a narrow local-only follow-up slice is now safe without overclaiming the real Shopify completion bridge: for a synthetic/local staged draft, `draftOrderComplete` can flip the local draft payload to `status: COMPLETED` and `ready: true` while preserving the current `invoiceUrl`, create a local synthetic `Order`, link it through `DraftOrder.order`, and replay the completed draft plus `order(id:)` / `orders` / `ordersCount` locally
+- local payment behavior for that synthetic-only slice remains deliberately narrow:
+  - default completion stages the regular order as `displayFinancialStatus: PAID`
+  - deprecated `paymentPending: true` stages it as `displayFinancialStatus: PENDING`
+  - `sourceName` is copied to the staged order for downstream attribution reads
+  - non-null `paymentGatewayId` returns the captured `Invalid payment gateway` userError because the proxy has no local payment-gateway catalog yet
 - practical consequence: the repo still should not jump straight from "order roots exist in introspection" to speculative full draft-to-order staging code; keep the local completion slice limited to staged synthetic drafts until live Shopify happy-path evidence exists
 
 Practical rule:
@@ -211,6 +216,14 @@ Practical rule:
 ### 7a-refresh. Repo-local auth refresh needs a client-id fallback, not just the rotated token payload
 
 A later healthy-again pass on this host exposed a repo-local repair bug rather than another Shopify auth limitation: `corepack pnpm conformance:refresh-auth` assumed `.manual-store-auth-token.json` always retained `client_id`, but the current persisted expiring-token payload on this host does **not** keep that field.
+
+This note is historical for the old worktree-local repair path. The current conformance auth entry point is the shared home-folder credential at `~/.shopify-draft-proxy/conformance-admin-auth.json`, and `corepack pnpm conformance:refresh-auth` should use that same path as `corepack pnpm conformance:probe` / `corepack pnpm conformance:capture-orders`.
+
+Current shared-credential finding:
+
+- the checked-in app directory can exist without a repo-local `.env`; in that case app-secret resolution must fall back to `/tmp/shopify-conformance-app/<SHOPIFY_CONFORMANCE_APP_HANDLE>/.env` instead of stopping at the empty repo-local app copy
+- after that path fix, this host reaches Shopify's OAuth refresh endpoint with the shared credential and app secret, but Shopify returns `This request requires an active refresh_token`
+- practical consequence: a refresh failure with `credentialPath: /home/airhorns/.shopify-draft-proxy/conformance-admin-auth.json` and `appEnvPath: /tmp/shopify-conformance-app/hermes-conformance-products/.env` is a dead saved grant, not a worktree-local path bug
 
 Current host finding:
 

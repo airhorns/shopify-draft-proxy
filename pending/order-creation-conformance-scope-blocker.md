@@ -14,10 +14,12 @@ Refreshed the current orders-domain creation probes on `very-big-test-store.mysh
 - credential family: `shpca`
 - header mode: `raw-x-shopify-access-token`
 - the active conformance credential is a Shopify user access token (`shpca_...`) sent as raw `X-Shopify-Access-Token` on this host
+- shared credential path: `~/.shopify-draft-proxy/conformance-admin-auth.json`
+- app secret path used for refresh: `/tmp/shopify-conformance-app/hermes-conformance-products/.env`
 
-## Saved manual store auth token on disk
+## Shared store auth token on disk
 
-- path: `.manual-store-auth-token.json`
+- path: `~/.shopify-draft-proxy/conformance-admin-auth.json`
 - status: `present-shpca-user-token-not-offline-capable`
 - token family: `shpca`
 - cached scopes: `read_product_listings`, `read_themes`, `write_assigned_fulfillment_orders`, `write_content`, `write_customers`, `write_discounts`, `write_draft_orders`, `write_files`, `write_fulfillments`, `write_inventory`, `write_locations`, `write_markets`, `write_merchant_managed_fulfillment_orders`, `write_metaobject_definitions`, `write_metaobjects`, `write_order_edits`, `write_orders`, `write_products`, `write_publications`, `write_returns`, `write_shipping`, `write_third_party_fulfillment_orders`, `write_translations`
@@ -27,7 +29,9 @@ Refreshed the current orders-domain creation probes on `very-big-test-store.mysh
 ## Current run summary
 
 - current run is auth-regressed before the family-specific creation roots can be reprobed
-- live probe failure: `401` / `[API] Invalid API key or access token (unrecognized login or wrong password)`
+- `corepack pnpm conformance:refresh-auth` now uses the shared home-folder credential and falls back to the `/tmp` app `.env`; Shopify returns `This request requires an active refresh_token`
+- `corepack pnpm conformance:probe` fails because the stored access token is invalid and the shared refresh token is inactive
+- `corepack pnpm conformance:capture-orders` fails at the same auth gate before reaching the order-family roots
 - the checked-in fixtures are the last verified live references and should not be overwritten with `401` payloads during this regression
 
 ### `orderCreate`

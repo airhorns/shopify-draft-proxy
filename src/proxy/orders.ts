@@ -237,6 +237,26 @@ function buildOrderCustomerFromInput(inputRecord: Record<string, unknown>): Orde
   };
 }
 
+function buildOrderCustomerFromDraftOrder(draftOrder: DraftOrderRecord): OrderCustomerRecord | null {
+  const email = draftOrder.email;
+  const firstName = draftOrder.billingAddress?.firstName ?? null;
+  const lastName = draftOrder.billingAddress?.lastName ?? null;
+  const displayName = [firstName, lastName]
+    .filter((value): value is string => Boolean(value && value.length > 0))
+    .join(' ')
+    .trim();
+
+  if (!email && !displayName) {
+    return null;
+  }
+
+  return {
+    id: makeSyntheticGid('Customer'),
+    email,
+    displayName: displayName.length > 0 ? displayName : email,
+  };
+}
+
 function buildOrderFromInput(input: unknown): OrderRecord {
   const inputRecord = typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {};
   const currencyCode = 'CAD';
@@ -273,6 +293,8 @@ function buildOrderFromInput(input: unknown): OrderRecord {
     name: `#${store.getOrders().length + 1}`,
     createdAt,
     updatedAt: createdAt,
+    sourceName: null,
+    paymentGatewayNames: [],
     displayFinancialStatus: hasSuccessfulTransaction ? 'PAID' : 'PENDING',
     displayFulfillmentStatus: 'UNFULFILLED',
     note: typeof inputRecord['note'] === 'string' ? inputRecord['note'] : null,
@@ -400,11 +422,59 @@ function buildCalculatedOrderFromOrder(order: OrderRecord): CalculatedOrderRecor
 }
 
 function buildCompletedDraftOrder(draftOrder: DraftOrderRecord): DraftOrderRecord {
+  const completedAt = makeSyntheticTimestamp();
   return {
     ...structuredClone(draftOrder),
     status: 'COMPLETED',
     ready: true,
-    updatedAt: makeSyntheticTimestamp(),
+    completedAt,
+    updatedAt: completedAt,
+  };
+}
+
+function buildOrderLineItemsFromDraftOrder(draftOrder: DraftOrderRecord): OrderLineItemRecord[] {
+  return draftOrder.lineItems.map((lineItem) => ({
+    id: makeSyntheticGid('LineItem'),
+    title: lineItem.title,
+    quantity: lineItem.quantity,
+    sku: lineItem.sku,
+    variantTitle: lineItem.variantTitle,
+    originalUnitPriceSet: structuredClone(lineItem.originalUnitPriceSet),
+  }));
+}
+
+function buildOrderShippingLinesFromDraftOrder(draftOrder: DraftOrderRecord): OrderShippingLineRecord[] {
+  return draftOrder.shippingLine ? [structuredClone(draftOrder.shippingLine)] : [];
+}
+
+function buildOrderFromCompletedDraftOrder(
+  draftOrder: DraftOrderRecord,
+  completion: {
+    sourceName: string | null;
+    paymentPending: boolean;
+  },
+): OrderRecord {
+  const createdAt = draftOrder.completedAt ?? makeSyntheticTimestamp();
+  return {
+    id: makeSyntheticGid('Order'),
+    name: `#${store.getOrders().length + 1}`,
+    createdAt,
+    updatedAt: createdAt,
+    sourceName: completion.sourceName,
+    paymentGatewayNames: [],
+    displayFinancialStatus: completion.paymentPending ? 'PENDING' : 'PAID',
+    displayFulfillmentStatus: 'UNFULFILLED',
+    note: draftOrder.note,
+    tags: structuredClone(draftOrder.tags),
+    customAttributes: structuredClone(draftOrder.customAttributes),
+    billingAddress: structuredClone(draftOrder.billingAddress),
+    shippingAddress: structuredClone(draftOrder.shippingAddress),
+    subtotalPriceSet: structuredClone(draftOrder.subtotalPriceSet),
+    currentTotalPriceSet: structuredClone(draftOrder.totalPriceSet),
+    totalPriceSet: structuredClone(draftOrder.totalPriceSet),
+    customer: buildOrderCustomerFromDraftOrder(draftOrder),
+    shippingLines: buildOrderShippingLinesFromDraftOrder(draftOrder),
+    lineItems: buildOrderLineItemsFromDraftOrder(draftOrder),
   };
 }
 
@@ -824,6 +894,11 @@ function serializeDraftOrderNode(field: FieldNode, draftOrder: DraftOrderRecord)
       case 'name':
         result[key] = draftOrder.name;
         break;
+      case 'order': {
+        const order = draftOrder.orderId ? store.getOrderById(draftOrder.orderId) : null;
+        result[key] = order ? serializeOrderNode(selection, order) : null;
+        break;
+      }
       case 'invoiceUrl':
         result[key] = draftOrder.invoiceUrl;
         break;
@@ -856,6 +931,9 @@ function serializeDraftOrderNode(field: FieldNode, draftOrder: DraftOrderRecord)
         break;
       case 'updatedAt':
         result[key] = draftOrder.updatedAt;
+        break;
+      case 'completedAt':
+        result[key] = draftOrder.completedAt ?? null;
         break;
       case 'subtotalPriceSet':
         result[key] = serializeShopMoneySet(selection, draftOrder.subtotalPriceSet?.shopMoney ?? null);
@@ -1818,6 +1896,12 @@ function serializeOrderNode(field: FieldNode, order: OrderRecord): Record<string
       case 'updatedAt':
         result[key] = order.updatedAt;
         break;
+      case 'sourceName':
+        result[key] = order.sourceName ?? null;
+        break;
+      case 'paymentGatewayNames':
+        result[key] = structuredClone(order.paymentGatewayNames ?? []);
+        break;
       case 'displayFinancialStatus':
         result[key] = order.displayFinancialStatus;
         break;
@@ -2008,6 +2092,42 @@ function readDraftOrderCreateInput(variables: Record<string, unknown>): unknown 
 
 function readDraftOrderCompleteId(variables: Record<string, unknown>): string | null {
   return typeof variables['id'] === 'string' ? variables['id'] : null;
+}
+
+function readNullableBooleanArgument(
+  field: FieldNode,
+  argumentName: string,
+  variables: Record<string, unknown>,
+): boolean | null {
+  const argument = field.arguments?.find((candidate) => candidate.name.value === argumentName);
+  if (!argument) {
+    return null;
+  }
+
+  if (argument.value.kind === Kind.BOOLEAN) {
+    return argument.value.value;
+  }
+
+  if (argument.value.kind === Kind.VARIABLE) {
+    const rawValue = variables[argument.value.name.value];
+    return typeof rawValue === 'boolean' ? rawValue : null;
+  }
+
+  return null;
+}
+
+function readDraftOrderCompleteSourceName(field: FieldNode, variables: Record<string, unknown>): string | null {
+  const args = getFieldArguments(field, variables);
+  return typeof args['sourceName'] === 'string' ? args['sourceName'] : null;
+}
+
+function readDraftOrderCompletePaymentPending(field: FieldNode, variables: Record<string, unknown>): boolean {
+  return readNullableBooleanArgument(field, 'paymentPending', variables) ?? false;
+}
+
+function readDraftOrderCompletePaymentGatewayId(field: FieldNode, variables: Record<string, unknown>): string | null {
+  const args = getFieldArguments(field, variables);
+  return typeof args['paymentGatewayId'] === 'string' ? args['paymentGatewayId'] : null;
 }
 
 function readOrderEditVariantId(variables: Record<string, unknown>): string | null {
@@ -2355,6 +2475,30 @@ function serializeSelectedOrderMutationPayload(field: FieldNode): Record<string,
   return result;
 }
 
+function serializeDraftOrderCompletePayload(
+  field: FieldNode,
+  draftOrder: DraftOrderRecord | null,
+  userErrors: Array<{ field: string[] | null; message: string }>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const selectionKey = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'draftOrder':
+        payload[selectionKey] = draftOrder ? serializeDraftOrderNode(selection, draftOrder) : null;
+        break;
+      case 'userErrors':
+        payload[selectionKey] = serializeSelectedUserErrors(selection, userErrors);
+        break;
+      default:
+        payload[selectionKey] = null;
+        break;
+    }
+  }
+
+  return payload;
+}
+
 export function handleOrderQuery(
   document: string,
   variables: Record<string, unknown> = {},
@@ -2652,22 +2796,29 @@ export function handleOrderMutation(
       const draftOrder = store.getDraftOrderById(id);
       if (draftOrder && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
         handled = true;
-        const completedDraftOrder = store.updateDraftOrder(buildCompletedDraftOrder(draftOrder));
-        const payload: Record<string, unknown> = {};
-        for (const selection of getSelectedChildFields(field)) {
-          const selectionKey = getFieldResponseKey(selection);
-          switch (selection.name.value) {
-            case 'draftOrder':
-              payload[selectionKey] = serializeDraftOrderNode(selection, completedDraftOrder);
-              break;
-            case 'userErrors':
-              payload[selectionKey] = [];
-              break;
-            default:
-              payload[selectionKey] = null;
-              break;
-          }
+
+        if (readDraftOrderCompletePaymentGatewayId(field, variables)) {
+          data[key] = serializeDraftOrderCompletePayload(field, null, [
+            {
+              field: null,
+              message: 'Invalid payment gateway',
+            },
+          ]);
+          continue;
         }
+
+        const completedDraftOrder = buildCompletedDraftOrder(draftOrder);
+        const order = store.stageCreateOrder(
+          buildOrderFromCompletedDraftOrder(completedDraftOrder, {
+            sourceName: readDraftOrderCompleteSourceName(field, variables),
+            paymentPending: readDraftOrderCompletePaymentPending(field, variables),
+          }),
+        );
+        const linkedDraftOrder = store.updateDraftOrder({
+          ...completedDraftOrder,
+          orderId: order.id,
+        });
+        const payload = serializeDraftOrderCompletePayload(field, linkedDraftOrder, []);
         data[key] = payload;
         continue;
       }

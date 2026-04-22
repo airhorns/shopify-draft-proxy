@@ -75,7 +75,8 @@ describe('order creation auth blocker evidence', () => {
     expect(blockerNote).toContain('draftOrderComplete');
     expect(blockerNote).toContain('last verified family-specific access-denied evidence');
     expect(blockerNote).toContain('mark-as-paid');
-    expect(blockerNote).toContain('.manual-store-auth-token.json');
+    expect(blockerNote).toContain('~/.shopify-draft-proxy/conformance-admin-auth.json');
+    expect(blockerNote).toContain('/tmp/shopify-conformance-app/hermes-conformance-products/.env');
     expect(blockerNote).toContain('corepack pnpm conformance:capture-orders');
     expect(blockerNote).toContain(
       'current run is auth-regressed before the family-specific creation roots can be reprobed',

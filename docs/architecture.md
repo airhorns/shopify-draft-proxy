@@ -213,6 +213,7 @@ Current implementation notes:
 - `POST /__meta/commit` replays pending `staged` / `proxied` mutations against upstream Shopify in original log order using the caller-provided `X-Shopify-Access-Token`
 - commit replay persists per-entry `committed` / `failed` statuses back into the in-memory log and stops at the first upstream transport or GraphQL failure
 - the direct-order runtime model now includes the first refund visibility slice: staged order transactions, locally staged `refundCreate` records, empty return connections, and derived `totalRefundedSet` / refund financial status fields for downstream `order(id:)` reads
+- local draft-order completion for staged synthetic drafts creates a staged regular order and links it back through the completed draft order, so `draftOrder(id:)`, nested `DraftOrder.order`, `order(id:)`, `orders`, and `ordersCount` all observe the conversion without sending the supported mutation upstream
 
 Commit response should include:
 
