@@ -1,0 +1,26 @@
+query ProductEmptyStateConformance($missingId: ID!, $emptyQuery: String!) {
+  missingProduct: product(id: $missingId) {
+    id
+    title
+  }
+  emptyCount: productsCount(query: $emptyQuery) {
+    count
+    precision
+  }
+  emptyProducts: products(first: 3, query: $emptyQuery, sortKey: UPDATED_AT, reverse: true) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        handle
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}
