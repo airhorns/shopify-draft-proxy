@@ -13,71 +13,27 @@
   "notes": "Captured expanded `orderUpdate` live parity for the 2025-01-supported simple update fields: order email, PO number, note, tags, custom attributes, shipping address, and order metafields, plus immediate downstream `order(id:)` visibility. Shopify 2025-01 rejects `phone` as an `OrderInput` field, so phone remains read-only context in this scenario; billing address is not exposed on `OrderInput`.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [],
+    "expectedDifferences": [
+      {
+        "path": "$.orderUpdate.order.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "Shopify returns the live order update timestamp; the proxy uses its deterministic staged-order timestamp while preserving timestamp shape."
+      },
+      {
+        "path": "$.order.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The downstream read observes the proxy's deterministic staged-order timestamp instead of Shopify's live update timestamp."
+      }
+    ],
     "targets": [
       {
-        "name": "mutation-order-id",
-        "capturePath": "$.mutation.response.data.orderUpdate.order.id",
-        "proxyPath": "$.data.orderUpdate.order.id"
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
       },
       {
-        "name": "mutation-order-email",
-        "capturePath": "$.mutation.response.data.orderUpdate.order.email",
-        "proxyPath": "$.data.orderUpdate.order.email"
-      },
-      {
-        "name": "mutation-order-phone-read-context",
-        "capturePath": "$.mutation.response.data.orderUpdate.order.phone",
-        "proxyPath": "$.data.orderUpdate.order.phone"
-      },
-      {
-        "name": "mutation-order-po-number",
-        "capturePath": "$.mutation.response.data.orderUpdate.order.poNumber",
-        "proxyPath": "$.data.orderUpdate.order.poNumber"
-      },
-      {
-        "name": "mutation-note",
-        "capturePath": "$.mutation.response.data.orderUpdate.order.note",
-        "proxyPath": "$.data.orderUpdate.order.note"
-      },
-      {
-        "name": "mutation-tags",
-        "capturePath": "$.mutation.response.data.orderUpdate.order.tags",
-        "proxyPath": "$.data.orderUpdate.order.tags"
-      },
-      {
-        "name": "mutation-customer-email-preserved",
-        "capturePath": "$.mutation.response.data.orderUpdate.order.customer.email",
-        "proxyPath": "$.data.orderUpdate.order.customer.email"
-      },
-      {
-        "name": "mutation-custom-attributes",
-        "capturePath": "$.mutation.response.data.orderUpdate.order.customAttributes",
-        "proxyPath": "$.data.orderUpdate.order.customAttributes"
-      },
-      {
-        "name": "mutation-shipping-address",
-        "capturePath": "$.mutation.response.data.orderUpdate.order.shippingAddress",
-        "proxyPath": "$.data.orderUpdate.order.shippingAddress"
-      },
-      {
-        "name": "mutation-gift-metafield-value",
-        "capturePath": "$.mutation.response.data.orderUpdate.order.gift.value",
-        "proxyPath": "$.data.orderUpdate.order.gift.value"
-      },
-      {
-        "name": "mutation-metafield-node",
-        "capturePath": "$.mutation.response.data.orderUpdate.order.metafields.nodes[0]",
-        "proxyPath": "$.data.orderUpdate.order.metafields.nodes[0]"
-      },
-      {
-        "name": "mutation-user-errors",
-        "capturePath": "$.mutation.response.data.orderUpdate.userErrors",
-        "proxyPath": "$.data.orderUpdate.userErrors"
-      },
-      {
-        "name": "downstream-email",
-        "capturePath": "$.downstreamRead.response.data.order.email",
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.response.data",
         "proxyRequest": {
           "documentPath": "config/parity-requests/orderUpdate-downstream-read.graphql",
           "variables": {
@@ -86,59 +42,7 @@
             }
           }
         },
-        "proxyPath": "$.data.order.email"
-      },
-      {
-        "name": "downstream-po-number",
-        "capturePath": "$.downstreamRead.response.data.order.poNumber",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/orderUpdate-downstream-read.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.orderUpdate.order.id"
-            }
-          }
-        },
-        "proxyPath": "$.data.order.poNumber"
-      },
-      {
-        "name": "downstream-note",
-        "capturePath": "$.downstreamRead.response.data.order.note",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/orderUpdate-downstream-read.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.orderUpdate.order.id"
-            }
-          }
-        },
-        "proxyPath": "$.data.order.note"
-      },
-      {
-        "name": "downstream-shipping-address",
-        "capturePath": "$.downstreamRead.response.data.order.shippingAddress",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/orderUpdate-downstream-read.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.orderUpdate.order.id"
-            }
-          }
-        },
-        "proxyPath": "$.data.order.shippingAddress"
-      },
-      {
-        "name": "downstream-metafield-node",
-        "capturePath": "$.downstreamRead.response.data.order.metafields.nodes[0]",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/orderUpdate-downstream-read.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.orderUpdate.order.id"
-            }
-          }
-        },
-        "proxyPath": "$.data.order.metafields.nodes[0]"
+        "proxyPath": "$.data"
       }
     ]
   }

@@ -2,6 +2,7 @@ query OrderUpdateDownstreamRead($id: ID!) {
   order(id: $id) {
     id
     name
+    updatedAt
     email
     phone
     poNumber
