@@ -6,16 +6,20 @@
   "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/inventory-linkage-parity.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/inventoryActivate-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/inventoryActivate-parity-plan.variables.json"
+    "variablesPath": "config/parity-requests/inventoryActivate-parity-plan.variables.json",
+    "variablesCapturePath": "$.inventoryActivateNoOp.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "notes": "Live capture now covers the first safe `inventoryActivate` slice on this host: calling the root against the already-active only location is a no-op without `available`, while passing `available` returns the captured `field: ['available']` userError instead of mutating inventory state.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "already-active-no-op-mutation-data",
+        "capturePath": "$.inventoryActivateNoOp.response.data",
+        "proxyPath": "$.data"
+      }
+    ]
   }
 }
