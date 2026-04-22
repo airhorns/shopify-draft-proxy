@@ -217,6 +217,14 @@ Practical rule:
 
 A later healthy-again pass on this host exposed a repo-local repair bug rather than another Shopify auth limitation: `corepack pnpm conformance:refresh-auth` assumed `.manual-store-auth-token.json` always retained `client_id`, but the current persisted expiring-token payload on this host does **not** keep that field.
 
+This note is historical for the old worktree-local repair path. The current conformance auth entry point is the shared home-folder credential at `~/.shopify-draft-proxy/conformance-admin-auth.json`, and `corepack pnpm conformance:refresh-auth` should use that same path as `corepack pnpm conformance:probe` / `corepack pnpm conformance:capture-orders`.
+
+Current shared-credential finding:
+
+- the checked-in app directory can exist without a repo-local `.env`; in that case app-secret resolution must fall back to `/tmp/shopify-conformance-app/<SHOPIFY_CONFORMANCE_APP_HANDLE>/.env` instead of stopping at the empty repo-local app copy
+- after that path fix, this host reaches Shopify's OAuth refresh endpoint with the shared credential and app secret, but Shopify returns `This request requires an active refresh_token`
+- practical consequence: a refresh failure with `credentialPath: /home/airhorns/.shopify-draft-proxy/conformance-admin-auth.json` and `appEnvPath: /tmp/shopify-conformance-app/hermes-conformance-products/.env` is a dead saved grant, not a worktree-local path bug
+
 Current host finding:
 
 - `.manual-store-auth-token.json` can legitimately contain the rotated `access_token` / `refresh_token` pair without `client_id`

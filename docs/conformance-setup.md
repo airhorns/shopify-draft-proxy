@@ -164,10 +164,9 @@ This performs a minimal Admin GraphQL `shop` query against the configured store 
 
 ### 6. Refresh expiring conformance auth before it strands the repo
 
-The current host now uses a **refreshable expiring store-auth token** persisted in:
+The current host now uses a **refreshable expiring store-auth token** persisted in the shared home-folder credential:
 
-- `.manual-store-auth-token.json`
-- `.env` (`SHOPIFY_CONFORMANCE_ADMIN_ACCESS_TOKEN`)
+- `~/.shopify-draft-proxy/conformance-admin-auth.json`
 
 When the access token expires, the repo should be repaired with the refresh path first, not by guessing or generating a brand-new auth link unnecessarily.
 
@@ -180,16 +179,15 @@ corepack pnpm conformance:probe
 
 What `conformance:refresh-auth` does:
 
-- reads the current `refresh_token` + `client_id` from `.manual-store-auth-token.json`
+- reads the current `refresh_token` + `client_id` from the shared home-folder credential
 - reads `SHOPIFY_API_SECRET` from the linked app `.env`
+  - first candidate when present: `shopify-conformance-app/<SHOPIFY_CONFORMANCE_APP_HANDLE>/.env`
   - default candidate: `/tmp/shopify-conformance-app/<SHOPIFY_CONFORMANCE_APP_HANDLE>/.env`
   - override with `SHOPIFY_CONFORMANCE_APP_ENV_PATH=/path/to/app/.env`
 - calls:
   - `POST https://<store>/admin/oauth/access_token`
   - form-encoded body with `client_id`, `client_secret`, `grant_type=refresh_token`, and `refresh_token`
-- persists the returned rotated token pair back into both:
-  - `.manual-store-auth-token.json`
-  - `.env`
+- persists the returned rotated token pair back into `~/.shopify-draft-proxy/conformance-admin-auth.json`
 - verifies the refreshed token immediately with a live `shop` probe
 
 Important current-host findings:
@@ -199,7 +197,7 @@ Important current-host findings:
 - those tokens must still be sent as raw `X-Shopify-Access-Token: <token>`
 - the refresh response can rotate **both** the access token and refresh token, so persisting them atomically matters
 
-If `conformance:refresh-auth` fails, inspect the returned JSON before retrying. On this host, a repo-local refresh can now fail with `invalid_request` / `This request requires an active refresh_token`, which means the saved manual store-auth grant is no longer refreshable and you should stop retrying it. In that branch, generate a new store-auth link, complete the browser approval flow, exchange the callback in one step, and only then probe again.
+If `conformance:refresh-auth` fails, inspect the returned JSON before retrying. On this host, a shared-credential refresh can now fail with `invalid_request` / `This request requires an active refresh_token`, which means the saved store-auth grant is no longer refreshable and you should stop retrying it. In that branch, generate a new store-auth link, complete the browser approval flow, exchange the callback in one step, and only then probe again.
 
 ### 7. Capture product-domain fixtures from the live store
 
