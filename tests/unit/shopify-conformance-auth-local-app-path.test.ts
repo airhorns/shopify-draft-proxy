@@ -59,4 +59,14 @@ describe('resolveDefaultAppEnvPath', () => {
       '/tmp/shopify-conformance-app/hermes-conformance-products/.env',
     );
   });
+
+  it('falls back to the legacy /tmp app env path when the repo-local app has no env file', async () => {
+    const repoRoot = await createTempDir('shopify-auth-repo-');
+    process.env['SHOPIFY_CONFORMANCE_APP_HANDLE'] = 'hermes-conformance-products';
+    await mkdir(path.join(repoRoot, 'shopify-conformance-app', 'hermes-conformance-products'), { recursive: true });
+
+    expect(resolveDefaultAppEnvPath({ repoRoot })).toBe(
+      '/tmp/shopify-conformance-app/hermes-conformance-products/.env',
+    );
+  });
 });

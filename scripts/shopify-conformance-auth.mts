@@ -195,7 +195,13 @@ export function resolveDefaultAppEnvPath({ repoRoot = process.cwd() } = {}) {
     return process.env['SHOPIFY_CONFORMANCE_APP_ENV_PATH'];
   }
 
-  return path.join(resolveDefaultAppRoot({ repoRoot }), '.env');
+  const appHandle = process.env['SHOPIFY_CONFORMANCE_APP_HANDLE'] || 'hermes-conformance-products';
+  const repoLocalEnvPath = path.join(repoRoot, 'shopify-conformance-app', appHandle, '.env');
+  if (existsSync(repoLocalEnvPath)) {
+    return repoLocalEnvPath;
+  }
+
+  return path.join('/tmp/shopify-conformance-app', appHandle, '.env');
 }
 
 async function readShopifyApiSecret(appEnvPath) {
