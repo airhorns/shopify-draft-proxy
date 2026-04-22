@@ -1,15 +1,15 @@
 {
-  "productId": "gid://shopify/Product/100",
+  "productId": "gid://shopify/Product/9259552407785",
   "variants": [
     {
-      "id": "gid://shopify/ProductVariant/200",
+      "id": "gid://shopify/ProductVariant/50905436913897",
       "barcode": "1111111111111",
       "price": "24.00",
       "compareAtPrice": "30.00",
       "taxable": true,
       "inventoryPolicy": "DENY",
       "inventoryItem": {
-        "sku": "HAT-DEFAULT-BLACK",
+        "sku": "HERMES-BULK-810153-RED",
         "tracked": true,
         "requiresShipping": true
       }
