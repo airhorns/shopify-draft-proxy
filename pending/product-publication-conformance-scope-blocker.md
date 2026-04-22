@@ -4,15 +4,15 @@
 
 Attempted to capture live conformance for the staged product publication family (`productPublish`, `productUnpublish`).
 
-- minimal `productPublish` / `productUnpublish` mutation payloads now capture successfully
-- Shopify accepted a real publication target id during the successful minimal mutation captures: `gid://shopify/Publication/82090459369`
-- the root mutation family can therefore be promoted to covered parity for the minimal live payload slice (`userErrors` + successful mutation execution)
+- safe `productPublish` / `productUnpublish` mutation payloads now capture successfully
+- Shopify accepted a real publication target id during the successful safe mutation captures: `gid://shopify/Publication/82090459369`
+- `productPublish` can therefore be promoted to covered parity for the successful live payload slice (`product { id }` plus `userErrors`)
 - `productUnpublish` has an executable strict-json proxy parity target for that minimal captured payload, using the checked-in safe live fixture variables
 
 ## Remaining field-level blocker
 
 - aggregate publication fields remain blocked for this app
-- publication aggregate reads still fail for this app even after the minimal mutation succeeds
+- publication aggregate reads still fail for this app even after the safe mutation succeeds
 - current conformance credential family: `shpca`
 - header mode: raw `X-Shopify-Access-Token` (raw-x-shopify-access-token)
 - the active conformance credential is a Shopify user access token (`shpca_...`) sent as raw `X-Shopify-Access-Token` on this host

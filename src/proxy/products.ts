@@ -6193,11 +6193,12 @@ export function handleProductMutation(
     case 'productPublish': {
       const input = isObject(args['input']) ? args['input'] : null;
       const productId = input && typeof input['id'] === 'string' ? input['id'] : null;
+      const productField = getChildField(field, 'product');
       if (!productId) {
         return {
           data: {
             [responseKey]: {
-              product: null,
+              ...(productField ? { product: null } : {}),
               userErrors: [{ field: ['input', 'id'], message: 'Product id is required' }],
             },
           },
@@ -6209,7 +6210,7 @@ export function handleProductMutation(
         return {
           data: {
             [responseKey]: {
-              product: null,
+              ...(productField ? { product: null } : {}),
               userErrors: [{ field: ['input', 'id'], message: 'Product not found' }],
             },
           },
@@ -6226,7 +6227,7 @@ export function handleProductMutation(
       return {
         data: {
           [responseKey]: {
-            product: serializeProduct(product, getChildField(field, 'product'), variables),
+            ...(productField ? { product: serializeProduct(product, productField, variables) } : {}),
             userErrors: [],
           },
         },

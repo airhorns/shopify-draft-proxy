@@ -1665,6 +1665,27 @@ describe('product draft flow', () => {
 
     const productId = createResponse.body.data.productCreate.product.id as string;
 
+    const productIdPublishResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation PublishProductId($input: ProductPublishInput!) { productPublish(input: $input) { product { id } userErrors { field message } } }',
+        variables: {
+          input: {
+            id: productId,
+            productPublications: [{ publicationId: 'gid://shopify/Publication/1' }],
+          },
+        },
+      });
+
+    expect(productIdPublishResponse.status).toBe(200);
+    expect(productIdPublishResponse.body.data.productPublish).toEqual({
+      product: {
+        id: productId,
+      },
+      userErrors: [],
+    });
+
     const publishResponse = await request(app)
       .post('/admin/api/2025-01/graphql.json')
       .send({
