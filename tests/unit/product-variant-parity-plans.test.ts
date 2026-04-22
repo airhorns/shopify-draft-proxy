@@ -7,6 +7,7 @@ type ProxyRequestSpec = {
   proxyRequest?: {
     documentPath?: string | null;
     variablesPath?: string | null;
+    variablesCapturePath?: string | null;
   };
   blocker?: unknown;
   comparison?: {
@@ -92,6 +93,18 @@ describe('product variant mutation parity plan scaffolds', () => {
   });
 
   it('declares a concrete proxy request scaffold for productVariantsBulkDelete', () => {
+    const repoRoot = resolve(import.meta.dirname, '../..');
+    const spec = JSON.parse(
+      readFileSync(resolve(repoRoot, 'config/parity-specs/productVariantsBulkDelete-parity-plan.json'), 'utf8'),
+    ) as ProxyRequestSpec;
+
+    expect(spec.blocker).toBeUndefined();
+    expect(spec.proxyRequest?.variablesCapturePath).toBe('$.mutation.variables');
+    expect(spec.comparison?.targets?.map((target) => target.name)).toEqual(['mutation-data', 'downstream-read-data']);
+    expect(spec.comparison?.targets?.at(-1)?.proxyRequest?.documentPath).toBe(
+      'config/parity-requests/productVariantsBulkDelete-downstream-read.graphql',
+    );
+
     expectParityPlanScaffold({
       specPath: 'config/parity-specs/productVariantsBulkDelete-parity-plan.json',
       documentPath: 'config/parity-requests/productVariantsBulkDelete-parity-plan.graphql',
@@ -107,6 +120,7 @@ describe('product variant mutation parity plan scaffolds', () => {
         'title',
         'sku',
         'inventoryQuantity',
+        'selectedOptions',
         'userErrors {',
       ],
       expectedVariables: {

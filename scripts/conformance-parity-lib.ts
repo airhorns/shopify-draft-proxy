@@ -716,6 +716,63 @@ function makeSeedVariant(
   };
 }
 
+function makeCapturedVariant(productId: string, source: Record<string, unknown>): ProductVariantRecord | null {
+  const id = readStringField(source, 'id');
+  if (!id) {
+    return null;
+  }
+
+  const selectedOptions = readArrayField(source, 'selectedOptions')
+    .filter(isPlainObject)
+    .map((selectedOption) => {
+      const name = readStringField(selectedOption, 'name');
+      const value = readStringField(selectedOption, 'value');
+      return name && value ? { name, value } : null;
+    })
+    .filter(
+      (selectedOption): selectedOption is ProductVariantRecord['selectedOptions'][number] => selectedOption !== null,
+    );
+  const inventoryItem = readRecordField(source, 'inventoryItem');
+  const inventoryItemId = readStringField(inventoryItem, 'id');
+
+  return {
+    id,
+    productId,
+    title: readStringField(source, 'title') ?? 'Default Title',
+    sku: readStringField(source, 'sku'),
+    barcode: readStringField(source, 'barcode'),
+    price: readStringField(source, 'price'),
+    compareAtPrice: readStringField(source, 'compareAtPrice'),
+    taxable: readBooleanField(source, 'taxable'),
+    inventoryPolicy: readStringField(source, 'inventoryPolicy'),
+    inventoryQuantity: readNumberField(source, 'inventoryQuantity'),
+    selectedOptions,
+    inventoryItem: inventoryItemId
+      ? {
+          id: inventoryItemId,
+          tracked: readBooleanField(inventoryItem, 'tracked'),
+          requiresShipping: readBooleanField(inventoryItem, 'requiresShipping'),
+          measurement: null,
+          countryCodeOfOrigin: null,
+          provinceCodeOfOrigin: null,
+          harmonizedSystemCode: null,
+          inventoryLevels: [],
+        }
+      : null,
+  };
+}
+
+function readCapturedProductVariants(
+  productId: string,
+  product: Record<string, unknown> | null,
+): ProductVariantRecord[] {
+  const variantNodes = readArrayField(readRecordField(product, 'variants'), 'nodes');
+  return variantNodes
+    .filter(isPlainObject)
+    .map((variant) => makeCapturedVariant(productId, variant))
+    .filter((variant): variant is ProductVariantRecord => variant !== null);
+}
+
 function makeDefaultOption(productId: string): ProductOptionRecord {
   return {
     id: `gid://shopify/ProductOption/${productId.split('/').at(-1) ?? '1'}0`,
@@ -1146,6 +1203,18 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
 
   if (shouldSeedProduct) {
     store.upsertBaseProducts([makeSeedProduct(productId, productPayload ?? productInput)]);
+    if (mutationName === 'productVariantsBulkDelete') {
+      const downstreamProduct = readRecordField(
+        readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data'),
+        'product',
+      );
+      const variantsSource =
+        readStringField(downstreamProduct, 'id') === productId ? downstreamProduct : productPayload;
+      const variants = readCapturedProductVariants(productId, variantsSource);
+      if (variants.length > 0) {
+        store.replaceBaseVariantsForProduct(productId, variants);
+      }
+    }
     if (readArrayField(variables, 'options').length > 0 || readRecordField(variables, 'option')) {
       seedProductOptionState(productId, variables);
     }
