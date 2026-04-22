@@ -1,5 +1,6 @@
 {
   "id": "gid://shopify/DraftOrder/0",
   "paymentGatewayId": null,
-  "sourceName": "hermes-cron-orders"
+  "sourceName": "hermes-cron-orders",
+  "paymentPending": false
 }

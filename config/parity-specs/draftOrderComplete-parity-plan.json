@@ -51,5 +51,5 @@
       "manualStoreAuthAssociatedUserScopes": []
     }
   },
-  "notes": "Merchant-realistic draft-to-order completion scaffold. The checked-in proxy request now captures the narrow completion payload merchants care about first — draft order status/ready state, invoice URL, total price, and line items — and avoids the stale non-schema `DraftOrderCompletePayload.order` selection that Shopify rejects on this host. Live capture remains blocked until the conformance install can complete draft orders."
+  "notes": "Merchant-realistic draft-to-order completion scaffold. The checked-in proxy request captures draft status/ready state, invoice URL, completed timestamp, total price, line items, and the nested `DraftOrder.order` link plus key regular-order fields while still avoiding the stale non-schema top-level `DraftOrderCompletePayload.order` selection that Shopify rejects on this host. Live capture remains blocked until the conformance install can complete draft orders."
 }
