@@ -2038,6 +2038,125 @@ describe('product query shapes', () => {
     });
   });
 
+  it('supports NOT, tag_not, and published_at search filters across products and productsCount', async () => {
+    store.upsertBaseProducts([
+      {
+        id: 'gid://shopify/Product/1',
+        legacyResourceId: '1',
+        title: 'Published Nike Cap',
+        handle: 'published-nike-cap',
+        status: 'ACTIVE',
+        publicationIds: [],
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-02T00:00:00.000Z',
+        publishedAt: '2024-02-01T00:00:00.000Z',
+        vendor: 'NIKE',
+        productType: 'ACCESSORIES',
+        tags: ['sample', 'cap'],
+        totalInventory: 1,
+        tracksInventory: true,
+        descriptionHtml: null,
+        onlineStorePreviewUrl: null,
+        templateSuffix: null,
+        seo: { title: null, description: null },
+        category: null,
+      },
+      {
+        id: 'gid://shopify/Product/2',
+        legacyResourceId: '2',
+        title: 'Draft Vans Sock',
+        handle: 'draft-vans-sock',
+        status: 'ACTIVE',
+        publicationIds: [],
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-02T00:00:00.000Z',
+        publishedAt: null,
+        vendor: 'VANS',
+        productType: 'ACCESSORIES',
+        tags: ['sample', 'vans'],
+        totalInventory: 1,
+        tracksInventory: true,
+        descriptionHtml: null,
+        onlineStorePreviewUrl: null,
+        templateSuffix: null,
+        seo: { title: null, description: null },
+        category: null,
+      },
+      {
+        id: 'gid://shopify/Product/3',
+        legacyResourceId: '3',
+        title: 'Published Converse Shoe',
+        handle: 'published-converse-shoe',
+        status: 'ACTIVE',
+        publicationIds: [],
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-02T00:00:00.000Z',
+        publishedAt: '2024-03-01T00:00:00.000Z',
+        vendor: 'CONVERSE',
+        productType: 'SHOES',
+        tags: ['sample', 'shoe'],
+        totalInventory: 1,
+        tracksInventory: true,
+        descriptionHtml: null,
+        onlineStorePreviewUrl: null,
+        templateSuffix: null,
+        seo: { title: null, description: null },
+        category: null,
+      },
+    ]);
+
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const createResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Published Adidas Bag", vendor: "ADIDAS", productType: "ACCESSORIES", tags: ["sample", "bag"], publishedAt: "2024-04-01T00:00:00.000Z" }) { product { id title publishedAt vendor tags } userErrors { field message } } }',
+    });
+    const stagedProductId = createResponse.body.data.productCreate.product.id as string;
+
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query ProductSearchGrammar($notQuery: String!, $tagNotQuery: String!, $publishedRangeQuery: String!) {
+          notMatches: products(first: 10, query: $notQuery, sortKey: PUBLISHED_AT) {
+            edges { node { id vendor publishedAt } }
+          }
+          notCount: productsCount(query: $notQuery) { count precision }
+          tagNotMatches: products(first: 10, query: $tagNotQuery, sortKey: PUBLISHED_AT) {
+            edges { node { id tags publishedAt } }
+          }
+          tagNotCount: productsCount(query: $tagNotQuery) { count precision }
+          rangeMatches: products(first: 10, query: $publishedRangeQuery, sortKey: PUBLISHED_AT) {
+            edges { node { id publishedAt } }
+          }
+          rangeCount: productsCount(query: $publishedRangeQuery) { count precision }
+        }`,
+        variables: {
+          notQuery: 'NOT vendor:VANS published_at:*',
+          tagNotQuery: 'tag_not:vans published_at:*',
+          publishedRangeQuery: "published_at:>='2024-03-01T00:00:00.000Z'",
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.notMatches.edges.map((edge: { node: { id: string } }) => edge.node.id)).toEqual([
+      'gid://shopify/Product/1',
+      'gid://shopify/Product/3',
+      stagedProductId,
+    ]);
+    expect(response.body.data.notCount).toEqual({ count: 3, precision: 'EXACT' });
+    expect(response.body.data.tagNotMatches.edges.map((edge: { node: { id: string } }) => edge.node.id)).toEqual([
+      'gid://shopify/Product/1',
+      'gid://shopify/Product/3',
+      stagedProductId,
+    ]);
+    expect(response.body.data.tagNotCount).toEqual({ count: 3, precision: 'EXACT' });
+    expect(response.body.data.rangeMatches.edges.map((edge: { node: { id: string } }) => edge.node.id)).toEqual([
+      'gid://shopify/Product/3',
+      stagedProductId,
+    ]);
+    expect(response.body.data.rangeCount).toEqual({ count: 2, precision: 'EXACT' });
+  });
+
   it('treats later AND filters as binding tighter than ungrouped OR terms', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       return new Response(

@@ -4683,7 +4683,7 @@ function matchesProductTimestampTerm(productValue: string, rawValue: string): bo
   }
 
   const operator = match[1] ?? '=';
-  const thresholdValue = match[2]?.trim() ?? '';
+  const thresholdValue = stripSearchValueQuotes(match[2]?.trim() ?? '');
   if (!thresholdValue) {
     return true;
   }
@@ -4710,6 +4710,28 @@ function matchesProductTimestampTerm(productValue: string, rawValue: string): bo
   }
 }
 
+function stripSearchValueQuotes(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length >= 2) {
+    const firstCharacter = trimmed[0];
+    const lastCharacter = trimmed[trimmed.length - 1];
+    if ((firstCharacter === '"' || firstCharacter === "'") && firstCharacter === lastCharacter) {
+      return trimmed.slice(1, -1);
+    }
+  }
+
+  return trimmed;
+}
+
+function matchesNullableProductTimestampTerm(productValue: string | null, rawValue: string): boolean {
+  const normalizedValue = stripSearchValueQuotes(rawValue);
+  if (normalizedValue === '*') {
+    return productValue !== null;
+  }
+
+  return productValue === null ? false : matchesProductTimestampTerm(productValue, normalizedValue);
+}
+
 type ProductsQueryToken =
   | { type: 'term'; value: string }
   | { type: 'or' }
@@ -4726,7 +4748,7 @@ type ProductsQueryNode =
 function tokenizeProductsQuery(query: string): ProductsQueryToken[] {
   const tokens: ProductsQueryToken[] = [];
   let current = '';
-  let inQuotes = false;
+  let quoteCharacter: '"' | "'" | null = null;
 
   const flushCurrent = (): void => {
     const value = current.trim();
@@ -4737,38 +4759,51 @@ function tokenizeProductsQuery(query: string): ProductsQueryToken[] {
 
     if (value.toUpperCase() === 'OR') {
       tokens.push({ type: 'or' });
+    } else if (value === 'NOT') {
+      tokens.push({ type: 'not' });
     } else {
       tokens.push({ type: 'term', value });
     }
     current = '';
   };
 
+  const canStartQuotedValue = (): boolean => {
+    if (!current) {
+      return true;
+    }
+
+    return /:(?:<=|>=|<|>|=)?$/u.test(current);
+  };
+
   for (let index = 0; index < query.length; index += 1) {
     const character = query[index] ?? '';
 
-    if (character === '"') {
-      inQuotes = !inQuotes;
+    if (
+      (character === '"' || character === "'") &&
+      (quoteCharacter === character || (quoteCharacter === null && canStartQuotedValue()))
+    ) {
+      quoteCharacter = quoteCharacter === character ? null : character;
       continue;
     }
 
-    if (!inQuotes && /\s/.test(character)) {
+    if (quoteCharacter === null && /\s/.test(character)) {
       flushCurrent();
       continue;
     }
 
-    if (!inQuotes && character === '(') {
+    if (quoteCharacter === null && character === '(') {
       flushCurrent();
       tokens.push({ type: 'lparen' });
       continue;
     }
 
-    if (!inQuotes && character === ')') {
+    if (quoteCharacter === null && character === ')') {
       flushCurrent();
       tokens.push({ type: 'rparen' });
       continue;
     }
 
-    if (!inQuotes && character === '-' && !current) {
+    if (quoteCharacter === null && character === '-' && !current) {
       const nextCharacter = query[index + 1] ?? '';
       if (nextCharacter === '(') {
         tokens.push({ type: 'not' });
@@ -4957,8 +4992,12 @@ function matchesPositiveProductQueryTerm(product: ProductRecord, term: string): 
       return matchesStringValue(product.status, value, 'exact');
     case 'created_at':
       return matchesProductTimestampTerm(product.createdAt, value);
+    case 'published_at':
+      return matchesNullableProductTimestampTerm(product.publishedAt ?? null, value);
     case 'updated_at':
       return matchesProductTimestampTerm(product.updatedAt, value);
+    case 'tag_not':
+      return !getSearchableProductTags(product).some((tag) => matchesStringValue(tag, value, 'exact'));
     case 'sku':
       return getSearchableProductVariants(product).some(
         (variant) => typeof variant.sku === 'string' && matchesStringValue(variant.sku, value, 'exact'),
