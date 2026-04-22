@@ -6,16 +6,43 @@
   "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/metafields-delete-parity.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/metafieldsDelete-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/metafieldsDelete-parity-plan.variables.json"
+    "variablesPath": "config/parity-requests/metafieldsDelete-parity-plan.variables.json",
+    "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "notes": "Live capture now covers Shopify's current plural `metafieldsDelete` root, including immediate downstream `product.metafield(...)` / `product.metafields` removal parity for product-owned metafields.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [
+      {
+        "path": "$.product.metafields.pageInfo.startCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and not stable across local replay; the retained metafield node set and pageInfo booleans remain strict."
+      },
+      {
+        "path": "$.product.metafields.pageInfo.endCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and not stable across local replay; the retained metafield node set and pageInfo booleans remain strict."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.downstreamRead",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafieldsSet-downstream-read.graphql",
+          "variables": {
+            "id": "gid://shopify/Product/9257219227881"
+          }
+        }
+      }
+    ]
   }
 }
