@@ -2194,9 +2194,9 @@ describe('product draft flow', () => {
         sku: 'HAT-BLUE',
         barcode: '2222222222222',
         price: '26.00',
-        compareAtPrice: null,
-        taxable: null,
-        inventoryPolicy: null,
+        compareAtPrice: '30.00',
+        taxable: true,
+        inventoryPolicy: 'DENY',
         inventoryQuantity: 6,
         inventoryItem: {
           id: expect.stringMatching(/^gid:\/\/shopify\/InventoryItem\//),
@@ -3974,7 +3974,9 @@ describe('product draft flow', () => {
     expect(deleteMediaResponse.status).toBe(200);
     expect(deleteMediaResponse.body.data.productDeleteMedia.mediaUserErrors).toEqual([]);
     expect(deleteMediaResponse.body.data.productDeleteMedia.deletedMediaIds).toEqual([mediaId]);
-    expect(deleteMediaResponse.body.data.productDeleteMedia.deletedProductImageIds).toEqual([]);
+    expect(deleteMediaResponse.body.data.productDeleteMedia.deletedProductImageIds).toEqual([
+      expect.stringMatching(/^gid:\/\/shopify\/ProductImage\//),
+    ]);
     expect(deleteMediaResponse.body.data.productDeleteMedia.product.media.nodes).toEqual([]);
 
     const emptyMediaQuery = await request(app)
@@ -3993,6 +3995,119 @@ describe('product draft flow', () => {
         hasPreviousPage: false,
       },
     });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('deletes one staged product media item while preserving the remaining media connection', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const createProductResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Two Media Hat" }) { product { id } userErrors { field message } } }',
+    });
+
+    const productId = createProductResponse.body.data.productCreate.product.id as string;
+    const createMediaResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateMedia($productId: ID!, $media: [CreateMediaInput!]!) { productCreateMedia(productId: $productId, media: $media) { media { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } } mediaUserErrors { field message } } }',
+        variables: {
+          productId,
+          media: [
+            {
+              mediaContentType: 'IMAGE',
+              originalSource: 'https://cdn.example.com/media-hat-front.jpg',
+              alt: 'Front view',
+            },
+            {
+              mediaContentType: 'IMAGE',
+              originalSource: 'https://cdn.example.com/media-hat-back.jpg',
+              alt: 'Back view',
+            },
+          ],
+        },
+      });
+
+    expect(createMediaResponse.status).toBe(200);
+    expect(createMediaResponse.body.data.productCreateMedia.mediaUserErrors).toEqual([]);
+    const createdMedia = createMediaResponse.body.data.productCreateMedia.media as Array<{
+      id: string;
+    }>;
+    expect(createdMedia).toHaveLength(2);
+    const deletedMedia = createdMedia[0]!;
+    const remainingMedia = createdMedia[1]!;
+
+    await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query PromoteProcessing($id: ID!) { product(id: $id) { id media(first: 10) { nodes { id status preview { image { url } } } } } }',
+        variables: { id: productId },
+      });
+    await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query PromoteReady($id: ID!) { product(id: $id) { id media(first: 10) { nodes { id status preview { image { url } } } } } }',
+        variables: { id: productId },
+      });
+
+    const deleteMediaResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation DeleteOneMedia($productId: ID!, $mediaIds: [ID!]!) { productDeleteMedia(productId: $productId, mediaIds: $mediaIds) { deletedMediaIds deletedProductImageIds mediaUserErrors { field message } product { id media(first: 10) { nodes { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } } }',
+        variables: {
+          productId,
+          mediaIds: [deletedMedia.id],
+        },
+      });
+
+    expect(deleteMediaResponse.status).toBe(200);
+    expect(deleteMediaResponse.body.data.productDeleteMedia).toMatchObject({
+      deletedMediaIds: [deletedMedia.id],
+      deletedProductImageIds: [expect.stringMatching(/^gid:\/\/shopify\/ProductImage\//)],
+      mediaUserErrors: [],
+    });
+    expect(deleteMediaResponse.body.data.productDeleteMedia.product.media).toEqual({
+      nodes: [
+        {
+          id: remainingMedia.id,
+          alt: 'Back view',
+          mediaContentType: 'IMAGE',
+          status: 'READY',
+          preview: {
+            image: {
+              url: 'https://cdn.example.com/media-hat-back.jpg',
+            },
+          },
+          image: {
+            url: 'https://cdn.example.com/media-hat-back.jpg',
+          },
+        },
+      ],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: `cursor:${productId}:media:1`,
+        endCursor: `cursor:${productId}:media:1`,
+      },
+    });
+
+    const downstreamMediaQuery = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query MediaAfterPartialDelete($id: ID!) { product(id: $id) { id media(first: 10) { nodes { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }',
+        variables: { id: productId },
+      });
+
+    expect(downstreamMediaQuery.status).toBe(200);
+    expect(downstreamMediaQuery.body.data.product.media).toEqual(
+      deleteMediaResponse.body.data.productDeleteMedia.product.media,
+    );
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

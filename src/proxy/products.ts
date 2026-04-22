@@ -745,6 +745,14 @@ function makeSyntheticMediaId(mediaContentType: string | null | undefined): stri
   return makeSyntheticGid('Media');
 }
 
+function makeSyntheticProductImageId(mediaContentType: string | null | undefined): string | null {
+  if (mediaContentType === 'IMAGE') {
+    return makeSyntheticGid('ProductImage');
+  }
+
+  return null;
+}
+
 function duplicateMetafieldRecord(metafield: ProductMetafieldRecord, productId: string): ProductMetafieldRecord {
   return {
     id: makeSyntheticGid('Metafield'),
@@ -782,6 +790,7 @@ function makeCreatedMediaRecord(
     mediaContentType,
     alt: typeof rawAlt === 'string' ? rawAlt : null,
     status: 'UPLOADED',
+    productImageId: makeSyntheticProductImageId(mediaContentType),
     imageUrl: null,
     previewImageUrl: null,
     sourceUrl,
@@ -1343,7 +1352,11 @@ function deriveVariantTitle(
   return selectedOptionTitle || fallbackTitle;
 }
 
-function makeCreatedVariantRecord(productId: string, input: Record<string, unknown>): ProductVariantRecord {
+function makeCreatedVariantRecord(
+  productId: string,
+  input: Record<string, unknown>,
+  defaults: ProductVariantRecord | null = null,
+): ProductVariantRecord {
   const selectedOptions = readVariantSelectedOptions(input, productId);
   return {
     id: makeSyntheticGid('ProductVariant'),
@@ -1352,10 +1365,12 @@ function makeCreatedVariantRecord(productId: string, input: Record<string, unkno
     sku: readVariantSku(input, null),
     barcode: typeof input['barcode'] === 'string' ? input['barcode'] : null,
     price: typeof input['price'] === 'string' ? input['price'] : null,
-    compareAtPrice: typeof input['compareAtPrice'] === 'string' ? input['compareAtPrice'] : null,
-    taxable: typeof input['taxable'] === 'boolean' ? input['taxable'] : null,
-    inventoryPolicy: typeof input['inventoryPolicy'] === 'string' ? input['inventoryPolicy'] : null,
-    inventoryQuantity: readVariantInventoryQuantity(input, null),
+    compareAtPrice:
+      typeof input['compareAtPrice'] === 'string' ? input['compareAtPrice'] : (defaults?.compareAtPrice ?? null),
+    taxable: typeof input['taxable'] === 'boolean' ? input['taxable'] : (defaults?.taxable ?? null),
+    inventoryPolicy:
+      typeof input['inventoryPolicy'] === 'string' ? input['inventoryPolicy'] : (defaults?.inventoryPolicy ?? null),
+    inventoryQuantity: readVariantInventoryQuantity(input, 0),
     selectedOptions,
     inventoryItem: readInventoryItemInput(input['inventoryItem'], null),
   };
@@ -2716,6 +2731,7 @@ function normalizeUpstreamMedia(productId: string, value: unknown, position: num
     mediaContentType: typeof rawMediaContentType === 'string' ? rawMediaContentType : null,
     alt: typeof rawAlt === 'string' ? rawAlt : null,
     status: typeof rawStatus === 'string' ? rawStatus : null,
+    productImageId: null,
     imageUrl: normalizedImageUrl,
     previewImageUrl: typeof rawPreviewImageUrl === 'string' ? rawPreviewImageUrl : null,
     sourceUrl: normalizedImageUrl,
@@ -6800,7 +6816,9 @@ export function handleProductMutation(
       const deletedMediaIds = deletedMedia
         .map((mediaRecord) => mediaRecord.id)
         .filter((mediaId): mediaId is string => typeof mediaId === 'string');
-      const deletedProductImageIds: string[] = [];
+      const deletedProductImageIds = deletedMedia
+        .map((mediaRecord) => mediaRecord.productImageId)
+        .filter((productImageId): productImageId is string => typeof productImageId === 'string');
 
       return {
         data: {
@@ -7222,8 +7240,9 @@ export function handleProductMutation(
         };
       }
 
-      const createdVariant = makeCreatedVariantRecord(productId, input);
-      const nextVariants = [...store.getEffectiveVariantsByProductId(productId), createdVariant];
+      const effectiveVariants = store.getEffectiveVariantsByProductId(productId);
+      const createdVariant = makeCreatedVariantRecord(productId, input, effectiveVariants[0] ?? null);
+      const nextVariants = [...effectiveVariants, createdVariant];
       store.replaceStagedVariantsForProduct(productId, nextVariants);
       store.replaceStagedOptionsForProduct(
         productId,
@@ -7381,10 +7400,12 @@ export function handleProductMutation(
         };
       }
 
+      const effectiveVariants = store.getEffectiveVariantsByProductId(productId);
+      const defaultVariant = effectiveVariants[0] ?? null;
       const createdVariants = (Array.isArray(args['variants']) ? args['variants'] : [])
         .filter((variant): variant is Record<string, unknown> => isObject(variant))
-        .map((variant) => makeCreatedVariantRecord(productId, variant));
-      const nextVariants = [...store.getEffectiveVariantsByProductId(productId), ...createdVariants];
+        .map((variant) => makeCreatedVariantRecord(productId, variant, defaultVariant));
+      const nextVariants = [...effectiveVariants, ...createdVariants];
       store.replaceStagedVariantsForProduct(productId, nextVariants);
       store.replaceStagedOptionsForProduct(
         productId,

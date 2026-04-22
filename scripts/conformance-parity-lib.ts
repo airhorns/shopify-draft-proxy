@@ -783,6 +783,15 @@ function readCapturedProductVariants(
     .filter((variant): variant is ProductVariantRecord => variant !== null);
 }
 
+function readCapturedCreatedVariantIds(payload: Record<string, unknown> | null): Set<string> {
+  return new Set(
+    readArrayField(payload, 'productVariants')
+      .filter(isPlainObject)
+      .map((variant) => readStringField(variant, 'id'))
+      .filter((id): id is string => id !== null),
+  );
+}
+
 function makeDefaultOption(productId: string): ProductOptionRecord {
   return {
     id: `gid://shopify/ProductOption/${productId.split('/').at(-1) ?? '1'}0`,
@@ -1227,6 +1236,7 @@ function readCapturedProductMedia(
         mediaContentType: readStringField(node, 'mediaContentType'),
         alt: readStringField(node, 'alt'),
         status: readStringField(node, 'status'),
+        productImageId: null,
         imageUrl,
         previewImageUrl,
         sourceUrl: imageUrl ?? previewImageUrl,
@@ -1285,14 +1295,19 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   if (shouldSeedProduct) {
     const seedSource = mutationName === 'tagsAdd' ? null : (productPayload ?? productInput);
     store.upsertBaseProducts([makeSeedProduct(productId, seedSource)]);
-    if (mutationName === 'productVariantsBulkDelete') {
+    if (mutationName === 'productVariantsBulkCreate' || mutationName === 'productVariantsBulkDelete') {
       const downstreamProduct = readRecordField(
         readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data'),
         'product',
       );
       const variantsSource =
         readStringField(downstreamProduct, 'id') === productId ? downstreamProduct : productPayload;
-      const variants = readCapturedProductVariants(productId, variantsSource);
+      const variants =
+        mutationName === 'productVariantsBulkCreate'
+          ? readCapturedProductVariants(productId, variantsSource).filter(
+              (variant) => !readCapturedCreatedVariantIds(payload).has(variant.id),
+            )
+          : readCapturedProductVariants(productId, variantsSource);
       if (variants.length > 0) {
         store.replaceBaseVariantsForProduct(productId, variants);
       }
@@ -1310,6 +1325,32 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       const capturedMedia = readCapturedProductMedia(productId, mediaSource);
       if (capturedMedia.length > 0) {
         store.replaceBaseMediaForProduct(productId, capturedMedia);
+      }
+    }
+    if (mutationName === 'productDeleteMedia') {
+      const mediaIds = readArrayField(variables, 'mediaIds').filter(
+        (mediaId): mediaId is string => typeof mediaId === 'string',
+      );
+      if (mediaIds.length > 0) {
+        const deletedProductImageIds = readArrayField(payload, 'deletedProductImageIds').filter(
+          (productImageId): productImageId is string => typeof productImageId === 'string',
+        );
+        store.replaceBaseMediaForProduct(
+          productId,
+          mediaIds.map((mediaId, index) => ({
+            key: `${productId}:media:${index}`,
+            productId,
+            position: index,
+            id: mediaId,
+            mediaContentType: 'IMAGE',
+            alt: null,
+            status: 'READY',
+            productImageId: deletedProductImageIds[index] ?? null,
+            imageUrl: null,
+            previewImageUrl: null,
+            sourceUrl: null,
+          })),
+        );
       }
     }
   }
