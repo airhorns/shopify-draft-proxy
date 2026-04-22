@@ -198,7 +198,8 @@ const expectedBlockedScenarios = [
     probeRoots: ['draftOrderComplete'],
     failingMessageIncludes: 'mark as paid',
     requiredTokenMode: undefined,
-    operationLine: 'mutation DraftOrderCompleteParityPlan($id: ID!, $paymentGatewayId: ID, $sourceName: String)',
+    operationLine:
+      'mutation DraftOrderCompleteParityPlan($id: ID!, $paymentGatewayId: ID, $sourceName: String, $paymentPending: Boolean)',
   },
 ] as const;
 
@@ -575,13 +576,17 @@ describe('order creation scaffolding', () => {
       if (expected.id === 'draft-order-complete-live-parity') {
         expect(document).toContain('draftOrderComplete');
         expect(document).toContain('draftOrder {');
-        expect(document).not.toContain('\n      order {');
+        expect(document).not.toContain('\n    order {');
+        expect(document).toContain('\n      order {');
         expect(document).toContain('ready');
         expect(document).toContain('invoiceUrl');
+        expect(document).toContain('completedAt');
         expect(document).toContain('totalPriceSet');
+        expect(document).toContain('paymentGatewayNames');
         expect(variables).toMatchObject({
           id: 'gid://shopify/DraftOrder/0',
           sourceName: 'hermes-cron-orders',
+          paymentPending: false,
         });
       }
     }
