@@ -1201,6 +1201,7 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
 
   const productInput = readRecordField(variables, 'product');
   const input = readRecordField(variables, 'input');
+  const identifier = readRecordField(variables, 'identifier');
   const productPayload =
     readRecordField(payload, 'product') ??
     (readStringField(readRecordField(payload, 'node'), 'id')?.startsWith('gid://shopify/Product/')
@@ -1214,9 +1215,16 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     readStringField(productPayload, 'id') ??
     readStringField(payload, 'deletedProductId');
   const productId = rawProductId?.startsWith('gid://shopify/Product/') ? rawProductId : null;
+  const isProductSetCreate =
+    mutationName === 'productSet' &&
+    !readStringField(identifier, 'id') &&
+    !readStringField(identifier, 'handle') &&
+    !readStringField(input, 'id');
 
   const shouldSeedProduct =
-    productId !== null && !(mutationName === 'productCreate' && readStringField(productInput, 'id') === null);
+    productId !== null &&
+    !(mutationName === 'productCreate' && readStringField(productInput, 'id') === null) &&
+    !isProductSetCreate;
 
   if (seedProductDuplicateSource(capture)) {
     return;

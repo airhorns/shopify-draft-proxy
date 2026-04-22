@@ -4062,7 +4062,7 @@ describe('product draft flow', () => {
       .post('/admin/api/2025-01/graphql.json')
       .send({
         query:
-          'query ProductSetReadback($id: ID!) { product(id: $id) { id title options { name values } variants(first: 10) { nodes { sku inventoryQuantity selectedOptions { name value } } } metafield(namespace: "custom", key: "season") { value } } total: productsCount(query: "sku:SNOW-SET-BLUE") { count precision } }',
+          'query ProductSetReadback($id: ID!) { product(id: $id) { id title descriptionHtml onlineStorePreviewUrl options { name values } variants(first: 10) { nodes { sku taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { measurement { weight { unit value } } } } } metafield(namespace: "custom", key: "season") { value } } total: productsCount(query: "sku:SNOW-SET-BLUE") { count precision } }',
         variables: { id: productId },
       });
 
@@ -4072,11 +4072,27 @@ describe('product draft flow', () => {
         product: {
           id: productId,
           title: 'Set Snowboard',
+          descriptionHtml: '',
+          onlineStorePreviewUrl: expect.stringContaining('https://shopify-draft-proxy.local/products_preview?'),
           options: [{ name: 'Color', values: ['Blue', 'Black'] }],
           variants: {
             nodes: [
-              { sku: 'SNOW-SET-BLUE', inventoryQuantity: 7, selectedOptions: [{ name: 'Color', value: 'Blue' }] },
-              { sku: 'SNOW-SET-BLACK', inventoryQuantity: 3, selectedOptions: [{ name: 'Color', value: 'Black' }] },
+              {
+                sku: 'SNOW-SET-BLUE',
+                taxable: true,
+                inventoryPolicy: 'DENY',
+                inventoryQuantity: 7,
+                selectedOptions: [{ name: 'Color', value: 'Blue' }],
+                inventoryItem: { measurement: { weight: { unit: 'KILOGRAMS', value: 0 } } },
+              },
+              {
+                sku: 'SNOW-SET-BLACK',
+                taxable: true,
+                inventoryPolicy: 'DENY',
+                inventoryQuantity: 3,
+                selectedOptions: [{ name: 'Color', value: 'Black' }],
+                inventoryItem: { measurement: { weight: { unit: 'KILOGRAMS', value: 0 } } },
+              },
             ],
           },
           metafield: { value: 'winter' },
