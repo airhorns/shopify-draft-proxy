@@ -1460,6 +1460,36 @@ function seedInventoryAdjustmentPreconditions(capture: unknown): void {
   }
 }
 
+function seedInventoryItemUpdatePreconditions(capture: unknown): boolean {
+  if (mutationNameFromCapture(capture) !== 'inventoryItemUpdate') {
+    return false;
+  }
+
+  const productPayload = readRecordField(
+    readRecordField(
+      readRecordField(
+        readRecordField(readRecordField(capture as Record<string, unknown>, 'mutation'), 'create'),
+        'response',
+      ),
+      'data',
+    ),
+    'productCreate',
+  )?.['product'];
+  const product = isPlainObject(productPayload) ? productPayload : null;
+  const productId = readStringField(product, 'id');
+  if (!productId) {
+    return false;
+  }
+
+  store.upsertBaseProducts([makeSeedProduct(productId, product)]);
+  const variants = readCapturedProductVariants(productId, product);
+  if (variants.length > 0) {
+    store.replaceBaseVariantsForProduct(productId, variants);
+  }
+
+  return true;
+}
+
 function seedMetafieldsSetOwnerProducts(capture: unknown, variables: Record<string, unknown>): void {
   const downstreamProduct = readRecordField(
     readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data'),
@@ -1477,6 +1507,53 @@ function seedMetafieldsSetOwnerProducts(capture: unknown, variables: Record<stri
       store.replaceBaseMetafieldsForProduct(ownerId, readCapturedProductMetafields(ownerId, source));
     }
   }
+}
+
+function seedMetafieldsDeletePreconditions(capture: unknown, variables: Record<string, unknown>): boolean {
+  if (mutationNameFromCapture(capture) !== 'metafieldsDelete') {
+    return false;
+  }
+
+  const metafieldInputs = readArrayField(variables, 'metafields').filter(isPlainObject);
+  const downstreamProduct = readRecordField(
+    readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data'),
+    'product',
+  );
+  const productId =
+    metafieldInputs.map((input) => readStringField(input, 'ownerId')).find((ownerId) => ownerId !== null) ??
+    readStringField(downstreamProduct, 'id');
+  if (!productId?.startsWith('gid://shopify/Product/')) {
+    return false;
+  }
+
+  const productSource = downstreamProduct ?? {};
+  store.upsertBaseProducts([makeSeedProduct(productId, productSource)]);
+  const metafields = readCapturedProductMetafields(productId, productSource);
+  const byIdentity = new Map(metafields.map((metafield) => [`${metafield.namespace}:${metafield.key}`, metafield]));
+
+  for (const input of metafieldInputs) {
+    const ownerId = readStringField(input, 'ownerId');
+    const namespace = readStringField(input, 'namespace');
+    const key = readStringField(input, 'key');
+    if (ownerId !== productId || !namespace || !key) {
+      continue;
+    }
+
+    const identity = `${namespace}:${key}`;
+    if (!byIdentity.has(identity)) {
+      byIdentity.set(identity, {
+        id: makeSyntheticGid('Metafield'),
+        productId,
+        namespace,
+        key,
+        type: 'single_line_text_field',
+        value: 'conformance delete seed',
+      });
+    }
+  }
+
+  store.replaceBaseMetafieldsForProduct(productId, Array.from(byIdentity.values()));
+  return true;
 }
 
 function seedProductDuplicateSource(capture: unknown): boolean {
@@ -1632,6 +1709,14 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
 
   if (mutationName === 'inventoryAdjustQuantities') {
     seedInventoryAdjustmentPreconditions(capture);
+    return;
+  }
+
+  if (seedInventoryItemUpdatePreconditions(capture)) {
+    return;
+  }
+
+  if (seedMetafieldsDeletePreconditions(capture, variables)) {
     return;
   }
 

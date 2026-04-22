@@ -6,16 +6,44 @@
   "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/metafields-delete-parity.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/metafieldsDelete-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/metafieldsDelete-parity-plan.variables.json"
+    "variablesPath": "config/parity-requests/metafieldsDelete-parity-plan.variables.json",
+    "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live capture now covers Shopify's current plural `metafieldsDelete` root, including immediate downstream `product.metafield(...)` / `product.metafields` removal parity for product-owned metafields.",
+  "notes": "Executed by the conformance parity runner against the local staged plural `metafieldsDelete` path with live fixture variables. The comparison covers mutation data plus immediate downstream `product.metafield(...)` / `product.metafields` removal parity for product-owned metafields.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [
+      {
+        "path": "$.product.metafields.pageInfo.startCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify returns opaque base64 cursors while the local serializer uses stable synthetic cursors for remaining product metafields."
+      },
+      {
+        "path": "$.product.metafields.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify returns opaque base64 cursors while the local serializer uses stable synthetic cursors for remaining product metafields."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafieldsSet-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.metafieldsDelete.deletedMetafields[0].ownerId"
+            }
+          }
+        },
+        "proxyPath": "$.data"
+      }
+    ]
   }
 }
