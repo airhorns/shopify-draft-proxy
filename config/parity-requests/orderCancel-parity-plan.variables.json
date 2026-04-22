@@ -1,7 +1,0 @@
-{
-  "orderId": "gid://shopify/Order/0",
-  "notifyCustomer": false,
-  "reason": "CUSTOMER",
-  "restock": false,
-  "staffNote": "HAR-120 safe validation probe against nonexistent order"
-}

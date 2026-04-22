@@ -1,0 +1,16 @@
+mutation OrderCreateManualPaymentAccessDenied(
+  $id: ID!
+  $amount: MoneyInput
+  $paymentMethodName: String
+  $processedAt: DateTime
+) {
+  orderCreateManualPayment(id: $id, amount: $amount, paymentMethodName: $paymentMethodName, processedAt: $processedAt) {
+    order {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

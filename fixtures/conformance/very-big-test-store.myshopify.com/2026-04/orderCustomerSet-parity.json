@@ -1,0 +1,80 @@
+{
+  "variables": {
+    "orderId": "gid://shopify/Order/6830646296809",
+    "customerId": "gid://shopify/Customer/9096816066793"
+  },
+  "mutation": {
+    "response": {
+      "data": {
+        "orderCustomerSet": {
+          "order": {
+            "id": "gid://shopify/Order/6830646296809",
+            "name": "#1327",
+            "closed": false,
+            "closedAt": null,
+            "cancelledAt": null,
+            "cancelReason": null,
+            "displayFinancialStatus": null,
+            "paymentGatewayNames": [],
+            "totalOutstandingSet": {
+              "shopMoney": {
+                "amount": "15.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "currentTotalPriceSet": {
+              "shopMoney": {
+                "amount": "15.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "customer": {
+              "id": "gid://shopify/Customer/9096816066793",
+              "email": "har-120-rework-1776900542206@example.com",
+              "displayName": "HAR Customer"
+            },
+            "transactions": []
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "variables": {
+      "id": "gid://shopify/Order/6830646296809"
+    },
+    "response": {
+      "data": {
+        "order": {
+          "id": "gid://shopify/Order/6830646296809",
+          "name": "#1327",
+          "closed": false,
+          "closedAt": null,
+          "cancelledAt": null,
+          "cancelReason": null,
+          "displayFinancialStatus": null,
+          "paymentGatewayNames": [],
+          "totalOutstandingSet": {
+            "shopMoney": {
+              "amount": "15.0",
+              "currencyCode": "CAD"
+            }
+          },
+          "currentTotalPriceSet": {
+            "shopMoney": {
+              "amount": "15.0",
+              "currencyCode": "CAD"
+            }
+          },
+          "customer": {
+            "id": "gid://shopify/Customer/9096816066793",
+            "email": "har-120-rework-1776900542206@example.com",
+            "displayName": "HAR Customer"
+          },
+          "transactions": []
+        }
+      }
+    }
+  }
+}

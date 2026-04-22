@@ -1,8 +1,7 @@
-mutation TaxSummaryCreateParityPlan($orderId: ID, $startTime: DateTime, $endTime: DateTime) {
+mutation TaxSummaryCreateAccessDenied($orderId: ID, $startTime: DateTime, $endTime: DateTime) {
   taxSummaryCreate(orderId: $orderId, startTime: $startTime, endTime: $endTime) {
     enqueuedOrders {
       id
-      name
     }
     userErrors {
       field
