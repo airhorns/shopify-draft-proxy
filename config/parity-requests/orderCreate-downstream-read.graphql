@@ -1,0 +1,37 @@
+query OrderCreateDownstreamRead($id: ID!) {
+  order(id: $id) {
+    name
+    note
+    tags
+    customAttributes {
+      key
+      value
+    }
+    billingAddress {
+      firstName
+      lastName
+      address1
+      city
+      provinceCode
+      countryCodeV2
+      zip
+    }
+    shippingAddress {
+      firstName
+      lastName
+      address1
+      city
+      provinceCode
+      countryCodeV2
+      zip
+    }
+    displayFinancialStatus
+    displayFulfillmentStatus
+    currentTotalPriceSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+  }
+}

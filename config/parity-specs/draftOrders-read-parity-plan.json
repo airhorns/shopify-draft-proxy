@@ -9,7 +9,7 @@
     "variablesPath": "config/parity-requests/draftOrders-read-parity-plan.variables.json"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "The first non-empty Shopify draft-order catalog baseline is now captured on this host, so parity compares the live newest-first catalog window against the proxy's local replay rather than staying blocked on a missing baseline.",
+  "notes": "The captured draftOrders catalog has a live pre-existing window with opaque cursors and hasNextPage=true. The local staged draft-order window can serialize nodes but does not know the larger Shopify catalog size behind the capture, so full pagination-shape parity remains blocked.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
