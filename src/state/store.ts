@@ -227,7 +227,7 @@ export class InMemoryStore {
 
   installSnapshot(snapshotFile: NormalizedStateSnapshotFile): void {
     this.initialBaseState = cloneSnapshot(snapshotFile.baseState);
-    this.initialProductSearchConnections = {};
+    this.initialProductSearchConnections = structuredClone(snapshotFile.productSearchConnections ?? {});
     this.initialCustomerCatalogConnection = snapshotFile.customerCatalogConnection
       ? structuredClone(snapshotFile.customerCatalogConnection)
       : null;
