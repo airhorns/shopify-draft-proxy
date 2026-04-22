@@ -4,6 +4,11 @@ import { describe, expect, it } from 'vitest';
 
 const repoRoot = new URL('../..', import.meta.url);
 const testOrigin = 'https://example.myshopify.com';
+const pnpmCommand = 'corepack';
+
+function pnpmArgs(args: string[]): string[] {
+  return ['pnpm', ...args];
+}
 
 function collectOutput(child: ChildProcessWithoutNullStreams): { getOutput: () => string } {
   let output = '';
@@ -19,7 +24,7 @@ function collectOutput(child: ChildProcessWithoutNullStreams): { getOutput: () =
 }
 
 async function runPnpm(args: string[]): Promise<void> {
-  const child = spawn('corepack', ['pnpm', ...args], {
+  const child = spawn(pnpmCommand, pnpmArgs(args), {
     cwd: repoRoot,
     env: process.env,
   });
@@ -80,7 +85,7 @@ function killServerProcess(child: ChildProcessWithoutNullStreams, signal: NodeJS
 }
 
 async function expectLaunchScriptHealth(script: 'dev' | 'start', port: number): Promise<void> {
-  const child = spawn('corepack', ['pnpm', script], {
+  const child = spawn(pnpmCommand, pnpmArgs([script]), {
     cwd: repoRoot,
     detached: true,
     env: {

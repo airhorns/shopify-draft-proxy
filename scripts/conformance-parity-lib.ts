@@ -1038,6 +1038,44 @@ function seedProductVariantUpdateCompatibilityPreconditions(
   return true;
 }
 
+function seedProductVariantDeleteCompatibilityPreconditions(
+  capture: unknown,
+  variables: Record<string, unknown>,
+): boolean {
+  if (mutationNameFromCapture(capture) !== 'productVariantsBulkDelete') {
+    return false;
+  }
+
+  const variantId = readStringField(variables, 'id');
+  if (!variantId) {
+    return false;
+  }
+
+  const productId = readStringField(
+    readRecordField(readRecordField(capture as Record<string, unknown>, 'mutation'), 'variables'),
+    'productId',
+  );
+  if (!productId) {
+    return false;
+  }
+
+  const payload = mutationPayloadFromCapture(capture);
+  const productPayload = readRecordField(payload, 'product');
+  const downstreamProduct = readRecordField(
+    readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data'),
+    'product',
+  );
+  const variantsSource = readStringField(downstreamProduct, 'id') === productId ? downstreamProduct : productPayload;
+  const retainedVariants = readCapturedProductVariants(productId, variantsSource);
+
+  store.upsertBaseProducts([makeSeedProduct(productId, productPayload, 'Product variant delete conformance seed')]);
+  store.replaceBaseVariantsForProduct(productId, [
+    makeProductVariantUpdateCompatibilitySeedVariant(productId, variantId, null),
+    ...retainedVariants.filter((variant) => variant.id !== variantId),
+  ]);
+  return true;
+}
+
 function seedInventoryAdjustmentPreconditions(capture: unknown): void {
   const location = inventoryAdjustmentLocation(capture);
   if (!location) {
@@ -1194,6 +1232,10 @@ function readCapturedProductMedia(
 
 function seedPreconditionsFromCapture(capture: unknown, variables: Record<string, unknown>): void {
   if (seedProductVariantUpdateCompatibilityPreconditions(capture, variables)) {
+    return;
+  }
+
+  if (seedProductVariantDeleteCompatibilityPreconditions(capture, variables)) {
     return;
   }
 

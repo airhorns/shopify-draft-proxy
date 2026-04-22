@@ -65,6 +65,10 @@ Each parity spec must carry the scenario metadata:
 
 Explicit scenario override config is only for unusual cases that cannot fit this parity spec shape. Avoid it for normal expansion.
 
+### Do not add explicit per-scenario parity tests
+
+`tests/unit/conformance-parity-scenarios.test.ts` is the single convention-driven vitest suite that discovers every parity spec, filters to `ready-for-comparison`, and runs `executeParityScenario` against each. Adding or promoting a parity spec is enough to get CI coverage — do not write a new `it(...)` block that runs the same scenario explicitly. If you need richer per-scenario assertions (e.g. specific comparison target names), encode them in the parity spec itself; the runner validates them from the spec.
+
 ## Confidence Ladder
 
 Use the strongest feasible evidence:
@@ -74,7 +78,7 @@ Use the strongest feasible evidence:
 3. Proxy request files make local replay deterministic.
 4. Captured live fixtures settle Shopify payload shape, nullability, ordering, timestamps, and user errors.
 5. `conformance:check` runs the repo's Vitest structural checks for discovered scenarios.
-6. `conformance:parity` reports replay readiness and executes strict comparison scenarios.
+6. `conformance:parity` runs the convention-driven vitest suite at `tests/unit/conformance-parity-scenarios.test.ts`, which iterates every discovered parity spec and executes strict comparisons for `ready-for-comparison` scenarios.
 
 ## Validation
 

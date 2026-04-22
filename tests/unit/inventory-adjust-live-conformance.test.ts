@@ -3,7 +3,6 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { classifyParityScenarioState, executeParityScenario } from '../../scripts/conformance-parity-lib.js';
 import type { ParitySpec } from '../../scripts/conformance-parity-lib.js';
 import { loadConformanceScenarios } from '../../scripts/conformance-scenario-registry.js';
 
@@ -175,37 +174,6 @@ describe('inventoryAdjustQuantities live conformance wiring', () => {
     expect(spec.blocker).toBeUndefined();
     expect(spec.notes).toContain('incoming');
     expect(spec.notes).toContain('ledger document URI');
-  });
-
-  it('executes strict local parity comparisons for the captured live adjustment scenario', async () => {
-    const repoRoot = resolve(import.meta.dirname, '../..');
-    const paritySpec = JSON.parse(
-      readFileSync(resolve(repoRoot, 'config/parity-specs/inventoryAdjustQuantities-parity-plan.json'), 'utf8'),
-    ) as Parameters<typeof executeParityScenario>[0]['paritySpec'];
-
-    expect(classifyParityScenarioState({ status: 'captured' }, paritySpec)).toBe('ready-for-comparison');
-
-    const result = await executeParityScenario({
-      repoRoot,
-      scenario: {
-        id: 'inventory-adjust-quantities-live-parity',
-        status: 'captured',
-        captureFiles: [
-          'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/inventory-adjust-quantities-parity.json',
-        ],
-      },
-      paritySpec,
-    });
-
-    expect(result.ok).toBe(true);
-    expect(result.primaryProxyStatus).toBe(200);
-    expect(result.comparisons.map((comparison) => comparison.name)).toEqual([
-      'mutation-user-errors',
-      'mutation-reason',
-      'mutation-reference-document-uri',
-      'mutation-changes',
-      'downstream-read-data',
-    ]);
   });
 
   it('keeps richer live evidence for location names, full app identity, and the staffMember scope blocker', () => {
