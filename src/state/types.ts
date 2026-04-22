@@ -389,6 +389,7 @@ export type StateSnapshot = z.infer<typeof stateSnapshotSchema>;
 export const normalizedStateSnapshotFileSchema = z.strictObject({
   kind: z.literal('normalized-state-snapshot').optional(),
   baseState: stateSnapshotSchema,
+  productSearchConnections: z.record(z.string(), productCatalogConnectionRecordSchema).optional(),
   customerCatalogConnection: customerCatalogConnectionRecordSchema.nullable().optional(),
   customerSearchConnections: z.record(z.string(), customerCatalogConnectionRecordSchema).optional(),
 });
