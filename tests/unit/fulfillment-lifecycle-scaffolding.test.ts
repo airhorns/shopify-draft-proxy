@@ -303,6 +303,9 @@ describe('fulfillment lifecycle scaffolding', () => {
           },
         }),
       );
+      expect(spec.blocker).toBeUndefined();
+      expect(spec.comparison?.mode).toBe('strict-json');
+      expect(spec.comparison?.targets?.length).toBeGreaterThan(0);
       expect(document).toContain(expected.requiredText.split('(')[0]);
       expect(document).toContain('userErrors');
       expect(variables).toEqual(expected.expectedVariables);
@@ -354,6 +357,8 @@ describe('fulfillment lifecycle scaffolding', () => {
     expect(blockerNote).toContain('fulfillmentCancel');
     expect(blockerNote).toContain('fulfill_and_ship_orders');
     expect(blockerNote).toContain('.manual-store-auth-token.json');
+    expect(blockerNote).toContain('Current refresh blocker');
+    expect(blockerNote).toContain('shopify-conformance-app/hermes-conformance-products/.env');
     expect(blockerNote).toContain('corepack pnpm conformance:capture-orders');
 
     expect(weirdNotes).toContain('fulfillmentTrackingInfoUpdate');

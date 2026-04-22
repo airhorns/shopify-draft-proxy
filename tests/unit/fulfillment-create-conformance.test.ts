@@ -85,6 +85,22 @@ describe('fulfillmentCreate conformance coverage', () => {
         },
       }),
     );
+    expect(spec.blocker).toBeUndefined();
+    expect(spec.comparison?.mode).toBe('strict-json');
+    expect(spec.comparison?.targets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'mutation-data',
+          capturePath: '$.mutation.response.data',
+          proxyPath: '$.data',
+        }),
+        expect.objectContaining({
+          name: 'error-extensions',
+          capturePath: '$.mutation.response.errors[0].extensions',
+          proxyPath: '$.errors[0].extensions',
+        }),
+      ]),
+    );
 
     expect(document).toContain('mutation FulfillmentCreateInvalidIdParity');
     expect(document).toContain('fulfillmentCreate');

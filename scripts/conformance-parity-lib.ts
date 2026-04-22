@@ -25,6 +25,7 @@ export type {
   ProxyRequestSpec,
 } from '../src/json-schemas.js';
 import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
+import { handleOrderMutation, handleOrderQuery } from '../src/proxy/orders.js';
 import {
   handleProductMutation,
   handleProductQuery,
@@ -582,6 +583,28 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'stage-locally' && capability.domain === 'orders') {
+    const body = handleOrderMutation(document, variables, 'snapshot');
+    if (body) {
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: '/admin/api/2025-01/graphql.json',
+        query: document,
+        variables,
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        notes: 'Staged locally in the conformance parity proxy harness.',
+      });
+
+      return {
+        status: 200,
+        body,
+      };
+    }
+  }
+
   if (capability.execution === 'overlay-read' && capability.domain === 'products') {
     if (upstreamPayload !== undefined) {
       hydrateProductsFromUpstreamResponse(document, variables, upstreamPayload);
@@ -596,6 +619,13 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleProductQuery(document, variables, upstreamPayload === undefined ? 'snapshot' : 'live-hybrid'),
+    };
+  }
+
+  if (capability.execution === 'overlay-read' && capability.domain === 'orders') {
+    return {
+      status: 200,
+      body: handleOrderQuery(document, variables),
     };
   }
 
@@ -615,7 +645,10 @@ function hasStagedState(): boolean {
     Object.keys(stagedState.productMedia).length > 0 ||
     Object.keys(stagedState.productMetafields).length > 0 ||
     Object.keys(stagedState.deletedProductIds).length > 0 ||
-    Object.keys(stagedState.deletedCollectionIds).length > 0
+    Object.keys(stagedState.deletedCollectionIds).length > 0 ||
+    Object.keys(stagedState.orders).length > 0 ||
+    Object.keys(stagedState.draftOrders).length > 0 ||
+    Object.keys(stagedState.calculatedOrders).length > 0
   );
 }
 
