@@ -1460,6 +1460,109 @@ function seedInventoryAdjustmentPreconditions(capture: unknown): void {
   }
 }
 
+function readCapturedInventoryLevel(source: Record<string, unknown>): InventoryLevelRecord | null {
+  const id = readStringField(source, 'id');
+  if (!id) {
+    return null;
+  }
+
+  const location = readRecordField(source, 'location');
+  const locationId = readStringField(location, 'id');
+
+  return {
+    id,
+    cursor: readStringField(source, 'cursor'),
+    location: locationId ? { id: locationId, name: readStringField(location, 'name') } : null,
+    quantities: readArrayField(source, 'quantities')
+      .filter(isPlainObject)
+      .map((quantity) => ({
+        name: readStringField(quantity, 'name') ?? '',
+        quantity: readNumberField(quantity, 'quantity'),
+        updatedAt: readStringField(quantity, 'updatedAt'),
+      }))
+      .filter((quantity) => quantity.name.length > 0),
+  };
+}
+
+function makeInventoryLinkageSeedVariant(
+  productId: string,
+  source: Record<string, unknown>,
+): ProductVariantRecord | null {
+  const id = readStringField(source, 'id');
+  const inventoryItem = readRecordField(source, 'inventoryItem');
+  const inventoryItemId = readStringField(inventoryItem, 'id');
+  if (!id || !inventoryItemId) {
+    return null;
+  }
+
+  const levels = readArrayField(readRecordField(inventoryItem, 'inventoryLevels'), 'nodes')
+    .filter(isPlainObject)
+    .map(readCapturedInventoryLevel)
+    .filter((level): level is InventoryLevelRecord => level !== null);
+
+  return {
+    id,
+    productId,
+    title: readStringField(source, 'title') ?? 'Default Title',
+    sku: readStringField(source, 'sku'),
+    barcode: readStringField(source, 'barcode'),
+    price: readStringField(source, 'price'),
+    compareAtPrice: readStringField(source, 'compareAtPrice'),
+    taxable: readBooleanField(source, 'taxable'),
+    inventoryPolicy: readStringField(source, 'inventoryPolicy'),
+    inventoryQuantity: readNumberField(source, 'inventoryQuantity'),
+    selectedOptions: [],
+    inventoryItem: {
+      id: inventoryItemId,
+      tracked: readBooleanField(inventoryItem, 'tracked'),
+      requiresShipping: readBooleanField(inventoryItem, 'requiresShipping'),
+      measurement: null,
+      countryCodeOfOrigin: null,
+      provinceCodeOfOrigin: null,
+      harmonizedSystemCode: null,
+      inventoryLevels: levels,
+    },
+  };
+}
+
+function seedInventoryLinkagePreconditions(capture: unknown): boolean {
+  const captureObject = isPlainObject(capture) ? capture : {};
+  if (
+    !(
+      'inventoryActivateNoOp' in captureObject ||
+      'inventoryDeactivateOnlyLocationError' in captureObject ||
+      'inventoryBulkToggleActivateNoOp' in captureObject
+    )
+  ) {
+    return false;
+  }
+
+  const product = readRecordField(capture as Record<string, unknown>, 'createdProduct');
+  const productId = readStringField(product, 'id');
+  if (!productId) {
+    return false;
+  }
+
+  const variants = readArrayField(readRecordField(product, 'variants'), 'nodes')
+    .filter(isPlainObject)
+    .map((variant) => makeInventoryLinkageSeedVariant(productId, variant))
+    .filter((variant): variant is ProductVariantRecord => variant !== null);
+  const firstVariant = variants[0] ?? null;
+
+  store.upsertBaseProducts([
+    makeSeedProduct(productId, {
+      ...product,
+      totalInventory: firstVariant?.inventoryQuantity ?? null,
+      tracksInventory: firstVariant?.inventoryItem?.tracked ?? null,
+    }),
+  ]);
+  if (variants.length > 0) {
+    store.replaceBaseVariantsForProduct(productId, variants);
+  }
+
+  return true;
+}
+
 function seedInventoryItemUpdatePreconditions(capture: unknown): boolean {
   if (mutationNameFromCapture(capture) !== 'inventoryItemUpdate') {
     return false;
@@ -1509,50 +1612,55 @@ function seedMetafieldsSetOwnerProducts(capture: unknown, variables: Record<stri
   }
 }
 
-function seedMetafieldsDeletePreconditions(capture: unknown, variables: Record<string, unknown>): boolean {
+function seedMetafieldsDeleteOwnerProducts(capture: unknown, variables: Record<string, unknown>): boolean {
   if (mutationNameFromCapture(capture) !== 'metafieldsDelete') {
     return false;
   }
 
-  const metafieldInputs = readArrayField(variables, 'metafields').filter(isPlainObject);
   const downstreamProduct = readRecordField(
     readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data'),
     'product',
   );
-  const productId =
-    metafieldInputs.map((input) => readStringField(input, 'ownerId')).find((ownerId) => ownerId !== null) ??
-    readStringField(downstreamProduct, 'id');
-  if (!productId?.startsWith('gid://shopify/Product/')) {
+  const deletedIdentifiers = readArrayField(
+    readRecordField(readRecordField(capture as Record<string, unknown>, 'mutation'), 'variables'),
+    'metafields',
+  ).filter(isPlainObject);
+  const retainedOwnerId = readStringField(downstreamProduct, 'id');
+  const fallbackOwnerId = readStringField(deletedIdentifiers[0] ?? null, 'ownerId');
+  const ownerId = retainedOwnerId ?? fallbackOwnerId;
+  if (!ownerId?.startsWith('gid://shopify/Product/')) {
     return false;
   }
 
-  const productSource = downstreamProduct ?? {};
-  store.upsertBaseProducts([makeSeedProduct(productId, productSource)]);
-  const metafields = readCapturedProductMetafields(productId, productSource);
-  const byIdentity = new Map(metafields.map((metafield) => [`${metafield.namespace}:${metafield.key}`, metafield]));
-
-  for (const input of metafieldInputs) {
-    const ownerId = readStringField(input, 'ownerId');
-    const namespace = readStringField(input, 'namespace');
-    const key = readStringField(input, 'key');
-    if (ownerId !== productId || !namespace || !key) {
-      continue;
-    }
-
-    const identity = `${namespace}:${key}`;
-    if (!byIdentity.has(identity)) {
-      byIdentity.set(identity, {
-        id: makeSyntheticGid('Metafield'),
+  const retainedMetafields = downstreamProduct ? readCapturedProductMetafields(ownerId, downstreamProduct) : [];
+  const existingKeys = new Set(retainedMetafields.map((metafield) => `${metafield.namespace}:${metafield.key}`));
+  const primaryInput = readRecordField(variables, 'input');
+  const singularDeleteId = readStringField(primaryInput, 'id');
+  const deletedMetafields = deletedIdentifiers
+    .map((identifier, index): ProductMetafieldRecord | null => {
+      const namespace = readStringField(identifier, 'namespace');
+      const key = readStringField(identifier, 'key');
+      const productId = readStringField(identifier, 'ownerId') ?? ownerId;
+      if (!namespace || !key || !productId.startsWith('gid://shopify/Product/')) {
+        return null;
+      }
+      const storageKey = `${namespace}:${key}`;
+      if (existingKeys.has(storageKey)) {
+        return null;
+      }
+      return {
+        id: singularDeleteId ?? `gid://shopify/Metafield/conformance-deleted-${index}`,
         productId,
         namespace,
         key,
         type: 'single_line_text_field',
-        value: 'conformance delete seed',
-      });
-    }
-  }
+        value: null,
+      };
+    })
+    .filter((metafield): metafield is ProductMetafieldRecord => metafield !== null);
 
-  store.replaceBaseMetafieldsForProduct(productId, Array.from(byIdentity.values()));
+  store.upsertBaseProducts([makeSeedProduct(ownerId, downstreamProduct)]);
+  store.replaceBaseMetafieldsForProduct(ownerId, [...retainedMetafields, ...deletedMetafields]);
   return true;
 }
 
@@ -1651,6 +1759,14 @@ function readCapturedProductMedia(
 }
 
 function seedPreconditionsFromCapture(capture: unknown, variables: Record<string, unknown>): void {
+  if (seedInventoryLinkagePreconditions(capture)) {
+    return;
+  }
+
+  if (seedMetafieldsDeleteOwnerProducts(capture, variables)) {
+    return;
+  }
+
   if (seedProductVariantUpdateCompatibilityPreconditions(capture, variables)) {
     return;
   }
@@ -1713,10 +1829,6 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   }
 
   if (seedInventoryItemUpdatePreconditions(capture)) {
-    return;
-  }
-
-  if (seedMetafieldsDeletePreconditions(capture, variables)) {
     return;
   }
 

@@ -9,13 +9,39 @@
     "variablesPath": "config/parity-requests/metafieldDelete-parity-plan.variables.json"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "The singular `metafieldDelete` path is now treated as a compatibility alias for Shopify's current plural `metafieldsDelete` root. The live capture settles the delete semantics while the staged compatibility shim preserves the singular payload shape (`deletedId`).",
+  "notes": "The singular `metafieldDelete` path is treated as a compatibility alias for Shopify's current plural `metafieldsDelete` root. Shopify no longer exposes the singular root in the live schema, so existing fixtures cannot provide a live `deletedId` value for the compatibility payload; this spec compares the shared successful `userErrors` semantics and immediate downstream owner-scoped removal against the plural live capture while the local shim keeps deterministic `deletedId` behavior covered by runtime tests.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [
+      {
+        "path": "$.product.metafields.pageInfo.startCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and not stable across local replay; the retained metafield node set and pageInfo booleans remain strict."
+      },
+      {
+        "path": "$.product.metafields.pageInfo.endCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and not stable across local replay; the retained metafield node set and pageInfo booleans remain strict."
+      }
+    ],
+    "targets": [
+      {
+        "name": "compatibility-user-errors",
+        "capturePath": "$.mutation.response.data.metafieldsDelete.userErrors",
+        "proxyPath": "$.data.metafieldDelete.userErrors"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.downstreamRead",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafieldsSet-downstream-read.graphql",
+          "variables": {
+            "id": "gid://shopify/Product/9257219227881"
+          }
+        }
+      }
+    ]
   }
 }

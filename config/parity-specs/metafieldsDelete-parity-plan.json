@@ -10,19 +10,19 @@
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executed by the conformance parity runner against the local staged plural `metafieldsDelete` path with live fixture variables. The comparison covers mutation data plus immediate downstream `product.metafield(...)` / `product.metafields` removal parity for product-owned metafields.",
+  "notes": "Live capture now covers Shopify's current plural `metafieldsDelete` root, including immediate downstream `product.metafield(...)` / `product.metafields` removal parity for product-owned metafields.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
       {
         "path": "$.product.metafields.pageInfo.startCursor",
-        "matcher": "non-empty-string",
-        "reason": "Shopify returns opaque base64 cursors while the local serializer uses stable synthetic cursors for remaining product metafields."
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and not stable across local replay; the retained metafield node set and pageInfo booleans remain strict."
       },
       {
         "path": "$.product.metafields.pageInfo.endCursor",
-        "matcher": "non-empty-string",
-        "reason": "Shopify returns opaque base64 cursors while the local serializer uses stable synthetic cursors for remaining product metafields."
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and not stable across local replay; the retained metafield node set and pageInfo booleans remain strict."
       }
     ],
     "targets": [
@@ -34,6 +34,8 @@
       {
         "name": "downstream-read-data",
         "capturePath": "$.downstreamRead.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.downstreamRead",
         "proxyRequest": {
           "documentPath": "config/parity-requests/metafieldsSet-downstream-read.graphql",
           "variables": {
@@ -41,8 +43,7 @@
               "fromPrimaryProxyPath": "$.data.metafieldsDelete.deletedMetafields[0].ownerId"
             }
           }
-        },
-        "proxyPath": "$.data"
+        }
       }
     ]
   }
