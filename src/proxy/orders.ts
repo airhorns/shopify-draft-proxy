@@ -15,7 +15,11 @@ import type {
   OrderCustomerRecord,
   OrderLineItemRecord,
   OrderRecord,
+  OrderRefundLineItemRecord,
+  OrderRefundRecord,
+  OrderReturnRecord,
   OrderShippingLineRecord,
+  OrderTransactionRecord,
 } from '../state/types.js';
 
 function getFieldResponseKey(field: FieldNode): string {
@@ -199,6 +203,45 @@ function normalizeOrderShippingLines(raw: unknown, currencyCode: string): OrderS
     });
 }
 
+function normalizeOrderTransactions(raw: unknown, currencyCode: string): OrderTransactionRecord[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  return raw
+    .filter(
+      (transaction): transaction is Record<string, unknown> => typeof transaction === 'object' && transaction !== null,
+    )
+    .map((transaction) => {
+      const amountSet =
+        typeof transaction['amountSet'] === 'object' && transaction['amountSet'] !== null
+          ? (transaction['amountSet'] as Record<string, unknown>)
+          : {};
+      const shopMoney =
+        typeof amountSet['shopMoney'] === 'object' && amountSet['shopMoney'] !== null
+          ? (amountSet['shopMoney'] as Record<string, unknown>)
+          : {};
+      const directAmount =
+        typeof transaction['amount'] === 'string' || typeof transaction['amount'] === 'number'
+          ? transaction['amount']
+          : null;
+      const amount = formatDecimalAmount(parseDecimalAmount(shopMoney['amount'] ?? directAmount));
+
+      return {
+        id: makeSyntheticGid('OrderTransaction'),
+        kind: typeof transaction['kind'] === 'string' ? transaction['kind'] : null,
+        status: typeof transaction['status'] === 'string' ? transaction['status'] : 'SUCCESS',
+        gateway: typeof transaction['gateway'] === 'string' ? transaction['gateway'] : null,
+        amountSet: {
+          shopMoney: normalizeMoney(
+            amount,
+            typeof shopMoney['currencyCode'] === 'string' ? shopMoney['currencyCode'] : currencyCode,
+          ),
+        },
+      };
+    });
+}
+
 function buildOrderCustomerFromInput(inputRecord: Record<string, unknown>): OrderCustomerRecord | null {
   const email = typeof inputRecord['email'] === 'string' ? inputRecord['email'] : null;
   const billingAddress = normalizeDraftOrderAddress(inputRecord['billingAddress']);
@@ -268,6 +311,8 @@ function buildOrderFromInput(input: unknown): OrderRecord {
 
     return (transaction as Record<string, unknown>)['status'] === 'SUCCESS';
   });
+  const customer = buildOrderCustomerFromInput(inputRecord);
+  const normalizedTransactions = normalizeOrderTransactions(transactions, currencyCode);
 
   return {
     id: orderId,
@@ -296,9 +341,15 @@ function buildOrderFromInput(input: unknown): OrderRecord {
     totalPriceSet: {
       shopMoney: normalizeMoney(total, currencyCode),
     },
-    customer: buildOrderCustomerFromInput(inputRecord),
+    totalRefundedSet: {
+      shopMoney: normalizeMoney('0.0', currencyCode),
+    },
+    customer,
     shippingLines,
     lineItems,
+    transactions: normalizedTransactions,
+    refunds: [],
+    returns: [],
   };
 }
 
@@ -554,6 +605,7 @@ function buildOrderFromCompletedDraftOrder(
   },
 ): OrderRecord {
   const createdAt = draftOrder.completedAt ?? makeSyntheticTimestamp();
+  const currencyCode = draftOrder.totalPriceSet?.shopMoney.currencyCode ?? 'CAD';
   return {
     id: makeSyntheticGid('Order'),
     name: `#${store.getOrders().length + 1}`,
@@ -571,9 +623,15 @@ function buildOrderFromCompletedDraftOrder(
     subtotalPriceSet: structuredClone(draftOrder.subtotalPriceSet),
     currentTotalPriceSet: structuredClone(draftOrder.totalPriceSet),
     totalPriceSet: structuredClone(draftOrder.totalPriceSet),
+    totalRefundedSet: {
+      shopMoney: normalizeMoney('0.0', currencyCode),
+    },
     customer: buildOrderCustomerFromDraftOrder(draftOrder),
     shippingLines: buildOrderShippingLinesFromDraftOrder(draftOrder),
     lineItems: buildOrderLineItemsFromDraftOrder(draftOrder),
+    transactions: [],
+    refunds: [],
+    returns: [],
   };
 }
 
@@ -595,6 +653,166 @@ function buildCalculatedLineItemFromVariant(variantId: string, quantity: number)
       shopMoney: normalizeMoney(formatDecimalAmount(parseDecimalAmount(variant.price)), currencyCode),
     },
   };
+}
+
+function readRefundCreateInput(variables: Record<string, unknown>): Record<string, unknown> | null {
+  const input = variables['input'];
+  return typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : null;
+}
+
+function readRefundShippingAmount(input: Record<string, unknown>): unknown {
+  const shipping = input['shipping'] ?? input['refundShipping'];
+  if (typeof shipping !== 'object' || shipping === null) {
+    return null;
+  }
+
+  const shippingRecord = shipping as Record<string, unknown>;
+  if (shippingRecord['fullRefund'] === true) {
+    return null;
+  }
+
+  if (typeof shippingRecord['amount'] === 'string' || typeof shippingRecord['amount'] === 'number') {
+    return shippingRecord['amount'];
+  }
+
+  const shippingRefundAmount = shippingRecord['shippingRefundAmount'];
+  if (typeof shippingRefundAmount === 'object' && shippingRefundAmount !== null) {
+    return (shippingRefundAmount as Record<string, unknown>)['amount'];
+  }
+
+  return null;
+}
+
+function buildRefundLineItems(raw: unknown, order: OrderRecord, currencyCode: string): OrderRefundLineItemRecord[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  return raw
+    .filter((lineItem): lineItem is Record<string, unknown> => typeof lineItem === 'object' && lineItem !== null)
+    .map((lineItem) => {
+      const lineItemId = typeof lineItem['lineItemId'] === 'string' ? lineItem['lineItemId'] : '';
+      const orderLineItem = order.lineItems.find((candidate) => candidate.id === lineItemId) ?? null;
+      const quantity = typeof lineItem['quantity'] === 'number' ? lineItem['quantity'] : 0;
+      const subtotal = formatDecimalAmount(
+        parseDecimalAmount(orderLineItem?.originalUnitPriceSet?.shopMoney.amount) * quantity,
+      );
+
+      return {
+        id: makeSyntheticGid('RefundLineItem'),
+        lineItemId,
+        title: orderLineItem?.title ?? null,
+        quantity,
+        restockType: typeof lineItem['restockType'] === 'string' ? lineItem['restockType'] : null,
+        subtotalSet: {
+          shopMoney: normalizeMoney(subtotal, currencyCode),
+        },
+      };
+    });
+}
+
+function sumMoney(records: Array<{ amountSet?: { shopMoney: MoneyV2Record | null } | null }>): number {
+  return records.reduce((sum, record) => sum + parseDecimalAmount(record.amountSet?.shopMoney?.amount), 0);
+}
+
+function sumRefundedAmount(order: OrderRecord): number {
+  return order.refunds.reduce((sum, refund) => sum + parseDecimalAmount(refund.totalRefundedSet?.shopMoney.amount), 0);
+}
+
+function readOrderCurrencyCode(order: OrderRecord): string {
+  return (
+    order.totalPriceSet?.shopMoney.currencyCode ??
+    order.currentTotalPriceSet?.shopMoney.currencyCode ??
+    order.subtotalPriceSet?.shopMoney.currencyCode ??
+    'CAD'
+  );
+}
+
+function buildRefundFromInput(order: OrderRecord, input: Record<string, unknown>): OrderRefundRecord {
+  const currencyCode = readOrderCurrencyCode(order);
+  const refundId = makeSyntheticGid('Refund');
+  const createdAt = makeSyntheticTimestamp();
+  const refundLineItems = buildRefundLineItems(input['refundLineItems'], order, currencyCode);
+  const shippingAmount = readRefundShippingAmount(input);
+  const shippingRefundAmount = shippingAmount === null ? 0 : parseDecimalAmount(shippingAmount);
+  const lineItemSubtotal = refundLineItems.reduce(
+    (sum, lineItem) => sum + parseDecimalAmount(lineItem.subtotalSet?.shopMoney.amount),
+    0,
+  );
+  const fallbackRefundAmount = formatDecimalAmount(lineItemSubtotal + shippingRefundAmount);
+  const rawTransactions = Array.isArray(input['transactions'])
+    ? input['transactions']
+    : [
+        {
+          kind: 'REFUND',
+          status: 'SUCCESS',
+          amountSet: {
+            shopMoney: {
+              amount: fallbackRefundAmount,
+              currencyCode,
+            },
+          },
+        },
+      ];
+  const transactions = normalizeOrderTransactions(rawTransactions, currencyCode);
+  const transactionTotal = sumMoney(transactions);
+  const totalRefunded = transactionTotal > 0 ? transactionTotal : lineItemSubtotal + shippingRefundAmount;
+
+  return {
+    id: refundId,
+    note: typeof input['note'] === 'string' ? input['note'] : null,
+    createdAt,
+    updatedAt: createdAt,
+    totalRefundedSet: {
+      shopMoney: normalizeMoney(formatDecimalAmount(totalRefunded), currencyCode),
+    },
+    refundLineItems,
+    transactions,
+  };
+}
+
+function applyRefundToOrder(order: OrderRecord, refund: OrderRefundRecord): OrderRecord {
+  const total = parseDecimalAmount(order.totalPriceSet?.shopMoney.amount);
+  const totalRefunded = sumRefundedAmount({ ...order, refunds: [...order.refunds, refund] });
+  const displayFinancialStatus = totalRefunded >= total && total > 0 ? 'REFUNDED' : 'PARTIALLY_REFUNDED';
+
+  return {
+    ...order,
+    updatedAt: refund.createdAt,
+    displayFinancialStatus,
+    totalRefundedSet: {
+      shopMoney: normalizeMoney(formatDecimalAmount(totalRefunded), readOrderCurrencyCode(order)),
+    },
+    transactions: [...structuredClone(order.transactions), ...structuredClone(refund.transactions)],
+    refunds: [...structuredClone(order.refunds), structuredClone(refund)],
+  };
+}
+
+function serializeRefundCreatePayload(
+  field: FieldNode,
+  refund: OrderRefundRecord | null,
+  order: OrderRecord | null,
+  userErrors: Array<Record<string, unknown>>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const selectionKey = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'refund':
+        payload[selectionKey] = refund ? serializeOrderRefund(selection, refund) : null;
+        break;
+      case 'order':
+        payload[selectionKey] = order ? serializeOrderNode(selection, order) : null;
+        break;
+      case 'userErrors':
+        payload[selectionKey] = userErrors;
+        break;
+      default:
+        payload[selectionKey] = null;
+        break;
+    }
+  }
+  return payload;
 }
 
 function serializeMoneyField(field: FieldNode, money: MoneyV2Record | null): Record<string, unknown> | null {
@@ -1518,6 +1736,253 @@ function serializeOrderLineItemsConnection(
   return result;
 }
 
+function serializeOrderTransaction(field: FieldNode, transaction: OrderTransactionRecord): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = transaction.id;
+        break;
+      case 'kind':
+        result[key] = transaction.kind;
+        break;
+      case 'status':
+        result[key] = transaction.status;
+        break;
+      case 'gateway':
+        result[key] = transaction.gateway;
+        break;
+      case 'amountSet':
+        result[key] = serializeShopMoneySet(selection, transaction.amountSet?.shopMoney ?? null);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeOrderTransactionsConnection(
+  field: FieldNode,
+  transactions: OrderTransactionRecord[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'nodes':
+        result[key] = transactions.map((transaction) => serializeOrderTransaction(selection, transaction));
+        break;
+      case 'edges':
+        result[key] = transactions.map((transaction) => {
+          const edgeResult: Record<string, unknown> = {};
+          for (const edgeSelection of getSelectedChildFields(selection)) {
+            const edgeKey = getFieldResponseKey(edgeSelection);
+            switch (edgeSelection.name.value) {
+              case 'cursor':
+                edgeResult[edgeKey] = `cursor:${transaction.id}`;
+                break;
+              case 'node':
+                edgeResult[edgeKey] = serializeOrderTransaction(edgeSelection, transaction);
+                break;
+              default:
+                edgeResult[edgeKey] = null;
+                break;
+            }
+          }
+          return edgeResult;
+        });
+        break;
+      case 'pageInfo':
+        result[key] = serializePageInfo(selection);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeOrderRefundLineItem(
+  field: FieldNode,
+  refundLineItem: OrderRefundLineItemRecord,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = refundLineItem.id;
+        break;
+      case 'quantity':
+        result[key] = refundLineItem.quantity;
+        break;
+      case 'restockType':
+        result[key] = refundLineItem.restockType;
+        break;
+      case 'lineItem':
+        result[key] = Object.fromEntries(
+          getSelectedChildFields(selection).map((lineItemSelection) => {
+            const lineItemKey = getFieldResponseKey(lineItemSelection);
+            switch (lineItemSelection.name.value) {
+              case 'id':
+                return [lineItemKey, refundLineItem.lineItemId];
+              case 'title':
+                return [lineItemKey, refundLineItem.title];
+              default:
+                return [lineItemKey, null];
+            }
+          }),
+        );
+        break;
+      case 'subtotalSet':
+        result[key] = serializeShopMoneySet(selection, refundLineItem.subtotalSet?.shopMoney ?? null);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeRefundLineItemsConnection(
+  field: FieldNode,
+  refundLineItems: OrderRefundLineItemRecord[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'nodes':
+        result[key] = refundLineItems.map((lineItem) => serializeOrderRefundLineItem(selection, lineItem));
+        break;
+      case 'edges':
+        result[key] = refundLineItems.map((lineItem) => {
+          const edgeResult: Record<string, unknown> = {};
+          for (const edgeSelection of getSelectedChildFields(selection)) {
+            const edgeKey = getFieldResponseKey(edgeSelection);
+            switch (edgeSelection.name.value) {
+              case 'cursor':
+                edgeResult[edgeKey] = `cursor:${lineItem.id}`;
+                break;
+              case 'node':
+                edgeResult[edgeKey] = serializeOrderRefundLineItem(edgeSelection, lineItem);
+                break;
+              default:
+                edgeResult[edgeKey] = null;
+                break;
+            }
+          }
+          return edgeResult;
+        });
+        break;
+      case 'pageInfo':
+        result[key] = serializePageInfo(selection);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeOrderRefund(field: FieldNode, refund: OrderRefundRecord): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = refund.id;
+        break;
+      case 'note':
+        result[key] = refund.note;
+        break;
+      case 'createdAt':
+        result[key] = refund.createdAt;
+        break;
+      case 'updatedAt':
+        result[key] = refund.updatedAt;
+        break;
+      case 'totalRefundedSet':
+        result[key] = serializeShopMoneySet(selection, refund.totalRefundedSet?.shopMoney ?? null);
+        break;
+      case 'refundLineItems':
+        result[key] = serializeRefundLineItemsConnection(selection, refund.refundLineItems);
+        break;
+      case 'transactions':
+        result[key] = serializeOrderTransactionsConnection(selection, refund.transactions);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeOrderReturn(field: FieldNode, orderReturn: OrderReturnRecord): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = orderReturn.id;
+        break;
+      case 'status':
+        result[key] = orderReturn.status;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeOrderReturnsConnection(field: FieldNode, returns: OrderReturnRecord[]): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'nodes':
+        result[key] = returns.map((orderReturn) => serializeOrderReturn(selection, orderReturn));
+        break;
+      case 'edges':
+        result[key] = returns.map((orderReturn) => {
+          const edgeResult: Record<string, unknown> = {};
+          for (const edgeSelection of getSelectedChildFields(selection)) {
+            const edgeKey = getFieldResponseKey(edgeSelection);
+            switch (edgeSelection.name.value) {
+              case 'cursor':
+                edgeResult[edgeKey] = `cursor:${orderReturn.id}`;
+                break;
+              case 'node':
+                edgeResult[edgeKey] = serializeOrderReturn(edgeSelection, orderReturn);
+                break;
+              default:
+                edgeResult[edgeKey] = null;
+                break;
+            }
+          }
+          return edgeResult;
+        });
+        break;
+      case 'pageInfo':
+        result[key] = serializePageInfo(selection);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
 function serializeOrderShippingLinesConnection(
   field: FieldNode,
   shippingLines: OrderShippingLineRecord[],
@@ -1628,6 +2093,9 @@ function serializeOrderNode(field: FieldNode, order: OrderRecord): Record<string
       case 'totalPriceSet':
         result[key] = serializeShopMoneySet(selection, order.totalPriceSet?.shopMoney ?? null);
         break;
+      case 'totalRefundedSet':
+        result[key] = serializeShopMoneySet(selection, order.totalRefundedSet?.shopMoney ?? null);
+        break;
       case 'customer':
         result[key] = serializeOrderCustomer(selection, order.customer);
         break;
@@ -1636,6 +2104,15 @@ function serializeOrderNode(field: FieldNode, order: OrderRecord): Record<string
         break;
       case 'lineItems':
         result[key] = serializeOrderLineItemsConnection(selection, order.lineItems);
+        break;
+      case 'transactions':
+        result[key] = order.transactions.map((transaction) => serializeOrderTransaction(selection, transaction));
+        break;
+      case 'refunds':
+        result[key] = order.refunds.map((refund) => serializeOrderRefund(selection, refund));
+        break;
+      case 'returns':
+        result[key] = serializeOrderReturnsConnection(selection, order.returns);
         break;
       default:
         result[key] = null;
@@ -2381,6 +2858,47 @@ export function handleOrderMutation(
 
   for (const field of getRootFields(document)) {
     const key = getFieldResponseKey(field);
+
+    if (field.name.value === 'refundCreate' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const input = readRefundCreateInput(variables);
+      if (!input) {
+        data[key] = serializeRefundCreatePayload(field, null, null, [
+          { field: ['input'], message: 'Input is required.' },
+        ]);
+        continue;
+      }
+
+      const orderId = typeof input['orderId'] === 'string' ? input['orderId'] : null;
+      const order = orderId ? store.getOrderById(orderId) : null;
+      if (!order) {
+        data[key] = serializeRefundCreatePayload(field, null, null, [
+          { field: ['input', 'orderId'], message: 'Order does not exist' },
+        ]);
+        continue;
+      }
+
+      const refund = buildRefundFromInput(order, input);
+      const refundAmount = parseDecimalAmount(refund.totalRefundedSet?.shopMoney.amount);
+      const alreadyRefunded = sumRefundedAmount(order);
+      const refundableAmount = parseDecimalAmount(order.totalPriceSet?.shopMoney.amount) - alreadyRefunded;
+      const allowOverRefunding = input['allowOverRefunding'] === true;
+
+      if (!allowOverRefunding && refundAmount > refundableAmount) {
+        data[key] = serializeRefundCreatePayload(field, null, order, [
+          {
+            field: null,
+            message: `Refund amount $${refundAmount.toFixed(2)} is greater than net payment received $${refundableAmount.toFixed(2)}`,
+          },
+        ]);
+        continue;
+      }
+
+      const updatedOrder = store.updateOrder(applyRefundToOrder(order, refund));
+      const stagedRefund = updatedOrder.refunds.find((candidate) => candidate.id === refund.id) ?? refund;
+      data[key] = serializeRefundCreatePayload(field, stagedRefund, updatedOrder, []);
+      continue;
+    }
 
     if (field.name.value === 'orderUpdate') {
       handled = true;

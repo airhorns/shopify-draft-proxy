@@ -1,0 +1,67 @@
+{
+  "scenarioId": "refund-create-over-refund-user-errors",
+  "operationNames": ["refundCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/refund-create-over-refund-user-errors.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/refundCreate-partial-shipping-restock-parity.graphql",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "refundCreate over-refund userErrors match",
+        "capturePath": "$.mutation.response.data.refundCreate.userErrors",
+        "proxyPath": "$.data.refundCreate.userErrors"
+      },
+      {
+        "name": "refundCreate over-refund refund remains null",
+        "capturePath": "$.mutation.response.data.refundCreate.refund",
+        "proxyPath": "$.data.refundCreate.refund"
+      },
+      {
+        "name": "refundCreate over-refund order financial status remains unchanged",
+        "capturePath": "$.mutation.response.data.refundCreate.order.displayFinancialStatus",
+        "proxyPath": "$.data.refundCreate.order.displayFinancialStatus"
+      },
+      {
+        "name": "refundCreate over-refund order totalRefundedSet remains unchanged",
+        "capturePath": "$.mutation.response.data.refundCreate.order.totalRefundedSet",
+        "proxyPath": "$.data.refundCreate.order.totalRefundedSet"
+      },
+      {
+        "name": "downstream over-refund order financial status remains unchanged",
+        "capturePath": "$.downstreamRead.response.data.order.displayFinancialStatus",
+        "proxyPath": "$.data.order.displayFinancialStatus",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/refundCreate-downstream-read.graphql",
+          "variablesCapturePath": "$.downstreamRead.variables"
+        }
+      },
+      {
+        "name": "downstream over-refund order refunds remain empty",
+        "capturePath": "$.downstreamRead.response.data.order.refunds",
+        "proxyPath": "$.data.order.refunds",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/refundCreate-downstream-read.graphql",
+          "variablesCapturePath": "$.downstreamRead.variables"
+        }
+      },
+      {
+        "name": "downstream over-refund returns empty connection matches",
+        "capturePath": "$.downstreamRead.response.data.order.returns",
+        "proxyPath": "$.data.order.returns",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/refundCreate-downstream-read.graphql",
+          "variablesCapturePath": "$.downstreamRead.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Captured live Shopify refundCreate invalid over-refund userErrors and unchanged downstream order refund/return state."
+}

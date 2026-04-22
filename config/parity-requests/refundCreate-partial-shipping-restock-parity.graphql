@@ -1,0 +1,61 @@
+mutation RefundCreateParity($input: RefundInput!) {
+  refundCreate(input: $input) {
+    refund {
+      id
+      note
+      createdAt
+      updatedAt
+      totalRefundedSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      refundLineItems(first: 5) {
+        nodes {
+          id
+          quantity
+          restockType
+          lineItem {
+            id
+            title
+          }
+          subtotalSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+      transactions(first: 5) {
+        nodes {
+          id
+          kind
+          status
+          gateway
+          amountSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+    }
+    order {
+      id
+      displayFinancialStatus
+      totalRefundedSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

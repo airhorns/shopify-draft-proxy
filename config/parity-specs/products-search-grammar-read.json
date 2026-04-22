@@ -2,14 +2,14 @@
   "scenarioId": "products-search-grammar-read",
   "operationNames": ["products", "productsCount"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "selected-fields", "search-filter-semantics"],
+  "assertionKinds": ["payload-shape", "selected-fields", "search-filter-semantics", "sort-order-semantics"],
   "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-search-grammar.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products-search-grammar-read.graphql",
     "variablesPath": "config/parity-requests/products-search-grammar-read.variables.json"
   },
   "comparisonMode": "capture-only",
-  "notes": "Live product search-grammar capture now keeps the quoted-phrase, bare-term, and term-local negation slice separate from the broader grouped/prefix advanced-search fixture so later parity work can compare that merchant-facing grammar increment directly.",
+  "notes": "Live product search-grammar capture keeps the quoted-phrase, bare-term, term-local negation, `NOT` modifier, `tag_not`, and `published_at:*` exists slices separate from the broader grouped/prefix advanced-search fixture so later parity work can compare those merchant-facing grammar increments directly. The `NOT`/`tag_not` request also uses PUBLISHED_AT ordering, which is modelable from normalized product state.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": []

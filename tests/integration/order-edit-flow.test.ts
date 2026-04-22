@@ -514,6 +514,12 @@ describe('order edit flow', () => {
           currencyCode: 'CAD',
         },
       },
+      totalRefundedSet: {
+        shopMoney: {
+          amount: '0.0',
+          currencyCode: 'CAD',
+        },
+      },
       customer: null,
       shippingLines: [],
       lineItems: [
@@ -531,6 +537,9 @@ describe('order edit flow', () => {
           },
         },
       ],
+      transactions: [],
+      refunds: [],
+      returns: [],
     };
 
     (store as unknown as { upsertBaseOrders: (orders: OrderRecord[]) => void }).upsertBaseOrders([baseOrder]);
@@ -666,6 +675,12 @@ describe('order edit flow', () => {
           currencyCode: 'CAD',
         },
       },
+      totalRefundedSet: {
+        shopMoney: {
+          amount: '0.0',
+          currencyCode: 'CAD',
+        },
+      },
       customer: null,
       shippingLines: [],
       lineItems: [
@@ -683,6 +698,9 @@ describe('order edit flow', () => {
           },
         },
       ],
+      transactions: [],
+      refunds: [],
+      returns: [],
     };
 
     store.upsertBaseOrders([baseOrder]);
