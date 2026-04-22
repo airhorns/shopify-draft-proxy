@@ -244,10 +244,8 @@ describe('order read scaffolding', () => {
           },
         }),
       );
-      expect(spec.blocker).toEqual({
-        kind: 'explicit-comparison-targets-needed',
-        blockerPath: null,
-      });
+      expect(spec.blocker).toBeUndefined();
+      expect(spec.comparison?.targets?.length).toBeGreaterThan(0);
       expect(document).toContain(captured.requiredText);
       expect(Object.keys(variables).length).toBeGreaterThan(0);
     }
