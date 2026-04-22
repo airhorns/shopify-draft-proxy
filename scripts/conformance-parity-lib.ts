@@ -1563,6 +1563,36 @@ function seedInventoryLinkagePreconditions(capture: unknown): boolean {
   return true;
 }
 
+function seedInventoryItemUpdatePreconditions(capture: unknown): boolean {
+  if (mutationNameFromCapture(capture) !== 'inventoryItemUpdate') {
+    return false;
+  }
+
+  const productPayload = readRecordField(
+    readRecordField(
+      readRecordField(
+        readRecordField(readRecordField(capture as Record<string, unknown>, 'mutation'), 'create'),
+        'response',
+      ),
+      'data',
+    ),
+    'productCreate',
+  )?.['product'];
+  const product = isPlainObject(productPayload) ? productPayload : null;
+  const productId = readStringField(product, 'id');
+  if (!productId) {
+    return false;
+  }
+
+  store.upsertBaseProducts([makeSeedProduct(productId, product)]);
+  const variants = readCapturedProductVariants(productId, product);
+  if (variants.length > 0) {
+    store.replaceBaseVariantsForProduct(productId, variants);
+  }
+
+  return true;
+}
+
 function seedMetafieldsSetOwnerProducts(capture: unknown, variables: Record<string, unknown>): void {
   const downstreamProduct = readRecordField(
     readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data'),
@@ -1795,6 +1825,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
 
   if (mutationName === 'inventoryAdjustQuantities') {
     seedInventoryAdjustmentPreconditions(capture);
+    return;
+  }
+
+  if (seedInventoryItemUpdatePreconditions(capture)) {
     return;
   }
 

@@ -39,7 +39,9 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/metafieldsSet-downstream-read.graphql",
           "variables": {
-            "id": "gid://shopify/Product/9257219227881"
+            "id": {
+              "fromPrimaryProxyPath": "$.data.metafieldsDelete.deletedMetafields[0].ownerId"
+            }
           }
         }
       }
