@@ -984,7 +984,8 @@ The first staged media-write increment surfaced a few durable modeling constrain
 - the immediate downstream `product.media` read can already move that same asset into a null-url `PROCESSING` state before it later becomes `READY`
 - `productUpdateMedia` is not always immediately writable after create; Shopify returned `mediaUserErrors` (`Non-ready media cannot be updated.`) until the asset reached `READY`
 - once the asset is `READY`, using the staged source URL as the local ready-state stand-in is a practical first-pass approximation for both `preview.image.url` and `MediaImage.image.url`
-- `productDeleteMedia` carries two delete-id lists (`deletedMediaIds` and `deletedProductImageIds`), but live Shopify returned an empty `deletedProductImageIds` list for MediaImage deletes on this host
+- `productDeleteMedia` carries two delete-id lists (`deletedMediaIds` and `deletedProductImageIds`); current live capture returns the deleted `MediaImage` id in `deletedMediaIds` and the paired legacy `ProductImage` id in `deletedProductImageIds`
+- staging an empty product media set needs an explicit "media family was staged" marker, otherwise downstream reads can accidentally fall back to hydrated/base media after deleting the last item
 
 That means media writes are not just three new mutation cases — they also force the media serializer to understand richer node identity/state, inline-fragment selection semantics, and a small upload lifecycle (`UPLOADED` → `PROCESSING` → `READY`) before update parity is credible.
 

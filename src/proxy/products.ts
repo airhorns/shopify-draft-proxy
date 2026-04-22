@@ -745,6 +745,14 @@ function makeSyntheticMediaId(mediaContentType: string | null | undefined): stri
   return makeSyntheticGid('Media');
 }
 
+function makeSyntheticProductImageId(mediaContentType: string | null | undefined): string | null {
+  if (mediaContentType === 'IMAGE') {
+    return makeSyntheticGid('ProductImage');
+  }
+
+  return null;
+}
+
 function duplicateMetafieldRecord(metafield: ProductMetafieldRecord, productId: string): ProductMetafieldRecord {
   return {
     id: makeSyntheticGid('Metafield'),
@@ -782,6 +790,7 @@ function makeCreatedMediaRecord(
     mediaContentType,
     alt: typeof rawAlt === 'string' ? rawAlt : null,
     status: 'UPLOADED',
+    productImageId: makeSyntheticProductImageId(mediaContentType),
     imageUrl: null,
     previewImageUrl: null,
     sourceUrl,
@@ -2716,6 +2725,7 @@ function normalizeUpstreamMedia(productId: string, value: unknown, position: num
     mediaContentType: typeof rawMediaContentType === 'string' ? rawMediaContentType : null,
     alt: typeof rawAlt === 'string' ? rawAlt : null,
     status: typeof rawStatus === 'string' ? rawStatus : null,
+    productImageId: null,
     imageUrl: normalizedImageUrl,
     previewImageUrl: typeof rawPreviewImageUrl === 'string' ? rawPreviewImageUrl : null,
     sourceUrl: normalizedImageUrl,
@@ -6799,7 +6809,9 @@ export function handleProductMutation(
       const deletedMediaIds = deletedMedia
         .map((mediaRecord) => mediaRecord.id)
         .filter((mediaId): mediaId is string => typeof mediaId === 'string');
-      const deletedProductImageIds: string[] = [];
+      const deletedProductImageIds = deletedMedia
+        .map((mediaRecord) => mediaRecord.productImageId)
+        .filter((productImageId): productImageId is string => typeof productImageId === 'string');
 
       return {
         data: {

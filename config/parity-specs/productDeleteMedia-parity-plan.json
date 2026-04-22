@@ -8,16 +8,29 @@
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/productDeleteMedia-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/productDeleteMedia-parity-plan.variables.json"
+    "variablesPath": "config/parity-requests/productDeleteMedia-parity-plan.variables.json",
+    "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live capture now covers `productDeleteMedia`, including immediate downstream `product.media` removal parity and Shopify's current empty `deletedProductImageIds` response for MediaImage deletes.",
+  "notes": "Executed by the conformance parity runner against the local staged-mutation path with live fixture variables. Live capture covers `productDeleteMedia`, including `deletedMediaIds`, the corresponding `deletedProductImageIds` for image media, and immediate downstream empty `product.media` parity.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/productDeleteMedia-downstream-read.graphql",
+          "variablesCapturePath": "$.mutation.variables"
+        },
+        "proxyPath": "$.data"
+      }
+    ]
   }
 }
