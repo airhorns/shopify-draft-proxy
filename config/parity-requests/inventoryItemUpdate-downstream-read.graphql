@@ -1,0 +1,42 @@
+query InventoryItemUpdateDownstreamRead($variantId: ID!, $inventoryItemId: ID!) {
+  productVariant(id: $variantId) {
+    id
+    inventoryQuantity
+    inventoryItem {
+      id
+      tracked
+      requiresShipping
+      countryCodeOfOrigin
+      provinceCodeOfOrigin
+      harmonizedSystemCode
+      measurement {
+        weight {
+          unit
+          value
+        }
+      }
+    }
+  }
+  inventoryItem(id: $inventoryItemId) {
+    id
+    tracked
+    requiresShipping
+    countryCodeOfOrigin
+    provinceCodeOfOrigin
+    harmonizedSystemCode
+    measurement {
+      weight {
+        unit
+        value
+      }
+    }
+    variant {
+      id
+      inventoryQuantity
+      product {
+        id
+        title
+      }
+    }
+  }
+}

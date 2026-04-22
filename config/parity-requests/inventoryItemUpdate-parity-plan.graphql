@@ -19,7 +19,6 @@ mutation InventoryItemUpdateParityPlan($id: ID!, $input: InventoryItemInput!) {
         product {
           id
           title
-          tracksInventory
         }
       }
     }
