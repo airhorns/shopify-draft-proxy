@@ -25,6 +25,7 @@ export type {
   ProxyRequestSpec,
 } from '../src/json-schemas.js';
 import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
+import { handleOrderQuery } from '../src/proxy/orders.js';
 import {
   handleProductMutation,
   handleProductQuery,
@@ -599,6 +600,20 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'overlay-read' && capability.domain === 'orders') {
+    if (upstreamPayload !== undefined && !hasOrderState()) {
+      return {
+        status: 200,
+        body: isPlainObject(upstreamPayload) ? upstreamPayload : {},
+      };
+    }
+
+    return {
+      status: 200,
+      body: handleOrderQuery(document, variables),
+    };
+  }
+
   throw new Error(
     `Parity execution does not allow live Shopify requests or unsupported operations: ${capability.operationName}`,
   );
@@ -616,6 +631,16 @@ function hasStagedState(): boolean {
     Object.keys(stagedState.productMetafields).length > 0 ||
     Object.keys(stagedState.deletedProductIds).length > 0 ||
     Object.keys(stagedState.deletedCollectionIds).length > 0
+  );
+}
+
+function hasOrderState(): boolean {
+  const { baseState, stagedState } = store.getState();
+  return (
+    Object.keys(baseState.orders).length > 0 ||
+    Object.keys(stagedState.orders).length > 0 ||
+    Object.keys(stagedState.draftOrders).length > 0 ||
+    Object.keys(stagedState.calculatedOrders).length > 0
   );
 }
 

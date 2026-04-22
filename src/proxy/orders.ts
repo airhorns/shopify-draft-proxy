@@ -976,7 +976,248 @@ function buildDraftOrderInvalidSearchExtension(rawQuery: unknown, path: string[]
 }
 
 export function shouldServeDraftOrderSearchLocally(rawQuery: unknown): boolean {
-  return buildDraftOrderInvalidSearchExtension(rawQuery, ['draftOrders']) !== null;
+  return (
+    buildDraftOrderInvalidSearchExtension(rawQuery, ['draftOrders']) !== null ||
+    isDraftOrderSearchQuerySupported(rawQuery)
+  );
+}
+
+export function shouldServeDraftOrderCatalogLocally(rawQuery: unknown, rawSavedSearchId: unknown): boolean {
+  if (typeof rawSavedSearchId === 'string' && rawSavedSearchId.trim()) {
+    return false;
+  }
+
+  return typeof rawQuery !== 'string' || shouldServeDraftOrderSearchLocally(rawQuery);
+}
+
+function tokenizeDraftOrderSearchQuery(query: string): string[] {
+  const terms: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  const flushCurrent = (): void => {
+    const value = current.trim();
+    if (value) {
+      terms.push(value);
+    }
+    current = '';
+  };
+
+  for (const character of query) {
+    if (character === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+
+    if (!inQuotes && /\s/u.test(character)) {
+      flushCurrent();
+      continue;
+    }
+
+    current += character;
+  }
+
+  flushCurrent();
+  return terms;
+}
+
+function isDraftOrderSearchQuerySupported(rawQuery: unknown): boolean {
+  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
+    return true;
+  }
+
+  if (buildDraftOrderInvalidSearchExtension(rawQuery, ['draftOrders'])) {
+    return true;
+  }
+
+  const terms = tokenizeDraftOrderSearchQuery(rawQuery.trim());
+  if (terms.length === 0) {
+    return true;
+  }
+
+  return terms.every((term) => {
+    const separatorIndex = term.indexOf(':');
+    if (separatorIndex <= 0) {
+      return false;
+    }
+
+    const field = term.slice(0, separatorIndex).toLowerCase();
+    return (
+      field === 'status' ||
+      field === 'tag' ||
+      field === 'source' ||
+      field === 'customer_id' ||
+      field === 'id' ||
+      field === 'created_at' ||
+      field === 'updated_at'
+    );
+  });
+}
+
+function matchesStringValue(candidate: string, rawValue: string): boolean {
+  const value = rawValue.trim().toLowerCase();
+  return value.length === 0 || candidate.toLowerCase() === value;
+}
+
+function readDraftOrderNumericId(draftOrder: DraftOrderRecord): number | null {
+  const parsed = Number.parseInt(draftOrder.id.split('/').at(-1) ?? '', 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function matchesNumericTerm(candidate: number | null, rawValue: string): boolean {
+  if (candidate === null) {
+    return false;
+  }
+
+  const match = rawValue.trim().match(/^(<=|>=|<|>|=)?\s*(\d+)$/u);
+  if (!match) {
+    return false;
+  }
+
+  const operator = match[1] ?? '=';
+  const threshold = Number.parseInt(match[2] ?? '', 10);
+  if (!Number.isFinite(threshold)) {
+    return false;
+  }
+
+  switch (operator) {
+    case '<=':
+      return candidate <= threshold;
+    case '>=':
+      return candidate >= threshold;
+    case '<':
+      return candidate < threshold;
+    case '>':
+      return candidate > threshold;
+    case '=':
+      return candidate === threshold;
+    default:
+      return false;
+  }
+}
+
+function matchesTimestampTerm(timestamp: string, rawValue: string): boolean {
+  const match = rawValue.trim().match(/^(<=|>=|<|>|=)?\s*(.+)$/u);
+  if (!match) {
+    return false;
+  }
+
+  const operator = match[1] ?? '=';
+  const thresholdTime = Date.parse(match[2] ?? '');
+  const timestampTime = Date.parse(timestamp);
+  if (!Number.isFinite(thresholdTime) || !Number.isFinite(timestampTime)) {
+    return false;
+  }
+
+  switch (operator) {
+    case '<=':
+      return timestampTime <= thresholdTime;
+    case '>=':
+      return timestampTime >= thresholdTime;
+    case '<':
+      return timestampTime < thresholdTime;
+    case '>':
+      return timestampTime > thresholdTime;
+    case '=':
+      return timestampTime === thresholdTime;
+    default:
+      return false;
+  }
+}
+
+function matchesDraftOrderSource(draftOrder: DraftOrderRecord, rawValue: string): boolean {
+  return draftOrder.customAttributes.some(
+    (attribute) =>
+      attribute.key.toLowerCase() === 'source' &&
+      typeof attribute.value === 'string' &&
+      matchesStringValue(attribute.value, rawValue),
+  );
+}
+
+function matchesDraftOrderSearchTerm(draftOrder: DraftOrderRecord, term: string): boolean {
+  const separatorIndex = term.indexOf(':');
+  if (separatorIndex <= 0) {
+    return false;
+  }
+
+  const field = term.slice(0, separatorIndex).toLowerCase();
+  const value = term.slice(separatorIndex + 1);
+
+  switch (field) {
+    case 'status':
+      return typeof draftOrder.status === 'string' && matchesStringValue(draftOrder.status, value);
+    case 'tag':
+      return draftOrder.tags.some((tag) => matchesStringValue(tag, value));
+    case 'source':
+      return matchesDraftOrderSource(draftOrder, value);
+    case 'customer_id':
+      return false;
+    case 'id':
+      return draftOrder.id === value || matchesNumericTerm(readDraftOrderNumericId(draftOrder), value);
+    case 'created_at':
+      return matchesTimestampTerm(draftOrder.createdAt, value);
+    case 'updated_at':
+      return matchesTimestampTerm(draftOrder.updatedAt, value);
+    default:
+      return false;
+  }
+}
+
+function applyDraftOrdersQuery(draftOrders: DraftOrderRecord[], rawQuery: unknown): DraftOrderRecord[] {
+  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
+    return draftOrders;
+  }
+
+  if (buildDraftOrderInvalidSearchExtension(rawQuery, ['draftOrders'])) {
+    return draftOrders;
+  }
+
+  if (!isDraftOrderSearchQuerySupported(rawQuery)) {
+    return [];
+  }
+
+  const terms = tokenizeDraftOrderSearchQuery(rawQuery.trim());
+  return draftOrders.filter((draftOrder) => terms.every((term) => matchesDraftOrderSearchTerm(draftOrder, term)));
+}
+
+function compareDraftOrderIds(leftId: string, rightId: string): number {
+  const leftTail = Number.parseInt(leftId.split('/').at(-1) ?? '', 10);
+  const rightTail = Number.parseInt(rightId.split('/').at(-1) ?? '', 10);
+  if (Number.isFinite(leftTail) && Number.isFinite(rightTail)) {
+    return leftTail - rightTail;
+  }
+
+  return leftId.localeCompare(rightId);
+}
+
+function sortDraftOrdersForConnection(
+  draftOrders: DraftOrderRecord[],
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): DraftOrderRecord[] {
+  const args = getFieldArguments(field, variables);
+  const sortKey = typeof args['sortKey'] === 'string' ? args['sortKey'] : null;
+  const reverse = args['reverse'] === true;
+
+  if (!sortKey && !reverse) {
+    return draftOrders;
+  }
+
+  const sorted = [...draftOrders].sort((left, right) => {
+    switch (sortKey) {
+      case 'CREATED_AT':
+        return left.createdAt.localeCompare(right.createdAt) || compareDraftOrderIds(left.id, right.id);
+      case 'UPDATED_AT':
+        return left.updatedAt.localeCompare(right.updatedAt) || compareDraftOrderIds(left.id, right.id);
+      case 'NAME':
+        return left.name.localeCompare(right.name) || compareDraftOrderIds(left.id, right.id);
+      case 'ID':
+      default:
+        return compareDraftOrderIds(left.id, right.id);
+    }
+  });
+
+  return reverse ? sorted.reverse() : sorted;
 }
 
 function applySyntheticCursorWindow<T extends { id: string }>(
@@ -1035,7 +1276,17 @@ function serializeDraftOrdersConnection(
   draftOrders: DraftOrderRecord[],
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const { visibleRecords, hasNextPage, hasPreviousPage } = applySyntheticCursorWindow(draftOrders, field, variables);
+  const args = getFieldArguments(field, variables);
+  const filteredDraftOrders =
+    typeof args['savedSearchId'] === 'string' && args['savedSearchId'].trim()
+      ? []
+      : applyDraftOrdersQuery(draftOrders, args['query']);
+  const orderedDraftOrders = sortDraftOrdersForConnection(filteredDraftOrders, field, variables);
+  const { visibleRecords, hasNextPage, hasPreviousPage } = applySyntheticCursorWindow(
+    orderedDraftOrders,
+    field,
+    variables,
+  );
   const result: Record<string, unknown> = {};
   for (const selection of getSelectedChildFields(field)) {
     const key = getFieldResponseKey(selection);
@@ -1092,6 +1343,40 @@ function serializeDraftOrdersConnection(
         break;
     }
   }
+  return result;
+}
+
+function serializeDraftOrdersCount(
+  field: FieldNode,
+  draftOrders: DraftOrderRecord[],
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const filteredDraftOrders =
+    typeof args['savedSearchId'] === 'string' && args['savedSearchId'].trim()
+      ? []
+      : applyDraftOrdersQuery(draftOrders, args['query']);
+  const rawLimit = args['limit'];
+  const limit = typeof rawLimit === 'number' && Number.isFinite(rawLimit) && rawLimit >= 0 ? rawLimit : null;
+  const count = limit === null ? filteredDraftOrders.length : Math.min(filteredDraftOrders.length, limit);
+  const precision = limit !== null && filteredDraftOrders.length > limit ? 'AT_LEAST' : 'EXACT';
+  const result: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const selectionKey = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'count':
+        result[selectionKey] = count;
+        break;
+      case 'precision':
+        result[selectionKey] = precision;
+        break;
+      default:
+        result[selectionKey] = null;
+        break;
+    }
+  }
+
   return result;
 }
 
@@ -2111,22 +2396,7 @@ export function handleOrderQuery(
       }
       case 'draftOrdersCount': {
         const args = getFieldArguments(field, variables);
-        const countResult: Record<string, unknown> = {};
-        for (const selection of getSelectedChildFields(field)) {
-          const selectionKey = getFieldResponseKey(selection);
-          switch (selection.name.value) {
-            case 'count':
-              countResult[selectionKey] = store.getDraftOrders().length;
-              break;
-            case 'precision':
-              countResult[selectionKey] = 'EXACT';
-              break;
-            default:
-              countResult[selectionKey] = null;
-              break;
-          }
-        }
-        data[key] = countResult;
+        data[key] = serializeDraftOrdersCount(field, store.getDraftOrders(), variables);
         const searchExtension = buildDraftOrderInvalidSearchExtension(args['query'], [key]);
         if (searchExtension) {
           searchExtensions.push(searchExtension);

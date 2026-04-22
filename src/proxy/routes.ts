@@ -10,7 +10,7 @@ import { createUpstreamGraphQLClient } from '../shopify/upstream-client.js';
 import { getOperationCapability, type OperationCapability } from './capabilities.js';
 import { handleMediaMutation } from './media.js';
 import { handleCustomerMutation, handleCustomerQuery, hydrateCustomersFromUpstreamResponse } from './customers.js';
-import { handleOrderMutation, handleOrderQuery, shouldServeDraftOrderSearchLocally } from './orders.js';
+import { handleOrderMutation, handleOrderQuery, shouldServeDraftOrderCatalogLocally } from './orders.js';
 import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamResponse } from './products.js';
 
 interface GraphQLBody {
@@ -203,7 +203,7 @@ export function createProxyRouter(config: AppConfig): Router {
         const canServeLocalDraftOrderCatalog =
           (capability.operationName === 'draftOrders' || capability.operationName === 'draftOrdersCount') &&
           hasStagedDraftOrders &&
-          (typeof variables['query'] !== 'string' || shouldServeDraftOrderSearchLocally(variables['query']));
+          shouldServeDraftOrderCatalogLocally(variables['query'], variables['savedSearchId']);
 
         if (
           canServeLocalOrderDetail ||
