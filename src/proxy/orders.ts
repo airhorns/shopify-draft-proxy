@@ -455,6 +455,7 @@ function buildOrderFromCompletedDraftOrder(
   },
 ): OrderRecord {
   const createdAt = draftOrder.completedAt ?? makeSyntheticTimestamp();
+  const currencyCode = draftOrder.totalPriceSet?.shopMoney.currencyCode ?? 'CAD';
   return {
     id: makeSyntheticGid('Order'),
     name: `#${store.getOrders().length + 1}`,
@@ -472,9 +473,15 @@ function buildOrderFromCompletedDraftOrder(
     subtotalPriceSet: structuredClone(draftOrder.subtotalPriceSet),
     currentTotalPriceSet: structuredClone(draftOrder.totalPriceSet),
     totalPriceSet: structuredClone(draftOrder.totalPriceSet),
+    totalRefundedSet: {
+      shopMoney: normalizeMoney('0.0', currencyCode),
+    },
     customer: buildOrderCustomerFromDraftOrder(draftOrder),
     shippingLines: buildOrderShippingLinesFromDraftOrder(draftOrder),
     lineItems: buildOrderLineItemsFromDraftOrder(draftOrder),
+    transactions: [],
+    refunds: [],
+    returns: [],
   };
 }
 
