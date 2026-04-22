@@ -10,7 +10,7 @@
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Minimal live `productPublish` mutation payload capture now executes against the local staged write path with live fixture variables. This ready-for-comparison minimal live payload slice intentionally verifies the successful minimal mutation payload (`userErrors`) separately from the still-blocked aggregate publication fields.",
+  "notes": "Live `productPublish` mutation payload capture now executes against the local staged write path with live fixture variables. This ready-for-comparison successful mutation payload slice verifies the non-blocked product identity plus `userErrors` separately from the still-blocked aggregate publication fields.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

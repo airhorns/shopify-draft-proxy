@@ -284,6 +284,9 @@ const unpublishMutation = `#graphql
 const publishMutationScopeProbe = `#graphql
   mutation ProductPublicationScopeProbePublish($input: ProductPublishInput!) {
     productPublish(input: $input) {
+      product {
+        id
+      }
       userErrors {
         field
         message
@@ -868,14 +871,15 @@ function buildPublicationAggregateFieldBlockerNote({
     '',
     'Attempted to capture live conformance for the staged product publication family (`productPublish`, `productUnpublish`).',
     '',
-    '- minimal `productPublish` / `productUnpublish` mutation payloads now capture successfully',
-    `- Shopify accepted a real publication target id during the successful minimal mutation captures: \`${publicationId}\``,
-    '- the root mutation family can therefore be promoted to covered parity for the minimal live payload slice (`userErrors` + successful mutation execution)',
+    '- safe `productPublish` / `productUnpublish` mutation payloads now capture successfully',
+    `- Shopify accepted a real publication target id during the successful safe mutation captures: \`${publicationId}\``,
+    '- `productPublish` can therefore be promoted to covered parity for the successful live payload slice (`product { id }` plus `userErrors`)',
+    '- `productUnpublish` remains tracked by its own captured minimal payload slice until that operation is promoted separately',
     '',
     '## Remaining field-level blocker',
     '',
     '- aggregate publication fields remain blocked for this app',
-    '- publication aggregate reads still fail for this app even after the minimal mutation succeeds',
+    '- publication aggregate reads still fail for this app even after the safe mutation succeeds',
     ...(activeCredentialObservation
       ? [
           `- current conformance credential family: \`${activeCredentialObservation.tokenFamily}\``,
@@ -1308,7 +1312,7 @@ try {
     'publications-catalog.json': probe.listProbe,
     'product-publish-parity.json': {
       mutation: {
-        queryShape: 'minimal-user-errors-only',
+        queryShape: 'product-id-and-user-errors',
         variables: publishVariables,
         response: publishResponse,
       },

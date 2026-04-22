@@ -1665,11 +1665,11 @@ describe('product draft flow', () => {
 
     const productId = createResponse.body.data.productCreate.product.id as string;
 
-    const minimalPublishResponse = await request(app)
+    const productIdPublishResponse = await request(app)
       .post('/admin/api/2025-01/graphql.json')
       .send({
         query:
-          'mutation PublishMinimal($input: ProductPublishInput!) { productPublish(input: $input) { userErrors { field message } } }',
+          'mutation PublishProductId($input: ProductPublishInput!) { productPublish(input: $input) { product { id } userErrors { field message } } }',
         variables: {
           input: {
             id: productId,
@@ -1678,8 +1678,11 @@ describe('product draft flow', () => {
         },
       });
 
-    expect(minimalPublishResponse.status).toBe(200);
-    expect(minimalPublishResponse.body.data.productPublish).toEqual({
+    expect(productIdPublishResponse.status).toBe(200);
+    expect(productIdPublishResponse.body.data.productPublish).toEqual({
+      product: {
+        id: productId,
+      },
       userErrors: [],
     });
 
