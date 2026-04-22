@@ -36,6 +36,7 @@ query InventoryItemUpdateDownstreamRead($variantId: ID!, $inventoryItemId: ID!) 
       product {
         id
         title
+        tracksInventory
       }
     }
   }

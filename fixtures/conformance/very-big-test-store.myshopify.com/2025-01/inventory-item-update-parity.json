@@ -1,12 +1,12 @@
 {
-  "capturedAt": "2026-04-18T22:21:48.657Z",
+  "capturedAt": "2026-04-22T22:38:31.261Z",
   "storeDomain": "very-big-test-store.myshopify.com",
   "apiVersion": "2025-01",
   "mutation": {
     "create": {
       "variables": {
         "product": {
-          "title": "hermes-inventory-item-update-1776550908657",
+          "title": "hermes-inventory-item-update-1776897511261",
           "status": "DRAFT"
         }
       },
@@ -14,15 +14,15 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/9257220014313",
-              "title": "hermes-inventory-item-update-1776550908657",
+              "id": "gid://shopify/Product/9261237272809",
+              "title": "hermes-inventory-item-update-1776897511261",
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/50897202249961",
+                    "id": "gid://shopify/ProductVariant/50910761779433",
                     "inventoryQuantity": 0,
                     "inventoryItem": {
-                      "id": "gid://shopify/InventoryItem/53044947583209",
+                      "id": "gid://shopify/InventoryItem/53058790621417",
                       "tracked": false,
                       "requiresShipping": true,
                       "countryCodeOfOrigin": null,
@@ -35,11 +35,12 @@
                         }
                       },
                       "variant": {
-                        "id": "gid://shopify/ProductVariant/50897202249961",
+                        "id": "gid://shopify/ProductVariant/50910761779433",
                         "inventoryQuantity": 0,
                         "product": {
-                          "id": "gid://shopify/Product/9257220014313",
-                          "title": "hermes-inventory-item-update-1776550908657"
+                          "id": "gid://shopify/Product/9261237272809",
+                          "title": "hermes-inventory-item-update-1776897511261",
+                          "tracksInventory": false
                         }
                       }
                     }
@@ -64,7 +65,7 @@
       }
     },
     "variables": {
-      "id": "gid://shopify/InventoryItem/53044947583209",
+      "id": "gid://shopify/InventoryItem/53058790621417",
       "input": {
         "tracked": true,
         "requiresShipping": false,
@@ -83,7 +84,7 @@
       "data": {
         "inventoryItemUpdate": {
           "inventoryItem": {
-            "id": "gid://shopify/InventoryItem/53044947583209",
+            "id": "gid://shopify/InventoryItem/53058790621417",
             "tracked": true,
             "requiresShipping": false,
             "countryCodeOfOrigin": "CA",
@@ -96,11 +97,12 @@
               }
             },
             "variant": {
-              "id": "gid://shopify/ProductVariant/50897202249961",
+              "id": "gid://shopify/ProductVariant/50910761779433",
               "inventoryQuantity": 0,
               "product": {
-                "id": "gid://shopify/Product/9257220014313",
-                "title": "hermes-inventory-item-update-1776550908657"
+                "id": "gid://shopify/Product/9261237272809",
+                "title": "hermes-inventory-item-update-1776897511261",
+                "tracksInventory": true
               }
             }
           },
@@ -122,10 +124,10 @@
     "downstreamRead": {
       "data": {
         "productVariant": {
-          "id": "gid://shopify/ProductVariant/50897202249961",
+          "id": "gid://shopify/ProductVariant/50910761779433",
           "inventoryQuantity": 0,
           "inventoryItem": {
-            "id": "gid://shopify/InventoryItem/53044947583209",
+            "id": "gid://shopify/InventoryItem/53058790621417",
             "tracked": true,
             "requiresShipping": false,
             "countryCodeOfOrigin": "CA",
@@ -140,7 +142,7 @@
           }
         },
         "inventoryItem": {
-          "id": "gid://shopify/InventoryItem/53044947583209",
+          "id": "gid://shopify/InventoryItem/53058790621417",
           "tracked": true,
           "requiresShipping": false,
           "countryCodeOfOrigin": "CA",
@@ -153,11 +155,12 @@
             }
           },
           "variant": {
-            "id": "gid://shopify/ProductVariant/50897202249961",
+            "id": "gid://shopify/ProductVariant/50910761779433",
             "inventoryQuantity": 0,
             "product": {
-              "id": "gid://shopify/Product/9257220014313",
-              "title": "hermes-inventory-item-update-1776550908657"
+              "id": "gid://shopify/Product/9261237272809",
+              "title": "hermes-inventory-item-update-1776897511261",
+              "tracksInventory": true
             }
           }
         }
