@@ -17,8 +17,8 @@ if (missingVars.length > 0) {
 
 const storeDomain = process.env['SHOPIFY_CONFORMANCE_STORE_DOMAIN'];
 const adminOrigin = process.env['SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
-const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || '2025-01';
+const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
 const outputPath = path.join(outputDir, 'inventory-item-update-parity.json');
 
@@ -69,6 +69,7 @@ const createMutation = `#graphql
                 product {
                   id
                   title
+                  tracksInventory
                 }
               }
             }
@@ -105,6 +106,7 @@ const inventoryItemUpdateMutation = `#graphql
           product {
             id
             title
+            tracksInventory
           }
         }
       }
@@ -155,6 +157,7 @@ const downstreamReadQuery = `#graphql
         product {
           id
           title
+          tracksInventory
         }
       }
     }
