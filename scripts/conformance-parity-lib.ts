@@ -1183,6 +1183,7 @@ function readCapturedProductMedia(
         mediaContentType: readStringField(node, 'mediaContentType'),
         alt: readStringField(node, 'alt'),
         status: readStringField(node, 'status'),
+        productImageId: null,
         imageUrl,
         previewImageUrl,
         sourceUrl: imageUrl ?? previewImageUrl,
@@ -1261,6 +1262,32 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       const capturedMedia = readCapturedProductMedia(productId, mediaSource);
       if (capturedMedia.length > 0) {
         store.replaceBaseMediaForProduct(productId, capturedMedia);
+      }
+    }
+    if (mutationName === 'productDeleteMedia') {
+      const mediaIds = readArrayField(variables, 'mediaIds').filter(
+        (mediaId): mediaId is string => typeof mediaId === 'string',
+      );
+      if (mediaIds.length > 0) {
+        const deletedProductImageIds = readArrayField(payload, 'deletedProductImageIds').filter(
+          (productImageId): productImageId is string => typeof productImageId === 'string',
+        );
+        store.replaceBaseMediaForProduct(
+          productId,
+          mediaIds.map((mediaId, index) => ({
+            key: `${productId}:media:${index}`,
+            productId,
+            position: index,
+            id: mediaId,
+            mediaContentType: 'IMAGE',
+            alt: null,
+            status: 'READY',
+            productImageId: deletedProductImageIds[index] ?? null,
+            imageUrl: null,
+            previewImageUrl: null,
+            sourceUrl: null,
+          })),
+        );
       }
     }
   }

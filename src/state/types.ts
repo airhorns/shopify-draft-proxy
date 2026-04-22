@@ -155,6 +155,7 @@ export const productMediaRecordSchema = z.strictObject({
   mediaContentType: nullableStringSchema,
   alt: nullableStringSchema,
   status: nullableStringSchema.optional(),
+  productImageId: nullableStringSchema.optional(),
   imageUrl: nullableStringSchema.optional(),
   previewImageUrl: nullableStringSchema,
   sourceUrl: nullableStringSchema.optional(),

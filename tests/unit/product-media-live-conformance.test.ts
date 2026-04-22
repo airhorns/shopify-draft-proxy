@@ -80,6 +80,8 @@ describe('product media live conformance wiring', () => {
           comparisonMode: 'captured-vs-proxy-request',
         }),
       );
+      expect(spec.blocker).toBeUndefined();
+      expect(spec.comparison?.targets?.map((target) => target.name)).toEqual(['mutation-data', 'downstream-read-data']);
     }
   });
 });
