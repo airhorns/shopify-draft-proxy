@@ -1,17 +1,18 @@
 {
   "input": {
-    "id": "gid://shopify/ProductVariant/210",
-    "title": "Blue / XL",
-    "sku": "SVH-BL-XL",
-    "inventoryQuantity": 5,
+    "id": "gid://shopify/ProductVariant/50905436913897",
+    "title": "Red",
+    "sku": "HERMES-BULK-810153-RED",
+    "barcode": "1111111111111",
+    "price": "24.00",
+    "compareAtPrice": "30.00",
+    "taxable": true,
+    "inventoryPolicy": "DENY",
+    "inventoryQuantity": 0,
     "selectedOptions": [
       {
         "name": "Color",
-        "value": "Blue"
-      },
-      {
-        "name": "Size",
-        "value": "XL"
+        "value": "Red"
       }
     ],
     "inventoryItem": {

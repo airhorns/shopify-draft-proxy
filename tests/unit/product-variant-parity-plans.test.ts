@@ -176,6 +176,35 @@ describe('product variant mutation parity plan scaffolds', () => {
   });
 
   it('declares a concrete proxy request scaffold for productVariantUpdate', () => {
+    const repoRoot = resolve(import.meta.dirname, '../..');
+    const spec = JSON.parse(
+      readFileSync(resolve(repoRoot, 'config/parity-specs/productVariantUpdate-parity-plan.json'), 'utf8'),
+    ) as ProxyRequestSpec;
+
+    expect(spec.blocker).toBeUndefined();
+    expect(spec.comparison?.targets?.map((target) => target.name)).toEqual([
+      'product-id',
+      'product-totalInventory',
+      'product-tracksInventory',
+      'product-variants-payload',
+      'variant-id',
+      'variant-title',
+      'variant-sku',
+      'variant-barcode',
+      'variant-price',
+      'variant-compareAtPrice',
+      'variant-taxable',
+      'variant-inventoryPolicy',
+      'variant-inventoryQuantity',
+      'variant-selectedOptions',
+      'variant-inventoryItem',
+      'user-errors',
+      'downstream-read',
+    ]);
+    expect(spec.comparison?.targets?.at(-1)?.proxyRequest?.documentPath).toBe(
+      'config/parity-requests/productVariantUpdate-downstream-read.graphql',
+    );
+
     expectParityPlanScaffold({
       specPath: 'config/parity-specs/productVariantUpdate-parity-plan.json',
       documentPath: 'config/parity-requests/productVariantUpdate-parity-plan.graphql',
@@ -186,7 +215,10 @@ describe('product variant mutation parity plan scaffolds', () => {
         'product {',
         'totalInventory',
         'tracksInventory',
+        'variants(first: 10) {',
         'productVariant {',
+        'compareAtPrice',
+        'inventoryPolicy',
         'selectedOptions {',
         'inventoryItem {',
         'requiresShipping',
@@ -194,14 +226,16 @@ describe('product variant mutation parity plan scaffolds', () => {
       ],
       expectedVariables: {
         input: {
-          id: 'gid://shopify/ProductVariant/210',
-          title: 'Blue / XL',
-          sku: 'SVH-BL-XL',
-          inventoryQuantity: 5,
-          selectedOptions: [
-            { name: 'Color', value: 'Blue' },
-            { name: 'Size', value: 'XL' },
-          ],
+          id: 'gid://shopify/ProductVariant/50905436913897',
+          title: 'Red',
+          sku: 'HERMES-BULK-810153-RED',
+          barcode: '1111111111111',
+          price: '24.00',
+          compareAtPrice: '30.00',
+          taxable: true,
+          inventoryPolicy: 'DENY',
+          inventoryQuantity: 0,
+          selectedOptions: [{ name: 'Color', value: 'Red' }],
           inventoryItem: {
             tracked: true,
             requiresShipping: true,

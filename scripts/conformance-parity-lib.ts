@@ -905,6 +905,78 @@ function makeInventoryAdjustmentSeedVariant(
   };
 }
 
+function makeProductVariantUpdateCompatibilitySeedVariant(
+  productId: string,
+  variantId: string,
+  source: Record<string, unknown> | null,
+): ProductVariantRecord {
+  const inventoryItem = readRecordField(source, 'inventoryItem');
+  const inventoryItemId = readStringField(inventoryItem, 'id');
+
+  return {
+    id: variantId,
+    productId,
+    title: 'Default Title',
+    sku: null,
+    barcode: null,
+    price: null,
+    compareAtPrice: null,
+    taxable: null,
+    inventoryPolicy: null,
+    inventoryQuantity: null,
+    selectedOptions: [],
+    inventoryItem: inventoryItemId
+      ? {
+          id: inventoryItemId,
+          tracked: null,
+          requiresShipping: null,
+          measurement: null,
+          countryCodeOfOrigin: null,
+          provinceCodeOfOrigin: null,
+          harmonizedSystemCode: null,
+          inventoryLevels: null,
+        }
+      : null,
+  };
+}
+
+function seedProductVariantUpdateCompatibilityPreconditions(
+  capture: unknown,
+  variables: Record<string, unknown>,
+): boolean {
+  if (mutationNameFromCapture(capture) !== 'productVariantsBulkUpdate') {
+    return false;
+  }
+
+  const input = readRecordField(variables, 'input');
+  const variantId = readStringField(input, 'id');
+  if (!variantId) {
+    return false;
+  }
+
+  const payload = mutationPayloadFromCapture(capture);
+  const productPayload = readRecordField(payload, 'product');
+  const productId = readStringField(productPayload, 'id');
+  if (!productId) {
+    return false;
+  }
+
+  const capturedVariant =
+    readArrayField(payload, 'productVariants')
+      .filter(isPlainObject)
+      .find((variant) => readStringField(variant, 'id') === variantId) ??
+    readArrayField(readRecordField(productPayload, 'variants'), 'nodes')
+      .filter(isPlainObject)
+      .find((variant) => readStringField(variant, 'id') === variantId) ??
+    null;
+
+  store.upsertBaseProducts([makeSeedProduct(productId, productPayload, 'Product variant update conformance seed')]);
+  store.replaceBaseVariantsForProduct(productId, [
+    makeProductVariantUpdateCompatibilitySeedVariant(productId, variantId, capturedVariant),
+  ]);
+  return true;
+}
+
 function seedInventoryAdjustmentPreconditions(capture: unknown): void {
   const location = inventoryAdjustmentLocation(capture);
   if (!location) {
@@ -1042,6 +1114,10 @@ function readCapturedProductMedia(
 }
 
 function seedPreconditionsFromCapture(capture: unknown, variables: Record<string, unknown>): void {
+  if (seedProductVariantUpdateCompatibilityPreconditions(capture, variables)) {
+    return;
+  }
+
   const payload = mutationPayloadFromCapture(capture);
   const mutationName = mutationNameFromCapture(capture);
   if (mutationName === 'inventoryAdjustQuantities') {

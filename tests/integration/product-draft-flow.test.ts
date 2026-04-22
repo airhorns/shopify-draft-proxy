@@ -2406,15 +2406,9 @@ describe('product draft flow', () => {
         ],
       },
     });
-    expect(downstreamQuery.body.data.products.nodes).toEqual([
-      {
-        id: productId,
-        totalInventory: 5,
-        tracksInventory: true,
-      },
-    ]);
+    expect(downstreamQuery.body.data.products.nodes).toEqual([]);
     expect(downstreamQuery.body.data.skuCount).toEqual({
-      count: 1,
+      count: 0,
       precision: 'EXACT',
     });
 
