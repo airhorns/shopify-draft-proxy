@@ -35,8 +35,8 @@ describe('snapshot loading', () => {
               'gid://shopify/Product/9001': {
                 id: 'gid://shopify/Product/9001',
                 legacyResourceId: '9001',
-                title: 'Snapshot Product',
-                handle: 'snapshot-product',
+                title: 'Snapshot Swoosh Product',
+                handle: 'snapshot-swoosh-product',
                 status: 'ACTIVE',
                 publicationIds: [],
                 createdAt: '2025-01-02T00:00:00.000Z',
@@ -130,6 +130,20 @@ describe('snapshot loading', () => {
               },
             },
           },
+          productSearchConnections: {
+            '{"query":"swoo* status:active","sortKey":"RELEVANCE","reverse":false}': {
+              orderedProductIds: ['gid://shopify/Product/9001'],
+              cursorByProductId: {
+                'gid://shopify/Product/9001': 'opaque-snapshot-product-cursor',
+              },
+              pageInfo: {
+                hasNextPage: true,
+                hasPreviousPage: false,
+                startCursor: 'opaque-snapshot-product-cursor',
+                endCursor: 'opaque-snapshot-product-cursor',
+              },
+            },
+          },
         },
         null,
         2,
@@ -158,8 +172,8 @@ describe('snapshot loading', () => {
     expect(productResponse.status).toBe(200);
     expect(productResponse.body.data.product).toEqual({
       id: 'gid://shopify/Product/9001',
-      title: 'Snapshot Product',
-      handle: 'snapshot-product',
+      title: 'Snapshot Swoosh Product',
+      handle: 'snapshot-swoosh-product',
       status: 'ACTIVE',
       vendor: 'HERMES',
       productType: 'SNAPSHOT',
@@ -208,6 +222,35 @@ describe('snapshot loading', () => {
       },
     });
 
+    const productSearchResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query SnapshotProductRelevance($query: String!) { products(first: 1, query: $query, sortKey: RELEVANCE) { edges { cursor node { id title } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }',
+        variables: {
+          query: 'swoo* status:active',
+        },
+      });
+
+    expect(productSearchResponse.status).toBe(200);
+    expect(productSearchResponse.body.data.products).toEqual({
+      edges: [
+        {
+          cursor: 'opaque-snapshot-product-cursor',
+          node: {
+            id: 'gid://shopify/Product/9001',
+            title: 'Snapshot Swoosh Product',
+          },
+        },
+      ],
+      pageInfo: {
+        hasNextPage: true,
+        hasPreviousPage: false,
+        startCursor: 'opaque-snapshot-product-cursor',
+        endCursor: 'opaque-snapshot-product-cursor',
+      },
+    });
+
     const stagedMutation = await request(app)
       .post('/admin/api/2025-01/graphql.json')
       .send({
@@ -231,7 +274,7 @@ describe('snapshot loading', () => {
     expect(metaStateResponse.status).toBe(200);
     expect(metaStateResponse.body.baseState.products['gid://shopify/Product/9001']).toMatchObject({
       id: 'gid://shopify/Product/9001',
-      title: 'Snapshot Product',
+      title: 'Snapshot Swoosh Product',
     });
     expect(metaStateResponse.body.baseState.customers['gid://shopify/Customer/7001']).toMatchObject({
       id: 'gid://shopify/Customer/7001',
@@ -263,6 +306,33 @@ describe('snapshot loading', () => {
       pageInfo: {
         startCursor: 'opaque-snapshot-customer-cursor',
         endCursor: 'opaque-snapshot-customer-cursor',
+      },
+    });
+
+    const productSearchAfterReset = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query SnapshotProductRelevance($query: String!) { products(first: 1, query: $query, sortKey: RELEVANCE) { edges { cursor node { id title } } pageInfo { startCursor endCursor } } }',
+        variables: {
+          query: 'swoo* status:active',
+        },
+      });
+
+    expect(productSearchAfterReset.status).toBe(200);
+    expect(productSearchAfterReset.body.data.products).toEqual({
+      edges: [
+        {
+          cursor: 'opaque-snapshot-product-cursor',
+          node: {
+            id: 'gid://shopify/Product/9001',
+            title: 'Snapshot Swoosh Product',
+          },
+        },
+      ],
+      pageInfo: {
+        startCursor: 'opaque-snapshot-product-cursor',
+        endCursor: 'opaque-snapshot-product-cursor',
       },
     });
   });

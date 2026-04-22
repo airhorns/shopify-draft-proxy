@@ -185,10 +185,10 @@ At startup, raw fixture bundles should be compiled into normalized state where p
 Current implementation note:
 
 - `createApp()` now reads `config.snapshotPath` eagerly when it is set
-- the current supported on-disk format is a normalized snapshot JSON file containing `baseState` plus optional customer catalog/search connection baselines
+- the current supported on-disk format is a normalized snapshot JSON file containing `baseState` plus optional product search connection baselines and customer catalog/search connection baselines
 - normalized snapshot JSON is parsed through Zod schemas at the file boundary; the same schemas derive the runtime snapshot TypeScript types
 - loading that file seeds the in-memory base state before the server handles requests
-- `POST /__meta/reset` restores that startup snapshot baseline rather than wiping snapshot mode back to an empty store
+- `POST /__meta/reset` restores that startup snapshot baseline, including captured connection cursor/pageInfo baselines, rather than wiping snapshot mode back to an empty store
 
 Snapshot misses should return the same kind of empty/null structure Shopify returns when the backing store has no matching data.
 
