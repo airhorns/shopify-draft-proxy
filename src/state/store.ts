@@ -818,8 +818,7 @@ export class InMemoryStore {
 
     return Object.values(this.baseState.productVariants)
       .filter((variant) => variant.productId === productId)
-      .map((variant) => structuredClone(variant))
-      .sort((left, right) => compareResourceIds(left.id, right.id));
+      .map((variant) => structuredClone(variant));
   }
 
   getEffectiveVariantsByProductId(productId: string): ProductVariantRecord[] {
@@ -833,7 +832,7 @@ export class InMemoryStore {
 
     const sourceVariants = stagedVariants.length > 0 ? stagedVariants : this.getBaseVariantsByProductId(productId);
 
-    return sourceVariants.sort((left, right) => compareResourceIds(left.id, right.id));
+    return sourceVariants;
   }
 
   getEffectiveVariantById(variantId: string): ProductVariantRecord | null {
