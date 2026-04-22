@@ -18,12 +18,12 @@
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "top-level-error-message",
+        "name": "error-message",
         "capturePath": "$.mutation.response.errors[0].message",
         "proxyPath": "$.errors[0].message"
       },
       {
-        "name": "top-level-error-extensions",
+        "name": "error-extensions",
         "capturePath": "$.mutation.response.errors[0].extensions",
         "proxyPath": "$.errors[0].extensions"
       }

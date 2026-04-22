@@ -590,6 +590,11 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'orders') {
+    const body = handleOrderMutation(document, variables, 'snapshot');
+    if (!body) {
+      throw new Error(`Order-domain parity request was not handled locally: ${capability.operationName}`);
+    }
+
     store.appendLog({
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
@@ -601,11 +606,6 @@ async function executeGraphQLAgainstLocalProxy(
       interpreted: interpretMutationLogEntry(parsed, capability),
       notes: 'Staged locally in the conformance parity proxy harness.',
     });
-
-    const body = handleOrderMutation(document, variables, 'snapshot');
-    if (!body) {
-      throw new Error(`Order-domain parity request was not handled locally: ${capability.operationName}`);
-    }
 
     return {
       status: 200,
@@ -667,7 +667,10 @@ function hasStagedState(): boolean {
     Object.keys(stagedState.productMedia).length > 0 ||
     Object.keys(stagedState.productMetafields).length > 0 ||
     Object.keys(stagedState.deletedProductIds).length > 0 ||
-    Object.keys(stagedState.deletedCollectionIds).length > 0
+    Object.keys(stagedState.deletedCollectionIds).length > 0 ||
+    Object.keys(stagedState.orders).length > 0 ||
+    Object.keys(stagedState.draftOrders).length > 0 ||
+    Object.keys(stagedState.calculatedOrders).length > 0
   );
 }
 
