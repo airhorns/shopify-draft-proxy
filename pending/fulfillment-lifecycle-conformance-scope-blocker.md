@@ -8,6 +8,15 @@ Refreshed the next fulfillment lifecycle probes on `very-big-test-store.myshopif
 - `fulfillmentCancel` — the adjacent cancellation root for reversing a fulfillment lifecycle step
 - `corepack pnpm conformance:capture-orders`
 
+## Current refresh blocker
+
+An unattended refresh attempt on 2026-04-22 could not reach the fulfillment probes because the stored Shopify conformance access token was invalid and token refresh could not start without the repo-local Shopify app env file:
+
+- missing file: `shopify-conformance-app/hermes-conformance-products/.env`
+- failing command: `corepack pnpm conformance:capture-orders`
+- exact blocker: `Stored Shopify conformance access token is invalid and refresh failed: Shopify app env file not found at /home/airhorns/code/symphony-workspaces/shopify-draft-proxy/HAR-122/shopify-conformance-app/hermes-conformance-products/.env. Set SHOPIFY_CONFORMANCE_APP_ENV_PATH or restore the linked app workspace before refreshing the token.`
+- interpretation: this is an access/credential-refresh blocker above the fulfillment lifecycle probes; it does not invalidate the last verified fulfillment access-denied evidence below.
+
 ## Current credential summary
 
 - credential family: `shpca`

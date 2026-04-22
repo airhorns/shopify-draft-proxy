@@ -31,7 +31,7 @@ This project is not a generic mock server. It is a **digital twin** / **draft la
 - `docs/architecture.md` — system design and execution model
 - `docs/implementation-plan.md` — milestone plan and ordered build steps
 - `docs/hard-and-weird-notes.md` — fidelity traps and oddities discovered during implementation
-- `docs/conformance-setup.md` — how to connect a real Shopify dev store/app for parity testing
+- `.agents/skills/shopify-conformance-expansion/SKILL.md` — how to connect a real Shopify dev store/app for parity testing and extend conformance coverage
 
 ## Status
 
