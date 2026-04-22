@@ -2968,6 +2968,32 @@ function getChildField(parent: FieldNode, fieldName: string): FieldNode | null {
   return child ?? null;
 }
 
+function getResponseKey(field: FieldNode): string {
+  return field.alias?.value ?? field.name.value;
+}
+
+function serializeProductMutationPayload(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  payload: {
+    product: ProductRecord | null;
+    userErrors: Array<{ field: string[]; message: string }>;
+  },
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  const productField = getChildField(field, 'product');
+  if (productField) {
+    result[getResponseKey(productField)] = serializeProduct(payload.product, productField, variables);
+  }
+
+  const userErrorsField = getChildField(field, 'userErrors');
+  if (userErrorsField) {
+    result[getResponseKey(userErrorsField)] = payload.userErrors;
+  }
+
+  return result;
+}
+
 function buildSyntheticInventoryLevel(
   variant: ProductVariantRecord,
   options?: {
@@ -6212,10 +6238,10 @@ export function handleProductMutation(
       if (!productId) {
         return {
           data: {
-            [responseKey]: {
+            [responseKey]: serializeProductMutationPayload(field, variables, {
               product: null,
               userErrors: [{ field: ['input', 'id'], message: 'Product id is required' }],
-            },
+            }),
           },
         };
       }
@@ -6224,10 +6250,10 @@ export function handleProductMutation(
       if (!existing) {
         return {
           data: {
-            [responseKey]: {
+            [responseKey]: serializeProductMutationPayload(field, variables, {
               product: null,
               userErrors: [{ field: ['input', 'id'], message: 'Product not found' }],
-            },
+            }),
           },
         };
       }
@@ -6241,10 +6267,10 @@ export function handleProductMutation(
 
       return {
         data: {
-          [responseKey]: {
-            product: serializeProduct(product, getChildField(field, 'product'), variables),
+          [responseKey]: serializeProductMutationPayload(field, variables, {
+            product,
             userErrors: [],
-          },
+          }),
         },
       };
     }

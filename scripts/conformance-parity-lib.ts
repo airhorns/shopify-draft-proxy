@@ -1006,6 +1006,29 @@ function readCapturedProductVariants(
     .filter((variant): variant is ProductVariantRecord => variant !== null);
 }
 
+function readBulkUpdateSeedVariants(
+  productId: string,
+  product: Record<string, unknown> | null,
+): ProductVariantRecord[] {
+  return readCapturedProductVariants(productId, product).map((variant) => ({
+    ...variant,
+    // Seed the pre-update searchable variant state; the mutation under test must stage the captured values.
+    sku: null,
+    barcode: null,
+    price: null,
+    compareAtPrice: null,
+    taxable: null,
+    inventoryPolicy: null,
+    inventoryItem: variant.inventoryItem
+      ? {
+          ...variant.inventoryItem,
+          tracked: null,
+          requiresShipping: null,
+        }
+      : null,
+  }));
+}
+
 function readCapturedCreatedVariantIds(payload: Record<string, unknown> | null): Set<string> {
   return new Set(
     readArrayField(payload, 'productVariants')
@@ -1585,7 +1608,11 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
 
     const seedSource = mutationName === 'tagsAdd' ? null : (productPayload ?? productInput);
     store.upsertBaseProducts([makeSeedProduct(productId, seedSource)]);
-    if (mutationName === 'productVariantsBulkCreate' || mutationName === 'productVariantsBulkDelete') {
+    if (
+      mutationName === 'productVariantsBulkCreate' ||
+      mutationName === 'productVariantsBulkUpdate' ||
+      mutationName === 'productVariantsBulkDelete'
+    ) {
       const downstreamProduct = readRecordField(
         readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data'),
         'product',
@@ -1597,7 +1624,9 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
           ? readCapturedProductVariants(productId, variantsSource).filter(
               (variant) => !readCapturedCreatedVariantIds(payload).has(variant.id),
             )
-          : readCapturedProductVariants(productId, variantsSource);
+          : mutationName === 'productVariantsBulkUpdate'
+            ? readBulkUpdateSeedVariants(productId, variantsSource)
+            : readCapturedProductVariants(productId, variantsSource);
       if (variants.length > 0) {
         store.replaceBaseVariantsForProduct(productId, variants);
       }
