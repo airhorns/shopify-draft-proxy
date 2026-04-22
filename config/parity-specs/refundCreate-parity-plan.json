@@ -1,22 +1,9 @@
 {
   "scenarioId": "refund-create-live-parity",
-  "operationNames": ["refundCreate", "order"],
+  "operationNames": ["refundCreate"],
   "scenarioStatus": "planned",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": [],
-  "proxyRequest": {
-    "documentPath": "config/parity-requests/refundCreate-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/refundCreate-parity-plan.variables.json"
-  },
   "comparisonMode": "planned",
-  "blocker": {
-    "kind": "refund-create-live-capture-needed",
-    "blockerPath": null,
-    "details": {
-      "requiredScopes": ["write_orders", "write_returns"],
-      "probeRoots": ["orderCreate", "refundCreate", "order"],
-      "blockedMutations": ["refundCreate"]
-    }
-  },
-  "notes": "Parity plan for safe refund coverage after creating a dedicated dev-store order: full refund, partial line-item refund with restock behavior, shipping refund, immediate downstream `order { refunds returns transactions totalRefundedSet }`, and invalid over-refund userErrors. Local runtime coverage models only this captured-shaped refund state and keeps `refundCreate` staged for commit replay."
+  "notes": "Parity tracking for the first real Shopify refundCreate capture. This spec intentionally does not declare a blocker or proxy request scaffold: refundCreate coverage should be promoted only after recording real safe dev-store interactions for full and partial refunds, shipping refund, line-item restock behavior, downstream order refund fields, and invalid over-refund userErrors."
 }
