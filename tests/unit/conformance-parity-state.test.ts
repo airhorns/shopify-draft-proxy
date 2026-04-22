@@ -479,6 +479,40 @@ describe('executeParityScenario', () => {
     expect(result.comparisons.map((comparison) => comparison.name)).toEqual(['mutation-data', 'downstream-read-data']);
   });
 
+  it('executes the promoted tagsAdd captured scenario with immediate tag-search lag', async () => {
+    const repoRoot = new URL('../..', import.meta.url).pathname;
+    const paritySpec = JSON.parse(
+      readFileSync(resolve(repoRoot, 'config/parity-specs/tagsAdd-parity-plan.json'), 'utf8'),
+    ) as Parameters<typeof executeParityScenario>[0]['paritySpec'];
+
+    expect(classifyParityScenarioState({ status: 'captured' }, paritySpec)).toBe('ready-for-comparison');
+
+    const result = await executeParityScenario({
+      repoRoot,
+      scenario: {
+        id: 'tags-add-live-parity',
+        status: 'captured',
+        captureFiles: ['fixtures/conformance/very-big-test-store.myshopify.com/2025-01/tags-add-parity.json'],
+      },
+      paritySpec,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.primaryProxyStatus).toBe(200);
+    expect(result.comparisons).toEqual([
+      {
+        name: 'mutation-data',
+        ok: true,
+        differences: [],
+      },
+      {
+        name: 'downstream-read-data',
+        ok: true,
+        differences: [],
+      },
+    ]);
+  });
+
   it('executes the promoted productVariantCreate compatibility scenario against the local proxy harness', async () => {
     const repoRoot = new URL('../..', import.meta.url).pathname;
     const paritySpec = JSON.parse(

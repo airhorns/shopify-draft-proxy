@@ -1145,7 +1145,8 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     productId !== null && !(mutationName === 'productCreate' && readStringField(productInput, 'id') === null);
 
   if (shouldSeedProduct) {
-    store.upsertBaseProducts([makeSeedProduct(productId, productPayload ?? productInput)]);
+    const seedSource = mutationName === 'tagsAdd' ? null : (productPayload ?? productInput);
+    store.upsertBaseProducts([makeSeedProduct(productId, seedSource)]);
     if (readArrayField(variables, 'options').length > 0 || readRecordField(variables, 'option')) {
       seedProductOptionState(productId, variables);
     }
