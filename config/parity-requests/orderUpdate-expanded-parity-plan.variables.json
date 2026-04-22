@@ -1,0 +1,38 @@
+{
+  "input": {
+    "id": "gid://shopify/Order/1234567890",
+    "email": "order-update-expanded@example.com",
+    "phone": "+16135551111",
+    "poNumber": "PO-ORDER-UPDATE-PARITY",
+    "note": "order update expanded parity plan",
+    "tags": ["expanded-parity", "order-update"],
+    "customAttributes": [
+      {
+        "key": "source",
+        "value": "expanded-parity"
+      }
+    ],
+    "shippingAddress": {
+      "firstName": "Ada",
+      "lastName": "Lovelace",
+      "address1": "190 MacLaren",
+      "address2": "Suite 200",
+      "company": "Analytical Engines Ltd",
+      "city": "Sudbury",
+      "province": "Ontario",
+      "provinceCode": "ON",
+      "country": "Canada",
+      "countryCodeV2": "CA",
+      "zip": "K2P0V6",
+      "phone": "+16135552222"
+    },
+    "metafields": [
+      {
+        "namespace": "custom",
+        "key": "gift",
+        "type": "single_line_text_field",
+        "value": "yes"
+      }
+    ]
+  }
+}

@@ -435,6 +435,12 @@ After the initial orders-domain creation scaffolding landed, the next easy mista
 - a later live capture now closes the adjacent evidence gap for that same narrow slice on this host: a live `orderUpdate` happy path against a freshly created order successfully updated `note` / `tags`, returned `userErrors: []`, preserved the same order id/name, and the immediate downstream `order(id:)` read kept the updated `note` / `tags` visible
   - checked-in happy-path fixture: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-update-parity.json`
   - practical consequence: the narrow local `orderUpdate` runtime slice is no longer backed only by synthetic/local integration tests; it now has matching live payload + immediate read-after-write evidence for the same merchant-visible fields
+- a later local increment expanded known-order staging to the current `OrderInput` simple-update fields from Shopify docs:
+  - `email`, `phone`, `poNumber`, `shippingAddress`, `customAttributes`, and order-scoped `metafields`
+  - downstream `order(id:)` reads expose the staged values, including `customer.email` when the input updates `email`
+  - `billingAddress` is intentionally not part of that local `orderUpdate` slice because the current `OrderInput` docs do not expose it
+  - live capture for this expanded slice is currently blocked by the saved conformance credential: `corepack pnpm conformance:probe` fails with `Stored Shopify conformance access token is invalid and refresh failed: This request requires an active refresh_token`
+  - checked-in blocker scaffold: `pending/order-update-expanded-conformance-auth-blocker.md`
 - adjacent live-hybrid rule: once the unknown-id `orderUpdate` branch is captured, do not keep proxying that obviously invalid supported edit upstream in `live-hybrid`; short-circuit the captured `order: null` + `userErrors[{ field: ['id'], message: 'Order does not exist' }]` response locally, and now also short-circuit the first synthetic/local happy-path edit slice locally while leaving broader non-local orderUpdate semantics in passthrough until live parity exists
 - equally important consequence: this does **not** prove the broader order-edit family is ready
   - `orderEditBegin`, `orderEditAddVariant`, `orderEditSetQuantity`, and `orderEditCommit` still need deliberate schema/blocker discovery and should not be guessed from the `orderUpdate` validation slices alone
@@ -443,6 +449,7 @@ Practical rule:
 
 - treat `orderUpdate` as the first evidence-backed order-editing increment, but keep it explicitly narrow
 - mirror the captured unknown-id userError **and** the missing-id `INVALID_VARIABLE` branch in `snapshot` mode without hitting upstream
+- do not claim live parity for the expanded simple-update field slice until a fresh Shopify conformance grant captures `orderUpdate-expanded-live-parity`
 - keep `live-hybrid` conservative until non-empty local order hydration/edit semantics exist; passthrough is safer than inventing order state
 - do not let this small success erase the separate creation blockers: `orderCreate` still needs `write_orders` plus an offline token, and `draftOrderCreate` still needs draft-order write/manage access
 

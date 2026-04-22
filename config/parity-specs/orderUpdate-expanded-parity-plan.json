@@ -1,0 +1,24 @@
+{
+  "scenarioId": "order-update-expanded-live-parity",
+  "operationNames": ["orderUpdate"],
+  "scenarioStatus": "planned",
+  "assertionKinds": ["payload-shape", "selected-fields", "downstream-read-parity", "user-errors-parity"],
+  "liveCaptureFiles": [],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orderUpdate-expanded-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/orderUpdate-expanded-parity-plan.variables.json"
+  },
+  "comparisonMode": "planned",
+  "blocker": {
+    "kind": "missing-live-order-update-expanded-credential",
+    "blockerPath": "pending/order-update-expanded-conformance-auth-blocker.md",
+    "details": {
+      "probeRoots": ["orderUpdate"],
+      "blockedMutations": ["orderUpdate"],
+      "blockedFields": ["email", "phone", "poNumber", "shippingAddress", "customAttributes", "metafields"],
+      "failingMessage": "Stored Shopify conformance access token is invalid and refresh failed: This request requires an active refresh_token",
+      "manualStoreAuthTokenPath": "~/.shopify-draft-proxy/conformance-admin-auth.json"
+    }
+  },
+  "notes": "Expanded orderUpdate parity scaffold for shipping address, email/phone/PO-number, custom attributes, and order metafields. Live capture is currently blocked by the saved Shopify conformance credential, so the local runtime coverage is intentionally backed by current Shopify docs plus existing orderUpdate validation/happy-path fixtures until a fresh credential can capture this scenario."
+}

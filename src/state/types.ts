@@ -273,8 +273,12 @@ export const draftOrderAddressRecordSchema = z.strictObject({
   firstName: nullableStringSchema,
   lastName: nullableStringSchema,
   address1: nullableStringSchema,
+  address2: nullableStringSchema.optional(),
+  company: nullableStringSchema.optional(),
   city: nullableStringSchema,
+  province: nullableStringSchema.optional(),
   provinceCode: nullableStringSchema,
+  country: nullableStringSchema.optional(),
   countryCodeV2: nullableStringSchema,
   zip: nullableStringSchema,
   phone: nullableStringSchema,
@@ -335,6 +339,16 @@ export const orderShippingLineRecordSchema = z.strictObject({
 });
 export type OrderShippingLineRecord = z.infer<typeof orderShippingLineRecordSchema>;
 
+export const orderMetafieldRecordSchema = z.strictObject({
+  id: z.string(),
+  orderId: z.string(),
+  namespace: z.string(),
+  key: z.string(),
+  type: nullableStringSchema,
+  value: nullableStringSchema,
+});
+export type OrderMetafieldRecord = z.infer<typeof orderMetafieldRecordSchema>;
+
 export const orderLineItemRecordSchema = z.strictObject({
   id: z.string(),
   title: nullableStringSchema,
@@ -388,11 +402,15 @@ export const orderRecordSchema = z.strictObject({
   updatedAt: z.string(),
   sourceName: nullableStringSchema.optional(),
   paymentGatewayNames: z.array(z.string()).optional(),
+  email: nullableStringSchema.optional(),
+  phone: nullableStringSchema.optional(),
+  poNumber: nullableStringSchema.optional(),
   displayFinancialStatus: nullableStringSchema,
   displayFulfillmentStatus: nullableStringSchema,
   note: nullableStringSchema,
   tags: z.array(z.string()),
   customAttributes: z.array(draftOrderAttributeRecordSchema),
+  metafields: z.array(orderMetafieldRecordSchema).optional(),
   billingAddress: draftOrderAddressRecordSchema.nullable(),
   shippingAddress: draftOrderAddressRecordSchema.nullable(),
   subtotalPriceSet: moneySetSchema.nullable(),

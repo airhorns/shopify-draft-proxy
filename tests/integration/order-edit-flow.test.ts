@@ -793,6 +793,347 @@ describe('order edit flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('stages expanded orderUpdate fields locally and replays them through downstream order reads', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('expanded orderUpdate parity should not hit upstream in snapshot mode');
+    });
+
+    const baseOrder: OrderRecord = {
+      id: 'gid://shopify/Order/7201',
+      name: '#7201',
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-01-01T00:00:00.000Z',
+      email: 'before@example.com',
+      phone: '+16135550000',
+      poNumber: null,
+      displayFinancialStatus: 'PAID',
+      displayFulfillmentStatus: 'UNFULFILLED',
+      note: 'expanded base order note',
+      tags: ['base'],
+      customAttributes: [{ key: 'source', value: 'base-order' }],
+      metafields: [
+        {
+          id: 'gid://shopify/Metafield/7202',
+          orderId: 'gid://shopify/Order/7201',
+          namespace: 'custom',
+          key: 'gift',
+          type: 'single_line_text_field',
+          value: 'no',
+        },
+      ],
+      billingAddress: null,
+      shippingAddress: null,
+      subtotalPriceSet: {
+        shopMoney: {
+          amount: '14.0',
+          currencyCode: 'CAD',
+        },
+      },
+      currentTotalPriceSet: {
+        shopMoney: {
+          amount: '14.0',
+          currencyCode: 'CAD',
+        },
+      },
+      totalPriceSet: {
+        shopMoney: {
+          amount: '14.0',
+          currencyCode: 'CAD',
+        },
+      },
+      totalRefundedSet: {
+        shopMoney: {
+          amount: '0.0',
+          currencyCode: 'CAD',
+        },
+      },
+      customer: {
+        id: 'gid://shopify/Customer/7203',
+        email: 'before@example.com',
+        displayName: 'Before Customer',
+      },
+      shippingLines: [],
+      lineItems: [
+        {
+          id: 'gid://shopify/LineItem/7204',
+          title: 'Expanded order line item',
+          quantity: 1,
+          sku: 'expanded-order-line',
+          variantTitle: null,
+          originalUnitPriceSet: {
+            shopMoney: {
+              amount: '14.0',
+              currencyCode: 'CAD',
+            },
+          },
+        },
+      ],
+      transactions: [],
+      refunds: [],
+      returns: [],
+    };
+
+    store.upsertBaseOrders([baseOrder]);
+
+    const app = createApp(snapshotConfig).callback();
+    const updateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation ExpandedOrderUpdate($input: OrderInput!) {
+          orderUpdate(input: $input) {
+            order {
+              id
+              updatedAt
+              email
+              phone
+              poNumber
+              note
+              tags
+              customer {
+                id
+                email
+                displayName
+              }
+              customAttributes {
+                key
+                value
+              }
+              shippingAddress {
+                firstName
+                lastName
+                address1
+                address2
+                company
+                city
+                province
+                provinceCode
+                country
+                countryCodeV2
+                zip
+                phone
+              }
+              gift: metafield(namespace: "custom", key: "gift") {
+                id
+                namespace
+                key
+                type
+                value
+              }
+              metafields(first: 10) {
+                nodes {
+                  id
+                  namespace
+                  key
+                  type
+                  value
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          input: {
+            id: baseOrder.id,
+            email: 'after@example.com',
+            phone: '+16135551111',
+            poNumber: 'PO-7201',
+            note: 'expanded order update note',
+            tags: ['vip', 'expanded'],
+            customAttributes: [
+              { key: 'source', value: 'updated-order' },
+              { key: 'delivery_window', value: 'morning' },
+            ],
+            shippingAddress: {
+              firstName: 'Ada',
+              lastName: 'Lovelace',
+              address1: '190 MacLaren',
+              address2: 'Suite 200',
+              company: 'Analytical Engines Ltd',
+              city: 'Sudbury',
+              province: 'Ontario',
+              provinceCode: 'ON',
+              country: 'Canada',
+              countryCodeV2: 'CA',
+              zip: 'K2P0V6',
+              phone: '+16135552222',
+            },
+            metafields: [
+              {
+                namespace: 'custom',
+                key: 'gift',
+                type: 'single_line_text_field',
+                value: 'yes',
+              },
+              {
+                namespace: 'delivery',
+                key: 'window',
+                type: 'single_line_text_field',
+                value: 'morning',
+              },
+            ],
+          },
+        },
+      });
+
+    expect(updateResponse.status).toBe(200);
+    const updatedOrder = updateResponse.body.data.orderUpdate.order;
+    expect(updatedOrder).toEqual({
+      id: baseOrder.id,
+      updatedAt: '2024-01-01T00:00:01.000Z',
+      email: 'after@example.com',
+      phone: '+16135551111',
+      poNumber: 'PO-7201',
+      note: 'expanded order update note',
+      tags: ['expanded', 'vip'],
+      customer: {
+        id: 'gid://shopify/Customer/7203',
+        email: 'after@example.com',
+        displayName: 'Before Customer',
+      },
+      customAttributes: [
+        { key: 'source', value: 'updated-order' },
+        { key: 'delivery_window', value: 'morning' },
+      ],
+      shippingAddress: {
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+        address1: '190 MacLaren',
+        address2: 'Suite 200',
+        company: 'Analytical Engines Ltd',
+        city: 'Sudbury',
+        province: 'Ontario',
+        provinceCode: 'ON',
+        country: 'Canada',
+        countryCodeV2: 'CA',
+        zip: 'K2P0V6',
+        phone: '+16135552222',
+      },
+      gift: {
+        id: 'gid://shopify/Metafield/7202',
+        namespace: 'custom',
+        key: 'gift',
+        type: 'single_line_text_field',
+        value: 'yes',
+      },
+      metafields: {
+        nodes: [
+          {
+            id: 'gid://shopify/Metafield/7202',
+            namespace: 'custom',
+            key: 'gift',
+            type: 'single_line_text_field',
+            value: 'yes',
+          },
+          {
+            id: expect.stringMatching(/^gid:\/\/shopify\/Metafield\//),
+            namespace: 'delivery',
+            key: 'window',
+            type: 'single_line_text_field',
+            value: 'morning',
+          },
+        ],
+        pageInfo: {
+          hasNextPage: false,
+          hasPreviousPage: false,
+          startCursor: 'cursor:gid://shopify/Metafield/7202',
+          endCursor: expect.stringMatching(/^cursor:gid:\/\/shopify\/Metafield\//),
+        },
+      },
+    });
+    expect(updateResponse.body.data.orderUpdate.userErrors).toEqual([]);
+
+    const readResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query ExpandedOrderAfterUpdate($id: ID!) {
+          order(id: $id) {
+            id
+            email
+            phone
+            poNumber
+            note
+            tags
+            customer {
+              email
+            }
+            shippingAddress {
+              address1
+              address2
+              city
+              province
+              country
+              zip
+            }
+            gift: metafield(namespace: "custom", key: "gift") {
+              value
+            }
+            metafields(first: 10) {
+              nodes {
+                namespace
+                key
+                value
+              }
+            }
+          }
+        }`,
+        variables: { id: baseOrder.id },
+      });
+
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body).toEqual({
+      data: {
+        order: {
+          id: baseOrder.id,
+          email: 'after@example.com',
+          phone: '+16135551111',
+          poNumber: 'PO-7201',
+          note: 'expanded order update note',
+          tags: ['expanded', 'vip'],
+          customer: {
+            email: 'after@example.com',
+          },
+          shippingAddress: {
+            address1: '190 MacLaren',
+            address2: 'Suite 200',
+            city: 'Sudbury',
+            province: 'Ontario',
+            country: 'Canada',
+            zip: 'K2P0V6',
+          },
+          gift: {
+            value: 'yes',
+          },
+          metafields: {
+            nodes: [
+              {
+                namespace: 'custom',
+                key: 'gift',
+                value: 'yes',
+              },
+              {
+                namespace: 'delivery',
+                key: 'window',
+                value: 'morning',
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('stages a happy-path orderUpdate locally in snapshot mode for a synthetic order and replays the edited note/tags through downstream reads', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('orderUpdate happy-path parity should not hit upstream in snapshot mode');

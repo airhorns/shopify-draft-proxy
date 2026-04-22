@@ -16,9 +16,14 @@
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "mutation-data",
-        "capturePath": "$.mutation.response.data",
-        "proxyPath": "$.data"
+        "name": "mutation-order",
+        "capturePath": "$.mutation.response.data.orderUpdate.order",
+        "proxyPath": "$.data.orderUpdate.order"
+      },
+      {
+        "name": "mutation-user-errors",
+        "capturePath": "$.mutation.response.data.orderUpdate.userErrors",
+        "proxyPath": "$.data.orderUpdate.userErrors"
       }
     ]
   }
