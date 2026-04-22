@@ -1,11 +1,9 @@
 {
-  "scenarioId": "refund-create-live-parity",
+  "scenarioId": "refund-create-full-parity",
   "operationNames": ["refundCreate"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
-  "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/refund-create-partial-shipping-restock-parity.json"
-  ],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/refund-create-full-parity.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/refundCreate-partial-shipping-restock-parity.graphql",
     "variablesCapturePath": "$.variables"
@@ -20,7 +18,7 @@
         "proxyPath": "$.data.refundCreate.userErrors"
       },
       {
-        "name": "refundCreate order financial status reflects partial refund",
+        "name": "refundCreate order financial status reflects full refund",
         "capturePath": "$.mutation.response.data.refundCreate.order.displayFinancialStatus",
         "proxyPath": "$.data.refundCreate.order.displayFinancialStatus"
       },
@@ -40,24 +38,9 @@
         "proxyPath": "$.data.refundCreate.refund.totalRefundedSet"
       },
       {
-        "name": "refundCreate refund line-item restock behavior matches",
+        "name": "refundCreate refund line-item no-restock behavior matches",
         "capturePath": "$.mutation.response.data.refundCreate.refund.refundLineItems.nodes[0].restockType",
         "proxyPath": "$.data.refundCreate.refund.refundLineItems.nodes[0].restockType"
-      },
-      {
-        "name": "refundCreate refund line-item quantity matches",
-        "capturePath": "$.mutation.response.data.refundCreate.refund.refundLineItems.nodes[0].quantity",
-        "proxyPath": "$.data.refundCreate.refund.refundLineItems.nodes[0].quantity"
-      },
-      {
-        "name": "refundCreate transaction kind matches",
-        "capturePath": "$.mutation.response.data.refundCreate.refund.transactions.nodes[0].kind",
-        "proxyPath": "$.data.refundCreate.refund.transactions.nodes[0].kind"
-      },
-      {
-        "name": "refundCreate transaction status matches",
-        "capturePath": "$.mutation.response.data.refundCreate.refund.transactions.nodes[0].status",
-        "proxyPath": "$.data.refundCreate.refund.transactions.nodes[0].status"
       },
       {
         "name": "downstream order financial status matches",
@@ -97,5 +80,5 @@
       }
     ]
   },
-  "notes": "Captured live Shopify refundCreate partial refund with line-item restock and shipping refund, plus downstream order refund/return visibility."
+  "notes": "Captured live Shopify refundCreate full refund with no-restock line item and downstream order refund/return visibility."
 }

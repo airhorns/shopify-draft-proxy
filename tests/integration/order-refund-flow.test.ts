@@ -512,7 +512,12 @@ describe('order refund flow', () => {
               },
             },
           },
-          userErrors: [{ field: ['input', 'transactions'], message: 'Refund amount exceeds refundable amount.' }],
+          userErrors: [
+            {
+              field: null,
+              message: 'Refund amount $30.00 is greater than net payment received $25.00',
+            },
+          ],
         },
       },
     });

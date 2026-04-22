@@ -2611,7 +2611,10 @@ export function handleOrderMutation(
 
       if (!allowOverRefunding && refundAmount > refundableAmount) {
         data[key] = serializeRefundCreatePayload(field, null, order, [
-          { field: ['input', 'transactions'], message: 'Refund amount exceeds refundable amount.' },
+          {
+            field: null,
+            message: `Refund amount $${refundAmount.toFixed(2)} is greater than net payment received $${refundableAmount.toFixed(2)}`,
+          },
         ]);
         continue;
       }

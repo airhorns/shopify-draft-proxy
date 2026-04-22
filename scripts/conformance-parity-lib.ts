@@ -1602,6 +1602,34 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     return;
   }
 
+  if (mutationName === 'refundCreate') {
+    const input = readRecordField(variables, 'input');
+    const orderId = readStringField(input, 'orderId');
+    if (orderId) {
+      const setupOrder = readRecordField(
+        readRecordField(
+          readRecordField(
+            readRecordField(readRecordField(capture as Record<string, unknown>, 'setup'), 'orderCreate'),
+            'response',
+          ),
+          'data',
+        ),
+        'orderCreate',
+      );
+      const orderCreateSource = readRecordField(setupOrder, 'order');
+      const downstreamOrder = readRecordField(
+        readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'response'),
+        'data',
+      );
+      const downstreamSource = readRecordField(downstreamOrder, 'order');
+      const seedSource = orderCreateSource ?? downstreamSource;
+      if (seedSource) {
+        store.upsertBaseOrders([makeSeedOrder(orderId, seedSource)]);
+      }
+    }
+    return;
+  }
+
   if (mutationName === 'inventoryAdjustQuantities') {
     seedInventoryAdjustmentPreconditions(capture);
     return;
