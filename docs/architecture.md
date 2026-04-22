@@ -215,6 +215,8 @@ Current implementation notes:
 - commit replay persists per-entry `committed` / `failed` statuses back into the in-memory log and stops at the first upstream transport or GraphQL failure
 - the direct-order runtime model now includes the first refund visibility slice: staged order transactions, locally staged `refundCreate` records, empty return connections, and derived `totalRefundedSet` / refund financial status fields for downstream `order(id:)` reads
 - local draft-order completion for staged synthetic drafts creates a staged regular order and links it back through the completed draft order, so `draftOrder(id:)`, nested `DraftOrder.order`, `order(id:)`, `orders`, and `ordersCount` all observe the conversion without sending the supported mutation upstream
+- local draft-order update/duplicate/delete support is scoped to staged synthetic draft orders: `draftOrderUpdate` merges selected `DraftOrderInput` fields into the in-memory draft, `draftOrderDuplicate` creates a new open draft copy with fresh synthetic IDs, and `draftOrderDelete` removes the staged draft so downstream `draftOrder(id:)` reads return `null`
+- `draftOrderCreateFromOrder` stages a draft only from a synthetic/local staged order; `draftOrderInvoiceSend` is deliberately handled without sending email or proxying upstream and returns an explicit local user error for the side effect
 
 Commit response should include:
 

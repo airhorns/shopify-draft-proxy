@@ -109,6 +109,7 @@ export function createProxyRouter(config: AppConfig): Router {
     const requestBody = readOriginalRequestBody(body);
     const parsed = parseOperation(body.query);
     const capability = getOperationCapability(parsed);
+    const primaryRootField = parsed.rootFields[0] ?? capability.operationName;
 
     if (capability.execution === 'stage-locally' && capability.domain === 'products') {
       proxyLogger.debug(
@@ -250,19 +251,17 @@ export function createProxyRouter(config: AppConfig): Router {
         const hasStagedOrders = store.getOrders().length > 0;
         const hasStagedDraftOrders = store.getDraftOrders().length > 0;
         const canServeLocalOrderDetail =
-          capability.operationName === 'order' &&
-          liveHybridOrderId !== null &&
-          store.getOrderById(liveHybridOrderId) !== null;
+          primaryRootField === 'order' && liveHybridOrderId !== null && store.getOrderById(liveHybridOrderId) !== null;
         const canServeLocalOrderCatalog =
-          (capability.operationName === 'orders' || capability.operationName === 'ordersCount') &&
+          (primaryRootField === 'orders' || primaryRootField === 'ordersCount') &&
           hasStagedOrders &&
           typeof variables['query'] !== 'string';
         const canServeLocalDraftOrderDetail =
-          capability.operationName === 'draftOrder' &&
+          primaryRootField === 'draftOrder' &&
           liveHybridOrderId !== null &&
           store.getDraftOrderById(liveHybridOrderId) !== null;
         const canServeLocalDraftOrderCatalog =
-          (capability.operationName === 'draftOrders' || capability.operationName === 'draftOrdersCount') &&
+          (primaryRootField === 'draftOrders' || primaryRootField === 'draftOrdersCount') &&
           hasStagedDraftOrders &&
           shouldServeDraftOrderCatalogLocally(variables['query'], variables['savedSearchId']);
 
@@ -298,7 +297,7 @@ export function createProxyRouter(config: AppConfig): Router {
     if (
       capability.execution === 'stage-locally' &&
       capability.domain === 'orders' &&
-      (config.readMode === 'snapshot' || capability.operationName === 'draftOrderCreate')
+      (config.readMode === 'snapshot' || primaryRootField === 'draftOrderCreate')
     ) {
       store.appendLog({
         id: makeSyntheticGid('MutationLogEntry'),
@@ -322,17 +321,22 @@ export function createProxyRouter(config: AppConfig): Router {
       capability.execution === 'stage-locally' &&
       capability.domain === 'orders' &&
       config.readMode === 'live-hybrid' &&
-      (capability.operationName === 'orderCreate' ||
-        capability.operationName === 'refundCreate' ||
-        capability.operationName === 'orderUpdate' ||
-        capability.operationName === 'orderEditBegin' ||
-        capability.operationName === 'orderEditAddVariant' ||
-        capability.operationName === 'orderEditSetQuantity' ||
-        capability.operationName === 'orderEditCommit' ||
-        capability.operationName === 'draftOrderComplete' ||
-        capability.operationName === 'fulfillmentCreate' ||
-        capability.operationName === 'fulfillmentTrackingInfoUpdate' ||
-        capability.operationName === 'fulfillmentCancel')
+      (primaryRootField === 'orderCreate' ||
+        primaryRootField === 'refundCreate' ||
+        primaryRootField === 'orderUpdate' ||
+        primaryRootField === 'orderEditBegin' ||
+        primaryRootField === 'orderEditAddVariant' ||
+        primaryRootField === 'orderEditSetQuantity' ||
+        primaryRootField === 'orderEditCommit' ||
+        primaryRootField === 'draftOrderComplete' ||
+        primaryRootField === 'draftOrderUpdate' ||
+        primaryRootField === 'draftOrderDuplicate' ||
+        primaryRootField === 'draftOrderDelete' ||
+        primaryRootField === 'draftOrderInvoiceSend' ||
+        primaryRootField === 'draftOrderCreateFromOrder' ||
+        primaryRootField === 'fulfillmentCreate' ||
+        primaryRootField === 'fulfillmentTrackingInfoUpdate' ||
+        primaryRootField === 'fulfillmentCancel')
     ) {
       const orderMutationResponse = handleOrderMutation(
         body.query,
@@ -357,6 +361,16 @@ export function createProxyRouter(config: AppConfig): Router {
             'Locally committed a calculated-order edit back onto a synthetic/local order in live-hybrid mode.',
           draftOrderComplete:
             'Locally handled draftOrderComplete in live-hybrid mode for captured validation branches or a synthetic/local staged draft order.',
+          draftOrderUpdate:
+            'Locally staged draftOrderUpdate in live-hybrid mode for a synthetic/local staged draft order.',
+          draftOrderDuplicate:
+            'Locally staged draftOrderDuplicate in live-hybrid mode for a synthetic/local staged draft order.',
+          draftOrderDelete:
+            'Locally staged draftOrderDelete in live-hybrid mode for a synthetic/local staged draft order.',
+          draftOrderInvoiceSend:
+            'Locally handled draftOrderInvoiceSend in live-hybrid mode without sending invoice email.',
+          draftOrderCreateFromOrder:
+            'Locally staged draftOrderCreateFromOrder in live-hybrid mode for a synthetic/local order.',
           fulfillmentCreate: 'Locally short-circuited captured fulfillmentCreate validation in live-hybrid mode.',
         };
 
@@ -371,7 +385,7 @@ export function createProxyRouter(config: AppConfig): Router {
           status: 'staged',
           interpreted: interpretMutationLogEntry(parsed, capability),
           notes:
-            shortCircuitNotesByOperation[capability.operationName] ??
+            shortCircuitNotesByOperation[primaryRootField ?? ''] ??
             'Locally short-circuited captured order mutation validation in live-hybrid mode.',
         });
 

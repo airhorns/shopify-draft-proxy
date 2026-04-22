@@ -401,6 +401,10 @@ export class InMemoryStore {
     return structuredClone(draftOrder);
   }
 
+  deleteDraftOrder(draftOrderId: string): void {
+    delete this.stagedDraftOrders[draftOrderId];
+  }
+
   getDraftOrderById(draftOrderId: string): DraftOrderRecord | null {
     const draftOrder = this.stagedDraftOrders[draftOrderId];
     return draftOrder ? structuredClone(draftOrder) : null;

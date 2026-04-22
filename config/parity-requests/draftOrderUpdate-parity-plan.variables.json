@@ -1,0 +1,25 @@
+{
+  "id": "gid://shopify/DraftOrder/10079785100",
+  "input": {
+    "email": "draft-order-update-parity@example.com",
+    "note": "draft order update parity plan",
+    "tags": ["draft-order", "update-parity"],
+    "customAttributes": [{ "key": "source", "value": "har-118" }],
+    "shippingLine": {
+      "title": "Standard",
+      "code": "STD",
+      "priceWithCurrency": {
+        "amount": "5.00",
+        "currencyCode": "CAD"
+      }
+    },
+    "lineItems": [
+      {
+        "title": "Updated custom draft item",
+        "quantity": 2,
+        "originalUnitPrice": "12.50",
+        "sku": "HAR-118-UPDATE"
+      }
+    ]
+  }
+}

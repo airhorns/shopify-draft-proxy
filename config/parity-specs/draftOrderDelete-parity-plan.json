@@ -1,0 +1,25 @@
+{
+  "scenarioId": "draft-order-delete-live-parity",
+  "operationNames": ["draftOrderDelete"],
+  "scenarioStatus": "planned",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/draftOrderDelete-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/draftOrderDelete-parity-plan.variables.json"
+  },
+  "comparisonMode": "planned",
+  "blocker": {
+    "kind": "missing-live-draft-order-delete-capture",
+    "blockerPath": null,
+    "details": {
+      "requiredScopes": ["write_draft_orders"],
+      "probeRoots": ["draftOrderDelete"],
+      "blockedMutations": ["draftOrderDelete"],
+      "requiredPermissions": ["manage-draft-orders"],
+      "docsUrl": "https://shopify.dev/docs/api/admin-graphql/latest/mutations/draftOrderDelete",
+      "failingMessage": "Safe validation capture was attempted on this host, but the stored Shopify conformance access token is invalid and refresh failed: This request requires an active refresh_token."
+    }
+  },
+  "notes": "Planned draft order delete parity. The proxy request deletes an existing draft order and expects `deletedId` plus an empty `userErrors` array, followed by downstream `draftOrder(id:)` returning null for the deleted synthetic draft."
+}

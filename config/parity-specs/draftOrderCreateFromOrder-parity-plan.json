@@ -1,0 +1,25 @@
+{
+  "scenarioId": "draft-order-create-from-order-live-parity",
+  "operationNames": ["draftOrderCreateFromOrder"],
+  "scenarioStatus": "planned",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/draftOrderCreateFromOrder-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/draftOrderCreateFromOrder-parity-plan.variables.json"
+  },
+  "comparisonMode": "planned",
+  "blocker": {
+    "kind": "missing-live-draft-order-create-from-order-capture",
+    "blockerPath": null,
+    "details": {
+      "requiredScopes": ["write_draft_orders", "read_orders"],
+      "probeRoots": ["draftOrderCreateFromOrder"],
+      "blockedMutations": ["draftOrderCreateFromOrder"],
+      "requiredPermissions": ["manage-draft-orders"],
+      "docsUrl": "https://shopify.dev/docs/api/admin-graphql/latest/mutations/draftOrderCreateFromOrder",
+      "failingMessage": "Safe validation capture was attempted on this host, but the stored Shopify conformance access token is invalid and refresh failed: This request requires an active refresh_token."
+    }
+  },
+  "notes": "Planned create-from-order parity. Local runtime support stages a draft order from a synthetic/local staged order and does not proxy the supported mutation upstream. Live capture still needs a safe source order fixture and repaired conformance auth."
+}
