@@ -6,16 +6,29 @@
   "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/tags-remove-parity.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/tagsRemove-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/tagsRemove-parity-plan.variables.json"
+    "variablesPath": "config/parity-requests/tagsRemove-parity-plan.variables.json",
+    "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live capture recorded for `tagsRemove`, and the staged runtime now mirrors Shopify's immediate tag-index lag for hydrated products by dropping removed hydrated/base tags from search immediately while leaving newly added-only tags out of `products(query: \"tag:...\")` / `productsCount(query: \"tag:...\")` until rehydration.",
+  "notes": "Live capture recorded for `tagsRemove`, and the staged runtime now mirrors Shopify's immediate tag-index lag for hydrated products by dropping removed hydrated/base tags from search immediately while leaving newly added-only tags out of `products(query: \"tag:...\")` / `productsCount(query: \"tag:...\")` until rehydration. This scenario now executes strict proxy-vs-Shopify comparison for mutation data and the immediate downstream remaining/removed tag-filtered read.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/tagsRemove-downstream-read.graphql",
+          "variablesCapturePath": "$.downstreamReadVariables"
+        },
+        "proxyPath": "$.data"
+      }
+    ]
   }
 }

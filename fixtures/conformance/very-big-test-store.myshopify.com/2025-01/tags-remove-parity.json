@@ -27,6 +27,11 @@
       }
     }
   },
+  "downstreamReadVariables": {
+    "id": "gid://shopify/Product/9257219064041",
+    "remainingQuery": "tag:hermes-summer-1776550641138",
+    "removedQuery": "tag:hermes-sale-1776550641138"
+  },
   "downstreamRead": {
     "data": {
       "product": {
