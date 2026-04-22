@@ -9,13 +9,17 @@
     "variablesPath": "config/parity-requests/order-empty-state-read.variables.json"
   },
   "comparisonMode": "capture-only",
-  "notes": "Live direct-order read probing on this host is currently safe enough to capture only the empty-state baseline. Comparator wiring can reuse this scaffold once local order overlay runtime exists.",
+  "notes": "Live direct-order read capture now includes a non-empty merchant catalog/count baseline, but the local order query model can only replay staged or explicitly hydrated order nodes and cannot yet represent Shopify's pre-existing catalog count/pageInfo window. Keep this captured read scaffold blocked until order catalog hydration/count baselines are modeled without returning captured JSON directly.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": []
   },
   "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "kind": "captured-live-order-catalog-baseline-not-locally-modeled",
+    "blockerPath": null,
+    "details": {
+      "blockedFields": ["orders", "ordersCount"],
+      "requiredApproval": "Model pre-existing order catalog/count hydration in the local order read harness before strict comparison."
+    }
   }
 }

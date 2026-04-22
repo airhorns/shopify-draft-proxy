@@ -281,10 +281,10 @@ describe('order creation scaffolding', () => {
         scenarioStatus: 'captured',
         liveCaptureFiles: [inlineMissingExpected.captureFile],
         comparisonMode: 'captured-vs-proxy-request',
-        proxyRequest: {
+        proxyRequest: expect.objectContaining({
           documentPath: inlineMissingExpected.documentPath,
           variablesPath: inlineMissingExpected.variablesPath,
-        },
+        }),
       }),
     );
     expect(inlineMissingDocument).toContain('mutation InlineMissingOrderArg');
@@ -306,10 +306,10 @@ describe('order creation scaffolding', () => {
         scenarioStatus: 'captured',
         liveCaptureFiles: [inlineNullExpected.captureFile],
         comparisonMode: 'captured-vs-proxy-request',
-        proxyRequest: {
+        proxyRequest: expect.objectContaining({
           documentPath: inlineNullExpected.documentPath,
           variablesPath: inlineNullExpected.variablesPath,
-        },
+        }),
       }),
     );
     expect(inlineNullDocument).toContain('mutation InlineNullOrderArg');
@@ -334,10 +334,10 @@ describe('order creation scaffolding', () => {
         scenarioStatus: 'captured',
         liveCaptureFiles: [expected.captureFile],
         comparisonMode: 'captured-vs-proxy-request',
-        proxyRequest: {
+        proxyRequest: expect.objectContaining({
           documentPath: expected.documentPath,
           variablesPath: expected.variablesPath,
-        },
+        }),
       }),
     );
     expect(document).toContain('mutation OrderCreateMissingOrderParity($order: OrderCreateOrderInput!)');
@@ -363,10 +363,10 @@ describe('order creation scaffolding', () => {
         scenarioStatus: 'captured',
         liveCaptureFiles: [expected.captureFile],
         comparisonMode: 'captured-vs-proxy-request',
-        proxyRequest: {
+        proxyRequest: expect.objectContaining({
           documentPath: expected.documentPath,
           variablesPath: expected.variablesPath,
-        },
+        }),
       }),
     );
     expect(document).toContain('billingAddress');
@@ -416,10 +416,10 @@ describe('order creation scaffolding', () => {
         scenarioStatus: 'captured',
         liveCaptureFiles: [inlineMissingExpected.captureFile],
         comparisonMode: 'captured-vs-proxy-request',
-        proxyRequest: {
+        proxyRequest: expect.objectContaining({
           documentPath: inlineMissingExpected.documentPath,
           variablesPath: inlineMissingExpected.variablesPath,
-        },
+        }),
       }),
     );
     expect(inlineMissingDocument).toContain('mutation InlineMissingDraftOrderInput');
@@ -440,10 +440,10 @@ describe('order creation scaffolding', () => {
         scenarioStatus: 'captured',
         liveCaptureFiles: [inlineNullExpected.captureFile],
         comparisonMode: 'captured-vs-proxy-request',
-        proxyRequest: {
+        proxyRequest: expect.objectContaining({
           documentPath: inlineNullExpected.documentPath,
           variablesPath: inlineNullExpected.variablesPath,
-        },
+        }),
       }),
     );
     expect(inlineNullDocument).toContain('mutation InlineNullDraftOrderInput');
@@ -468,10 +468,10 @@ describe('order creation scaffolding', () => {
         scenarioStatus: 'captured',
         liveCaptureFiles: [expected.captureFile],
         comparisonMode: 'captured-vs-proxy-request',
-        proxyRequest: {
+        proxyRequest: expect.objectContaining({
           documentPath: expected.documentPath,
           variablesPath: expected.variablesPath,
-        },
+        }),
       }),
     );
     expect(document).toContain('mutation DraftOrderCreateMissingInputParity($input: DraftOrderInput!)');
@@ -500,10 +500,10 @@ describe('order creation scaffolding', () => {
           scenarioStatus: 'captured',
           liveCaptureFiles: [expected.captureFile],
           comparisonMode: 'captured-vs-proxy-request',
-          proxyRequest: {
+          proxyRequest: expect.objectContaining({
             documentPath: expected.documentPath,
             variablesPath: expected.variablesPath,
-          },
+          }),
         }),
       );
       expect(document).toContain('draftOrderComplete');
@@ -546,10 +546,10 @@ describe('order creation scaffolding', () => {
           scenarioStatus: 'planned',
           liveCaptureFiles: [],
           comparisonMode: 'planned',
-          proxyRequest: {
+          proxyRequest: expect.objectContaining({
             documentPath: expected.documentPath,
             variablesPath: expected.variablesPath,
-          },
+          }),
           blocker: expect.objectContaining({
             kind: expected.blockerKind,
             blockerPath: 'pending/order-creation-conformance-scope-blocker.md',

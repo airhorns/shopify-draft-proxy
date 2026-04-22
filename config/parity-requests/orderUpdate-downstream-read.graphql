@@ -1,0 +1,8 @@
+query OrderUpdateDownstreamRead($id: ID!) {
+  order(id: $id) {
+    id
+    name
+    note
+    tags
+  }
+}
