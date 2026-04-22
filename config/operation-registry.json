@@ -576,6 +576,51 @@
     "runtimeTests": ["tests/integration/order-creation-flow.test.ts"]
   },
   {
+    "name": "draftOrderUpdate",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["draftOrderUpdate", "DraftOrderUpdate"],
+    "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"]
+  },
+  {
+    "name": "draftOrderDuplicate",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["draftOrderDuplicate", "DraftOrderDuplicate"],
+    "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"]
+  },
+  {
+    "name": "draftOrderDelete",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["draftOrderDelete", "DraftOrderDelete"],
+    "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"]
+  },
+  {
+    "name": "draftOrderInvoiceSend",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["draftOrderInvoiceSend", "DraftOrderInvoiceSend"],
+    "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"]
+  },
+  {
+    "name": "draftOrderCreateFromOrder",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["draftOrderCreateFromOrder", "DraftOrderCreateFromOrder"],
+    "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"]
+  },
+  {
     "name": "orderEditBegin",
     "type": "mutation",
     "domain": "orders",

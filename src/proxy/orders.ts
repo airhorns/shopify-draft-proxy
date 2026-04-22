@@ -105,6 +105,32 @@ function normalizeDraftOrderLineItems(raw: unknown, currencyCode: string): Draft
     });
 }
 
+function normalizeDraftOrderShippingLine(raw: unknown, currencyCode: string): DraftOrderShippingLineRecord | null {
+  if (typeof raw !== 'object' || raw === null) {
+    return null;
+  }
+
+  const shippingLine = raw as Record<string, unknown>;
+  const priceWithCurrency =
+    typeof shippingLine['priceWithCurrency'] === 'object' && shippingLine['priceWithCurrency'] !== null
+      ? (shippingLine['priceWithCurrency'] as Record<string, unknown>)
+      : {};
+  const price =
+    typeof priceWithCurrency['amount'] === 'string' || typeof priceWithCurrency['amount'] === 'number'
+      ? priceWithCurrency['amount']
+      : (shippingLine['price'] ?? shippingLine['originalPrice']);
+  const lineCurrency =
+    typeof priceWithCurrency['currencyCode'] === 'string' ? priceWithCurrency['currencyCode'] : currencyCode;
+
+  return {
+    title: typeof shippingLine['title'] === 'string' ? shippingLine['title'] : null,
+    code: typeof shippingLine['code'] === 'string' ? shippingLine['code'] : null,
+    originalPriceSet: {
+      shopMoney: normalizeMoney(formatDecimalAmount(parseDecimalAmount(price)), lineCurrency),
+    },
+  };
+}
+
 function normalizeOrderLineItems(raw: unknown, currencyCode: string): OrderLineItemRecord[] {
   if (!Array.isArray(raw)) {
     return [];
@@ -317,6 +343,130 @@ function buildDraftOrderFromInput(input: unknown, shopifyAdminOrigin: string): D
       shopMoney: normalizeMoney(subtotal, currencyCode),
     },
     lineItems,
+  };
+}
+
+function recalculateDraftOrderTotals(draftOrder: DraftOrderRecord): DraftOrderRecord {
+  const currencyCode =
+    draftOrder.totalPriceSet?.shopMoney.currencyCode ??
+    draftOrder.subtotalPriceSet?.shopMoney.currencyCode ??
+    draftOrder.shippingLine?.originalPriceSet?.shopMoney.currencyCode ??
+    'CAD';
+  const subtotal = formatDecimalAmount(
+    draftOrder.lineItems.reduce(
+      (sum, lineItem) => sum + parseDecimalAmount(lineItem.originalUnitPriceSet?.shopMoney.amount) * lineItem.quantity,
+      0,
+    ),
+  );
+  const shippingTotal = formatDecimalAmount(
+    parseDecimalAmount(draftOrder.shippingLine?.originalPriceSet?.shopMoney.amount),
+  );
+  const total = formatDecimalAmount(parseDecimalAmount(subtotal) + parseDecimalAmount(shippingTotal));
+
+  return {
+    ...draftOrder,
+    subtotalPriceSet: {
+      shopMoney: normalizeMoney(subtotal, currencyCode),
+    },
+    totalPriceSet: {
+      shopMoney: normalizeMoney(total, currencyCode),
+    },
+  };
+}
+
+function buildUpdatedDraftOrder(
+  draftOrder: DraftOrderRecord,
+  input: unknown,
+  shopifyAdminOrigin: string,
+): DraftOrderRecord {
+  const inputRecord = typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {};
+  const currencyCode = draftOrder.totalPriceSet?.shopMoney.currencyCode ?? 'CAD';
+  const updatedAt = makeSyntheticTimestamp();
+  const lineItems = Object.hasOwn(inputRecord, 'lineItems')
+    ? normalizeDraftOrderLineItems(inputRecord['lineItems'], currencyCode)
+    : structuredClone(draftOrder.lineItems);
+
+  return recalculateDraftOrderTotals({
+    ...structuredClone(draftOrder),
+    invoiceUrl:
+      draftOrder.invoiceUrl || `${shopifyAdminOrigin.replace(/\/$/, '')}/draft_orders/${draftOrder.id}/invoice`,
+    email: typeof inputRecord['email'] === 'string' ? inputRecord['email'] : draftOrder.email,
+    note: typeof inputRecord['note'] === 'string' ? inputRecord['note'] : draftOrder.note,
+    tags: Array.isArray(inputRecord['tags'])
+      ? inputRecord['tags']
+          .filter((tag): tag is string => typeof tag === 'string')
+          .sort((left, right) => left.localeCompare(right))
+      : structuredClone(draftOrder.tags),
+    customAttributes: Object.hasOwn(inputRecord, 'customAttributes')
+      ? normalizeDraftOrderAttributes(inputRecord['customAttributes'])
+      : structuredClone(draftOrder.customAttributes),
+    billingAddress: Object.hasOwn(inputRecord, 'billingAddress')
+      ? normalizeDraftOrderAddress(inputRecord['billingAddress'])
+      : structuredClone(draftOrder.billingAddress),
+    shippingAddress: Object.hasOwn(inputRecord, 'shippingAddress')
+      ? normalizeDraftOrderAddress(inputRecord['shippingAddress'])
+      : structuredClone(draftOrder.shippingAddress),
+    shippingLine: Object.hasOwn(inputRecord, 'shippingLine')
+      ? normalizeDraftOrderShippingLine(inputRecord['shippingLine'], currencyCode)
+      : structuredClone(draftOrder.shippingLine),
+    updatedAt,
+    lineItems,
+  });
+}
+
+function duplicateDraftOrder(draftOrder: DraftOrderRecord, shopifyAdminOrigin: string): DraftOrderRecord {
+  const draftOrderId = makeSyntheticGid('DraftOrder');
+  const createdAt = makeSyntheticTimestamp();
+  const invoiceId = draftOrderId.split('/').at(-1) ?? 'draft-order';
+
+  return {
+    ...structuredClone(draftOrder),
+    id: draftOrderId,
+    name: `#D${store.getDraftOrders().length + 1}`,
+    orderId: null,
+    completedAt: null,
+    invoiceUrl: `${shopifyAdminOrigin.replace(/\/$/, '')}/draft_orders/${invoiceId}/invoice`,
+    status: 'OPEN',
+    ready: false,
+    createdAt,
+    updatedAt: createdAt,
+    lineItems: draftOrder.lineItems.map((lineItem) => ({
+      ...structuredClone(lineItem),
+      id: makeSyntheticGid('DraftOrderLineItem'),
+    })),
+  };
+}
+
+function buildDraftOrderFromOrder(order: OrderRecord, shopifyAdminOrigin: string): DraftOrderRecord {
+  const draftOrderId = makeSyntheticGid('DraftOrder');
+  const createdAt = makeSyntheticTimestamp();
+  const invoiceId = draftOrderId.split('/').at(-1) ?? 'draft-order';
+
+  return {
+    id: draftOrderId,
+    name: `#D${store.getDraftOrders().length + 1}`,
+    invoiceUrl: `${shopifyAdminOrigin.replace(/\/$/, '')}/draft_orders/${invoiceId}/invoice`,
+    status: 'OPEN',
+    ready: false,
+    email: order.customer?.email ?? null,
+    note: order.note,
+    tags: structuredClone(order.tags),
+    customAttributes: structuredClone(order.customAttributes),
+    billingAddress: structuredClone(order.billingAddress),
+    shippingAddress: structuredClone(order.shippingAddress),
+    shippingLine: order.shippingLines[0] ? structuredClone(order.shippingLines[0]) : null,
+    createdAt,
+    updatedAt: createdAt,
+    subtotalPriceSet: structuredClone(order.subtotalPriceSet),
+    totalPriceSet: structuredClone(order.totalPriceSet),
+    lineItems: order.lineItems.map((lineItem) => ({
+      id: makeSyntheticGid('DraftOrderLineItem'),
+      title: lineItem.title,
+      quantity: lineItem.quantity,
+      sku: lineItem.sku,
+      variantTitle: lineItem.variantTitle,
+      originalUnitPriceSet: structuredClone(lineItem.originalUnitPriceSet),
+    })),
   };
 }
 
@@ -699,6 +849,10 @@ function serializeDraftOrderNode(field: FieldNode, draftOrder: DraftOrderRecord)
         break;
       case 'email':
         result[key] = draftOrder.email;
+        break;
+      case 'note':
+      case 'note2':
+        result[key] = draftOrder.note;
         break;
       case 'tags':
         result[key] = structuredClone(draftOrder.tags);
@@ -1624,6 +1778,35 @@ function readDraftOrderCompleteId(variables: Record<string, unknown>): string | 
   return typeof variables['id'] === 'string' ? variables['id'] : null;
 }
 
+function readDraftOrderUpdateInput(variables: Record<string, unknown>): unknown {
+  return variables['input'] ?? null;
+}
+
+function readDraftOrderUpdateId(variables: Record<string, unknown>): string | null {
+  return typeof variables['id'] === 'string' ? variables['id'] : null;
+}
+
+function readDraftOrderDuplicateId(variables: Record<string, unknown>): string | null {
+  if (typeof variables['id'] === 'string') {
+    return variables['id'];
+  }
+
+  return typeof variables['draftOrderId'] === 'string' ? variables['draftOrderId'] : null;
+}
+
+function readDraftOrderDeleteInput(variables: Record<string, unknown>): Record<string, unknown> | null {
+  const input = variables['input'];
+  return typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : null;
+}
+
+function readDraftOrderInvoiceSendId(variables: Record<string, unknown>): string | null {
+  return typeof variables['id'] === 'string' ? variables['id'] : null;
+}
+
+function readDraftOrderCreateFromOrderId(variables: Record<string, unknown>): string | null {
+  return typeof variables['orderId'] === 'string' ? variables['orderId'] : null;
+}
+
 function readNullableBooleanArgument(
   field: FieldNode,
   argumentName: string,
@@ -1825,6 +2008,46 @@ function buildDraftOrderCompleteNullInlineIdError(): Record<string, unknown> {
   };
 }
 
+function buildMissingRequiredArgumentError(operationName: string, argumentName: string): Record<string, unknown> {
+  return {
+    message: `Field '${operationName}' is missing required arguments: ${argumentName}`,
+    path: ['mutation', operationName],
+    extensions: {
+      code: 'missingRequiredArguments',
+      className: 'Field',
+      name: operationName,
+      arguments: argumentName,
+    },
+  };
+}
+
+function buildNullArgumentError(
+  operationName: string,
+  argumentName: string,
+  expectedType: string,
+): Record<string, unknown> {
+  return {
+    message: `Argument '${argumentName}' on Field '${operationName}' has an invalid value (null). Expected type '${expectedType}'.`,
+    path: ['mutation', operationName, argumentName],
+    extensions: {
+      code: 'argumentLiteralsIncompatible',
+      typeName: 'Field',
+      argumentName,
+    },
+  };
+}
+
+function buildMissingVariableError(variableName: string, variableType: string): Record<string, unknown> {
+  return {
+    message: `Variable $${variableName} of type ${variableType} was provided invalid value`,
+    extensions: {
+      code: 'INVALID_VARIABLE',
+      value: null,
+      problems: [{ path: [], explanation: 'Expected value to not be null' }],
+    },
+  };
+}
+
 function buildFulfillmentTrackingInfoUpdateMissingIdError(): Record<string, unknown> {
   return {
     message: 'Variable $fulfillmentId of type ID! was provided invalid value',
@@ -1963,6 +2186,10 @@ function getDraftOrderCompleteInlineIdArgument(field: FieldNode) {
   return field.arguments?.find((argument) => argument.name.value === 'id') ?? null;
 }
 
+function getInlineArgument(field: FieldNode, argumentName: string) {
+  return field.arguments?.find((argument) => argument.name.value === argumentName) ?? null;
+}
+
 function getFulfillmentTrackingInfoUpdateInlineIdArgument(field: FieldNode) {
   return field.arguments?.find((argument) => argument.name.value === 'fulfillmentId') ?? null;
 }
@@ -2016,6 +2243,54 @@ function serializeDraftOrderCompletePayload(
     switch (selection.name.value) {
       case 'draftOrder':
         payload[selectionKey] = draftOrder ? serializeDraftOrderNode(selection, draftOrder) : null;
+        break;
+      case 'userErrors':
+        payload[selectionKey] = serializeSelectedUserErrors(selection, userErrors);
+        break;
+      default:
+        payload[selectionKey] = null;
+        break;
+    }
+  }
+
+  return payload;
+}
+
+function serializeDraftOrderMutationPayload(
+  field: FieldNode,
+  draftOrder: DraftOrderRecord | null,
+  userErrors: Array<{ field: string[] | null; message: string }>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const selectionKey = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'draftOrder':
+        payload[selectionKey] = draftOrder ? serializeDraftOrderNode(selection, draftOrder) : null;
+        break;
+      case 'userErrors':
+        payload[selectionKey] = serializeSelectedUserErrors(selection, userErrors);
+        break;
+      default:
+        payload[selectionKey] = null;
+        break;
+    }
+  }
+
+  return payload;
+}
+
+function serializeDraftOrderDeletePayload(
+  field: FieldNode,
+  deletedId: string | null,
+  userErrors: Array<{ field: string[] | null; message: string }>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const selectionKey = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'deletedId':
+        payload[selectionKey] = deletedId;
         break;
       case 'userErrors':
         payload[selectionKey] = serializeSelectedUserErrors(selection, userErrors);
@@ -2259,6 +2534,170 @@ export function handleOrderMutation(
         }
       }
       data[key] = payload;
+      continue;
+    }
+
+    if (field.name.value === 'draftOrderUpdate') {
+      handled = true;
+      const inlineIdArgument = getInlineArgument(field, 'id');
+      const inlineInputArgument = getInlineArgument(field, 'input');
+
+      if (!inlineIdArgument) {
+        errors.push(buildMissingRequiredArgumentError('draftOrderUpdate', 'id'));
+        continue;
+      }
+
+      if (inlineIdArgument.value.kind === Kind.NULL) {
+        errors.push(buildNullArgumentError('draftOrderUpdate', 'id', 'ID!'));
+        continue;
+      }
+
+      if (!inlineInputArgument) {
+        errors.push(buildMissingRequiredArgumentError('draftOrderUpdate', 'input'));
+        continue;
+      }
+
+      if (inlineInputArgument.value.kind === Kind.NULL) {
+        errors.push(buildNullArgumentError('draftOrderUpdate', 'input', 'DraftOrderInput!'));
+        continue;
+      }
+
+      const id = readDraftOrderUpdateId(variables);
+      if (inlineIdArgument.value.kind === Kind.VARIABLE && id === null) {
+        errors.push(buildMissingVariableError(inlineIdArgument.value.name.value, 'ID!'));
+        continue;
+      }
+
+      const input = readDraftOrderUpdateInput(variables);
+      if (inlineInputArgument.value.kind === Kind.VARIABLE && input === null) {
+        errors.push(buildMissingVariableError(inlineInputArgument.value.name.value, 'DraftOrderInput!'));
+        continue;
+      }
+
+      const draftOrder = id ? store.getDraftOrderById(id) : null;
+      if (!draftOrder) {
+        data[key] = serializeDraftOrderMutationPayload(field, null, [
+          { field: ['id'], message: 'Draft order does not exist' },
+        ]);
+        continue;
+      }
+
+      const updatedDraftOrder = store.updateDraftOrder(buildUpdatedDraftOrder(draftOrder, input, shopifyAdminOrigin));
+      data[key] = serializeDraftOrderMutationPayload(field, updatedDraftOrder, []);
+      continue;
+    }
+
+    if (field.name.value === 'draftOrderDuplicate') {
+      handled = true;
+      const id = readDraftOrderDuplicateId(variables);
+      const draftOrder = id ? store.getDraftOrderById(id) : null;
+
+      if (!draftOrder) {
+        data[key] = serializeDraftOrderMutationPayload(field, null, [
+          { field: ['id'], message: 'Draft order does not exist' },
+        ]);
+        continue;
+      }
+
+      const duplicatedDraftOrder = store.stageCreateDraftOrder(duplicateDraftOrder(draftOrder, shopifyAdminOrigin));
+      data[key] = serializeDraftOrderMutationPayload(field, duplicatedDraftOrder, []);
+      continue;
+    }
+
+    if (field.name.value === 'draftOrderDelete') {
+      handled = true;
+      const inlineInputArgument = getInlineArgument(field, 'input');
+
+      if (!inlineInputArgument) {
+        errors.push(buildMissingRequiredArgumentError('draftOrderDelete', 'input'));
+        continue;
+      }
+
+      if (inlineInputArgument.value.kind === Kind.NULL) {
+        errors.push(buildNullArgumentError('draftOrderDelete', 'input', 'DraftOrderDeleteInput!'));
+        continue;
+      }
+
+      const input = readDraftOrderDeleteInput(variables);
+      if (inlineInputArgument.value.kind === Kind.VARIABLE && input === null) {
+        errors.push(buildMissingVariableError(inlineInputArgument.value.name.value, 'DraftOrderDeleteInput!'));
+        continue;
+      }
+
+      const id = typeof input?.['id'] === 'string' ? input['id'] : null;
+      const draftOrder = id ? store.getDraftOrderById(id) : null;
+      if (!id || !draftOrder) {
+        data[key] = serializeDraftOrderDeletePayload(field, null, [
+          { field: ['id'], message: 'Draft order does not exist' },
+        ]);
+        continue;
+      }
+
+      store.deleteDraftOrder(id);
+      data[key] = serializeDraftOrderDeletePayload(field, id, []);
+      continue;
+    }
+
+    if (field.name.value === 'draftOrderInvoiceSend') {
+      handled = true;
+      const inlineIdArgument = getInlineArgument(field, 'id');
+
+      if (!inlineIdArgument) {
+        errors.push(buildMissingRequiredArgumentError('draftOrderInvoiceSend', 'id'));
+        continue;
+      }
+
+      if (inlineIdArgument.value.kind === Kind.NULL) {
+        errors.push(buildNullArgumentError('draftOrderInvoiceSend', 'id', 'ID!'));
+        continue;
+      }
+
+      const id = readDraftOrderInvoiceSendId(variables);
+      if (inlineIdArgument.value.kind === Kind.VARIABLE && id === null) {
+        errors.push(buildMissingVariableError(inlineIdArgument.value.name.value, 'ID!'));
+        continue;
+      }
+
+      const draftOrder = id ? store.getDraftOrderById(id) : null;
+      data[key] = serializeDraftOrderMutationPayload(field, draftOrder, [
+        {
+          field: ['id'],
+          message: 'draftOrderInvoiceSend is intentionally not executed by the local proxy because it sends email.',
+        },
+      ]);
+      continue;
+    }
+
+    if (field.name.value === 'draftOrderCreateFromOrder') {
+      handled = true;
+      const inlineOrderIdArgument = getInlineArgument(field, 'orderId');
+
+      if (!inlineOrderIdArgument) {
+        errors.push(buildMissingRequiredArgumentError('draftOrderCreateFromOrder', 'orderId'));
+        continue;
+      }
+
+      if (inlineOrderIdArgument.value.kind === Kind.NULL) {
+        errors.push(buildNullArgumentError('draftOrderCreateFromOrder', 'orderId', 'ID!'));
+        continue;
+      }
+
+      const orderId = readDraftOrderCreateFromOrderId(variables);
+      if (inlineOrderIdArgument.value.kind === Kind.VARIABLE && orderId === null) {
+        errors.push(buildMissingVariableError(inlineOrderIdArgument.value.name.value, 'ID!'));
+        continue;
+      }
+
+      const order = orderId ? store.getOrderById(orderId) : null;
+      if (!order) {
+        data[key] = serializeDraftOrderMutationPayload(field, null, [
+          { field: ['orderId'], message: 'Order does not exist' },
+        ]);
+        continue;
+      }
+
+      const draftOrder = store.stageCreateDraftOrder(buildDraftOrderFromOrder(order, shopifyAdminOrigin));
+      data[key] = serializeDraftOrderMutationPayload(field, draftOrder, []);
       continue;
     }
 
