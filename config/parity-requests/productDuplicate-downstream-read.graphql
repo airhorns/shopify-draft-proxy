@@ -1,0 +1,94 @@
+query ProductDuplicateDownstreamRead($id: ID!) {
+  product(id: $id) {
+    id
+    title
+    handle
+    status
+    vendor
+    productType
+    tags
+    descriptionHtml
+    templateSuffix
+    seo {
+      title
+      description
+    }
+    onlineStorePreviewUrl
+    options {
+      id
+      name
+      position
+      values
+      optionValues {
+        id
+        name
+        hasVariants
+      }
+    }
+    variants(first: 10) {
+      nodes {
+        id
+        title
+        sku
+        barcode
+        price
+        compareAtPrice
+        taxable
+        inventoryPolicy
+        inventoryQuantity
+        selectedOptions {
+          name
+          value
+        }
+        inventoryItem {
+          id
+          tracked
+          requiresShipping
+          measurement {
+            weight {
+              unit
+              value
+            }
+          }
+          countryCodeOfOrigin
+          provinceCodeOfOrigin
+          harmonizedSystemCode
+        }
+      }
+    }
+    collections(first: 10) {
+      nodes {
+        id
+        title
+        handle
+      }
+    }
+    media(first: 10) {
+      nodes {
+        mediaContentType
+        alt
+        preview {
+          image {
+            url
+          }
+        }
+      }
+    }
+    metafield(namespace: "custom", key: "material") {
+      id
+      namespace
+      key
+      type
+      value
+    }
+    metafields(first: 10) {
+      nodes {
+        id
+        namespace
+        key
+        type
+        value
+      }
+    }
+  }
+}
