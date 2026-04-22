@@ -99,7 +99,11 @@ function hasProxyRequest(paritySpec: ParitySpec | null | undefined): boolean {
 }
 
 function hasComparisonContract(paritySpec: ParitySpec | null | undefined): boolean {
-  return validateComparisonContract(paritySpec?.comparison).length === 0;
+  if (validateComparisonContract(paritySpec?.comparison).length > 0) {
+    return false;
+  }
+  const targets = paritySpec?.comparison?.targets;
+  return Array.isArray(targets) && targets.length > 0;
 }
 
 function isKnownMatcher(matcher: string): matcher is Matcher {
@@ -1201,6 +1205,7 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
 
   const productInput = readRecordField(variables, 'product');
   const input = readRecordField(variables, 'input');
+  const identifier = readRecordField(variables, 'identifier');
   const productPayload =
     readRecordField(payload, 'product') ??
     (readStringField(readRecordField(payload, 'node'), 'id')?.startsWith('gid://shopify/Product/')
@@ -1214,9 +1219,16 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     readStringField(productPayload, 'id') ??
     readStringField(payload, 'deletedProductId');
   const productId = rawProductId?.startsWith('gid://shopify/Product/') ? rawProductId : null;
+  const isProductSetCreate =
+    mutationName === 'productSet' &&
+    !readStringField(identifier, 'id') &&
+    !readStringField(identifier, 'handle') &&
+    !readStringField(input, 'id');
 
   const shouldSeedProduct =
-    productId !== null && !(mutationName === 'productCreate' && readStringField(productInput, 'id') === null);
+    productId !== null &&
+    !(mutationName === 'productCreate' && readStringField(productInput, 'id') === null) &&
+    !isProductSetCreate;
 
   if (seedProductDuplicateSource(capture)) {
     return;
@@ -1287,17 +1299,7 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
 }
 
 function readComparisonTargets(comparison: ComparisonContract): ComparisonTarget[] {
-  if (Array.isArray(comparison.targets) && comparison.targets.length > 0) {
-    return comparison.targets;
-  }
-
-  return [
-    {
-      name: 'primary-response',
-      capturePath: '$.mutation.response',
-      proxyPath: '$',
-    },
-  ];
+  return Array.isArray(comparison.targets) ? comparison.targets : [];
 }
 
 function readRequestVariables(
@@ -1361,6 +1363,11 @@ export async function executeParityScenario({
   }
   if (validateComparisonContract(paritySpec.comparison).length > 0 || !paritySpec.comparison) {
     throw new Error(`Scenario ${scenario.id} does not define a valid comparison contract.`);
+  }
+  if (readComparisonTargets(paritySpec.comparison).length === 0) {
+    throw new Error(
+      `Scenario ${scenario.id} must declare at least one comparison target or a blocker; no implicit fallback target is used.`,
+    );
   }
 
   store.reset();
