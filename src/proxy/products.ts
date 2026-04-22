@@ -1,7 +1,7 @@
 import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 import type { ReadMode } from '../config.js';
 import { getFieldArguments, getRootField, getRootFieldArguments, getRootFields } from '../graphql/root-field.js';
-import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
+import { makeProxySyntheticGid, makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type {
   CollectionRecord,
@@ -573,7 +573,7 @@ function makeProductRecord(input: Record<string, unknown>, existing?: ProductRec
   const existingSeo = existing?.seo ?? { title: null, description: null };
 
   return {
-    id: typeof rawId === 'string' ? rawId : (existing?.id ?? makeSyntheticGid('Product')),
+    id: typeof rawId === 'string' ? rawId : (existing?.id ?? makeProxySyntheticGid('Product')),
     legacyResourceId: existing?.legacyResourceId ?? null,
     title,
     handle:
@@ -670,7 +670,7 @@ function makeDuplicatedProductRecord(source: ProductRecord, newTitle?: string): 
   const now = makeSyntheticTimestamp();
 
   return {
-    id: makeSyntheticGid('Product'),
+    id: makeProxySyntheticGid('Product'),
     legacyResourceId: null,
     title,
     handle: slugifyHandle(title),
