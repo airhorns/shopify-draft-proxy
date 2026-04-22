@@ -212,6 +212,7 @@ Current implementation notes:
 - mutation-log entries retain the original GraphQL route path as well as the raw document + variables, so commit replay can preserve the original versioned Admin API endpoint
 - `POST /__meta/commit` replays pending `staged` / `proxied` mutations against upstream Shopify in original log order using the caller-provided `X-Shopify-Access-Token`
 - commit replay persists per-entry `committed` / `failed` statuses back into the in-memory log and stops at the first upstream transport or GraphQL failure
+- the direct-order runtime model now includes the first refund visibility slice: staged order transactions, locally staged `refundCreate` records, empty return connections, and derived `totalRefundedSet` / refund financial status fields for downstream `order(id:)` reads
 
 Commit response should include:
 

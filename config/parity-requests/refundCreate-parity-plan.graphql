@@ -1,0 +1,95 @@
+mutation RefundCreateParityPlan($input: RefundInput!) {
+  refundCreate(input: $input) {
+    refund {
+      id
+      note
+      createdAt
+      updatedAt
+      totalRefundedSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      refundLineItems(first: 10) {
+        nodes {
+          id
+          quantity
+          restockType
+          lineItem {
+            id
+            title
+          }
+          subtotalSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+      transactions(first: 10) {
+        nodes {
+          id
+          kind
+          status
+          gateway
+          amountSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+    }
+    order {
+      id
+      displayFinancialStatus
+      refunds {
+        id
+        note
+        totalRefundedSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+      returns(first: 10) {
+        nodes {
+          id
+          status
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+      transactions {
+        id
+        kind
+        status
+        gateway
+        amountSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+      totalRefundedSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

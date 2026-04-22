@@ -1,0 +1,31 @@
+{
+  "input": {
+    "orderId": "gid://shopify/Order/0",
+    "note": "refundCreate parity placeholder",
+    "notify": false,
+    "refundLineItems": [
+      {
+        "lineItemId": "gid://shopify/LineItem/0",
+        "quantity": 1,
+        "restockType": "RETURN",
+        "locationId": "gid://shopify/Location/0"
+      }
+    ],
+    "shipping": {
+      "amount": "5.00"
+    },
+    "transactions": [
+      {
+        "kind": "REFUND",
+        "status": "SUCCESS",
+        "gateway": "manual",
+        "amountSet": {
+          "shopMoney": {
+            "amount": "15.00",
+            "currencyCode": "CAD"
+          }
+        }
+      }
+    ]
+  }
+}

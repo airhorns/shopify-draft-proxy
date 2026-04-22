@@ -261,6 +261,7 @@ export function createProxyRouter(config: AppConfig): Router {
       capability.domain === 'orders' &&
       config.readMode === 'live-hybrid' &&
       (capability.operationName === 'orderCreate' ||
+        capability.operationName === 'refundCreate' ||
         capability.operationName === 'orderUpdate' ||
         capability.operationName === 'orderEditBegin' ||
         capability.operationName === 'orderEditAddVariant' ||
@@ -280,6 +281,8 @@ export function createProxyRouter(config: AppConfig): Router {
       if (orderMutationResponse) {
         const shortCircuitNotesByOperation: Record<string, string> = {
           orderCreate: 'Locally short-circuited captured orderCreate validation in live-hybrid mode.',
+          refundCreate:
+            'Locally staged refundCreate in live-hybrid mode for a synthetic/local staged order or captured validation branch.',
           orderUpdate:
             'Locally handled orderUpdate in live-hybrid mode for captured validation branches or a synthetic/local staged order.',
           orderEditBegin:
