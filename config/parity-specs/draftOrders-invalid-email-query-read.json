@@ -14,10 +14,20 @@
   "notes": "The first captured filtered draft-order search slice on this host preserves Shopify's invalid `email:` query behavior: the proxy request stays executable while comparing the warning-bearing no-op catalog/count response instead of pretending email filtering is supported.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "captured invalid-email data",
+        "capturePath": "$.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.response"
+      },
+      {
+        "name": "captured invalid-email search warnings",
+        "capturePath": "$.response.extensions.search",
+        "proxyPath": "$.extensions.search",
+        "upstreamCapturePath": "$.response"
+      }
+    ]
   }
 }
