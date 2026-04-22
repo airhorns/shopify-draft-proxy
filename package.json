@@ -14,7 +14,7 @@
     "lint": "oxlint -D no-console . && oxfmt --check .",
     "conformance:check": "vitest run tests/unit/conformance-scenario-discovery.test.ts tests/unit/operation-registry.test.ts",
     "conformance:status": "tsx ./scripts/conformance-status-report.ts",
-    "conformance:parity": "tsx ./scripts/run-conformance-parity.ts",
+    "conformance:parity": "vitest run tests/unit/conformance-parity-scenarios.test.ts",
     "conformance:auth-link": "tsx ./scripts/generate-conformance-auth-link.mts",
     "conformance:exchange-auth": "tsx ./scripts/exchange-conformance-auth-callback.mts",
     "conformance:probe": "tsx ./scripts/conformance-probe.mts",

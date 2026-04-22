@@ -12,13 +12,34 @@
     "variablesPath": "config/parity-requests/productVariantDelete-parity-plan.variables.json"
   },
   "comparisonMode": "captured-compatibility-wrapper",
-  "notes": "Compatibility-only coverage for `productVariantDelete`: compare the checked-in wrapper request against the bulk-delete live parity slice it reuses locally, while keeping the schema blocker note alongside the capture to document that Shopify no longer exposes the legacy root directly on this store/api-version pair.",
+  "notes": "Executed compatibility-wrapper coverage for `productVariantDelete`: compare the checked-in single-variant delete wrapper against the live-supported bulk-delete parity slice it reuses locally. The schema blocker note remains in liveCaptureFiles to document that Shopify no longer exposes the legacy root directly on this store/api-version pair, while the downstream read target asserts immediate product.variants removal, product inventory summaries, and captured sku-filtered products/productsCount search lag.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "deleted-variant-id",
+        "capturePath": "$.mutation.variables.variantsIds[0]",
+        "proxyPath": "$.data.productVariantDelete.deletedProductVariantId"
+      },
+      {
+        "name": "user-errors",
+        "capturePath": "$.mutation.response.data.productVariantsBulkDelete.userErrors",
+        "proxyPath": "$.data.productVariantDelete.userErrors"
+      },
+      {
+        "name": "downstream-read",
+        "capturePath": "$.downstreamRead.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/productVariantsBulkDelete-downstream-read.graphql",
+          "variables": {
+            "id": "gid://shopify/Product/9259552407785",
+            "query": "sku:HERMES-BULK-810153-RED"
+          }
+        },
+        "upstreamCapturePath": null,
+        "proxyPath": "$.data"
+      }
+    ]
   }
 }
