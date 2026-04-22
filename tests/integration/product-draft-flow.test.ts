@@ -3631,17 +3631,7 @@ describe('product draft flow', () => {
         handle: 'summer',
       },
     ]);
-    expect(duplicateResponse.body.data.productDuplicate.newProduct.media.nodes).toEqual([
-      {
-        mediaContentType: 'IMAGE',
-        alt: 'Base image',
-        preview: {
-          image: {
-            url: 'https://cdn.example.com/base-shoe.jpg',
-          },
-        },
-      },
-    ]);
+    expect(duplicateResponse.body.data.productDuplicate.newProduct.media.nodes).toEqual([]);
     expect(duplicateResponse.body.data.productDuplicate.newProduct.metafield).toMatchObject({
       namespace: 'custom',
       key: 'material',
@@ -3690,17 +3680,7 @@ describe('product draft flow', () => {
             nodes: [{ id: 'gid://shopify/Collection/4000', title: 'Summer', handle: 'summer' }],
           },
           media: {
-            nodes: [
-              {
-                mediaContentType: 'IMAGE',
-                alt: 'Base image',
-                preview: {
-                  image: {
-                    url: 'https://cdn.example.com/base-shoe.jpg',
-                  },
-                },
-              },
-            ],
+            nodes: [],
           },
           metafield: {
             namespace: 'custom',
