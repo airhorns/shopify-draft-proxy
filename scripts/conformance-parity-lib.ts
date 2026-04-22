@@ -1091,6 +1091,51 @@ function seedProductVariantDeleteCompatibilityPreconditions(
   return true;
 }
 
+function readTagQueryValue(query: string | null): string | null {
+  if (!query) {
+    return null;
+  }
+
+  const match = query.match(/\btag:("[^"]+"|'[^']+'|[^\s)]+)/i);
+  if (!match) {
+    return null;
+  }
+
+  return match[1]?.replace(/^["']|["']$/g, '') ?? null;
+}
+
+function readTagsRemoveSearchLaggedTags(capture: unknown): Set<string> {
+  const downstreamVariables = readRecordField(capture as Record<string, unknown>, 'downstreamReadVariables');
+  return new Set(
+    ['remainingQuery', 'removedQuery']
+      .map((key) => readTagQueryValue(readStringField(downstreamVariables, key)))
+      .filter((tag): tag is string => typeof tag === 'string' && tag.length > 0),
+  );
+}
+
+function seedTagsRemovePreconditions(
+  productId: string,
+  productPayload: Record<string, unknown> | null,
+  capture: unknown,
+  variables: Record<string, unknown>,
+): boolean {
+  if (!productPayload) {
+    return false;
+  }
+
+  const postMutationTags = readArrayField(productPayload, 'tags').filter(
+    (tag): tag is string => typeof tag === 'string',
+  );
+  const removedTags = readArrayField(variables, 'tags').filter((tag): tag is string => typeof tag === 'string');
+  const searchLaggedTags = readTagsRemoveSearchLaggedTags(capture);
+  const baseTags = postMutationTags.filter((tag) => !searchLaggedTags.has(tag));
+  const preMutationTags = [...new Set([...postMutationTags, ...removedTags])];
+
+  store.upsertBaseProducts([makeSeedProduct(productId, { ...productPayload, tags: baseTags })]);
+  store.stageUpdateProduct(makeSeedProduct(productId, { ...productPayload, tags: preMutationTags }));
+  return true;
+}
+
 function seedInventoryAdjustmentPreconditions(capture: unknown): void {
   const location = inventoryAdjustmentLocation(capture);
   if (!location) {
@@ -1293,6 +1338,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   }
 
   if (shouldSeedProduct) {
+    if (mutationName === 'tagsRemove' && seedTagsRemovePreconditions(productId, productPayload, capture, variables)) {
+      return;
+    }
+
     const seedSource = mutationName === 'tagsAdd' ? null : (productPayload ?? productInput);
     store.upsertBaseProducts([makeSeedProduct(productId, seedSource)]);
     if (mutationName === 'productVariantsBulkCreate' || mutationName === 'productVariantsBulkDelete') {
