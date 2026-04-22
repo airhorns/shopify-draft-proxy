@@ -11,13 +11,17 @@
     "variablesPath": "config/parity-requests/draftOrders-invalid-email-query-read.variables.json"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "The first captured filtered draft-order search slice on this host preserves Shopify's invalid `email:` query behavior: the proxy request stays executable while comparing the warning-bearing no-op catalog/count response instead of pretending email filtering is supported.",
+  "notes": "The proxy can reproduce Shopify's invalid email search warning extension, but the captured response also includes live catalog edges and aggregate count from the pre-existing store. Strict full-response comparison remains blocked until draft-order catalog/count baselines are modeled.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": []
   },
   "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "kind": "captured-draft-order-search-baseline-not-locally-modeled",
+    "blockerPath": null,
+    "details": {
+      "blockedFields": ["draftOrders", "draftOrdersCount"],
+      "requiredApproval": "Model live draft-order catalog/count baselines while preserving invalid search warning parity."
+    }
   }
 }

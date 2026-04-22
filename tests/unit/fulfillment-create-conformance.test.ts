@@ -79,10 +79,10 @@ describe('fulfillmentCreate conformance coverage', () => {
           'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/fulfillment-create-invalid-id.json',
         ],
         comparisonMode: 'captured-vs-proxy-request',
-        proxyRequest: {
+        proxyRequest: expect.objectContaining({
           documentPath: 'config/parity-requests/fulfillmentCreate-invalid-id-parity.graphql',
           variablesPath: 'config/parity-requests/fulfillmentCreate-invalid-id-parity.variables.json',
-        },
+        }),
       }),
     );
 

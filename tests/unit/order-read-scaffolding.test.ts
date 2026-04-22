@@ -141,10 +141,10 @@ describe('order read scaffolding', () => {
         scenarioStatus: 'captured',
         liveCaptureFiles: ['fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-empty-state.json'],
         comparisonMode: 'capture-only',
-        proxyRequest: {
+        proxyRequest: expect.objectContaining({
           documentPath: 'config/parity-requests/order-empty-state-read.graphql',
           variablesPath: 'config/parity-requests/order-empty-state-read.variables.json',
-        },
+        }),
       }),
     );
 
@@ -180,10 +180,10 @@ describe('order read scaffolding', () => {
         scenarioStatus: 'captured',
         liveCaptureFiles: ['fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-detail.json'],
         comparisonMode: 'captured-vs-proxy-request',
-        proxyRequest: {
+        proxyRequest: expect.objectContaining({
           documentPath: 'config/parity-requests/draftOrder-read-parity-plan.graphql',
           variablesPath: 'config/parity-requests/draftOrder-read-parity-plan.variables.json',
-        },
+        }),
       }),
     );
     expect(detailDocument).toContain('query DraftOrderReadParityPlan($id: ID!)');
@@ -203,6 +203,7 @@ describe('order read scaffolding', () => {
         scenarioId: 'draft-orders-catalog-read',
         liveCaptureFiles: ['fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-orders-catalog.json'],
         requiredText: 'draftOrders(first: $first, reverse: true)',
+        blockerKind: 'captured-draft-order-catalog-pagination-not-locally-modeled',
       },
       {
         specPath: 'config/parity-specs/draftOrdersCount-read-parity-plan.json',
@@ -211,6 +212,7 @@ describe('order read scaffolding', () => {
         scenarioId: 'draft-orders-count-read',
         liveCaptureFiles: ['fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-orders-count.json'],
         requiredText: 'draftOrdersCount(query: $query)',
+        blockerKind: 'captured-draft-order-count-baseline-not-locally-modeled',
       },
       {
         specPath: 'config/parity-specs/draftOrders-invalid-email-query-read.json',
@@ -221,6 +223,7 @@ describe('order read scaffolding', () => {
           'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-orders-invalid-email-query.json',
         ],
         requiredText: 'draftOrders(first: $first, query: $query)',
+        blockerKind: 'captured-draft-order-search-baseline-not-locally-modeled',
       },
     ] as const;
 
@@ -238,16 +241,18 @@ describe('order read scaffolding', () => {
           scenarioStatus: 'captured',
           liveCaptureFiles: captured.liveCaptureFiles,
           comparisonMode: 'captured-vs-proxy-request',
-          proxyRequest: {
+          proxyRequest: expect.objectContaining({
             documentPath: captured.documentPath,
             variablesPath: captured.variablesPath,
-          },
+          }),
         }),
       );
-      expect(spec.blocker).toEqual({
-        kind: 'explicit-comparison-targets-needed',
-        blockerPath: null,
-      });
+      expect(spec.blocker).toEqual(
+        expect.objectContaining({
+          kind: captured.blockerKind,
+          blockerPath: null,
+        }),
+      );
       expect(document).toContain(captured.requiredText);
       expect(Object.keys(variables).length).toBeGreaterThan(0);
     }

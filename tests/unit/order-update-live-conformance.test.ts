@@ -170,10 +170,10 @@ describe('orderUpdate live conformance', () => {
           'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-update-inline-missing-id.json',
         ],
         comparisonMode: 'captured-vs-proxy-request',
-        proxyRequest: {
+        proxyRequest: expect.objectContaining({
           documentPath: 'config/parity-requests/orderUpdate-inline-missing-id-parity.graphql',
           variablesPath: 'config/parity-requests/orderUpdate-inline-missing-id-parity.variables.json',
-        },
+        }),
       }),
     );
     expect(inlineNullIdSpec).toEqual(
@@ -184,10 +184,10 @@ describe('orderUpdate live conformance', () => {
           'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-update-inline-null-id.json',
         ],
         comparisonMode: 'captured-vs-proxy-request',
-        proxyRequest: {
+        proxyRequest: expect.objectContaining({
           documentPath: 'config/parity-requests/orderUpdate-inline-null-id-parity.graphql',
           variablesPath: 'config/parity-requests/orderUpdate-inline-null-id-parity.variables.json',
-        },
+        }),
       }),
     );
     expect(unknownIdSpec).toEqual(
@@ -198,10 +198,10 @@ describe('orderUpdate live conformance', () => {
           'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-update-unknown-id.json',
         ],
         comparisonMode: 'captured-vs-proxy-request',
-        proxyRequest: {
+        proxyRequest: expect.objectContaining({
           documentPath: 'config/parity-requests/orderUpdate-parity-plan.graphql',
           variablesPath: 'config/parity-requests/orderUpdate-parity-plan.variables.json',
-        },
+        }),
       }),
     );
     expect(missingIdSpec).toEqual(
@@ -212,10 +212,10 @@ describe('orderUpdate live conformance', () => {
           'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-update-missing-id.json',
         ],
         comparisonMode: 'captured-vs-proxy-request',
-        proxyRequest: {
+        proxyRequest: expect.objectContaining({
           documentPath: 'config/parity-requests/orderUpdate-parity-plan.graphql',
           variablesPath: 'config/parity-requests/orderUpdate-missing-id-parity.variables.json',
-        },
+        }),
       }),
     );
     expect(document).toContain('mutation OrderUpdateParityPlan($input: OrderInput!)');
@@ -354,10 +354,10 @@ describe('orderUpdate live conformance', () => {
         scenarioStatus: 'captured',
         liveCaptureFiles: ['fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-update-parity.json'],
         comparisonMode: 'captured-vs-proxy-request',
-        proxyRequest: {
+        proxyRequest: expect.objectContaining({
           documentPath: 'config/parity-requests/orderUpdate-live-parity.graphql',
           variablesPath: 'config/parity-requests/orderUpdate-live-parity.variables.json',
-        },
+        }),
       }),
     );
     expect(document).toContain('mutation OrderUpdateLiveParity($input: OrderInput!)');

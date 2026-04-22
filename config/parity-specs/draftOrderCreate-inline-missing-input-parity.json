@@ -8,16 +8,25 @@
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/draftOrderCreate-inline-missing-input-parity.graphql",
-    "variablesPath": "config/parity-requests/draftOrderCreate-inline-missing-input-parity.variables.json"
+    "variablesPath": "config/parity-requests/draftOrderCreate-inline-missing-input-parity.variables.json",
+    "variablesCapturePath": "$.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "notes": "Captured `draftOrderCreate` inline missing-argument GraphQL validation slice: omitting the inline `input` argument fails with `missingRequiredArguments`, and snapshot-mode local parity now mirrors that branch without hitting upstream.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "top-level-error-message",
+        "capturePath": "$.mutation.response.errors[0].message",
+        "proxyPath": "$.errors[0].message"
+      },
+      {
+        "name": "top-level-error-extensions",
+        "capturePath": "$.mutation.response.errors[0].extensions",
+        "proxyPath": "$.errors[0].extensions"
+      }
+    ]
   }
 }
