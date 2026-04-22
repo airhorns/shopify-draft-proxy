@@ -12,10 +12,14 @@
   "notes": "The first non-empty Shopify draft-order count baseline is now captured on this host, so parity compares the live count/precision payload against the proxy's local replay instead of staying blocked on a missing baseline.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "captured draftOrdersCount data",
+        "capturePath": "$.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.response"
+      }
+    ]
   }
 }
