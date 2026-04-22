@@ -1,0 +1,16 @@
+query TagsAddDownstreamRead($id: ID!, $query: String!) {
+  product(id: $id) {
+    id
+    tags
+  }
+  products(first: 10, query: $query) {
+    nodes {
+      id
+      tags
+    }
+  }
+  productsCount(query: $query) {
+    count
+    precision
+  }
+}

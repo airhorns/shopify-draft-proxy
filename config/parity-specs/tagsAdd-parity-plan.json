@@ -6,16 +6,34 @@
   "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/tags-add-parity.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/tagsAdd-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/tagsAdd-parity-plan.variables.json"
+    "variablesPath": "config/parity-requests/tagsAdd-parity-plan.variables.json",
+    "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live capture recorded for `tagsAdd`, and the staged runtime now mirrors Shopify's immediate tag-index lag for hydrated products: `product.tags` updates immediately while `products(query: \"tag:...\")` / `productsCount(query: \"tag:...\")` stay limited to hydrated/base tags.",
+  "notes": "Live capture recorded for `tagsAdd`, and the staged runtime now mirrors Shopify's immediate tag-index lag for hydrated products: `product.tags` updates immediately while `products(query: \"tag:...\")` / `productsCount(query: \"tag:...\")` stay limited to hydrated/base tags. This scenario now executes strict proxy-vs-Shopify comparison for mutation data and the immediate downstream tag-filtered read.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/tagsAdd-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.tagsAdd.node.id"
+            },
+            "query": "tag:hermes-sale-1776550641138"
+          }
+        },
+        "proxyPath": "$.data"
+      }
+    ]
   }
 }
