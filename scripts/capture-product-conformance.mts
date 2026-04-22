@@ -225,10 +225,12 @@ const searchQuery = `#graphql
 
 const searchGrammarVariables = {
   phraseQuery: '"flat peak cap" accessories -vendor:VANS -tag:vans',
+  notQuery: 'NOT vendor:VANS published_at:*',
+  tagNotQuery: 'tag_not:vans published_at:*',
 };
 
 const searchGrammarQuery = `#graphql
-  query ProductSearchGrammarConformance($phraseQuery: String!) {
+  query ProductSearchGrammarConformance($phraseQuery: String!, $notQuery: String!, $tagNotQuery: String!) {
     phraseCount: productsCount(query: $phraseQuery) {
       count
       precision
@@ -242,6 +244,48 @@ const searchGrammarQuery = `#graphql
           productType
           tags
         }
+      }
+    }
+    notCount: productsCount(query: $notQuery) {
+      count
+      precision
+    }
+    notMatches: products(first: 5, query: $notQuery, sortKey: PUBLISHED_AT, reverse: true) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          vendor
+          publishedAt
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    tagNotCount: productsCount(query: $tagNotQuery) {
+      count
+      precision
+    }
+    tagNotMatches: products(first: 5, query: $tagNotQuery, sortKey: PUBLISHED_AT, reverse: true) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          tags
+          publishedAt
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
       }
     }
   }

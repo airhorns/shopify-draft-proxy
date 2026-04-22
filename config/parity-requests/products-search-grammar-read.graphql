@@ -1,4 +1,4 @@
-query ProductsSearchGrammarRead($phraseQuery: String!) {
+query ProductsSearchGrammarRead($phraseQuery: String!, $notQuery: String!, $tagNotQuery: String!) {
   phraseCount: productsCount(query: $phraseQuery) {
     count
     precision
@@ -12,6 +12,48 @@ query ProductsSearchGrammarRead($phraseQuery: String!) {
         productType
         tags
       }
+    }
+  }
+  notCount: productsCount(query: $notQuery) {
+    count
+    precision
+  }
+  notMatches: products(first: 5, query: $notQuery, sortKey: PUBLISHED_AT, reverse: true) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        vendor
+        publishedAt
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  tagNotCount: productsCount(query: $tagNotQuery) {
+    count
+    precision
+  }
+  tagNotMatches: products(first: 5, query: $tagNotQuery, sortKey: PUBLISHED_AT, reverse: true) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        tags
+        publishedAt
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
     }
   }
 }
