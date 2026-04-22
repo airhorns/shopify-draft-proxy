@@ -288,13 +288,51 @@ export const draftOrderShippingLineRecordSchema = z.strictObject({
 });
 export type DraftOrderShippingLineRecord = z.infer<typeof draftOrderShippingLineRecordSchema>;
 
+export const draftOrderAppliedDiscountRecordSchema = z.strictObject({
+  title: nullableStringSchema,
+  description: nullableStringSchema,
+  value: nullableNumberSchema,
+  valueType: nullableStringSchema,
+  amountSet: moneySetSchema.nullable(),
+});
+export type DraftOrderAppliedDiscountRecord = z.infer<typeof draftOrderAppliedDiscountRecordSchema>;
+
+export const draftOrderCustomerRecordSchema = z.strictObject({
+  id: nullableStringSchema,
+  email: nullableStringSchema,
+  displayName: nullableStringSchema,
+});
+export type DraftOrderCustomerRecord = z.infer<typeof draftOrderCustomerRecordSchema>;
+
+export const draftOrderPaymentTermsRecordSchema = z.strictObject({
+  id: z.string(),
+  due: z.boolean(),
+  overdue: z.boolean(),
+  dueInDays: nullableNumberSchema,
+  paymentTermsName: z.string(),
+  paymentTermsType: z.string(),
+  translatedName: z.string(),
+});
+export type DraftOrderPaymentTermsRecord = z.infer<typeof draftOrderPaymentTermsRecordSchema>;
+
 export const draftOrderLineItemRecordSchema = z.strictObject({
   id: z.string(),
   title: nullableStringSchema,
+  name: nullableStringSchema,
   quantity: z.number(),
   sku: nullableStringSchema,
   variantTitle: nullableStringSchema,
+  variantId: nullableStringSchema,
+  productId: nullableStringSchema,
+  custom: z.boolean(),
+  requiresShipping: z.boolean(),
+  taxable: z.boolean(),
+  customAttributes: z.array(draftOrderAttributeRecordSchema),
+  appliedDiscount: draftOrderAppliedDiscountRecordSchema.nullable(),
   originalUnitPriceSet: moneySetSchema.nullable(),
+  originalTotalSet: moneySetSchema.nullable(),
+  discountedTotalSet: moneySetSchema.nullable(),
+  totalDiscountSet: moneySetSchema.nullable(),
 });
 export type DraftOrderLineItemRecord = z.infer<typeof draftOrderLineItemRecordSchema>;
 
@@ -307,6 +345,12 @@ export const draftOrderRecordSchema = z.strictObject({
   email: nullableStringSchema,
   note: nullableStringSchema,
   tags: z.array(z.string()),
+  customer: draftOrderCustomerRecordSchema.nullable(),
+  taxExempt: z.boolean(),
+  taxesIncluded: z.boolean(),
+  reserveInventoryUntil: nullableStringSchema,
+  paymentTerms: draftOrderPaymentTermsRecordSchema.nullable(),
+  appliedDiscount: draftOrderAppliedDiscountRecordSchema.nullable(),
   customAttributes: z.array(draftOrderAttributeRecordSchema),
   billingAddress: draftOrderAddressRecordSchema.nullable(),
   shippingAddress: draftOrderAddressRecordSchema.nullable(),
@@ -314,6 +358,8 @@ export const draftOrderRecordSchema = z.strictObject({
   createdAt: z.string(),
   updatedAt: z.string(),
   subtotalPriceSet: moneySetSchema.nullable(),
+  totalDiscountsSet: moneySetSchema.nullable(),
+  totalShippingPriceSet: moneySetSchema.nullable(),
   totalPriceSet: moneySetSchema.nullable(),
   lineItems: z.array(draftOrderLineItemRecordSchema),
 });

@@ -9,7 +9,7 @@
     "variablesPath": "config/parity-requests/draftOrderCreate-parity-plan.variables.json"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "The first merchant-realistic draft-order creation slice is now live-captured: the current bearer-token conformance credential can create an open draft order with custom line items, addresses, tags, and customAttributes, and the created draft is immediately readable through `draftOrder(id:)`.",
+  "notes": "The first merchant-realistic draft-order creation slice is live-captured for custom line items, addresses, tags, customAttributes, invoice/detail visibility, and the created draft is immediately readable through `draftOrder(id:)`. HAR-117 expands the proxy replay request and capture harness toward a deeper merchant-realistic draft with shippingLine.price, order and line-item discounts, tax/payment inputs, and mixed custom/variant line item types; live fixture refresh is pending valid conformance auth.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": []

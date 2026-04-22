@@ -5,11 +5,41 @@ mutation DraftOrderCreateParityPlan($input: DraftOrderInput!) {
       name
       invoiceUrl
       status
+      ready
       email
+      customer {
+        id
+        email
+        displayName
+      }
+      taxExempt
+      taxesIncluded
+      reserveInventoryUntil
+      paymentTerms {
+        id
+        due
+        overdue
+        dueInDays
+        paymentTermsName
+        paymentTermsType
+        translatedName
+      }
       tags
       customAttributes {
         key
         value
+      }
+      appliedDiscount {
+        title
+        description
+        value
+        valueType
+        amountSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
       }
       billingAddress {
         firstName
@@ -34,7 +64,14 @@ mutation DraftOrderCreateParityPlan($input: DraftOrderInput!) {
       shippingLine {
         title
         code
+        custom
         originalPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        discountedPriceSet {
           shopMoney {
             amount
             currencyCode
@@ -55,18 +92,74 @@ mutation DraftOrderCreateParityPlan($input: DraftOrderInput!) {
           currencyCode
         }
       }
+      totalDiscountsSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalShippingPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalQuantityOfLineItems
       lineItems(first: 5) {
         nodes {
           id
           title
+          name
           quantity
           sku
           variantTitle
+          custom
+          requiresShipping
+          taxable
+          customAttributes {
+            key
+            value
+          }
+          appliedDiscount {
+            title
+            description
+            value
+            valueType
+            amountSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+            }
+          }
           originalUnitPriceSet {
             shopMoney {
               amount
               currencyCode
             }
+          }
+          originalTotalSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          discountedTotalSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          totalDiscountSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          variant {
+            id
+            title
+            sku
           }
         }
       }

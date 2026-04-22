@@ -319,7 +319,12 @@ Important live findings:
   - keep that slice intentionally narrower than live Shopify catalog/count parity: the current local replay is for staged synthetic drafts, not evidence-backed filtered/search semantics for non-empty live Shopify draft catalogs
   - practical rule: local staged `draftOrders` / `draftOrdersCount` support should not be treated as proof that `query:` filtering or broader live catalog ordering semantics are settled; those still need a cleaner captured Shopify baseline
 
-- document the `shippingLine: null` happy-path quirk explicitly so future local staging does not blindly echo the input shipping line into the immediate payload
+- the first `shippingLine: null` happy-path quirk was tied to the earlier
+  `priceWithCurrency` input shape; Shopify's current draft-order examples use
+  `shippingLine.price`, and HAR-117's local staging models that documented
+  shape as a non-null custom shipping line while keeping the old captured
+  `priceWithCurrency` fixture as historical evidence until live auth is healthy
+  enough to refresh it
 - once `draftOrderCreate` is treated as a supported staged write, do not accidentally limit that local behavior to `snapshot` mode only; in live-hybrid the proxy should still stage the supported create locally and short-circuit immediate `draftOrder(id:)` reads for the newly staged synthetic draft id instead of proxying those supported roots upstream
 
 ### 7b. `orderCreate` also has inline GraphQL-validation branches before Shopify reaches the offline-token gate
