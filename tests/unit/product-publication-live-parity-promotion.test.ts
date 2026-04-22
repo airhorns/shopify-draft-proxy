@@ -35,6 +35,9 @@ const expectedCoveredFamilies = [
   },
 ] as const;
 
+const expectedReadyFamilies = [expectedCoveredFamilies[0]] as const;
+const expectedNoTargetFamilies = [expectedCoveredFamilies[1]] as const;
+
 const expectedBlockedFamilies = [
   {
     scenarioId: 'productPublish-aggregate-parity-blocker',
@@ -79,8 +82,35 @@ describe('product publication live parity promotion state', () => {
     }
   });
 
-  it('upgrades the publication parity specs to captured mode while keeping no-target captures out of parity execution', () => {
-    for (const expected of expectedCoveredFamilies) {
+  it('promotes productPublish to executed strict-json comparison while keeping remaining no-target captures out of parity execution', () => {
+    for (const expected of expectedReadyFamilies) {
+      const spec = JSON.parse(readFileSync(resolve(repoRoot, expected.paritySpecPath), 'utf8')) as ParitySpec;
+      expect(spec).toMatchObject({
+        scenarioId: expected.scenarioId,
+        scenarioStatus: 'captured',
+        liveCaptureFiles: [expected.captureFile],
+        comparisonMode: 'captured-vs-proxy-request',
+        proxyRequest: {
+          variablesCapturePath: '$.mutation.variables',
+        },
+        comparison: {
+          mode: 'strict-json',
+          expectedDifferences: [],
+          targets: [
+            {
+              name: 'mutation-data',
+              capturePath: '$.mutation.response.data',
+              proxyPath: '$.data',
+            },
+          ],
+        },
+      });
+
+      expect(spec.blocker).toBeUndefined();
+      expect(spec.notes).toContain('minimal live payload slice');
+    }
+
+    for (const expected of expectedNoTargetFamilies) {
       const spec = JSON.parse(readFileSync(resolve(repoRoot, expected.paritySpecPath), 'utf8')) as ParitySpec;
       expect(spec).toMatchObject({
         scenarioId: expected.scenarioId,

@@ -1394,6 +1394,17 @@ Practical rule:
 - keep the aggregate publication-field blocker attached to the parity specs until the conformance app is installed/configured with a real publication target and the dedicated harness can refresh the fixtures with successful aggregate-field payloads and downstream reads
 - once the app has a publication, the dedicated harness remains the shortest path to refreshing the family because it already aligns the live mutation and downstream-read slices with the checked-in parity plans
 
+### 35a. Minimal `productPublish` parity is the safe write-path slice
+
+The first safe `productPublish` promotion deliberately compares only the live-captured minimal mutation payload:
+
+- request shape: `productPublish(input:) { userErrors { field message } }`
+- fixture variables are read from `$.mutation.variables` so the local parity harness replays the captured product/publication ids after seeding the product precondition
+- comparison target is the strict `$.mutation.response.data` vs local `$.data` payload
+- the local mutation serializer must not include unselected payload fields, because Shopify's minimal response contains only `userErrors`
+
+This closes the staged write-path payload comparison for minimal `productPublish` without weakening the larger aggregate-field blocker. The companion aggregate spec must stay blocked until the conformance app has a real publication target and Shopify can return `publishedOnCurrentPublication`, `availablePublicationsCount`, `resourcePublicationsCount`, and immediate downstream publication reads without the current `NOT_FOUND` response.
+
 ## 36. ProductSet list-field semantics need product-scoped staged child shadowing, not base+staged unions
 
 The first `productSet` increment exposed a state-layer trap across every nested product child collection:
