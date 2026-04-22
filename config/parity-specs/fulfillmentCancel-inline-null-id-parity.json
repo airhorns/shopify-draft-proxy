@@ -8,7 +8,8 @@
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/fulfillmentCancel-inline-null-id-parity.graphql",
-    "variablesPath": "config/parity-requests/fulfillmentCancel-inline-null-id-parity.variables.json"
+    "variablesPath": "config/parity-requests/fulfillmentCancel-inline-null-id-parity.variables.json",
+    "variablesCapturePath": "$.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "notes": "Captured `fulfillmentCancel` inline null-literal GraphQL validation slice: inline `id: null` fails with `argumentLiteralsIncompatible`, and snapshot/live-hybrid local parity now mirrors that branch without hitting upstream.",

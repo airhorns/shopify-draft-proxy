@@ -35,8 +35,14 @@ import { makeSyntheticGid, makeSyntheticTimestamp, resetSyntheticIdentity } from
 import { store } from '../src/state/store.js';
 import type {
   CollectionRecord,
+  DraftOrderLineItemRecord,
+  DraftOrderRecord,
+  DraftOrderShippingLineRecord,
   InventoryLevelRecord,
   MutationLogInterpretedMetadata,
+  OrderLineItemRecord,
+  OrderRecord,
+  OrderShippingLineRecord,
   ProductCollectionRecord,
   ProductMetafieldRecord,
   ProductMediaRecord,
@@ -585,24 +591,26 @@ async function executeGraphQLAgainstLocalProxy(
 
   if (capability.execution === 'stage-locally' && capability.domain === 'orders') {
     const body = handleOrderMutation(document, variables, 'snapshot');
-    if (body) {
-      store.appendLog({
-        id: makeSyntheticGid('MutationLogEntry'),
-        receivedAt: makeSyntheticTimestamp(),
-        operationName: capability.operationName,
-        path: '/admin/api/2025-01/graphql.json',
-        query: document,
-        variables,
-        status: 'staged',
-        interpreted: interpretMutationLogEntry(parsed, capability),
-        notes: 'Staged locally in the conformance parity proxy harness.',
-      });
-
-      return {
-        status: 200,
-        body,
-      };
+    if (!body) {
+      throw new Error(`Order-domain parity request was not handled locally: ${capability.operationName}`);
     }
+
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2025-01/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body,
+    };
   }
 
   if (capability.execution === 'overlay-read' && capability.domain === 'products') {
@@ -623,11 +631,18 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'overlay-read' && capability.domain === 'orders') {
-    if (upstreamPayload !== undefined && !hasOrderState()) {
+    const upstreamPayloadIsResponseEnvelope =
+      isPlainObject(upstreamPayload) && ('data' in upstreamPayload || 'errors' in upstreamPayload);
+
+    if (upstreamPayload !== undefined && upstreamPayloadIsResponseEnvelope && !hasOrderState()) {
       return {
         status: 200,
-        body: isPlainObject(upstreamPayload) ? upstreamPayload : {},
+        body: upstreamPayload,
       };
+    }
+
+    if (upstreamPayload !== undefined) {
+      hydrateOrdersFromUpstreamResponse(upstreamPayload);
     }
 
     return {
@@ -715,6 +730,187 @@ function readBooleanField(value: Record<string, unknown> | null | undefined, key
 function readArrayField(value: Record<string, unknown> | null | undefined, key: string): unknown[] {
   const fieldValue = value?.[key];
   return Array.isArray(fieldValue) ? fieldValue : [];
+}
+
+function readMoneySetField(
+  value: Record<string, unknown> | null | undefined,
+  key: string,
+): OrderRecord['currentTotalPriceSet'] {
+  const rawSet = readRecordField(value, key);
+  const shopMoney = readRecordField(rawSet, 'shopMoney');
+  const amount = readStringField(shopMoney, 'amount');
+  const currencyCode = readStringField(shopMoney, 'currencyCode');
+  return amount || currencyCode
+    ? {
+        shopMoney: {
+          amount,
+          currencyCode,
+        },
+      }
+    : null;
+}
+
+function readCapturedOrderLineItems(order: Record<string, unknown> | null): OrderLineItemRecord[] {
+  return readArrayField(readRecordField(order, 'lineItems'), 'nodes')
+    .filter(isPlainObject)
+    .map((lineItem, index) => ({
+      id: readStringField(lineItem, 'id') ?? `gid://shopify/LineItem/conformance-${index}`,
+      title: readStringField(lineItem, 'title'),
+      quantity: readNumberField(lineItem, 'quantity') ?? 0,
+      sku: readStringField(lineItem, 'sku'),
+      variantTitle: readStringField(lineItem, 'variantTitle'),
+      originalUnitPriceSet: readMoneySetField(lineItem, 'originalUnitPriceSet'),
+    }));
+}
+
+function readCapturedOrderShippingLines(order: Record<string, unknown> | null): OrderShippingLineRecord[] {
+  return readArrayField(readRecordField(order, 'shippingLines'), 'nodes')
+    .filter(isPlainObject)
+    .map((shippingLine) => ({
+      title: readStringField(shippingLine, 'title'),
+      code: readStringField(shippingLine, 'code'),
+      originalPriceSet: readMoneySetField(shippingLine, 'originalPriceSet'),
+    }));
+}
+
+function makeSeedOrder(orderId: string, source: Record<string, unknown> | null = null): OrderRecord {
+  const now = '2026-04-19T00:00:00.000Z';
+  return {
+    id: orderId,
+    name: readStringField(source, 'name') ?? '#1',
+    createdAt: readStringField(source, 'createdAt') ?? readStringField(source, 'updatedAt') ?? now,
+    updatedAt: readStringField(source, 'updatedAt') ?? now,
+    displayFinancialStatus: readStringField(source, 'displayFinancialStatus'),
+    displayFulfillmentStatus: readStringField(source, 'displayFulfillmentStatus'),
+    note: readStringField(source, 'note'),
+    tags: readArrayField(source, 'tags').filter((tag): tag is string => typeof tag === 'string'),
+    customAttributes: readArrayField(source, 'customAttributes')
+      .filter(isPlainObject)
+      .map((attribute) => ({
+        key: readStringField(attribute, 'key') ?? '',
+        value: readStringField(attribute, 'value'),
+      }))
+      .filter((attribute) => attribute.key.length > 0),
+    billingAddress: readCapturedAddress(source, 'billingAddress'),
+    shippingAddress: readCapturedAddress(source, 'shippingAddress'),
+    subtotalPriceSet: readMoneySetField(source, 'subtotalPriceSet'),
+    currentTotalPriceSet: readMoneySetField(source, 'currentTotalPriceSet'),
+    totalPriceSet: readMoneySetField(source, 'totalPriceSet'),
+    customer: null,
+    shippingLines: readCapturedOrderShippingLines(source),
+    lineItems: readCapturedOrderLineItems(source),
+  };
+}
+
+function readCapturedDraftOrderLineItems(draftOrder: Record<string, unknown> | null): DraftOrderLineItemRecord[] {
+  return readArrayField(readRecordField(draftOrder, 'lineItems'), 'nodes')
+    .filter(isPlainObject)
+    .map((lineItem, index) => ({
+      id: readStringField(lineItem, 'id') ?? `gid://shopify/DraftOrderLineItem/conformance-${index}`,
+      title: readStringField(lineItem, 'title'),
+      quantity: readNumberField(lineItem, 'quantity') ?? 0,
+      sku: readStringField(lineItem, 'sku'),
+      variantTitle: readStringField(lineItem, 'variantTitle'),
+      originalUnitPriceSet: readMoneySetField(lineItem, 'originalUnitPriceSet'),
+    }));
+}
+
+function readCapturedDraftOrderShippingLine(
+  draftOrder: Record<string, unknown> | null,
+): DraftOrderShippingLineRecord | null {
+  const shippingLine = readRecordField(draftOrder, 'shippingLine');
+  if (!shippingLine) {
+    return null;
+  }
+
+  return {
+    title: readStringField(shippingLine, 'title'),
+    code: readStringField(shippingLine, 'code'),
+    originalPriceSet: readMoneySetField(shippingLine, 'originalPriceSet'),
+  };
+}
+
+function makeSeedDraftOrder(draftOrderId: string, source: Record<string, unknown> | null = null): DraftOrderRecord {
+  const now = '2026-04-19T00:00:00.000Z';
+  return {
+    id: draftOrderId,
+    name: readStringField(source, 'name') ?? '#D1',
+    invoiceUrl: readStringField(source, 'invoiceUrl'),
+    status: readStringField(source, 'status'),
+    ready: readBooleanField(source, 'ready'),
+    email: readStringField(source, 'email'),
+    note: readStringField(source, 'note'),
+    tags: readArrayField(source, 'tags').filter((tag): tag is string => typeof tag === 'string'),
+    customAttributes: readArrayField(source, 'customAttributes')
+      .filter(isPlainObject)
+      .map((attribute) => ({
+        key: readStringField(attribute, 'key') ?? '',
+        value: readStringField(attribute, 'value'),
+      }))
+      .filter((attribute) => attribute.key.length > 0),
+    billingAddress: readCapturedAddress(source, 'billingAddress'),
+    shippingAddress: readCapturedAddress(source, 'shippingAddress'),
+    shippingLine: readCapturedDraftOrderShippingLine(source),
+    createdAt: readStringField(source, 'createdAt') ?? readStringField(source, 'updatedAt') ?? now,
+    updatedAt: readStringField(source, 'updatedAt') ?? now,
+    subtotalPriceSet: readMoneySetField(source, 'subtotalPriceSet'),
+    totalPriceSet: readMoneySetField(source, 'totalPriceSet'),
+    lineItems: readCapturedDraftOrderLineItems(source),
+  };
+}
+
+function readCapturedAddress(
+  source: Record<string, unknown> | null | undefined,
+  key: string,
+): OrderRecord['billingAddress'] {
+  const address = readRecordField(source, key);
+  if (!address) {
+    return null;
+  }
+
+  return {
+    firstName: readStringField(address, 'firstName'),
+    lastName: readStringField(address, 'lastName'),
+    address1: readStringField(address, 'address1'),
+    city: readStringField(address, 'city'),
+    provinceCode: readStringField(address, 'provinceCode'),
+    countryCodeV2: readStringField(address, 'countryCodeV2'),
+    zip: readStringField(address, 'zip'),
+    phone: readStringField(address, 'phone'),
+  };
+}
+
+function hydrateOrdersFromUpstreamResponse(upstreamPayload: unknown): void {
+  const payload = isPlainObject(upstreamPayload) ? upstreamPayload : {};
+  const data = readRecordField(payload, 'data') ?? payload;
+
+  const order = readRecordField(data, 'order');
+  const orderId = readStringField(order, 'id');
+  if (orderId) {
+    store.upsertBaseOrders([makeSeedOrder(orderId, order)]);
+  }
+
+  for (const edge of readArrayField(readRecordField(data, 'orders'), 'edges').filter(isPlainObject)) {
+    const node = readRecordField(edge, 'node');
+    const nodeId = readStringField(node, 'id');
+    if (nodeId) {
+      store.upsertBaseOrders([makeSeedOrder(nodeId, node)]);
+    }
+  }
+
+  const draftOrder = readRecordField(data, 'draftOrder');
+  const draftOrderId = readStringField(draftOrder, 'id');
+  if (draftOrderId) {
+    store.stageCreateDraftOrder(makeSeedDraftOrder(draftOrderId, draftOrder));
+  }
+
+  for (const edge of readArrayField(readRecordField(data, 'draftOrders'), 'edges').filter(isPlainObject)) {
+    const node = readRecordField(edge, 'node');
+    const nodeId = readStringField(node, 'id');
+    if (nodeId) {
+      store.stageCreateDraftOrder(makeSeedDraftOrder(nodeId, node));
+    }
+  }
 }
 
 function makeSeedProduct(
@@ -1374,6 +1570,24 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
 
   const payload = mutationPayloadFromCapture(capture);
   const mutationName = mutationNameFromCapture(capture);
+  if (mutationName === 'orderUpdate') {
+    const input = readRecordField(variables, 'input');
+    const orderId = readStringField(input, 'id');
+    if (orderId) {
+      const orderPayload = readRecordField(payload, 'order');
+      const downstreamOrder = readRecordField(
+        readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'response'),
+        'data',
+      );
+      const downstreamSource = readRecordField(downstreamOrder, 'order');
+      const seedSource = orderPayload ?? downstreamSource;
+      if (seedSource) {
+        store.upsertBaseOrders([makeSeedOrder(orderId, seedSource)]);
+      }
+    }
+    return;
+  }
+
   if (mutationName === 'inventoryAdjustQuantities') {
     seedInventoryAdjustmentPreconditions(capture);
     return;

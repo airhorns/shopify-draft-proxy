@@ -297,10 +297,10 @@ describe('fulfillment lifecycle scaffolding', () => {
           scenarioStatus: 'captured',
           liveCaptureFiles: [expected.fixturePath],
           comparisonMode: 'captured-vs-proxy-request',
-          proxyRequest: {
+          proxyRequest: expect.objectContaining({
             documentPath: expected.documentPath,
             variablesPath: expected.variablesPath,
-          },
+          }),
         }),
       );
       expect(spec.blocker).toBeUndefined();
@@ -326,10 +326,10 @@ describe('fulfillment lifecycle scaffolding', () => {
           scenarioStatus: 'planned',
           liveCaptureFiles: [],
           comparisonMode: 'planned',
-          proxyRequest: {
+          proxyRequest: expect.objectContaining({
             documentPath: expected.documentPath,
             variablesPath: expected.variablesPath,
-          },
+          }),
           blocker: expect.objectContaining({
             kind: expected.blockerKind,
             blockerPath: 'pending/fulfillment-lifecycle-conformance-scope-blocker.md',

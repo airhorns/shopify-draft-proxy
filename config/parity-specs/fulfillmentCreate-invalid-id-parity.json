@@ -8,7 +8,8 @@
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/fulfillmentCreate-invalid-id-parity.graphql",
-    "variablesPath": "config/parity-requests/fulfillmentCreate-invalid-id-parity.variables.json"
+    "variablesPath": "config/parity-requests/fulfillmentCreate-invalid-id-parity.variables.json",
+    "variablesCapturePath": "$.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "notes": "First fulfillment-domain increment: a captured `fulfillmentCreate` invalid-fulfillment-order validation slice that the proxy can mirror locally in snapshot mode without inventing successful fulfillment lifecycle semantics yet.",

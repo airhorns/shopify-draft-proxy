@@ -8,7 +8,8 @@
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/fulfillmentCancel-missing-id-parity.graphql",
-    "variablesPath": "config/parity-requests/fulfillmentCancel-missing-id-parity.variables.json"
+    "variablesPath": "config/parity-requests/fulfillmentCancel-missing-id-parity.variables.json",
+    "variablesCapturePath": "$.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "notes": "Captured `fulfillmentCancel` missing-id GraphQL validation slice: omitting the required `$id` variable fails at GraphQL coercion time with `INVALID_VARIABLE`, and snapshot/live-hybrid local parity now mirrors that branch without hitting upstream.",
