@@ -10,7 +10,7 @@
     "variablesCapturePath": "$.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "The first merchant-realistic direct-order creation slice is now live-captured and promoted for the locally supported strict fields: mutation userErrors, note/tags/customAttributes, address scalars, statuses, shipping line, line item basics, and immediate downstream `order(id:)` visibility. Shopify IDs, order name, order email, cost extensions, and currently under-modeled total calculations remain outside this contract until the local order model supports them directly.",
+  "notes": "The direct-order creation slice now exercises the richer locally supported orderCreate surface: options, transactions, tax lines, a fixed discount code, shipping/address/custom-attribute fields, currency/presentment money, one variant-backed line item with inventory bypass, and immediate downstream `order(id:)` visibility. Shopify IDs, order name, and cost extensions remain outside this contract.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -46,6 +46,21 @@
         "proxyPath": "$.data.orderCreate.order.displayFulfillmentStatus"
       },
       {
+        "name": "mutation-total-tax",
+        "capturePath": "$.mutation.response.data.orderCreate.order.totalTaxSet",
+        "proxyPath": "$.data.orderCreate.order.totalTaxSet"
+      },
+      {
+        "name": "mutation-total-discounts",
+        "capturePath": "$.mutation.response.data.orderCreate.order.totalDiscountsSet",
+        "proxyPath": "$.data.orderCreate.order.totalDiscountsSet"
+      },
+      {
+        "name": "mutation-discount-codes",
+        "capturePath": "$.mutation.response.data.orderCreate.order.discountCodes",
+        "proxyPath": "$.data.orderCreate.order.discountCodes"
+      },
+      {
         "name": "mutation-shipping-line-title",
         "capturePath": "$.mutation.response.data.orderCreate.order.shippingLines.nodes[0].title",
         "proxyPath": "$.data.orderCreate.order.shippingLines.nodes[0].title"
@@ -61,6 +76,11 @@
         "proxyPath": "$.data.orderCreate.order.shippingLines.nodes[0].originalPriceSet"
       },
       {
+        "name": "mutation-shipping-line-tax-lines",
+        "capturePath": "$.mutation.response.data.orderCreate.order.shippingLines.nodes[0].taxLines",
+        "proxyPath": "$.data.orderCreate.order.shippingLines.nodes[0].taxLines"
+      },
+      {
         "name": "mutation-line-item-title",
         "capturePath": "$.mutation.response.data.orderCreate.order.lineItems.nodes[0].title",
         "proxyPath": "$.data.orderCreate.order.lineItems.nodes[0].title"
@@ -74,6 +94,16 @@
         "name": "mutation-line-item-sku",
         "capturePath": "$.mutation.response.data.orderCreate.order.lineItems.nodes[0].sku",
         "proxyPath": "$.data.orderCreate.order.lineItems.nodes[0].sku"
+      },
+      {
+        "name": "mutation-line-item-variant-id",
+        "capturePath": "$.mutation.response.data.orderCreate.order.lineItems.nodes[0].variant.id",
+        "proxyPath": "$.data.orderCreate.order.lineItems.nodes[0].variant.id"
+      },
+      {
+        "name": "mutation-line-item-tax-lines",
+        "capturePath": "$.mutation.response.data.orderCreate.order.lineItems.nodes[0].taxLines",
+        "proxyPath": "$.data.orderCreate.order.lineItems.nodes[0].taxLines"
       },
       {
         "name": "downstream-note",
@@ -139,6 +169,58 @@
           }
         },
         "proxyPath": "$.data.order.displayFulfillmentStatus"
+      },
+      {
+        "name": "downstream-total-tax",
+        "capturePath": "$.downstreamRead.response.data.order.totalTaxSet",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orderCreate-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            }
+          }
+        },
+        "proxyPath": "$.data.order.totalTaxSet"
+      },
+      {
+        "name": "downstream-total-discounts",
+        "capturePath": "$.downstreamRead.response.data.order.totalDiscountsSet",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orderCreate-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            }
+          }
+        },
+        "proxyPath": "$.data.order.totalDiscountsSet"
+      },
+      {
+        "name": "downstream-line-item-variant-id",
+        "capturePath": "$.downstreamRead.response.data.order.lineItems.nodes[0].variant.id",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orderCreate-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            }
+          }
+        },
+        "proxyPath": "$.data.order.lineItems.nodes[0].variant.id"
+      },
+      {
+        "name": "downstream-line-item-tax-lines",
+        "capturePath": "$.downstreamRead.response.data.order.lineItems.nodes[0].taxLines",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orderCreate-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            }
+          }
+        },
+        "proxyPath": "$.data.order.lineItems.nodes[0].taxLines"
       },
       {
         "name": "mutation-billingAddress-firstName",

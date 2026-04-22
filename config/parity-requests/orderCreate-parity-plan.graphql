@@ -3,11 +3,13 @@ mutation OrderCreateParityPlan($order: OrderCreateOrderInput!, $options: OrderCr
     order {
       id
       name
+      email
       createdAt
       updatedAt
       displayFinancialStatus
       displayFulfillmentStatus
       canMarkAsPaid
+      paymentGatewayNames
       note
       tags
       customAttributes {
@@ -39,6 +41,10 @@ mutation OrderCreateParityPlan($order: OrderCreateOrderInput!, $options: OrderCr
           amount
           currencyCode
         }
+        presentmentMoney {
+          amount
+          currencyCode
+        }
       }
       currentTotalPriceSet {
         shopMoney {
@@ -52,6 +58,33 @@ mutation OrderCreateParityPlan($order: OrderCreateOrderInput!, $options: OrderCr
           currencyCode
         }
       }
+      totalTaxSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalDiscountsSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      discountCodes
+      discountApplications(first: 5) {
+        nodes {
+          code
+          value {
+            ... on MoneyV2 {
+              amount
+              currencyCode
+            }
+            ... on PricingPercentageValue {
+              percentage
+            }
+          }
+        }
+      }
       customer {
         id
         email
@@ -61,10 +94,21 @@ mutation OrderCreateParityPlan($order: OrderCreateOrderInput!, $options: OrderCr
         nodes {
           title
           code
+          source
           originalPriceSet {
             shopMoney {
               amount
               currencyCode
+            }
+          }
+          taxLines {
+            title
+            rate
+            priceSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
             }
           }
         }
@@ -76,11 +120,39 @@ mutation OrderCreateParityPlan($order: OrderCreateOrderInput!, $options: OrderCr
           quantity
           sku
           variantTitle
+          variant {
+            id
+          }
           originalUnitPriceSet {
             shopMoney {
               amount
               currencyCode
             }
+            presentmentMoney {
+              amount
+              currencyCode
+            }
+          }
+          taxLines {
+            title
+            rate
+            priceSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+            }
+          }
+        }
+      }
+      transactions {
+        kind
+        status
+        gateway
+        amountSet {
+          shopMoney {
+            amount
+            currencyCode
           }
         }
       }
