@@ -2176,9 +2176,9 @@ describe('product draft flow', () => {
         sku: 'HAT-BLUE',
         barcode: '2222222222222',
         price: '26.00',
-        compareAtPrice: null,
-        taxable: null,
-        inventoryPolicy: null,
+        compareAtPrice: '30.00',
+        taxable: true,
+        inventoryPolicy: 'DENY',
         inventoryQuantity: 6,
         inventoryItem: {
           id: expect.stringMatching(/^gid:\/\/shopify\/InventoryItem\//),
