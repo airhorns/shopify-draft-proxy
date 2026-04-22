@@ -14,10 +14,28 @@
   "notes": "Live capture now covers `productVariantsBulkUpdate`. Shopify accepted `inventoryItem.sku` for merchandising updates, rejected `inventoryQuantities` on update in favor of `inventoryAdjustQuantities`, and kept immediate sku-filtered `products` / `productsCount` empty.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-payload",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read",
+        "capturePath": "$.downstreamRead.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/productVariantsBulkUpdate-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productVariantsBulkUpdate.product.id"
+            },
+            "query": "sku:HERMES-BULK-810153-RED"
+          }
+        },
+        "upstreamCapturePath": null,
+        "proxyPath": "$.data"
+      }
+    ]
   }
 }
