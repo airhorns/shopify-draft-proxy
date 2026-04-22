@@ -556,6 +556,36 @@ describe('executeParityScenario', () => {
     ]);
   });
 
+  it('executes the promoted productVariantDelete compatibility scenario against the local proxy harness', async () => {
+    const repoRoot = new URL('../..', import.meta.url).pathname;
+    const paritySpec = JSON.parse(
+      readFileSync(resolve(repoRoot, 'config/parity-specs/productVariantDelete-parity-plan.json'), 'utf8'),
+    ) as Parameters<typeof executeParityScenario>[0]['paritySpec'];
+
+    expect(classifyParityScenarioState({ status: 'captured' }, paritySpec)).toBe('ready-for-comparison');
+
+    const result = await executeParityScenario({
+      repoRoot,
+      scenario: {
+        id: 'product-variant-delete-compatibility-evidence',
+        status: 'captured',
+        captureFiles: [
+          'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-variants-bulk-delete-parity.json',
+          'pending/product-variant-compatibility-live-schema-blocker.md',
+        ],
+      },
+      paritySpec,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.primaryProxyStatus).toBe(200);
+    expect(result.comparisons.map((comparison) => comparison.name)).toEqual([
+      'deleted-variant-id',
+      'user-errors',
+      'downstream-read',
+    ]);
+  });
+
   it('executes the promoted metafieldsSet captured scenario against the local proxy harness', async () => {
     const repoRoot = new URL('../..', import.meta.url).pathname;
     const paritySpec = JSON.parse(
