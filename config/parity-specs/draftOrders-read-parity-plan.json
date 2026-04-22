@@ -12,10 +12,14 @@
   "notes": "The first non-empty Shopify draft-order catalog baseline is now captured on this host, so parity compares the live newest-first catalog window against the proxy's local replay rather than staying blocked on a missing baseline.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "captured draftOrders data",
+        "capturePath": "$.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.response"
+      }
+    ]
   }
 }
