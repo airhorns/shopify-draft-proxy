@@ -1853,11 +1853,15 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     !readStringField(identifier, 'id') &&
     !readStringField(identifier, 'handle') &&
     !readStringField(input, 'id');
+  const productDeletePayloadId = mutationName === 'productDelete' ? readStringField(payload, 'deletedProductId') : null;
+  const isProductDeleteValidationProbe =
+    mutationName === 'productDelete' && productDeletePayloadId !== null && productDeletePayloadId !== productId;
 
   const shouldSeedProduct =
     productId !== null &&
     !(mutationName === 'productCreate' && readStringField(productInput, 'id') === null) &&
-    !isProductSetCreate;
+    !isProductSetCreate &&
+    !isProductDeleteValidationProbe;
 
   if (seedProductDuplicateSource(capture)) {
     return;
