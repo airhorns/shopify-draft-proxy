@@ -12,6 +12,16 @@ export function makeSyntheticGid(resourceType: string): string {
   return `gid://shopify/${resourceType}/${id}`;
 }
 
+export function makeProxySyntheticGid(resourceType: string): string {
+  const id = nextSyntheticId;
+  nextSyntheticId += 1;
+  return `gid://shopify/${resourceType}/${id}?shopify-draft-proxy=synthetic`;
+}
+
+export function isProxySyntheticGid(value: string): boolean {
+  return value.startsWith('gid://shopify/') && value.includes('?shopify-draft-proxy=synthetic');
+}
+
 export function makeSyntheticTimestamp(): string {
   const current = new Date(nextSyntheticTime).toISOString();
   nextSyntheticTime += 1000;
