@@ -19,7 +19,7 @@ function collectOutput(child: ChildProcessWithoutNullStreams): { getOutput: () =
 }
 
 async function runPnpm(args: string[]): Promise<void> {
-  const child = spawn('corepack', ['pnpm', ...args], {
+  const child = spawn('pnpm', [...args], {
     cwd: repoRoot,
     env: process.env,
   });
@@ -80,7 +80,7 @@ function killServerProcess(child: ChildProcessWithoutNullStreams, signal: NodeJS
 }
 
 async function expectLaunchScriptHealth(script: 'dev' | 'start', port: number): Promise<void> {
-  const child = spawn('corepack', ['pnpm', script], {
+  const child = spawn('pnpm', [script], {
     cwd: repoRoot,
     detached: true,
     env: {
