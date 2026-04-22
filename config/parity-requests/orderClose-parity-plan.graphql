@@ -1,0 +1,16 @@
+mutation OrderCloseParityPlan($input: OrderCloseInput!) {
+  orderClose(input: $input) {
+    order {
+      id
+      name
+      closedAt
+      displayFinancialStatus
+      displayFulfillmentStatus
+      canMarkAsPaid
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "scenarioId": "tax-summary-create-live-parity",
+  "operationNames": ["taxSummaryCreate"],
+  "scenarioStatus": "planned",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "side-effect-safety"],
+  "liveCaptureFiles": [],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/taxSummaryCreate-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/taxSummaryCreate-parity-plan.variables.json"
+  },
+  "comparisonMode": "planned",
+  "blocker": {
+    "kind": "missing-live-tax-summary-create-capture",
+    "blockerPath": "pending/order-lifecycle-payment-customer-conformance-blocker.md",
+    "details": {
+      "requiredScopes": ["write_taxes"],
+      "probeRoots": ["taxSummaryCreate"],
+      "blockedMutations": ["taxSummaryCreate"],
+      "docsUrl": "https://shopify.dev/docs/api/admin-graphql/latest/mutations/taxSummaryCreate",
+      "safeProbe": "Use the parity request against gid://shopify/Order/0 first so Shopify returns validation/userErrors without enqueuing a real tax-summary job.",
+      "mustRemainUnsupportedUntilModeled": "This root can enqueue tax-summary work and depends on tax-service semantics, so it should stay explicit unsupported passthrough until fixture-backed queue/result behavior is known."
+    }
+  },
+  "notes": "Planned tax-summary parity for `taxSummaryCreate`. This root is not locally supported yet and should not be promoted to local staging until safe validation and happy-path enqueue semantics are captured."
+}

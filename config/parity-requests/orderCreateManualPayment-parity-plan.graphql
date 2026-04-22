@@ -1,0 +1,32 @@
+mutation OrderCreateManualPaymentParityPlan(
+  $id: ID!
+  $amount: MoneyInput!
+  $paymentMethodName: String!
+  $processedAt: DateTime
+) {
+  orderCreateManualPayment(id: $id, amount: $amount, paymentMethodName: $paymentMethodName, processedAt: $processedAt) {
+    order {
+      id
+      name
+      displayFinancialStatus
+      canMarkAsPaid
+      transactions(first: 5) {
+        id
+        kind
+        status
+        gateway
+        createdAt
+        amountSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

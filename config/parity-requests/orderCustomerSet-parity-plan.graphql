@@ -1,0 +1,17 @@
+mutation OrderCustomerSetParityPlan($orderId: ID!, $customerId: ID!) {
+  orderCustomerSet(orderId: $orderId, customerId: $customerId) {
+    order {
+      id
+      name
+      customer {
+        id
+        email
+        displayName
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

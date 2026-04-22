@@ -495,6 +495,87 @@
     "runtimeTests": ["tests/integration/order-draft-flow.test.ts", "tests/integration/order-edit-flow.test.ts"]
   },
   {
+    "name": "orderClose",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["orderClose", "OrderClose"],
+    "runtimeTests": []
+  },
+  {
+    "name": "orderOpen",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["orderOpen", "OrderOpen"],
+    "runtimeTests": []
+  },
+  {
+    "name": "orderMarkAsPaid",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["orderMarkAsPaid", "OrderMarkAsPaid"],
+    "runtimeTests": []
+  },
+  {
+    "name": "orderCreateManualPayment",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["orderCreateManualPayment", "OrderCreateManualPayment"],
+    "runtimeTests": []
+  },
+  {
+    "name": "orderCustomerSet",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["orderCustomerSet", "OrderCustomerSet"],
+    "runtimeTests": []
+  },
+  {
+    "name": "orderCustomerRemove",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["orderCustomerRemove", "OrderCustomerRemove"],
+    "runtimeTests": []
+  },
+  {
+    "name": "orderInvoiceSend",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["orderInvoiceSend", "OrderInvoiceSend"],
+    "runtimeTests": []
+  },
+  {
+    "name": "taxSummaryCreate",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["taxSummaryCreate", "TaxSummaryCreate"],
+    "runtimeTests": []
+  },
+  {
+    "name": "orderCancel",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["orderCancel", "OrderCancel"],
+    "runtimeTests": []
+  },
+  {
     "name": "fulfillmentCreate",
     "type": "mutation",
     "domain": "orders",

@@ -1,0 +1,25 @@
+{
+  "scenarioId": "order-cancel-live-parity",
+  "operationNames": ["orderCancel"],
+  "scenarioStatus": "planned",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "side-effect-safety"],
+  "liveCaptureFiles": [],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orderCancel-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/orderCancel-parity-plan.variables.json"
+  },
+  "comparisonMode": "planned",
+  "blocker": {
+    "kind": "missing-live-order-cancel-capture",
+    "blockerPath": "pending/order-lifecycle-payment-customer-conformance-blocker.md",
+    "details": {
+      "requiredScopes": ["write_orders"],
+      "probeRoots": ["orderCancel"],
+      "blockedMutations": ["orderCancel"],
+      "docsUrl": "https://shopify.dev/docs/api/admin-graphql/latest/mutations/orderCancel",
+      "safeProbe": "Use the parity request against gid://shopify/Order/0 with notifyCustomer false and restock false first so Shopify returns validation/userErrors without canceling, restocking, refunding, or emailing for a merchant order.",
+      "mustRemainUnsupportedUntilModeled": "Happy-path cancellation is irreversible and can affect refunds, inventory, fulfillment, and notifications. Local support should be limited to disposable/synthetic orders until fixture-backed semantics and guardrails are clear."
+    }
+  },
+  "notes": "Planned cancellation parity for `orderCancel`. This root is not locally supported yet and must remain an explicit unsupported passthrough until safe validation and disposable-order happy-path evidence exists."
+}

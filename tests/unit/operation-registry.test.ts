@@ -22,4 +22,30 @@ describe('operation registry', () => {
     expect(executions.has('overlay-read')).toBe(true);
     expect(executions.has('stage-locally')).toBe(true);
   });
+
+  it('declares HAR-120 order management roots as explicit unsupported passthroughs', () => {
+    const registry = listOperationRegistryEntries();
+    const plannedRoots = [
+      'orderClose',
+      'orderOpen',
+      'orderMarkAsPaid',
+      'orderCreateManualPayment',
+      'orderCustomerSet',
+      'orderCustomerRemove',
+      'orderInvoiceSend',
+      'taxSummaryCreate',
+      'orderCancel',
+    ];
+
+    for (const name of plannedRoots) {
+      expect(registry.find((entry) => entry.name === name)).toMatchObject({
+        name,
+        type: 'mutation',
+        domain: 'orders',
+        execution: 'passthrough',
+        implemented: false,
+        runtimeTests: [],
+      });
+    }
+  });
 });

@@ -1,0 +1,16 @@
+mutation OrderOpenParityPlan($input: OrderOpenInput!) {
+  orderOpen(input: $input) {
+    order {
+      id
+      name
+      closedAt
+      displayFinancialStatus
+      displayFulfillmentStatus
+      canMarkAsPaid
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

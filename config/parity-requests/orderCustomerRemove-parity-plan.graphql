@@ -1,0 +1,17 @@
+mutation OrderCustomerRemoveParityPlan($orderId: ID!) {
+  orderCustomerRemove(orderId: $orderId) {
+    order {
+      id
+      name
+      customer {
+        id
+        email
+        displayName
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

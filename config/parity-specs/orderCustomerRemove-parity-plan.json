@@ -1,0 +1,25 @@
+{
+  "scenarioId": "order-customer-remove-live-parity",
+  "operationNames": ["orderCustomerRemove"],
+  "scenarioStatus": "planned",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "side-effect-safety"],
+  "liveCaptureFiles": [],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orderCustomerRemove-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/orderCustomerRemove-parity-plan.variables.json"
+  },
+  "comparisonMode": "planned",
+  "blocker": {
+    "kind": "missing-live-order-customer-remove-capture",
+    "blockerPath": "pending/order-lifecycle-payment-customer-conformance-blocker.md",
+    "details": {
+      "requiredScopes": ["write_orders"],
+      "probeRoots": ["orderCustomerRemove"],
+      "blockedMutations": ["orderCustomerRemove"],
+      "docsUrl": "https://shopify.dev/docs/api/admin-graphql/latest/mutations/orderCustomerRemove",
+      "safeProbe": "Use the parity request against gid://shopify/Order/0 first so Shopify returns validation/userErrors without changing a merchant order's customer.",
+      "localStagingCandidate": "Can be locally staged after fixture-backed semantics by clearing the local order customer edge and preserving customer catalog/read behavior."
+    }
+  },
+  "notes": "Planned customer-association parity for `orderCustomerRemove`. This root is not locally supported yet; it remains an explicit unsupported passthrough registry entry until validation and downstream order/customer read semantics are captured."
+}

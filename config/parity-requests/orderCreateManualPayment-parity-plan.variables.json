@@ -1,0 +1,9 @@
+{
+  "id": "gid://shopify/Order/0",
+  "amount": {
+    "amount": "1.00",
+    "currencyCode": "USD"
+  },
+  "paymentMethodName": "HAR-120 safe validation probe",
+  "processedAt": "2026-04-22T00:00:00Z"
+}

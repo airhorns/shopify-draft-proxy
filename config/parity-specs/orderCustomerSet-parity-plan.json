@@ -1,0 +1,25 @@
+{
+  "scenarioId": "order-customer-set-live-parity",
+  "operationNames": ["orderCustomerSet"],
+  "scenarioStatus": "planned",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "side-effect-safety"],
+  "liveCaptureFiles": [],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orderCustomerSet-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/orderCustomerSet-parity-plan.variables.json"
+  },
+  "comparisonMode": "planned",
+  "blocker": {
+    "kind": "missing-live-order-customer-set-capture",
+    "blockerPath": "pending/order-lifecycle-payment-customer-conformance-blocker.md",
+    "details": {
+      "requiredScopes": ["write_orders", "write_customers"],
+      "probeRoots": ["orderCustomerSet"],
+      "blockedMutations": ["orderCustomerSet"],
+      "docsUrl": "https://shopify.dev/docs/api/admin-graphql/latest/mutations/orderCustomerSet",
+      "safeProbe": "Use the parity request against gid://shopify/Order/0 and gid://shopify/Customer/0 first so Shopify returns validation/userErrors without changing a merchant order's customer.",
+      "localStagingCandidate": "Can be locally staged after fixture-backed semantics by changing the local order customer edge and preserving customer catalog/read behavior."
+    }
+  },
+  "notes": "Planned customer-association parity for `orderCustomerSet`. This root is not locally supported yet; it remains an explicit unsupported passthrough registry entry until validation and downstream order/customer read semantics are captured."
+}

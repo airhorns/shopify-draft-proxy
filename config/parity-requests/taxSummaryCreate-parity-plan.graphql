@@ -1,0 +1,12 @@
+mutation TaxSummaryCreateParityPlan($orderId: ID, $startTime: DateTime, $endTime: DateTime) {
+  taxSummaryCreate(orderId: $orderId, startTime: $startTime, endTime: $endTime) {
+    enqueuedOrders {
+      id
+      name
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
