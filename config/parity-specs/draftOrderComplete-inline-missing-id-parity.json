@@ -8,16 +8,25 @@
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/draftOrderComplete-inline-missing-id-parity.graphql",
-    "variablesPath": "config/parity-requests/draftOrderComplete-inline-missing-id-parity.variables.json"
+    "variablesPath": "config/parity-requests/draftOrderComplete-inline-missing-id-parity.variables.json",
+    "variablesCapturePath": "$.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "notes": "Captured `draftOrderComplete` inline missing-argument GraphQL validation slice: omitting the inline `id` argument fails with `missingRequiredArguments`, and local parity now mirrors that branch without hitting upstream while the happy-path completion flow remains blocked on live access and mark-as-paid/set-payment-terms permission.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "top-level-error-message",
+        "capturePath": "$.mutation.response.errors[0].message",
+        "proxyPath": "$.errors[0].message"
+      },
+      {
+        "name": "top-level-error-extensions",
+        "capturePath": "$.mutation.response.errors[0].extensions",
+        "proxyPath": "$.errors[0].extensions"
+      }
+    ]
   }
 }
