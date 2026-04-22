@@ -610,6 +610,12 @@ function makeProductRecord(input: Record<string, unknown>, existing?: ProductRec
   };
 }
 
+function makeSyntheticOnlineStorePreviewUrl(product: Pick<ProductRecord, 'id' | 'handle'>): string {
+  return `https://shopify-draft-proxy.local/products_preview?product_id=${encodeURIComponent(
+    product.id,
+  )}&handle=${encodeURIComponent(product.handle)}`;
+}
+
 function makeCollectionRecord(input: Record<string, unknown>, existing?: CollectionRecord): CollectionRecord {
   const rawTitle = input['title'];
   const title = typeof rawTitle === 'string' && rawTitle.trim() ? rawTitle : (existing?.title ?? 'Untitled collection');
@@ -1202,6 +1208,17 @@ function readVariantSku(input: Record<string, unknown>, fallback: string | null)
 
 const DEFAULT_INVENTORY_LEVEL_LOCATION_ID = 'gid://shopify/Location/1';
 
+function makeDefaultInventoryItemMeasurement(): NonNullable<
+  NonNullable<ProductVariantRecord['inventoryItem']>['measurement']
+> {
+  return {
+    weight: {
+      unit: 'KILOGRAMS',
+      value: 0,
+    },
+  };
+}
+
 function normalizeInventoryLevelRecords(raw: unknown): InventoryLevelRecord[] | null {
   if (!isObject(raw)) {
     return null;
@@ -1341,6 +1358,22 @@ function makeCreatedVariantRecord(productId: string, input: Record<string, unkno
     inventoryQuantity: readVariantInventoryQuantity(input, null),
     selectedOptions,
     inventoryItem: readInventoryItemInput(input['inventoryItem'], null),
+  };
+}
+
+function makeCreatedProductSetVariantRecord(productId: string, input: Record<string, unknown>): ProductVariantRecord {
+  const variant = makeCreatedVariantRecord(productId, input);
+
+  return {
+    ...variant,
+    taxable: variant.taxable ?? true,
+    inventoryPolicy: variant.inventoryPolicy ?? 'DENY',
+    inventoryItem: variant.inventoryItem
+      ? {
+          ...variant.inventoryItem,
+          measurement: variant.inventoryItem.measurement ?? makeDefaultInventoryItemMeasurement(),
+        }
+      : null,
   };
 }
 
@@ -2413,7 +2446,9 @@ function buildProductSetVariantRecords(productId: string, rawVariants: unknown):
       const normalized = normalizeProductSetVariantInput(value);
       const rawId = normalized['id'];
       const existing = typeof rawId === 'string' ? (existingVariantsById.get(rawId) ?? null) : null;
-      return existing ? updateVariantRecord(existing, normalized) : makeCreatedVariantRecord(productId, normalized);
+      return existing
+        ? updateVariantRecord(existing, normalized)
+        : makeCreatedProductSetVariantRecord(productId, normalized);
     });
 }
 
@@ -5969,8 +6004,10 @@ export function handleProductMutation(
         (identifierId ? store.getEffectiveProductById(identifierId) : null) ??
         (inputId ? store.getEffectiveProductById(inputId) : null) ??
         (identifierHandle ? findEffectiveProductByHandle(identifierHandle) : null);
+      const productInput =
+        !existing && !hasOwnField(input, 'descriptionHtml') ? { ...input, descriptionHtml: '' } : input;
       const preparedInput = prepareProductInputWithResolvedHandle(
-        existing ? { ...input, id: existing.id } : input,
+        existing ? { ...productInput, id: existing.id } : productInput,
         existing ?? undefined,
       );
       if (preparedInput.error) {
@@ -5985,9 +6022,14 @@ export function handleProductMutation(
         };
       }
 
+      const productRecord = makeProductRecord(preparedInput.input, existing ?? undefined);
       const stagedProduct = existing
-        ? store.stageUpdateProduct(makeProductRecord(preparedInput.input, existing))
-        : store.stageCreateProduct(makeProductRecord(preparedInput.input));
+        ? store.stageUpdateProduct(productRecord)
+        : store.stageCreateProduct({
+            ...productRecord,
+            onlineStorePreviewUrl:
+              productRecord.onlineStorePreviewUrl ?? makeSyntheticOnlineStorePreviewUrl(productRecord),
+          });
       const productId = stagedProduct.id;
 
       if (hasOwnField(input, 'productOptions')) {
