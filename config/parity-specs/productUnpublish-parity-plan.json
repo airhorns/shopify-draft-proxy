@@ -6,16 +6,19 @@
   "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-unpublish-parity.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/productUnpublish-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/productUnpublish-parity-plan.variables.json"
+    "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Minimal live `productUnpublish` mutation payload capture now succeeds against a real publication id on this host, so this parity spec tracks the ready-for-comparison minimal live payload slice (`userErrors` + successful mutation execution) separately from the still-blocked aggregate publication fields.",
+  "notes": "Minimal live `productUnpublish` mutation payload capture now succeeds against a real publication id on this host, so this parity spec executes the ready-for-comparison minimal live payload slice (`userErrors` + successful mutation execution) separately from the still-blocked aggregate publication fields.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "minimal mutation payload",
+        "capturePath": "$.mutation.response.data.productUnpublish",
+        "proxyPath": "$.data.productUnpublish"
+      }
+    ]
   }
 }

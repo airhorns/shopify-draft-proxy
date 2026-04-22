@@ -7,7 +7,7 @@ Attempted to capture live conformance for the staged product publication family 
 - safe `productPublish` / `productUnpublish` mutation payloads now capture successfully
 - Shopify accepted a real publication target id during the successful safe mutation captures: `gid://shopify/Publication/82090459369`
 - `productPublish` can therefore be promoted to covered parity for the successful live payload slice (`product { id }` plus `userErrors`)
-- `productUnpublish` remains tracked by its own captured minimal payload slice until that operation is promoted separately
+- `productUnpublish` has an executable strict-json proxy parity target for that minimal captured payload, using the checked-in safe live fixture variables
 
 ## Remaining field-level blocker
 

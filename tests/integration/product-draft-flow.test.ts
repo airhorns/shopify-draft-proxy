@@ -1770,6 +1770,40 @@ describe('product draft flow', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
+  it('matches minimal productUnpublish payload selections without leaking unselected product fields', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('productUnpublish should stage locally without upstream fetches');
+    });
+
+    const app = createApp(config).callback();
+
+    const createResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Minimal Unpublish Hat", status: DRAFT }) { product { id } userErrors { field message } } }',
+    });
+
+    const productId = createResponse.body.data.productCreate.product.id as string;
+
+    const unpublishResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation Unpublish($input: ProductUnpublishInput!) { productUnpublish(input: $input) { userErrors { field message } } }',
+        variables: {
+          input: {
+            id: productId,
+            productPublications: [{ publicationId: 'gid://shopify/Publication/1' }],
+          },
+        },
+      });
+
+    expect(unpublishResponse.status).toBe(200);
+    expect(unpublishResponse.body.data.productUnpublish).toEqual({
+      userErrors: [],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('overlays publication reads onto hydrated products and validates missing publish input ids', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       return new Response(

@@ -17,6 +17,7 @@ export function loadNormalizedStateSnapshot(snapshotPath: string): NormalizedSta
     return {
       kind: 'normalized-state-snapshot',
       baseState: rawStateSnapshot.data,
+      productSearchConnections: {},
       customerCatalogConnection: null,
       customerSearchConnections: {},
     };
@@ -30,6 +31,7 @@ export function loadNormalizedStateSnapshot(snapshotPath: string): NormalizedSta
   return {
     kind: 'normalized-state-snapshot',
     baseState: snapshotFile.data.baseState,
+    productSearchConnections: snapshotFile.data.productSearchConnections ?? {},
     customerCatalogConnection: snapshotFile.data.customerCatalogConnection ?? null,
     customerSearchConnections: snapshotFile.data.customerSearchConnections ?? {},
   };
