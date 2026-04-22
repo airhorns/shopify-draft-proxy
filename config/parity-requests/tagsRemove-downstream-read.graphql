@@ -1,0 +1,25 @@
+query TagsRemoveDownstreamRead($id: ID!, $remainingQuery: String!, $removedQuery: String!) {
+  product(id: $id) {
+    id
+    tags
+  }
+  remaining: products(first: 10, query: $remainingQuery) {
+    nodes {
+      id
+      tags
+    }
+  }
+  removed: products(first: 10, query: $removedQuery) {
+    nodes {
+      id
+    }
+  }
+  remainingCount: productsCount(query: $remainingQuery) {
+    count
+    precision
+  }
+  removedCount: productsCount(query: $removedQuery) {
+    count
+    precision
+  }
+}

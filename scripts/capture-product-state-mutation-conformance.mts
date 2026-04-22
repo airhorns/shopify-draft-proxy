@@ -304,11 +304,12 @@ try {
   const postTagsAddDelayedRead = await runGraphql(postTagsAddReadQuery, tagsAddDownstreamReadVariables);
 
   tagsRemoveResponse = await runGraphql(tagsRemoveMutation, tagsRemoveVariables);
-  const postTagsRemoveRead = await runGraphql(postTagsRemoveReadQuery, {
+  const tagsRemoveDownstreamReadVariables = {
     id: createdProductId,
     remainingQuery: `tag:${uniqueSummerTag}`,
     removedQuery: `tag:${uniqueSaleTag}`,
-  });
+  };
+  const postTagsRemoveRead = await runGraphql(postTagsRemoveReadQuery, tagsRemoveDownstreamReadVariables);
 
   const captures = {
     'product-change-status-parity.json': {
@@ -346,6 +347,7 @@ try {
         variables: tagsRemoveVariables,
         response: tagsRemoveResponse,
       },
+      downstreamReadVariables: tagsRemoveDownstreamReadVariables,
       downstreamRead: postTagsRemoveRead,
     },
   };
