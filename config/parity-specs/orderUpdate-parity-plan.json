@@ -6,16 +6,20 @@
   "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-update-unknown-id.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/orderUpdate-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/orderUpdate-parity-plan.variables.json"
+    "variablesPath": "config/parity-requests/orderUpdate-parity-plan.variables.json",
+    "variablesCapturePath": "$.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "notes": "First safe order-editing increment: a captured `orderUpdate` unknown-id validation slice that the proxy can mirror locally in snapshot mode without inventing merchant-visible non-empty order editing semantics yet.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      }
+    ]
   }
 }
