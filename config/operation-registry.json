@@ -531,6 +531,15 @@
     "runtimeTests": ["tests/integration/order-creation-flow.test.ts"]
   },
   {
+    "name": "refundCreate",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["refundCreate", "RefundCreate"],
+    "runtimeTests": ["tests/integration/order-refund-flow.test.ts"]
+  },
+  {
     "name": "draftOrder",
     "type": "query",
     "domain": "orders",

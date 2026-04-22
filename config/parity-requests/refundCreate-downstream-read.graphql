@@ -1,0 +1,48 @@
+query OrderRefundReadParity($id: ID!) {
+  order(id: $id) {
+    id
+    name
+    displayFinancialStatus
+    displayFulfillmentStatus
+    refunds {
+      id
+      note
+      totalRefundedSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    returns(first: 5) {
+      nodes {
+        id
+        status
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    transactions {
+      id
+      kind
+      status
+      gateway
+      amountSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    totalRefundedSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+  }
+}

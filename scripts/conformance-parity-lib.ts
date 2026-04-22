@@ -775,6 +775,11 @@ function readCapturedOrderShippingLines(order: Record<string, unknown> | null): 
 
 function makeSeedOrder(orderId: string, source: Record<string, unknown> | null = null): OrderRecord {
   const now = '2026-04-19T00:00:00.000Z';
+  const totalPriceSet = readMoneySetField(source, 'totalPriceSet');
+  const currentTotalPriceSet = readMoneySetField(source, 'currentTotalPriceSet');
+  const subtotalPriceSet = readMoneySetField(source, 'subtotalPriceSet');
+  const currencyCode = totalPriceSet?.shopMoney.currencyCode ?? currentTotalPriceSet?.shopMoney.currencyCode ?? 'CAD';
+
   return {
     id: orderId,
     name: readStringField(source, 'name') ?? '#1',
@@ -793,12 +798,21 @@ function makeSeedOrder(orderId: string, source: Record<string, unknown> | null =
       .filter((attribute) => attribute.key.length > 0),
     billingAddress: readCapturedAddress(source, 'billingAddress'),
     shippingAddress: readCapturedAddress(source, 'shippingAddress'),
-    subtotalPriceSet: readMoneySetField(source, 'subtotalPriceSet'),
-    currentTotalPriceSet: readMoneySetField(source, 'currentTotalPriceSet'),
-    totalPriceSet: readMoneySetField(source, 'totalPriceSet'),
+    subtotalPriceSet,
+    currentTotalPriceSet,
+    totalPriceSet,
+    totalRefundedSet: {
+      shopMoney: {
+        amount: '0.0',
+        currencyCode,
+      },
+    },
     customer: null,
     shippingLines: readCapturedOrderShippingLines(source),
     lineItems: readCapturedOrderLineItems(source),
+    transactions: [],
+    refunds: [],
+    returns: [],
   };
 }
 
@@ -1581,6 +1595,34 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       );
       const downstreamSource = readRecordField(downstreamOrder, 'order');
       const seedSource = orderPayload ?? downstreamSource;
+      if (seedSource) {
+        store.upsertBaseOrders([makeSeedOrder(orderId, seedSource)]);
+      }
+    }
+    return;
+  }
+
+  if (mutationName === 'refundCreate') {
+    const input = readRecordField(variables, 'input');
+    const orderId = readStringField(input, 'orderId');
+    if (orderId) {
+      const setupOrder = readRecordField(
+        readRecordField(
+          readRecordField(
+            readRecordField(readRecordField(capture as Record<string, unknown>, 'setup'), 'orderCreate'),
+            'response',
+          ),
+          'data',
+        ),
+        'orderCreate',
+      );
+      const orderCreateSource = readRecordField(setupOrder, 'order');
+      const downstreamOrder = readRecordField(
+        readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'response'),
+        'data',
+      );
+      const downstreamSource = readRecordField(downstreamOrder, 'order');
+      const seedSource = orderCreateSource ?? downstreamSource;
       if (seedSource) {
         store.upsertBaseOrders([makeSeedOrder(orderId, seedSource)]);
       }
