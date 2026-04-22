@@ -954,6 +954,31 @@ describe('product draft flow', () => {
       precision: 'EXACT',
     });
 
+    store.markTagSearchLagged(productId, 0);
+    const delayedQueryResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query TaggedReads($id: ID!) { product(id: $id) { id tags } products(first: 10, query: "tag:hermes-sale-live") { nodes { id tags } } productsCount(query: "tag:hermes-sale-live") { count precision } }',
+        variables: { id: productId },
+      });
+
+    expect(delayedQueryResponse.status).toBe(200);
+    expect(delayedQueryResponse.body.data.product).toEqual({
+      id: productId,
+      tags: ['existing', 'hermes-sale-live', 'hermes-summer-live'],
+    });
+    expect(delayedQueryResponse.body.data.products.nodes).toEqual([
+      {
+        id: productId,
+        tags: ['existing', 'hermes-sale-live', 'hermes-summer-live'],
+      },
+    ]);
+    expect(delayedQueryResponse.body.data.productsCount).toEqual({
+      count: 1,
+      precision: 'EXACT',
+    });
+
     const removeTagsResponse = await request(app)
       .post('/admin/api/2025-01/graphql.json')
       .send({
@@ -972,6 +997,7 @@ describe('product draft flow', () => {
       tags: ['existing', 'hermes-summer-live'],
     });
 
+    store.markTagSearchLagged(productId);
     const filteredResponse = await request(app)
       .post('/admin/api/2025-01/graphql.json')
       .send({
@@ -995,7 +1021,7 @@ describe('product draft flow', () => {
       count: 0,
       precision: 'EXACT',
     });
-    expect(fetchSpy).toHaveBeenCalledTimes(3);
+    expect(fetchSpy).toHaveBeenCalledTimes(4);
   });
 
   it('stages tagsRemove locally for hydrated product resources and keeps tag-filtered reads aligned', async () => {

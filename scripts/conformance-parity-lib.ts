@@ -549,6 +549,12 @@ function materializeVariables(rawVariables: unknown, primaryProxyResponse: unkno
   return isPlainObject(materialized) ? materialized : {};
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 async function executeGraphQLAgainstLocalProxy(
   document: string,
   variables: Record<string, unknown>,
@@ -1394,6 +1400,9 @@ export async function executeParityScenario({
     let proxyResponseBody: unknown = primaryProxyResponse.body;
 
     if (target.proxyRequest?.documentPath) {
+      if (typeof target.proxyRequest.waitBeforeMs === 'number' && target.proxyRequest.waitBeforeMs > 0) {
+        await sleep(target.proxyRequest.waitBeforeMs);
+      }
       const document = readTextFile(repoRoot, target.proxyRequest.documentPath);
       const variables = readRequestVariables(repoRoot, target.proxyRequest, capture, primaryProxyResponse.body);
       const upstreamPayload =

@@ -24,6 +24,13 @@ const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, api
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
 const pendingDir = 'pending';
 const blockerPath = path.join(pendingDir, 'product-state-mutation-conformance-scope-blocker.md');
+const tagSearchIndexWaitMs = 10_000;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
 
 async function postGraphql(query, variables = {}) {
   const response = await fetch(`${adminOrigin}/admin/api/${apiVersion}/graphql.json`, {
@@ -288,10 +295,13 @@ try {
   });
 
   tagsAddResponse = await runGraphql(tagsAddMutation, tagsAddVariables);
-  const postTagsAddRead = await runGraphql(postTagsAddReadQuery, {
+  const tagsAddDownstreamReadVariables = {
     id: createdProductId,
     query: `tag:${uniqueSaleTag}`,
-  });
+  };
+  const postTagsAddRead = await runGraphql(postTagsAddReadQuery, tagsAddDownstreamReadVariables);
+  await sleep(tagSearchIndexWaitMs);
+  const postTagsAddDelayedRead = await runGraphql(postTagsAddReadQuery, tagsAddDownstreamReadVariables);
 
   tagsRemoveResponse = await runGraphql(tagsRemoveMutation, tagsRemoveVariables);
   const postTagsRemoveRead = await runGraphql(postTagsRemoveReadQuery, {
@@ -323,7 +333,13 @@ try {
         variables: tagsAddVariables,
         response: tagsAddResponse,
       },
+      downstreamReadVariables: tagsAddDownstreamReadVariables,
       downstreamRead: postTagsAddRead,
+      delayedDownstreamRead: {
+        waitMs: tagSearchIndexWaitMs,
+        variables: tagsAddDownstreamReadVariables,
+        response: postTagsAddDelayedRead,
+      },
     },
     'tags-remove-parity.json': {
       mutation: {
