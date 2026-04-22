@@ -1,0 +1,40 @@
+query ProductVariantsBulkUpdateDownstreamRead($id: ID!, $query: String!) {
+  product(id: $id) {
+    id
+    totalInventory
+    tracksInventory
+    variants(first: 10) {
+      nodes {
+        id
+        title
+        sku
+        barcode
+        price
+        compareAtPrice
+        taxable
+        inventoryPolicy
+        inventoryQuantity
+        selectedOptions {
+          name
+          value
+        }
+        inventoryItem {
+          id
+          tracked
+          requiresShipping
+        }
+      }
+    }
+  }
+  products(first: 10, query: $query) {
+    nodes {
+      id
+      totalInventory
+      tracksInventory
+    }
+  }
+  skuCount: productsCount(query: $query) {
+    count
+    precision
+  }
+}
