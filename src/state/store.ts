@@ -215,7 +215,7 @@ export class InMemoryStore {
   private mutationLog: MutationLogEntry[] = [];
   private stagedCollectionFamilies = new Set<string>();
   private stagedMediaFamilies = new Set<string>();
-  private laggedTagSearchProductIds = new Set<string>();
+  private laggedTagSearchProductIds = new Map<string, number>();
   private laggedVariantSearchProductIds = new Set<string>();
   private baseProductSearchConnections: Record<string, ProductCatalogConnectionRecord> = {};
   private baseCustomerCatalogConnection: CustomerCatalogConnectionRecord | null = null;
@@ -242,7 +242,7 @@ export class InMemoryStore {
     this.mutationLog = [];
     this.stagedCollectionFamilies = new Set<string>();
     this.stagedMediaFamilies = new Set<string>();
-    this.laggedTagSearchProductIds = new Set<string>();
+    this.laggedTagSearchProductIds = new Map<string, number>();
     this.laggedVariantSearchProductIds = new Set<string>();
     this.baseProductSearchConnections = structuredClone(this.initialProductSearchConnections);
     this.baseCustomerCatalogConnection = this.initialCustomerCatalogConnection
@@ -713,12 +713,20 @@ export class InMemoryStore {
     return baseProduct ? structuredClone(baseProduct) : null;
   }
 
-  markTagSearchLagged(productId: string): void {
-    this.laggedTagSearchProductIds.add(productId);
+  markTagSearchLagged(productId: string, lagMs = 10_000): void {
+    this.laggedTagSearchProductIds.set(productId, Date.now() + lagMs);
   }
 
   isTagSearchLagged(productId: string): boolean {
-    return this.laggedTagSearchProductIds.has(productId);
+    const lagExpiresAt = this.laggedTagSearchProductIds.get(productId);
+    if (lagExpiresAt === undefined) {
+      return false;
+    }
+    if (Date.now() < lagExpiresAt) {
+      return true;
+    }
+    this.laggedTagSearchProductIds.delete(productId);
+    return false;
   }
 
   markVariantSearchLagged(productId: string): void {
