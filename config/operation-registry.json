@@ -495,6 +495,87 @@
     "runtimeTests": ["tests/integration/order-draft-flow.test.ts", "tests/integration/order-edit-flow.test.ts"]
   },
   {
+    "name": "orderClose",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["orderClose", "OrderClose"],
+    "runtimeTests": ["tests/integration/order-lifecycle-payment-customer-flow.test.ts"]
+  },
+  {
+    "name": "orderOpen",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["orderOpen", "OrderOpen"],
+    "runtimeTests": ["tests/integration/order-lifecycle-payment-customer-flow.test.ts"]
+  },
+  {
+    "name": "orderMarkAsPaid",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["orderMarkAsPaid", "OrderMarkAsPaid"],
+    "runtimeTests": ["tests/integration/order-lifecycle-payment-customer-flow.test.ts"]
+  },
+  {
+    "name": "orderCreateManualPayment",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["orderCreateManualPayment", "OrderCreateManualPayment"],
+    "runtimeTests": ["tests/integration/order-lifecycle-payment-customer-flow.test.ts"]
+  },
+  {
+    "name": "orderCustomerSet",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["orderCustomerSet", "OrderCustomerSet"],
+    "runtimeTests": ["tests/integration/order-lifecycle-payment-customer-flow.test.ts"]
+  },
+  {
+    "name": "orderCustomerRemove",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["orderCustomerRemove", "OrderCustomerRemove"],
+    "runtimeTests": ["tests/integration/order-lifecycle-payment-customer-flow.test.ts"]
+  },
+  {
+    "name": "orderInvoiceSend",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["orderInvoiceSend", "OrderInvoiceSend"],
+    "runtimeTests": ["tests/integration/order-lifecycle-payment-customer-flow.test.ts"]
+  },
+  {
+    "name": "taxSummaryCreate",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["taxSummaryCreate", "TaxSummaryCreate"],
+    "runtimeTests": ["tests/integration/order-lifecycle-payment-customer-flow.test.ts"]
+  },
+  {
+    "name": "orderCancel",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["orderCancel", "OrderCancel"],
+    "runtimeTests": ["tests/integration/order-lifecycle-payment-customer-flow.test.ts"]
+  },
+  {
     "name": "fulfillmentCreate",
     "type": "mutation",
     "domain": "orders",

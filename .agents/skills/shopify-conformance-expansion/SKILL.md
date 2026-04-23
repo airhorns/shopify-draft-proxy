@@ -30,11 +30,12 @@ If a behavior is surprising or underspecified, do not guess forever — add a co
 3. Use Linear for operation/project tracking; do not recreate `docs/shopify-admin-worklist.md`.
 4. Identify the root operation and whether it is already implemented in `config/operation-registry.json`.
 5. Add or update runtime tests for proxy behavior before relying on parity evidence.
-6. Add or update exactly one parity spec for each scenario under `config/parity-specs/`.
+6. Add or update exactly one captured, working parity spec for each scenario under `config/parity-specs/`.
 7. Add proxy replay files under `config/parity-requests/` when the scenario can be replayed locally.
 8. Add live captures under `fixtures/conformance/<store-domain>/<api-version>/` only when credentials and store safety allow it.
 9. Make sure every root operation in the parity spec's `operationNames` exists in `config/operation-registry.json`.
 10. Add new helper scripts as TypeScript and run them with `tsx` or an equivalent TypeScript runner.
+11. Do not add new planned-only or blocked-only parity specs. If a scenario cannot be captured and replayed as working evidence in the current task, document the gap in Linear/workpad notes instead of adding repository scenario files.
 
 ## Live-store setup
 
@@ -193,9 +194,9 @@ Each parity spec must carry the scenario metadata:
 
 - `scenarioId`: stable id for this parity scenario.
 - `operationNames`: root Shopify operations covered by the scenario.
-- `scenarioStatus`: `planned` until live capture exists, then `captured`.
+- `scenarioStatus`: `captured`; new planned-only or blocked-only specs are not acceptable.
 - `assertionKinds`: what confidence the scenario builds, such as `payload-shape`, `user-errors-parity`, or `downstream-read-parity`.
-- `liveCaptureFiles`: empty for planned scenarios, fixture paths for captured scenarios.
+- `liveCaptureFiles`: fixture paths for captured scenarios.
 - `proxyRequest`: `documentPath` and `variablesPath` when replay through the proxy is scaffolded; `null` when capture-only or not ready.
 - `comparison`: strict JSON comparison contract for captured scenarios that are ready to execute.
 - `notes`: concise fidelity findings, blockers, or promotion criteria.
@@ -215,11 +216,10 @@ Scenarios become `ready-for-comparison` only after they declare both a proxy req
 Use the strongest feasible evidence:
 
 1. Runtime tests prove local staging/overlay behavior.
-2. Planned parity specs make unsupported live capture gaps explicit.
+2. Captured live fixtures settle Shopify payload shape, nullability, ordering, timestamps, and user errors.
 3. Proxy request files make local replay deterministic.
-4. Captured live fixtures settle Shopify payload shape, nullability, ordering, timestamps, and user errors.
-5. `conformance:check` runs the repo's Vitest structural checks for discovered scenarios.
-6. `conformance:parity` runs the convention-driven vitest suite at `tests/unit/conformance-parity-scenarios.test.ts`, which iterates every discovered parity spec and executes strict comparisons for `ready-for-comparison` scenarios.
+4. `conformance:check` runs the repo's Vitest structural checks for discovered scenarios.
+5. `conformance:parity` runs the convention-driven vitest suite at `tests/unit/conformance-parity-scenarios.test.ts`, which iterates every discovered parity spec and executes strict comparisons for `ready-for-comparison` scenarios.
 
 ## Validation
 

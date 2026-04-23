@@ -11,6 +11,7 @@ import type {
   DraftOrderLineItemRecord,
   DraftOrderRecord,
   DraftOrderShippingLineRecord,
+  CustomerRecord,
   MoneyV2Record,
   OrderCustomerRecord,
   OrderLineItemRecord,
@@ -143,10 +144,12 @@ function normalizeOrderLineItems(raw: unknown, currencyCode: string): OrderLineI
   return raw
     .filter((lineItem): lineItem is Record<string, unknown> => typeof lineItem === 'object' && lineItem !== null)
     .map((lineItem) => {
-      const originalUnitPriceSet =
+      const rawPriceSet =
         typeof lineItem['originalUnitPriceSet'] === 'object' && lineItem['originalUnitPriceSet'] !== null
-          ? (lineItem['originalUnitPriceSet'] as Record<string, unknown>)
-          : {};
+          ? lineItem['originalUnitPriceSet']
+          : lineItem['priceSet'];
+      const originalUnitPriceSet =
+        typeof rawPriceSet === 'object' && rawPriceSet !== null ? (rawPriceSet as Record<string, unknown>) : {};
       const shopMoney =
         typeof originalUnitPriceSet['shopMoney'] === 'object' && originalUnitPriceSet['shopMoney'] !== null
           ? (originalUnitPriceSet['shopMoney'] as Record<string, unknown>)
@@ -319,8 +322,12 @@ function buildOrderFromInput(input: unknown): OrderRecord {
     name: `#${store.getOrders().length + 1}`,
     createdAt,
     updatedAt: createdAt,
+    closed: false,
+    closedAt: null,
+    cancelledAt: null,
+    cancelReason: null,
     sourceName: null,
-    paymentGatewayNames: [],
+    paymentGatewayNames: hasSuccessfulTransaction ? ['manual'] : [],
     displayFinancialStatus: hasSuccessfulTransaction ? 'PAID' : 'PENDING',
     displayFulfillmentStatus: 'UNFULFILLED',
     note: typeof inputRecord['note'] === 'string' ? inputRecord['note'] : null,
@@ -340,6 +347,9 @@ function buildOrderFromInput(input: unknown): OrderRecord {
     },
     totalPriceSet: {
       shopMoney: normalizeMoney(total, currencyCode),
+    },
+    totalOutstandingSet: {
+      shopMoney: normalizeMoney(hasSuccessfulTransaction ? '0.0' : total, currencyCode),
     },
     totalRefundedSet: {
       shopMoney: normalizeMoney('0.0', currencyCode),
@@ -611,6 +621,10 @@ function buildOrderFromCompletedDraftOrder(
     name: `#${store.getOrders().length + 1}`,
     createdAt,
     updatedAt: createdAt,
+    closed: false,
+    closedAt: null,
+    cancelledAt: null,
+    cancelReason: null,
     sourceName: completion.sourceName,
     paymentGatewayNames: [],
     displayFinancialStatus: completion.paymentPending ? 'PENDING' : 'PAID',
@@ -623,6 +637,12 @@ function buildOrderFromCompletedDraftOrder(
     subtotalPriceSet: structuredClone(draftOrder.subtotalPriceSet),
     currentTotalPriceSet: structuredClone(draftOrder.totalPriceSet),
     totalPriceSet: structuredClone(draftOrder.totalPriceSet),
+    totalOutstandingSet: {
+      shopMoney: normalizeMoney(
+        completion.paymentPending ? (draftOrder.totalPriceSet?.shopMoney.amount ?? '0.0') : '0.0',
+        currencyCode,
+      ),
+    },
     totalRefundedSet: {
       shopMoney: normalizeMoney('0.0', currencyCode),
     },
@@ -785,6 +805,101 @@ function applyRefundToOrder(order: OrderRecord, refund: OrderRefundRecord): Orde
     },
     transactions: [...structuredClone(order.transactions), ...structuredClone(refund.transactions)],
     refunds: [...structuredClone(order.refunds), structuredClone(refund)],
+  };
+}
+
+function buildOrderTransaction(
+  amountSet: OrderTransactionRecord['amountSet'],
+  gateway: string,
+): OrderTransactionRecord {
+  return {
+    id: makeSyntheticGid('OrderTransaction'),
+    kind: 'SALE',
+    status: 'SUCCESS',
+    gateway,
+    amountSet: structuredClone(amountSet),
+  };
+}
+
+function markOrderAsPaid(order: OrderRecord, gateway = 'manual'): OrderRecord {
+  const currencyCode = readOrderCurrencyCode(order);
+  const amountSet = structuredClone(order.totalOutstandingSet ?? order.currentTotalPriceSet ?? order.totalPriceSet);
+  const transaction = buildOrderTransaction(amountSet, gateway);
+
+  return {
+    ...structuredClone(order),
+    updatedAt: makeSyntheticTimestamp(),
+    displayFinancialStatus: 'PAID',
+    paymentGatewayNames: Array.from(new Set([...(order.paymentGatewayNames ?? []), gateway])),
+    totalOutstandingSet: {
+      shopMoney: normalizeMoney('0.0', currencyCode),
+    },
+    transactions: [...structuredClone(order.transactions), transaction],
+  };
+}
+
+function orderCustomerFromCustomer(customer: CustomerRecord): OrderCustomerRecord {
+  return {
+    id: customer.id,
+    email: customer.email,
+    displayName: customer.displayName,
+  };
+}
+
+function serializeOrderManagementPayload(
+  field: FieldNode,
+  order: OrderRecord | null,
+  userErrors: Array<{ field: string[] | null; message: string }>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const selectionKey = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'order':
+        payload[selectionKey] = order ? serializeOrderNode(selection, order) : null;
+        break;
+      case 'userErrors':
+        payload[selectionKey] = serializeSelectedUserErrors(selection, userErrors);
+        break;
+      default:
+        payload[selectionKey] = null;
+        break;
+    }
+  }
+  return payload;
+}
+
+function serializeOrderCancelPayload(
+  field: FieldNode,
+  userErrors: Array<{ field: string[] | null; message: string }>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const selectionKey = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'job':
+        payload[selectionKey] = null;
+        break;
+      case 'orderCancelUserErrors':
+        payload[selectionKey] = serializeSelectedUserErrors(selection, userErrors);
+        break;
+      default:
+        payload[selectionKey] = null;
+        break;
+    }
+  }
+  return payload;
+}
+
+function buildAccessDeniedError(operationName: string, requiredAccess: string): Record<string, unknown> {
+  return {
+    message: `Access denied for ${operationName} field. Required access: ${requiredAccess}`,
+    extensions: {
+      code: 'ACCESS_DENIED',
+      documentation: 'https://shopify.dev/api/usage/access-scopes',
+      requiredAccess,
+    },
+    path: [operationName],
   };
 }
 
@@ -2057,6 +2172,18 @@ function serializeOrderNode(field: FieldNode, order: OrderRecord): Record<string
       case 'updatedAt':
         result[key] = order.updatedAt;
         break;
+      case 'closed':
+        result[key] = order.closed ?? false;
+        break;
+      case 'closedAt':
+        result[key] = order.closedAt ?? null;
+        break;
+      case 'cancelledAt':
+        result[key] = order.cancelledAt ?? null;
+        break;
+      case 'cancelReason':
+        result[key] = order.cancelReason ?? null;
+        break;
       case 'sourceName':
         result[key] = order.sourceName ?? null;
         break;
@@ -2092,6 +2219,12 @@ function serializeOrderNode(field: FieldNode, order: OrderRecord): Record<string
         break;
       case 'totalPriceSet':
         result[key] = serializeShopMoneySet(selection, order.totalPriceSet?.shopMoney ?? null);
+        break;
+      case 'totalOutstandingSet':
+        result[key] = serializeShopMoneySet(
+          selection,
+          (order.totalOutstandingSet ?? order.currentTotalPriceSet)?.shopMoney ?? null,
+        );
         break;
       case 'totalRefundedSet':
         result[key] = serializeShopMoneySet(selection, order.totalRefundedSet?.shopMoney ?? null);
@@ -2964,6 +3097,183 @@ export function handleOrderMutation(
         ...serializeSelectedOrderMutationPayload(field),
       };
 
+      continue;
+    }
+
+    if (field.name.value === 'orderClose' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const input = variables['input'];
+      const id =
+        typeof input === 'object' && input !== null && typeof (input as Record<string, unknown>)['id'] === 'string'
+          ? ((input as Record<string, unknown>)['id'] as string)
+          : null;
+      const order = id ? store.getOrderById(id) : null;
+
+      if (!order) {
+        data[key] = serializeOrderManagementPayload(field, null, [{ field: ['id'], message: 'Order does not exist' }]);
+        continue;
+      }
+
+      const closedAt = makeSyntheticTimestamp();
+      const updatedOrder = store.updateOrder({
+        ...order,
+        updatedAt: closedAt,
+        closed: true,
+        closedAt,
+      });
+      data[key] = serializeOrderManagementPayload(field, updatedOrder, []);
+      continue;
+    }
+
+    if (field.name.value === 'orderOpen' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const input = variables['input'];
+      const id =
+        typeof input === 'object' && input !== null && typeof (input as Record<string, unknown>)['id'] === 'string'
+          ? ((input as Record<string, unknown>)['id'] as string)
+          : null;
+      const order = id ? store.getOrderById(id) : null;
+
+      if (!order) {
+        data[key] = serializeOrderManagementPayload(field, null, [{ field: ['id'], message: 'Order does not exist' }]);
+        continue;
+      }
+
+      const updatedOrder = store.updateOrder({
+        ...order,
+        updatedAt: makeSyntheticTimestamp(),
+        closed: false,
+        closedAt: null,
+      });
+      data[key] = serializeOrderManagementPayload(field, updatedOrder, []);
+      continue;
+    }
+
+    if (field.name.value === 'orderMarkAsPaid' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const input = variables['input'];
+      const id =
+        typeof input === 'object' && input !== null && typeof (input as Record<string, unknown>)['id'] === 'string'
+          ? ((input as Record<string, unknown>)['id'] as string)
+          : null;
+      const order = id ? store.getOrderById(id) : null;
+
+      if (!order) {
+        data[key] = serializeOrderManagementPayload(field, null, [{ field: ['id'], message: 'Order does not exist' }]);
+        continue;
+      }
+
+      const updatedOrder = store.updateOrder(order.displayFinancialStatus === 'PAID' ? order : markOrderAsPaid(order));
+      data[key] = serializeOrderManagementPayload(field, updatedOrder, []);
+      continue;
+    }
+
+    if (field.name.value === 'orderCreateManualPayment' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      data[key] = null;
+      errors.push(
+        buildAccessDeniedError(
+          'orderCreateManualPayment',
+          '`write_orders` access scope. Also: The user must have mark_orders_as_paid permission. The API client must be installed on a Shopify Plus store to use the amount field.',
+        ),
+      );
+      continue;
+    }
+
+    if (field.name.value === 'orderCustomerSet' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const orderId = typeof variables['orderId'] === 'string' ? variables['orderId'] : null;
+      const customerId = typeof variables['customerId'] === 'string' ? variables['customerId'] : null;
+      const order = orderId ? store.getOrderById(orderId) : null;
+
+      if (!order) {
+        data[key] = serializeOrderManagementPayload(field, null, [
+          { field: ['orderId'], message: 'Order does not exist' },
+        ]);
+        continue;
+      }
+
+      const customer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      const orderCustomer =
+        customer !== null
+          ? orderCustomerFromCustomer(customer)
+          : order.customer?.id === customerId
+            ? structuredClone(order.customer)
+            : { id: customerId ?? '', email: null, displayName: null };
+      const updatedOrder = store.updateOrder({
+        ...order,
+        updatedAt: makeSyntheticTimestamp(),
+        customer: orderCustomer,
+      });
+      data[key] = serializeOrderManagementPayload(field, updatedOrder, []);
+      continue;
+    }
+
+    if (field.name.value === 'orderCustomerRemove' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const orderId = typeof variables['orderId'] === 'string' ? variables['orderId'] : null;
+      const order = orderId ? store.getOrderById(orderId) : null;
+
+      if (!order) {
+        data[key] = serializeOrderManagementPayload(field, null, [
+          { field: ['orderId'], message: 'Order does not exist' },
+        ]);
+        continue;
+      }
+
+      const updatedOrder = store.updateOrder({
+        ...order,
+        updatedAt: makeSyntheticTimestamp(),
+        customer: null,
+      });
+      data[key] = serializeOrderManagementPayload(field, updatedOrder, []);
+      continue;
+    }
+
+    if (field.name.value === 'orderInvoiceSend' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const id = typeof variables['id'] === 'string' ? variables['id'] : null;
+      const order = id ? store.getOrderById(id) : null;
+      data[key] = serializeOrderManagementPayload(
+        field,
+        order,
+        order ? [] : [{ field: ['id'], message: 'Order does not exist' }],
+      );
+      continue;
+    }
+
+    if (field.name.value === 'taxSummaryCreate' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      data[key] = null;
+      errors.push(
+        buildAccessDeniedError(
+          'taxSummaryCreate',
+          '`write_taxes` access scope. Also: The caller must be a tax calculations app and the relevant feature must be on.',
+        ),
+      );
+      continue;
+    }
+
+    if (field.name.value === 'orderCancel' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const orderId = typeof variables['orderId'] === 'string' ? variables['orderId'] : null;
+      const order = orderId ? store.getOrderById(orderId) : null;
+
+      if (!order) {
+        data[key] = serializeOrderCancelPayload(field, [{ field: ['orderId'], message: 'Order does not exist' }]);
+        continue;
+      }
+
+      const cancelledAt = makeSyntheticTimestamp();
+      store.updateOrder({
+        ...order,
+        updatedAt: cancelledAt,
+        closed: true,
+        closedAt: cancelledAt,
+        cancelledAt,
+        cancelReason: typeof variables['reason'] === 'string' ? variables['reason'] : 'OTHER',
+      });
+      data[key] = serializeOrderCancelPayload(field, []);
       continue;
     }
 

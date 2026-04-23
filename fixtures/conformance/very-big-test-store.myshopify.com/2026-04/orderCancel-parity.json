@@ -1,0 +1,36 @@
+{
+  "variables": {
+    "orderId": "gid://shopify/Order/6830646329577",
+    "restock": false,
+    "reason": "OTHER",
+    "notifyCustomer": false,
+    "staffNote": "HAR-120 conformance cancel capture"
+  },
+  "mutation": {
+    "response": {
+      "data": {
+        "orderCancel": {
+          "orderCancelUserErrors": []
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "variables": {
+      "id": "gid://shopify/Order/6830646329577"
+    },
+    "response": {
+      "data": {
+        "order": {
+          "id": "gid://shopify/Order/6830646329577",
+          "name": "#1328",
+          "closed": true,
+          "closedAt": "2026-04-22T23:29:04Z",
+          "cancelledAt": "2026-04-22T23:29:04Z",
+          "cancelReason": "OTHER",
+          "displayFinancialStatus": null
+        }
+      }
+    }
+  }
+}
