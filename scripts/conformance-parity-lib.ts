@@ -853,14 +853,34 @@ function makeSeedOrder(orderId: string, source: Record<string, unknown> | null =
 function readCapturedDraftOrderLineItems(draftOrder: Record<string, unknown> | null): DraftOrderLineItemRecord[] {
   return readArrayField(readRecordField(draftOrder, 'lineItems'), 'nodes')
     .filter(isPlainObject)
-    .map((lineItem, index) => ({
-      id: readStringField(lineItem, 'id') ?? `gid://shopify/DraftOrderLineItem/conformance-${index}`,
-      title: readStringField(lineItem, 'title'),
-      quantity: readNumberField(lineItem, 'quantity') ?? 0,
-      sku: readStringField(lineItem, 'sku'),
-      variantTitle: readStringField(lineItem, 'variantTitle'),
-      originalUnitPriceSet: readMoneySetField(lineItem, 'originalUnitPriceSet'),
-    }));
+    .map((lineItem, index) => {
+      const title = readStringField(lineItem, 'title');
+      return {
+        id: readStringField(lineItem, 'id') ?? `gid://shopify/DraftOrderLineItem/conformance-${index}`,
+        title,
+        name: readStringField(lineItem, 'name') ?? title,
+        quantity: readNumberField(lineItem, 'quantity') ?? 0,
+        sku: readStringField(lineItem, 'sku'),
+        variantTitle: readStringField(lineItem, 'variantTitle'),
+        variantId: readStringField(readRecordField(lineItem, 'variant'), 'id'),
+        productId: null,
+        custom: readBooleanField(lineItem, 'custom') ?? true,
+        requiresShipping: readBooleanField(lineItem, 'requiresShipping') ?? true,
+        taxable: readBooleanField(lineItem, 'taxable') ?? true,
+        customAttributes: readArrayField(lineItem, 'customAttributes')
+          .filter(isPlainObject)
+          .map((attribute) => ({
+            key: readStringField(attribute, 'key') ?? '',
+            value: readStringField(attribute, 'value'),
+          }))
+          .filter((attribute) => attribute.key.length > 0),
+        appliedDiscount: null,
+        originalUnitPriceSet: readMoneySetField(lineItem, 'originalUnitPriceSet'),
+        originalTotalSet: readMoneySetField(lineItem, 'originalTotalSet'),
+        discountedTotalSet: readMoneySetField(lineItem, 'discountedTotalSet'),
+        totalDiscountSet: readMoneySetField(lineItem, 'totalDiscountSet'),
+      };
+    });
 }
 
 function readCapturedDraftOrderShippingLine(
@@ -889,6 +909,12 @@ function makeSeedDraftOrder(draftOrderId: string, source: Record<string, unknown
     email: readStringField(source, 'email'),
     note: readStringField(source, 'note'),
     tags: readArrayField(source, 'tags').filter((tag): tag is string => typeof tag === 'string'),
+    customer: null,
+    taxExempt: readBooleanField(source, 'taxExempt') ?? false,
+    taxesIncluded: readBooleanField(source, 'taxesIncluded') ?? false,
+    reserveInventoryUntil: readStringField(source, 'reserveInventoryUntil'),
+    paymentTerms: null,
+    appliedDiscount: null,
     customAttributes: readArrayField(source, 'customAttributes')
       .filter(isPlainObject)
       .map((attribute) => ({
@@ -902,6 +928,8 @@ function makeSeedDraftOrder(draftOrderId: string, source: Record<string, unknown
     createdAt: readStringField(source, 'createdAt') ?? readStringField(source, 'updatedAt') ?? now,
     updatedAt: readStringField(source, 'updatedAt') ?? now,
     subtotalPriceSet: readMoneySetField(source, 'subtotalPriceSet'),
+    totalDiscountsSet: readMoneySetField(source, 'totalDiscountsSet'),
+    totalShippingPriceSet: readMoneySetField(source, 'totalShippingPriceSet'),
     totalPriceSet: readMoneySetField(source, 'totalPriceSet'),
     lineItems: readCapturedDraftOrderLineItems(source),
   };

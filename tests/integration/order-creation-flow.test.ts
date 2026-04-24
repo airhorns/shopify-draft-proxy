@@ -785,7 +785,16 @@ describe('order creation flow', () => {
               zip: 'M5H 2M9',
               phone: '+141****0101',
             },
-            shippingLine: null,
+            shippingLine: {
+              title: 'Standard',
+              code: null,
+              originalPriceSet: {
+                shopMoney: {
+                  amount: '5.0',
+                  currencyCode: 'CAD',
+                },
+              },
+            },
             createdAt: '2024-01-01T00:00:01.000Z',
             updatedAt: '2024-01-01T00:00:01.000Z',
             subtotalPriceSet: {
@@ -796,7 +805,7 @@ describe('order creation flow', () => {
             },
             totalPriceSet: {
               shopMoney: {
-                amount: '10.0',
+                amount: '15.0',
                 currencyCode: 'CAD',
               },
             },
@@ -3982,7 +3991,10 @@ describe('order creation flow', () => {
               zip: 'M5H 2M9',
               phone: '+141****0101',
             },
-            shippingLine: null,
+            shippingLine: {
+              title: 'Standard',
+              code: null,
+            },
             createdAt: '2024-01-01T00:00:01.000Z',
             updatedAt: '2024-01-01T00:00:01.000Z',
           },
@@ -4075,7 +4087,10 @@ describe('order creation flow', () => {
             zip: 'M5H 2M9',
             phone: '+141****0101',
           },
-          shippingLine: null,
+          shippingLine: {
+            title: 'Standard',
+            code: null,
+          },
           createdAt: '2024-01-01T00:00:01.000Z',
           updatedAt: '2024-01-01T00:00:01.000Z',
         },

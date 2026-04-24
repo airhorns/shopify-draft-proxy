@@ -137,26 +137,6 @@ function calculateDraftOrderDiscountAmount(
   return parseDecimalAmount(discount.amountSet?.shopMoney.amount);
 }
 
-function normalizeDraftOrderShippingLine(raw: unknown, currencyCode: string): DraftOrderShippingLineRecord | null {
-  if (typeof raw !== 'object' || raw === null) {
-    return null;
-  }
-
-  const shippingLine = raw as Record<string, unknown>;
-  const price = shippingLine['price'];
-  if (price === undefined || price === null) {
-    return null;
-  }
-
-  return {
-    title: readString(shippingLine['title']),
-    code: readString(shippingLine['code']),
-    originalPriceSet: {
-      shopMoney: normalizeMoney(formatDecimalAmount(parseDecimalAmount(price)), currencyCode),
-    },
-  };
-}
-
 function buildDraftOrderCustomerFromInput(inputRecord: Record<string, unknown>): DraftOrderCustomerRecord | null {
   const email = readString(inputRecord['email']);
   const customerId = readString(inputRecord['customerId']);
@@ -667,6 +647,14 @@ function buildDraftOrderFromOrder(order: OrderRecord, shopifyAdminOrigin: string
   const draftOrderId = makeSyntheticGid('DraftOrder');
   const createdAt = makeSyntheticTimestamp();
   const invoiceId = draftOrderId.split('/').at(-1) ?? 'draft-order';
+  const currencyCode =
+    order.totalPriceSet?.shopMoney.currencyCode ?? order.subtotalPriceSet?.shopMoney.currencyCode ?? 'CAD';
+  const totalShipping = formatDecimalAmount(
+    order.shippingLines.reduce(
+      (sum, shippingLine) => sum + parseDecimalAmount(shippingLine.originalPriceSet?.shopMoney.amount),
+      0,
+    ),
+  );
 
   return {
     id: draftOrderId,
@@ -677,6 +665,18 @@ function buildDraftOrderFromOrder(order: OrderRecord, shopifyAdminOrigin: string
     email: order.customer?.email ?? null,
     note: order.note,
     tags: structuredClone(order.tags),
+    customer: order.customer
+      ? {
+          id: order.customer.id,
+          email: order.customer.email,
+          displayName: order.customer.displayName,
+        }
+      : null,
+    taxExempt: false,
+    taxesIncluded: false,
+    reserveInventoryUntil: null,
+    paymentTerms: null,
+    appliedDiscount: null,
     customAttributes: structuredClone(order.customAttributes),
     billingAddress: structuredClone(order.billingAddress),
     shippingAddress: structuredClone(order.shippingAddress),
@@ -684,14 +684,33 @@ function buildDraftOrderFromOrder(order: OrderRecord, shopifyAdminOrigin: string
     createdAt,
     updatedAt: createdAt,
     subtotalPriceSet: structuredClone(order.subtotalPriceSet),
+    totalDiscountsSet: {
+      shopMoney: normalizeMoney('0.0', currencyCode),
+    },
+    totalShippingPriceSet: {
+      shopMoney: normalizeMoney(totalShipping, currencyCode),
+    },
     totalPriceSet: structuredClone(order.totalPriceSet),
     lineItems: order.lineItems.map((lineItem) => ({
       id: makeSyntheticGid('DraftOrderLineItem'),
       title: lineItem.title,
+      name: lineItem.title,
       quantity: lineItem.quantity,
       sku: lineItem.sku,
       variantTitle: lineItem.variantTitle,
+      variantId: null,
+      productId: null,
+      custom: true,
+      requiresShipping: true,
+      taxable: true,
+      customAttributes: [],
+      appliedDiscount: null,
       originalUnitPriceSet: structuredClone(lineItem.originalUnitPriceSet),
+      originalTotalSet: structuredClone(lineItem.originalUnitPriceSet),
+      discountedTotalSet: structuredClone(lineItem.originalUnitPriceSet),
+      totalDiscountSet: {
+        shopMoney: normalizeMoney('0.0', currencyCode),
+      },
     })),
   };
 }
