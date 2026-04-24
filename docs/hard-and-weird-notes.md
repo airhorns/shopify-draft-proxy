@@ -1710,3 +1710,23 @@ Live evidence refreshed on this host:
 - custom collections return `ruleSet: null`; the captured smart collection returns a `ruleSet` with `appliedDisjunctively: false` and a `TITLE CONTAINS VANS` rule
 - both captured custom and smart collections currently return `sortOrder: BEST_SELLING`; the custom collection's blank description comes back as empty strings for both `description` and `descriptionHtml`, not `null`
 - the catalog fixture now selects the same rich metadata fields so `collections` parity covers the captured null/empty shapes alongside nested product connection shape
+
+## 46. Customer-area registry coverage needs to separate likely local staging from side-effect roots
+
+An audit against the current Shopify Admin GraphQL customer docs showed that the first implemented slice (`customer`, `customers`, `customersCount`, `customerCreate`, `customerUpdate`, `customerDelete`) is only the beginning of the customer area. The registry now deliberately accounts for the missing roots future issues are likely to depend on without claiming runtime support.
+
+Observed docs surface:
+
+- read-overlay candidates: `customerByIdentifier` and `customerMergePreview`
+- customer/address staging candidates: `customerAddressCreate`, `customerAddressUpdate`, `customerAddressDelete`, and `customerUpdateDefaultAddress`
+- consent/tax/customer upsert staging candidates: `customerEmailMarketingConsentUpdate`, `customerSmsMarketingConsentUpdate`, `customerAddTaxExemptions`, `customerRemoveTaxExemptions`, `customerReplaceTaxExemptions`, and `customerSet`
+- side-effect-sensitive email roots: `customerSendAccountInviteEmail` and `customerPaymentMethodSendUpdateEmail`
+- destructive/asynchronous merge root: `customerMerge`
+
+Practical rule for the proxy:
+
+- do not treat registry presence as support; unimplemented customer roots are still classified as `implemented: false`
+- read roots should become overlay reads only after captured no-data and found-record behavior exists
+- local customer/address/consent/tax roots should stage locally before being marked implemented, because supported mutations must not hit Shopify during normal runtime
+- side-effect email roots and customer merge should stay explicit passthrough/deferred until a product decision says whether to block, simulate, or proxy them with stronger observability
+- the protected-customer-data denial mode remains a real fallback path in `scripts/capture-customer-conformance.mts`, but current successful fixtures should not be overwritten by stale blocker notes unless the capture script reproduces the denial again

@@ -9,13 +9,13 @@
     "variablesPath": "config/parity-requests/customerDelete-parity-plan.variables.json"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live capture recorded for safe `customerDelete` plus immediate downstream customer removal. Fill in comparator implementation to turn this into executed proxy-vs-Shopify comparison.",
+  "notes": "Captured-only scaffold: live capture recorded for safe `customerDelete` plus immediate downstream customer removal, but this scenario is not strict-comparison-ready until explicit `comparison.targets` are declared.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": []
   },
   "blocker": {
-    "kind": "explicit-comparison-targets-needed",
+    "kind": "captured-only-explicit-comparison-targets-needed",
     "blockerPath": null
   }
 }
