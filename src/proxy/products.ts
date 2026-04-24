@@ -295,11 +295,12 @@ function addProductsToCollection(
     .map((candidate) => candidate.position)
     .filter((position): position is number => typeof position === 'number' && Number.isFinite(position));
   const firstPosition = existingPositions.length > 0 ? Math.max(...existingPositions) + 1 : 0;
+  const addedCount = existingProductIds.length;
 
   for (const [index, productId] of existingProductIds.entries()) {
     const nextCollections = [
       ...store.getEffectiveCollectionsByProductId(productId),
-      makeProductCollectionRecord(productId, collection, firstPosition + index),
+      makeProductCollectionRecord(productId, collection, firstPosition + (addedCount - index - 1)),
     ];
     store.replaceStagedCollectionsForProduct(productId, nextCollections);
   }

@@ -584,8 +584,8 @@ describe('collection draft flow', () => {
             handle: 'featured-hats',
             products: {
               nodes: [
-                { id: 'gid://shopify/Product/30', title: 'Green Hat', handle: 'green-hat' },
                 { id: 'gid://shopify/Product/31', title: 'Blue Hat', handle: 'blue-hat' },
+                { id: 'gid://shopify/Product/30', title: 'Green Hat', handle: 'green-hat' },
               ],
               pageInfo: {
                 hasNextPage: false,
@@ -619,8 +619,8 @@ describe('collection draft flow', () => {
           handle: 'featured-hats',
           products: {
             nodes: [
-              { id: 'gid://shopify/Product/30', title: 'Green Hat', handle: 'green-hat' },
               { id: 'gid://shopify/Product/31', title: 'Blue Hat', handle: 'blue-hat' },
+              { id: 'gid://shopify/Product/30', title: 'Green Hat', handle: 'green-hat' },
             ],
             pageInfo: {
               hasNextPage: false,
@@ -636,8 +636,8 @@ describe('collection draft flow', () => {
               handle: 'featured-hats',
               products: {
                 nodes: [
-                  { id: 'gid://shopify/Product/30', title: 'Green Hat', handle: 'green-hat' },
                   { id: 'gid://shopify/Product/31', title: 'Blue Hat', handle: 'blue-hat' },
+                  { id: 'gid://shopify/Product/30', title: 'Green Hat', handle: 'green-hat' },
                 ],
                 pageInfo: {
                   hasNextPage: false,

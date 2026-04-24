@@ -26,6 +26,7 @@
         "capturePath": "$.downstreamRead.data",
         "proxyRequest": {
           "documentPath": "config/parity-requests/collectionAddProducts-downstream-read.graphql",
+          "variablesCapturePath": "$.downstreamReadVariables",
           "variables": {
             "collectionId": {
               "fromPrimaryProxyPath": "$.data.collectionAddProducts.collection.id"
