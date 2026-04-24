@@ -1634,7 +1634,9 @@ Refreshing live conformance for `inventoryActivate`, `inventoryDeactivate`, and 
 
 Observed live behavior on this host:
 
-- freshly created default variants still begin with one `inventoryLevel` row at the primary location even while `inventoryItem.tracked` is still `false`
+- freshly created default variants still expose an `inventoryItem` immediately; current captures show
+  `inventoryQuantity: 0`, `inventoryItem.tracked: false`, and `inventoryItem.requiresShipping: true`, with one
+  `inventoryLevel` row at the primary location even while tracking is still false
 - `inventoryActivate(inventoryItemId:, locationId:)` against that already-active primary location still succeeds as a no-op and returns the current `inventoryLevel` payload
 - adding `available:` to that already-active-location call still does **not** silently restock the item; Shopify returned `userErrors[{ field: ['available'], message: 'Not allowed to set available quantity when the item is already active at the location.' }]`
 - `inventoryActivate(inventoryItemId:, locationId:)` against a known second location now succeeds and creates a new `inventoryLevel` row for that location

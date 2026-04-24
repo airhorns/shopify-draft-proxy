@@ -106,11 +106,13 @@ describe('product draft flow', () => {
       .post('/admin/api/2025-01/graphql.json')
       .send({
         query:
-          'query ($id: ID!) { product(id: $id) { id title options { id name position optionValues { id name hasVariants } } variants(first: 10) { nodes { id title } pageInfo { hasNextPage hasPreviousPage } } } }',
+          'query ($id: ID!) { product(id: $id) { id title totalInventory tracksInventory options { id name position optionValues { id name hasVariants } } variants(first: 10) { nodes { id title inventoryQuantity inventoryItem { id tracked requiresShipping } } pageInfo { hasNextPage hasPreviousPage } } } }',
         variables: { id: createdId },
       });
 
     expect(initialQueryResponse.status).toBe(200);
+    expect(initialQueryResponse.body.data.product.totalInventory).toBe(0);
+    expect(initialQueryResponse.body.data.product.tracksInventory).toBe(false);
     expect(initialQueryResponse.body.data.product.options).toEqual([
       {
         id: expect.stringMatching(/^gid:\/\/shopify\/ProductOption\//),
@@ -129,10 +131,41 @@ describe('product draft flow', () => {
     expect(initialQueryResponse.body.data.product.variants.nodes[0]).toMatchObject({
       id: expect.stringMatching(/^gid:\/\/shopify\/ProductVariant\//),
       title: 'Default Title',
+      inventoryQuantity: 0,
+      inventoryItem: {
+        id: expect.stringMatching(/^gid:\/\/shopify\/InventoryItem\//),
+        tracked: false,
+        requiresShipping: true,
+      },
     });
     expect(initialQueryResponse.body.data.product.variants.pageInfo).toMatchObject({
       hasNextPage: false,
       hasPreviousPage: false,
+    });
+
+    const defaultVariant = initialQueryResponse.body.data.product.variants.nodes[0];
+    const stockResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query ($inventoryItemId: ID!) { inventoryItem(id: $inventoryItemId) { id tracked requiresShipping variant { id inventoryQuantity product { id totalInventory tracksInventory } } } }',
+        variables: { inventoryItemId: defaultVariant.inventoryItem.id },
+      });
+
+    expect(stockResponse.status).toBe(200);
+    expect(stockResponse.body.data.inventoryItem).toEqual({
+      id: defaultVariant.inventoryItem.id,
+      tracked: false,
+      requiresShipping: true,
+      variant: {
+        id: defaultVariant.id,
+        inventoryQuantity: 0,
+        product: {
+          id: createdId,
+          totalInventory: 0,
+          tracksInventory: false,
+        },
+      },
     });
 
     await request(app)
@@ -152,7 +185,7 @@ describe('product draft flow', () => {
       .post('/admin/api/2025-01/graphql.json')
       .send({
         query:
-          'query ($id: ID!) { product(id: $id) { id title options { id name position optionValues { id name hasVariants } } variants(first: 10) { nodes { id title } } } }',
+          'query ($id: ID!) { product(id: $id) { id title options { id name position optionValues { id name hasVariants } } variants(first: 10) { nodes { id title inventoryQuantity inventoryItem { id tracked requiresShipping } } } } }',
         variables: { id: createdId },
       });
 
@@ -162,7 +195,7 @@ describe('product draft flow', () => {
     expect(updatedQueryResponse.body.data.product.variants.nodes).toEqual(
       initialQueryResponse.body.data.product.variants.nodes,
     );
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
   });
 
   it('rejects blank productCreate titles with Shopify-like userErrors', async () => {
@@ -2468,9 +2501,13 @@ describe('product draft flow', () => {
             id: defaultVariantId,
             title: 'Default Title',
             sku: null,
-            inventoryQuantity: null,
+            inventoryQuantity: 0,
             selectedOptions: [],
-            inventoryItem: null,
+            inventoryItem: {
+              id: expect.stringMatching(/^gid:\/\/shopify\/InventoryItem\//),
+              tracked: false,
+              requiresShipping: true,
+            },
           },
           {
             id: createdVariantId,
@@ -2523,15 +2560,15 @@ describe('product draft flow', () => {
     expect(afterDeleteResponse.status).toBe(200);
     expect(afterDeleteResponse.body.data.product).toEqual({
       id: productId,
-      totalInventory: null,
-      tracksInventory: null,
+      totalInventory: 0,
+      tracksInventory: false,
       variants: {
         nodes: [
           {
             id: defaultVariantId,
             title: 'Default Title',
             sku: null,
-            inventoryQuantity: null,
+            inventoryQuantity: 0,
           },
         ],
       },
@@ -2832,7 +2869,7 @@ describe('product draft flow', () => {
         compareAtPrice: '30.00',
         taxable: true,
         inventoryPolicy: 'DENY',
-        inventoryQuantity: null,
+        inventoryQuantity: 0,
         inventoryItem: {
           id: expect.stringMatching(/^gid:\/\/shopify\/InventoryItem\//),
           tracked: true,
@@ -2900,7 +2937,7 @@ describe('product draft flow', () => {
           id: defaultVariantId,
           title: 'Red',
           sku: 'LIVE-BULK-RED',
-          inventoryQuantity: null,
+          inventoryQuantity: 0,
         }),
         expect.objectContaining({
           title: 'Blue',

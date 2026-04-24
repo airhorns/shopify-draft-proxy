@@ -70,6 +70,11 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 - The canonical credential file is `~/.shopify-draft-proxy/conformance-admin-auth.json`.
 - The checked-in Shopify app copy lives at `shopify-conformance-app/hermes-conformance-products/`; helper scripts prefer that repo-local app over the legacy `/tmp/shopify-conformance-app/...` copy when it exists.
 - `getValidConformanceAccessToken(...)` is the single entry point for token access. It probes the stored access token, refreshes it when possible, and throws a clear error when the stored credential is missing or unrecoverable.
+- Workspace `.env` files must not be stale copies of `.env.example`; placeholder
+  `SHOPIFY_CONFORMANCE_STORE_DOMAIN` / `SHOPIFY_CONFORMANCE_ADMIN_ORIGIN`
+  values will make a valid home-folder token look invalid. If a workspace needs
+  repo-local env config, link `.env` to `/home/airhorns/code/shopify-draft-proxy/.env`
+  rather than copying it.
 - New auth grants should be generated with `corepack pnpm conformance:auth-link`, and callback exchange should go through `corepack pnpm conformance:exchange-auth -- '<full callback url>'`.
 - If a task requires recording or re-recording conformance evidence and
   `getValidConformanceAccessToken(...)` / `corepack pnpm conformance:probe`

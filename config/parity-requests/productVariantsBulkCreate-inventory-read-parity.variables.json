@@ -1,0 +1,20 @@
+{
+  "productId": "gid://shopify/Product/100",
+  "variants": [
+    {
+      "optionValues": [
+        {
+          "optionName": "Color",
+          "name": "Blue"
+        }
+      ],
+      "barcode": "3333333333333",
+      "price": "27.00",
+      "inventoryItem": {
+        "sku": "HERMES-INV-BLUE",
+        "tracked": true,
+        "requiresShipping": false
+      }
+    }
+  ]
+}
