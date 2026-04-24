@@ -11,6 +11,30 @@ const config: AppConfig = {
   readMode: 'snapshot',
 };
 
+function makeBaseProduct(id: string, title: string, handle: string) {
+  const legacyResourceId = id.split('/').at(-1) ?? id;
+  return {
+    id,
+    legacyResourceId,
+    title,
+    handle,
+    status: 'ACTIVE' as const,
+    publicationIds: [],
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-02T00:00:00.000Z',
+    vendor: null,
+    productType: null,
+    tags: [],
+    totalInventory: null,
+    tracksInventory: null,
+    descriptionHtml: null,
+    onlineStorePreviewUrl: null,
+    templateSuffix: null,
+    seo: { title: null, description: null },
+    category: null,
+  };
+}
+
 describe('collection draft flow', () => {
   beforeEach(() => {
     store.reset();
@@ -578,7 +602,7 @@ describe('collection draft flow', () => {
       .post('/admin/api/2025-01/graphql.json')
       .send({
         query:
-          'query AddedProducts($collectionId: ID!, $firstProductId: ID!, $secondProductId: ID!) { collection(id: $collectionId) { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } first: product(id: $firstProductId) { id collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } second: product(id: $secondProductId) { id collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } }',
+          'query AddedProducts($collectionId: ID!, $firstProductId: ID!, $secondProductId: ID!) { collection(id: $collectionId) { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } collections(first: 10) { nodes { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } } first: product(id: $firstProductId) { id collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } second: product(id: $secondProductId) { id collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } }',
         variables: {
           collectionId: 'gid://shopify/Collection/930',
           firstProductId: 'gid://shopify/Product/30',
@@ -603,6 +627,25 @@ describe('collection draft flow', () => {
               hasPreviousPage: false,
             },
           },
+        },
+        collections: {
+          nodes: [
+            {
+              id: 'gid://shopify/Collection/930',
+              title: 'Featured Hats',
+              handle: 'featured-hats',
+              products: {
+                nodes: [
+                  { id: 'gid://shopify/Product/31', title: 'Blue Hat', handle: 'blue-hat' },
+                  { id: 'gid://shopify/Product/30', title: 'Green Hat', handle: 'green-hat' },
+                ],
+                pageInfo: {
+                  hasNextPage: false,
+                  hasPreviousPage: false,
+                },
+              },
+            },
+          ],
         },
         first: {
           id: 'gid://shopify/Product/30',
@@ -756,6 +799,131 @@ describe('collection draft flow', () => {
               hasPreviousPage: false,
             },
           },
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('ignores unknown product ids when collectionAddProducts has at least one known product', async () => {
+    store.upsertBaseProducts([makeBaseProduct('gid://shopify/Product/60', 'Known Product Hat', 'known-product-hat')]);
+    store.upsertBaseCollections([
+      {
+        id: 'gid://shopify/Collection/960',
+        title: 'Known Product Collection',
+        handle: 'known-product-collection',
+      },
+    ]);
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const app = createApp(config).callback();
+
+    const addResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation AddProducts($id: ID!, $productIds: [ID!]!) { collectionAddProducts(id: $id, productIds: $productIds) { collection { id title products(first: 10) { nodes { id title } pageInfo { hasNextPage hasPreviousPage } } } userErrors { field message } } }',
+        variables: {
+          id: 'gid://shopify/Collection/960',
+          productIds: ['gid://shopify/Product/-1', 'gid://shopify/Product/60', 'gid://shopify/Product/-2'],
+        },
+      });
+
+    expect(addResponse.status).toBe(200);
+    expect(addResponse.body).toEqual({
+      data: {
+        collectionAddProducts: {
+          collection: {
+            id: 'gid://shopify/Collection/960',
+            title: 'Known Product Collection',
+            products: {
+              nodes: [{ id: 'gid://shopify/Product/60', title: 'Known Product Hat' }],
+              pageInfo: {
+                hasNextPage: false,
+                hasPreviousPage: false,
+              },
+            },
+          },
+          userErrors: [],
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns Shopify-shaped collectionAddProducts validation errors for invalid collection branches', async () => {
+    store.upsertBaseProducts([makeBaseProduct('gid://shopify/Product/70', 'Validation Hat', 'validation-hat')]);
+    store.upsertBaseCollections([
+      {
+        id: 'gid://shopify/Collection/970',
+        title: 'Smart Hats',
+        handle: 'smart-hats',
+        isSmart: true,
+      },
+      {
+        id: 'gid://shopify/Collection/971',
+        title: 'Empty Input Hats',
+        handle: 'empty-input-hats',
+      },
+    ]);
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const app = createApp(config).callback();
+    const query =
+      'mutation AddProducts($id: ID!, $productIds: [ID!]!) { collectionAddProducts(id: $id, productIds: $productIds) { collection { id title } userErrors { field message } } }';
+
+    const missingResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query,
+        variables: {
+          id: 'gid://shopify/Collection/-1',
+          productIds: ['gid://shopify/Product/70'],
+        },
+      });
+    const smartResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query,
+        variables: {
+          id: 'gid://shopify/Collection/970',
+          productIds: ['gid://shopify/Product/70'],
+        },
+      });
+    const emptyResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query,
+        variables: {
+          id: 'gid://shopify/Collection/971',
+          productIds: [],
+        },
+      });
+
+    expect(missingResponse.status).toBe(200);
+    expect(missingResponse.body).toEqual({
+      data: {
+        collectionAddProducts: {
+          collection: null,
+          userErrors: [{ field: ['id'], message: 'Collection does not exist' }],
+        },
+      },
+    });
+    expect(smartResponse.status).toBe(200);
+    expect(smartResponse.body).toEqual({
+      data: {
+        collectionAddProducts: {
+          collection: null,
+          userErrors: [{ field: ['id'], message: "Can't manually add products to a smart collection" }],
+        },
+      },
+    });
+    expect(emptyResponse.status).toBe(200);
+    expect(emptyResponse.body).toEqual({
+      data: {
+        collectionAddProducts: {
+          collection: null,
+          userErrors: [{ field: ['productIds'], message: 'At least one product id is required' }],
         },
       },
     });

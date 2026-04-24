@@ -11,8 +11,9 @@
   "comparisonMode": "captured-vs-proxy-request",
   "blocker": {
     "kind": "missing-publication-target",
-    "blockerPath": "pending/product-publication-conformance-scope-blocker.md",
+    "blockerPath": null,
     "details": {
+      "linearIssue": "HAR-188",
       "blockedFields": ["publishedOnCurrentPublication", "availablePublicationsCount", "resourcePublicationsCount"],
       "blockedMutations": ["productPublish", "productUnpublish"],
       "appConfigPath": "/tmp/shopify-conformance-app/hermes-conformance-products/shopify.app.toml",

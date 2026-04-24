@@ -1,0 +1,14 @@
+query InventoryLevelRead($inventoryLevelId: ID!) {
+  inventoryLevel(id: $inventoryLevelId) {
+    id
+    location {
+      id
+      name
+    }
+    quantities(names: ["available", "on_hand", "incoming"]) {
+      name
+      quantity
+      updatedAt
+    }
+  }
+}

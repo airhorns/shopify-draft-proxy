@@ -3586,6 +3586,106 @@ describe('product query shapes', () => {
     });
   });
 
+  it('serves top-level inventoryLevel reads from product-backed inventory items in snapshot mode', async () => {
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const createResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Inventory Level Root Hat" }) { product { id title } userErrors { field message } } }',
+    });
+
+    const productId = createResponse.body.data.productCreate.product.id as string;
+
+    const productResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: 'query ($id: ID!) { product(id: $id) { id variants(first: 10) { nodes { id } } } }',
+        variables: { id: productId },
+      });
+
+    const variantId = productResponse.body.data.product.variants.nodes[0].id as string;
+
+    const updateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation UpdateVariant($input: ProductVariantInput!) { productVariantUpdate(input: $input) { productVariant { id inventoryQuantity inventoryItem { id tracked } } userErrors { field message } } }',
+        variables: {
+          input: {
+            id: variantId,
+            inventoryQuantity: 9,
+            inventoryItem: {
+              tracked: true,
+            },
+          },
+        },
+      });
+
+    const inventoryItemId = updateResponse.body.data.productVariantUpdate.productVariant.inventoryItem.id as string;
+
+    const connectionResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query ($inventoryItemId: ID!) { inventoryItem(id: $inventoryItemId) { id inventoryLevels(first: 5) { nodes { id } } } }',
+      variables: { inventoryItemId },
+    });
+
+    const inventoryLevelId = connectionResponse.body.data.inventoryItem.inventoryLevels.nodes[0].id as string;
+
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query ($inventoryLevelId: ID!, $missingInventoryLevelId: ID!) { level: inventoryLevel(id: $inventoryLevelId) { id location { id name } quantities(names: ["available", "on_hand", "incoming"]) { name quantity updatedAt } item { id sku tracked variant { id inventoryQuantity product { id title handle } } } } missing: inventoryLevel(id: $missingInventoryLevelId) { id } }',
+        variables: {
+          inventoryLevelId,
+          missingInventoryLevelId: 'gid://shopify/InventoryLevel/999999?inventory_item_id=999999',
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual({
+      level: {
+        id: inventoryLevelId,
+        location: {
+          id: 'gid://shopify/Location/1',
+          name: null,
+        },
+        quantities: [
+          {
+            name: 'available',
+            quantity: 9,
+            updatedAt: expect.any(String),
+          },
+          {
+            name: 'on_hand',
+            quantity: 9,
+            updatedAt: null,
+          },
+          {
+            name: 'incoming',
+            quantity: 0,
+            updatedAt: null,
+          },
+        ],
+        item: {
+          id: inventoryItemId,
+          sku: null,
+          tracked: true,
+          variant: {
+            id: variantId,
+            inventoryQuantity: 9,
+            product: {
+              id: productId,
+              title: 'Inventory Level Root Hat',
+              handle: 'inventory-level-root-hat',
+            },
+          },
+        },
+      },
+      missing: null,
+    });
+  });
+
   it('replays hydrated inventory levels on top-level productVariant and inventoryItem reads in live-hybrid mode', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
       const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as { query?: string }) : {};

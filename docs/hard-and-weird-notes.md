@@ -203,15 +203,15 @@ Practical rule:
 - track draft-order _reads_ separately from draft-order _writes_; on this host the read blockers already appear before the completion blocker is solved
 - for direct orders, keep the earlier offline-token lesson recorded as historical context rather than a live blocker claim; the current repo credential can now capture the first `orderCreate` happy path on this host
 - for draft-order reads, let `corepack pnpm conformance:capture-orders` own the state transition explicitly:
-  - on a healthy run it should refresh `draft-orders-catalog.json` / `draft-orders-count.json` and remove `pending/draft-order-read-conformance-scope-blocker.md`
-  - on an auth-regressed run it should recreate that pending note with the `401` details **and** preserve the last verified captured fixture paths instead of drifting back to a fake scope/schema blocker
+  - on a healthy run it should refresh `draft-orders-catalog.json` / `draft-orders-count.json`
+  - on an auth-regressed run it should preserve the last verified captured fixture paths instead of drifting back to a fake scope/schema blocker; HAR-185 tracks the shared auth repair work
 - for draft-order creation, keep the earlier access lesson as historical context rather than a current blocker claim; the current repo credential can now recapture the happy-path create/detail slice, but future regressions should still be diagnosed against `write_draft_orders` / `write_quick_sale` plus draft-order management permission
 - the narrow local staged-synthetic `draftOrders` slice has its own pagination trap: once multiple staged drafts exist, do not stop at `first` support
   - the local replay should interpret synthetic `after` / `before` cursors against the staged newest-first order and recompute `hasNextPage` / `hasPreviousPage` from the sliced window
   - on this repo that means `draftOrders(first: 1, after: <newest-cursor>)` should return the middle staged draft with both `hasNextPage` and `hasPreviousPage` true, while `draftOrders(last: 1, before: <middle-cursor>)` should return the newest staged draft with `hasNextPage: true` and `hasPreviousPage: false`
   - practical consequence: keep the synthetic cursor-window helper and the focused integration coverage aligned so later order-domain edits do not regress draft catalog pagination back to a naive `slice(0, first)` implementation
 - for draft-order completion, a future live conformance credential must satisfy `write_draft_orders` plus mark-as-paid or set-payment-terms permission
-- refresh `pending/order-creation-conformance-scope-blocker.md` with `corepack pnpm conformance:capture-orders` instead of leaving order-domain creation assumptions stale
+- refresh the HAR-186 evidence with `corepack pnpm conformance:capture-orders` instead of leaving order-domain creation assumptions stale
 
 ### 7a-refresh. Repo-local auth refresh needs a client-id fallback, not just the rotated token payload
 
@@ -446,7 +446,7 @@ After the initial orders-domain creation scaffolding landed, the next easy mista
   - downstream `order(id:)` reads expose the staged values, including `customer.email` when the input updates `email`
   - `billingAddress` is intentionally not part of that local `orderUpdate` slice because the current `OrderInput` docs do not expose it
   - live capture for this expanded slice is currently blocked by the saved conformance credential: `corepack pnpm conformance:probe` fails with `Stored Shopify conformance access token is invalid and refresh failed: This request requires an active refresh_token`
-  - checked-in blocker scaffold: `pending/order-update-expanded-conformance-auth-blocker.md`
+  - shared conformance auth repair is tracked in HAR-185 instead of a checked-in pending blocker doc
 - adjacent live-hybrid rule: once the unknown-id `orderUpdate` branch is captured, do not keep proxying that obviously invalid supported edit upstream in `live-hybrid`; short-circuit the captured `order: null` + `userErrors[{ field: ['id'], message: 'Order does not exist' }]` response locally, and now also short-circuit the first synthetic/local happy-path edit slice locally while leaving broader non-local orderUpdate semantics in passthrough until live parity exists
 - equally important consequence: this does **not** prove the broader order-edit family is ready
   - `orderEditBegin`, `orderEditAddVariant`, `orderEditSetQuantity`, and `orderEditCommit` still need deliberate schema/blocker discovery and should not be guessed from the `orderUpdate` validation slices alone
@@ -475,7 +475,7 @@ Current live findings on this host:
   - the remaining calculated-order edit work is the happy-path non-local Shopify parity family, which still needs explicit blocker-note + parity-plan scaffolding until a `write_order_edits`-capable install exists
 
 - keep concrete parity requests checked in for each root so later live capture can compare the real payload slice once an order-edit capable credential exists
-- refresh `pending/order-editing-conformance-scope-blocker.md` with `corepack pnpm conformance:capture-orders` instead of leaving the order-edit family as a generic worklist bullet
+- refresh HAR-115 with `corepack pnpm conformance:capture-orders` evidence instead of leaving the order-edit family as a generic worklist bullet
 - do not skip ahead to fulfillment just because the edit roots introspect cleanly; the current host still needs a `write_order_edits`-capable credential before broader order-edit parity can become evidence-backed runtime work
 - newer local-runtime consequence: even without that credential, the proxy can still support a minimal but coherent local calculated-order session for synthetic/local orders only
   - `orderEditBegin` clones a staged/local order into a synthetic `CalculatedOrder` session with synthetic `CalculatedLineItem` ids for the current editable line set
@@ -512,7 +512,7 @@ Practical rule:
 - mirror the captured `RESOURCE_NOT_FOUND` / `invalid id` `fulfillmentCreate` branch and the newer fulfillment-lifecycle validation branches locally in both `snapshot` and `live-hybrid` so obviously invalid fulfillment requests stop leaking upstream
 - keep the broader fulfillment lifecycle (`fulfillmentTrackingInfoUpdate`, `fulfillmentCancel`, and eventual downstream fulfillment read effects) blocked on fresh live evidence instead of guessing success semantics from the validation-only slices
 - once order creation/editing scaffolding exists, do not leave those broader fulfillment roots as free-text notes only; add them to `config/operation-registry.json`, captured validation fixtures, and explicit parity-request/spec files so convention-discovered conformance reports show both the landed validation progress and the remaining blockers honestly
-- keep the fulfillment lifecycle blocker machine-readable in `pending/fulfillment-lifecycle-conformance-scope-blocker.md`, including the split between `fulfillmentTrackingInfoUpdate`'s scope+permission gate and `fulfillmentCancel`'s still-generic `ACCESS_DENIED` payload on this host after the pre-access validation branches are exhausted
+- keep the fulfillment lifecycle blocker machine-readable in parity-spec blocker details and HAR-187, including the split between `fulfillmentTrackingInfoUpdate`'s scope+permission gate and `fulfillmentCancel`'s still-generic `ACCESS_DENIED` payload on this host after the pre-access validation branches are exhausted
 
 ## 10. Pagination and sorting are going to get gnarly fast
 
@@ -955,6 +955,9 @@ Takeaway:
 Public Shopify docs for the real mutations already force two different local semantics:
 
 - `collectionAddProducts` is atomic for duplicate membership: if any requested product is already in the collection, return a `userErrors` entry and add none of them
+- `collectionAddProducts` ignores product IDs that do not resolve to products, while still adding known products from the same request and returning the updated collection payload
+- refreshed live capture showed default `collection.products(first: ...)` for a newly-created manual collection returning a multi-product add batch in reverse request order; keep the mutation payload and downstream `collection(id:)` read on the same staged membership ordering instead of patching one response shape
+- `collectionAddProducts` returns `collection: null` plus an `id`-scoped user error for unknown collections and smart collections; smart collections cannot be manually managed through this mutation
 - `collectionRemoveProducts` is async in Shopify and explicitly does **not** validate product existence or prior membership, so a pragmatic first local pass can remove known memberships immediately, ignore unknown product ids, and return a synthetic done `job`
 
 That asymmetry is worth preserving in the local model instead of forcing one generic membership-mutation helper.
@@ -1140,12 +1143,12 @@ On this conformance store and API version, schema introspection listed the bulk 
 
 That means the older single-variant compatibility roots can still be useful local digital-twin affordances, but they cannot be promoted via the same first-party live-root capture process used for the bulk family on this store/API pair. The repo now adopts an explicit compatibility-only closure policy for this family:
 
-- keep the dedicated live schema probe (`corepack pnpm conformance:probe-product-variant-compatibility-roots`) and checked-in blocker note so schema absence stays explicit rather than hand-wavy
+- keep the dedicated live schema probe (`corepack pnpm conformance:probe-product-variant-compatibility-roots`) and HAR-189 follow-up so schema absence stays explicit rather than hand-wavy
 - treat `productVariantCreate` / `productVariantUpdate` / `productVariantDelete` as thin wrappers over the already covered bulk variant overlay paths they reuse locally
-- close their conformance status with captured compatibility evidence that pairs the relevant bulk live parity fixture with the blocker note documenting the missing direct roots
+- close their conformance status with captured compatibility evidence that pairs the relevant bulk live parity fixture with Linear-tracked evidence documenting the missing direct roots
 - if Shopify reintroduces the direct compatibility roots on a future API version/store, rerun the probe and replace the compatibility-only evidence with direct live mutation capture
 
-Use `corepack pnpm conformance:probe-product-variant-compatibility-roots` to refresh the live blocker evidence on this host; the current probe writes `pending/product-variant-compatibility-live-schema-blocker.md` with the exact missing-root errors instead of leaving the schema-drift claim implicit.
+Use `corepack pnpm conformance:probe-product-variant-compatibility-roots` to refresh the live blocker evidence on this host; keep the exact missing-root errors in HAR-189 and parity metadata instead of reintroducing pending Markdown issue tracking.
 
 ## 22. Nested product connections need the same cursor semantics as top-level products
 
@@ -1626,6 +1629,7 @@ Practical rule for the proxy:
 
 - preserve hydrated `inventoryLevels.edges[].cursor` / `location` / quantity rows when Shopify fixtures provide them
 - for staged-only reads without a hydrated level payload yet, synthesize a single product-scoped level instead of returning `null`
+- answer top-level `inventoryLevel(id:)` from the same effective product-backed level graph used by `inventoryItem.inventoryLevels`; unknown level IDs should return `null` rather than proxying in snapshot mode
 - keep the synthetic first pass intentionally narrow: one level, one location id, and quantity-name filtering for the captured `available` / `on_hand` / `incoming` slice
 - do not mistake this for full inventory parity; multi-location inventory, additional quantity families, and true inventory-level mutation semantics still need a broader inventory-domain model
 
@@ -1711,3 +1715,23 @@ Live evidence refreshed on this host:
 - custom collections return `ruleSet: null`; the captured smart collection returns a `ruleSet` with `appliedDisjunctively: false` and a `TITLE CONTAINS VANS` rule
 - both captured custom and smart collections currently return `sortOrder: BEST_SELLING`; the custom collection's blank description comes back as empty strings for both `description` and `descriptionHtml`, not `null`
 - the catalog fixture now selects the same rich metadata fields so `collections` parity covers the captured null/empty shapes alongside nested product connection shape
+
+## 46. Customer-area registry coverage needs to separate likely local staging from side-effect roots
+
+An audit against the current Shopify Admin GraphQL customer docs showed that the first implemented slice (`customer`, `customers`, `customersCount`, `customerCreate`, `customerUpdate`, `customerDelete`) is only the beginning of the customer area. The registry now deliberately accounts for the missing roots future issues are likely to depend on without claiming runtime support.
+
+Observed docs surface:
+
+- read-overlay candidates: `customerByIdentifier` and `customerMergePreview`
+- customer/address staging candidates: `customerAddressCreate`, `customerAddressUpdate`, `customerAddressDelete`, and `customerUpdateDefaultAddress`
+- consent/tax/customer upsert staging candidates: `customerEmailMarketingConsentUpdate`, `customerSmsMarketingConsentUpdate`, `customerAddTaxExemptions`, `customerRemoveTaxExemptions`, `customerReplaceTaxExemptions`, and `customerSet`
+- side-effect-sensitive email roots: `customerSendAccountInviteEmail` and `customerPaymentMethodSendUpdateEmail`
+- destructive/asynchronous merge root: `customerMerge`
+
+Practical rule for the proxy:
+
+- do not treat registry presence as support; unimplemented customer roots are still classified as `implemented: false`
+- read roots should become overlay reads only after captured no-data and found-record behavior exists
+- local customer/address/consent/tax roots should stage locally before being marked implemented, because supported mutations must not hit Shopify during normal runtime
+- side-effect email roots and customer merge should stay explicit passthrough/deferred until a product decision says whether to block, simulate, or proxy them with stronger observability
+- the protected-customer-data denial mode remains a real fallback path in `scripts/capture-customer-conformance.mts`, but current successful fixtures should not be overwritten by stale blocker notes unless the capture script reproduces the denial again

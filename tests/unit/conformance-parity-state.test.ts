@@ -512,7 +512,10 @@ describe('executeParityScenario', () => {
         },
         blocker: {
           kind: 'missing-live-scopes',
-          blockerPath: 'pending/product-publication-conformance-scope-blocker.md',
+          blockerPath: null,
+          details: {
+            linearIssue: 'HAR-188',
+          },
         },
       },
     );
@@ -530,7 +533,10 @@ describe('executeParityScenario', () => {
         },
         blocker: {
           kind: 'missing-publication-target',
-          blockerPath: 'pending/product-publication-conformance-scope-blocker.md',
+          blockerPath: null,
+          details: {
+            linearIssue: 'HAR-188',
+          },
         },
       },
     );

@@ -11,8 +11,9 @@
   "comparisonMode": "planned",
   "blocker": {
     "kind": "missing-live-fulfillment-tracking-update-access",
-    "blockerPath": "pending/fulfillment-lifecycle-conformance-scope-blocker.md",
+    "blockerPath": null,
     "details": {
+      "linearIssue": "HAR-187",
       "requiredScopes": [
         "write_assigned_fulfillment_orders",
         "write_merchant_managed_fulfillment_orders",

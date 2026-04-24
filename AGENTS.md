@@ -41,6 +41,10 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 - Expose and test the meta API.
 - Add tests for every supported operation.
 - Prefer conformance fixtures over hand-wavy comments about expected behavior.
+- Do not add tests that only reassert self-evident properties of checked-in
+  metadata, such as exact fields in registry or parity-spec JSON files. Test
+  executable behavior, schema validation, discovery semantics, or comparison
+  contracts instead.
 - Do not add new planned-only or blocked-only parity scenarios as a way to
   reserve future coverage. Add checked-in parity specs only when they are backed
   by a captured interaction and can run as working evidence; otherwise keep the

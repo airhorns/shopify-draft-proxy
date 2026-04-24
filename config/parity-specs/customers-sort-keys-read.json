@@ -9,13 +9,13 @@
     "variablesPath": "config/parity-requests/customers-sort-keys-read.variables.json"
   },
   "comparisonMode": "capture-only",
-  "notes": "Live customer sort-key capture now exercises the currently supported deterministic Shopify customer sort keys `NAME`, `ID`, and `LOCATION` against the merchant-facing customer card slice used by the overlay serializer. `RELEVANCE` remains separate because it depends on query-scored ranking rather than deterministic field ordering.",
+  "notes": "Captured-only scaffold: live customer sort-key capture exercises the currently supported deterministic Shopify customer sort keys `NAME`, `ID`, and `LOCATION` against the merchant-facing customer card slice used by the overlay serializer, but this scenario is not strict-comparison-ready until explicit `comparison.targets` are declared. `RELEVANCE` remains separate because it depends on query-scored ranking rather than deterministic field ordering.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": []
   },
   "blocker": {
-    "kind": "explicit-comparison-targets-needed",
+    "kind": "captured-only-explicit-comparison-targets-needed",
     "blockerPath": null
   }
 }

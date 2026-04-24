@@ -9,13 +9,13 @@
     "variablesPath": "config/parity-requests/customers-count-read.variables.json"
   },
   "comparisonMode": "capture-only",
-  "notes": "Live customersCount capture now exercises total plus two filtered-looking `customersCount(query:)` slices (`email:` and `state:`), and on this host Shopify treated both query fields as invalid/no-op while still returning exact total counts plus `extensions.search[]` warnings. The local proxy intentionally mirrors that conservative captured behavior and warning metadata instead of reusing the richer `customers` search grammar for counts.",
+  "notes": "Captured-only scaffold: live customersCount capture exercises total plus two filtered-looking `customersCount(query:)` slices (`email:` and `state:`), and on this host Shopify treated both query fields as invalid/no-op while still returning exact total counts plus `extensions.search[]` warnings. The local proxy intentionally mirrors that conservative captured behavior and warning metadata instead of reusing the richer `customers` search grammar for counts, but this scenario is not strict-comparison-ready until explicit `comparison.targets` are declared.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": []
   },
   "blocker": {
-    "kind": "explicit-comparison-targets-needed",
+    "kind": "captured-only-explicit-comparison-targets-needed",
     "blockerPath": null
   }
 }

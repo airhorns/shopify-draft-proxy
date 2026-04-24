@@ -11,13 +11,13 @@
     "variablesPath": "config/parity-requests/customers-relevance-search-read.variables.json"
   },
   "comparisonMode": "capture-only",
-  "notes": "Live customer relevance capture now exercises `customers(query:, sortKey: RELEVANCE)` with a concrete broad-text query so the proxy can replay Shopify's opaque relevance ordering, cursors, and pageInfo without inventing deterministic score semantics.",
+  "notes": "Captured-only scaffold: live customer relevance capture exercises `customers(query:, sortKey: RELEVANCE)` with a concrete broad-text query so the proxy can replay Shopify's opaque relevance ordering, cursors, and pageInfo without inventing deterministic score semantics, but this scenario is not strict-comparison-ready until explicit `comparison.targets` are declared.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": []
   },
   "blocker": {
-    "kind": "explicit-comparison-targets-needed",
+    "kind": "captured-only-explicit-comparison-targets-needed",
     "blockerPath": null
   }
 }
