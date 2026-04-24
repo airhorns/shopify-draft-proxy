@@ -406,6 +406,57 @@ export const orderLineItemRecordSchema = z.strictObject({
 });
 export type OrderLineItemRecord = z.infer<typeof orderLineItemRecordSchema>;
 
+export const orderFulfillmentLineItemRecordSchema = z.strictObject({
+  id: z.string(),
+  lineItemId: nullableStringSchema,
+  title: nullableStringSchema,
+  quantity: z.number(),
+});
+export type OrderFulfillmentLineItemRecord = z.infer<typeof orderFulfillmentLineItemRecordSchema>;
+
+export const orderFulfillmentTrackingInfoRecordSchema = z.strictObject({
+  number: nullableStringSchema,
+  url: nullableStringSchema,
+  company: nullableStringSchema,
+});
+export type OrderFulfillmentTrackingInfoRecord = z.infer<typeof orderFulfillmentTrackingInfoRecordSchema>;
+
+export const orderFulfillmentRecordSchema = z.strictObject({
+  id: z.string(),
+  status: nullableStringSchema,
+  displayStatus: nullableStringSchema.optional(),
+  createdAt: nullableStringSchema.optional(),
+  updatedAt: nullableStringSchema.optional(),
+  trackingInfo: z.array(orderFulfillmentTrackingInfoRecordSchema).optional(),
+  fulfillmentLineItems: z.array(orderFulfillmentLineItemRecordSchema).optional(),
+});
+export type OrderFulfillmentRecord = z.infer<typeof orderFulfillmentRecordSchema>;
+
+export const orderFulfillmentOrderAssignedLocationRecordSchema = z.strictObject({
+  name: nullableStringSchema,
+});
+export type OrderFulfillmentOrderAssignedLocationRecord = z.infer<
+  typeof orderFulfillmentOrderAssignedLocationRecordSchema
+>;
+
+export const orderFulfillmentOrderLineItemRecordSchema = z.strictObject({
+  id: z.string(),
+  lineItemId: nullableStringSchema,
+  title: nullableStringSchema,
+  totalQuantity: z.number(),
+  remainingQuantity: z.number(),
+});
+export type OrderFulfillmentOrderLineItemRecord = z.infer<typeof orderFulfillmentOrderLineItemRecordSchema>;
+
+export const orderFulfillmentOrderRecordSchema = z.strictObject({
+  id: z.string(),
+  status: nullableStringSchema,
+  requestStatus: nullableStringSchema.optional(),
+  assignedLocation: orderFulfillmentOrderAssignedLocationRecordSchema.nullable().optional(),
+  lineItems: z.array(orderFulfillmentOrderLineItemRecordSchema).optional(),
+});
+export type OrderFulfillmentOrderRecord = z.infer<typeof orderFulfillmentOrderRecordSchema>;
+
 export const orderDiscountApplicationRecordSchema = z.strictObject({
   code: nullableStringSchema,
   value: z.strictObject({
@@ -476,10 +527,17 @@ export const orderRecordSchema = z.strictObject({
   billingAddress: draftOrderAddressRecordSchema.nullable(),
   shippingAddress: draftOrderAddressRecordSchema.nullable(),
   subtotalPriceSet: moneySetSchema.nullable(),
+  currentSubtotalPriceSet: moneySetSchema.nullable().optional(),
   currentTotalPriceSet: moneySetSchema.nullable(),
+  currentTotalDiscountsSet: moneySetSchema.nullable().optional(),
+  currentTotalTaxSet: moneySetSchema.nullable().optional(),
   totalPriceSet: moneySetSchema.nullable(),
   totalOutstandingSet: moneySetSchema.nullable().optional(),
+  totalReceivedSet: moneySetSchema.nullable().optional(),
+  netPaymentSet: moneySetSchema.nullable().optional(),
   totalRefundedSet: moneySetSchema.nullable(),
+  totalRefundedShippingSet: moneySetSchema.nullable().optional(),
+  totalShippingPriceSet: moneySetSchema.nullable().optional(),
   totalTaxSet: moneySetSchema.nullable().optional(),
   totalDiscountsSet: moneySetSchema.nullable().optional(),
   discountCodes: z.array(z.string()).optional(),
@@ -489,6 +547,8 @@ export const orderRecordSchema = z.strictObject({
   customer: orderCustomerRecordSchema.nullable(),
   shippingLines: z.array(orderShippingLineRecordSchema),
   lineItems: z.array(orderLineItemRecordSchema),
+  fulfillments: z.array(orderFulfillmentRecordSchema).optional(),
+  fulfillmentOrders: z.array(orderFulfillmentOrderRecordSchema).optional(),
   transactions: z.array(orderTransactionRecordSchema),
   refunds: z.array(orderRefundRecordSchema),
   returns: z.array(orderReturnRecordSchema),
