@@ -1,0 +1,345 @@
+{
+  "setup": {
+    "product": {
+      "variables": {
+        "product": {
+          "title": "Hermes Product Inventory Variant Seed 1777062394222",
+          "status": "DRAFT",
+          "vendor": "HERMES",
+          "productType": "INVENTORY-CONFORMANCE",
+          "tags": ["conformance", "inventory-read", "1777062394222"]
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/9263919988969",
+              "title": "Hermes Product Inventory Variant Seed 1777062394222"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "options": {
+      "variables": {
+        "productId": "gid://shopify/Product/9263919988969",
+        "options": [
+          {
+            "name": "Color",
+            "values": [
+              {
+                "name": "Red"
+              },
+              {
+                "name": "Blue"
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "productOptionsCreate": {
+            "product": {
+              "id": "gid://shopify/Product/9263919988969",
+              "options": [
+                {
+                  "name": "Color",
+                  "optionValues": [
+                    {
+                      "name": "Red",
+                      "hasVariants": true
+                    },
+                    {
+                      "name": "Blue",
+                      "hasVariants": false
+                    }
+                  ]
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "initialState": {
+      "data": {
+        "product": {
+          "id": "gid://shopify/Product/9263919988969",
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/50933258879209",
+                "title": "Red",
+                "inventoryQuantity": 0,
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53081336250601",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 5,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1995,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "mutation": {
+    "variables": {
+      "productId": "gid://shopify/Product/9263919988969",
+      "variants": [
+        {
+          "optionValues": [
+            {
+              "optionName": "Color",
+              "name": "Blue"
+            }
+          ],
+          "barcode": "3333333333333",
+          "price": "27.00",
+          "inventoryItem": {
+            "sku": "HERMES-INV-394222-BLUE",
+            "tracked": true,
+            "requiresShipping": false
+          }
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "productVariantsBulkCreate": {
+          "product": {
+            "id": "gid://shopify/Product/9263919988969",
+            "title": "Hermes Product Inventory Variant Seed 1777062394222",
+            "handle": "hermes-product-inventory-variant-seed-1777062394222",
+            "status": "DRAFT",
+            "totalInventory": 0,
+            "tracksInventory": true,
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/50933258879209",
+                  "title": "Red",
+                  "sku": null,
+                  "barcode": null,
+                  "price": "0.00",
+                  "inventoryQuantity": 0,
+                  "selectedOptions": [
+                    {
+                      "name": "Color",
+                      "value": "Red"
+                    }
+                  ],
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53081336250601",
+                    "tracked": false,
+                    "requiresShipping": true
+                  }
+                },
+                {
+                  "id": "gid://shopify/ProductVariant/50933258911977",
+                  "title": "Blue",
+                  "sku": "HERMES-INV-394222-BLUE",
+                  "barcode": "3333333333333",
+                  "price": "27.00",
+                  "inventoryQuantity": 0,
+                  "selectedOptions": [
+                    {
+                      "name": "Color",
+                      "value": "Blue"
+                    }
+                  ],
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53081336283369",
+                    "tracked": true,
+                    "requiresShipping": false
+                  }
+                }
+              ]
+            }
+          },
+          "productVariants": [
+            {
+              "id": "gid://shopify/ProductVariant/50933258911977",
+              "title": "Blue",
+              "sku": "HERMES-INV-394222-BLUE",
+              "barcode": "3333333333333",
+              "price": "27.00",
+              "inventoryQuantity": 0,
+              "selectedOptions": [
+                {
+                  "name": "Color",
+                  "value": "Blue"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53081336283369",
+                "tracked": true,
+                "requiresShipping": false
+              }
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 26,
+          "actualQueryCost": 17,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1983,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/9263919988969",
+        "title": "Hermes Product Inventory Variant Seed 1777062394222",
+        "handle": "hermes-product-inventory-variant-seed-1777062394222",
+        "status": "DRAFT",
+        "totalInventory": 0,
+        "tracksInventory": true,
+        "variants": {
+          "nodes": [
+            {
+              "id": "gid://shopify/ProductVariant/50933258879209",
+              "title": "Red",
+              "sku": null,
+              "barcode": null,
+              "price": "0.00",
+              "inventoryQuantity": 0,
+              "selectedOptions": [
+                {
+                  "name": "Color",
+                  "value": "Red"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53081336250601",
+                "tracked": false,
+                "requiresShipping": true
+              }
+            },
+            {
+              "id": "gid://shopify/ProductVariant/50933258911977",
+              "title": "Blue",
+              "sku": "HERMES-INV-394222-BLUE",
+              "barcode": "3333333333333",
+              "price": "27.00",
+              "inventoryQuantity": 0,
+              "selectedOptions": [
+                {
+                  "name": "Color",
+                  "value": "Blue"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53081336283369",
+                "tracked": true,
+                "requiresShipping": false
+              }
+            }
+          ]
+        }
+      },
+      "variant": {
+        "id": "gid://shopify/ProductVariant/50933258911977",
+        "title": "Blue",
+        "sku": "HERMES-INV-394222-BLUE",
+        "barcode": "3333333333333",
+        "price": "27.00",
+        "inventoryQuantity": 0,
+        "selectedOptions": [
+          {
+            "name": "Color",
+            "value": "Blue"
+          }
+        ],
+        "inventoryItem": {
+          "id": "gid://shopify/InventoryItem/53081336283369",
+          "tracked": true,
+          "requiresShipping": false
+        },
+        "product": {
+          "id": "gid://shopify/Product/9263919988969",
+          "title": "Hermes Product Inventory Variant Seed 1777062394222",
+          "handle": "hermes-product-inventory-variant-seed-1777062394222",
+          "status": "DRAFT",
+          "totalInventory": 0,
+          "tracksInventory": true
+        }
+      },
+      "stock": {
+        "id": "gid://shopify/InventoryItem/53081336283369",
+        "tracked": true,
+        "requiresShipping": false,
+        "variant": {
+          "id": "gid://shopify/ProductVariant/50933258911977",
+          "title": "Blue",
+          "sku": "HERMES-INV-394222-BLUE",
+          "inventoryQuantity": 0,
+          "product": {
+            "id": "gid://shopify/Product/9263919988969",
+            "title": "Hermes Product Inventory Variant Seed 1777062394222",
+            "handle": "hermes-product-inventory-variant-seed-1777062394222",
+            "status": "DRAFT",
+            "totalInventory": 0,
+            "tracksInventory": true
+          }
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 22,
+        "actualQueryCost": 13,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1987,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,97 @@
+{
+  "scenarioId": "product-variants-bulk-create-inventory-read-live-parity",
+  "operationNames": ["productVariantsBulkCreate", "productVariant", "inventoryItem"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-variants-bulk-create-inventory-read-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/productVariantsBulkCreate-inventory-read-parity.graphql",
+    "variablesPath": "config/parity-requests/productVariantsBulkCreate-inventory-read-parity.variables.json",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Covers a product variant added with `productVariantsBulkCreate`, including the created variant's synthetic inventory item in the mutation payload and immediate downstream `productVariant(id:)` / `inventoryItem(id:)` reads.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.productVariantsBulkCreate.product.variants.nodes[1].id",
+        "matcher": "shopify-gid:ProductVariant",
+        "reason": "The proxy allocates a stable synthetic product variant GID for the staged bulk-create variant."
+      },
+      {
+        "path": "$.productVariantsBulkCreate.product.variants.nodes[1].inventoryItem.id",
+        "matcher": "shopify-gid:InventoryItem",
+        "reason": "The proxy allocates a stable synthetic inventory item GID for the staged bulk-create variant."
+      },
+      {
+        "path": "$.productVariantsBulkCreate.productVariants[0].id",
+        "matcher": "shopify-gid:ProductVariant",
+        "reason": "The proxy returns the same stable synthetic product variant GID in the mutation payload."
+      },
+      {
+        "path": "$.productVariantsBulkCreate.productVariants[0].inventoryItem.id",
+        "matcher": "shopify-gid:InventoryItem",
+        "reason": "The proxy returns the same stable synthetic inventory item GID in the mutation payload."
+      },
+      {
+        "path": "$.product.variants.nodes[1].id",
+        "matcher": "shopify-gid:ProductVariant",
+        "reason": "The downstream product read exposes the staged synthetic product variant GID."
+      },
+      {
+        "path": "$.product.variants.nodes[1].inventoryItem.id",
+        "matcher": "shopify-gid:InventoryItem",
+        "reason": "The downstream product read exposes the staged synthetic inventory item GID."
+      },
+      {
+        "path": "$.variant.id",
+        "matcher": "shopify-gid:ProductVariant",
+        "reason": "Top-level productVariant reads address the staged synthetic variant ID."
+      },
+      {
+        "path": "$.variant.inventoryItem.id",
+        "matcher": "shopify-gid:InventoryItem",
+        "reason": "Top-level productVariant reads expose the staged synthetic inventory item ID."
+      },
+      {
+        "path": "$.stock.id",
+        "matcher": "shopify-gid:InventoryItem",
+        "reason": "Top-level inventoryItem reads address the staged synthetic inventory item ID."
+      },
+      {
+        "path": "$.stock.variant.id",
+        "matcher": "shopify-gid:ProductVariant",
+        "reason": "Inventory item backreferences point at the staged synthetic variant ID."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-inventory-read-data",
+        "capturePath": "$.downstreamRead.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/productVariantsBulkCreate-inventory-read-downstream.graphql",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productVariantsBulkCreate.product.id"
+            },
+            "variantId": {
+              "fromPrimaryProxyPath": "$.data.productVariantsBulkCreate.productVariants[0].id"
+            },
+            "inventoryItemId": {
+              "fromPrimaryProxyPath": "$.data.productVariantsBulkCreate.productVariants[0].inventoryItem.id"
+            }
+          }
+        },
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

@@ -774,6 +774,19 @@ function makeCollectionRecord(input: Record<string, unknown>, existing?: Collect
   };
 }
 
+function makeDefaultInventoryItemRecord(): NonNullable<ProductVariantRecord['inventoryItem']> {
+  return {
+    id: makeSyntheticGid('InventoryItem'),
+    tracked: false,
+    requiresShipping: true,
+    measurement: null,
+    countryCodeOfOrigin: null,
+    provinceCodeOfOrigin: null,
+    harmonizedSystemCode: null,
+    inventoryLevels: null,
+  };
+}
+
 function makeDefaultVariantRecord(product: ProductRecord): ProductVariantRecord {
   return {
     id: makeSyntheticGid('ProductVariant'),
@@ -785,9 +798,9 @@ function makeDefaultVariantRecord(product: ProductRecord): ProductVariantRecord 
     compareAtPrice: null,
     taxable: null,
     inventoryPolicy: null,
-    inventoryQuantity: null,
+    inventoryQuantity: 0,
     selectedOptions: [],
-    inventoryItem: null,
+    inventoryItem: makeDefaultInventoryItemRecord(),
   };
 }
 
@@ -6269,10 +6282,11 @@ export function handleProductMutation(
       const product = store.stageCreateProduct(makeProductRecord(preparedCreateInput.input));
       store.replaceStagedOptionsForProduct(product.id, [makeDefaultOptionRecord(product)]);
       store.replaceStagedVariantsForProduct(product.id, [makeDefaultVariantRecord(product)]);
+      const syncedProduct = syncProductInventorySummary(product.id);
       return {
         data: {
           [responseKey]: {
-            product: serializeProduct(product, getChildField(field, 'product'), variables),
+            product: serializeProduct(syncedProduct ?? product, getChildField(field, 'product'), variables),
             userErrors: [],
           },
         },
