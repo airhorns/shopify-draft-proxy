@@ -61,7 +61,11 @@ function parseDecimalAmount(raw: unknown): number {
 }
 
 function formatDecimalAmount(value: number): string {
-  return value.toFixed(1);
+  const fixed = value.toFixed(2);
+  if (fixed.endsWith('00')) {
+    return `${fixed.slice(0, -3)}.0`;
+  }
+  return fixed.endsWith('0') ? fixed.slice(0, -1) : fixed;
 }
 
 function normalizeMoneyBag(
@@ -237,7 +241,12 @@ function calculateDraftOrderDiscountAmount(
 
 function buildDraftOrderCustomerFromInput(inputRecord: Record<string, unknown>): DraftOrderCustomerRecord | null {
   const email = readString(inputRecord['email']);
-  const customerId = readString(inputRecord['customerId']);
+  const purchasingEntity =
+    typeof inputRecord['purchasingEntity'] === 'object' && inputRecord['purchasingEntity'] !== null
+      ? (inputRecord['purchasingEntity'] as Record<string, unknown>)
+      : {};
+  const customerId = readString(inputRecord['customerId']) ?? readString(purchasingEntity['customerId']);
+  const customer = customerId ? store.getEffectiveCustomerById(customerId) : null;
   const billingAddress = normalizeDraftOrderAddress(inputRecord['billingAddress']);
   const shippingAddress = normalizeDraftOrderAddress(inputRecord['shippingAddress']);
   const firstName = billingAddress?.firstName ?? shippingAddress?.firstName ?? null;
@@ -253,8 +262,8 @@ function buildDraftOrderCustomerFromInput(inputRecord: Record<string, unknown>):
 
   return {
     id: customerId,
-    email,
-    displayName: displayName.length > 0 ? displayName : email,
+    email: customer?.email ?? email,
+    displayName: customer?.displayName ?? (displayName.length > 0 ? displayName : email),
   };
 }
 
@@ -308,7 +317,7 @@ function normalizeDraftOrderLineItems(raw: unknown, currencyCode: string): Draft
         title: isVariantLine ? (product?.title ?? variant?.title ?? null) : readString(lineItem['title']),
         name: isVariantLine ? (product?.title ?? variant?.title ?? null) : readString(lineItem['title']),
         quantity,
-        sku: isVariantLine ? (variant?.sku ?? null) : readString(lineItem['sku']),
+        sku: isVariantLine ? (variant?.sku ?? '') : readString(lineItem['sku']),
         variantTitle: isVariantLine ? (variant?.title ?? null) : null,
         variantId: variant?.id ?? null,
         productId: product?.id ?? variant?.productId ?? null,
@@ -352,7 +361,12 @@ function normalizeDraftOrderShippingLine(raw: unknown, currencyCode: string): Dr
 
   return {
     title: typeof shippingLine['title'] === 'string' ? shippingLine['title'] : null,
-    code: typeof shippingLine['code'] === 'string' ? shippingLine['code'] : null,
+    code:
+      typeof shippingLine['code'] === 'string'
+        ? shippingLine['code']
+        : typeof shippingLine['shippingRateHandle'] === 'string'
+          ? shippingLine['shippingRateHandle']
+          : 'custom',
     originalPriceSet: {
       shopMoney: normalizeMoney(formatDecimalAmount(parseDecimalAmount(price)), lineCurrency),
     },
@@ -728,14 +742,18 @@ function buildDraftOrderFromInput(input: unknown, shopifyAdminOrigin: string): D
     (sum, lineItem) => sum + parseDecimalAmount(lineItem.totalDiscountSet?.shopMoney.amount),
     0,
   );
-  const subtotal = formatDecimalAmount(
+  const discountedLineSubtotal = formatDecimalAmount(
     lineItems.reduce((sum, lineItem) => sum + parseDecimalAmount(lineItem.discountedTotalSet?.shopMoney.amount), 0),
   );
-  const orderDiscountTotal = calculateDraftOrderDiscountAmount(appliedDiscount, parseDecimalAmount(subtotal));
+  const orderDiscountTotal = calculateDraftOrderDiscountAmount(
+    appliedDiscount,
+    parseDecimalAmount(discountedLineSubtotal),
+  );
+  const subtotal = formatDecimalAmount(Math.max(0, parseDecimalAmount(discountedLineSubtotal) - orderDiscountTotal));
   const shippingTotal = parseDecimalAmount(shippingLine?.originalPriceSet?.shopMoney.amount);
   const totalDiscount = formatDecimalAmount(lineDiscountTotal + orderDiscountTotal);
   const totalShipping = formatDecimalAmount(shippingTotal);
-  const total = formatDecimalAmount(Math.max(0, parseDecimalAmount(subtotal) - orderDiscountTotal) + shippingTotal);
+  const total = formatDecimalAmount(parseDecimalAmount(subtotal) + shippingTotal);
   const name = `#D${store.getDraftOrders().length + 1}`;
   const invoiceId = draftOrderId.split('/').at(-1) ?? 'draft-order';
 
@@ -744,7 +762,7 @@ function buildDraftOrderFromInput(input: unknown, shopifyAdminOrigin: string): D
     name,
     invoiceUrl: `${shopifyAdminOrigin.replace(/\/$/, '')}/draft_orders/${invoiceId}/invoice`,
     status: 'OPEN',
-    ready: false,
+    ready: true,
     email: typeof inputRecord['email'] === 'string' ? inputRecord['email'] : null,
     note: typeof inputRecord['note'] === 'string' ? inputRecord['note'] : null,
     tags: Array.isArray(inputRecord['tags'])
@@ -1683,7 +1701,7 @@ function serializeDraftOrderLineItemNode(
         nodeResult[nodeKey] = lineItem.sku;
         break;
       case 'variantTitle':
-        nodeResult[nodeKey] = lineItem.variantTitle;
+        nodeResult[nodeKey] = lineItem.variantTitle === 'Default Title' ? null : lineItem.variantTitle;
         break;
       case 'custom':
         nodeResult[nodeKey] = lineItem.custom;
@@ -1723,7 +1741,7 @@ function serializeDraftOrderLineItemNode(
                   case 'title':
                     return [variantKey, lineItem.variantTitle];
                   case 'sku':
-                    return [variantKey, lineItem.sku];
+                    return [variantKey, lineItem.sku === '' ? null : lineItem.sku];
                   default:
                     return [variantKey, null];
                 }

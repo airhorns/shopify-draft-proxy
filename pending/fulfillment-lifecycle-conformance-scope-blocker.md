@@ -8,15 +8,6 @@ Refreshed the next fulfillment lifecycle probes on `very-big-test-store.myshopif
 - `fulfillmentCancel` — the adjacent cancellation root for reversing a fulfillment lifecycle step
 - `corepack pnpm conformance:capture-orders`
 
-## Current refresh blocker
-
-An unattended refresh attempt on 2026-04-22 could not reach the fulfillment probes because the stored Shopify conformance access token was invalid and token refresh could not start without the repo-local Shopify app env file:
-
-- missing file: `shopify-conformance-app/hermes-conformance-products/.env`
-- failing command: `corepack pnpm conformance:capture-orders`
-- exact blocker: `Stored Shopify conformance access token is invalid and refresh failed: Shopify app env file not found at /home/airhorns/code/symphony-workspaces/shopify-draft-proxy/HAR-122/shopify-conformance-app/hermes-conformance-products/.env. Set SHOPIFY_CONFORMANCE_APP_ENV_PATH or restore the linked app workspace before refreshing the token.`
-- interpretation: this is an access/credential-refresh blocker above the fulfillment lifecycle probes; it does not invalidate the last verified fulfillment access-denied evidence below.
-
 ## Current credential summary
 
 - credential family: `shpca`
@@ -26,28 +17,28 @@ An unattended refresh attempt on 2026-04-22 could not reach the fulfillment prob
 ## Saved manual store auth token on disk
 
 - path: `.manual-store-auth-token.json`
-- status: `present-shpca-user-token-not-offline-capable`
-- token family: `shpca`
-- cached scopes: `read_product_listings`, `read_themes`, `write_assigned_fulfillment_orders`, `write_content`, `write_customers`, `write_discounts`, `write_draft_orders`, `write_files`, `write_fulfillments`, `write_inventory`, `write_locations`, `write_markets`, `write_merchant_managed_fulfillment_orders`, `write_metaobject_definitions`, `write_metaobjects`, `write_order_edits`, `write_orders`, `write_products`, `write_publications`, `write_returns`, `write_shipping`, `write_third_party_fulfillment_orders`, `write_translations`
+- status: `missing`
+- token family: `missing`
+- cached scopes: none recorded
 - associated user scopes: none recorded
-- interpretation: The saved manual store-auth artifact still caches a `shpca` user token, so it does not satisfy Shopify's offline-token requirement for `orderCreate` even though its cached scope strings include order scopes.
+- interpretation: No saved manual store-auth artifact is currently available for this run.
 
 ## Current run summary
 
 ### Captured pre-access validation slices
 
 - `fulfillmentTrackingInfoUpdate` inline missing `fulfillmentId`
-  - exact message: missing error payload
+  - exact message: Field 'fulfillmentTrackingInfoUpdate' is missing required arguments: fulfillmentId
 - `fulfillmentTrackingInfoUpdate` inline `fulfillmentId: null`
-  - exact message: missing error payload
+  - exact message: Argument 'fulfillmentId' on Field 'fulfillmentTrackingInfoUpdate' has an invalid value (null). Expected type 'ID!'.
 - `fulfillmentTrackingInfoUpdate` missing `$fulfillmentId`
-  - exact message: missing error payload
+  - exact message: Variable $fulfillmentId of type ID! was provided invalid value
 - `fulfillmentCancel` inline missing `id`
-  - exact message: missing error payload
+  - exact message: Field 'fulfillmentCancel' is missing required arguments: id
 - `fulfillmentCancel` inline `id: null`
-  - exact message: missing error payload
+  - exact message: Argument 'id' on Field 'fulfillmentCancel' has an invalid value (null). Expected type 'ID!'.
 - `fulfillmentCancel` missing `$id`
-  - exact message: missing error payload
+  - exact message: Variable $id of type ID! was provided invalid value
 
 ### Remaining live happy-path blockers
 

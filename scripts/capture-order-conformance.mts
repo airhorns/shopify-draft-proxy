@@ -791,7 +791,6 @@ const draftOrderCreateProbe = `#graphql
         reserveInventoryUntil
         paymentTerms {
           id
-          due
           overdue
           dueInDays
           paymentTermsName
@@ -860,23 +859,68 @@ const draftOrderDetailRead = `#graphql
       id
       name
       status
+      ready
       email
+      customer { id email displayName }
+      taxExempt
+      taxesIncluded
+      reserveInventoryUntil
+      paymentTerms {
+        id
+        overdue
+        dueInDays
+        paymentTermsName
+        paymentTermsType
+        translatedName
+      }
       tags
       invoiceUrl
       customAttributes { key value }
+      appliedDiscount {
+        title
+        description
+        value
+        valueType
+        amountSet { shopMoney { amount currencyCode } }
+      }
       billingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }
       shippingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }
       shippingLine {
         title
+        code
+        custom
         originalPriceSet { shopMoney { amount currencyCode } }
+        discountedPriceSet { shopMoney { amount currencyCode } }
       }
+      subtotalPriceSet { shopMoney { amount currencyCode } }
+      totalDiscountsSet { shopMoney { amount currencyCode } }
+      totalShippingPriceSet { shopMoney { amount currencyCode } }
       totalPriceSet { shopMoney { amount currencyCode } }
+      totalQuantityOfLineItems
       lineItems(first: 5) {
         nodes {
           id
           title
+          name
           quantity
           sku
+          variantTitle
+          custom
+          requiresShipping
+          taxable
+          customAttributes { key value }
+          appliedDiscount {
+            title
+            description
+            value
+            valueType
+            amountSet { shopMoney { amount currencyCode } }
+          }
+          originalUnitPriceSet { shopMoney { amount currencyCode } }
+          originalTotalSet { shopMoney { amount currencyCode } }
+          discountedTotalSet { shopMoney { amount currencyCode } }
+          totalDiscountSet { shopMoney { amount currencyCode } }
+          variant { id title sku }
         }
       }
     }
@@ -1333,16 +1377,18 @@ async function main() {
     },
   };
 
+  const draftOrderReserveInventoryUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .replace(/\.\d{3}Z$/u, 'Z');
   const draftOrderCreateVariables = {
     input: {
+      purchasingEntity: {
+        customerId: 'gid://shopify/Customer/6157654556905',
+      },
       email: `hermes-draft-order-probe-${stamp}@example.com`,
       note: 'merchant realistic draft order create parity probe',
       taxExempt: true,
-      taxesIncluded: false,
-      reserveInventoryUntil: '2026-04-23T12:00:00Z',
-      paymentTerms: {
-        paymentSchedules: [{ dueAt: '2026-05-22T12:00:00Z' }],
-      },
+      reserveInventoryUntil: draftOrderReserveInventoryUntil,
       tags: ['parity-probe', 'draft-order-create', 'merchant-realistic'],
       customAttributes: [
         {
@@ -1383,8 +1429,10 @@ async function main() {
       },
       shippingLine: {
         title: 'Merchant Courier',
-        code: 'COURIER',
-        price: 7.25,
+        priceWithCurrency: {
+          amount: '7.25',
+          currencyCode: 'CAD',
+        },
       },
       lineItems: [
         {

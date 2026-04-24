@@ -19,11 +19,11 @@ Refreshed the first order-editing mutation probes on `very-big-test-store.myshop
 ## Saved manual store auth token on disk
 
 - path: `.manual-store-auth-token.json`
-- status: `present-shpca-user-token-not-offline-capable`
-- token family: `shpca`
-- cached scopes: `read_product_listings`, `read_themes`, `write_assigned_fulfillment_orders`, `write_content`, `write_customers`, `write_discounts`, `write_draft_orders`, `write_files`, `write_fulfillments`, `write_inventory`, `write_locations`, `write_markets`, `write_merchant_managed_fulfillment_orders`, `write_metaobject_definitions`, `write_metaobjects`, `write_order_edits`, `write_orders`, `write_products`, `write_publications`, `write_returns`, `write_shipping`, `write_third_party_fulfillment_orders`, `write_translations`
+- status: `missing`
+- token family: `missing`
+- cached scopes: none recorded
 - associated user scopes: none recorded
-- interpretation: The saved manual store-auth artifact still caches a `shpca` user token, so it does not satisfy Shopify's offline-token requirement for `orderCreate` even though its cached scope strings include order scopes.
+- interpretation: No saved manual store-auth artifact is currently available for this run.
 
 ## Live blocker evidence for the order-edit family
 

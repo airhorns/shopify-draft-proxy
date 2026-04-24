@@ -50,7 +50,7 @@ function makeVariant(productId: string, variantId: string): ProductVariantRecord
     productId,
     title: 'Red / Small',
     sku: 'RICH-VARIANT-RED-SMALL',
-    barcode: null,
+    barcode: 'custom',
     price: '20.00',
     compareAtPrice: null,
     taxable: true,
@@ -1241,7 +1241,7 @@ describe('order creation flow', () => {
             },
             shippingLine: {
               title: 'Standard',
-              code: null,
+              code: 'custom',
               originalPriceSet: {
                 shopMoney: {
                   amount: '5.0',
@@ -1557,12 +1557,13 @@ describe('order creation flow', () => {
         }`,
         variables: {
           input: {
-            customerId: 'gid://shopify/Customer/7001',
+            purchasingEntity: {
+              customerId: 'gid://shopify/Customer/7001',
+            },
             email: 'merchant-realistic-draft@example.com',
             note: 'merchant realistic draft order create parity',
             taxExempt: true,
-            taxesIncluded: false,
-            reserveInventoryUntil: '2026-04-23T12:00:00Z',
+            reserveInventoryUntil: '2026-05-23T12:00:00Z',
             paymentTerms: {
               paymentSchedules: [{ dueAt: '2026-05-22T12:00:00Z' }],
             },
@@ -1600,8 +1601,10 @@ describe('order creation flow', () => {
             },
             shippingLine: {
               title: 'Merchant Courier',
-              code: 'COURIER',
-              price: 7.25,
+              priceWithCurrency: {
+                amount: '7.25',
+                currencyCode: 'CAD',
+              },
             },
             lineItems: [
               {
@@ -1636,7 +1639,7 @@ describe('order creation flow', () => {
       name: '#D1',
       invoiceUrl: 'https://example.myshopify.com/draft_orders/2/invoice',
       status: 'OPEN',
-      ready: false,
+      ready: true,
       email: 'merchant-realistic-draft@example.com',
       customer: {
         id: 'gid://shopify/Customer/7001',
@@ -1645,7 +1648,7 @@ describe('order creation flow', () => {
       },
       taxExempt: true,
       taxesIncluded: false,
-      reserveInventoryUntil: '2026-04-23T12:00:00Z',
+      reserveInventoryUntil: '2026-05-23T12:00:00Z',
       paymentTerms: {
         id: 'gid://shopify/PaymentTerms/5',
         due: false,
@@ -1694,24 +1697,24 @@ describe('order creation flow', () => {
       },
       shippingLine: {
         title: 'Merchant Courier',
-        code: 'COURIER',
+        code: 'custom',
         custom: true,
         originalPriceSet: {
           shopMoney: {
-            amount: '7.3',
+            amount: '7.25',
             currencyCode: 'CAD',
           },
         },
         discountedPriceSet: {
           shopMoney: {
-            amount: '7.3',
+            amount: '7.25',
             currencyCode: 'CAD',
           },
         },
       },
       subtotalPriceSet: {
         shopMoney: {
-          amount: '51.5',
+          amount: '46.5',
           currencyCode: 'CAD',
         },
       },
@@ -1723,13 +1726,13 @@ describe('order creation flow', () => {
       },
       totalShippingPriceSet: {
         shopMoney: {
-          amount: '7.3',
+          amount: '7.25',
           currencyCode: 'CAD',
         },
       },
       totalPriceSet: {
         shopMoney: {
-          amount: '53.8',
+          amount: '53.75',
           currencyCode: 'CAD',
         },
       },
@@ -1887,11 +1890,11 @@ describe('order creation flow', () => {
           },
           shippingLine: {
             title: 'Merchant Courier',
-            code: 'COURIER',
+            code: 'custom',
           },
           totalPriceSet: {
             shopMoney: {
-              amount: '53.8',
+              amount: '53.75',
               currencyCode: 'CAD',
             },
           },
@@ -1904,7 +1907,7 @@ describe('order creation flow', () => {
               email: 'merchant-realistic-draft@example.com',
               totalPriceSet: {
                 shopMoney: {
-                  amount: '53.8',
+                  amount: '53.75',
                   currencyCode: 'CAD',
                 },
               },
@@ -4292,7 +4295,7 @@ describe('order creation flow', () => {
         draftOrder: {
           id: draftOrderId,
           status: 'OPEN',
-          ready: false,
+          ready: true,
           order: null,
         },
         ordersCount: {
@@ -4447,7 +4450,7 @@ describe('order creation flow', () => {
             },
             shippingLine: {
               title: 'Standard',
-              code: null,
+              code: 'custom',
             },
             createdAt: '2024-01-01T00:00:01.000Z',
             updatedAt: '2024-01-01T00:00:01.000Z',
@@ -4543,7 +4546,7 @@ describe('order creation flow', () => {
           },
           shippingLine: {
             title: 'Standard',
-            code: null,
+            code: 'custom',
           },
           createdAt: '2024-01-01T00:00:01.000Z',
           updatedAt: '2024-01-01T00:00:01.000Z',

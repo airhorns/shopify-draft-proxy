@@ -25,7 +25,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1987,
+            "currentlyAvailable": 1990,
             "restoreRate": 100
           }
         }

@@ -7,15 +7,51 @@
       "draftOrders": {
         "edges": [
           {
-            "cursor": "eyJsYXN0X2lkIjoxMzA1NjU0MDY3NDMzLCJsYXN0X3ZhbHVlIjoiMTMwNTY1NDA2NzQzMyJ9",
+            "cursor": "eyJsYXN0X2lkIjoxMzA3NzUzOTM5MTc3LCJsYXN0X3ZhbHVlIjoiMTMwNzc1MzkzOTE3NyJ9",
             "node": {
-              "id": "gid://shopify/DraftOrder/1305654067433",
-              "name": "#D40",
+              "id": "gid://shopify/DraftOrder/1307753939177",
+              "name": "#D45",
               "status": "OPEN",
-              "email": "hermes-draft-order-probe-1776610115303@example.com",
+              "email": "hermes-draft-order-probe-1777055832326@example.com",
+              "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
+              "createdAt": "2026-04-24T18:37:14Z",
+              "updatedAt": "2026-04-24T18:37:14Z",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "38.25",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjoxMzA3NzUzMzE2NTg1LCJsYXN0X3ZhbHVlIjoiMTMwNzc1MzMxNjU4NSJ9",
+            "node": {
+              "id": "gid://shopify/DraftOrder/1307753316585",
+              "name": "#D44",
+              "status": "OPEN",
+              "email": "hermes-draft-order-debug-1777055708745@example.com",
+              "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
+              "createdAt": "2026-04-24T18:35:09Z",
+              "updatedAt": "2026-04-24T18:35:09Z",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "38.25",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjoxMzA2ODYzMjcyMTY5LCJsYXN0X3ZhbHVlIjoiMTMwNjg2MzI3MjE2OSJ9",
+            "node": {
+              "id": "gid://shopify/DraftOrder/1306863272169",
+              "name": "#D43",
+              "status": "OPEN",
+              "email": "hermes-draft-order-probe-1776899624464@example.com",
               "tags": ["draft-order-create", "parity-probe"],
-              "createdAt": "2026-04-19T14:48:38Z",
-              "updatedAt": "2026-04-19T14:48:38Z",
+              "createdAt": "2026-04-22T23:13:47Z",
+              "updatedAt": "2026-04-22T23:13:47Z",
               "totalPriceSet": {
                 "shopMoney": {
                   "amount": "10.0",
@@ -25,15 +61,15 @@
             }
           },
           {
-            "cursor": "eyJsYXN0X2lkIjoxMzA1NjQ5OTcxNDMzLCJsYXN0X3ZhbHVlIjoiMTMwNTY0OTk3MTQzMyJ9",
+            "cursor": "eyJsYXN0X2lkIjoxMzA2ODYzMTQxMDk3LCJsYXN0X3ZhbHVlIjoiMTMwNjg2MzE0MTA5NyJ9",
             "node": {
-              "id": "gid://shopify/DraftOrder/1305649971433",
-              "name": "#D39",
+              "id": "gid://shopify/DraftOrder/1306863141097",
+              "name": "#D42",
               "status": "OPEN",
-              "email": "hermes-draft-order-probe-1776608693443@example.com",
+              "email": "hermes-draft-order-probe-1776899588766@example.com",
               "tags": ["draft-order-create", "parity-probe"],
-              "createdAt": "2026-04-19T14:24:56Z",
-              "updatedAt": "2026-04-19T14:24:56Z",
+              "createdAt": "2026-04-22T23:13:11Z",
+              "updatedAt": "2026-04-22T23:13:11Z",
               "totalPriceSet": {
                 "shopMoney": {
                   "amount": "10.0",
@@ -43,51 +79,15 @@
             }
           },
           {
-            "cursor": "eyJsYXN0X2lkIjoxMzA1NjQ2NDk4MDI1LCJsYXN0X3ZhbHVlIjoiMTMwNTY0NjQ5ODAyNSJ9",
+            "cursor": "eyJsYXN0X2lkIjoxMzA2ODYzMDQyNzkzLCJsYXN0X3ZhbHVlIjoiMTMwNjg2MzA0Mjc5MyJ9",
             "node": {
-              "id": "gid://shopify/DraftOrder/1305646498025",
-              "name": "#D38",
+              "id": "gid://shopify/DraftOrder/1306863042793",
+              "name": "#D41",
               "status": "OPEN",
-              "email": "hermes-draft-order-probe-1776607659984@example.com",
+              "email": "hermes-draft-order-probe-1776899484247@example.com",
               "tags": ["draft-order-create", "parity-probe"],
-              "createdAt": "2026-04-19T14:07:43Z",
-              "updatedAt": "2026-04-19T14:07:43Z",
-              "totalPriceSet": {
-                "shopMoney": {
-                  "amount": "10.0",
-                  "currencyCode": "CAD"
-                }
-              }
-            }
-          },
-          {
-            "cursor": "eyJsYXN0X2lkIjoxMzA1NjQyNzI5NzA1LCJsYXN0X3ZhbHVlIjoiMTMwNTY0MjcyOTcwNSJ9",
-            "node": {
-              "id": "gid://shopify/DraftOrder/1305642729705",
-              "name": "#D37",
-              "status": "OPEN",
-              "email": "hermes-draft-order-probe-1776606272529@example.com",
-              "tags": ["draft-order-create", "parity-probe"],
-              "createdAt": "2026-04-19T13:44:35Z",
-              "updatedAt": "2026-04-19T13:44:35Z",
-              "totalPriceSet": {
-                "shopMoney": {
-                  "amount": "10.0",
-                  "currencyCode": "CAD"
-                }
-              }
-            }
-          },
-          {
-            "cursor": "eyJsYXN0X2lkIjoxMzA1NjM5OTc3MTkzLCJsYXN0X3ZhbHVlIjoiMTMwNTYzOTk3NzE5MyJ9",
-            "node": {
-              "id": "gid://shopify/DraftOrder/1305639977193",
-              "name": "#D36",
-              "status": "OPEN",
-              "email": "hermes-draft-order-probe-1776605277643@example.com",
-              "tags": ["draft-order-create", "parity-probe"],
-              "createdAt": "2026-04-19T13:28:00Z",
-              "updatedAt": "2026-04-19T13:28:00Z",
+              "createdAt": "2026-04-22T23:11:27Z",
+              "updatedAt": "2026-04-22T23:11:27Z",
               "totalPriceSet": {
                 "shopMoney": {
                   "amount": "10.0",
@@ -100,8 +100,8 @@
         "pageInfo": {
           "hasNextPage": true,
           "hasPreviousPage": false,
-          "startCursor": "eyJsYXN0X2lkIjoxMzA1NjU0MDY3NDMzLCJsYXN0X3ZhbHVlIjoiMTMwNTY1NDA2NzQzMyJ9",
-          "endCursor": "eyJsYXN0X2lkIjoxMzA1NjM5OTc3MTkzLCJsYXN0X3ZhbHVlIjoiMTMwNTYzOTk3NzE5MyJ9"
+          "startCursor": "eyJsYXN0X2lkIjoxMzA3NzUzOTM5MTc3LCJsYXN0X3ZhbHVlIjoiMTMwNzc1MzkzOTE3NyJ9",
+          "endCursor": "eyJsYXN0X2lkIjoxMzA2ODYzMDQyNzkzLCJsYXN0X3ZhbHVlIjoiMTMwNjg2MzA0Mjc5MyJ9"
         }
       }
     },

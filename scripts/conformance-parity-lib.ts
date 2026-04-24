@@ -35,6 +35,7 @@ import { makeSyntheticGid, makeSyntheticTimestamp, resetSyntheticIdentity } from
 import { store } from '../src/state/store.js';
 import type {
   CollectionRecord,
+  CustomerRecord,
   DraftOrderLineItemRecord,
   DraftOrderRecord,
   DraftOrderShippingLineRecord,
@@ -1028,6 +1029,39 @@ function makeSeedProduct(
   };
 }
 
+function makeSeedCustomer(source: Record<string, unknown> | null): CustomerRecord | null {
+  const id = readStringField(source, 'id');
+  if (!id) {
+    return null;
+  }
+
+  const email = readStringField(source, 'email');
+  const displayName = readStringField(source, 'displayName');
+
+  return {
+    id,
+    firstName: null,
+    lastName: null,
+    displayName,
+    email,
+    legacyResourceId: null,
+    locale: null,
+    note: null,
+    canDelete: null,
+    verifiedEmail: null,
+    taxExempt: null,
+    state: null,
+    tags: [],
+    numberOfOrders: null,
+    amountSpent: null,
+    defaultEmailAddress: email ? { emailAddress: email } : null,
+    defaultPhoneNumber: null,
+    defaultAddress: null,
+    createdAt: null,
+    updatedAt: null,
+  };
+}
+
 function makeSeedVariant(
   productId: string,
   selectedOptions: ProductVariantRecord['selectedOptions'] = [],
@@ -1853,6 +1887,63 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       if (seedSource) {
         store.upsertBaseOrders([makeSeedOrder(orderId, seedSource)]);
       }
+    }
+    return;
+  }
+
+  if (mutationName === 'draftOrderCreate') {
+    const draftOrderPayload = readRecordField(payload, 'draftOrder');
+    const customer = makeSeedCustomer(readRecordField(draftOrderPayload, 'customer'));
+    if (customer) {
+      store.upsertBaseCustomers([customer]);
+    }
+
+    for (const lineItem of readArrayField(readRecordField(draftOrderPayload, 'lineItems'), 'nodes').filter(
+      isPlainObject,
+    )) {
+      const variant = readRecordField(lineItem, 'variant');
+      const variantId = readStringField(variant, 'id');
+      if (!variantId) {
+        continue;
+      }
+
+      const variantResourceId = variantId.split('/').at(-1) ?? '0';
+      const productId = `gid://shopify/Product/${variantResourceId}`;
+      const productTitle = readStringField(lineItem, 'title') ?? 'Conformance draft-order product';
+      store.upsertBaseProducts([
+        makeSeedProduct(productId, {
+          id: productId,
+          title: productTitle,
+        }),
+      ]);
+      store.replaceBaseVariantsForProduct(productId, [
+        {
+          id: variantId,
+          productId,
+          title: readStringField(variant, 'title') ?? 'Default Title',
+          sku: readStringField(variant, 'sku'),
+          barcode: null,
+          price: readStringField(
+            readRecordField(readRecordField(lineItem, 'originalUnitPriceSet'), 'shopMoney'),
+            'amount',
+          ),
+          compareAtPrice: null,
+          taxable: readBooleanField(lineItem, 'taxable'),
+          inventoryPolicy: null,
+          inventoryQuantity: null,
+          selectedOptions: [],
+          inventoryItem: {
+            id: `gid://shopify/InventoryItem/${variantResourceId}`,
+            tracked: null,
+            requiresShipping: readBooleanField(lineItem, 'requiresShipping'),
+            measurement: null,
+            countryCodeOfOrigin: null,
+            provinceCodeOfOrigin: null,
+            harmonizedSystemCode: null,
+            inventoryLevels: [],
+          },
+        },
+      ]);
     }
     return;
   }

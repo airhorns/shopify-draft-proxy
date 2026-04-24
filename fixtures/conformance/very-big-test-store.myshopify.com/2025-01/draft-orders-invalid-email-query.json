@@ -36,11 +36,20 @@
         }
       },
       "draftOrdersCount": {
-        "count": 40,
+        "count": 45,
         "precision": "EXACT"
       }
     },
     "extensions": {
+      "cost": {
+        "requestedQueryCost": 13,
+        "actualQueryCost": 13,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1987,
+          "restoreRate": 100
+        }
+      },
       "search": [
         {
           "path": ["draftOrders"],

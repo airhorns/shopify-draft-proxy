@@ -3,12 +3,41 @@ query DraftOrderCreateDownstreamRead($id: ID!) {
     id
     name
     status
+    ready
     email
+    customer {
+      id
+      email
+      displayName
+    }
+    taxExempt
+    taxesIncluded
+    reserveInventoryUntil
+    paymentTerms {
+      id
+      overdue
+      dueInDays
+      paymentTermsName
+      paymentTermsType
+      translatedName
+    }
     tags
     invoiceUrl
     customAttributes {
       key
       value
+    }
+    appliedDiscount {
+      title
+      description
+      value
+      valueType
+      amountSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
     }
     billingAddress {
       firstName
@@ -31,11 +60,36 @@ query DraftOrderCreateDownstreamRead($id: ID!) {
     shippingLine {
       title
       code
+      custom
       originalPriceSet {
         shopMoney {
           amount
           currencyCode
         }
+      }
+      discountedPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    subtotalPriceSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+    totalDiscountsSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+    totalShippingPriceSet {
+      shopMoney {
+        amount
+        currencyCode
       }
     }
     totalPriceSet {
@@ -44,12 +98,63 @@ query DraftOrderCreateDownstreamRead($id: ID!) {
         currencyCode
       }
     }
+    totalQuantityOfLineItems
     lineItems(first: 5) {
       nodes {
         id
         title
+        name
         quantity
         sku
+        variantTitle
+        custom
+        requiresShipping
+        taxable
+        customAttributes {
+          key
+          value
+        }
+        appliedDiscount {
+          title
+          description
+          value
+          valueType
+          amountSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+        originalUnitPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        originalTotalSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        discountedTotalSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        totalDiscountSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        variant {
+          id
+          title
+          sku
+        }
       }
     }
   }

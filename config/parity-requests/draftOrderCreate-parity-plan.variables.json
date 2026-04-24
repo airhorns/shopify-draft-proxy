@@ -1,17 +1,12 @@
 {
   "input": {
+    "purchasingEntity": {
+      "customerId": "gid://shopify/Customer/6157654556905"
+    },
     "email": "hermes-draft-order-parity-plan-20260422@example.com",
     "note": "merchant realistic draft order create parity plan",
     "taxExempt": true,
-    "taxesIncluded": false,
-    "reserveInventoryUntil": "2026-04-23T12:00:00Z",
-    "paymentTerms": {
-      "paymentSchedules": [
-        {
-          "dueAt": "2026-05-22T12:00:00Z"
-        }
-      ]
-    },
+    "reserveInventoryUntil": "2026-05-23T12:00:00Z",
     "tags": ["parity-plan", "draft-order", "merchant-realistic"],
     "customAttributes": [
       {
@@ -52,8 +47,10 @@
     },
     "shippingLine": {
       "title": "Merchant Courier",
-      "code": "COURIER",
-      "price": 7.25
+      "priceWithCurrency": {
+        "amount": "7.25",
+        "currencyCode": "CAD"
+      }
     },
     "lineItems": [
       {

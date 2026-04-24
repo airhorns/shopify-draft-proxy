@@ -10,7 +10,7 @@
     "variablesCapturePath": "$.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "The checked-in live capture predates HAR-117's wider merchant-realistic request fixture, so this scenario replays the captured variables and compares the complete DraftOrder payload selected by the capture until live conformance auth can refresh it. Shopify-generated IDs, draft order names, invoice URLs, and the stale captured shipping-line/total values are path-scoped expected differences.",
+  "notes": "The checked-in live capture uses a merchant-realistic draftOrderCreate request with customer linkage, custom and variant line items, shipping line, discounts, tax/reserve fields, custom attributes, and paymentTerms selected as null because the current credential lacks read_payment_terms. The scenario replays captured variables and compares the complete selected DraftOrder payload. Shopify-generated IDs, draft order names, and invoice URLs are path-scoped expected differences.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -33,18 +33,6 @@
         "path": "$.lineItems.nodes[*].id",
         "matcher": "shopify-gid:DraftOrderLineItem",
         "reason": "The proxy creates stable synthetic draft order line item IDs while the capture contains live Shopify IDs."
-      },
-      {
-        "path": "$.shippingLine",
-        "ignore": true,
-        "regrettable": true,
-        "reason": "The stale live capture returned null for shippingLine even though the captured input includes shippingLine; HAR-117 local staging now models it but live capture refresh is blocked by Shopify auth 401."
-      },
-      {
-        "path": "$.totalPriceSet.shopMoney.amount",
-        "ignore": true,
-        "regrettable": true,
-        "reason": "The stale live capture total excludes the requested shipping line; local staging includes it and live capture refresh is blocked by Shopify auth 401."
       }
     ],
     "targets": [
