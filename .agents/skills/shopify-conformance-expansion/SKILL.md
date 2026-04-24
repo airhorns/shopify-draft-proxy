@@ -36,6 +36,11 @@ If a behavior is surprising or underspecified, do not guess forever — add a co
 9. Make sure every root operation in the parity spec's `operationNames` exists in `config/operation-registry.json`.
 10. Add new helper scripts as TypeScript and run them with `tsx` or an equivalent TypeScript runner.
 11. Do not add new planned-only or blocked-only parity specs. If a scenario cannot be captured and replayed as working evidence in the current task, document the gap in Linear/workpad notes instead of adding repository scenario files.
+12. If the task specifically requires recording or re-recording live conformance
+    evidence and valid Shopify credentials cannot be restored with the
+    documented auth/probe paths, stop before implementation handoff: update the
+    Linear workpad with the blocker, move the issue to Human Review, and do
+    **not** commit, push, or open a PR.
 
 ## Live-store setup
 
@@ -104,6 +109,12 @@ Important current-host findings:
 
 If `conformance:refresh-auth` fails, inspect the returned JSON before retrying. A shared-credential refresh failing with `invalid_request` / `This request requires an active refresh_token` means the saved store-auth grant is no longer refreshable — stop retrying it. Generate a new store-auth link, complete the browser approval flow, exchange the callback in one step, and only then probe again.
 
+In unattended Linear workflow, generating a new auth link or completing browser
+approval is an external human action. When a required recording/re-recording
+depends on that action, record the failed probe/refresh details in the workpad,
+move the issue to Human Review, and do not create a commit, push a branch, or
+open a PR for partial work.
+
 ### Symphony workspace credential link
 
 On the unattended Symphony host, older workspaces may still have a repo-local `.env` linked to the original checkout:
@@ -149,6 +160,12 @@ Do not perform a non-persisting "test" refresh. A successful response can rotate
 
 After persisting, run `corepack pnpm conformance:probe`. If the refresh response is `invalid_grant`, the stored CLI grant is no longer recoverable non-interactively; stop retrying and switch to the store-auth flow above, a dedicated dev-store Admin API token, or a fresh Shopify CLI authentication.
 
+For unattended ticket work, an unrecoverable `invalid_grant` or equivalent
+invalid/missing live credential blocks any required recording/re-recording. Do
+not continue by committing code or opening a PR unless the ticket can be fully
+completed with existing fixtures/local/snapshot evidence and no required live
+capture remains.
+
 ### Probe the live target before writing parity fixtures
 
 Once the vars are present:
@@ -158,6 +175,12 @@ corepack pnpm conformance:probe
 ```
 
 This performs a minimal Admin GraphQL `shop` query against the configured store and fails fast if the domain/origin/token combination is wrong. Internally it resolves the token via `getValidConformanceAccessToken(...)`, which probes the stored token, refreshes it when possible, and reports a clear error when the home-folder credential is missing or dead.
+
+If `conformance:probe` fails and the current task needs fresh live recordings,
+the failure is not a warning to ignore. Treat it as a required-auth blocker:
+preserve the failing command/error in the Linear workpad, explain why existing
+fixtures/local replay are insufficient for the requested acceptance criteria,
+move the issue to Human Review, and stop without commit/push/PR.
 
 ### Capture product-domain fixtures from the live store
 
