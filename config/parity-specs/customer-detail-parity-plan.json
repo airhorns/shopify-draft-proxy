@@ -8,14 +8,17 @@
     "documentPath": "config/parity-requests/customer-detail-parity-plan.graphql",
     "variablesPath": "config/parity-requests/customer-detail-parity-plan.variables.json"
   },
-  "comparisonMode": "capture-only",
-  "notes": "Captured-only scaffold: live customer detail capture exercises top-level `customer(id:)` reads with the merchant-facing fields currently supported by the local customer overlay serializer, but this scenario is not strict-comparison-ready until explicit `comparison.targets` are declared.",
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict comparison target covers the captured top-level `customer(id:)` data payload for the merchant-facing fields currently supported by the local customer overlay serializer. Shopify cost extensions remain outside this contract.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "captured-only-explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "customer-detail-data",
+        "capturePath": "$.data",
+        "proxyPath": "$.data"
+      }
+    ]
   }
 }

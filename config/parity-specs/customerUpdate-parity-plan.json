@@ -6,16 +6,55 @@
   "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customer-update-parity.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/customerUpdate-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/customerUpdate-parity-plan.variables.json"
+    "variablesPath": "config/parity-requests/customerUpdate-parity-plan.variables.json",
+    "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captured-only scaffold: live capture recorded for safe `customerUpdate` plus immediate downstream `customer` and filtered `customers` replay, but this scenario is not strict-comparison-ready until explicit `comparison.targets` are declared.",
+  "notes": "Strict comparison targets cover the staged `customerUpdate` mutation payload, immediate downstream `customer`, `customers`, and `customersCount` visibility, and the captured unknown-id validation branch. Expected differences are limited to locally generated timestamps.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "captured-only-explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [
+      {
+        "path": "$.customerUpdate.customer.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy stages customerUpdate with a deterministic local timestamp while Shopify returns the live write timestamp."
+      },
+      {
+        "path": "$.customer.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The downstream proxy read observes the deterministic local customerUpdate timestamp instead of Shopify's live write timestamp."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customer-mutation-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerUpdate.customer.id"
+            },
+            "query": "__customer_parity_no_match__",
+            "first": 5
+          }
+        }
+      },
+      {
+        "name": "validation-data",
+        "capturePath": "$.validation.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customerUpdate-parity-plan.graphql",
+          "variablesCapturePath": "$.validation.variables"
+        }
+      }
+    ]
   }
 }

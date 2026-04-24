@@ -1,0 +1,72 @@
+query CustomerMutationDownstream($id: ID!, $query: String!, $first: Int!) {
+  customer(id: $id) {
+    id
+    firstName
+    lastName
+    displayName
+    email
+    locale
+    note
+    verifiedEmail
+    taxExempt
+    tags
+    state
+    canDelete
+    defaultEmailAddress {
+      emailAddress
+    }
+    defaultPhoneNumber {
+      phoneNumber
+    }
+    defaultAddress {
+      address1
+      city
+      province
+      country
+      zip
+      formattedArea
+    }
+    createdAt
+    updatedAt
+  }
+  customers(first: $first, query: $query, sortKey: UPDATED_AT, reverse: true) {
+    nodes {
+      id
+      firstName
+      lastName
+      displayName
+      email
+      locale
+      note
+      verifiedEmail
+      taxExempt
+      tags
+      state
+      canDelete
+      defaultEmailAddress {
+        emailAddress
+      }
+      defaultPhoneNumber {
+        phoneNumber
+      }
+      defaultAddress {
+        address1
+        city
+        province
+        country
+        zip
+        formattedArea
+      }
+      createdAt
+      updatedAt
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  customersCount {
+    count
+    precision
+  }
+}
