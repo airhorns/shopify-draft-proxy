@@ -4,7 +4,7 @@ import 'dotenv/config';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { runAdminGraphql } from './conformance-graphql-client.mjs';
+import { createAdminGraphqlClient } from './conformance-graphql-client.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 import { parseWriteScopeBlocker, renderWriteScopeBlockerNote } from './product-mutation-conformance-lib.mjs';
@@ -25,14 +25,11 @@ const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, api
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
 const pendingDir = 'pending';
 const blockerPath = path.join(pendingDir, 'product-option-mutation-conformance-scope-blocker.md');
-
-async function runGraphql(query, variables = {}) {
-  return runAdminGraphql(
-    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(adminAccessToken) },
-    query,
-    variables,
-  );
-}
+const { runGraphql } = createAdminGraphqlClient({
+  adminOrigin,
+  apiVersion,
+  headers: buildAdminAuthHeaders(adminAccessToken),
+});
 
 const optionsSlice = `
   id

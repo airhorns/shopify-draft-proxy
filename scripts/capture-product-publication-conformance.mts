@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { runAdminGraphql, runAdminGraphqlRequest } from './conformance-graphql-client.mjs';
+import { createAdminGraphqlClient } from './conformance-graphql-client.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 import {
@@ -111,19 +111,11 @@ function describeCredentialObservation(token) {
 }
 
 function buildGraphqlClient(token) {
-  return {
-    async runGraphql(query, variables = {}) {
-      return runAdminGraphql({ adminOrigin, apiVersion, headers: buildAdminAuthHeaders(token) }, query, variables);
-    },
-
-    async runGraphqlRaw(query, variables = {}) {
-      return runAdminGraphqlRequest(
-        { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(token) },
-        query,
-        variables,
-      );
-    },
-  };
+  return createAdminGraphqlClient({
+    adminOrigin,
+    apiVersion,
+    headers: buildAdminAuthHeaders(token),
+  });
 }
 
 const productSeedQuery = `#graphql

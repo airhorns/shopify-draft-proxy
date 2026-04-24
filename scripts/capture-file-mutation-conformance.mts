@@ -4,7 +4,7 @@ import 'dotenv/config';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { runAdminGraphql } from './conformance-graphql-client.mjs';
+import { createAdminGraphqlClient } from './conformance-graphql-client.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 const requiredVars = ['SHOPIFY_CONFORMANCE_STORE_DOMAIN', 'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
@@ -80,18 +80,13 @@ const adminOrigin = requireEnv('SHOPIFY_CONFORMANCE_ADMIN_ORIGIN');
 const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || '2025-01';
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
-
-async function runGraphql<TData>(query: string, variables: GraphqlVariables = {}): Promise<GraphqlPayload<TData>> {
-  return (await runAdminGraphql<TData>(
-    {
-      adminOrigin,
-      apiVersion,
-      headers: buildAdminAuthHeaders(adminAccessToken),
-    },
-    query,
-    variables,
-  )) as GraphqlPayload<TData>;
-}
+const { runGraphql } = createAdminGraphqlClient({
+  adminOrigin,
+  apiVersion,
+  headers: buildAdminAuthHeaders(adminAccessToken),
+}) as {
+  runGraphql: <TData>(query: string, variables?: GraphqlVariables) => Promise<GraphqlPayload<TData>>;
+};
 
 function expectNoUserErrors(pathLabel: string, userErrors: UserError[] | null | undefined): void {
   if (Array.isArray(userErrors) && userErrors.length === 0) {

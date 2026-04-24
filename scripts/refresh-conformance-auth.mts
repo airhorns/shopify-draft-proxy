@@ -7,7 +7,7 @@ import {
   refreshConformanceAccessToken,
   resolveDefaultAppEnvPath,
 } from './shopify-conformance-auth.mjs';
-import { runAdminGraphqlRequest } from './conformance-graphql-client.mjs';
+import { createAdminGraphqlClient } from './conformance-graphql-client.js';
 
 const storeDomain = process.env['SHOPIFY_CONFORMANCE_STORE_DOMAIN'];
 
@@ -50,8 +50,12 @@ function recommendedNextStep(error: unknown): string {
 }
 
 async function runProbe(accessToken: string) {
-  const result = await runAdminGraphqlRequest(
-    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(accessToken) },
+  const { runGraphqlRequest } = createAdminGraphqlClient({
+    adminOrigin,
+    apiVersion,
+    headers: buildAdminAuthHeaders(accessToken),
+  });
+  const result = await runGraphqlRequest(
     `#graphql
         query RefreshProbe {
           shop {

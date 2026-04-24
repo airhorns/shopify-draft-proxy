@@ -1,7 +1,7 @@
 // @ts-nocheck
 import 'dotenv/config';
 
-import { runAdminGraphqlRequest } from './conformance-graphql-client.mjs';
+import { createAdminGraphqlClient } from './conformance-graphql-client.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 const requiredVars = ['SHOPIFY_CONFORMANCE_STORE_DOMAIN', 'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
@@ -42,10 +42,12 @@ const query = `#graphql
   }
 `;
 
-const { status, payload } = await runAdminGraphqlRequest(
-  { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(adminAccessToken) },
-  query,
-);
+const { runGraphqlRequest } = createAdminGraphqlClient({
+  adminOrigin,
+  apiVersion,
+  headers: buildAdminAuthHeaders(adminAccessToken),
+});
+const { status, payload } = await runGraphqlRequest(query);
 
 if (status < 200 || status >= 300 || payload.errors) {
   // oxlint-disable-next-line no-console -- CLI error output is intentionally written to stderr.

@@ -18,6 +18,21 @@ export type ConformanceGraphqlResult<TData = unknown> = {
   payload: ConformanceGraphqlPayload<TData>;
 };
 
+export type AdminGraphqlClient = {
+  runGraphql: <TData = unknown>(
+    query: string,
+    variables?: Record<string, unknown>,
+  ) => Promise<ConformanceGraphqlPayload<TData>>;
+  runGraphqlRequest: <TData = unknown>(
+    query: string,
+    variables?: Record<string, unknown>,
+  ) => Promise<ConformanceGraphqlResult<TData>>;
+  runGraphqlRaw: <TData = unknown>(
+    query: string,
+    variables?: Record<string, unknown>,
+  ) => Promise<ConformanceGraphqlResult<TData>>;
+};
+
 export class ConformanceGraphqlError<TData = unknown> extends Error {
   readonly result: ConformanceGraphqlResult<TData>;
 
@@ -54,6 +69,17 @@ export function formatGraphqlError(payload: unknown, status: number): string {
   return `HTTP ${status}`;
 }
 
+async function readGraphqlPayload<TData>(response: Response): Promise<ConformanceGraphqlPayload<TData>> {
+  const contentType = response.headers.get('content-type') ?? '';
+  if (contentType.includes('application/json')) {
+    return (await response.json()) as ConformanceGraphqlPayload<TData>;
+  }
+
+  return {
+    errors: await response.text(),
+  };
+}
+
 export async function runAdminGraphqlRequest<TData = unknown>(
   options: AdminGraphqlOptions,
   query: string,
@@ -68,7 +94,7 @@ export async function runAdminGraphqlRequest<TData = unknown>(
     },
     body: JSON.stringify({ query, variables }),
   });
-  const payload = (await response.json()) as ConformanceGraphqlPayload<TData>;
+  const payload = await readGraphqlPayload<TData>(response);
 
   return {
     status: response.status,
@@ -88,4 +114,16 @@ export async function runAdminGraphql<TData = unknown>(
   }
 
   return result.payload;
+}
+
+export function createAdminGraphqlClient(options: AdminGraphqlOptions): AdminGraphqlClient {
+  const runGraphqlRequest = <TData = unknown>(query: string, variables: Record<string, unknown> = {}) =>
+    runAdminGraphqlRequest<TData>(options, query, variables);
+
+  return {
+    runGraphql: <TData = unknown>(query: string, variables: Record<string, unknown> = {}) =>
+      runAdminGraphql<TData>(options, query, variables),
+    runGraphqlRequest,
+    runGraphqlRaw: runGraphqlRequest,
+  };
 }

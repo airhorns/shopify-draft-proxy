@@ -5,7 +5,7 @@ import 'dotenv/config';
 import { mkdir, writeFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 
-import { runAdminGraphql, runAdminGraphqlRequest } from './conformance-graphql-client.mjs';
+import { createAdminGraphqlClient } from './conformance-graphql-client.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 import { parseWriteScopeBlocker, renderWriteScopeBlockerNote } from './product-mutation-conformance-lib.mjs';
@@ -20,26 +20,19 @@ if (missingVars.length > 0) {
 
 const storeDomain = process.env['SHOPIFY_CONFORMANCE_STORE_DOMAIN'];
 const adminOrigin = process.env['SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
-const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || '2025-01';
+const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
 const pendingDir = 'pending';
 const blockerPath = path.join(pendingDir, 'inventory-adjustment-conformance-scope-blocker.md');
-
-async function runGraphql(query, variables = {}) {
-  return runAdminGraphql(
-    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(adminAccessToken) },
-    query,
-    variables,
-  );
-}
+const { runGraphql, runGraphqlRequest } = createAdminGraphqlClient({
+  adminOrigin,
+  apiVersion,
+  headers: buildAdminAuthHeaders(adminAccessToken),
+});
 
 async function runGraphqlAllowGraphqlErrors(query, variables = {}) {
-  const result = await runAdminGraphqlRequest(
-    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(adminAccessToken) },
-    query,
-    variables,
-  );
+  const result = await runGraphqlRequest(query, variables);
   if (result.status < 200 || result.status >= 300) {
     const error = new Error(JSON.stringify(result, null, 2));
     error.result = result;

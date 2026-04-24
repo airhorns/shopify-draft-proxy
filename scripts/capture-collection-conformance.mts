@@ -4,7 +4,7 @@ import 'dotenv/config';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { runAdminGraphql } from './conformance-graphql-client.mjs';
+import { createAdminGraphqlClient } from './conformance-graphql-client.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 import { pickCollectionCaptureSeed } from './collection-conformance-lib.mjs';
@@ -23,14 +23,11 @@ const adminOrigin = process.env['SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
 const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || '2025-01';
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
-
-async function runGraphql(query, variables = {}) {
-  return runAdminGraphql(
-    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(adminAccessToken) },
-    query,
-    variables,
-  );
-}
+const { runGraphql } = createAdminGraphqlClient({
+  adminOrigin,
+  apiVersion,
+  headers: buildAdminAuthHeaders(adminAccessToken),
+});
 
 const collectionSeedQuery = `#graphql
   query CollectionSeedCatalog {

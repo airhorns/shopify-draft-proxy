@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   ConformanceGraphqlError,
+  createAdminGraphqlClient,
   formatGraphqlError,
   runAdminGraphql,
   runAdminGraphqlRequest,
@@ -89,6 +90,58 @@ describe('conformance GraphQL client', () => {
     ).resolves.toEqual({
       status: 401,
       payload: { errors: 'Invalid API key or access token' },
+    });
+  });
+
+  it('creates a bound client with throwing and raw request methods', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: { shop: { name: 'Main' } } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ errors: [{ message: 'Access denied' }] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+
+    const client = createAdminGraphqlClient({
+      ...adminOptions,
+      fetchImpl: fetchMock,
+    });
+
+    await expect(client.runGraphql('query ShopProbe { shop { name } }')).resolves.toEqual({
+      data: { shop: { name: 'Main' } },
+    });
+    await expect(client.runGraphqlRaw('query RawProbe { shop { name } }')).resolves.toEqual({
+      status: 200,
+      payload: { errors: [{ message: 'Access denied' }] },
+    });
+  });
+
+  it('returns non-JSON Admin GraphQL failures as an inspectable error payload', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response('<html>Invalid API key or access token</html>', {
+        status: 401,
+        headers: { 'Content-Type': 'text/html' },
+      }),
+    );
+
+    await expect(
+      runAdminGraphqlRequest(
+        {
+          ...adminOptions,
+          fetchImpl: fetchMock,
+        },
+        'query RawProbe { shop { id } }',
+      ),
+    ).resolves.toEqual({
+      status: 401,
+      payload: { errors: '<html>Invalid API key or access token</html>' },
     });
   });
 

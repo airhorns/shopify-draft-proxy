@@ -4,7 +4,7 @@ import 'dotenv/config';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { runAdminGraphql, runAdminGraphqlRequest } from './conformance-graphql-client.mjs';
+import { createAdminGraphqlClient } from './conformance-graphql-client.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 import { parseWriteScopeBlocker, renderWriteScopeBlockerNote } from './product-mutation-conformance-lib.mjs';
@@ -26,6 +26,11 @@ const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
 const pendingDir = 'pending';
 const blockerPath = path.join(pendingDir, 'product-state-mutation-conformance-scope-blocker.md');
 const tagSearchIndexWaitMs = 10_000;
+const { runGraphql, runGraphqlRequest } = createAdminGraphqlClient({
+  adminOrigin,
+  apiVersion,
+  headers: buildAdminAuthHeaders(adminAccessToken),
+});
 
 function sleep(ms: number) {
   return new Promise((resolve) => {
@@ -33,24 +38,8 @@ function sleep(ms: number) {
   });
 }
 
-async function postGraphql(query, variables = {}) {
-  return runAdminGraphqlRequest(
-    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(adminAccessToken) },
-    query,
-    variables,
-  );
-}
-
-async function runGraphql(query, variables = {}) {
-  return runAdminGraphql(
-    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(adminAccessToken) },
-    query,
-    variables,
-  );
-}
-
 async function runGraphqlAllowErrors(query, variables = {}) {
-  const { payload } = await postGraphql(query, variables);
+  const { payload } = await runGraphqlRequest(query, variables);
   return payload;
 }
 

@@ -5,7 +5,7 @@ import 'dotenv/config';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { runAdminGraphqlRequest } from './conformance-graphql-client.mjs';
+import { createAdminGraphqlClient } from './conformance-graphql-client.js';
 import { extractManualStoreAuthTokenSummary } from './product-publication-conformance-lib.mjs';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
@@ -21,6 +21,11 @@ const storeDomain = process.env['SHOPIFY_CONFORMANCE_STORE_DOMAIN'];
 const adminOrigin = process.env['SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
 const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || '2025-01';
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
+const { runGraphqlRequest: runGraphql } = createAdminGraphqlClient({
+  adminOrigin,
+  apiVersion,
+  headers: buildAdminAuthHeaders(adminAccessToken),
+});
 
 const orderCreationBlockerNotePath = path.join('pending', 'order-creation-conformance-scope-blocker.md');
 const orderEditingBlockerNotePath = path.join('pending', 'order-editing-conformance-scope-blocker.md');
@@ -255,14 +260,6 @@ async function readOrderCreationParityMetadata(credential, manualStoreAuthSummar
     fulfillmentTrackingInfoUpdate: fulfillmentTrackingInfoUpdateSpec,
     fulfillmentCancel: fulfillmentCancelSpec,
   };
-}
-
-async function runGraphql(query, variables = {}) {
-  return runAdminGraphqlRequest(
-    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(adminAccessToken) },
-    query,
-    variables,
-  );
 }
 
 async function writeJson(filePath, payload) {

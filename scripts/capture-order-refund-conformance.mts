@@ -4,7 +4,7 @@ import 'dotenv/config';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { runAdminGraphqlRequest } from './conformance-graphql-client.mjs';
+import { createAdminGraphqlClient } from './conformance-graphql-client.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mts';
 
 const requiredVars = ['SHOPIFY_CONFORMANCE_STORE_DOMAIN', 'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
@@ -53,14 +53,13 @@ const fixtureDir = path.join('fixtures', 'conformance', storeDomain, apiVersion)
 const partialFixturePath = path.join(fixtureDir, 'refund-create-partial-shipping-restock-parity.json');
 const fullFixturePath = path.join(fixtureDir, 'refund-create-full-parity.json');
 const overRefundFixturePath = path.join(fixtureDir, 'refund-create-over-refund-user-errors.json');
-
-async function runGraphql(query: string, variables: Record<string, unknown> = {}): Promise<GraphqlResult> {
-  return runAdminGraphqlRequest<JsonRecord>(
-    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(adminAccessToken) },
-    query,
-    variables,
-  ) as Promise<GraphqlResult>;
-}
+const { runGraphqlRequest: runGraphql } = createAdminGraphqlClient({
+  adminOrigin,
+  apiVersion,
+  headers: buildAdminAuthHeaders(adminAccessToken),
+}) as {
+  runGraphqlRequest: (query: string, variables?: Record<string, unknown>) => Promise<GraphqlResult>;
+};
 
 async function writeJson(filePath: string, payload: unknown): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
