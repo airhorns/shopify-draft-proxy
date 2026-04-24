@@ -22,4 +22,36 @@ describe('operation registry', () => {
     expect(executions.has('overlay-read')).toBe(true);
     expect(executions.has('stage-locally')).toBe(true);
   });
+
+  it('accounts for audited customer-area roots that are not implemented yet', () => {
+    const entriesByName = new Map(listOperationRegistryEntries().map((entry) => [entry.name, entry]));
+
+    const expectedRoots = new Map([
+      ['customerByIdentifier', { type: 'query', execution: 'overlay-read' }],
+      ['customerMergePreview', { type: 'query', execution: 'overlay-read' }],
+      ['customerAddressCreate', { type: 'mutation', execution: 'stage-locally' }],
+      ['customerAddressUpdate', { type: 'mutation', execution: 'stage-locally' }],
+      ['customerAddressDelete', { type: 'mutation', execution: 'stage-locally' }],
+      ['customerUpdateDefaultAddress', { type: 'mutation', execution: 'stage-locally' }],
+      ['customerEmailMarketingConsentUpdate', { type: 'mutation', execution: 'stage-locally' }],
+      ['customerSmsMarketingConsentUpdate', { type: 'mutation', execution: 'stage-locally' }],
+      ['customerAddTaxExemptions', { type: 'mutation', execution: 'stage-locally' }],
+      ['customerRemoveTaxExemptions', { type: 'mutation', execution: 'stage-locally' }],
+      ['customerReplaceTaxExemptions', { type: 'mutation', execution: 'stage-locally' }],
+      ['customerSet', { type: 'mutation', execution: 'stage-locally' }],
+      ['customerSendAccountInviteEmail', { type: 'mutation', execution: 'passthrough' }],
+      ['customerPaymentMethodSendUpdateEmail', { type: 'mutation', execution: 'passthrough' }],
+      ['customerMerge', { type: 'mutation', execution: 'passthrough' }],
+    ] as const);
+
+    for (const [name, expected] of expectedRoots) {
+      expect(entriesByName.get(name)).toMatchObject({
+        name,
+        domain: 'customers',
+        implemented: false,
+        runtimeTests: [],
+        ...expected,
+      });
+    }
+  });
 });

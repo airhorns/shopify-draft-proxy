@@ -9,13 +9,13 @@
     "variablesPath": "config/parity-requests/customers-advanced-search-read.variables.json"
   },
   "comparisonMode": "capture-only",
-  "notes": "Live customer advanced search capture now exercises prefix matching, grouped OR tag filters, and grouped negation for `customers(query:, sortKey:, reverse:)` ordered by `UPDATED_AT` descending.",
+  "notes": "Captured-only scaffold: live customer advanced search capture exercises prefix matching, grouped OR tag filters, and grouped negation for `customers(query:, sortKey:, reverse:)` ordered by `UPDATED_AT` descending, but this scenario is not strict-comparison-ready until explicit `comparison.targets` are declared.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": []
   },
   "blocker": {
-    "kind": "explicit-comparison-targets-needed",
+    "kind": "captured-only-explicit-comparison-targets-needed",
     "blockerPath": null
   }
 }

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -155,5 +155,41 @@ describe('customer parity request scaffolds', () => {
       query: 'email:grace@example.com',
       disabledQuery: 'state:DISABLED',
     });
+  });
+
+  it('labels captured customer read/write specs as captured-only until strict targets exist', () => {
+    const repoRoot = resolve(import.meta.dirname, '../..');
+    const paritySpecDirectory = resolve(repoRoot, 'config/parity-specs');
+    const customerSpecFiles = readdirSync(paritySpecDirectory)
+      .filter((fileName) => fileName.startsWith('customer') && fileName.endsWith('.json'))
+      .filter((fileName) => !fileName.startsWith('orderCustomer'))
+      .sort();
+
+    expect(customerSpecFiles).toContain('customer-detail-parity-plan.json');
+    expect(customerSpecFiles).toContain('customerCreate-parity-plan.json');
+    expect(customerSpecFiles).toContain('customerUpdate-parity-plan.json');
+    expect(customerSpecFiles).toContain('customerDelete-parity-plan.json');
+    expect(customerSpecFiles).toContain('customers-catalog-parity-plan.json');
+    expect(customerSpecFiles).toContain('customers-count-read.json');
+
+    for (const fileName of customerSpecFiles) {
+      const spec = JSON.parse(readFileSync(resolve(paritySpecDirectory, fileName), 'utf8')) as {
+        scenarioStatus?: string;
+        comparisonMode?: string;
+        notes?: string;
+        comparison?: { targets?: unknown[] };
+        blocker?: { kind?: string; blockerPath?: string | null };
+      };
+
+      expect(spec.scenarioStatus, fileName).toBe('captured');
+      expect(spec.comparisonMode, fileName).toMatch(/capture|captured/);
+      expect(spec.comparison?.targets, fileName).toBeUndefined();
+      expect(spec.blocker, fileName).toEqual({
+        kind: 'captured-only-explicit-comparison-targets-needed',
+        blockerPath: null,
+      });
+      expect(spec.notes, fileName).toContain('Captured-only scaffold');
+      expect(spec.notes, fileName).toContain('not strict-comparison-ready');
+    }
   });
 });

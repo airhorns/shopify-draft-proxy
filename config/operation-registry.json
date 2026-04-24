@@ -114,6 +114,24 @@
     "runtimeTests": ["tests/integration/customer-query-shapes.test.ts"]
   },
   {
+    "name": "customerByIdentifier",
+    "type": "query",
+    "domain": "customers",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["customerByIdentifier", "CustomerByIdentifier"],
+    "runtimeTests": []
+  },
+  {
+    "name": "customerMergePreview",
+    "type": "query",
+    "domain": "customers",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["customerMergePreview", "CustomerMergePreview"],
+    "runtimeTests": []
+  },
+  {
     "name": "customerCreate",
     "type": "mutation",
     "domain": "customers",
@@ -139,6 +157,123 @@
     "implemented": true,
     "matchNames": ["customerDelete", "CustomerDelete"],
     "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
+  },
+  {
+    "name": "customerAddressCreate",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["customerAddressCreate", "CustomerAddressCreate"],
+    "runtimeTests": []
+  },
+  {
+    "name": "customerAddressUpdate",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["customerAddressUpdate", "CustomerAddressUpdate"],
+    "runtimeTests": []
+  },
+  {
+    "name": "customerAddressDelete",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["customerAddressDelete", "CustomerAddressDelete"],
+    "runtimeTests": []
+  },
+  {
+    "name": "customerUpdateDefaultAddress",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["customerUpdateDefaultAddress", "CustomerUpdateDefaultAddress"],
+    "runtimeTests": []
+  },
+  {
+    "name": "customerEmailMarketingConsentUpdate",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["customerEmailMarketingConsentUpdate", "CustomerEmailMarketingConsentUpdate"],
+    "runtimeTests": []
+  },
+  {
+    "name": "customerSmsMarketingConsentUpdate",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["customerSmsMarketingConsentUpdate", "CustomerSmsMarketingConsentUpdate"],
+    "runtimeTests": []
+  },
+  {
+    "name": "customerAddTaxExemptions",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["customerAddTaxExemptions", "CustomerAddTaxExemptions"],
+    "runtimeTests": []
+  },
+  {
+    "name": "customerRemoveTaxExemptions",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["customerRemoveTaxExemptions", "CustomerRemoveTaxExemptions"],
+    "runtimeTests": []
+  },
+  {
+    "name": "customerReplaceTaxExemptions",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["customerReplaceTaxExemptions", "CustomerReplaceTaxExemptions"],
+    "runtimeTests": []
+  },
+  {
+    "name": "customerSet",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["customerSet", "CustomerSet"],
+    "runtimeTests": []
+  },
+  {
+    "name": "customerSendAccountInviteEmail",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["customerSendAccountInviteEmail", "CustomerSendAccountInviteEmail"],
+    "runtimeTests": []
+  },
+  {
+    "name": "customerPaymentMethodSendUpdateEmail",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["customerPaymentMethodSendUpdateEmail", "CustomerPaymentMethodSendUpdateEmail"],
+    "runtimeTests": []
+  },
+  {
+    "name": "customerMerge",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["customerMerge", "CustomerMerge"],
+    "runtimeTests": []
   },
   {
     "name": "tagsAdd",
