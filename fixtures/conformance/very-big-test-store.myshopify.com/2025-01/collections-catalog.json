@@ -6,8 +6,24 @@
           "cursor": "eyJsYXN0X2lkIjo0MDI0NzY1MzE5NDUsImxhc3RfdmFsdWUiOiI0MDI0NzY1MzE5NDUifQ==",
           "node": {
             "id": "gid://shopify/Collection/402476531945",
+            "legacyResourceId": "402476531945",
             "title": "Home page",
             "handle": "frontpage",
+            "updatedAt": "2026-04-17T12:52:37Z",
+            "description": "",
+            "descriptionHtml": "",
+            "image": null,
+            "productsCount": {
+              "count": 1,
+              "precision": "EXACT"
+            },
+            "sortOrder": "BEST_SELLING",
+            "templateSuffix": null,
+            "seo": {
+              "title": null,
+              "description": null
+            },
+            "ruleSet": null,
             "products": {
               "edges": [
                 {
@@ -33,8 +49,39 @@
           "cursor": "eyJsYXN0X2lkIjo0Mjk4MjYxNDY1MzcsImxhc3RfdmFsdWUiOiI0Mjk4MjYxNDY1MzcifQ==",
           "node": {
             "id": "gid://shopify/Collection/429826146537",
+            "legacyResourceId": "429826146537",
             "title": "VANS",
             "handle": "vans",
+            "updatedAt": "2026-04-17T12:52:37Z",
+            "description": "Vans collection",
+            "descriptionHtml": "Vans collection",
+            "image": {
+              "id": "gid://shopify/CollectionImage/1684544094441",
+              "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/collections/a340ce89e0298e52c438ae79591e3284.jpg?v=1710381279",
+              "altText": null,
+              "width": 1610,
+              "height": 805
+            },
+            "productsCount": {
+              "count": 10,
+              "precision": "EXACT"
+            },
+            "sortOrder": "BEST_SELLING",
+            "templateSuffix": null,
+            "seo": {
+              "title": null,
+              "description": null
+            },
+            "ruleSet": {
+              "appliedDisjunctively": false,
+              "rules": [
+                {
+                  "column": "TITLE",
+                  "relation": "CONTAINS",
+                  "condition": "VANS"
+                }
+              ]
+            },
             "products": {
               "edges": [
                 {
@@ -69,8 +116,39 @@
           "cursor": "eyJsYXN0X2lkIjo0Mjk4MjYxNzkzMDUsImxhc3RfdmFsdWUiOiI0Mjk4MjYxNzkzMDUifQ==",
           "node": {
             "id": "gid://shopify/Collection/429826179305",
+            "legacyResourceId": "429826179305",
             "title": "ADIDAS",
             "handle": "adidas",
+            "updatedAt": "2026-04-17T12:52:37Z",
+            "description": "Adidas collection",
+            "descriptionHtml": "Adidas collection",
+            "image": {
+              "id": "gid://shopify/CollectionImage/1684544127209",
+              "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/collections/97a3b1227876bf099d279fd38290e567.jpg?v=1710381280",
+              "altText": null,
+              "width": 1000,
+              "height": 676
+            },
+            "productsCount": {
+              "count": 4,
+              "precision": "EXACT"
+            },
+            "sortOrder": "BEST_SELLING",
+            "templateSuffix": null,
+            "seo": {
+              "title": null,
+              "description": null
+            },
+            "ruleSet": {
+              "appliedDisjunctively": false,
+              "rules": [
+                {
+                  "column": "TITLE",
+                  "relation": "CONTAINS",
+                  "condition": "ADIDAS"
+                }
+              ]
+            },
             "products": {
               "edges": [
                 {
@@ -112,11 +190,11 @@
   },
   "extensions": {
     "cost": {
-      "requestedQueryCost": 10,
-      "actualQueryCost": 10,
+      "requestedQueryCost": 16,
+      "actualQueryCost": 15,
       "throttleStatus": {
         "maximumAvailable": 2000,
-        "currentlyAvailable": 1988,
+        "currentlyAvailable": 1985,
         "restoreRate": 100
       }
     }

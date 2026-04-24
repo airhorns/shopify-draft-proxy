@@ -47,6 +47,29 @@ export const productRecordSchema = z.strictObject({
 });
 export type ProductRecord = z.infer<typeof productRecordSchema>;
 
+export const collectionImageRecordSchema = z.strictObject({
+  id: nullableStringSchema.optional(),
+  altText: nullableStringSchema,
+  url: nullableStringSchema,
+  width: nullableNumberSchema.optional(),
+  height: nullableNumberSchema.optional(),
+});
+export type CollectionImageRecord = z.infer<typeof collectionImageRecordSchema>;
+
+export const collectionRuleRecordSchema = z.strictObject({
+  column: z.string(),
+  relation: z.string(),
+  condition: z.string(),
+  conditionObjectId: nullableStringSchema.optional(),
+});
+export type CollectionRuleRecord = z.infer<typeof collectionRuleRecordSchema>;
+
+export const collectionRuleSetRecordSchema = z.strictObject({
+  appliedDisjunctively: z.boolean(),
+  rules: z.array(collectionRuleRecordSchema),
+});
+export type CollectionRuleSetRecord = z.infer<typeof collectionRuleSetRecordSchema>;
+
 export const productVariantSelectedOptionRecordSchema = z.strictObject({
   name: z.string(),
   value: z.string(),
@@ -131,8 +154,18 @@ export type ProductOptionRecord = z.infer<typeof productOptionRecordSchema>;
 
 export const collectionRecordSchema = z.strictObject({
   id: z.string(),
+  legacyResourceId: nullableStringSchema.optional(),
   title: z.string(),
   handle: z.string(),
+  updatedAt: nullableStringSchema.optional(),
+  description: nullableStringSchema.optional(),
+  descriptionHtml: nullableStringSchema.optional(),
+  image: collectionImageRecordSchema.nullable().optional(),
+  sortOrder: nullableStringSchema.optional(),
+  templateSuffix: nullableStringSchema.optional(),
+  seo: productSeoRecordSchema.optional(),
+  ruleSet: collectionRuleSetRecordSchema.nullable().optional(),
+  redirectNewHandle: nullableBooleanSchema.optional(),
 });
 export type CollectionRecord = z.infer<typeof collectionRecordSchema>;
 
@@ -275,8 +308,12 @@ export const draftOrderAddressRecordSchema = z.strictObject({
   firstName: nullableStringSchema,
   lastName: nullableStringSchema,
   address1: nullableStringSchema,
+  address2: nullableStringSchema.optional(),
+  company: nullableStringSchema.optional(),
   city: nullableStringSchema,
+  province: nullableStringSchema.optional(),
   provinceCode: nullableStringSchema,
+  country: nullableStringSchema.optional(),
   countryCodeV2: nullableStringSchema,
   zip: nullableStringSchema,
   phone: nullableStringSchema,
@@ -393,6 +430,16 @@ export const orderShippingLineRecordSchema = z.strictObject({
 });
 export type OrderShippingLineRecord = z.infer<typeof orderShippingLineRecordSchema>;
 
+export const orderMetafieldRecordSchema = z.strictObject({
+  id: z.string(),
+  orderId: z.string(),
+  namespace: z.string(),
+  key: z.string(),
+  type: nullableStringSchema,
+  value: nullableStringSchema,
+});
+export type OrderMetafieldRecord = z.infer<typeof orderMetafieldRecordSchema>;
+
 export const orderLineItemRecordSchema = z.strictObject({
   id: z.string(),
   title: nullableStringSchema,
@@ -457,18 +504,21 @@ export const orderRecordSchema = z.strictObject({
   name: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
-  email: nullableStringSchema.optional(),
   closed: z.boolean().optional(),
   closedAt: nullableStringSchema.optional(),
   cancelledAt: nullableStringSchema.optional(),
   cancelReason: nullableStringSchema.optional(),
   sourceName: nullableStringSchema.optional(),
   paymentGatewayNames: z.array(z.string()).optional(),
+  email: nullableStringSchema.optional(),
+  phone: nullableStringSchema.optional(),
+  poNumber: nullableStringSchema.optional(),
   displayFinancialStatus: nullableStringSchema,
   displayFulfillmentStatus: nullableStringSchema,
   note: nullableStringSchema,
   tags: z.array(z.string()),
   customAttributes: z.array(draftOrderAttributeRecordSchema),
+  metafields: z.array(orderMetafieldRecordSchema).optional(),
   billingAddress: draftOrderAddressRecordSchema.nullable(),
   shippingAddress: draftOrderAddressRecordSchema.nullable(),
   subtotalPriceSet: moneySetSchema.nullable(),

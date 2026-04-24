@@ -224,6 +224,7 @@ Current shared-credential finding:
 - the checked-in app directory can exist without a repo-local `.env`; in that case app-secret resolution must fall back to `/tmp/shopify-conformance-app/<SHOPIFY_CONFORMANCE_APP_HANDLE>/.env` instead of stopping at the empty repo-local app copy
 - after that path fix, this host reaches Shopify's OAuth refresh endpoint with the shared credential and app secret, but Shopify returns `This request requires an active refresh_token`
 - practical consequence: a refresh failure with `credentialPath: /home/airhorns/.shopify-draft-proxy/conformance-admin-auth.json` and `appEnvPath: /tmp/shopify-conformance-app/hermes-conformance-products/.env` is a dead saved grant, not a worktree-local path bug
+- repo-local `.manual-store-auth-token.json`, `.manual-store-auth-pkce.json`, `.manual-store-auth.json`, and repo `.env` can still remain on disk as legacy artifacts from older flows; they are not the canonical live conformance credential source on current main and should not drive unattended auth decisions
 
 Current host finding:
 
@@ -440,6 +441,12 @@ After the initial orders-domain creation scaffolding landed, the next easy mista
 - a later live capture now closes the adjacent evidence gap for that same narrow slice on this host: a live `orderUpdate` happy path against a freshly created order successfully updated `note` / `tags`, returned `userErrors: []`, preserved the same order id/name, and the immediate downstream `order(id:)` read kept the updated `note` / `tags` visible
   - checked-in happy-path fixture: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-update-parity.json`
   - practical consequence: the narrow local `orderUpdate` runtime slice is no longer backed only by synthetic/local integration tests; it now has matching live payload + immediate read-after-write evidence for the same merchant-visible fields
+- a later local increment expanded known-order staging to the current `OrderInput` simple-update fields from Shopify docs:
+  - `email`, `phone`, `poNumber`, `shippingAddress`, `customAttributes`, and order-scoped `metafields`
+  - downstream `order(id:)` reads expose the staged values, including `customer.email` when the input updates `email`
+  - `billingAddress` is intentionally not part of that local `orderUpdate` slice because the current `OrderInput` docs do not expose it
+  - live capture for this expanded slice is currently blocked by the saved conformance credential: `corepack pnpm conformance:probe` fails with `Stored Shopify conformance access token is invalid and refresh failed: This request requires an active refresh_token`
+  - checked-in blocker scaffold: `pending/order-update-expanded-conformance-auth-blocker.md`
 - adjacent live-hybrid rule: once the unknown-id `orderUpdate` branch is captured, do not keep proxying that obviously invalid supported edit upstream in `live-hybrid`; short-circuit the captured `order: null` + `userErrors[{ field: ['id'], message: 'Order does not exist' }]` response locally, and now also short-circuit the first synthetic/local happy-path edit slice locally while leaving broader non-local orderUpdate semantics in passthrough until live parity exists
 - equally important consequence: this does **not** prove the broader order-edit family is ready
   - `orderEditBegin`, `orderEditAddVariant`, `orderEditSetQuantity`, and `orderEditCommit` still need deliberate schema/blocker discovery and should not be guessed from the `orderUpdate` validation slices alone
@@ -448,6 +455,7 @@ Practical rule:
 
 - treat `orderUpdate` as the first evidence-backed order-editing increment, but keep it explicitly narrow
 - mirror the captured unknown-id userError **and** the missing-id `INVALID_VARIABLE` branch in `snapshot` mode without hitting upstream
+- do not claim live parity for the expanded simple-update field slice until a fresh Shopify conformance grant captures `orderUpdate-expanded-live-parity`
 - keep `live-hybrid` conservative until non-empty local order hydration/edit semantics exist; passthrough is safer than inventing order state
 - do not let this small success erase the separate creation blockers: `orderCreate` still needs `write_orders` plus an offline token, and `draftOrderCreate` still needs draft-order write/manage access
 
@@ -1684,3 +1692,22 @@ Practical rule for the proxy:
 - rebuild `displayName` from effective name/email state after staged create/update so downstream `customer` and `customers` reads stay aligned
 - mask staged `defaultPhoneNumber.phoneNumber` in the same practical style as the captured live payload instead of echoing raw phone input
 - preserve the captured validation distinctions exactly: null-field missing-identity create error, `Customer does not exist` for unknown-id update, and `Customer can't be found` for unknown-id delete
+
+## 45. Rich collection fields need a real collection row, not only membership rows
+
+Extending collection reads past `id` / `title` / `handle` exposed the limit of deriving every collection only from `product.collections` memberships.
+
+Current local rule:
+
+- standalone `CollectionRecord` rows are the home for merchant-facing collection metadata: REST legacy id, `updatedAt`, description HTML/text, image, sort order, template suffix, SEO, and smart-collection `ruleSet`
+- membership-derived collection rows can still make a collection visible, but absent rich fields should stay absent/null instead of inventing arbitrary metadata from a product membership
+- nested `product.collections` should overlay the standalone collection row onto the product-scoped membership row so staged `collectionUpdate` and snapshot metadata are visible consistently on both top-level and nested reads
+- `productsCount` and `hasProduct(id:)` are derived from the effective product membership graph rather than stored on the collection record
+- local `collectionUpdate` preserves handle stability when the title changes without an explicit handle; `redirectNewHandle` is recorded in staged state for future conformance, but no redirect resource is modeled yet
+
+Live evidence refreshed on this host:
+
+- `corepack pnpm conformance:capture-collections` now captures a custom collection (`Home page`) and a smart collection (`VANS`) in `collection-detail.json`
+- custom collections return `ruleSet: null`; the captured smart collection returns a `ruleSet` with `appliedDisjunctively: false` and a `TITLE CONTAINS VANS` rule
+- both captured custom and smart collections currently return `sortOrder: BEST_SELLING`; the custom collection's blank description comes back as empty strings for both `description` and `descriptionHtml`, not `null`
+- the catalog fixture now selects the same rich metadata fields so `collections` parity covers the captured null/empty shapes alongside nested product connection shape

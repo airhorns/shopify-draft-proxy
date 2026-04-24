@@ -433,14 +433,56 @@ const orderUpdateInlineNullIdProbe = `#graphql
 `;
 
 const orderUpdateLiveProbe = `#graphql
-  mutation OrderUpdateLiveParity($input: OrderInput!) {
+  mutation OrderUpdateExpandedLiveParity($input: OrderInput!) {
     orderUpdate(input: $input) {
       order {
         id
         name
         updatedAt
+        email
+        phone
+        poNumber
         note
         tags
+        customer {
+          id
+          email
+          displayName
+        }
+        customAttributes {
+          key
+          value
+        }
+        shippingAddress {
+          firstName
+          lastName
+          address1
+          address2
+          company
+          city
+          province
+          provinceCode
+          country
+          countryCodeV2
+          zip
+          phone
+        }
+        gift: metafield(namespace: "custom", key: "gift") {
+          id
+          namespace
+          key
+          type
+          value
+        }
+        metafields(first: 10) {
+          nodes {
+            id
+            namespace
+            key
+            type
+            value
+          }
+        }
       }
       userErrors {
         field
@@ -456,8 +498,50 @@ const orderReadAfterUpdate = `#graphql
       id
       name
       updatedAt
+      email
+      phone
+      poNumber
       note
       tags
+      customer {
+        id
+        email
+        displayName
+      }
+      customAttributes {
+        key
+        value
+      }
+      shippingAddress {
+        firstName
+        lastName
+        address1
+        address2
+        company
+        city
+        province
+        provinceCode
+        country
+        countryCodeV2
+        zip
+        phone
+      }
+      gift: metafield(namespace: "custom", key: "gift") {
+        id
+        namespace
+        key
+        type
+        value
+      }
+      metafields(first: 10) {
+        nodes {
+          id
+          namespace
+          key
+          type
+          value
+        }
+      }
     }
   }
 `;
@@ -1212,8 +1296,38 @@ async function main() {
   const orderUpdateLiveVariables = {
     input: {
       id: 'gid://shopify/Order/placeholder',
-      note: 'order update live parity captured note',
-      tags: ['live-parity', 'order-update'],
+      email: `hermes-order-update-${stamp}@example.com`,
+      poNumber: `PO-UPDATE-${stamp}`,
+      note: 'order update expanded live parity captured note',
+      tags: ['expanded-live-parity', 'order-update'],
+      customAttributes: [
+        {
+          key: 'source',
+          value: 'expanded-live-parity',
+        },
+      ],
+      shippingAddress: {
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+        address1: '190 MacLaren',
+        address2: 'Suite 200',
+        company: 'Analytical Engines Ltd',
+        city: 'Sudbury',
+        province: 'Ontario',
+        provinceCode: 'ON',
+        country: 'Canada',
+        countryCode: 'CA',
+        zip: 'K2P0V6',
+        phone: '+161****2222',
+      },
+      metafields: [
+        {
+          namespace: 'custom',
+          key: 'gift',
+          type: 'single_line_text_field',
+          value: 'yes',
+        },
+      ],
     },
   };
   const fulfillmentCreateInvalidIdVariables = {

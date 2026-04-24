@@ -16,14 +16,18 @@ Refreshed the first order-editing mutation probes on `very-big-test-store.myshop
 - header mode: `raw-x-shopify-access-token`
 - the active conformance credential is a Shopify user access token (`shpca_...`) sent as raw `X-Shopify-Access-Token` on this host
 
-## Saved manual store auth token on disk
+## Shared store auth token on disk
 
-- path: `.manual-store-auth-token.json`
-- status: `missing`
-- token family: `missing`
-- cached scopes: none recorded
+- path: `~/.shopify-draft-proxy/conformance-admin-auth.json`
+- status: `present-shpca-user-token-not-offline-capable`
+- token family: `shpca`
+- cached scopes: `read_product_listings`, `read_themes`, `write_assigned_fulfillment_orders`, `write_content`, `write_customers`, `write_discounts`, `write_draft_orders`, `write_files`, `write_fulfillments`, `write_inventory`, `write_locations`, `write_markets`, `write_merchant_managed_fulfillment_orders`, `write_metaobject_definitions`, `write_metaobjects`, `write_order_edits`, `write_orders`, `write_products`, `write_publications`, `write_returns`, `write_shipping`, `write_third_party_fulfillment_orders`, `write_translations`
 - associated user scopes: none recorded
-- interpretation: No saved manual store-auth artifact is currently available for this run.
+- interpretation: The shared home-folder conformance credential still caches a `shpca` user token, so it does not satisfy Shopify's offline-token requirement for `orderCreate` even though its cached scope strings include order scopes.
+
+Legacy note:
+
+- repo-local `.manual-store-auth-token.json` and repo `.env` can still exist in older checkouts on this host, but they are legacy artifacts and must not be treated as the live conformance credential source.
 
 ## Live blocker evidence for the order-edit family
 

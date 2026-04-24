@@ -128,6 +128,96 @@ describe('collection query shapes', () => {
     });
   });
 
+  it('overlays standalone rich collection fields onto nested product collection reads', async () => {
+    store.upsertBaseProducts([
+      {
+        id: 'gid://shopify/Product/501',
+        legacyResourceId: '501',
+        title: 'Nested Hat',
+        handle: 'nested-hat',
+        status: 'ACTIVE',
+        publicationIds: [],
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-02T00:00:00.000Z',
+        vendor: 'NIKE',
+        productType: 'ACCESSORIES',
+        tags: ['hat'],
+        totalInventory: 9,
+        tracksInventory: true,
+        descriptionHtml: null,
+        onlineStorePreviewUrl: null,
+        templateSuffix: null,
+        seo: { title: null, description: null },
+        category: null,
+      },
+    ]);
+    store.upsertBaseCollections([
+      {
+        id: 'gid://shopify/Collection/501',
+        legacyResourceId: '501',
+        title: 'Nested Rich Hats',
+        handle: 'nested-rich-hats',
+        updatedAt: '2026-04-20T12:00:00.000Z',
+        description: 'Nested rich hats',
+        descriptionHtml: '<p>Nested rich hats</p>',
+        image: null,
+        sortOrder: 'BEST_SELLING',
+        templateSuffix: null,
+        seo: {
+          title: 'Nested SEO',
+          description: 'Nested SEO description',
+        },
+        ruleSet: null,
+      },
+    ]);
+    store.replaceBaseCollectionsForProduct('gid://shopify/Product/501', [
+      {
+        id: 'gid://shopify/Collection/501',
+        productId: 'gid://shopify/Product/501',
+        title: 'Stale Membership Title',
+        handle: 'stale-membership-title',
+      },
+    ]);
+
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query ($id: ID!, $productId: ID!) { product(id: $productId) { id collections(first: 5) { nodes { id legacyResourceId title handle updatedAt description descriptionHtml productsCount { count precision } hasProduct(id: $id) sortOrder templateSuffix seo { title description } ruleSet { appliedDisjunctively } } } } }',
+        variables: {
+          id: 'gid://shopify/Product/501',
+          productId: 'gid://shopify/Product/501',
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.product.collections.nodes).toEqual([
+      {
+        id: 'gid://shopify/Collection/501',
+        legacyResourceId: '501',
+        title: 'Nested Rich Hats',
+        handle: 'nested-rich-hats',
+        updatedAt: '2026-04-20T12:00:00.000Z',
+        description: 'Nested rich hats',
+        descriptionHtml: '<p>Nested rich hats</p>',
+        productsCount: {
+          count: 1,
+          precision: 'EXACT',
+        },
+        hasProduct: true,
+        sortOrder: 'BEST_SELLING',
+        templateSuffix: null,
+        seo: {
+          title: 'Nested SEO',
+          description: 'Nested SEO description',
+        },
+        ruleSet: null,
+      },
+    ]);
+  });
+
   it('sorts collection products by handle in snapshot mode', async () => {
     store.upsertBaseProducts([
       {

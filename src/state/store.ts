@@ -124,6 +124,11 @@ function mergeCollectionRecords(
   return structuredClone(staged);
 }
 
+function collectionFromMembership(membership: ProductCollectionRecord): CollectionRecord {
+  const { productId: _productId, position: _position, ...collection } = membership;
+  return structuredClone(collection);
+}
+
 function mergePublicationRecord(base: PublicationRecord | null): PublicationRecord | null {
   return base ? structuredClone(base) : null;
 }
@@ -922,11 +927,7 @@ export class InMemoryStore {
         (collection) => collection.id === collectionId,
       );
       if (membership) {
-        return {
-          id: membership.id,
-          title: membership.title,
-          handle: membership.handle,
-        };
+        return collectionFromMembership(membership);
       }
     }
 
@@ -949,11 +950,7 @@ export class InMemoryStore {
     for (const product of this.listEffectiveProducts()) {
       for (const collection of this.getEffectiveCollectionsByProductId(product.id)) {
         if (!collectionsById.has(collection.id)) {
-          collectionsById.set(collection.id, {
-            id: collection.id,
-            title: collection.title,
-            handle: collection.handle,
-          });
+          collectionsById.set(collection.id, collectionFromMembership(collection));
         }
       }
     }
@@ -1015,8 +1012,9 @@ export class InMemoryStore {
 
         return {
           ...collection,
-          title: standalone.title,
-          handle: standalone.handle,
+          ...standalone,
+          productId: collection.productId,
+          position: collection.position,
         };
       });
 

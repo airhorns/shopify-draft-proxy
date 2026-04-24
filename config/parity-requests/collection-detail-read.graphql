@@ -1,8 +1,94 @@
-query CollectionDetailRead($id: ID!) {
-  collection(id: $id) {
+query CollectionDetailRead($customCollectionId: ID!, $smartCollectionId: ID!, $productId: ID!) {
+  customCollection: collection(id: $customCollectionId) {
     id
+    legacyResourceId
     title
     handle
+    updatedAt
+    description
+    descriptionHtml
+    image {
+      id
+      url
+      altText
+      width
+      height
+    }
+    productsCount {
+      count
+      precision
+    }
+    hasProduct(id: $productId)
+    sortOrder
+    templateSuffix
+    seo {
+      title
+      description
+    }
+    ruleSet {
+      appliedDisjunctively
+      rules {
+        column
+        relation
+        condition
+      }
+    }
+    products(first: 3) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          handle
+          vendor
+          productType
+          tags
+          totalInventory
+          tracksInventory
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+  smartCollection: collection(id: $smartCollectionId) {
+    id
+    legacyResourceId
+    title
+    handle
+    updatedAt
+    description
+    descriptionHtml
+    image {
+      id
+      url
+      altText
+      width
+      height
+    }
+    productsCount {
+      count
+      precision
+    }
+    hasProduct(id: $productId)
+    sortOrder
+    templateSuffix
+    seo {
+      title
+      description
+    }
+    ruleSet {
+      appliedDisjunctively
+      rules {
+        column
+        relation
+        condition
+      }
+    }
     products(first: 3) {
       edges {
         cursor

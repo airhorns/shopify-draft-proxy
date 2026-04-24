@@ -1,0 +1,57 @@
+mutation OrderUpdateExpandedParityPlan($input: OrderInput!) {
+  orderUpdate(input: $input) {
+    order {
+      id
+      name
+      updatedAt
+      email
+      phone
+      poNumber
+      note
+      tags
+      customer {
+        id
+        email
+        displayName
+      }
+      customAttributes {
+        key
+        value
+      }
+      shippingAddress {
+        firstName
+        lastName
+        address1
+        address2
+        company
+        city
+        province
+        provinceCode
+        country
+        countryCodeV2
+        zip
+        phone
+      }
+      gift: metafield(namespace: "custom", key: "gift") {
+        id
+        namespace
+        key
+        type
+        value
+      }
+      metafields(first: 10) {
+        nodes {
+          id
+          namespace
+          key
+          type
+          value
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
