@@ -67,12 +67,19 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 - The checked-in Shopify app copy lives at `shopify-conformance-app/hermes-conformance-products/`; helper scripts prefer that repo-local app over the legacy `/tmp/shopify-conformance-app/...` copy when it exists.
 - `getValidConformanceAccessToken(...)` is the single entry point for token access. It probes the stored access token, refreshes it when possible, and throws a clear error when the stored credential is missing or unrecoverable.
 - New auth grants should be generated with `corepack pnpm conformance:auth-link`, and callback exchange should go through `corepack pnpm conformance:exchange-auth -- '<full callback url>'`.
+- If a task requires recording or re-recording conformance evidence and
+  `getValidConformanceAccessToken(...)` / `corepack pnpm conformance:probe`
+  cannot produce a valid live credential after the documented repair paths, do
+  not commit code, push a branch, or open a PR. Record the blocker in the Linear
+  workpad and move the issue to Human Review.
 
 ## Suggested workflow
 
 1. Read `docs/original-intent.md`.
 2. Read `docs/architecture.md`.
-3. Read `docs/hard-and-weird-notes.md` before making fidelity assumptions.
+3. Know that `docs/hard-and-weird-notes.md` exists; search or read the
+   relevant parts when fidelity assumptions or unusual Shopify behavior matter,
+   and add to it when new hard/weird behavior is discovered.
 4. Check Linear for the next operation to implement.
 5. Add/adjust tests before implementation.
 6. Update docs after shipping behavior.

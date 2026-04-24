@@ -771,8 +771,8 @@ const draftOrderCreateMissingInputProbe = `#graphql
 `;
 
 const orderCreateProbe = `#graphql
-  mutation OrderCreateParityPlan($order: OrderCreateOrderInput!) {
-    orderCreate(order: $order) {
+  mutation OrderCreateParityPlan($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
+    orderCreate(order: $order, options: $options) {
       order {
         id
         name
@@ -788,10 +788,18 @@ const orderCreateProbe = `#graphql
             code
             source
             originalPriceSet { shopMoney { amount currencyCode } }
+            taxLines {
+              title
+              rate
+              priceSet { shopMoney { amount currencyCode } }
+            }
           }
         }
         displayFinancialStatus
         displayFulfillmentStatus
+        totalTaxSet { shopMoney { amount currencyCode } }
+        totalDiscountsSet { shopMoney { amount currencyCode } }
+        discountCodes
         currentTotalPriceSet { shopMoney { amount currencyCode } }
         lineItems(first: 5) {
           nodes {
@@ -799,6 +807,17 @@ const orderCreateProbe = `#graphql
             title
             quantity
             sku
+            variant { id }
+            variantTitle
+            originalUnitPriceSet {
+              shopMoney { amount currencyCode }
+              presentmentMoney { amount currencyCode }
+            }
+            taxLines {
+              title
+              rate
+              priceSet { shopMoney { amount currencyCode } }
+            }
           }
         }
       }
@@ -820,7 +839,23 @@ const orderReadAfterCreate = `#graphql
       shippingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }
       displayFinancialStatus
       displayFulfillmentStatus
+      totalTaxSet { shopMoney { amount currencyCode } }
+      totalDiscountsSet { shopMoney { amount currencyCode } }
+      discountCodes
       currentTotalPriceSet { shopMoney { amount currencyCode } }
+      lineItems(first: 5) {
+        nodes {
+          title
+          quantity
+          sku
+          variant { id }
+          taxLines {
+            title
+            rate
+            priceSet { shopMoney { amount currencyCode } }
+          }
+        }
+      }
     }
   }
 `;
@@ -1243,6 +1278,20 @@ async function main() {
       note: 'order create parity probe',
       tags: ['parity-probe', 'order-create'],
       test: true,
+      currency: 'USD',
+      presentmentCurrency: 'CAD',
+      fulfillmentStatus: 'FULFILLED',
+      discountCode: {
+        itemFixedDiscountCode: {
+          code: 'SAVE5',
+          amountSet: {
+            shopMoney: {
+              amount: '5.00',
+              currencyCode: 'USD',
+            },
+          },
+        },
+      },
       customAttributes: [
         {
           key: 'source',
@@ -1281,24 +1330,53 @@ async function main() {
           priceSet: {
             shopMoney: {
               amount: '5.00',
-              currencyCode: 'CAD',
+              currencyCode: 'USD',
             },
           },
+          taxLines: [
+            {
+              title: 'Shipping tax',
+              rate: 0.1,
+              priceSet: {
+                shopMoney: {
+                  amount: '0.50',
+                  currencyCode: 'USD',
+                },
+              },
+            },
+          ],
         },
       ],
       lineItems: [
         {
-          title: 'Hermes custom order line item',
-          quantity: 1,
+          variantId: 'gid://shopify/ProductVariant/48540157378793',
+          title: 'Hermes inventory-backed line item',
+          quantity: 2,
           priceSet: {
             shopMoney: {
-              amount: '10.00',
+              amount: '20.00',
+              currencyCode: 'USD',
+            },
+            presentmentMoney: {
+              amount: '27.00',
               currencyCode: 'CAD',
             },
           },
-          requiresShipping: false,
-          taxable: false,
+          requiresShipping: true,
+          taxable: true,
           sku: `hermes-order-probe-${stamp}`,
+          taxLines: [
+            {
+              title: 'Line tax',
+              rate: 0.05,
+              priceSet: {
+                shopMoney: {
+                  amount: '2.00',
+                  currencyCode: 'USD',
+                },
+              },
+            },
+          ],
         },
       ],
       transactions: [
@@ -1309,12 +1387,17 @@ async function main() {
           test: true,
           amountSet: {
             shopMoney: {
-              amount: '15.00',
-              currencyCode: 'CAD',
+              amount: '42.50',
+              currencyCode: 'USD',
             },
           },
         },
       ],
+    },
+    options: {
+      inventoryBehaviour: 'BYPASS',
+      sendReceipt: false,
+      sendFulfillmentReceipt: false,
     },
   };
 

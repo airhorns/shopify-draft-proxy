@@ -4,6 +4,20 @@
     "note": "order create parity plan",
     "tags": ["parity-plan", "order-create"],
     "test": true,
+    "currency": "USD",
+    "presentmentCurrency": "CAD",
+    "fulfillmentStatus": "FULFILLED",
+    "discountCode": {
+      "itemFixedDiscountCode": {
+        "code": "SAVE5",
+        "amountSet": {
+          "shopMoney": {
+            "amount": "5.00",
+            "currencyCode": "USD"
+          }
+        }
+      }
+    },
     "customAttributes": [
       {
         "key": "source",
@@ -42,24 +56,53 @@
         "priceSet": {
           "shopMoney": {
             "amount": "5.00",
-            "currencyCode": "CAD"
+            "currencyCode": "USD"
           }
-        }
+        },
+        "taxLines": [
+          {
+            "title": "Shipping tax",
+            "rate": 0.1,
+            "priceSet": {
+              "shopMoney": {
+                "amount": "0.50",
+                "currencyCode": "USD"
+              }
+            }
+          }
+        ]
       }
     ],
     "lineItems": [
       {
-        "title": "Hermes custom order line item",
-        "quantity": 1,
+        "variantId": "gid://shopify/ProductVariant/48540157378793",
+        "title": "Hermes inventory-backed line item",
+        "quantity": 2,
         "priceSet": {
           "shopMoney": {
-            "amount": "10.00",
+            "amount": "20.00",
+            "currencyCode": "USD"
+          },
+          "presentmentMoney": {
+            "amount": "27.00",
             "currencyCode": "CAD"
           }
         },
-        "requiresShipping": false,
-        "taxable": false,
-        "sku": "hermes-order-parity-plan-20260418"
+        "requiresShipping": true,
+        "taxable": true,
+        "sku": "hermes-order-parity-plan-20260418",
+        "taxLines": [
+          {
+            "title": "Line tax",
+            "rate": 0.05,
+            "priceSet": {
+              "shopMoney": {
+                "amount": "2.00",
+                "currencyCode": "USD"
+              }
+            }
+          }
+        ]
       }
     ],
     "transactions": [
@@ -70,12 +113,16 @@
         "test": true,
         "amountSet": {
           "shopMoney": {
-            "amount": "15.00",
-            "currencyCode": "CAD"
+            "amount": "42.50",
+            "currencyCode": "USD"
           }
         }
       }
     ]
   },
-  "options": null
+  "options": {
+    "inventoryBehaviour": "BYPASS",
+    "sendReceipt": false,
+    "sendFulfillmentReceipt": false
+  }
 }
