@@ -92,6 +92,11 @@ Implementation guidance:
 - Add tests for every supported operation you touch.
 - Keep runtime behavior Shopify-like rather than papering over mismatches.
 - If live credentials are required beyond `.env.example`, only treat that as a blocker after exhausting local/snapshot/conformance-fixture paths documented in the repo.
+- If the ticket requires recording or re-recording conformance evidence and the
+  live Shopify credential cannot be made valid in-session through the documented
+  auth/probe paths, stop before code handoff: update the workpad with the
+  credential blocker, move the issue to `Human Review`, and do **not** commit,
+  push, or open a PR.
 
 Tooling guidance:
 
@@ -172,7 +177,9 @@ The agent should be able to talk to Linear, either via a configured Linear MCP s
 - `Todo` -> queued; immediately transition to `In Progress` before active work.
   - Special case: if a PR is already attached, treat as feedback/rework loop (run full PR feedback sweep, address or explicitly push back, revalidate, return to `Human Review`).
 - `In Progress` -> implementation actively underway.
-- `Human Review` -> PR is attached and validated; waiting on human approval.
+- `Human Review` -> either a PR is attached and validated for human approval,
+  or a required non-GitHub auth/tool blocker is documented in the workpad for
+  human unblocking without a PR.
 - `Merging` -> approved by human; execute the `land` skill flow (do not call `gh pr merge` directly).
 - `Rework` -> reviewer requested changes; planning + implementation required.
 - `Done` -> terminal state; no further action required.
@@ -258,6 +265,13 @@ Use this only when completion is blocked by missing required tools or missing au
 
 - GitHub is **not** a valid blocker by default. Always try fallback strategies first (alternate remote/auth mode, then continue publish/review flow).
 - Do not move to `Human Review` for GitHub access/auth until all fallback strategies have been attempted and documented in the workpad.
+- Required conformance recording/re-recording is a special non-GitHub auth
+  blocker: if the required live Shopify probe/capture cannot proceed after the
+  documented credential repair paths have been tried, do not continue with
+  guessed code, stale fixtures, a commit, or a PR. Update the single workpad with
+  the failing command/error, why local/snapshot/existing fixtures cannot satisfy
+  the ticket, and the exact credential action needed, then move the issue to
+  `Human Review`.
 - If a non-GitHub required tool is missing, or required non-GitHub auth is unavailable, move the ticket to `Human Review` with a short blocker brief in the workpad that includes:
   - what is missing,
   - why it blocks required acceptance/validation,
@@ -304,6 +318,8 @@ Use this only when completion is blocked by missing required tools or missing au
     - Re-open and refresh the workpad before state transition so `Plan`, `Acceptance Criteria`, and `Validation` exactly match completed work.
 12. Only then move issue to `Human Review`.
     - Exception: if blocked by missing required non-GitHub tools/auth per the blocked-access escape hatch, move to `Human Review` with the blocker brief and explicit unblock actions.
+    - For required conformance recording/re-recording blocked by invalid or missing
+      Shopify credentials, this exception happens before commit/push/PR handoff.
 13. For `Todo` tickets that already had a PR attached at kickoff:
     - Ensure all existing PR feedback was reviewed and resolved, including inline review comments (code changes or explicit, justified pushback response).
     - Ensure the original PR branch was updated with any required changes, using `git push --force-with-lease` when necessary instead of opening a new PR.
@@ -332,6 +348,8 @@ Use this only when completion is blocked by missing required tools or missing au
 
 ## Completion bar before Human Review
 
+For normal PR handoff:
+
 - Step 1/2 checklist is fully complete and accurately reflected in the single workpad comment.
 - Acceptance criteria and required ticket-provided validation items are complete.
 - Validation/tests are green for the latest commit.
@@ -339,6 +357,11 @@ Use this only when completion is blocked by missing required tools or missing au
 - PR checks are green, branch is pushed, and PR is linked on the issue.
 - Required PR metadata is present (`symphony` label).
 - If app-touching, runtime validation/media requirements from `App runtime validation (required)` are complete.
+
+For required non-GitHub auth/tool blockers, including conformance
+recording/re-recording blocked by invalid Shopify credentials, the completion bar
+is replaced by the blocked-access escape hatch: no commit, push, or PR is
+required or allowed for the blocked handoff.
 
 ## Guardrails
 
@@ -354,7 +377,8 @@ Use this only when completion is blocked by missing required tools or missing au
   title/description/acceptance criteria, same-project assignment, a `related`
   link to the current issue, and `blockedBy` when the follow-up depends on the
   current issue.
-- Do not move to `Human Review` unless the `Completion bar before Human Review` is satisfied.
+- Do not move to `Human Review` unless the `Completion bar before Human Review`
+  is satisfied, or the blocked-access escape hatch explicitly applies.
 - In `Human Review`, do not make changes; wait and poll.
 - If state is terminal (`Done`), do nothing and shut down.
 - Keep issue text concise, specific, and reviewer-oriented.
