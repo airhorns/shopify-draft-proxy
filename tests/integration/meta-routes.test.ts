@@ -18,6 +18,8 @@ const emptySnapshot = {
   collections: {},
   publications: {},
   customers: {},
+  businessEntities: {},
+  businessEntityOrder: [],
   productCollections: {},
   productMedia: {},
   files: {},
