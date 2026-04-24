@@ -1,4 +1,4 @@
-mutation ProductUnpublishAggregateParityBlocker($input: ProductUnpublishInput!) {
+mutation ProductUnpublishAggregateParity($input: ProductUnpublishInput!) {
   productUnpublish(input: $input) {
     product {
       id

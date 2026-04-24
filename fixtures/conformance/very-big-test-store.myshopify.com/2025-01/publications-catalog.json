@@ -17,13 +17,20 @@
               "id": "gid://shopify/Publication/181333491945",
               "name": "Point of Sale"
             }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjoxODIyOTU5MjA4NzMsImxhc3RfdmFsdWUiOjE4MjI5NTkyMDg3M30=",
+            "node": {
+              "id": "gid://shopify/Publication/182295920873",
+              "name": "example.com"
+            }
           }
         ],
         "pageInfo": {
           "hasNextPage": false,
           "hasPreviousPage": false,
           "startCursor": "eyJsYXN0X2lkIjo4MjA5MDQ1OTM2OSwibGFzdF92YWx1ZSI6ODIwOTA0NTkzNjl9",
-          "endCursor": "eyJsYXN0X2lkIjoxODEzMzM0OTE5NDUsImxhc3RfdmFsdWUiOjE4MTMzMzQ5MTk0NX0="
+          "endCursor": "eyJsYXN0X2lkIjoxODIyOTU5MjA4NzMsImxhc3RfdmFsdWUiOjE4MjI5NTkyMDg3M30="
         }
       }
     },
