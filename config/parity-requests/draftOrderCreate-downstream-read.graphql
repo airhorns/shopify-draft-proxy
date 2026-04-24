@@ -1,8 +1,11 @@
 query DraftOrderCreateDownstreamRead($id: ID!) {
   draftOrder(id: $id) {
+    id
+    name
     status
     email
     tags
+    invoiceUrl
     customAttributes {
       key
       value
@@ -43,6 +46,7 @@ query DraftOrderCreateDownstreamRead($id: ID!) {
     }
     lineItems(first: 5) {
       nodes {
+        id
         title
         quantity
         sku
