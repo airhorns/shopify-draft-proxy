@@ -224,6 +224,7 @@ Current shared-credential finding:
 - the checked-in app directory can exist without a repo-local `.env`; in that case app-secret resolution must fall back to `/tmp/shopify-conformance-app/<SHOPIFY_CONFORMANCE_APP_HANDLE>/.env` instead of stopping at the empty repo-local app copy
 - after that path fix, this host reaches Shopify's OAuth refresh endpoint with the shared credential and app secret, but Shopify returns `This request requires an active refresh_token`
 - practical consequence: a refresh failure with `credentialPath: /home/airhorns/.shopify-draft-proxy/conformance-admin-auth.json` and `appEnvPath: /tmp/shopify-conformance-app/hermes-conformance-products/.env` is a dead saved grant, not a worktree-local path bug
+- repo-local `.manual-store-auth-token.json`, `.manual-store-auth-pkce.json`, `.manual-store-auth.json`, and repo `.env` can still remain on disk as legacy artifacts from older flows; they are not the canonical live conformance credential source on current main and should not drive unattended auth decisions
 
 Current host finding:
 
