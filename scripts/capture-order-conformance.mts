@@ -958,14 +958,20 @@ const draftOrderCompleteMissingIdProbe = `#graphql
 `;
 
 const draftOrderCompleteProbe = `#graphql
-  mutation DraftOrderCompleteParityPlan($id: ID!, $paymentGatewayId: ID, $sourceName: String) {
-    draftOrderComplete(id: $id, paymentGatewayId: $paymentGatewayId, sourceName: $sourceName) {
+  mutation DraftOrderCompleteParityPlan($id: ID!, $paymentGatewayId: ID, $sourceName: String, $paymentPending: Boolean) {
+    draftOrderComplete(
+      id: $id
+      paymentGatewayId: $paymentGatewayId
+      sourceName: $sourceName
+      paymentPending: $paymentPending
+    ) {
       draftOrder {
         id
         name
         status
         ready
         invoiceUrl
+        completedAt
         totalPriceSet { shopMoney { amount currencyCode } }
         lineItems(first: 5) {
           nodes {
@@ -973,6 +979,27 @@ const draftOrderCompleteProbe = `#graphql
             title
             quantity
             sku
+          }
+        }
+        order {
+          id
+          name
+          sourceName
+          paymentGatewayNames
+          displayFinancialStatus
+          displayFulfillmentStatus
+          note
+          tags
+          currentTotalPriceSet { shopMoney { amount currencyCode } }
+          lineItems(first: 5) {
+            nodes {
+              id
+              title
+              quantity
+              sku
+              variantTitle
+              originalUnitPriceSet { shopMoney { amount currencyCode } }
+            }
           }
         }
       }
@@ -1309,6 +1336,7 @@ async function main() {
     id: 'gid://shopify/DraftOrder/0',
     paymentGatewayId: null,
     sourceName: 'hermes-cron-orders',
+    paymentPending: false,
   };
   const orderEditBeginMissingIdVariables = {};
   const orderEditBeginVariables = {

@@ -2070,6 +2070,278 @@ describe('order creation flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('filters staged draftOrders by captured query fields and applies count limits in snapshot mode without hitting upstream', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('draft-order filtered catalog/count replay should not hit upstream in snapshot mode');
+    });
+
+    const app = createApp(snapshotConfig).callback();
+    const createdDraftOrders: Array<{ id: string; createdAt: string; updatedAt: string }> = [];
+    for (const input of [
+      {
+        email: 'older-filtered-draft-orders@example.com',
+        tags: ['priority', 'source-alpha'],
+        customAttributes: [{ key: 'source', value: 'alpha' }],
+        lineItems: [
+          {
+            title: 'Older filtered staged draft-order row',
+            quantity: 1,
+            originalUnitPrice: '8.00',
+            requiresShipping: false,
+            taxable: false,
+            sku: 'older-filtered-draft-order',
+          },
+        ],
+      },
+      {
+        email: 'middle-filtered-draft-orders@example.com',
+        tags: ['priority', 'source-beta'],
+        customAttributes: [{ key: 'source', value: 'beta' }],
+        lineItems: [
+          {
+            title: 'Middle filtered staged draft-order row',
+            quantity: 1,
+            originalUnitPrice: '9.00',
+            requiresShipping: false,
+            taxable: false,
+            sku: 'middle-filtered-draft-order',
+          },
+        ],
+      },
+      {
+        email: 'newer-filtered-draft-orders@example.com',
+        tags: ['priority', 'source-alpha'],
+        customAttributes: [{ key: 'source', value: 'alpha' }],
+        lineItems: [
+          {
+            title: 'Newer filtered staged draft-order row',
+            quantity: 1,
+            originalUnitPrice: '10.00',
+            requiresShipping: false,
+            taxable: false,
+            sku: 'newer-filtered-draft-order',
+          },
+        ],
+      },
+    ]) {
+      const createResponse = await request(app)
+        .post('/admin/api/2025-01/graphql.json')
+        .send({
+          query: `mutation DraftOrderCreateForFilteredReads($input: DraftOrderInput!) {
+            draftOrderCreate(input: $input) {
+              draftOrder {
+                id
+                createdAt
+                updatedAt
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }`,
+          variables: { input },
+        });
+
+      expect(createResponse.status).toBe(200);
+      expect(createResponse.body.data.draftOrderCreate.userErrors).toEqual([]);
+      createdDraftOrders.push(createResponse.body.data.draftOrderCreate.draftOrder);
+    }
+
+    const idTail = createdDraftOrders[1]!.id.split('/').at(-1);
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query DraftOrdersFilteredSnapshot(
+          $sourceQuery: String!
+          $statusTagQuery: String!
+          $idQuery: String!
+          $createdAtQuery: String!
+          $updatedAtQuery: String!
+          $customerIdQuery: String!
+          $limit: Int!
+          $savedSearchId: ID!
+        ) {
+          sourceMatches: draftOrders(first: 10, query: $sourceQuery, sortKey: CREATED_AT, reverse: true) {
+            edges { cursor node { id email tags createdAt updatedAt } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          statusTagMatches: draftOrders(first: 10, query: $statusTagQuery, sortKey: CREATED_AT, reverse: true) {
+            nodes { id email tags }
+          }
+          idMatches: draftOrders(first: 2, query: $idQuery) {
+            nodes { id email }
+          }
+          createdAtMatches: draftOrders(first: 10, query: $createdAtQuery, sortKey: CREATED_AT, reverse: true) {
+            nodes { id email createdAt }
+          }
+          updatedAtMatches: draftOrders(first: 10, query: $updatedAtQuery, sortKey: UPDATED_AT, reverse: true) {
+            nodes { id email updatedAt }
+          }
+          emptyCustomer: draftOrders(first: 5, query: $customerIdQuery) {
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          savedSearchEmpty: draftOrders(first: 5, savedSearchId: $savedSearchId) {
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          openLimitCount: draftOrdersCount(query: "status:open", limit: $limit) {
+            count
+            precision
+          }
+          sourceCount: draftOrdersCount(query: $sourceQuery) {
+            count
+            precision
+          }
+          emptyCustomerCount: draftOrdersCount(query: $customerIdQuery) {
+            count
+            precision
+          }
+          savedSearchCount: draftOrdersCount(savedSearchId: $savedSearchId) {
+            count
+            precision
+          }
+        }`,
+        variables: {
+          sourceQuery: 'source:alpha',
+          statusTagQuery: 'status:open tag:priority',
+          idQuery: `id:${idTail}`,
+          createdAtQuery: `created_at:>=${createdDraftOrders[1]!.createdAt}`,
+          updatedAtQuery: `updated_at:>=${createdDraftOrders[1]!.updatedAt}`,
+          customerIdQuery: 'customer_id:0',
+          limit: 2,
+          savedSearchId: 'gid://shopify/SavedSearch/1',
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        sourceMatches: {
+          edges: [
+            {
+              cursor: `cursor:${createdDraftOrders[2]!.id}`,
+              node: {
+                id: createdDraftOrders[2]!.id,
+                email: 'newer-filtered-draft-orders@example.com',
+                tags: ['priority', 'source-alpha'],
+                createdAt: createdDraftOrders[2]!.createdAt,
+                updatedAt: createdDraftOrders[2]!.updatedAt,
+              },
+            },
+            {
+              cursor: `cursor:${createdDraftOrders[0]!.id}`,
+              node: {
+                id: createdDraftOrders[0]!.id,
+                email: 'older-filtered-draft-orders@example.com',
+                tags: ['priority', 'source-alpha'],
+                createdAt: createdDraftOrders[0]!.createdAt,
+                updatedAt: createdDraftOrders[0]!.updatedAt,
+              },
+            },
+          ],
+          pageInfo: {
+            hasNextPage: false,
+            hasPreviousPage: false,
+            startCursor: `cursor:${createdDraftOrders[2]!.id}`,
+            endCursor: `cursor:${createdDraftOrders[0]!.id}`,
+          },
+        },
+        statusTagMatches: {
+          nodes: [
+            {
+              id: createdDraftOrders[2]!.id,
+              email: 'newer-filtered-draft-orders@example.com',
+              tags: ['priority', 'source-alpha'],
+            },
+            {
+              id: createdDraftOrders[1]!.id,
+              email: 'middle-filtered-draft-orders@example.com',
+              tags: ['priority', 'source-beta'],
+            },
+            {
+              id: createdDraftOrders[0]!.id,
+              email: 'older-filtered-draft-orders@example.com',
+              tags: ['priority', 'source-alpha'],
+            },
+          ],
+        },
+        idMatches: {
+          nodes: [
+            {
+              id: createdDraftOrders[1]!.id,
+              email: 'middle-filtered-draft-orders@example.com',
+            },
+          ],
+        },
+        createdAtMatches: {
+          nodes: [
+            {
+              id: createdDraftOrders[2]!.id,
+              email: 'newer-filtered-draft-orders@example.com',
+              createdAt: createdDraftOrders[2]!.createdAt,
+            },
+            {
+              id: createdDraftOrders[1]!.id,
+              email: 'middle-filtered-draft-orders@example.com',
+              createdAt: createdDraftOrders[1]!.createdAt,
+            },
+          ],
+        },
+        updatedAtMatches: {
+          nodes: [
+            {
+              id: createdDraftOrders[2]!.id,
+              email: 'newer-filtered-draft-orders@example.com',
+              updatedAt: createdDraftOrders[2]!.updatedAt,
+            },
+            {
+              id: createdDraftOrders[1]!.id,
+              email: 'middle-filtered-draft-orders@example.com',
+              updatedAt: createdDraftOrders[1]!.updatedAt,
+            },
+          ],
+        },
+        emptyCustomer: {
+          edges: [],
+          pageInfo: {
+            hasNextPage: false,
+            hasPreviousPage: false,
+            startCursor: null,
+            endCursor: null,
+          },
+        },
+        savedSearchEmpty: {
+          edges: [],
+          pageInfo: {
+            hasNextPage: false,
+            hasPreviousPage: false,
+            startCursor: null,
+            endCursor: null,
+          },
+        },
+        openLimitCount: {
+          count: 2,
+          precision: 'AT_LEAST',
+        },
+        sourceCount: {
+          count: 2,
+          precision: 'EXACT',
+        },
+        emptyCustomerCount: {
+          count: 0,
+          precision: 'EXACT',
+        },
+        savedSearchCount: {
+          count: 0,
+          precision: 'EXACT',
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('replays the captured draft-order email query warning locally in snapshot mode without filtering staged draft orders', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('draft-order invalid query warning replay should not hit upstream in snapshot mode');
@@ -2387,6 +2659,95 @@ describe('order creation flow', () => {
             ],
           },
         ],
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('serves supported staged draft-order query filters locally in live-hybrid mode without hitting upstream', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('supported draft-order filter replay should not hit upstream in live-hybrid mode');
+    });
+
+    const app = createApp(liveHybridConfig).callback();
+    const createResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .set('x-shopify-access-token', 'shpat_test_token')
+      .send({
+        query: `mutation DraftOrderCreateForLiveHybridFilteredRead($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              id
+              email
+              tags
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          input: {
+            email: 'live-hybrid-filtered-draft-orders@example.com',
+            tags: ['live-filter'],
+            customAttributes: [{ key: 'source', value: 'live-hybrid' }],
+            lineItems: [
+              {
+                title: 'Live-hybrid filtered staged draft-order row',
+                quantity: 1,
+                originalUnitPrice: '10.00',
+                requiresShipping: false,
+                taxable: false,
+                sku: 'live-hybrid-filtered-draft-order',
+              },
+            ],
+          },
+        },
+      });
+
+    expect(createResponse.status).toBe(200);
+    expect(createResponse.body.data.draftOrderCreate.userErrors).toEqual([]);
+    const draftOrderId = createResponse.body.data.draftOrderCreate.draftOrder.id;
+
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .set('x-shopify-access-token', 'shpat_test_token')
+      .send({
+        query: `query DraftOrdersLiveHybridSupportedSearch($query: String!) {
+          draftOrders(first: 5, query: $query) {
+            nodes {
+              id
+              email
+              tags
+            }
+          }
+          draftOrdersCount(query: $query) {
+            count
+            precision
+          }
+        }`,
+        variables: {
+          query: 'source:live-hybrid tag:live-filter status:open',
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        draftOrders: {
+          nodes: [
+            {
+              id: draftOrderId,
+              email: 'live-hybrid-filtered-draft-orders@example.com',
+              tags: ['live-filter'],
+            },
+          ],
+        },
+        draftOrdersCount: {
+          count: 1,
+          precision: 'EXACT',
+        },
       },
     });
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -2950,6 +3311,7 @@ describe('order creation flow', () => {
             status
             ready
             invoiceUrl
+            completedAt
             totalPriceSet {
               shopMoney {
                 amount
@@ -2971,6 +3333,61 @@ describe('order creation flow', () => {
                 }
               }
             }
+            order {
+              id
+              name
+              sourceName
+              paymentGatewayNames
+              displayFinancialStatus
+              displayFulfillmentStatus
+              note
+              tags
+              customAttributes {
+                key
+                value
+              }
+              billingAddress {
+                firstName
+                lastName
+                address1
+                city
+                provinceCode
+                countryCodeV2
+                zip
+                phone
+              }
+              shippingAddress {
+                firstName
+                lastName
+                address1
+                city
+                provinceCode
+                countryCodeV2
+                zip
+                phone
+              }
+              currentTotalPriceSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+              lineItems(first: 5) {
+                nodes {
+                  id
+                  title
+                  quantity
+                  sku
+                  variantTitle
+                  originalUnitPriceSet {
+                    shopMoney {
+                      amount
+                      currencyCode
+                    }
+                  }
+                }
+              }
+            }
           }
           userErrors {
             field
@@ -2986,43 +3403,95 @@ describe('order creation flow', () => {
     });
 
     expect(completeResponse.status).toBe(200);
-    expect(completeResponse.body).toEqual({
-      data: {
-        draftOrderComplete: {
-          draftOrder: {
-            id: createdDraftOrderId,
-            name: '#D1',
-            status: 'COMPLETED',
-            ready: true,
-            invoiceUrl: createdInvoiceUrl,
-            totalPriceSet: {
+    const completedPayload = completeResponse.body.data.draftOrderComplete;
+    expect(completedPayload.userErrors).toEqual([]);
+    expect(completedPayload.draftOrder).toEqual({
+      id: createdDraftOrderId,
+      name: '#D1',
+      status: 'COMPLETED',
+      ready: true,
+      invoiceUrl: createdInvoiceUrl,
+      completedAt: expect.stringMatching(/^2024-01-01T00:00:0[1-9]\.000Z$/u),
+      totalPriceSet: {
+        shopMoney: {
+          amount: '25.0',
+          currencyCode: 'CAD',
+        },
+      },
+      lineItems: {
+        nodes: [
+          {
+            id: expect.any(String),
+            title: 'Hermes completion test line item',
+            quantity: 2,
+            sku: `draft-complete-${mode}`,
+            variantTitle: null,
+            originalUnitPriceSet: {
               shopMoney: {
-                amount: '25.0',
+                amount: '12.5',
                 currencyCode: 'CAD',
               },
             },
-            lineItems: {
-              nodes: [
-                {
-                  id: 'gid://shopify/DraftOrderLineItem/3',
-                  title: 'Hermes completion test line item',
-                  quantity: 2,
-                  sku: `draft-complete-${mode}`,
-                  variantTitle: null,
-                  originalUnitPriceSet: {
-                    shopMoney: {
-                      amount: '12.5',
-                      currencyCode: 'CAD',
-                    },
-                  },
-                },
-              ],
-            },
           },
-          userErrors: [],
+        ],
+      },
+      order: {
+        id: expect.stringMatching(/^gid:\/\/shopify\/Order\/\d+$/u),
+        name: '#1',
+        sourceName: 'hermes-cron-orders',
+        paymentGatewayNames: [],
+        displayFinancialStatus: 'PAID',
+        displayFulfillmentStatus: 'UNFULFILLED',
+        note: 'complete this staged draft locally',
+        tags: ['draft-complete', mode],
+        customAttributes: [{ key: 'source', value: 'draft-order-complete-test' }],
+        billingAddress: {
+          firstName: 'Hermes',
+          lastName: 'Closer',
+          address1: '123 Queen St W',
+          city: 'Toronto',
+          provinceCode: 'ON',
+          countryCodeV2: 'CA',
+          zip: 'M5H 2M9',
+          phone: '+141****0101',
+        },
+        shippingAddress: {
+          firstName: 'Hermes',
+          lastName: 'Closer',
+          address1: '123 Queen St W',
+          city: 'Toronto',
+          provinceCode: 'ON',
+          countryCodeV2: 'CA',
+          zip: 'M5H 2M9',
+          phone: '+141****0101',
+        },
+        currentTotalPriceSet: {
+          shopMoney: {
+            amount: '25.0',
+            currencyCode: 'CAD',
+          },
+        },
+        lineItems: {
+          nodes: [
+            {
+              id: expect.stringMatching(/^gid:\/\/shopify\/LineItem\/\d+$/u),
+              title: 'Hermes completion test line item',
+              quantity: 2,
+              sku: `draft-complete-${mode}`,
+              variantTitle: null,
+              originalUnitPriceSet: {
+                shopMoney: {
+                  amount: '12.5',
+                  currencyCode: 'CAD',
+                },
+              },
+            },
+          ],
         },
       },
     });
+    const completedOrderId = completedPayload.draftOrder.order.id;
+    const completedAt = completedPayload.draftOrder.completedAt;
 
     const detailRequest = request(app).post('/admin/api/2025-01/graphql.json');
 
@@ -3037,6 +3506,13 @@ describe('order creation flow', () => {
           status
           ready
           invoiceUrl
+          completedAt
+          order {
+            id
+            name
+            sourceName
+            displayFinancialStatus
+          }
         }
       }`,
       variables: {
@@ -3052,6 +3528,102 @@ describe('order creation flow', () => {
           status: 'COMPLETED',
           ready: true,
           invoiceUrl: createdInvoiceUrl,
+          completedAt,
+          order: {
+            id: completedOrderId,
+            name: '#1',
+            sourceName: 'hermes-cron-orders',
+            displayFinancialStatus: 'PAID',
+          },
+        },
+      },
+    });
+
+    const orderReadRequest = request(app).post('/admin/api/2025-01/graphql.json');
+
+    if (mode === 'live-hybrid') {
+      orderReadRequest.set('x-shopify-access-token', 'shpat_test_token');
+    }
+
+    const orderReadResponse = await orderReadRequest.send({
+      query: `query DraftOrderCompletedOrderVisibility($id: ID!, $first: Int!) {
+        order(id: $id) {
+          id
+          name
+          sourceName
+          displayFinancialStatus
+          displayFulfillmentStatus
+          note
+          tags
+          currentTotalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+        orders(first: $first, sortKey: CREATED_AT, reverse: true) {
+          nodes {
+            id
+            name
+            sourceName
+            displayFinancialStatus
+          }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+            startCursor
+            endCursor
+          }
+        }
+        ordersCount {
+          count
+          precision
+        }
+      }`,
+      variables: {
+        id: completedOrderId,
+        first: 5,
+      },
+    });
+
+    expect(orderReadResponse.status).toBe(200);
+    expect(orderReadResponse.body).toEqual({
+      data: {
+        order: {
+          id: completedOrderId,
+          name: '#1',
+          sourceName: 'hermes-cron-orders',
+          displayFinancialStatus: 'PAID',
+          displayFulfillmentStatus: 'UNFULFILLED',
+          note: 'complete this staged draft locally',
+          tags: ['draft-complete', mode],
+          currentTotalPriceSet: {
+            shopMoney: {
+              amount: '25.0',
+              currencyCode: 'CAD',
+            },
+          },
+        },
+        orders: {
+          nodes: [
+            {
+              id: completedOrderId,
+              name: '#1',
+              sourceName: 'hermes-cron-orders',
+              displayFinancialStatus: 'PAID',
+            },
+          ],
+          pageInfo: {
+            hasNextPage: false,
+            hasPreviousPage: false,
+            startCursor: `cursor:${completedOrderId}`,
+            endCursor: `cursor:${completedOrderId}`,
+          },
+        },
+        ordersCount: {
+          count: 1,
+          precision: 'EXACT',
         },
       },
     });
@@ -3064,6 +3636,209 @@ describe('order creation flow', () => {
 
   it('completes a locally staged draft order in live-hybrid mode and replays the completed draft detail without hitting upstream', async () => {
     await assertLocalDraftOrderCompletion('live-hybrid');
+  });
+
+  it('stages payment-pending draft order completion as a pending regular order in snapshot mode', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('payment-pending draftOrderComplete should not hit upstream in snapshot mode');
+    });
+
+    const app = createApp(snapshotConfig).callback();
+    const createResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation DraftOrderCreateForPendingCompletion($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              id
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          input: {
+            email: 'draft-complete-pending@example.com',
+            lineItems: [
+              {
+                title: 'Payment pending completion line item',
+                quantity: 1,
+                originalUnitPrice: '30.00',
+                sku: 'draft-complete-pending',
+              },
+            ],
+          },
+        },
+      });
+
+    const draftOrderId = createResponse.body.data.draftOrderCreate.draftOrder.id;
+    const completeResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation DraftOrderCompletePending($id: ID!, $sourceName: String, $paymentPending: Boolean) {
+          draftOrderComplete(id: $id, sourceName: $sourceName, paymentPending: $paymentPending) {
+            draftOrder {
+              id
+              status
+              ready
+              order {
+                id
+                sourceName
+                displayFinancialStatus
+                currentTotalPriceSet {
+                  shopMoney {
+                    amount
+                    currencyCode
+                  }
+                }
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          id: draftOrderId,
+          sourceName: 'hermes-payment-terms',
+          paymentPending: true,
+        },
+      });
+
+    expect(completeResponse.status).toBe(200);
+    const completedDraftOrder = completeResponse.body.data.draftOrderComplete.draftOrder;
+    expect(completeResponse.body.data.draftOrderComplete.userErrors).toEqual([]);
+    expect(completedDraftOrder).toEqual({
+      id: draftOrderId,
+      status: 'COMPLETED',
+      ready: true,
+      order: {
+        id: expect.stringMatching(/^gid:\/\/shopify\/Order\/\d+$/u),
+        sourceName: 'hermes-payment-terms',
+        displayFinancialStatus: 'PENDING',
+        currentTotalPriceSet: {
+          shopMoney: {
+            amount: '30.0',
+            currencyCode: 'CAD',
+          },
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns the captured invalid payment gateway userError without completing the staged draft order', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('invalid paymentGatewayId draftOrderComplete should not hit upstream in snapshot mode');
+    });
+
+    const app = createApp(snapshotConfig).callback();
+    const createResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation DraftOrderCreateForInvalidGateway($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              id
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          input: {
+            email: 'draft-complete-invalid-gateway@example.com',
+            lineItems: [
+              {
+                title: 'Invalid gateway completion line item',
+                quantity: 1,
+                originalUnitPrice: '20.00',
+                sku: 'draft-complete-invalid-gateway',
+              },
+            ],
+          },
+        },
+      });
+
+    const draftOrderId = createResponse.body.data.draftOrderCreate.draftOrder.id;
+    const completeResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation DraftOrderCompleteInvalidGateway($id: ID!, $paymentGatewayId: ID) {
+          draftOrderComplete(id: $id, paymentGatewayId: $paymentGatewayId) {
+            draftOrder {
+              id
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          id: draftOrderId,
+          paymentGatewayId: 'gid://shopify/PaymentGateway/12121213',
+        },
+      });
+
+    expect(completeResponse.status).toBe(200);
+    expect(completeResponse.body).toEqual({
+      data: {
+        draftOrderComplete: {
+          draftOrder: null,
+          userErrors: [
+            {
+              field: null,
+              message: 'Invalid payment gateway',
+            },
+          ],
+        },
+      },
+    });
+
+    const readResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query DraftOrderAfterInvalidGateway($id: ID!) {
+          draftOrder(id: $id) {
+            id
+            status
+            ready
+            order {
+              id
+            }
+          }
+          ordersCount {
+            count
+            precision
+          }
+        }`,
+        variables: {
+          id: draftOrderId,
+        },
+      });
+
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body).toEqual({
+      data: {
+        draftOrder: {
+          id: draftOrderId,
+          status: 'OPEN',
+          ready: false,
+          order: null,
+        },
+        ordersCount: {
+          count: 0,
+          precision: 'EXACT',
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('stages draftOrderCreate locally in live-hybrid mode and serves immediate draftOrder detail replay without hitting upstream for supported order roots', async () => {

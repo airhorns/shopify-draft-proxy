@@ -53,8 +53,6 @@ query ProductVariantsRead($variantId: ID!, $inventoryItemId: ID!) {
     product {
       id
       title
-      handle
-      status
     }
   }
   stock: inventoryItem(id: $inventoryItemId) {
@@ -93,6 +91,9 @@ query ProductVariantsRead($variantId: ID!, $inventoryItemId: ID!) {
         endCursor
       }
     }
+  }
+  stockBackreference: inventoryItem(id: $inventoryItemId) {
+    id
     variant {
       id
       title
@@ -101,8 +102,6 @@ query ProductVariantsRead($variantId: ID!, $inventoryItemId: ID!) {
       product {
         id
         title
-        handle
-        status
       }
     }
   }

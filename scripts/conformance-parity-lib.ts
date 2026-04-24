@@ -25,6 +25,7 @@ export type {
   ProxyRequestSpec,
 } from '../src/json-schemas.js';
 import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
+import { handleOrderMutation, handleOrderQuery } from '../src/proxy/orders.js';
 import {
   handleProductMutation,
   handleProductQuery,
@@ -34,8 +35,14 @@ import { makeSyntheticGid, makeSyntheticTimestamp, resetSyntheticIdentity } from
 import { store } from '../src/state/store.js';
 import type {
   CollectionRecord,
+  DraftOrderLineItemRecord,
+  DraftOrderRecord,
+  DraftOrderShippingLineRecord,
   InventoryLevelRecord,
   MutationLogInterpretedMetadata,
+  OrderLineItemRecord,
+  OrderRecord,
+  OrderShippingLineRecord,
   ProductCollectionRecord,
   ProductMetafieldRecord,
   ProductMediaRecord,
@@ -205,7 +212,7 @@ export function classifyParityScenarioState(
 }
 
 export const parityStatusNote =
-  'readyForComparison means a captured scenario has a proxy request and an explicit strict-json comparison contract. invalid scenarios are captured recordings that cannot run high-assurance comparison yet. notYetImplemented scenarios are intentionally planned and never partially executable.';
+  'readyForComparison means a captured scenario has a proxy request and an explicit strict-json comparison contract. invalid scenarios are captured recordings that cannot run high-assurance comparison yet. notYetImplemented scenarios are legacy non-executable entries; do not add new planned-only or blocked-only parity specs.';
 
 export function summarizeParityResults(results: Array<{ state: ParityScenarioState }>): {
   readyForComparison: number;
@@ -582,6 +589,30 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'stage-locally' && capability.domain === 'orders') {
+    const body = handleOrderMutation(document, variables, 'snapshot');
+    if (!body) {
+      throw new Error(`Order-domain parity request was not handled locally: ${capability.operationName}`);
+    }
+
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2025-01/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body,
+    };
+  }
+
   if (capability.execution === 'overlay-read' && capability.domain === 'products') {
     if (upstreamPayload !== undefined) {
       hydrateProductsFromUpstreamResponse(document, variables, upstreamPayload);
@@ -596,6 +627,27 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleProductQuery(document, variables, upstreamPayload === undefined ? 'snapshot' : 'live-hybrid'),
+    };
+  }
+
+  if (capability.execution === 'overlay-read' && capability.domain === 'orders') {
+    const upstreamPayloadIsResponseEnvelope =
+      isPlainObject(upstreamPayload) && ('data' in upstreamPayload || 'errors' in upstreamPayload);
+
+    if (upstreamPayload !== undefined && upstreamPayloadIsResponseEnvelope && !hasOrderState()) {
+      return {
+        status: 200,
+        body: upstreamPayload,
+      };
+    }
+
+    if (upstreamPayload !== undefined) {
+      hydrateOrdersFromUpstreamResponse(upstreamPayload);
+    }
+
+    return {
+      status: 200,
+      body: handleOrderQuery(document, variables),
     };
   }
 
@@ -615,7 +667,20 @@ function hasStagedState(): boolean {
     Object.keys(stagedState.productMedia).length > 0 ||
     Object.keys(stagedState.productMetafields).length > 0 ||
     Object.keys(stagedState.deletedProductIds).length > 0 ||
-    Object.keys(stagedState.deletedCollectionIds).length > 0
+    Object.keys(stagedState.deletedCollectionIds).length > 0 ||
+    Object.keys(stagedState.orders).length > 0 ||
+    Object.keys(stagedState.draftOrders).length > 0 ||
+    Object.keys(stagedState.calculatedOrders).length > 0
+  );
+}
+
+function hasOrderState(): boolean {
+  const { baseState, stagedState } = store.getState();
+  return (
+    Object.keys(baseState.orders).length > 0 ||
+    Object.keys(stagedState.orders).length > 0 ||
+    Object.keys(stagedState.draftOrders).length > 0 ||
+    Object.keys(stagedState.calculatedOrders).length > 0
   );
 }
 
@@ -665,6 +730,235 @@ function readBooleanField(value: Record<string, unknown> | null | undefined, key
 function readArrayField(value: Record<string, unknown> | null | undefined, key: string): unknown[] {
   const fieldValue = value?.[key];
   return Array.isArray(fieldValue) ? fieldValue : [];
+}
+
+function readMoneySetField(
+  value: Record<string, unknown> | null | undefined,
+  key: string,
+): OrderRecord['currentTotalPriceSet'] {
+  const rawSet = readRecordField(value, key);
+  const shopMoney = readRecordField(rawSet, 'shopMoney');
+  const amount = readStringField(shopMoney, 'amount');
+  const currencyCode = readStringField(shopMoney, 'currencyCode');
+  return amount || currencyCode
+    ? {
+        shopMoney: {
+          amount,
+          currencyCode,
+        },
+      }
+    : null;
+}
+
+function readCapturedOrderLineItems(order: Record<string, unknown> | null): OrderLineItemRecord[] {
+  return readArrayField(readRecordField(order, 'lineItems'), 'nodes')
+    .filter(isPlainObject)
+    .map((lineItem, index) => ({
+      id: readStringField(lineItem, 'id') ?? `gid://shopify/LineItem/conformance-${index}`,
+      title: readStringField(lineItem, 'title'),
+      quantity: readNumberField(lineItem, 'quantity') ?? 0,
+      sku: readStringField(lineItem, 'sku'),
+      variantTitle: readStringField(lineItem, 'variantTitle'),
+      originalUnitPriceSet: readMoneySetField(lineItem, 'originalUnitPriceSet'),
+    }));
+}
+
+function readCapturedOrderShippingLines(order: Record<string, unknown> | null): OrderShippingLineRecord[] {
+  return readArrayField(readRecordField(order, 'shippingLines'), 'nodes')
+    .filter(isPlainObject)
+    .map((shippingLine) => ({
+      title: readStringField(shippingLine, 'title'),
+      code: readStringField(shippingLine, 'code'),
+      originalPriceSet: readMoneySetField(shippingLine, 'originalPriceSet'),
+    }));
+}
+
+function readCapturedOrderCustomer(order: Record<string, unknown> | null): OrderRecord['customer'] {
+  const customer = readRecordField(order, 'customer');
+  const id = readStringField(customer, 'id');
+  if (!id) {
+    return null;
+  }
+
+  return {
+    id,
+    email: readStringField(customer, 'email'),
+    displayName: readStringField(customer, 'displayName'),
+  };
+}
+
+function readCapturedOrderTransactions(order: Record<string, unknown> | null): OrderRecord['transactions'] {
+  return readArrayField(order, 'transactions')
+    .filter(isPlainObject)
+    .map((transaction, index) => ({
+      id: readStringField(transaction, 'id') ?? `gid://shopify/OrderTransaction/conformance-${index}`,
+      kind: readStringField(transaction, 'kind'),
+      status: readStringField(transaction, 'status'),
+      gateway: readStringField(transaction, 'gateway'),
+      amountSet: readMoneySetField(transaction, 'amountSet'),
+    }));
+}
+
+function makeSeedOrder(orderId: string, source: Record<string, unknown> | null = null): OrderRecord {
+  const now = '2026-04-19T00:00:00.000Z';
+  const totalPriceSet = readMoneySetField(source, 'totalPriceSet');
+  const currentTotalPriceSet = readMoneySetField(source, 'currentTotalPriceSet');
+  const subtotalPriceSet = readMoneySetField(source, 'subtotalPriceSet');
+  const currencyCode = totalPriceSet?.shopMoney.currencyCode ?? currentTotalPriceSet?.shopMoney.currencyCode ?? 'CAD';
+
+  return {
+    id: orderId,
+    name: readStringField(source, 'name') ?? '#1',
+    createdAt: readStringField(source, 'createdAt') ?? readStringField(source, 'updatedAt') ?? now,
+    updatedAt: readStringField(source, 'updatedAt') ?? now,
+    closed: readBooleanField(source, 'closed') ?? false,
+    closedAt: readStringField(source, 'closedAt'),
+    cancelledAt: readStringField(source, 'cancelledAt'),
+    cancelReason: readStringField(source, 'cancelReason'),
+    displayFinancialStatus: readStringField(source, 'displayFinancialStatus'),
+    displayFulfillmentStatus: readStringField(source, 'displayFulfillmentStatus'),
+    paymentGatewayNames: readArrayField(source, 'paymentGatewayNames').filter(
+      (gateway): gateway is string => typeof gateway === 'string',
+    ),
+    note: readStringField(source, 'note'),
+    tags: readArrayField(source, 'tags').filter((tag): tag is string => typeof tag === 'string'),
+    customAttributes: readArrayField(source, 'customAttributes')
+      .filter(isPlainObject)
+      .map((attribute) => ({
+        key: readStringField(attribute, 'key') ?? '',
+        value: readStringField(attribute, 'value'),
+      }))
+      .filter((attribute) => attribute.key.length > 0),
+    billingAddress: readCapturedAddress(source, 'billingAddress'),
+    shippingAddress: readCapturedAddress(source, 'shippingAddress'),
+    subtotalPriceSet,
+    currentTotalPriceSet,
+    totalPriceSet,
+    totalOutstandingSet: readMoneySetField(source, 'totalOutstandingSet'),
+    totalRefundedSet: {
+      shopMoney: {
+        amount: '0.0',
+        currencyCode,
+      },
+    },
+    customer: readCapturedOrderCustomer(source),
+    shippingLines: readCapturedOrderShippingLines(source),
+    lineItems: readCapturedOrderLineItems(source),
+    transactions: readCapturedOrderTransactions(source),
+    refunds: [],
+    returns: [],
+  };
+}
+
+function readCapturedDraftOrderLineItems(draftOrder: Record<string, unknown> | null): DraftOrderLineItemRecord[] {
+  return readArrayField(readRecordField(draftOrder, 'lineItems'), 'nodes')
+    .filter(isPlainObject)
+    .map((lineItem, index) => ({
+      id: readStringField(lineItem, 'id') ?? `gid://shopify/DraftOrderLineItem/conformance-${index}`,
+      title: readStringField(lineItem, 'title'),
+      quantity: readNumberField(lineItem, 'quantity') ?? 0,
+      sku: readStringField(lineItem, 'sku'),
+      variantTitle: readStringField(lineItem, 'variantTitle'),
+      originalUnitPriceSet: readMoneySetField(lineItem, 'originalUnitPriceSet'),
+    }));
+}
+
+function readCapturedDraftOrderShippingLine(
+  draftOrder: Record<string, unknown> | null,
+): DraftOrderShippingLineRecord | null {
+  const shippingLine = readRecordField(draftOrder, 'shippingLine');
+  if (!shippingLine) {
+    return null;
+  }
+
+  return {
+    title: readStringField(shippingLine, 'title'),
+    code: readStringField(shippingLine, 'code'),
+    originalPriceSet: readMoneySetField(shippingLine, 'originalPriceSet'),
+  };
+}
+
+function makeSeedDraftOrder(draftOrderId: string, source: Record<string, unknown> | null = null): DraftOrderRecord {
+  const now = '2026-04-19T00:00:00.000Z';
+  return {
+    id: draftOrderId,
+    name: readStringField(source, 'name') ?? '#D1',
+    invoiceUrl: readStringField(source, 'invoiceUrl'),
+    status: readStringField(source, 'status'),
+    ready: readBooleanField(source, 'ready'),
+    email: readStringField(source, 'email'),
+    note: readStringField(source, 'note'),
+    tags: readArrayField(source, 'tags').filter((tag): tag is string => typeof tag === 'string'),
+    customAttributes: readArrayField(source, 'customAttributes')
+      .filter(isPlainObject)
+      .map((attribute) => ({
+        key: readStringField(attribute, 'key') ?? '',
+        value: readStringField(attribute, 'value'),
+      }))
+      .filter((attribute) => attribute.key.length > 0),
+    billingAddress: readCapturedAddress(source, 'billingAddress'),
+    shippingAddress: readCapturedAddress(source, 'shippingAddress'),
+    shippingLine: readCapturedDraftOrderShippingLine(source),
+    createdAt: readStringField(source, 'createdAt') ?? readStringField(source, 'updatedAt') ?? now,
+    updatedAt: readStringField(source, 'updatedAt') ?? now,
+    subtotalPriceSet: readMoneySetField(source, 'subtotalPriceSet'),
+    totalPriceSet: readMoneySetField(source, 'totalPriceSet'),
+    lineItems: readCapturedDraftOrderLineItems(source),
+  };
+}
+
+function readCapturedAddress(
+  source: Record<string, unknown> | null | undefined,
+  key: string,
+): OrderRecord['billingAddress'] {
+  const address = readRecordField(source, key);
+  if (!address) {
+    return null;
+  }
+
+  return {
+    firstName: readStringField(address, 'firstName'),
+    lastName: readStringField(address, 'lastName'),
+    address1: readStringField(address, 'address1'),
+    city: readStringField(address, 'city'),
+    provinceCode: readStringField(address, 'provinceCode'),
+    countryCodeV2: readStringField(address, 'countryCodeV2'),
+    zip: readStringField(address, 'zip'),
+    phone: readStringField(address, 'phone'),
+  };
+}
+
+function hydrateOrdersFromUpstreamResponse(upstreamPayload: unknown): void {
+  const payload = isPlainObject(upstreamPayload) ? upstreamPayload : {};
+  const data = readRecordField(payload, 'data') ?? payload;
+
+  const order = readRecordField(data, 'order');
+  const orderId = readStringField(order, 'id');
+  if (orderId) {
+    store.upsertBaseOrders([makeSeedOrder(orderId, order)]);
+  }
+
+  for (const edge of readArrayField(readRecordField(data, 'orders'), 'edges').filter(isPlainObject)) {
+    const node = readRecordField(edge, 'node');
+    const nodeId = readStringField(node, 'id');
+    if (nodeId) {
+      store.upsertBaseOrders([makeSeedOrder(nodeId, node)]);
+    }
+  }
+
+  const draftOrder = readRecordField(data, 'draftOrder');
+  const draftOrderId = readStringField(draftOrder, 'id');
+  if (draftOrderId) {
+    store.stageCreateDraftOrder(makeSeedDraftOrder(draftOrderId, draftOrder));
+  }
+
+  for (const edge of readArrayField(readRecordField(data, 'draftOrders'), 'edges').filter(isPlainObject)) {
+    const node = readRecordField(edge, 'node');
+    const nodeId = readStringField(node, 'id');
+    if (nodeId) {
+      store.stageCreateDraftOrder(makeSeedDraftOrder(nodeId, node));
+    }
+  }
 }
 
 function makeSeedProduct(
@@ -1200,6 +1494,139 @@ function seedInventoryAdjustmentPreconditions(capture: unknown): void {
   }
 }
 
+function readCapturedInventoryLevel(source: Record<string, unknown>): InventoryLevelRecord | null {
+  const id = readStringField(source, 'id');
+  if (!id) {
+    return null;
+  }
+
+  const location = readRecordField(source, 'location');
+  const locationId = readStringField(location, 'id');
+
+  return {
+    id,
+    cursor: readStringField(source, 'cursor'),
+    location: locationId ? { id: locationId, name: readStringField(location, 'name') } : null,
+    quantities: readArrayField(source, 'quantities')
+      .filter(isPlainObject)
+      .map((quantity) => ({
+        name: readStringField(quantity, 'name') ?? '',
+        quantity: readNumberField(quantity, 'quantity'),
+        updatedAt: readStringField(quantity, 'updatedAt'),
+      }))
+      .filter((quantity) => quantity.name.length > 0),
+  };
+}
+
+function makeInventoryLinkageSeedVariant(
+  productId: string,
+  source: Record<string, unknown>,
+): ProductVariantRecord | null {
+  const id = readStringField(source, 'id');
+  const inventoryItem = readRecordField(source, 'inventoryItem');
+  const inventoryItemId = readStringField(inventoryItem, 'id');
+  if (!id || !inventoryItemId) {
+    return null;
+  }
+
+  const levels = readArrayField(readRecordField(inventoryItem, 'inventoryLevels'), 'nodes')
+    .filter(isPlainObject)
+    .map(readCapturedInventoryLevel)
+    .filter((level): level is InventoryLevelRecord => level !== null);
+
+  return {
+    id,
+    productId,
+    title: readStringField(source, 'title') ?? 'Default Title',
+    sku: readStringField(source, 'sku'),
+    barcode: readStringField(source, 'barcode'),
+    price: readStringField(source, 'price'),
+    compareAtPrice: readStringField(source, 'compareAtPrice'),
+    taxable: readBooleanField(source, 'taxable'),
+    inventoryPolicy: readStringField(source, 'inventoryPolicy'),
+    inventoryQuantity: readNumberField(source, 'inventoryQuantity'),
+    selectedOptions: [],
+    inventoryItem: {
+      id: inventoryItemId,
+      tracked: readBooleanField(inventoryItem, 'tracked'),
+      requiresShipping: readBooleanField(inventoryItem, 'requiresShipping'),
+      measurement: null,
+      countryCodeOfOrigin: null,
+      provinceCodeOfOrigin: null,
+      harmonizedSystemCode: null,
+      inventoryLevels: levels,
+    },
+  };
+}
+
+function seedInventoryLinkagePreconditions(capture: unknown): boolean {
+  const captureObject = isPlainObject(capture) ? capture : {};
+  if (
+    !(
+      'inventoryActivateNoOp' in captureObject ||
+      'inventoryDeactivateOnlyLocationError' in captureObject ||
+      'inventoryBulkToggleActivateNoOp' in captureObject
+    )
+  ) {
+    return false;
+  }
+
+  const product = readRecordField(capture as Record<string, unknown>, 'createdProduct');
+  const productId = readStringField(product, 'id');
+  if (!productId) {
+    return false;
+  }
+
+  const variants = readArrayField(readRecordField(product, 'variants'), 'nodes')
+    .filter(isPlainObject)
+    .map((variant) => makeInventoryLinkageSeedVariant(productId, variant))
+    .filter((variant): variant is ProductVariantRecord => variant !== null);
+  const firstVariant = variants[0] ?? null;
+
+  store.upsertBaseProducts([
+    makeSeedProduct(productId, {
+      ...product,
+      totalInventory: firstVariant?.inventoryQuantity ?? null,
+      tracksInventory: firstVariant?.inventoryItem?.tracked ?? null,
+    }),
+  ]);
+  if (variants.length > 0) {
+    store.replaceBaseVariantsForProduct(productId, variants);
+  }
+
+  return true;
+}
+
+function seedInventoryItemUpdatePreconditions(capture: unknown): boolean {
+  if (mutationNameFromCapture(capture) !== 'inventoryItemUpdate') {
+    return false;
+  }
+
+  const productPayload = readRecordField(
+    readRecordField(
+      readRecordField(
+        readRecordField(readRecordField(capture as Record<string, unknown>, 'mutation'), 'create'),
+        'response',
+      ),
+      'data',
+    ),
+    'productCreate',
+  )?.['product'];
+  const product = isPlainObject(productPayload) ? productPayload : null;
+  const productId = readStringField(product, 'id');
+  if (!productId) {
+    return false;
+  }
+
+  store.upsertBaseProducts([makeSeedProduct(productId, product)]);
+  const variants = readCapturedProductVariants(productId, product);
+  if (variants.length > 0) {
+    store.replaceBaseVariantsForProduct(productId, variants);
+  }
+
+  return true;
+}
+
 function seedMetafieldsSetOwnerProducts(capture: unknown, variables: Record<string, unknown>): void {
   const downstreamProduct = readRecordField(
     readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data'),
@@ -1217,6 +1644,58 @@ function seedMetafieldsSetOwnerProducts(capture: unknown, variables: Record<stri
       store.replaceBaseMetafieldsForProduct(ownerId, readCapturedProductMetafields(ownerId, source));
     }
   }
+}
+
+function seedMetafieldsDeleteOwnerProducts(capture: unknown, variables: Record<string, unknown>): boolean {
+  if (mutationNameFromCapture(capture) !== 'metafieldsDelete') {
+    return false;
+  }
+
+  const downstreamProduct = readRecordField(
+    readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data'),
+    'product',
+  );
+  const deletedIdentifiers = readArrayField(
+    readRecordField(readRecordField(capture as Record<string, unknown>, 'mutation'), 'variables'),
+    'metafields',
+  ).filter(isPlainObject);
+  const retainedOwnerId = readStringField(downstreamProduct, 'id');
+  const fallbackOwnerId = readStringField(deletedIdentifiers[0] ?? null, 'ownerId');
+  const ownerId = retainedOwnerId ?? fallbackOwnerId;
+  if (!ownerId?.startsWith('gid://shopify/Product/')) {
+    return false;
+  }
+
+  const retainedMetafields = downstreamProduct ? readCapturedProductMetafields(ownerId, downstreamProduct) : [];
+  const existingKeys = new Set(retainedMetafields.map((metafield) => `${metafield.namespace}:${metafield.key}`));
+  const primaryInput = readRecordField(variables, 'input');
+  const singularDeleteId = readStringField(primaryInput, 'id');
+  const deletedMetafields = deletedIdentifiers
+    .map((identifier, index): ProductMetafieldRecord | null => {
+      const namespace = readStringField(identifier, 'namespace');
+      const key = readStringField(identifier, 'key');
+      const productId = readStringField(identifier, 'ownerId') ?? ownerId;
+      if (!namespace || !key || !productId.startsWith('gid://shopify/Product/')) {
+        return null;
+      }
+      const storageKey = `${namespace}:${key}`;
+      if (existingKeys.has(storageKey)) {
+        return null;
+      }
+      return {
+        id: singularDeleteId ?? `gid://shopify/Metafield/conformance-deleted-${index}`,
+        productId,
+        namespace,
+        key,
+        type: 'single_line_text_field',
+        value: null,
+      };
+    })
+    .filter((metafield): metafield is ProductMetafieldRecord => metafield !== null);
+
+  store.upsertBaseProducts([makeSeedProduct(ownerId, downstreamProduct)]);
+  store.replaceBaseMetafieldsForProduct(ownerId, [...retainedMetafields, ...deletedMetafields]);
+  return true;
 }
 
 function seedProductDuplicateSource(capture: unknown): boolean {
@@ -1314,6 +1793,14 @@ function readCapturedProductMedia(
 }
 
 function seedPreconditionsFromCapture(capture: unknown, variables: Record<string, unknown>): void {
+  if (seedInventoryLinkagePreconditions(capture)) {
+    return;
+  }
+
+  if (seedMetafieldsDeleteOwnerProducts(capture, variables)) {
+    return;
+  }
+
   if (seedProductVariantUpdateCompatibilityPreconditions(capture, variables)) {
     return;
   }
@@ -1324,8 +1811,90 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
 
   const payload = mutationPayloadFromCapture(capture);
   const mutationName = mutationNameFromCapture(capture);
+  if (mutationName === 'orderUpdate') {
+    const input = readRecordField(variables, 'input');
+    const orderId = readStringField(input, 'id');
+    if (orderId) {
+      const orderPayload = readRecordField(payload, 'order');
+      const downstreamOrder = readRecordField(
+        readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'response'),
+        'data',
+      );
+      const downstreamSource = readRecordField(downstreamOrder, 'order');
+      const seedSource = orderPayload ?? downstreamSource;
+      if (seedSource) {
+        store.upsertBaseOrders([makeSeedOrder(orderId, seedSource)]);
+      }
+    }
+    return;
+  }
+
+  if (
+    mutationName === 'orderClose' ||
+    mutationName === 'orderOpen' ||
+    mutationName === 'orderMarkAsPaid' ||
+    mutationName === 'orderCustomerSet' ||
+    mutationName === 'orderCustomerRemove' ||
+    mutationName === 'orderInvoiceSend'
+  ) {
+    const orderPayload = readRecordField(payload, 'order');
+    const input = readRecordField(variables, 'input');
+    const orderId =
+      readStringField(input, 'id') ?? readStringField(variables, 'orderId') ?? readStringField(variables, 'id');
+    const seedId = readStringField(orderPayload, 'id') ?? orderId;
+    if (seedId) {
+      store.upsertBaseOrders([makeSeedOrder(seedId, orderPayload)]);
+    }
+    return;
+  }
+
+  if (mutationName === 'orderCancel') {
+    const downstreamOrder = readRecordField(
+      readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'response'),
+      'data',
+    );
+    const orderPayload = readRecordField(downstreamOrder, 'order');
+    const orderId = readStringField(variables, 'orderId') ?? readStringField(orderPayload, 'id');
+    if (orderId) {
+      store.upsertBaseOrders([makeSeedOrder(orderId, orderPayload)]);
+    }
+    return;
+  }
+
+  if (mutationName === 'refundCreate') {
+    const input = readRecordField(variables, 'input');
+    const orderId = readStringField(input, 'orderId');
+    if (orderId) {
+      const setupOrder = readRecordField(
+        readRecordField(
+          readRecordField(
+            readRecordField(readRecordField(capture as Record<string, unknown>, 'setup'), 'orderCreate'),
+            'response',
+          ),
+          'data',
+        ),
+        'orderCreate',
+      );
+      const orderCreateSource = readRecordField(setupOrder, 'order');
+      const downstreamOrder = readRecordField(
+        readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'response'),
+        'data',
+      );
+      const downstreamSource = readRecordField(downstreamOrder, 'order');
+      const seedSource = orderCreateSource ?? downstreamSource;
+      if (seedSource) {
+        store.upsertBaseOrders([makeSeedOrder(orderId, seedSource)]);
+      }
+    }
+    return;
+  }
+
   if (mutationName === 'inventoryAdjustQuantities') {
     seedInventoryAdjustmentPreconditions(capture);
+    return;
+  }
+
+  if (seedInventoryItemUpdatePreconditions(capture)) {
     return;
   }
 
@@ -1350,11 +1919,15 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     !readStringField(identifier, 'id') &&
     !readStringField(identifier, 'handle') &&
     !readStringField(input, 'id');
+  const productDeletePayloadId = mutationName === 'productDelete' ? readStringField(payload, 'deletedProductId') : null;
+  const isProductDeleteValidationProbe =
+    mutationName === 'productDelete' && productDeletePayloadId !== null && productDeletePayloadId !== productId;
 
   const shouldSeedProduct =
     productId !== null &&
     !(mutationName === 'productCreate' && readStringField(productInput, 'id') === null) &&
-    !isProductSetCreate;
+    !isProductSetCreate &&
+    !isProductDeleteValidationProbe;
 
   if (seedProductDuplicateSource(capture)) {
     return;

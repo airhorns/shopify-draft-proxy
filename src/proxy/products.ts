@@ -1,7 +1,7 @@
 import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 import type { ReadMode } from '../config.js';
 import { getFieldArguments, getRootField, getRootFieldArguments, getRootFields } from '../graphql/root-field.js';
-import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
+import { makeProxySyntheticGid, makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type {
   CollectionRecord,
@@ -573,7 +573,7 @@ function makeProductRecord(input: Record<string, unknown>, existing?: ProductRec
   const existingSeo = existing?.seo ?? { title: null, description: null };
 
   return {
-    id: typeof rawId === 'string' ? rawId : (existing?.id ?? makeSyntheticGid('Product')),
+    id: typeof rawId === 'string' ? rawId : (existing?.id ?? makeProxySyntheticGid('Product')),
     legacyResourceId: existing?.legacyResourceId ?? null,
     title,
     handle:
@@ -670,7 +670,7 @@ function makeDuplicatedProductRecord(source: ProductRecord, newTitle?: string): 
   const now = makeSyntheticTimestamp();
 
   return {
-    id: makeSyntheticGid('Product'),
+    id: makeProxySyntheticGid('Product'),
     legacyResourceId: null,
     title,
     handle: slugifyHandle(title),
@@ -3117,12 +3117,15 @@ function serializeInventoryLevelsConnection(
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
+  const getLevelCursor = (
+    level: NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']>[number],
+  ): string => level.cursor ?? `cursor:${level.id}`;
   const allLevels = getEffectiveInventoryLevels(variant);
   const {
     items: levels,
     hasNextPage,
     hasPreviousPage,
-  } = paginateConnectionItems(allLevels, field, variables, (level) => level.cursor ?? `cursor:${level.id}`);
+  } = paginateConnectionItems(allLevels, field, variables, getLevelCursor);
   const result: Record<string, unknown> = {};
 
   for (const selection of field.selectionSet?.selections ?? []) {
@@ -3191,7 +3194,7 @@ function serializeInventoryLevelsConnection(
             const edgeKey = edgeSelection.alias?.value ?? edgeSelection.name.value;
             switch (edgeSelection.name.value) {
               case 'cursor':
-                edgeResult[edgeKey] = level.cursor ?? `cursor:${level.id}`;
+                edgeResult[edgeKey] = getLevelCursor(level);
                 break;
               case 'node': {
                 const nodeResult: Record<string, unknown> = {};
@@ -3253,13 +3256,9 @@ function serializeInventoryLevelsConnection(
         });
         break;
       case 'pageInfo':
-        result[key] = serializeConnectionPageInfo(
-          selection,
-          levels,
-          hasNextPage,
-          hasPreviousPage,
-          (level) => level.cursor ?? `cursor:${level.id}`,
-        );
+        result[key] = serializeConnectionPageInfo(selection, levels, hasNextPage, hasPreviousPage, getLevelCursor, {
+          prefixCursors: false,
+        });
         break;
       default:
         result[key] = null;
@@ -3661,7 +3660,13 @@ function serializeConnectionPageInfo<T>(
   hasNextPage: boolean,
   hasPreviousPage: boolean,
   getCursorValue: (item: T) => string,
+  options: { prefixCursors?: boolean } = {},
 ): Record<string, unknown> {
+  const formatCursor = (item: T): string => {
+    const cursor = getCursorValue(item);
+    return options.prefixCursors === false ? cursor : `cursor:${cursor}`;
+  };
+
   return Object.fromEntries(
     (selection.selectionSet?.selections ?? [])
       .filter((pageInfoSelection): pageInfoSelection is FieldNode => pageInfoSelection.kind === Kind.FIELD)
@@ -3673,9 +3678,9 @@ function serializeConnectionPageInfo<T>(
           case 'hasPreviousPage':
             return [pageInfoKey, hasPreviousPage];
           case 'startCursor':
-            return [pageInfoKey, items[0] ? `cursor:${getCursorValue(items[0])}` : null];
+            return [pageInfoKey, items[0] ? formatCursor(items[0]) : null];
           case 'endCursor':
-            return [pageInfoKey, items.length > 0 ? `cursor:${getCursorValue(items[items.length - 1]!)}` : null];
+            return [pageInfoKey, items.length > 0 ? formatCursor(items[items.length - 1]!) : null];
           default:
             return [pageInfoKey, null];
         }
@@ -4683,7 +4688,7 @@ function matchesProductTimestampTerm(productValue: string, rawValue: string): bo
   }
 
   const operator = match[1] ?? '=';
-  const thresholdValue = match[2]?.trim() ?? '';
+  const thresholdValue = stripSearchValueQuotes(match[2]?.trim() ?? '');
   if (!thresholdValue) {
     return true;
   }
@@ -4710,6 +4715,28 @@ function matchesProductTimestampTerm(productValue: string, rawValue: string): bo
   }
 }
 
+function stripSearchValueQuotes(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length >= 2) {
+    const firstCharacter = trimmed[0];
+    const lastCharacter = trimmed[trimmed.length - 1];
+    if ((firstCharacter === '"' || firstCharacter === "'") && firstCharacter === lastCharacter) {
+      return trimmed.slice(1, -1);
+    }
+  }
+
+  return trimmed;
+}
+
+function matchesNullableProductTimestampTerm(productValue: string | null, rawValue: string): boolean {
+  const normalizedValue = stripSearchValueQuotes(rawValue);
+  if (normalizedValue === '*') {
+    return productValue !== null;
+  }
+
+  return productValue === null ? false : matchesProductTimestampTerm(productValue, normalizedValue);
+}
+
 type ProductsQueryToken =
   | { type: 'term'; value: string }
   | { type: 'or' }
@@ -4726,7 +4753,7 @@ type ProductsQueryNode =
 function tokenizeProductsQuery(query: string): ProductsQueryToken[] {
   const tokens: ProductsQueryToken[] = [];
   let current = '';
-  let inQuotes = false;
+  let quoteCharacter: '"' | "'" | null = null;
 
   const flushCurrent = (): void => {
     const value = current.trim();
@@ -4737,38 +4764,51 @@ function tokenizeProductsQuery(query: string): ProductsQueryToken[] {
 
     if (value.toUpperCase() === 'OR') {
       tokens.push({ type: 'or' });
+    } else if (value === 'NOT') {
+      tokens.push({ type: 'not' });
     } else {
       tokens.push({ type: 'term', value });
     }
     current = '';
   };
 
+  const canStartQuotedValue = (): boolean => {
+    if (!current) {
+      return true;
+    }
+
+    return /:(?:<=|>=|<|>|=)?$/u.test(current);
+  };
+
   for (let index = 0; index < query.length; index += 1) {
     const character = query[index] ?? '';
 
-    if (character === '"') {
-      inQuotes = !inQuotes;
+    if (
+      (character === '"' || character === "'") &&
+      (quoteCharacter === character || (quoteCharacter === null && canStartQuotedValue()))
+    ) {
+      quoteCharacter = quoteCharacter === character ? null : character;
       continue;
     }
 
-    if (!inQuotes && /\s/.test(character)) {
+    if (quoteCharacter === null && /\s/.test(character)) {
       flushCurrent();
       continue;
     }
 
-    if (!inQuotes && character === '(') {
+    if (quoteCharacter === null && character === '(') {
       flushCurrent();
       tokens.push({ type: 'lparen' });
       continue;
     }
 
-    if (!inQuotes && character === ')') {
+    if (quoteCharacter === null && character === ')') {
       flushCurrent();
       tokens.push({ type: 'rparen' });
       continue;
     }
 
-    if (!inQuotes && character === '-' && !current) {
+    if (quoteCharacter === null && character === '-' && !current) {
       const nextCharacter = query[index + 1] ?? '';
       if (nextCharacter === '(') {
         tokens.push({ type: 'not' });
@@ -4957,8 +4997,12 @@ function matchesPositiveProductQueryTerm(product: ProductRecord, term: string): 
       return matchesStringValue(product.status, value, 'exact');
     case 'created_at':
       return matchesProductTimestampTerm(product.createdAt, value);
+    case 'published_at':
+      return matchesNullableProductTimestampTerm(product.publishedAt ?? null, value);
     case 'updated_at':
       return matchesProductTimestampTerm(product.updatedAt, value);
+    case 'tag_not':
+      return !getSearchableProductTags(product).some((tag) => matchesStringValue(tag, value, 'exact'));
     case 'sku':
       return getSearchableProductVariants(product).some(
         (variant) => typeof variant.sku === 'string' && matchesStringValue(variant.sku, value, 'exact'),
@@ -6193,11 +6237,12 @@ export function handleProductMutation(
     case 'productPublish': {
       const input = isObject(args['input']) ? args['input'] : null;
       const productId = input && typeof input['id'] === 'string' ? input['id'] : null;
+      const productField = getChildField(field, 'product');
       if (!productId) {
         return {
           data: {
             [responseKey]: {
-              product: null,
+              ...(productField ? { product: null } : {}),
               userErrors: [{ field: ['input', 'id'], message: 'Product id is required' }],
             },
           },
@@ -6209,7 +6254,7 @@ export function handleProductMutation(
         return {
           data: {
             [responseKey]: {
-              product: null,
+              ...(productField ? { product: null } : {}),
               userErrors: [{ field: ['input', 'id'], message: 'Product not found' }],
             },
           },
@@ -6226,7 +6271,7 @@ export function handleProductMutation(
       return {
         data: {
           [responseKey]: {
-            product: serializeProduct(product, getChildField(field, 'product'), variables),
+            ...(productField ? { product: serializeProduct(product, productField, variables) } : {}),
             userErrors: [],
           },
         },

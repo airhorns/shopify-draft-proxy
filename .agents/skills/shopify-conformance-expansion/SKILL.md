@@ -1,6 +1,6 @@
 ---
 name: shopify-conformance-expansion
-description: Extend Shopify Admin GraphQL conformance coverage in shopify-draft-proxy. Use when adding or updating conformance fixtures, parity specs, parity request GraphQL files, recorder scripts, or documentation for Shopify API fidelity scenarios.
+description: Extend Shopify Admin GraphQL conformance coverage in shopify-draft-proxy. Use when adding or updating conformance fixtures, parity specs, parity request GraphQL files, recorder scripts, or documentation for Shopify API fidelity scenarios. Also covers the live-store setup and credential plumbing required to run conformance against a real Shopify dev store.
 ---
 
 # Shopify Conformance Expansion
@@ -9,6 +9,20 @@ description: Extend Shopify Admin GraphQL conformance coverage in shopify-draft-
 
 Treat conformance as the fidelity source of truth. Do not guess Shopify behavior when a safe live capture or existing fixture can answer it. Preserve the project goal: product-first Shopify Admin GraphQL draft proxy behavior, not a generic mock server.
 
+## Why a live target exists
+
+The proxy can be implemented without a live Shopify target, but **high-fidelity behavior cannot be validated from guesswork alone**. A real dev store plus Admin API credentials is needed to:
+
+- capture true query/mutation response shapes
+- verify `userErrors` semantics
+- compare null/empty behavior
+- study list ordering, handles, timestamps, and derived fields
+- build replayable parity fixtures
+
+Unsupported mutations in the proxy may still passthrough today. Conformance targets must therefore be treated as **safe-to-mutate** stores until passthrough behavior is made safer and more explicit.
+
+If a behavior is surprising or underspecified, do not guess forever — add a conformance scenario against real Shopify and record what actually happens.
+
 ## Required Workflow
 
 1. Read `AGENTS.md`, `docs/original-intent.md`, and `docs/architecture.md`.
@@ -16,37 +30,161 @@ Treat conformance as the fidelity source of truth. Do not guess Shopify behavior
 3. Use Linear for operation/project tracking; do not recreate `docs/shopify-admin-worklist.md`.
 4. Identify the root operation and whether it is already implemented in `config/operation-registry.json`.
 5. Add or update runtime tests for proxy behavior before relying on parity evidence.
-6. Add or update exactly one parity spec for each scenario under `config/parity-specs/`.
+6. Add or update exactly one captured, working parity spec for each scenario under `config/parity-specs/`.
 7. Add proxy replay files under `config/parity-requests/` when the scenario can be replayed locally.
 8. Add live captures under `fixtures/conformance/<store-domain>/<api-version>/` only when credentials and store safety allow it.
 9. Make sure every root operation in the parity spec's `operationNames` exists in `config/operation-registry.json`.
 10. Add new helper scripts as TypeScript and run them with `tsx` or an equivalent TypeScript runner.
+11. Do not add new planned-only or blocked-only parity specs. If a scenario cannot be captured and replayed as working evidence in the current task, document the gap in Linear/workpad notes instead of adding repository scenario files.
 
-## Credential Recovery
+## Live-store setup
 
-Start by reading `docs/conformance-setup.md`, especially the Symphony workspace credential link and Shopify CLI token refresh fallback.
+### What you need
 
-On the unattended Symphony host, the repo-local `.env` should usually be a symlink to:
+- A Shopify dev/test store that is safe to mutate during conformance runs.
+- A Shopify app install (or custom app) with a valid Admin API access token.
+- Stable configuration in a local `.env` or shell session. Canonical variable names are in `.env.example`:
+  - `SHOPIFY_CONFORMANCE_STORE_DOMAIN`
+  - `SHOPIFY_CONFORMANCE_ADMIN_ORIGIN`
+  - `SHOPIFY_CONFORMANCE_API_VERSION`
+  - `SHOPIFY_CONFORMANCE_APP_HANDLE` (optional but useful)
+  - `SHOPIFY_CONFORMANCE_APP_ID` (optional; lets local inventory-adjust replay mirror `inventoryAdjustmentGroup.app.id`)
+  - `SHOPIFY_CONFORMANCE_APP_API_KEY` (optional; lets local inventory-adjust replay mirror `inventoryAdjustmentGroup.app.apiKey` when `SHOPIFY_API_KEY` is not set)
+
+The server loads `.env` automatically via `dotenv`, so a local `.env` is enough for normal `pnpm dev` / `pnpm start` workflows.
+
+### Credential locations
+
+The live conformance access token is no longer stored in the repo `.env`. The canonical credential lives at:
+
+```text
+~/.shopify-draft-proxy/conformance-admin-auth.json
+```
+
+The linked Shopify app has a checked-in repo copy at:
+
+```text
+shopify-conformance-app/hermes-conformance-products/
+```
+
+Auth helper scripts prefer that repo-local app copy over the legacy `/tmp/shopify-conformance-app/...` location for reading app config and `.env` secrets. Secrets are still intentionally untracked — create a local `.env` in that app directory via `shopify app env pull` or equivalent.
+
+### Generating a fresh grant
+
+```bash
+corepack pnpm conformance:auth-link
+corepack pnpm conformance:exchange-auth -- '<full callback url>'
+```
+
+### Refreshing an expiring token
+
+The current host uses a **refreshable expiring store-auth token** persisted in the shared home-folder credential. When it expires, repair the repo with the refresh path first — do not guess or generate a brand-new auth link unnecessarily.
+
+```bash
+corepack pnpm conformance:refresh-auth
+corepack pnpm conformance:probe
+```
+
+`conformance:refresh-auth` does:
+
+- reads `refresh_token` + `client_id` from `~/.shopify-draft-proxy/conformance-admin-auth.json`
+- reads `SHOPIFY_API_SECRET` from the linked app `.env`
+  - first candidate when present: `shopify-conformance-app/<SHOPIFY_CONFORMANCE_APP_HANDLE>/.env`
+  - default candidate: `/tmp/shopify-conformance-app/<SHOPIFY_CONFORMANCE_APP_HANDLE>/.env`
+  - override with `SHOPIFY_CONFORMANCE_APP_ENV_PATH=/path/to/app/.env`
+- calls `POST https://<store>/admin/oauth/access_token` with a form-encoded body (`client_id`, `client_secret`, `grant_type=refresh_token`, `refresh_token`)
+- persists the returned rotated token pair back into `~/.shopify-draft-proxy/conformance-admin-auth.json`
+- verifies the refreshed token immediately with a live `shop` probe
+
+Important current-host findings:
+
+- Shopify's newer refreshable store-auth flow may return a token shaped like `shpca_...`, not only `shpat_...`. Treat Shopify token families with the broader `^shp[a-z]+_` rule.
+- Those tokens must still be sent as raw `X-Shopify-Access-Token: <token>`.
+- The refresh response can rotate **both** the access token and refresh token, so persisting them atomically matters.
+
+If `conformance:refresh-auth` fails, inspect the returned JSON before retrying. A shared-credential refresh failing with `invalid_request` / `This request requires an active refresh_token` means the saved store-auth grant is no longer refreshable — stop retrying it. Generate a new store-auth link, complete the browser approval flow, exchange the callback in one step, and only then probe again.
+
+### Symphony workspace credential link
+
+On the unattended Symphony host, older workspaces may still have a repo-local `.env` linked to the original checkout:
 
 ```text
 /home/airhorns/code/shopify-draft-proxy/.env
 ```
 
-If `corepack pnpm conformance:probe` fails and the token is a Shopify CLI bearer token rather than a dedicated `shpat_...` Admin API token, find the stored refresh token in:
+New Symphony workspaces should prefer the home-folder credential file above. If a workspace still needs the original checkout `.env`, link it instead of copying secret values into the workspace:
+
+```bash
+ln -sfn /home/airhorns/code/shopify-draft-proxy/.env .env
+```
+
+Do not commit the symlink or any secret-bearing `.env` file; `.gitignore` excludes them. The link only proves where to load credentials from. `corepack pnpm conformance:probe` is still the required gate for proving the current token is valid before any live capture.
+
+### Legacy Shopify CLI token refresh fallback
+
+Prefer `corepack pnpm conformance:refresh-auth` and the store-auth flow above. If an older host is still using a Shopify CLI account bearer token, the refresh material lives in:
 
 ```text
 ~/.config/shopify-cli-kit-nodejs/config.json
 ```
 
-Parse `sessionStore`, then use `currentSessionId` to locate:
+That file stores a JSON string at `sessionStore`. Parse it, use `currentSessionId` to find `accounts.shopify.com[<currentSessionId>].identity.refreshToken`, and refresh against Shopify Accounts with a **form-encoded** request:
 
 ```text
-accounts.shopify.com[<currentSessionId>].identity.refreshToken
+POST https://accounts.shopify.com/oauth/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=refresh_token
+client_id=fbdb2649-e327-4907-8f67-908d24cfd7e3
+refresh_token=<stored identity refresh token>
 ```
 
-Refresh with a form-encoded request to `https://accounts.shopify.com/oauth/token` using Shopify CLI client id `fbdb2649-e327-4907-8f67-908d24cfd7e3`. Do not dry-run this request without persistence: a successful response can rotate the refresh token immediately. The first successful response must be persisted in the same step to the Shopify CLI config and to `SHOPIFY_CONFORMANCE_ADMIN_ACCESS_TOKEN` in the original checkout `.env`; update the workspace `.env` too if it is not a symlink.
+Do not perform a non-persisting "test" refresh. A successful response can rotate the refresh token immediately, so the first successful response must be persisted in the same step:
 
-If the refresh endpoint returns `invalid_grant`, the stored pair is no longer recoverable non-interactively. Stop retrying that pair, record the blocker, and use a dedicated dev-store Admin API token or a freshly re-authenticated Shopify CLI session before attempting live capture.
+- update `identity.accessToken`, `identity.refreshToken`, and `identity.expiresAt`
+- update any application entries that mirror the old `accessToken`
+- write the updated `sessionStore` back to `~/.config/shopify-cli-kit-nodejs/config.json`
+- update `SHOPIFY_CONFORMANCE_ADMIN_ACCESS_TOKEN` in `/home/airhorns/code/shopify-draft-proxy/.env`
+- update the workspace `.env` too if it is not a symlink to the original checkout file
+
+After persisting, run `corepack pnpm conformance:probe`. If the refresh response is `invalid_grant`, the stored CLI grant is no longer recoverable non-interactively; stop retrying and switch to the store-auth flow above, a dedicated dev-store Admin API token, or a fresh Shopify CLI authentication.
+
+### Probe the live target before writing parity fixtures
+
+Once the vars are present:
+
+```bash
+corepack pnpm conformance:probe
+```
+
+This performs a minimal Admin GraphQL `shop` query against the configured store and fails fast if the domain/origin/token combination is wrong. Internally it resolves the token via `getValidConformanceAccessToken(...)`, which probes the stored token, refreshes it when possible, and reports a clear error when the home-folder credential is missing or dead.
+
+### Capture product-domain fixtures from the live store
+
+```bash
+corepack pnpm conformance:capture-products
+corepack pnpm conformance:capture-product-mutations
+corepack pnpm conformance:capture-product-state-mutations
+corepack pnpm conformance:capture-product-option-mutations
+corepack pnpm conformance:capture-collections
+corepack pnpm conformance:capture-collection-mutations
+```
+
+This writes live Admin GraphQL captures under:
+
+```text
+fixtures/conformance/<store-domain>/<api-version>/
+```
+
+The current capture set records:
+
+- catalog page / cursor sample
+- detailed product shape
+- variant matrix shape
+- search / count behavior
+- variant-backed product search samples (`sku:` and, when available in the dev store, `barcode:`)
+- top-level `collection(id:)` detail with nested `products` connection fields
+- top-level `collections` catalog pagination with nested `products` slices
 
 ## Scenario Convention
 
@@ -56,12 +194,14 @@ Each parity spec must carry the scenario metadata:
 
 - `scenarioId`: stable id for this parity scenario.
 - `operationNames`: root Shopify operations covered by the scenario.
-- `scenarioStatus`: `planned` until live capture exists, then `captured`.
+- `scenarioStatus`: `captured`; new planned-only or blocked-only specs are not acceptable.
 - `assertionKinds`: what confidence the scenario builds, such as `payload-shape`, `user-errors-parity`, or `downstream-read-parity`.
-- `liveCaptureFiles`: empty for planned scenarios, fixture paths for captured scenarios.
+- `liveCaptureFiles`: fixture paths for captured scenarios.
 - `proxyRequest`: `documentPath` and `variablesPath` when replay through the proxy is scaffolded; `null` when capture-only or not ready.
 - `comparison`: strict JSON comparison contract for captured scenarios that are ready to execute.
 - `notes`: concise fidelity findings, blockers, or promotion criteria.
+
+Every operation named by a discovered parity spec must exist in `config/operation-registry.json`, and every implemented operation in the registry must be named by at least one discovered parity spec. The scenario-to-operation mapping lives in each parity spec's `operationNames` field; the registry stays focused on runtime capability classification and runtime-test files.
 
 Explicit scenario override config is only for unusual cases that cannot fit this parity spec shape. Avoid it for normal expansion.
 
@@ -69,16 +209,17 @@ Explicit scenario override config is only for unusual cases that cannot fit this
 
 `tests/unit/conformance-parity-scenarios.test.ts` is the single convention-driven vitest suite that discovers every parity spec, filters to `ready-for-comparison`, and runs `executeParityScenario` against each. Adding or promoting a parity spec is enough to get CI coverage — do not write a new `it(...)` block that runs the same scenario explicitly. If you need richer per-scenario assertions (e.g. specific comparison target names), encode them in the parity spec itself; the runner validates them from the spec.
 
+Scenarios become `ready-for-comparison` only after they declare both a proxy request and a strict JSON comparison contract. Valid high-assurance scenarios must compare explicit targets and list every allowed difference as a path-scoped rule with a reason. Use matchers for legitimate nondeterminism such as Shopify IDs, timestamps, and throttle metadata. An `ignore: true` rule means the proxy has not reached parity for that path; it must also set `regrettable: true` and should only be used for hard temporary gaps that will be fixed later.
+
 ## Confidence Ladder
 
 Use the strongest feasible evidence:
 
 1. Runtime tests prove local staging/overlay behavior.
-2. Planned parity specs make unsupported live capture gaps explicit.
+2. Captured live fixtures settle Shopify payload shape, nullability, ordering, timestamps, and user errors.
 3. Proxy request files make local replay deterministic.
-4. Captured live fixtures settle Shopify payload shape, nullability, ordering, timestamps, and user errors.
-5. `conformance:check` runs the repo's Vitest structural checks for discovered scenarios.
-6. `conformance:parity` runs the convention-driven vitest suite at `tests/unit/conformance-parity-scenarios.test.ts`, which iterates every discovered parity spec and executes strict comparisons for `ready-for-comparison` scenarios.
+4. `conformance:check` runs the repo's Vitest structural checks for discovered scenarios.
+5. `conformance:parity` runs the convention-driven vitest suite at `tests/unit/conformance-parity-scenarios.test.ts`, which iterates every discovered parity spec and executes strict comparisons for `ready-for-comparison` scenarios.
 
 ## Validation
 

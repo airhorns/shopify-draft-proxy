@@ -1,3 +1,5 @@
 {
-  "phraseQuery": "\"flat peak cap\" accessories -vendor:VANS -tag:vans"
+  "phraseQuery": "\"flat peak cap\" accessories -vendor:VANS -tag:vans",
+  "notQuery": "NOT vendor:VANS published_at:*",
+  "tagNotQuery": "tag_not:vans published_at:*"
 }

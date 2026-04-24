@@ -1,0 +1,71 @@
+{
+  "variables": {
+    "orderId": "gid://shopify/Order/6830646296809"
+  },
+  "mutation": {
+    "response": {
+      "data": {
+        "orderCustomerRemove": {
+          "order": {
+            "id": "gid://shopify/Order/6830646296809",
+            "name": "#1327",
+            "closed": false,
+            "closedAt": null,
+            "cancelledAt": null,
+            "cancelReason": null,
+            "displayFinancialStatus": null,
+            "paymentGatewayNames": [],
+            "totalOutstandingSet": {
+              "shopMoney": {
+                "amount": "15.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "currentTotalPriceSet": {
+              "shopMoney": {
+                "amount": "15.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "customer": null,
+            "transactions": []
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "variables": {
+      "id": "gid://shopify/Order/6830646296809"
+    },
+    "response": {
+      "data": {
+        "order": {
+          "id": "gid://shopify/Order/6830646296809",
+          "name": "#1327",
+          "closed": false,
+          "closedAt": null,
+          "cancelledAt": null,
+          "cancelReason": null,
+          "displayFinancialStatus": null,
+          "paymentGatewayNames": [],
+          "totalOutstandingSet": {
+            "shopMoney": {
+              "amount": "15.0",
+              "currencyCode": "CAD"
+            }
+          },
+          "currentTotalPriceSet": {
+            "shopMoney": {
+              "amount": "15.0",
+              "currencyCode": "CAD"
+            }
+          },
+          "customer": null,
+          "transactions": []
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "scenarioId": "draft-order-duplicate-live-parity",
+  "operationNames": ["draftOrderDuplicate"],
+  "scenarioStatus": "planned",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/draftOrderDuplicate-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/draftOrderDuplicate-parity-plan.variables.json"
+  },
+  "comparisonMode": "planned",
+  "blocker": {
+    "kind": "missing-live-draft-order-duplicate-capture",
+    "blockerPath": null,
+    "details": {
+      "requiredScopes": ["write_draft_orders"],
+      "probeRoots": ["draftOrderDuplicate"],
+      "blockedMutations": ["draftOrderDuplicate"],
+      "requiredPermissions": ["manage-draft-orders"],
+      "docsUrl": "https://shopify.dev/docs/api/admin-graphql/latest/mutations/draftOrderDuplicate",
+      "failingMessage": "Safe validation capture was attempted on this host, but the stored Shopify conformance access token is invalid and refresh failed: This request requires an active refresh_token."
+    }
+  },
+  "notes": "Planned draft order duplicate parity. The proxy request duplicates an existing draft order and expects a new draft-order ID/name/invoice URL plus copied customer, note, tags, attributes, totals, and line items. Local runtime support is limited to synthetic/staged draft orders until a live fixture settles broader Shopify behavior."
+}

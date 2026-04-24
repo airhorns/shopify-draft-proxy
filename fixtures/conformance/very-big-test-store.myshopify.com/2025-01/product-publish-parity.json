@@ -1,6 +1,6 @@
 {
   "mutation": {
-    "queryShape": "minimal-user-errors-only",
+    "queryShape": "product-id-and-user-errors",
     "variables": {
       "input": {
         "id": "gid://shopify/Product/9257219129577",
@@ -14,6 +14,9 @@
     "response": {
       "data": {
         "productPublish": {
+          "product": {
+            "id": "gid://shopify/Product/9257219129577"
+          },
           "userErrors": []
         }
       },

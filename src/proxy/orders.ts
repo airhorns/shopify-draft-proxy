@@ -14,11 +14,16 @@ import type {
   DraftOrderPaymentTermsRecord,
   DraftOrderRecord,
   DraftOrderShippingLineRecord,
+  CustomerRecord,
   MoneyV2Record,
   OrderCustomerRecord,
   OrderLineItemRecord,
   OrderRecord,
+  OrderRefundLineItemRecord,
+  OrderRefundRecord,
+  OrderReturnRecord,
   OrderShippingLineRecord,
+  OrderTransactionRecord,
 } from '../state/types.js';
 
 function getFieldResponseKey(field: FieldNode): string {
@@ -250,6 +255,32 @@ function normalizeDraftOrderLineItems(raw: unknown, currencyCode: string): Draft
     });
 }
 
+function normalizeDraftOrderShippingLine(raw: unknown, currencyCode: string): DraftOrderShippingLineRecord | null {
+  if (typeof raw !== 'object' || raw === null) {
+    return null;
+  }
+
+  const shippingLine = raw as Record<string, unknown>;
+  const priceWithCurrency =
+    typeof shippingLine['priceWithCurrency'] === 'object' && shippingLine['priceWithCurrency'] !== null
+      ? (shippingLine['priceWithCurrency'] as Record<string, unknown>)
+      : {};
+  const price =
+    typeof priceWithCurrency['amount'] === 'string' || typeof priceWithCurrency['amount'] === 'number'
+      ? priceWithCurrency['amount']
+      : (shippingLine['price'] ?? shippingLine['originalPrice']);
+  const lineCurrency =
+    typeof priceWithCurrency['currencyCode'] === 'string' ? priceWithCurrency['currencyCode'] : currencyCode;
+
+  return {
+    title: typeof shippingLine['title'] === 'string' ? shippingLine['title'] : null,
+    code: typeof shippingLine['code'] === 'string' ? shippingLine['code'] : null,
+    originalPriceSet: {
+      shopMoney: normalizeMoney(formatDecimalAmount(parseDecimalAmount(price)), lineCurrency),
+    },
+  };
+}
+
 function normalizeOrderLineItems(raw: unknown, currencyCode: string): OrderLineItemRecord[] {
   if (!Array.isArray(raw)) {
     return [];
@@ -258,10 +289,12 @@ function normalizeOrderLineItems(raw: unknown, currencyCode: string): OrderLineI
   return raw
     .filter((lineItem): lineItem is Record<string, unknown> => typeof lineItem === 'object' && lineItem !== null)
     .map((lineItem) => {
-      const originalUnitPriceSet =
+      const rawPriceSet =
         typeof lineItem['originalUnitPriceSet'] === 'object' && lineItem['originalUnitPriceSet'] !== null
-          ? (lineItem['originalUnitPriceSet'] as Record<string, unknown>)
-          : {};
+          ? lineItem['originalUnitPriceSet']
+          : lineItem['priceSet'];
+      const originalUnitPriceSet =
+        typeof rawPriceSet === 'object' && rawPriceSet !== null ? (rawPriceSet as Record<string, unknown>) : {};
       const shopMoney =
         typeof originalUnitPriceSet['shopMoney'] === 'object' && originalUnitPriceSet['shopMoney'] !== null
           ? (originalUnitPriceSet['shopMoney'] as Record<string, unknown>)
@@ -318,11 +351,70 @@ function normalizeOrderShippingLines(raw: unknown, currencyCode: string): OrderS
     });
 }
 
+function normalizeOrderTransactions(raw: unknown, currencyCode: string): OrderTransactionRecord[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  return raw
+    .filter(
+      (transaction): transaction is Record<string, unknown> => typeof transaction === 'object' && transaction !== null,
+    )
+    .map((transaction) => {
+      const amountSet =
+        typeof transaction['amountSet'] === 'object' && transaction['amountSet'] !== null
+          ? (transaction['amountSet'] as Record<string, unknown>)
+          : {};
+      const shopMoney =
+        typeof amountSet['shopMoney'] === 'object' && amountSet['shopMoney'] !== null
+          ? (amountSet['shopMoney'] as Record<string, unknown>)
+          : {};
+      const directAmount =
+        typeof transaction['amount'] === 'string' || typeof transaction['amount'] === 'number'
+          ? transaction['amount']
+          : null;
+      const amount = formatDecimalAmount(parseDecimalAmount(shopMoney['amount'] ?? directAmount));
+
+      return {
+        id: makeSyntheticGid('OrderTransaction'),
+        kind: typeof transaction['kind'] === 'string' ? transaction['kind'] : null,
+        status: typeof transaction['status'] === 'string' ? transaction['status'] : 'SUCCESS',
+        gateway: typeof transaction['gateway'] === 'string' ? transaction['gateway'] : null,
+        amountSet: {
+          shopMoney: normalizeMoney(
+            amount,
+            typeof shopMoney['currencyCode'] === 'string' ? shopMoney['currencyCode'] : currencyCode,
+          ),
+        },
+      };
+    });
+}
+
 function buildOrderCustomerFromInput(inputRecord: Record<string, unknown>): OrderCustomerRecord | null {
   const email = typeof inputRecord['email'] === 'string' ? inputRecord['email'] : null;
   const billingAddress = normalizeDraftOrderAddress(inputRecord['billingAddress']);
   const firstName = billingAddress?.firstName ?? null;
   const lastName = billingAddress?.lastName ?? null;
+  const displayName = [firstName, lastName]
+    .filter((value): value is string => Boolean(value && value.length > 0))
+    .join(' ')
+    .trim();
+
+  if (!email && !displayName) {
+    return null;
+  }
+
+  return {
+    id: makeSyntheticGid('Customer'),
+    email,
+    displayName: displayName.length > 0 ? displayName : email,
+  };
+}
+
+function buildOrderCustomerFromDraftOrder(draftOrder: DraftOrderRecord): OrderCustomerRecord | null {
+  const email = draftOrder.email;
+  const firstName = draftOrder.billingAddress?.firstName ?? null;
+  const lastName = draftOrder.billingAddress?.lastName ?? null;
   const displayName = [firstName, lastName]
     .filter((value): value is string => Boolean(value && value.length > 0))
     .join(' ')
@@ -367,12 +459,20 @@ function buildOrderFromInput(input: unknown): OrderRecord {
 
     return (transaction as Record<string, unknown>)['status'] === 'SUCCESS';
   });
+  const customer = buildOrderCustomerFromInput(inputRecord);
+  const normalizedTransactions = normalizeOrderTransactions(transactions, currencyCode);
 
   return {
     id: orderId,
     name: `#${store.getOrders().length + 1}`,
     createdAt,
     updatedAt: createdAt,
+    closed: false,
+    closedAt: null,
+    cancelledAt: null,
+    cancelReason: null,
+    sourceName: null,
+    paymentGatewayNames: hasSuccessfulTransaction ? ['manual'] : [],
     displayFinancialStatus: hasSuccessfulTransaction ? 'PAID' : 'PENDING',
     displayFulfillmentStatus: 'UNFULFILLED',
     note: typeof inputRecord['note'] === 'string' ? inputRecord['note'] : null,
@@ -393,9 +493,18 @@ function buildOrderFromInput(input: unknown): OrderRecord {
     totalPriceSet: {
       shopMoney: normalizeMoney(total, currencyCode),
     },
-    customer: buildOrderCustomerFromInput(inputRecord),
+    totalOutstandingSet: {
+      shopMoney: normalizeMoney(hasSuccessfulTransaction ? '0.0' : total, currencyCode),
+    },
+    totalRefundedSet: {
+      shopMoney: normalizeMoney('0.0', currencyCode),
+    },
+    customer,
     shippingLines,
     lineItems,
+    transactions: normalizedTransactions,
+    refunds: [],
+    returns: [],
   };
 }
 
@@ -463,6 +572,130 @@ function buildDraftOrderFromInput(input: unknown, shopifyAdminOrigin: string): D
   };
 }
 
+function recalculateDraftOrderTotals(draftOrder: DraftOrderRecord): DraftOrderRecord {
+  const currencyCode =
+    draftOrder.totalPriceSet?.shopMoney.currencyCode ??
+    draftOrder.subtotalPriceSet?.shopMoney.currencyCode ??
+    draftOrder.shippingLine?.originalPriceSet?.shopMoney.currencyCode ??
+    'CAD';
+  const subtotal = formatDecimalAmount(
+    draftOrder.lineItems.reduce(
+      (sum, lineItem) => sum + parseDecimalAmount(lineItem.originalUnitPriceSet?.shopMoney.amount) * lineItem.quantity,
+      0,
+    ),
+  );
+  const shippingTotal = formatDecimalAmount(
+    parseDecimalAmount(draftOrder.shippingLine?.originalPriceSet?.shopMoney.amount),
+  );
+  const total = formatDecimalAmount(parseDecimalAmount(subtotal) + parseDecimalAmount(shippingTotal));
+
+  return {
+    ...draftOrder,
+    subtotalPriceSet: {
+      shopMoney: normalizeMoney(subtotal, currencyCode),
+    },
+    totalPriceSet: {
+      shopMoney: normalizeMoney(total, currencyCode),
+    },
+  };
+}
+
+function buildUpdatedDraftOrder(
+  draftOrder: DraftOrderRecord,
+  input: unknown,
+  shopifyAdminOrigin: string,
+): DraftOrderRecord {
+  const inputRecord = typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {};
+  const currencyCode = draftOrder.totalPriceSet?.shopMoney.currencyCode ?? 'CAD';
+  const updatedAt = makeSyntheticTimestamp();
+  const lineItems = Object.hasOwn(inputRecord, 'lineItems')
+    ? normalizeDraftOrderLineItems(inputRecord['lineItems'], currencyCode)
+    : structuredClone(draftOrder.lineItems);
+
+  return recalculateDraftOrderTotals({
+    ...structuredClone(draftOrder),
+    invoiceUrl:
+      draftOrder.invoiceUrl || `${shopifyAdminOrigin.replace(/\/$/, '')}/draft_orders/${draftOrder.id}/invoice`,
+    email: typeof inputRecord['email'] === 'string' ? inputRecord['email'] : draftOrder.email,
+    note: typeof inputRecord['note'] === 'string' ? inputRecord['note'] : draftOrder.note,
+    tags: Array.isArray(inputRecord['tags'])
+      ? inputRecord['tags']
+          .filter((tag): tag is string => typeof tag === 'string')
+          .sort((left, right) => left.localeCompare(right))
+      : structuredClone(draftOrder.tags),
+    customAttributes: Object.hasOwn(inputRecord, 'customAttributes')
+      ? normalizeDraftOrderAttributes(inputRecord['customAttributes'])
+      : structuredClone(draftOrder.customAttributes),
+    billingAddress: Object.hasOwn(inputRecord, 'billingAddress')
+      ? normalizeDraftOrderAddress(inputRecord['billingAddress'])
+      : structuredClone(draftOrder.billingAddress),
+    shippingAddress: Object.hasOwn(inputRecord, 'shippingAddress')
+      ? normalizeDraftOrderAddress(inputRecord['shippingAddress'])
+      : structuredClone(draftOrder.shippingAddress),
+    shippingLine: Object.hasOwn(inputRecord, 'shippingLine')
+      ? normalizeDraftOrderShippingLine(inputRecord['shippingLine'], currencyCode)
+      : structuredClone(draftOrder.shippingLine),
+    updatedAt,
+    lineItems,
+  });
+}
+
+function duplicateDraftOrder(draftOrder: DraftOrderRecord, shopifyAdminOrigin: string): DraftOrderRecord {
+  const draftOrderId = makeSyntheticGid('DraftOrder');
+  const createdAt = makeSyntheticTimestamp();
+  const invoiceId = draftOrderId.split('/').at(-1) ?? 'draft-order';
+
+  return {
+    ...structuredClone(draftOrder),
+    id: draftOrderId,
+    name: `#D${store.getDraftOrders().length + 1}`,
+    orderId: null,
+    completedAt: null,
+    invoiceUrl: `${shopifyAdminOrigin.replace(/\/$/, '')}/draft_orders/${invoiceId}/invoice`,
+    status: 'OPEN',
+    ready: false,
+    createdAt,
+    updatedAt: createdAt,
+    lineItems: draftOrder.lineItems.map((lineItem) => ({
+      ...structuredClone(lineItem),
+      id: makeSyntheticGid('DraftOrderLineItem'),
+    })),
+  };
+}
+
+function buildDraftOrderFromOrder(order: OrderRecord, shopifyAdminOrigin: string): DraftOrderRecord {
+  const draftOrderId = makeSyntheticGid('DraftOrder');
+  const createdAt = makeSyntheticTimestamp();
+  const invoiceId = draftOrderId.split('/').at(-1) ?? 'draft-order';
+
+  return {
+    id: draftOrderId,
+    name: `#D${store.getDraftOrders().length + 1}`,
+    invoiceUrl: `${shopifyAdminOrigin.replace(/\/$/, '')}/draft_orders/${invoiceId}/invoice`,
+    status: 'OPEN',
+    ready: false,
+    email: order.customer?.email ?? null,
+    note: order.note,
+    tags: structuredClone(order.tags),
+    customAttributes: structuredClone(order.customAttributes),
+    billingAddress: structuredClone(order.billingAddress),
+    shippingAddress: structuredClone(order.shippingAddress),
+    shippingLine: order.shippingLines[0] ? structuredClone(order.shippingLines[0]) : null,
+    createdAt,
+    updatedAt: createdAt,
+    subtotalPriceSet: structuredClone(order.subtotalPriceSet),
+    totalPriceSet: structuredClone(order.totalPriceSet),
+    lineItems: order.lineItems.map((lineItem) => ({
+      id: makeSyntheticGid('DraftOrderLineItem'),
+      title: lineItem.title,
+      quantity: lineItem.quantity,
+      sku: lineItem.sku,
+      variantTitle: lineItem.variantTitle,
+      originalUnitPriceSet: structuredClone(lineItem.originalUnitPriceSet),
+    })),
+  };
+}
+
 function cloneOrderLineItemsForCalculatedOrder(order: OrderRecord): OrderLineItemRecord[] {
   return order.lineItems.map((lineItem) => ({
     ...structuredClone(lineItem),
@@ -514,11 +747,76 @@ function buildCalculatedOrderFromOrder(order: OrderRecord): CalculatedOrderRecor
 }
 
 function buildCompletedDraftOrder(draftOrder: DraftOrderRecord): DraftOrderRecord {
+  const completedAt = makeSyntheticTimestamp();
   return {
     ...structuredClone(draftOrder),
     status: 'COMPLETED',
     ready: true,
-    updatedAt: makeSyntheticTimestamp(),
+    completedAt,
+    updatedAt: completedAt,
+  };
+}
+
+function buildOrderLineItemsFromDraftOrder(draftOrder: DraftOrderRecord): OrderLineItemRecord[] {
+  return draftOrder.lineItems.map((lineItem) => ({
+    id: makeSyntheticGid('LineItem'),
+    title: lineItem.title,
+    quantity: lineItem.quantity,
+    sku: lineItem.sku,
+    variantTitle: lineItem.variantTitle,
+    originalUnitPriceSet: structuredClone(lineItem.originalUnitPriceSet),
+  }));
+}
+
+function buildOrderShippingLinesFromDraftOrder(draftOrder: DraftOrderRecord): OrderShippingLineRecord[] {
+  return draftOrder.shippingLine ? [structuredClone(draftOrder.shippingLine)] : [];
+}
+
+function buildOrderFromCompletedDraftOrder(
+  draftOrder: DraftOrderRecord,
+  completion: {
+    sourceName: string | null;
+    paymentPending: boolean;
+  },
+): OrderRecord {
+  const createdAt = draftOrder.completedAt ?? makeSyntheticTimestamp();
+  const currencyCode = draftOrder.totalPriceSet?.shopMoney.currencyCode ?? 'CAD';
+  return {
+    id: makeSyntheticGid('Order'),
+    name: `#${store.getOrders().length + 1}`,
+    createdAt,
+    updatedAt: createdAt,
+    closed: false,
+    closedAt: null,
+    cancelledAt: null,
+    cancelReason: null,
+    sourceName: completion.sourceName,
+    paymentGatewayNames: [],
+    displayFinancialStatus: completion.paymentPending ? 'PENDING' : 'PAID',
+    displayFulfillmentStatus: 'UNFULFILLED',
+    note: draftOrder.note,
+    tags: structuredClone(draftOrder.tags),
+    customAttributes: structuredClone(draftOrder.customAttributes),
+    billingAddress: structuredClone(draftOrder.billingAddress),
+    shippingAddress: structuredClone(draftOrder.shippingAddress),
+    subtotalPriceSet: structuredClone(draftOrder.subtotalPriceSet),
+    currentTotalPriceSet: structuredClone(draftOrder.totalPriceSet),
+    totalPriceSet: structuredClone(draftOrder.totalPriceSet),
+    totalOutstandingSet: {
+      shopMoney: normalizeMoney(
+        completion.paymentPending ? (draftOrder.totalPriceSet?.shopMoney.amount ?? '0.0') : '0.0',
+        currencyCode,
+      ),
+    },
+    totalRefundedSet: {
+      shopMoney: normalizeMoney('0.0', currencyCode),
+    },
+    customer: buildOrderCustomerFromDraftOrder(draftOrder),
+    shippingLines: buildOrderShippingLinesFromDraftOrder(draftOrder),
+    lineItems: buildOrderLineItemsFromDraftOrder(draftOrder),
+    transactions: [],
+    refunds: [],
+    returns: [],
   };
 }
 
@@ -540,6 +838,261 @@ function buildCalculatedLineItemFromVariant(variantId: string, quantity: number)
       shopMoney: normalizeMoney(formatDecimalAmount(parseDecimalAmount(variant.price)), currencyCode),
     },
   };
+}
+
+function readRefundCreateInput(variables: Record<string, unknown>): Record<string, unknown> | null {
+  const input = variables['input'];
+  return typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : null;
+}
+
+function readRefundShippingAmount(input: Record<string, unknown>): unknown {
+  const shipping = input['shipping'] ?? input['refundShipping'];
+  if (typeof shipping !== 'object' || shipping === null) {
+    return null;
+  }
+
+  const shippingRecord = shipping as Record<string, unknown>;
+  if (shippingRecord['fullRefund'] === true) {
+    return null;
+  }
+
+  if (typeof shippingRecord['amount'] === 'string' || typeof shippingRecord['amount'] === 'number') {
+    return shippingRecord['amount'];
+  }
+
+  const shippingRefundAmount = shippingRecord['shippingRefundAmount'];
+  if (typeof shippingRefundAmount === 'object' && shippingRefundAmount !== null) {
+    return (shippingRefundAmount as Record<string, unknown>)['amount'];
+  }
+
+  return null;
+}
+
+function buildRefundLineItems(raw: unknown, order: OrderRecord, currencyCode: string): OrderRefundLineItemRecord[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  return raw
+    .filter((lineItem): lineItem is Record<string, unknown> => typeof lineItem === 'object' && lineItem !== null)
+    .map((lineItem) => {
+      const lineItemId = typeof lineItem['lineItemId'] === 'string' ? lineItem['lineItemId'] : '';
+      const orderLineItem = order.lineItems.find((candidate) => candidate.id === lineItemId) ?? null;
+      const quantity = typeof lineItem['quantity'] === 'number' ? lineItem['quantity'] : 0;
+      const subtotal = formatDecimalAmount(
+        parseDecimalAmount(orderLineItem?.originalUnitPriceSet?.shopMoney.amount) * quantity,
+      );
+
+      return {
+        id: makeSyntheticGid('RefundLineItem'),
+        lineItemId,
+        title: orderLineItem?.title ?? null,
+        quantity,
+        restockType: typeof lineItem['restockType'] === 'string' ? lineItem['restockType'] : null,
+        subtotalSet: {
+          shopMoney: normalizeMoney(subtotal, currencyCode),
+        },
+      };
+    });
+}
+
+function sumMoney(records: Array<{ amountSet?: { shopMoney: MoneyV2Record | null } | null }>): number {
+  return records.reduce((sum, record) => sum + parseDecimalAmount(record.amountSet?.shopMoney?.amount), 0);
+}
+
+function sumRefundedAmount(order: OrderRecord): number {
+  return order.refunds.reduce((sum, refund) => sum + parseDecimalAmount(refund.totalRefundedSet?.shopMoney.amount), 0);
+}
+
+function readOrderCurrencyCode(order: OrderRecord): string {
+  return (
+    order.totalPriceSet?.shopMoney.currencyCode ??
+    order.currentTotalPriceSet?.shopMoney.currencyCode ??
+    order.subtotalPriceSet?.shopMoney.currencyCode ??
+    'CAD'
+  );
+}
+
+function buildRefundFromInput(order: OrderRecord, input: Record<string, unknown>): OrderRefundRecord {
+  const currencyCode = readOrderCurrencyCode(order);
+  const refundId = makeSyntheticGid('Refund');
+  const createdAt = makeSyntheticTimestamp();
+  const refundLineItems = buildRefundLineItems(input['refundLineItems'], order, currencyCode);
+  const shippingAmount = readRefundShippingAmount(input);
+  const shippingRefundAmount = shippingAmount === null ? 0 : parseDecimalAmount(shippingAmount);
+  const lineItemSubtotal = refundLineItems.reduce(
+    (sum, lineItem) => sum + parseDecimalAmount(lineItem.subtotalSet?.shopMoney.amount),
+    0,
+  );
+  const fallbackRefundAmount = formatDecimalAmount(lineItemSubtotal + shippingRefundAmount);
+  const rawTransactions = Array.isArray(input['transactions'])
+    ? input['transactions']
+    : [
+        {
+          kind: 'REFUND',
+          status: 'SUCCESS',
+          amountSet: {
+            shopMoney: {
+              amount: fallbackRefundAmount,
+              currencyCode,
+            },
+          },
+        },
+      ];
+  const transactions = normalizeOrderTransactions(rawTransactions, currencyCode);
+  const transactionTotal = sumMoney(transactions);
+  const totalRefunded = transactionTotal > 0 ? transactionTotal : lineItemSubtotal + shippingRefundAmount;
+
+  return {
+    id: refundId,
+    note: typeof input['note'] === 'string' ? input['note'] : null,
+    createdAt,
+    updatedAt: createdAt,
+    totalRefundedSet: {
+      shopMoney: normalizeMoney(formatDecimalAmount(totalRefunded), currencyCode),
+    },
+    refundLineItems,
+    transactions,
+  };
+}
+
+function applyRefundToOrder(order: OrderRecord, refund: OrderRefundRecord): OrderRecord {
+  const total = parseDecimalAmount(order.totalPriceSet?.shopMoney.amount);
+  const totalRefunded = sumRefundedAmount({ ...order, refunds: [...order.refunds, refund] });
+  const displayFinancialStatus = totalRefunded >= total && total > 0 ? 'REFUNDED' : 'PARTIALLY_REFUNDED';
+
+  return {
+    ...order,
+    updatedAt: refund.createdAt,
+    displayFinancialStatus,
+    totalRefundedSet: {
+      shopMoney: normalizeMoney(formatDecimalAmount(totalRefunded), readOrderCurrencyCode(order)),
+    },
+    transactions: [...structuredClone(order.transactions), ...structuredClone(refund.transactions)],
+    refunds: [...structuredClone(order.refunds), structuredClone(refund)],
+  };
+}
+
+function buildOrderTransaction(
+  amountSet: OrderTransactionRecord['amountSet'],
+  gateway: string,
+): OrderTransactionRecord {
+  return {
+    id: makeSyntheticGid('OrderTransaction'),
+    kind: 'SALE',
+    status: 'SUCCESS',
+    gateway,
+    amountSet: structuredClone(amountSet),
+  };
+}
+
+function markOrderAsPaid(order: OrderRecord, gateway = 'manual'): OrderRecord {
+  const currencyCode = readOrderCurrencyCode(order);
+  const amountSet = structuredClone(order.totalOutstandingSet ?? order.currentTotalPriceSet ?? order.totalPriceSet);
+  const transaction = buildOrderTransaction(amountSet, gateway);
+
+  return {
+    ...structuredClone(order),
+    updatedAt: makeSyntheticTimestamp(),
+    displayFinancialStatus: 'PAID',
+    paymentGatewayNames: Array.from(new Set([...(order.paymentGatewayNames ?? []), gateway])),
+    totalOutstandingSet: {
+      shopMoney: normalizeMoney('0.0', currencyCode),
+    },
+    transactions: [...structuredClone(order.transactions), transaction],
+  };
+}
+
+function orderCustomerFromCustomer(customer: CustomerRecord): OrderCustomerRecord {
+  return {
+    id: customer.id,
+    email: customer.email,
+    displayName: customer.displayName,
+  };
+}
+
+function serializeOrderManagementPayload(
+  field: FieldNode,
+  order: OrderRecord | null,
+  userErrors: Array<{ field: string[] | null; message: string }>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const selectionKey = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'order':
+        payload[selectionKey] = order ? serializeOrderNode(selection, order) : null;
+        break;
+      case 'userErrors':
+        payload[selectionKey] = serializeSelectedUserErrors(selection, userErrors);
+        break;
+      default:
+        payload[selectionKey] = null;
+        break;
+    }
+  }
+  return payload;
+}
+
+function serializeOrderCancelPayload(
+  field: FieldNode,
+  userErrors: Array<{ field: string[] | null; message: string }>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const selectionKey = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'job':
+        payload[selectionKey] = null;
+        break;
+      case 'orderCancelUserErrors':
+        payload[selectionKey] = serializeSelectedUserErrors(selection, userErrors);
+        break;
+      default:
+        payload[selectionKey] = null;
+        break;
+    }
+  }
+  return payload;
+}
+
+function buildAccessDeniedError(operationName: string, requiredAccess: string): Record<string, unknown> {
+  return {
+    message: `Access denied for ${operationName} field. Required access: ${requiredAccess}`,
+    extensions: {
+      code: 'ACCESS_DENIED',
+      documentation: 'https://shopify.dev/api/usage/access-scopes',
+      requiredAccess,
+    },
+    path: [operationName],
+  };
+}
+
+function serializeRefundCreatePayload(
+  field: FieldNode,
+  refund: OrderRefundRecord | null,
+  order: OrderRecord | null,
+  userErrors: Array<Record<string, unknown>>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const selectionKey = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'refund':
+        payload[selectionKey] = refund ? serializeOrderRefund(selection, refund) : null;
+        break;
+      case 'order':
+        payload[selectionKey] = order ? serializeOrderNode(selection, order) : null;
+        break;
+      case 'userErrors':
+        payload[selectionKey] = userErrors;
+        break;
+      default:
+        payload[selectionKey] = null;
+        break;
+    }
+  }
+  return payload;
 }
 
 function serializeMoneyField(field: FieldNode, money: MoneyV2Record | null): Record<string, unknown> | null {
@@ -974,6 +1527,11 @@ function serializeDraftOrderNode(field: FieldNode, draftOrder: DraftOrderRecord)
       case 'name':
         result[key] = draftOrder.name;
         break;
+      case 'order': {
+        const order = draftOrder.orderId ? store.getOrderById(draftOrder.orderId) : null;
+        result[key] = order ? serializeOrderNode(selection, order) : null;
+        break;
+      }
       case 'invoiceUrl':
         result[key] = draftOrder.invoiceUrl;
         break;
@@ -985,6 +1543,10 @@ function serializeDraftOrderNode(field: FieldNode, draftOrder: DraftOrderRecord)
         break;
       case 'email':
         result[key] = draftOrder.email;
+        break;
+      case 'note':
+      case 'note2':
+        result[key] = draftOrder.note;
         break;
       case 'tags':
         result[key] = structuredClone(draftOrder.tags);
@@ -1024,6 +1586,9 @@ function serializeDraftOrderNode(field: FieldNode, draftOrder: DraftOrderRecord)
         break;
       case 'updatedAt':
         result[key] = draftOrder.updatedAt;
+        break;
+      case 'completedAt':
+        result[key] = draftOrder.completedAt ?? null;
         break;
       case 'subtotalPriceSet':
         result[key] = serializeShopMoneySet(selection, draftOrder.subtotalPriceSet?.shopMoney ?? null);
@@ -1153,7 +1718,248 @@ function buildDraftOrderInvalidSearchExtension(rawQuery: unknown, path: string[]
 }
 
 export function shouldServeDraftOrderSearchLocally(rawQuery: unknown): boolean {
-  return buildDraftOrderInvalidSearchExtension(rawQuery, ['draftOrders']) !== null;
+  return (
+    buildDraftOrderInvalidSearchExtension(rawQuery, ['draftOrders']) !== null ||
+    isDraftOrderSearchQuerySupported(rawQuery)
+  );
+}
+
+export function shouldServeDraftOrderCatalogLocally(rawQuery: unknown, rawSavedSearchId: unknown): boolean {
+  if (typeof rawSavedSearchId === 'string' && rawSavedSearchId.trim()) {
+    return false;
+  }
+
+  return typeof rawQuery !== 'string' || shouldServeDraftOrderSearchLocally(rawQuery);
+}
+
+function tokenizeDraftOrderSearchQuery(query: string): string[] {
+  const terms: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  const flushCurrent = (): void => {
+    const value = current.trim();
+    if (value) {
+      terms.push(value);
+    }
+    current = '';
+  };
+
+  for (const character of query) {
+    if (character === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+
+    if (!inQuotes && /\s/u.test(character)) {
+      flushCurrent();
+      continue;
+    }
+
+    current += character;
+  }
+
+  flushCurrent();
+  return terms;
+}
+
+function isDraftOrderSearchQuerySupported(rawQuery: unknown): boolean {
+  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
+    return true;
+  }
+
+  if (buildDraftOrderInvalidSearchExtension(rawQuery, ['draftOrders'])) {
+    return true;
+  }
+
+  const terms = tokenizeDraftOrderSearchQuery(rawQuery.trim());
+  if (terms.length === 0) {
+    return true;
+  }
+
+  return terms.every((term) => {
+    const separatorIndex = term.indexOf(':');
+    if (separatorIndex <= 0) {
+      return false;
+    }
+
+    const field = term.slice(0, separatorIndex).toLowerCase();
+    return (
+      field === 'status' ||
+      field === 'tag' ||
+      field === 'source' ||
+      field === 'customer_id' ||
+      field === 'id' ||
+      field === 'created_at' ||
+      field === 'updated_at'
+    );
+  });
+}
+
+function matchesStringValue(candidate: string, rawValue: string): boolean {
+  const value = rawValue.trim().toLowerCase();
+  return value.length === 0 || candidate.toLowerCase() === value;
+}
+
+function readDraftOrderNumericId(draftOrder: DraftOrderRecord): number | null {
+  const parsed = Number.parseInt(draftOrder.id.split('/').at(-1) ?? '', 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function matchesNumericTerm(candidate: number | null, rawValue: string): boolean {
+  if (candidate === null) {
+    return false;
+  }
+
+  const match = rawValue.trim().match(/^(<=|>=|<|>|=)?\s*(\d+)$/u);
+  if (!match) {
+    return false;
+  }
+
+  const operator = match[1] ?? '=';
+  const threshold = Number.parseInt(match[2] ?? '', 10);
+  if (!Number.isFinite(threshold)) {
+    return false;
+  }
+
+  switch (operator) {
+    case '<=':
+      return candidate <= threshold;
+    case '>=':
+      return candidate >= threshold;
+    case '<':
+      return candidate < threshold;
+    case '>':
+      return candidate > threshold;
+    case '=':
+      return candidate === threshold;
+    default:
+      return false;
+  }
+}
+
+function matchesTimestampTerm(timestamp: string, rawValue: string): boolean {
+  const match = rawValue.trim().match(/^(<=|>=|<|>|=)?\s*(.+)$/u);
+  if (!match) {
+    return false;
+  }
+
+  const operator = match[1] ?? '=';
+  const thresholdTime = Date.parse(match[2] ?? '');
+  const timestampTime = Date.parse(timestamp);
+  if (!Number.isFinite(thresholdTime) || !Number.isFinite(timestampTime)) {
+    return false;
+  }
+
+  switch (operator) {
+    case '<=':
+      return timestampTime <= thresholdTime;
+    case '>=':
+      return timestampTime >= thresholdTime;
+    case '<':
+      return timestampTime < thresholdTime;
+    case '>':
+      return timestampTime > thresholdTime;
+    case '=':
+      return timestampTime === thresholdTime;
+    default:
+      return false;
+  }
+}
+
+function matchesDraftOrderSource(draftOrder: DraftOrderRecord, rawValue: string): boolean {
+  return draftOrder.customAttributes.some(
+    (attribute) =>
+      attribute.key.toLowerCase() === 'source' &&
+      typeof attribute.value === 'string' &&
+      matchesStringValue(attribute.value, rawValue),
+  );
+}
+
+function matchesDraftOrderSearchTerm(draftOrder: DraftOrderRecord, term: string): boolean {
+  const separatorIndex = term.indexOf(':');
+  if (separatorIndex <= 0) {
+    return false;
+  }
+
+  const field = term.slice(0, separatorIndex).toLowerCase();
+  const value = term.slice(separatorIndex + 1);
+
+  switch (field) {
+    case 'status':
+      return typeof draftOrder.status === 'string' && matchesStringValue(draftOrder.status, value);
+    case 'tag':
+      return draftOrder.tags.some((tag) => matchesStringValue(tag, value));
+    case 'source':
+      return matchesDraftOrderSource(draftOrder, value);
+    case 'customer_id':
+      return false;
+    case 'id':
+      return draftOrder.id === value || matchesNumericTerm(readDraftOrderNumericId(draftOrder), value);
+    case 'created_at':
+      return matchesTimestampTerm(draftOrder.createdAt, value);
+    case 'updated_at':
+      return matchesTimestampTerm(draftOrder.updatedAt, value);
+    default:
+      return false;
+  }
+}
+
+function applyDraftOrdersQuery(draftOrders: DraftOrderRecord[], rawQuery: unknown): DraftOrderRecord[] {
+  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
+    return draftOrders;
+  }
+
+  if (buildDraftOrderInvalidSearchExtension(rawQuery, ['draftOrders'])) {
+    return draftOrders;
+  }
+
+  if (!isDraftOrderSearchQuerySupported(rawQuery)) {
+    return [];
+  }
+
+  const terms = tokenizeDraftOrderSearchQuery(rawQuery.trim());
+  return draftOrders.filter((draftOrder) => terms.every((term) => matchesDraftOrderSearchTerm(draftOrder, term)));
+}
+
+function compareDraftOrderIds(leftId: string, rightId: string): number {
+  const leftTail = Number.parseInt(leftId.split('/').at(-1) ?? '', 10);
+  const rightTail = Number.parseInt(rightId.split('/').at(-1) ?? '', 10);
+  if (Number.isFinite(leftTail) && Number.isFinite(rightTail)) {
+    return leftTail - rightTail;
+  }
+
+  return leftId.localeCompare(rightId);
+}
+
+function sortDraftOrdersForConnection(
+  draftOrders: DraftOrderRecord[],
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): DraftOrderRecord[] {
+  const args = getFieldArguments(field, variables);
+  const sortKey = typeof args['sortKey'] === 'string' ? args['sortKey'] : null;
+  const reverse = args['reverse'] === true;
+
+  if (!sortKey && !reverse) {
+    return draftOrders;
+  }
+
+  const sorted = [...draftOrders].sort((left, right) => {
+    switch (sortKey) {
+      case 'CREATED_AT':
+        return left.createdAt.localeCompare(right.createdAt) || compareDraftOrderIds(left.id, right.id);
+      case 'UPDATED_AT':
+        return left.updatedAt.localeCompare(right.updatedAt) || compareDraftOrderIds(left.id, right.id);
+      case 'NAME':
+        return left.name.localeCompare(right.name) || compareDraftOrderIds(left.id, right.id);
+      case 'ID':
+      default:
+        return compareDraftOrderIds(left.id, right.id);
+    }
+  });
+
+  return reverse ? sorted.reverse() : sorted;
 }
 
 function applySyntheticCursorWindow<T extends { id: string }>(
@@ -1212,7 +2018,17 @@ function serializeDraftOrdersConnection(
   draftOrders: DraftOrderRecord[],
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const { visibleRecords, hasNextPage, hasPreviousPage } = applySyntheticCursorWindow(draftOrders, field, variables);
+  const args = getFieldArguments(field, variables);
+  const filteredDraftOrders =
+    typeof args['savedSearchId'] === 'string' && args['savedSearchId'].trim()
+      ? []
+      : applyDraftOrdersQuery(draftOrders, args['query']);
+  const orderedDraftOrders = sortDraftOrdersForConnection(filteredDraftOrders, field, variables);
+  const { visibleRecords, hasNextPage, hasPreviousPage } = applySyntheticCursorWindow(
+    orderedDraftOrders,
+    field,
+    variables,
+  );
   const result: Record<string, unknown> = {};
   for (const selection of getSelectedChildFields(field)) {
     const key = getFieldResponseKey(selection);
@@ -1269,6 +2085,40 @@ function serializeDraftOrdersConnection(
         break;
     }
   }
+  return result;
+}
+
+function serializeDraftOrdersCount(
+  field: FieldNode,
+  draftOrders: DraftOrderRecord[],
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const filteredDraftOrders =
+    typeof args['savedSearchId'] === 'string' && args['savedSearchId'].trim()
+      ? []
+      : applyDraftOrdersQuery(draftOrders, args['query']);
+  const rawLimit = args['limit'];
+  const limit = typeof rawLimit === 'number' && Number.isFinite(rawLimit) && rawLimit >= 0 ? rawLimit : null;
+  const count = limit === null ? filteredDraftOrders.length : Math.min(filteredDraftOrders.length, limit);
+  const precision = limit !== null && filteredDraftOrders.length > limit ? 'AT_LEAST' : 'EXACT';
+  const result: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const selectionKey = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'count':
+        result[selectionKey] = count;
+        break;
+      case 'precision':
+        result[selectionKey] = precision;
+        break;
+      default:
+        result[selectionKey] = null;
+        break;
+    }
+  }
+
   return result;
 }
 
@@ -1389,6 +2239,253 @@ function serializeOrderLineItemsConnection(
   return result;
 }
 
+function serializeOrderTransaction(field: FieldNode, transaction: OrderTransactionRecord): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = transaction.id;
+        break;
+      case 'kind':
+        result[key] = transaction.kind;
+        break;
+      case 'status':
+        result[key] = transaction.status;
+        break;
+      case 'gateway':
+        result[key] = transaction.gateway;
+        break;
+      case 'amountSet':
+        result[key] = serializeShopMoneySet(selection, transaction.amountSet?.shopMoney ?? null);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeOrderTransactionsConnection(
+  field: FieldNode,
+  transactions: OrderTransactionRecord[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'nodes':
+        result[key] = transactions.map((transaction) => serializeOrderTransaction(selection, transaction));
+        break;
+      case 'edges':
+        result[key] = transactions.map((transaction) => {
+          const edgeResult: Record<string, unknown> = {};
+          for (const edgeSelection of getSelectedChildFields(selection)) {
+            const edgeKey = getFieldResponseKey(edgeSelection);
+            switch (edgeSelection.name.value) {
+              case 'cursor':
+                edgeResult[edgeKey] = `cursor:${transaction.id}`;
+                break;
+              case 'node':
+                edgeResult[edgeKey] = serializeOrderTransaction(edgeSelection, transaction);
+                break;
+              default:
+                edgeResult[edgeKey] = null;
+                break;
+            }
+          }
+          return edgeResult;
+        });
+        break;
+      case 'pageInfo':
+        result[key] = serializePageInfo(selection);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeOrderRefundLineItem(
+  field: FieldNode,
+  refundLineItem: OrderRefundLineItemRecord,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = refundLineItem.id;
+        break;
+      case 'quantity':
+        result[key] = refundLineItem.quantity;
+        break;
+      case 'restockType':
+        result[key] = refundLineItem.restockType;
+        break;
+      case 'lineItem':
+        result[key] = Object.fromEntries(
+          getSelectedChildFields(selection).map((lineItemSelection) => {
+            const lineItemKey = getFieldResponseKey(lineItemSelection);
+            switch (lineItemSelection.name.value) {
+              case 'id':
+                return [lineItemKey, refundLineItem.lineItemId];
+              case 'title':
+                return [lineItemKey, refundLineItem.title];
+              default:
+                return [lineItemKey, null];
+            }
+          }),
+        );
+        break;
+      case 'subtotalSet':
+        result[key] = serializeShopMoneySet(selection, refundLineItem.subtotalSet?.shopMoney ?? null);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeRefundLineItemsConnection(
+  field: FieldNode,
+  refundLineItems: OrderRefundLineItemRecord[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'nodes':
+        result[key] = refundLineItems.map((lineItem) => serializeOrderRefundLineItem(selection, lineItem));
+        break;
+      case 'edges':
+        result[key] = refundLineItems.map((lineItem) => {
+          const edgeResult: Record<string, unknown> = {};
+          for (const edgeSelection of getSelectedChildFields(selection)) {
+            const edgeKey = getFieldResponseKey(edgeSelection);
+            switch (edgeSelection.name.value) {
+              case 'cursor':
+                edgeResult[edgeKey] = `cursor:${lineItem.id}`;
+                break;
+              case 'node':
+                edgeResult[edgeKey] = serializeOrderRefundLineItem(edgeSelection, lineItem);
+                break;
+              default:
+                edgeResult[edgeKey] = null;
+                break;
+            }
+          }
+          return edgeResult;
+        });
+        break;
+      case 'pageInfo':
+        result[key] = serializePageInfo(selection);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeOrderRefund(field: FieldNode, refund: OrderRefundRecord): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = refund.id;
+        break;
+      case 'note':
+        result[key] = refund.note;
+        break;
+      case 'createdAt':
+        result[key] = refund.createdAt;
+        break;
+      case 'updatedAt':
+        result[key] = refund.updatedAt;
+        break;
+      case 'totalRefundedSet':
+        result[key] = serializeShopMoneySet(selection, refund.totalRefundedSet?.shopMoney ?? null);
+        break;
+      case 'refundLineItems':
+        result[key] = serializeRefundLineItemsConnection(selection, refund.refundLineItems);
+        break;
+      case 'transactions':
+        result[key] = serializeOrderTransactionsConnection(selection, refund.transactions);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeOrderReturn(field: FieldNode, orderReturn: OrderReturnRecord): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = orderReturn.id;
+        break;
+      case 'status':
+        result[key] = orderReturn.status;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeOrderReturnsConnection(field: FieldNode, returns: OrderReturnRecord[]): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'nodes':
+        result[key] = returns.map((orderReturn) => serializeOrderReturn(selection, orderReturn));
+        break;
+      case 'edges':
+        result[key] = returns.map((orderReturn) => {
+          const edgeResult: Record<string, unknown> = {};
+          for (const edgeSelection of getSelectedChildFields(selection)) {
+            const edgeKey = getFieldResponseKey(edgeSelection);
+            switch (edgeSelection.name.value) {
+              case 'cursor':
+                edgeResult[edgeKey] = `cursor:${orderReturn.id}`;
+                break;
+              case 'node':
+                edgeResult[edgeKey] = serializeOrderReturn(edgeSelection, orderReturn);
+                break;
+              default:
+                edgeResult[edgeKey] = null;
+                break;
+            }
+          }
+          return edgeResult;
+        });
+        break;
+      case 'pageInfo':
+        result[key] = serializePageInfo(selection);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
 function serializeOrderShippingLinesConnection(
   field: FieldNode,
   shippingLines: OrderShippingLineRecord[],
@@ -1463,6 +2560,24 @@ function serializeOrderNode(field: FieldNode, order: OrderRecord): Record<string
       case 'updatedAt':
         result[key] = order.updatedAt;
         break;
+      case 'closed':
+        result[key] = order.closed ?? false;
+        break;
+      case 'closedAt':
+        result[key] = order.closedAt ?? null;
+        break;
+      case 'cancelledAt':
+        result[key] = order.cancelledAt ?? null;
+        break;
+      case 'cancelReason':
+        result[key] = order.cancelReason ?? null;
+        break;
+      case 'sourceName':
+        result[key] = order.sourceName ?? null;
+        break;
+      case 'paymentGatewayNames':
+        result[key] = structuredClone(order.paymentGatewayNames ?? []);
+        break;
       case 'displayFinancialStatus':
         result[key] = order.displayFinancialStatus;
         break;
@@ -1493,6 +2608,15 @@ function serializeOrderNode(field: FieldNode, order: OrderRecord): Record<string
       case 'totalPriceSet':
         result[key] = serializeShopMoneySet(selection, order.totalPriceSet?.shopMoney ?? null);
         break;
+      case 'totalOutstandingSet':
+        result[key] = serializeShopMoneySet(
+          selection,
+          (order.totalOutstandingSet ?? order.currentTotalPriceSet)?.shopMoney ?? null,
+        );
+        break;
+      case 'totalRefundedSet':
+        result[key] = serializeShopMoneySet(selection, order.totalRefundedSet?.shopMoney ?? null);
+        break;
       case 'customer':
         result[key] = serializeOrderCustomer(selection, order.customer);
         break;
@@ -1501,6 +2625,15 @@ function serializeOrderNode(field: FieldNode, order: OrderRecord): Record<string
         break;
       case 'lineItems':
         result[key] = serializeOrderLineItemsConnection(selection, order.lineItems);
+        break;
+      case 'transactions':
+        result[key] = order.transactions.map((transaction) => serializeOrderTransaction(selection, transaction));
+        break;
+      case 'refunds':
+        result[key] = order.refunds.map((refund) => serializeOrderRefund(selection, refund));
+        break;
+      case 'returns':
+        result[key] = serializeOrderReturnsConnection(selection, order.returns);
         break;
       default:
         result[key] = null;
@@ -1641,6 +2774,71 @@ function readDraftOrderCreateInput(variables: Record<string, unknown>): unknown 
 
 function readDraftOrderCompleteId(variables: Record<string, unknown>): string | null {
   return typeof variables['id'] === 'string' ? variables['id'] : null;
+}
+
+function readDraftOrderUpdateInput(variables: Record<string, unknown>): unknown {
+  return variables['input'] ?? null;
+}
+
+function readDraftOrderUpdateId(variables: Record<string, unknown>): string | null {
+  return typeof variables['id'] === 'string' ? variables['id'] : null;
+}
+
+function readDraftOrderDuplicateId(variables: Record<string, unknown>): string | null {
+  if (typeof variables['id'] === 'string') {
+    return variables['id'];
+  }
+
+  return typeof variables['draftOrderId'] === 'string' ? variables['draftOrderId'] : null;
+}
+
+function readDraftOrderDeleteInput(variables: Record<string, unknown>): Record<string, unknown> | null {
+  const input = variables['input'];
+  return typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : null;
+}
+
+function readDraftOrderInvoiceSendId(variables: Record<string, unknown>): string | null {
+  return typeof variables['id'] === 'string' ? variables['id'] : null;
+}
+
+function readDraftOrderCreateFromOrderId(variables: Record<string, unknown>): string | null {
+  return typeof variables['orderId'] === 'string' ? variables['orderId'] : null;
+}
+
+function readNullableBooleanArgument(
+  field: FieldNode,
+  argumentName: string,
+  variables: Record<string, unknown>,
+): boolean | null {
+  const argument = field.arguments?.find((candidate) => candidate.name.value === argumentName);
+  if (!argument) {
+    return null;
+  }
+
+  if (argument.value.kind === Kind.BOOLEAN) {
+    return argument.value.value;
+  }
+
+  if (argument.value.kind === Kind.VARIABLE) {
+    const rawValue = variables[argument.value.name.value];
+    return typeof rawValue === 'boolean' ? rawValue : null;
+  }
+
+  return null;
+}
+
+function readDraftOrderCompleteSourceName(field: FieldNode, variables: Record<string, unknown>): string | null {
+  const args = getFieldArguments(field, variables);
+  return typeof args['sourceName'] === 'string' ? args['sourceName'] : null;
+}
+
+function readDraftOrderCompletePaymentPending(field: FieldNode, variables: Record<string, unknown>): boolean {
+  return readNullableBooleanArgument(field, 'paymentPending', variables) ?? false;
+}
+
+function readDraftOrderCompletePaymentGatewayId(field: FieldNode, variables: Record<string, unknown>): string | null {
+  const args = getFieldArguments(field, variables);
+  return typeof args['paymentGatewayId'] === 'string' ? args['paymentGatewayId'] : null;
 }
 
 function readOrderEditVariantId(variables: Record<string, unknown>): string | null {
@@ -1889,6 +3087,46 @@ function buildDraftOrderCompleteNullInlineIdError(): Record<string, unknown> {
   };
 }
 
+function buildMissingRequiredArgumentError(operationName: string, argumentName: string): Record<string, unknown> {
+  return {
+    message: `Field '${operationName}' is missing required arguments: ${argumentName}`,
+    path: ['mutation', operationName],
+    extensions: {
+      code: 'missingRequiredArguments',
+      className: 'Field',
+      name: operationName,
+      arguments: argumentName,
+    },
+  };
+}
+
+function buildNullArgumentError(
+  operationName: string,
+  argumentName: string,
+  expectedType: string,
+): Record<string, unknown> {
+  return {
+    message: `Argument '${argumentName}' on Field '${operationName}' has an invalid value (null). Expected type '${expectedType}'.`,
+    path: ['mutation', operationName, argumentName],
+    extensions: {
+      code: 'argumentLiteralsIncompatible',
+      typeName: 'Field',
+      argumentName,
+    },
+  };
+}
+
+function buildMissingVariableError(variableName: string, variableType: string): Record<string, unknown> {
+  return {
+    message: `Variable $${variableName} of type ${variableType} was provided invalid value`,
+    extensions: {
+      code: 'INVALID_VARIABLE',
+      value: null,
+      problems: [{ path: [], explanation: 'Expected value to not be null' }],
+    },
+  };
+}
+
 function buildFulfillmentTrackingInfoUpdateMissingIdError(): Record<string, unknown> {
   return {
     message: 'Variable $fulfillmentId of type ID! was provided invalid value',
@@ -2027,6 +3265,10 @@ function getDraftOrderCompleteInlineIdArgument(field: FieldNode) {
   return field.arguments?.find((argument) => argument.name.value === 'id') ?? null;
 }
 
+function getInlineArgument(field: FieldNode, argumentName: string) {
+  return field.arguments?.find((argument) => argument.name.value === argumentName) ?? null;
+}
+
 function getFulfillmentTrackingInfoUpdateInlineIdArgument(field: FieldNode) {
   return field.arguments?.find((argument) => argument.name.value === 'fulfillmentId') ?? null;
 }
@@ -2067,6 +3309,78 @@ function serializeSelectedOrderMutationPayload(field: FieldNode): Record<string,
   }
 
   return result;
+}
+
+function serializeDraftOrderCompletePayload(
+  field: FieldNode,
+  draftOrder: DraftOrderRecord | null,
+  userErrors: Array<{ field: string[] | null; message: string }>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const selectionKey = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'draftOrder':
+        payload[selectionKey] = draftOrder ? serializeDraftOrderNode(selection, draftOrder) : null;
+        break;
+      case 'userErrors':
+        payload[selectionKey] = serializeSelectedUserErrors(selection, userErrors);
+        break;
+      default:
+        payload[selectionKey] = null;
+        break;
+    }
+  }
+
+  return payload;
+}
+
+function serializeDraftOrderMutationPayload(
+  field: FieldNode,
+  draftOrder: DraftOrderRecord | null,
+  userErrors: Array<{ field: string[] | null; message: string }>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const selectionKey = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'draftOrder':
+        payload[selectionKey] = draftOrder ? serializeDraftOrderNode(selection, draftOrder) : null;
+        break;
+      case 'userErrors':
+        payload[selectionKey] = serializeSelectedUserErrors(selection, userErrors);
+        break;
+      default:
+        payload[selectionKey] = null;
+        break;
+    }
+  }
+
+  return payload;
+}
+
+function serializeDraftOrderDeletePayload(
+  field: FieldNode,
+  deletedId: string | null,
+  userErrors: Array<{ field: string[] | null; message: string }>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const selectionKey = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'deletedId':
+        payload[selectionKey] = deletedId;
+        break;
+      case 'userErrors':
+        payload[selectionKey] = serializeSelectedUserErrors(selection, userErrors);
+        break;
+      default:
+        payload[selectionKey] = null;
+        break;
+    }
+  }
+
+  return payload;
 }
 
 export function handleOrderQuery(
@@ -2110,22 +3424,7 @@ export function handleOrderQuery(
       }
       case 'draftOrdersCount': {
         const args = getFieldArguments(field, variables);
-        const countResult: Record<string, unknown> = {};
-        for (const selection of getSelectedChildFields(field)) {
-          const selectionKey = getFieldResponseKey(selection);
-          switch (selection.name.value) {
-            case 'count':
-              countResult[selectionKey] = store.getDraftOrders().length;
-              break;
-            case 'precision':
-              countResult[selectionKey] = 'EXACT';
-              break;
-            default:
-              countResult[selectionKey] = null;
-              break;
-          }
-        }
-        data[key] = countResult;
+        data[key] = serializeDraftOrdersCount(field, store.getDraftOrders(), variables);
         const searchExtension = buildDraftOrderInvalidSearchExtension(args['query'], [key]);
         if (searchExtension) {
           searchExtensions.push(searchExtension);
@@ -2161,6 +3460,47 @@ export function handleOrderMutation(
 
   for (const field of getRootFields(document)) {
     const key = getFieldResponseKey(field);
+
+    if (field.name.value === 'refundCreate' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const input = readRefundCreateInput(variables);
+      if (!input) {
+        data[key] = serializeRefundCreatePayload(field, null, null, [
+          { field: ['input'], message: 'Input is required.' },
+        ]);
+        continue;
+      }
+
+      const orderId = typeof input['orderId'] === 'string' ? input['orderId'] : null;
+      const order = orderId ? store.getOrderById(orderId) : null;
+      if (!order) {
+        data[key] = serializeRefundCreatePayload(field, null, null, [
+          { field: ['input', 'orderId'], message: 'Order does not exist' },
+        ]);
+        continue;
+      }
+
+      const refund = buildRefundFromInput(order, input);
+      const refundAmount = parseDecimalAmount(refund.totalRefundedSet?.shopMoney.amount);
+      const alreadyRefunded = sumRefundedAmount(order);
+      const refundableAmount = parseDecimalAmount(order.totalPriceSet?.shopMoney.amount) - alreadyRefunded;
+      const allowOverRefunding = input['allowOverRefunding'] === true;
+
+      if (!allowOverRefunding && refundAmount > refundableAmount) {
+        data[key] = serializeRefundCreatePayload(field, null, order, [
+          {
+            field: null,
+            message: `Refund amount $${refundAmount.toFixed(2)} is greater than net payment received $${refundableAmount.toFixed(2)}`,
+          },
+        ]);
+        continue;
+      }
+
+      const updatedOrder = store.updateOrder(applyRefundToOrder(order, refund));
+      const stagedRefund = updatedOrder.refunds.find((candidate) => candidate.id === refund.id) ?? refund;
+      data[key] = serializeRefundCreatePayload(field, stagedRefund, updatedOrder, []);
+      continue;
+    }
 
     if (field.name.value === 'orderUpdate') {
       handled = true;
@@ -2226,6 +3566,183 @@ export function handleOrderMutation(
         ...serializeSelectedOrderMutationPayload(field),
       };
 
+      continue;
+    }
+
+    if (field.name.value === 'orderClose' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const input = variables['input'];
+      const id =
+        typeof input === 'object' && input !== null && typeof (input as Record<string, unknown>)['id'] === 'string'
+          ? ((input as Record<string, unknown>)['id'] as string)
+          : null;
+      const order = id ? store.getOrderById(id) : null;
+
+      if (!order) {
+        data[key] = serializeOrderManagementPayload(field, null, [{ field: ['id'], message: 'Order does not exist' }]);
+        continue;
+      }
+
+      const closedAt = makeSyntheticTimestamp();
+      const updatedOrder = store.updateOrder({
+        ...order,
+        updatedAt: closedAt,
+        closed: true,
+        closedAt,
+      });
+      data[key] = serializeOrderManagementPayload(field, updatedOrder, []);
+      continue;
+    }
+
+    if (field.name.value === 'orderOpen' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const input = variables['input'];
+      const id =
+        typeof input === 'object' && input !== null && typeof (input as Record<string, unknown>)['id'] === 'string'
+          ? ((input as Record<string, unknown>)['id'] as string)
+          : null;
+      const order = id ? store.getOrderById(id) : null;
+
+      if (!order) {
+        data[key] = serializeOrderManagementPayload(field, null, [{ field: ['id'], message: 'Order does not exist' }]);
+        continue;
+      }
+
+      const updatedOrder = store.updateOrder({
+        ...order,
+        updatedAt: makeSyntheticTimestamp(),
+        closed: false,
+        closedAt: null,
+      });
+      data[key] = serializeOrderManagementPayload(field, updatedOrder, []);
+      continue;
+    }
+
+    if (field.name.value === 'orderMarkAsPaid' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const input = variables['input'];
+      const id =
+        typeof input === 'object' && input !== null && typeof (input as Record<string, unknown>)['id'] === 'string'
+          ? ((input as Record<string, unknown>)['id'] as string)
+          : null;
+      const order = id ? store.getOrderById(id) : null;
+
+      if (!order) {
+        data[key] = serializeOrderManagementPayload(field, null, [{ field: ['id'], message: 'Order does not exist' }]);
+        continue;
+      }
+
+      const updatedOrder = store.updateOrder(order.displayFinancialStatus === 'PAID' ? order : markOrderAsPaid(order));
+      data[key] = serializeOrderManagementPayload(field, updatedOrder, []);
+      continue;
+    }
+
+    if (field.name.value === 'orderCreateManualPayment' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      data[key] = null;
+      errors.push(
+        buildAccessDeniedError(
+          'orderCreateManualPayment',
+          '`write_orders` access scope. Also: The user must have mark_orders_as_paid permission. The API client must be installed on a Shopify Plus store to use the amount field.',
+        ),
+      );
+      continue;
+    }
+
+    if (field.name.value === 'orderCustomerSet' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const orderId = typeof variables['orderId'] === 'string' ? variables['orderId'] : null;
+      const customerId = typeof variables['customerId'] === 'string' ? variables['customerId'] : null;
+      const order = orderId ? store.getOrderById(orderId) : null;
+
+      if (!order) {
+        data[key] = serializeOrderManagementPayload(field, null, [
+          { field: ['orderId'], message: 'Order does not exist' },
+        ]);
+        continue;
+      }
+
+      const customer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      const orderCustomer =
+        customer !== null
+          ? orderCustomerFromCustomer(customer)
+          : order.customer?.id === customerId
+            ? structuredClone(order.customer)
+            : { id: customerId ?? '', email: null, displayName: null };
+      const updatedOrder = store.updateOrder({
+        ...order,
+        updatedAt: makeSyntheticTimestamp(),
+        customer: orderCustomer,
+      });
+      data[key] = serializeOrderManagementPayload(field, updatedOrder, []);
+      continue;
+    }
+
+    if (field.name.value === 'orderCustomerRemove' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const orderId = typeof variables['orderId'] === 'string' ? variables['orderId'] : null;
+      const order = orderId ? store.getOrderById(orderId) : null;
+
+      if (!order) {
+        data[key] = serializeOrderManagementPayload(field, null, [
+          { field: ['orderId'], message: 'Order does not exist' },
+        ]);
+        continue;
+      }
+
+      const updatedOrder = store.updateOrder({
+        ...order,
+        updatedAt: makeSyntheticTimestamp(),
+        customer: null,
+      });
+      data[key] = serializeOrderManagementPayload(field, updatedOrder, []);
+      continue;
+    }
+
+    if (field.name.value === 'orderInvoiceSend' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const id = typeof variables['id'] === 'string' ? variables['id'] : null;
+      const order = id ? store.getOrderById(id) : null;
+      data[key] = serializeOrderManagementPayload(
+        field,
+        order,
+        order ? [] : [{ field: ['id'], message: 'Order does not exist' }],
+      );
+      continue;
+    }
+
+    if (field.name.value === 'taxSummaryCreate' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      data[key] = null;
+      errors.push(
+        buildAccessDeniedError(
+          'taxSummaryCreate',
+          '`write_taxes` access scope. Also: The caller must be a tax calculations app and the relevant feature must be on.',
+        ),
+      );
+      continue;
+    }
+
+    if (field.name.value === 'orderCancel' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const orderId = typeof variables['orderId'] === 'string' ? variables['orderId'] : null;
+      const order = orderId ? store.getOrderById(orderId) : null;
+
+      if (!order) {
+        data[key] = serializeOrderCancelPayload(field, [{ field: ['orderId'], message: 'Order does not exist' }]);
+        continue;
+      }
+
+      const cancelledAt = makeSyntheticTimestamp();
+      store.updateOrder({
+        ...order,
+        updatedAt: cancelledAt,
+        closed: true,
+        closedAt: cancelledAt,
+        cancelledAt,
+        cancelReason: typeof variables['reason'] === 'string' ? variables['reason'] : 'OTHER',
+      });
+      data[key] = serializeOrderCancelPayload(field, []);
       continue;
     }
 
@@ -2323,6 +3840,170 @@ export function handleOrderMutation(
       continue;
     }
 
+    if (field.name.value === 'draftOrderUpdate') {
+      handled = true;
+      const inlineIdArgument = getInlineArgument(field, 'id');
+      const inlineInputArgument = getInlineArgument(field, 'input');
+
+      if (!inlineIdArgument) {
+        errors.push(buildMissingRequiredArgumentError('draftOrderUpdate', 'id'));
+        continue;
+      }
+
+      if (inlineIdArgument.value.kind === Kind.NULL) {
+        errors.push(buildNullArgumentError('draftOrderUpdate', 'id', 'ID!'));
+        continue;
+      }
+
+      if (!inlineInputArgument) {
+        errors.push(buildMissingRequiredArgumentError('draftOrderUpdate', 'input'));
+        continue;
+      }
+
+      if (inlineInputArgument.value.kind === Kind.NULL) {
+        errors.push(buildNullArgumentError('draftOrderUpdate', 'input', 'DraftOrderInput!'));
+        continue;
+      }
+
+      const id = readDraftOrderUpdateId(variables);
+      if (inlineIdArgument.value.kind === Kind.VARIABLE && id === null) {
+        errors.push(buildMissingVariableError(inlineIdArgument.value.name.value, 'ID!'));
+        continue;
+      }
+
+      const input = readDraftOrderUpdateInput(variables);
+      if (inlineInputArgument.value.kind === Kind.VARIABLE && input === null) {
+        errors.push(buildMissingVariableError(inlineInputArgument.value.name.value, 'DraftOrderInput!'));
+        continue;
+      }
+
+      const draftOrder = id ? store.getDraftOrderById(id) : null;
+      if (!draftOrder) {
+        data[key] = serializeDraftOrderMutationPayload(field, null, [
+          { field: ['id'], message: 'Draft order does not exist' },
+        ]);
+        continue;
+      }
+
+      const updatedDraftOrder = store.updateDraftOrder(buildUpdatedDraftOrder(draftOrder, input, shopifyAdminOrigin));
+      data[key] = serializeDraftOrderMutationPayload(field, updatedDraftOrder, []);
+      continue;
+    }
+
+    if (field.name.value === 'draftOrderDuplicate') {
+      handled = true;
+      const id = readDraftOrderDuplicateId(variables);
+      const draftOrder = id ? store.getDraftOrderById(id) : null;
+
+      if (!draftOrder) {
+        data[key] = serializeDraftOrderMutationPayload(field, null, [
+          { field: ['id'], message: 'Draft order does not exist' },
+        ]);
+        continue;
+      }
+
+      const duplicatedDraftOrder = store.stageCreateDraftOrder(duplicateDraftOrder(draftOrder, shopifyAdminOrigin));
+      data[key] = serializeDraftOrderMutationPayload(field, duplicatedDraftOrder, []);
+      continue;
+    }
+
+    if (field.name.value === 'draftOrderDelete') {
+      handled = true;
+      const inlineInputArgument = getInlineArgument(field, 'input');
+
+      if (!inlineInputArgument) {
+        errors.push(buildMissingRequiredArgumentError('draftOrderDelete', 'input'));
+        continue;
+      }
+
+      if (inlineInputArgument.value.kind === Kind.NULL) {
+        errors.push(buildNullArgumentError('draftOrderDelete', 'input', 'DraftOrderDeleteInput!'));
+        continue;
+      }
+
+      const input = readDraftOrderDeleteInput(variables);
+      if (inlineInputArgument.value.kind === Kind.VARIABLE && input === null) {
+        errors.push(buildMissingVariableError(inlineInputArgument.value.name.value, 'DraftOrderDeleteInput!'));
+        continue;
+      }
+
+      const id = typeof input?.['id'] === 'string' ? input['id'] : null;
+      const draftOrder = id ? store.getDraftOrderById(id) : null;
+      if (!id || !draftOrder) {
+        data[key] = serializeDraftOrderDeletePayload(field, null, [
+          { field: ['id'], message: 'Draft order does not exist' },
+        ]);
+        continue;
+      }
+
+      store.deleteDraftOrder(id);
+      data[key] = serializeDraftOrderDeletePayload(field, id, []);
+      continue;
+    }
+
+    if (field.name.value === 'draftOrderInvoiceSend') {
+      handled = true;
+      const inlineIdArgument = getInlineArgument(field, 'id');
+
+      if (!inlineIdArgument) {
+        errors.push(buildMissingRequiredArgumentError('draftOrderInvoiceSend', 'id'));
+        continue;
+      }
+
+      if (inlineIdArgument.value.kind === Kind.NULL) {
+        errors.push(buildNullArgumentError('draftOrderInvoiceSend', 'id', 'ID!'));
+        continue;
+      }
+
+      const id = readDraftOrderInvoiceSendId(variables);
+      if (inlineIdArgument.value.kind === Kind.VARIABLE && id === null) {
+        errors.push(buildMissingVariableError(inlineIdArgument.value.name.value, 'ID!'));
+        continue;
+      }
+
+      const draftOrder = id ? store.getDraftOrderById(id) : null;
+      data[key] = serializeDraftOrderMutationPayload(field, draftOrder, [
+        {
+          field: ['id'],
+          message: 'draftOrderInvoiceSend is intentionally not executed by the local proxy because it sends email.',
+        },
+      ]);
+      continue;
+    }
+
+    if (field.name.value === 'draftOrderCreateFromOrder') {
+      handled = true;
+      const inlineOrderIdArgument = getInlineArgument(field, 'orderId');
+
+      if (!inlineOrderIdArgument) {
+        errors.push(buildMissingRequiredArgumentError('draftOrderCreateFromOrder', 'orderId'));
+        continue;
+      }
+
+      if (inlineOrderIdArgument.value.kind === Kind.NULL) {
+        errors.push(buildNullArgumentError('draftOrderCreateFromOrder', 'orderId', 'ID!'));
+        continue;
+      }
+
+      const orderId = readDraftOrderCreateFromOrderId(variables);
+      if (inlineOrderIdArgument.value.kind === Kind.VARIABLE && orderId === null) {
+        errors.push(buildMissingVariableError(inlineOrderIdArgument.value.name.value, 'ID!'));
+        continue;
+      }
+
+      const order = orderId ? store.getOrderById(orderId) : null;
+      if (!order) {
+        data[key] = serializeDraftOrderMutationPayload(field, null, [
+          { field: ['orderId'], message: 'Order does not exist' },
+        ]);
+        continue;
+      }
+
+      const draftOrder = store.stageCreateDraftOrder(buildDraftOrderFromOrder(order, shopifyAdminOrigin));
+      data[key] = serializeDraftOrderMutationPayload(field, draftOrder, []);
+      continue;
+    }
+
     if (field.name.value === 'draftOrderComplete') {
       const inlineIdArgument = getDraftOrderCompleteInlineIdArgument(field);
 
@@ -2349,22 +4030,29 @@ export function handleOrderMutation(
       const draftOrder = store.getDraftOrderById(id);
       if (draftOrder && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
         handled = true;
-        const completedDraftOrder = store.updateDraftOrder(buildCompletedDraftOrder(draftOrder));
-        const payload: Record<string, unknown> = {};
-        for (const selection of getSelectedChildFields(field)) {
-          const selectionKey = getFieldResponseKey(selection);
-          switch (selection.name.value) {
-            case 'draftOrder':
-              payload[selectionKey] = serializeDraftOrderNode(selection, completedDraftOrder);
-              break;
-            case 'userErrors':
-              payload[selectionKey] = [];
-              break;
-            default:
-              payload[selectionKey] = null;
-              break;
-          }
+
+        if (readDraftOrderCompletePaymentGatewayId(field, variables)) {
+          data[key] = serializeDraftOrderCompletePayload(field, null, [
+            {
+              field: null,
+              message: 'Invalid payment gateway',
+            },
+          ]);
+          continue;
         }
+
+        const completedDraftOrder = buildCompletedDraftOrder(draftOrder);
+        const order = store.stageCreateOrder(
+          buildOrderFromCompletedDraftOrder(completedDraftOrder, {
+            sourceName: readDraftOrderCompleteSourceName(field, variables),
+            paymentPending: readDraftOrderCompletePaymentPending(field, variables),
+          }),
+        );
+        const linkedDraftOrder = store.updateDraftOrder({
+          ...completedDraftOrder,
+          orderId: order.id,
+        });
+        const payload = serializeDraftOrderCompletePayload(field, linkedDraftOrder, []);
         data[key] = payload;
         continue;
       }

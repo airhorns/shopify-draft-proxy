@@ -182,9 +182,14 @@ Current live findings on this host:
     - Shopify also required the acting install/user to be able to mark draft orders as paid, or set payment terms
 - additional schema trap for that same root on this host: `DraftOrderCompletePayload` does **not** expose a top-level `order` field
   - probing `draftOrderComplete { order { ... } }` fails schema validation with `Field 'order' doesn't exist on type 'DraftOrderCompletePayload'`
-  - practical rule: keep the completion parity scaffold on `draftOrder { id name status ready invoiceUrl totalPriceSet lineItems(...) }` plus `userErrors` until live capture proves a richer post-completion order link is actually selectable
+  - current 2026-04 docs instead expose the created order through `draftOrder { order { ... } }`; keep the parity scaffold on that nested link and do not reintroduce the stale top-level payload `order` selection
 - nearby runtime routing rule: once that missing-`$id` `INVALID_VARIABLE` branch is captured, do not keep proxying it upstream in `live-hybrid`; the proxy now short-circuits that obviously invalid `draftOrderComplete` request locally in both snapshot and live-hybrid mode while still leaving live Shopify happy-path completion blocked on access
-- a narrow local-only follow-up slice is now safe without overclaiming the real Shopify completion bridge: for a synthetic/local staged draft, `draftOrderComplete` can flip the local draft payload to `status: COMPLETED` and `ready: true` while preserving the current `invoiceUrl` and replaying the same completed draft detail locally
+- a narrow local-only follow-up slice is now safe without overclaiming the real Shopify completion bridge: for a synthetic/local staged draft, `draftOrderComplete` can flip the local draft payload to `status: COMPLETED` and `ready: true` while preserving the current `invoiceUrl`, create a local synthetic `Order`, link it through `DraftOrder.order`, and replay the completed draft plus `order(id:)` / `orders` / `ordersCount` locally
+- local payment behavior for that synthetic-only slice remains deliberately narrow:
+  - default completion stages the regular order as `displayFinancialStatus: PAID`
+  - deprecated `paymentPending: true` stages it as `displayFinancialStatus: PENDING`
+  - `sourceName` is copied to the staged order for downstream attribution reads
+  - non-null `paymentGatewayId` returns the captured `Invalid payment gateway` userError because the proxy has no local payment-gateway catalog yet
 - practical consequence: the repo still should not jump straight from "order roots exist in introspection" to speculative full draft-to-order staging code; keep the local completion slice limited to staged synthetic drafts until live Shopify happy-path evidence exists
 
 Practical rule:
@@ -211,6 +216,14 @@ Practical rule:
 ### 7a-refresh. Repo-local auth refresh needs a client-id fallback, not just the rotated token payload
 
 A later healthy-again pass on this host exposed a repo-local repair bug rather than another Shopify auth limitation: `corepack pnpm conformance:refresh-auth` assumed `.manual-store-auth-token.json` always retained `client_id`, but the current persisted expiring-token payload on this host does **not** keep that field.
+
+This note is historical for the old worktree-local repair path. The current conformance auth entry point is the shared home-folder credential at `~/.shopify-draft-proxy/conformance-admin-auth.json`, and `corepack pnpm conformance:refresh-auth` should use that same path as `corepack pnpm conformance:probe` / `corepack pnpm conformance:capture-orders`.
+
+Current shared-credential finding:
+
+- the checked-in app directory can exist without a repo-local `.env`; in that case app-secret resolution must fall back to `/tmp/shopify-conformance-app/<SHOPIFY_CONFORMANCE_APP_HANDLE>/.env` instead of stopping at the empty repo-local app copy
+- after that path fix, this host reaches Shopify's OAuth refresh endpoint with the shared credential and app secret, but Shopify returns `This request requires an active refresh_token`
+- practical consequence: a refresh failure with `credentialPath: /home/airhorns/.shopify-draft-proxy/conformance-admin-auth.json` and `appEnvPath: /tmp/shopify-conformance-app/hermes-conformance-products/.env` is a dead saved grant, not a worktree-local path bug
 
 Current host finding:
 
@@ -1380,7 +1393,7 @@ The publication family (`productPublish` / `productUnpublish`) now has a dedicat
 - `corepack pnpm conformance:probe` still succeeds
 - the configured conformance app at `/tmp/shopify-conformance-app/hermes-conformance-products/shopify.app.toml` can now be inspected via Shopify CLI without interactive login on this host
 - `corepack pnpm exec shopify app deploy --allow-updates` can also run successfully for that app on this host
-- after that deploy pass, publication aggregate reads and minimal publish/unpublish mutation-root probes can get past the earlier `ACCESS_DENIED` scope gate
+- after that deploy pass, publication aggregate reads and safe publish/unpublish mutation-root probes can get past the earlier `ACCESS_DENIED` scope gate
 - the same live harness can still resolve a top-level `publications(first: 10)` catalog slice with real publication ids/names for the store
 - live `publications` catalog cursors are opaque base64-like values on this host, not synthetic `cursor:<gid>` wrappers
 - but the first full `productPublish` capture still fails with Shopify `NOT_FOUND`
@@ -1391,14 +1404,28 @@ The publication family (`productPublish` / `productUnpublish`) now has a dedicat
 
 Practical rule:
 
-- keep probing the aggregate read slice plus minimal publish/unpublish roots before attempting full safe-write capture for this family
+- keep probing the aggregate read slice plus safe publish/unpublish roots before attempting full aggregate-field safe-write capture for this family
 - do not treat successful app deploy alone as proof that aggregate publication-field parity is now capturable; app deploy can succeed while the app still has no publication on the shop
-- on this host, the root mutations themselves can still succeed live when you select only the minimal payload slice (`userErrors`), even though aggregate publication fields remain blocked for the configured app
+- on this host, the publish root mutation itself can still succeed live when selecting non-aggregate payload fields (`product { id }` plus `userErrors`), even though aggregate publication fields remain blocked for the configured app
 - the publication catalog therefore needs its own hydrated local state: product `publicationIds` preserve target ids for staged publish/unpublish replay, but only a dedicated `publications` catalog probe teaches the proxy the merchant-facing publication names
 - when local overlay reads replay hydrated publication catalogs, preserve those captured opaque publication edge/pageInfo cursors instead of regenerating synthetic `cursor:<gid>` values or pagination parity drifts as soon as staged product state is present
-- `productUnpublish` now has an executable strict-json parity target for the minimal live mutation payload (`userErrors`) using variables from the captured safe live fixture, while `productPublish` still has only the captured payload scaffold
+- `productPublish` now has an executable strict-json parity target for the safe live mutation payload (`product { id }` plus `userErrors`) using variables from the captured safe live fixture
+- `productUnpublish` now has an executable strict-json parity target for the minimal live mutation payload (`userErrors`) using variables from the captured safe live fixture
+- that means `productPublish` / `productUnpublish` can be promoted from declared-gap to covered using explicit safe live mutation captures plus a checked-in field-level blocker note, rather than pretending the aggregate field slice is already settled
 - keep the aggregate publication-field blocker attached to the parity specs until the conformance app is installed/configured with a real publication target and the dedicated harness can refresh the fixtures with successful aggregate-field payloads and downstream reads
 - once the app has a publication, the dedicated harness remains the shortest path to refreshing the family because it already aligns the live mutation and downstream-read slices with the checked-in parity plans
+
+### 35a. `productPublish` product-id parity is the safe write-path slice
+
+The first safe `productPublish` promotion deliberately compares only the live-captured mutation payload fields that do not require the app to have its own publication target:
+
+- request shape: `productPublish(input:) { product { id } userErrors { field message } }`
+- fixture variables are read from `$.mutation.variables` so the local parity harness replays the captured product/publication ids after seeding the product precondition
+- comparison target is the strict `$.mutation.response.data` vs local `$.data` payload
+- the local mutation serializer must not include unselected payload fields, because Shopify only returns the fields selected by the request
+- aggregate publication fields are intentionally excluded from this request because selecting `publishedOnCurrentPublication`, `availablePublicationsCount`, or `resourcePublicationsCount` still triggers the live missing-publication-target blocker on this host
+
+This closes the staged write-path payload comparison for successful `productPublish` identity/user-error behavior without weakening the larger aggregate-field blocker. The companion aggregate spec must stay blocked until the conformance app has a real publication target and Shopify can return `publishedOnCurrentPublication`, `availablePublicationsCount`, `resourcePublicationsCount`, and immediate downstream publication reads without the current `NOT_FOUND` response.
 
 ## 36. ProductSet list-field semantics need product-scoped staged child shadowing, not base+staged unions
 

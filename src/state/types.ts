@@ -339,6 +339,8 @@ export type DraftOrderLineItemRecord = z.infer<typeof draftOrderLineItemRecordSc
 export const draftOrderRecordSchema = z.strictObject({
   id: z.string(),
   name: z.string(),
+  orderId: nullableStringSchema.optional(),
+  completedAt: nullableStringSchema.optional(),
   invoiceUrl: nullableStringSchema,
   status: nullableStringSchema,
   ready: nullableBooleanSchema,
@@ -389,11 +391,53 @@ export const orderLineItemRecordSchema = z.strictObject({
 });
 export type OrderLineItemRecord = z.infer<typeof orderLineItemRecordSchema>;
 
+export const orderTransactionRecordSchema = z.strictObject({
+  id: z.string(),
+  kind: nullableStringSchema,
+  status: nullableStringSchema,
+  gateway: nullableStringSchema,
+  amountSet: moneySetSchema.nullable(),
+});
+export type OrderTransactionRecord = z.infer<typeof orderTransactionRecordSchema>;
+
+export const orderRefundLineItemRecordSchema = z.strictObject({
+  id: z.string(),
+  lineItemId: z.string(),
+  title: nullableStringSchema,
+  quantity: z.number(),
+  restockType: nullableStringSchema,
+  subtotalSet: moneySetSchema.nullable(),
+});
+export type OrderRefundLineItemRecord = z.infer<typeof orderRefundLineItemRecordSchema>;
+
+export const orderRefundRecordSchema = z.strictObject({
+  id: z.string(),
+  note: nullableStringSchema,
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  totalRefundedSet: moneySetSchema.nullable(),
+  refundLineItems: z.array(orderRefundLineItemRecordSchema),
+  transactions: z.array(orderTransactionRecordSchema),
+});
+export type OrderRefundRecord = z.infer<typeof orderRefundRecordSchema>;
+
+export const orderReturnRecordSchema = z.strictObject({
+  id: z.string(),
+  status: nullableStringSchema,
+});
+export type OrderReturnRecord = z.infer<typeof orderReturnRecordSchema>;
+
 export const orderRecordSchema = z.strictObject({
   id: z.string(),
   name: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  closed: z.boolean().optional(),
+  closedAt: nullableStringSchema.optional(),
+  cancelledAt: nullableStringSchema.optional(),
+  cancelReason: nullableStringSchema.optional(),
+  sourceName: nullableStringSchema.optional(),
+  paymentGatewayNames: z.array(z.string()).optional(),
   displayFinancialStatus: nullableStringSchema,
   displayFulfillmentStatus: nullableStringSchema,
   note: nullableStringSchema,
@@ -404,9 +448,14 @@ export const orderRecordSchema = z.strictObject({
   subtotalPriceSet: moneySetSchema.nullable(),
   currentTotalPriceSet: moneySetSchema.nullable(),
   totalPriceSet: moneySetSchema.nullable(),
+  totalOutstandingSet: moneySetSchema.nullable().optional(),
+  totalRefundedSet: moneySetSchema.nullable(),
   customer: orderCustomerRecordSchema.nullable(),
   shippingLines: z.array(orderShippingLineRecordSchema),
   lineItems: z.array(orderLineItemRecordSchema),
+  transactions: z.array(orderTransactionRecordSchema),
+  refunds: z.array(orderRefundRecordSchema),
+  returns: z.array(orderReturnRecordSchema),
 });
 export type OrderRecord = z.infer<typeof orderRecordSchema>;
 
@@ -460,6 +509,8 @@ export interface MutationLogEntry {
   path: string;
   query: string;
   variables: Record<string, unknown>;
+  requestBody?: Record<string, unknown>;
+  stagedResourceIds?: string[];
   status: 'staged' | 'proxied' | 'committed' | 'failed';
   interpreted: MutationLogInterpretedMetadata;
   notes?: string;
