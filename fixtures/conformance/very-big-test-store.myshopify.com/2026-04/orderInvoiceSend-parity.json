@@ -1,0 +1,84 @@
+{
+  "variables": {
+    "id": "gid://shopify/Order/6830646329577",
+    "email": {
+      "to": "har-120-invoice-rework-1776900542859@example.com",
+      "subject": "HAR-120 conformance invoice",
+      "customMessage": "HAR-120 conformance invoice send capture"
+    }
+  },
+  "mutation": {
+    "response": {
+      "data": {
+        "orderInvoiceSend": {
+          "order": {
+            "id": "gid://shopify/Order/6830646329577",
+            "name": "#1328",
+            "closed": false,
+            "closedAt": null,
+            "cancelledAt": null,
+            "cancelReason": null,
+            "displayFinancialStatus": null,
+            "paymentGatewayNames": [],
+            "totalOutstandingSet": {
+              "shopMoney": {
+                "amount": "16.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "currentTotalPriceSet": {
+              "shopMoney": {
+                "amount": "16.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "customer": {
+              "id": "gid://shopify/Customer/9096814330089",
+              "email": "har-120-invoice-1776900460748@example.com",
+              "displayName": "har-120-invoice-1776900460748@example.com"
+            },
+            "transactions": []
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "variables": {
+      "id": "gid://shopify/Order/6830646329577"
+    },
+    "response": {
+      "data": {
+        "order": {
+          "id": "gid://shopify/Order/6830646329577",
+          "name": "#1328",
+          "closed": false,
+          "closedAt": null,
+          "cancelledAt": null,
+          "cancelReason": null,
+          "displayFinancialStatus": null,
+          "paymentGatewayNames": [],
+          "totalOutstandingSet": {
+            "shopMoney": {
+              "amount": "16.0",
+              "currencyCode": "CAD"
+            }
+          },
+          "currentTotalPriceSet": {
+            "shopMoney": {
+              "amount": "16.0",
+              "currencyCode": "CAD"
+            }
+          },
+          "customer": {
+            "id": "gid://shopify/Customer/9096814330089",
+            "email": "har-120-invoice-1776900460748@example.com",
+            "displayName": "har-120-invoice-1776900460748@example.com"
+          },
+          "transactions": []
+        }
+      }
+    }
+  }
+}

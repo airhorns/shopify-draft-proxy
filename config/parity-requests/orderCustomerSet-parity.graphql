@@ -1,0 +1,46 @@
+mutation OrderCustomerSetParity($orderId: ID!, $customerId: ID!) {
+  orderCustomerSet(orderId: $orderId, customerId: $customerId) {
+    order {
+      id
+      name
+      closed
+      closedAt
+      cancelledAt
+      cancelReason
+      displayFinancialStatus
+      paymentGatewayNames
+      totalOutstandingSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      currentTotalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      customer {
+        id
+        email
+        displayName
+      }
+      transactions {
+        kind
+        status
+        gateway
+        amountSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

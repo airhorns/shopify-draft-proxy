@@ -214,7 +214,7 @@ export function classifyParityScenarioState(
 }
 
 export const parityStatusNote =
-  'readyForComparison means a captured scenario has a proxy request and an explicit strict-json comparison contract. invalid scenarios are captured recordings that cannot run high-assurance comparison yet. notYetImplemented scenarios are intentionally planned and never partially executable.';
+  'readyForComparison means a captured scenario has a proxy request and an explicit strict-json comparison contract. invalid scenarios are captured recordings that cannot run high-assurance comparison yet. notYetImplemented scenarios are legacy non-executable entries; do not add new planned-only or blocked-only parity specs.';
 
 export function summarizeParityResults(results: Array<{ state: ParityScenarioState }>): {
   readyForComparison: number;
@@ -831,6 +831,18 @@ function readCapturedOrderMetafields(orderId: string, order: Record<string, unkn
   );
 }
 
+function readCapturedOrderTransactions(order: Record<string, unknown> | null): OrderRecord['transactions'] {
+  return readArrayField(order, 'transactions')
+    .filter(isPlainObject)
+    .map((transaction, index) => ({
+      id: readStringField(transaction, 'id') ?? `gid://shopify/OrderTransaction/conformance-${index}`,
+      kind: readStringField(transaction, 'kind'),
+      status: readStringField(transaction, 'status'),
+      gateway: readStringField(transaction, 'gateway'),
+      amountSet: readMoneySetField(transaction, 'amountSet'),
+    }));
+}
+
 function makeSeedOrder(orderId: string, source: Record<string, unknown> | null = null): OrderRecord {
   const now = '2026-04-19T00:00:00.000Z';
   const totalPriceSet = readMoneySetField(source, 'totalPriceSet');
@@ -846,8 +858,15 @@ function makeSeedOrder(orderId: string, source: Record<string, unknown> | null =
     email: readStringField(source, 'email'),
     phone: readStringField(source, 'phone'),
     poNumber: readStringField(source, 'poNumber'),
+    closed: readBooleanField(source, 'closed') ?? false,
+    closedAt: readStringField(source, 'closedAt'),
+    cancelledAt: readStringField(source, 'cancelledAt'),
+    cancelReason: readStringField(source, 'cancelReason'),
     displayFinancialStatus: readStringField(source, 'displayFinancialStatus'),
     displayFulfillmentStatus: readStringField(source, 'displayFulfillmentStatus'),
+    paymentGatewayNames: readArrayField(source, 'paymentGatewayNames').filter(
+      (gateway): gateway is string => typeof gateway === 'string',
+    ),
     note: readStringField(source, 'note'),
     tags: readArrayField(source, 'tags').filter((tag): tag is string => typeof tag === 'string'),
     customAttributes: readArrayField(source, 'customAttributes')
@@ -863,6 +882,7 @@ function makeSeedOrder(orderId: string, source: Record<string, unknown> | null =
     subtotalPriceSet,
     currentTotalPriceSet,
     totalPriceSet,
+    totalOutstandingSet: readMoneySetField(source, 'totalOutstandingSet'),
     totalRefundedSet: {
       shopMoney: {
         amount: '0.0',
@@ -872,7 +892,7 @@ function makeSeedOrder(orderId: string, source: Record<string, unknown> | null =
     customer: readCapturedOrderCustomer(source),
     shippingLines: readCapturedOrderShippingLines(source),
     lineItems: readCapturedOrderLineItems(source),
-    transactions: [],
+    transactions: readCapturedOrderTransactions(source),
     refunds: [],
     returns: [],
   };
@@ -1861,6 +1881,38 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     return;
   }
 
+  if (
+    mutationName === 'orderClose' ||
+    mutationName === 'orderOpen' ||
+    mutationName === 'orderMarkAsPaid' ||
+    mutationName === 'orderCustomerSet' ||
+    mutationName === 'orderCustomerRemove' ||
+    mutationName === 'orderInvoiceSend'
+  ) {
+    const orderPayload = readRecordField(payload, 'order');
+    const input = readRecordField(variables, 'input');
+    const orderId =
+      readStringField(input, 'id') ?? readStringField(variables, 'orderId') ?? readStringField(variables, 'id');
+    const seedId = readStringField(orderPayload, 'id') ?? orderId;
+    if (seedId) {
+      store.upsertBaseOrders([makeSeedOrder(seedId, orderPayload)]);
+    }
+    return;
+  }
+
+  if (mutationName === 'orderCancel') {
+    const downstreamOrder = readRecordField(
+      readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'response'),
+      'data',
+    );
+    const orderPayload = readRecordField(downstreamOrder, 'order');
+    const orderId = readStringField(variables, 'orderId') ?? readStringField(orderPayload, 'id');
+    if (orderId) {
+      store.upsertBaseOrders([makeSeedOrder(orderId, orderPayload)]);
+    }
+    return;
+  }
+
   if (mutationName === 'refundCreate') {
     const input = readRecordField(variables, 'input');
     const orderId = readStringField(input, 'orderId');
@@ -1919,11 +1971,15 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     !readStringField(identifier, 'id') &&
     !readStringField(identifier, 'handle') &&
     !readStringField(input, 'id');
+  const productDeletePayloadId = mutationName === 'productDelete' ? readStringField(payload, 'deletedProductId') : null;
+  const isProductDeleteValidationProbe =
+    mutationName === 'productDelete' && productDeletePayloadId !== null && productDeletePayloadId !== productId;
 
   const shouldSeedProduct =
     productId !== null &&
     !(mutationName === 'productCreate' && readStringField(productInput, 'id') === null) &&
-    !isProductSetCreate;
+    !isProductSetCreate &&
+    !isProductDeleteValidationProbe;
 
   if (seedProductDuplicateSource(capture)) {
     return;
