@@ -1679,3 +1679,20 @@ Practical rule for the proxy:
 - rebuild `displayName` from effective name/email state after staged create/update so downstream `customer` and `customers` reads stay aligned
 - mask staged `defaultPhoneNumber.phoneNumber` in the same practical style as the captured live payload instead of echoing raw phone input
 - preserve the captured validation distinctions exactly: null-field missing-identity create error, `Customer does not exist` for unknown-id update, and `Customer can't be found` for unknown-id delete
+
+## 45. Rich collection fields need a real collection row, not only membership rows
+
+Extending collection reads past `id` / `title` / `handle` exposed the limit of deriving every collection only from `product.collections` memberships.
+
+Current local rule:
+
+- standalone `CollectionRecord` rows are the home for merchant-facing collection metadata: REST legacy id, `updatedAt`, description HTML/text, image, sort order, template suffix, SEO, and smart-collection `ruleSet`
+- membership-derived collection rows can still make a collection visible, but absent rich fields should stay absent/null instead of inventing arbitrary metadata from a product membership
+- nested `product.collections` should overlay the standalone collection row onto the product-scoped membership row so staged `collectionUpdate` and snapshot metadata are visible consistently on both top-level and nested reads
+- `productsCount` and `hasProduct(id:)` are derived from the effective product membership graph rather than stored on the collection record
+- local `collectionUpdate` preserves handle stability when the title changes without an explicit handle; `redirectNewHandle` is recorded in staged state for future conformance, but no redirect resource is modeled yet
+
+Pending live evidence:
+
+- the current shared conformance token is invalid on this host, so HAR-151 could not refresh `conformance:capture-collections`
+- custom-vs-smart details for `ruleSet`, default `sortOrder`, and blank-description values should be recaptured when credentials are repaired; until then, runtime behavior stays limited to preserving captured/snapshot/input values and conservative local defaults for newly staged collections

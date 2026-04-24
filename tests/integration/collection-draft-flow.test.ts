@@ -77,6 +77,195 @@ describe('collection draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('stages rich collectionCreate and collectionUpdate fields for downstream reads', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const app = createApp(config).callback();
+
+    const createResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateRichCollection($input: CollectionInput!, $productId: ID!) { collectionCreate(input: $input) { collection { id legacyResourceId title handle updatedAt description descriptionHtml image { url altText width height } productsCount { count precision } hasProduct(id: $productId) sortOrder templateSuffix seo { title description } ruleSet { appliedDisjunctively rules { column relation condition conditionObject } } } userErrors { field message } } }',
+        variables: {
+          productId: 'gid://shopify/Product/404',
+          input: {
+            title: 'Rich Winter Hats',
+            handle: 'rich-winter-hats',
+            descriptionHtml: '<p>Warm <strong>winter</strong> hats</p>',
+            image: {
+              src: 'https://cdn.shopify.com/s/files/1/0000/0001/collections/winter-hats.jpg',
+              altText: 'Winter hats',
+              width: 1200,
+              height: 800,
+            },
+            sortOrder: 'ALPHA_ASC',
+            templateSuffix: 'seasonal',
+            seo: {
+              title: 'Winter Hat SEO',
+              description: 'Warm winter hats',
+            },
+            ruleSet: {
+              appliedDisjunctively: true,
+              rules: [
+                {
+                  column: 'TAG',
+                  relation: 'EQUALS',
+                  condition: 'winter',
+                },
+              ],
+            },
+          },
+        },
+      });
+
+    expect(createResponse.status).toBe(200);
+    expect(createResponse.body.data.collectionCreate.userErrors).toEqual([]);
+    const createdCollection = createResponse.body.data.collectionCreate.collection;
+    expect(createdCollection).toEqual({
+      id: expect.stringMatching(/^gid:\/\/shopify\/Collection\/\d+$/),
+      legacyResourceId: expect.stringMatching(/^\d+$/),
+      title: 'Rich Winter Hats',
+      handle: 'rich-winter-hats',
+      updatedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+      description: 'Warm winter hats',
+      descriptionHtml: '<p>Warm <strong>winter</strong> hats</p>',
+      image: {
+        url: 'https://cdn.shopify.com/s/files/1/0000/0001/collections/winter-hats.jpg',
+        altText: 'Winter hats',
+        width: 1200,
+        height: 800,
+      },
+      productsCount: {
+        count: 0,
+        precision: 'EXACT',
+      },
+      hasProduct: false,
+      sortOrder: 'ALPHA_ASC',
+      templateSuffix: 'seasonal',
+      seo: {
+        title: 'Winter Hat SEO',
+        description: 'Warm winter hats',
+      },
+      ruleSet: {
+        appliedDisjunctively: true,
+        rules: [
+          {
+            column: 'TAG',
+            relation: 'EQUALS',
+            condition: 'winter',
+            conditionObject: null,
+          },
+        ],
+      },
+    });
+
+    const updateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation UpdateRichCollection($input: CollectionInput!) { collectionUpdate(input: $input) { collection { id title handle description descriptionHtml sortOrder templateSuffix seo { title description } ruleSet { appliedDisjunctively rules { column relation condition } } } userErrors { field message } } }',
+        variables: {
+          input: {
+            id: createdCollection.id,
+            title: 'Rich Winter Hats Draft',
+            descriptionHtml: '<p>Updated winter hats</p>',
+            sortOrder: 'MANUAL',
+            redirectNewHandle: true,
+            seo: {
+              title: 'Updated Winter SEO',
+            },
+          },
+        },
+      });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body).toEqual({
+      data: {
+        collectionUpdate: {
+          collection: {
+            id: createdCollection.id,
+            title: 'Rich Winter Hats Draft',
+            handle: 'rich-winter-hats',
+            description: 'Updated winter hats',
+            descriptionHtml: '<p>Updated winter hats</p>',
+            sortOrder: 'MANUAL',
+            templateSuffix: 'seasonal',
+            seo: {
+              title: 'Updated Winter SEO',
+              description: 'Warm winter hats',
+            },
+            ruleSet: {
+              appliedDisjunctively: true,
+              rules: [
+                {
+                  column: 'TAG',
+                  relation: 'EQUALS',
+                  condition: 'winter',
+                },
+              ],
+            },
+          },
+          userErrors: [],
+        },
+      },
+    });
+
+    const readResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query ReadRichCollection($id: ID!) { collection(id: $id) { id title handle descriptionHtml sortOrder templateSuffix seo { title description } ruleSet { appliedDisjunctively rules { column relation condition } } } collections(first: 10) { nodes { id title handle descriptionHtml sortOrder templateSuffix seo { title description } } } }',
+        variables: {
+          id: createdCollection.id,
+        },
+      });
+
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body).toEqual({
+      data: {
+        collection: {
+          id: createdCollection.id,
+          title: 'Rich Winter Hats Draft',
+          handle: 'rich-winter-hats',
+          descriptionHtml: '<p>Updated winter hats</p>',
+          sortOrder: 'MANUAL',
+          templateSuffix: 'seasonal',
+          seo: {
+            title: 'Updated Winter SEO',
+            description: 'Warm winter hats',
+          },
+          ruleSet: {
+            appliedDisjunctively: true,
+            rules: [
+              {
+                column: 'TAG',
+                relation: 'EQUALS',
+                condition: 'winter',
+              },
+            ],
+          },
+        },
+        collections: {
+          nodes: [
+            {
+              id: createdCollection.id,
+              title: 'Rich Winter Hats Draft',
+              handle: 'rich-winter-hats',
+              descriptionHtml: '<p>Updated winter hats</p>',
+              sortOrder: 'MANUAL',
+              templateSuffix: 'seasonal',
+              seo: {
+                title: 'Updated Winter SEO',
+                description: 'Warm winter hats',
+              },
+            },
+          ],
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('stages collectionUpdate locally and refreshes both top-level and nested product collection reads', async () => {
     store.upsertBaseProducts([
       {

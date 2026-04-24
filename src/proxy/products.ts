@@ -4,7 +4,9 @@ import { getFieldArguments, getRootField, getRootFieldArguments, getRootFields }
 import { makeProxySyntheticGid, makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type {
+  CollectionImageRecord,
   CollectionRecord,
+  CollectionRuleSetRecord,
   InventoryLevelRecord,
   ProductCatalogConnectionRecord,
   ProductCollectionRecord,
@@ -35,6 +37,18 @@ function normalizeHandleParts(value: string): string {
 function slugifyHandle(title: string): string {
   const normalized = normalizeHandleParts(title);
   return normalized || 'untitled-product';
+}
+
+function readLegacyResourceIdFromGid(id: string): string | null {
+  const tail = id.split('/').at(-1);
+  return tail && /^\d+$/u.test(tail) ? tail : null;
+}
+
+function stripHtmlToDescription(value: string): string {
+  return value
+    .replace(/<[^>]*>/gu, '')
+    .replace(/\s+/gu, ' ')
+    .trim();
 }
 
 function normalizeExplicitProductHandle(handle: string): string {
@@ -616,19 +630,134 @@ function makeSyntheticOnlineStorePreviewUrl(product: Pick<ProductRecord, 'id' | 
   )}&handle=${encodeURIComponent(product.handle)}`;
 }
 
+function readCollectionSeo(rawSeo: unknown, existingSeo: CollectionRecord['seo']): CollectionRecord['seo'] {
+  if (!isObject(rawSeo)) {
+    return existingSeo ?? { title: null, description: null };
+  }
+
+  return {
+    title: typeof rawSeo['title'] === 'string' ? rawSeo['title'] : (existingSeo?.title ?? null),
+    description: typeof rawSeo['description'] === 'string' ? rawSeo['description'] : (existingSeo?.description ?? null),
+  };
+}
+
+function readCollectionImageInput(
+  rawImage: unknown,
+  existingImage: CollectionImageRecord | null | undefined,
+): CollectionImageRecord | null {
+  if (rawImage === null) {
+    return null;
+  }
+
+  if (!isObject(rawImage)) {
+    return existingImage ? structuredClone(existingImage) : null;
+  }
+
+  const rawId = rawImage['id'];
+  const rawSrc = rawImage['src'];
+  const rawUrl = rawImage['url'];
+  const rawAltText = rawImage['altText'];
+  const rawWidth = rawImage['width'];
+  const rawHeight = rawImage['height'];
+
+  return {
+    id: typeof rawId === 'string' ? rawId : (existingImage?.id ?? null),
+    altText: typeof rawAltText === 'string' ? rawAltText : (existingImage?.altText ?? null),
+    url: typeof rawUrl === 'string' ? rawUrl : typeof rawSrc === 'string' ? rawSrc : (existingImage?.url ?? null),
+    width: typeof rawWidth === 'number' ? rawWidth : (existingImage?.width ?? null),
+    height: typeof rawHeight === 'number' ? rawHeight : (existingImage?.height ?? null),
+  };
+}
+
+function readCollectionRuleSet(
+  rawRuleSet: unknown,
+  existingRuleSet: CollectionRuleSetRecord | null | undefined,
+): CollectionRuleSetRecord | null {
+  if (rawRuleSet === null) {
+    return null;
+  }
+
+  if (!isObject(rawRuleSet)) {
+    return existingRuleSet ? structuredClone(existingRuleSet) : null;
+  }
+
+  const rawRules = Array.isArray(rawRuleSet['rules']) ? rawRuleSet['rules'] : [];
+  return {
+    appliedDisjunctively:
+      typeof rawRuleSet['appliedDisjunctively'] === 'boolean'
+        ? rawRuleSet['appliedDisjunctively']
+        : (existingRuleSet?.appliedDisjunctively ?? false),
+    rules: rawRules
+      .filter(isObject)
+      .map((rule) => {
+        const column = rule['column'];
+        const relation = rule['relation'];
+        const condition = rule['condition'];
+        const conditionObjectId = rule['conditionObjectId'];
+        return {
+          column: typeof column === 'string' ? column : '',
+          relation: typeof relation === 'string' ? relation : '',
+          condition: typeof condition === 'string' ? condition : '',
+          conditionObjectId: typeof conditionObjectId === 'string' ? conditionObjectId : null,
+        };
+      })
+      .filter((rule) => rule.column && rule.relation),
+  };
+}
+
 function makeCollectionRecord(input: Record<string, unknown>, existing?: CollectionRecord): CollectionRecord {
   const rawTitle = input['title'];
   const title = typeof rawTitle === 'string' && rawTitle.trim() ? rawTitle : (existing?.title ?? 'Untitled collection');
+  const now = makeSyntheticTimestamp();
   const rawId = input['id'];
+  const id = typeof rawId === 'string' ? rawId : (existing?.id ?? makeSyntheticGid('Collection'));
   const rawHandle = input['handle'];
+  const rawDescriptionHtml = input['descriptionHtml'];
+  const rawImage = input['image'];
+  const rawSortOrder = input['sortOrder'];
+  const rawTemplateSuffix = input['templateSuffix'];
+  const rawRuleSet = input['ruleSet'];
+  const descriptionHtml =
+    rawDescriptionHtml === null
+      ? null
+      : typeof rawDescriptionHtml === 'string'
+        ? rawDescriptionHtml
+        : (existing?.descriptionHtml ?? (existing ? null : ''));
 
   return {
-    id: typeof rawId === 'string' ? rawId : (existing?.id ?? makeSyntheticGid('Collection')),
+    id,
+    legacyResourceId: existing?.legacyResourceId ?? readLegacyResourceIdFromGid(id),
     title,
     handle:
       typeof rawHandle === 'string' && rawHandle.trim()
         ? rawHandle
         : (existing?.handle ?? slugifyHandle(title).replace(/product$/u, 'collection')),
+    updatedAt: now,
+    description:
+      typeof input['description'] === 'string'
+        ? input['description']
+        : descriptionHtml !== null
+          ? stripHtmlToDescription(descriptionHtml)
+          : (existing?.description ?? null),
+    descriptionHtml,
+    image: hasOwnField(input, 'image')
+      ? readCollectionImageInput(rawImage, existing?.image)
+      : (existing?.image ?? null),
+    sortOrder: typeof rawSortOrder === 'string' ? rawSortOrder : (existing?.sortOrder ?? (existing ? null : 'MANUAL')),
+    templateSuffix:
+      rawTemplateSuffix === null
+        ? null
+        : typeof rawTemplateSuffix === 'string'
+          ? rawTemplateSuffix
+          : (existing?.templateSuffix ?? null),
+    seo: readCollectionSeo(input['seo'], existing?.seo),
+    ruleSet: hasOwnField(input, 'ruleSet')
+      ? readCollectionRuleSet(rawRuleSet, existing?.ruleSet)
+      : (existing?.ruleSet ?? null),
+    redirectNewHandle:
+      typeof input['redirectNewHandle'] === 'boolean'
+        ? input['redirectNewHandle']
+        : (existing?.redirectNewHandle ?? false),
   };
 }
 
@@ -2679,10 +2808,8 @@ function normalizeUpstreamCollection(productId: string, value: unknown): Product
   }
 
   return {
-    id: rawId,
+    ...normalizeCollectionFields(value, rawId, rawTitle, rawHandle),
     productId,
-    title: rawTitle,
-    handle: rawHandle,
   };
 }
 
@@ -2698,10 +2825,96 @@ function normalizeUpstreamCollectionRecord(value: unknown): CollectionRecord | n
     return null;
   }
 
+  return normalizeCollectionFields(value, rawId, rawTitle, rawHandle);
+}
+
+function normalizeCollectionImage(value: unknown): CollectionImageRecord | null {
+  if (!isObject(value)) {
+    return null;
+  }
+
+  const rawId = value['id'];
+  const rawAltText = value['altText'];
+  const rawUrl = value['url'] ?? value['src'] ?? value['originalSrc'] ?? value['transformedSrc'];
+  const rawWidth = value['width'];
+  const rawHeight = value['height'];
+
   return {
-    id: rawId,
-    title: rawTitle,
-    handle: rawHandle,
+    id: typeof rawId === 'string' ? rawId : null,
+    altText: typeof rawAltText === 'string' ? rawAltText : null,
+    url: typeof rawUrl === 'string' ? rawUrl : null,
+    width: typeof rawWidth === 'number' ? rawWidth : null,
+    height: typeof rawHeight === 'number' ? rawHeight : null,
+  };
+}
+
+function normalizeCollectionRuleSet(value: unknown): CollectionRuleSetRecord | null {
+  if (!isObject(value)) {
+    return null;
+  }
+
+  const rawAppliedDisjunctively = value['appliedDisjunctively'];
+  const rawRules = Array.isArray(value['rules']) ? value['rules'] : [];
+
+  return {
+    appliedDisjunctively: typeof rawAppliedDisjunctively === 'boolean' ? rawAppliedDisjunctively : false,
+    rules: rawRules
+      .filter(isObject)
+      .map((rule) => {
+        const column = rule['column'];
+        const relation = rule['relation'];
+        const condition = rule['condition'];
+        const conditionObjectId = rule['conditionObjectId'];
+        return {
+          column: typeof column === 'string' ? column : '',
+          relation: typeof relation === 'string' ? relation : '',
+          condition: typeof condition === 'string' ? condition : '',
+          conditionObjectId: typeof conditionObjectId === 'string' ? conditionObjectId : null,
+        };
+      })
+      .filter((rule) => rule.column && rule.relation),
+  };
+}
+
+function normalizeCollectionFields(
+  value: Record<string, unknown>,
+  id: string,
+  title: string,
+  handle: string,
+): CollectionRecord {
+  const rawSeo = value['seo'];
+  const rawDescription = value['description'];
+  const rawDescriptionHtml = value['descriptionHtml'];
+  const descriptionHtml = typeof rawDescriptionHtml === 'string' ? rawDescriptionHtml : null;
+  const rawLegacyResourceId = value['legacyResourceId'];
+  const rawUpdatedAt = value['updatedAt'];
+  const rawSortOrder = value['sortOrder'];
+  const rawTemplateSuffix = value['templateSuffix'];
+
+  return {
+    id,
+    legacyResourceId: typeof rawLegacyResourceId === 'string' ? rawLegacyResourceId : readLegacyResourceIdFromGid(id),
+    title,
+    handle,
+    updatedAt: typeof rawUpdatedAt === 'string' ? rawUpdatedAt : null,
+    description:
+      typeof rawDescription === 'string'
+        ? rawDescription
+        : descriptionHtml !== null
+          ? stripHtmlToDescription(descriptionHtml)
+          : null,
+    descriptionHtml,
+    image: normalizeCollectionImage(value['image']),
+    sortOrder: typeof rawSortOrder === 'string' ? rawSortOrder : null,
+    templateSuffix:
+      rawTemplateSuffix === null ? null : typeof rawTemplateSuffix === 'string' ? rawTemplateSuffix : null,
+    seo: isObject(rawSeo)
+      ? {
+          title: typeof rawSeo['title'] === 'string' ? rawSeo['title'] : null,
+          description: typeof rawSeo['description'] === 'string' ? rawSeo['description'] : null,
+        }
+      : { title: null, description: null },
+    ruleSet: normalizeCollectionRuleSet(value['ruleSet']),
   };
 }
 
@@ -3760,7 +3973,30 @@ function serializeVariantsConnection(
 function serializeCollectionSelectionSet(
   collection: CollectionRecord | ProductCollectionRecord,
   selections: readonly SelectionNode[],
+  variables: Record<string, unknown>,
 ): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = selection.alias?.value ?? selection.name.value;
+    result[key] = serializeCollectionField(collection, selection, variables);
+  }
+
+  return result;
+}
+
+function serializeCollectionImage(
+  image: CollectionImageRecord | null | undefined,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> | null {
+  if (!image) {
+    return null;
+  }
+
   const result: Record<string, unknown> = {};
 
   for (const selection of selections) {
@@ -3771,13 +4007,22 @@ function serializeCollectionSelectionSet(
     const key = selection.alias?.value ?? selection.name.value;
     switch (selection.name.value) {
       case 'id':
-        result[key] = collection.id;
+        result[key] = image.id ?? null;
         break;
-      case 'title':
-        result[key] = collection.title;
+      case 'altText':
+        result[key] = image.altText;
         break;
-      case 'handle':
-        result[key] = collection.handle;
+      case 'url':
+      case 'src':
+      case 'originalSrc':
+      case 'transformedSrc':
+        result[key] = image.url;
+        break;
+      case 'width':
+        result[key] = image.width ?? null;
+        break;
+      case 'height':
+        result[key] = image.height ?? null;
         break;
       default:
         result[key] = null;
@@ -3785,6 +4030,138 @@ function serializeCollectionSelectionSet(
   }
 
   return result;
+}
+
+function serializeCollectionSeo(
+  seo: CollectionRecord['seo'],
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  const effectiveSeo = seo ?? { title: null, description: null };
+
+  for (const selection of selections) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = selection.alias?.value ?? selection.name.value;
+    switch (selection.name.value) {
+      case 'title':
+        result[key] = effectiveSeo.title;
+        break;
+      case 'description':
+        result[key] = effectiveSeo.description;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeCollectionRuleSet(
+  ruleSet: CollectionRuleSetRecord | null | undefined,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> | null {
+  if (!ruleSet) {
+    return null;
+  }
+
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = selection.alias?.value ?? selection.name.value;
+    switch (selection.name.value) {
+      case 'appliedDisjunctively':
+        result[key] = ruleSet.appliedDisjunctively;
+        break;
+      case 'rules':
+        result[key] = ruleSet.rules.map((rule) =>
+          Object.fromEntries(
+            (selection.selectionSet?.selections ?? [])
+              .filter((ruleSelection): ruleSelection is FieldNode => ruleSelection.kind === Kind.FIELD)
+              .map((ruleSelection) => {
+                const ruleKey = ruleSelection.alias?.value ?? ruleSelection.name.value;
+                switch (ruleSelection.name.value) {
+                  case 'column':
+                    return [ruleKey, rule.column];
+                  case 'relation':
+                    return [ruleKey, rule.relation];
+                  case 'condition':
+                    return [ruleKey, rule.condition];
+                  case 'conditionObject':
+                    return [ruleKey, null];
+                  default:
+                    return [ruleKey, null];
+                }
+              }),
+          ),
+        );
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeCollectionField(
+  collection: CollectionRecord | ProductCollectionRecord,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): unknown {
+  switch (field.name.value) {
+    case 'id':
+      return collection.id;
+    case 'legacyResourceId':
+      return collection.legacyResourceId ?? readLegacyResourceIdFromGid(collection.id);
+    case 'title':
+      return collection.title;
+    case 'handle':
+      return collection.handle;
+    case 'updatedAt':
+      return collection.updatedAt ?? null;
+    case 'description': {
+      const description =
+        collection.description ??
+        (collection.descriptionHtml ? stripHtmlToDescription(collection.descriptionHtml) : null);
+      const args = getFieldArguments(field, variables);
+      const rawTruncateAt = args['truncateAt'];
+      if (description && typeof rawTruncateAt === 'number' && rawTruncateAt >= 0) {
+        return description.slice(0, rawTruncateAt);
+      }
+      return description;
+    }
+    case 'descriptionHtml':
+      return collection.descriptionHtml ?? null;
+    case 'image':
+      return serializeCollectionImage(collection.image, field.selectionSet?.selections ?? []);
+    case 'productsCount':
+      return serializeCountValue(field, listEffectiveProductsForCollection(collection.id).length);
+    case 'hasProduct': {
+      const args = getFieldArguments(field, variables);
+      const productId = typeof args['id'] === 'string' ? args['id'] : null;
+      return productId
+        ? listEffectiveProductsForCollection(collection.id).some((product) => product.id === productId)
+        : false;
+    }
+    case 'sortOrder':
+      return collection.sortOrder ?? null;
+    case 'templateSuffix':
+      return collection.templateSuffix ?? null;
+    case 'seo':
+      return serializeCollectionSeo(collection.seo, field.selectionSet?.selections ?? []);
+    case 'ruleSet':
+      return serializeCollectionRuleSet(collection.ruleSet, field.selectionSet?.selections ?? []);
+    default:
+      return null;
+  }
 }
 
 function serializeCollectionObject(
@@ -3801,15 +4178,6 @@ function serializeCollectionObject(
 
     const key = selection.alias?.value ?? selection.name.value;
     switch (selection.name.value) {
-      case 'id':
-        result[key] = collection.id;
-        break;
-      case 'title':
-        result[key] = collection.title;
-        break;
-      case 'handle':
-        result[key] = collection.handle;
-        break;
       case 'products': {
         const args = getFieldArguments(selection, variables);
         const rawFirst = args['first'];
@@ -3832,7 +4200,7 @@ function serializeCollectionObject(
         break;
       }
       default:
-        result[key] = null;
+        result[key] = serializeCollectionField(collection, selection, variables);
     }
   }
 
@@ -3861,7 +4229,7 @@ function serializeCollectionsConnection(
     switch (selection.name.value) {
       case 'nodes':
         result[key] = collections.map((collection) =>
-          serializeCollectionSelectionSet(collection, selection.selectionSet?.selections ?? []),
+          serializeCollectionSelectionSet(collection, selection.selectionSet?.selections ?? [], variables),
         );
         break;
       case 'edges':
@@ -3881,6 +4249,7 @@ function serializeCollectionsConnection(
                 edgeResult[edgeKey] = serializeCollectionSelectionSet(
                   collection,
                   edgeSelection.selectionSet?.selections ?? [],
+                  variables,
                 );
                 break;
               default:
