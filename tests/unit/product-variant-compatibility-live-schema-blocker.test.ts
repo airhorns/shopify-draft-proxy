@@ -15,24 +15,24 @@ describe('product variant compatibility live schema blocker', () => {
     expect(script).toContain('productVariantCreate(input: $input)');
     expect(script).toContain('productVariantUpdate(input: $input)');
     expect(script).toContain('productVariantDelete(id: $id)');
-    expect(script).toContain('product-variant-compatibility-live-schema-blocker.md');
+    expect(script).toContain('HAR-189');
   });
 
-  it('records a blocker note with the exact missing live mutation roots', () => {
+  it('keeps compatibility evidence in parity metadata', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
-    const blockerPath = resolve(repoRoot, 'pending/product-variant-compatibility-live-schema-blocker.md');
+    const specPaths = [
+      'config/parity-specs/productVariantCreate-parity-plan.json',
+      'config/parity-specs/productVariantUpdate-parity-plan.json',
+      'config/parity-specs/productVariantDelete-parity-plan.json',
+    ];
 
-    expect(existsSync(blockerPath)).toBe(true);
-
-    const blockerNote = readFileSync(blockerPath, 'utf8');
-    expect(blockerNote).toContain('`productVariantCreate`');
-    expect(blockerNote).toContain('`productVariantUpdate`');
-    expect(blockerNote).toContain('`productVariantDelete`');
-    expect(blockerNote).toContain("Field 'productVariantCreate' doesn't exist on type 'Mutation'");
-    expect(blockerNote).toContain("Field 'productVariantUpdate' doesn't exist on type 'Mutation'");
-    expect(blockerNote).toContain("Field 'productVariantDelete' doesn't exist on type 'Mutation'");
-    expect(blockerNote).toContain('productVariantsBulkCreate');
-    expect(blockerNote).toContain('productVariantsBulkUpdate');
-    expect(blockerNote).toContain('productVariantsBulkDelete');
+    const specs = specPaths.map((specPath) => readFileSync(resolve(repoRoot, specPath), 'utf8'));
+    expect(specs.join('\n')).toContain('HAR-189');
+    expect(specs.join('\n')).toContain('productVariantsBulkCreate');
+    expect(specs.join('\n')).toContain('productVariantsBulkUpdate');
+    expect(specs.join('\n')).toContain('productVariantsBulkDelete');
+    for (const spec of specs) {
+      expect(spec).not.toContain('pending/');
+    }
   });
 });

@@ -2,9 +2,6 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status and error output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
-import path from 'node:path';
-
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 const requiredVars = ['SHOPIFY_CONFORMANCE_STORE_DOMAIN', 'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
@@ -17,10 +14,9 @@ if (missingVars.length > 0) {
 
 const storeDomain = process.env['SHOPIFY_CONFORMANCE_STORE_DOMAIN'];
 const adminOrigin = process.env['SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
-const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || '2025-01';
-const pendingDir = 'pending';
-const blockerPath = path.join(pendingDir, 'product-variant-compatibility-live-schema-blocker.md');
+const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
+const linearIssue = 'HAR-189';
 
 async function runGraphqlRaw(query, variables = {}) {
   const response = await fetch(`${adminOrigin}/admin/api/${apiVersion}/graphql.json`, {
@@ -146,7 +142,7 @@ function buildBlockerNote(blockers) {
     '## What was completed anyway',
     '',
     '1. added a dedicated live-schema probe command for the single-variant compatibility family instead of leaving the blocker as an inferred sentence in generated docs',
-    '2. refreshed a durable blocker note from the current host token and store so future runs can verify the schema drift explicitly',
+    '2. refreshed durable blocker evidence from the current host token and store so future runs can verify the schema drift explicitly',
     '3. preserved the adjacent live-supported bulk variant family as the real parity baseline (`productVariantsBulkCreate`, `productVariantsBulkUpdate`, `productVariantsBulkDelete`) rather than faking direct coverage for missing roots',
     '',
     '## Recommended next step',
@@ -156,8 +152,6 @@ function buildBlockerNote(blockers) {
   ].join('\n');
 }
 
-await mkdir(pendingDir, { recursive: true });
-
 const blockers = [];
 for (const probe of probeDefinitions) {
   const result = await runGraphqlRaw(probe.query, probe.variables);
@@ -166,13 +160,13 @@ for (const probe of probeDefinitions) {
 
 if (blockers.length === probeDefinitions.length) {
   const note = buildBlockerNote(blockers);
-  await writeFile(blockerPath, `${note}\n`, 'utf8');
   console.log(
     JSON.stringify(
       {
         ok: false,
         blocked: true,
-        blockerPath,
+        linearIssue,
+        blockerSummary: note,
         blockers,
       },
       null,

@@ -4,15 +4,14 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-variants-bulk-delete-parity.json",
-    "pending/product-variant-compatibility-live-schema-blocker.md"
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-variants-bulk-delete-parity.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/productVariantDelete-parity-plan.graphql",
     "variablesPath": "config/parity-requests/productVariantDelete-parity-plan.variables.json"
   },
   "comparisonMode": "captured-compatibility-wrapper",
-  "notes": "Executed compatibility-wrapper coverage for `productVariantDelete`: compare the checked-in single-variant delete wrapper against the live-supported bulk-delete parity slice it reuses locally. The schema blocker note remains in liveCaptureFiles to document that Shopify no longer exposes the legacy root directly on this store/api-version pair, while the downstream read target asserts immediate product.variants removal, product inventory summaries, and captured sku-filtered products/productsCount search lag.",
+  "notes": "Executed compatibility-wrapper coverage for `productVariantDelete`: compare the checked-in single-variant delete wrapper against the live-supported bulk-delete parity slice it reuses locally. Linear HAR-189 tracks re-checking direct legacy-root availability on future Shopify schemas, while the downstream read target asserts immediate product.variants removal, product inventory summaries, and captured sku-filtered products/productsCount search lag.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

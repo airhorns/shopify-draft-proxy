@@ -11,8 +11,9 @@
   "comparisonMode": "planned",
   "blocker": {
     "kind": "missing-live-draft-order-complete-access",
-    "blockerPath": "pending/order-creation-conformance-scope-blocker.md",
+    "blockerPath": null,
     "details": {
+      "linearIssue": "HAR-186",
       "requiredScopes": ["write_draft_orders"],
       "probeRoots": ["draftOrderComplete"],
       "blockedMutations": ["draftOrderComplete"],
