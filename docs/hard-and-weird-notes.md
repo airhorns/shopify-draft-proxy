@@ -1686,3 +1686,22 @@ Practical rule for the proxy:
 - rebuild `displayName` from effective name/email state after staged create/update so downstream `customer` and `customers` reads stay aligned
 - mask staged `defaultPhoneNumber.phoneNumber` in the same practical style as the captured live payload instead of echoing raw phone input
 - preserve the captured validation distinctions exactly: null-field missing-identity create error, `Customer does not exist` for unknown-id update, and `Customer can't be found` for unknown-id delete
+
+## 45. Rich collection fields need a real collection row, not only membership rows
+
+Extending collection reads past `id` / `title` / `handle` exposed the limit of deriving every collection only from `product.collections` memberships.
+
+Current local rule:
+
+- standalone `CollectionRecord` rows are the home for merchant-facing collection metadata: REST legacy id, `updatedAt`, description HTML/text, image, sort order, template suffix, SEO, and smart-collection `ruleSet`
+- membership-derived collection rows can still make a collection visible, but absent rich fields should stay absent/null instead of inventing arbitrary metadata from a product membership
+- nested `product.collections` should overlay the standalone collection row onto the product-scoped membership row so staged `collectionUpdate` and snapshot metadata are visible consistently on both top-level and nested reads
+- `productsCount` and `hasProduct(id:)` are derived from the effective product membership graph rather than stored on the collection record
+- local `collectionUpdate` preserves handle stability when the title changes without an explicit handle; `redirectNewHandle` is recorded in staged state for future conformance, but no redirect resource is modeled yet
+
+Live evidence refreshed on this host:
+
+- `corepack pnpm conformance:capture-collections` now captures a custom collection (`Home page`) and a smart collection (`VANS`) in `collection-detail.json`
+- custom collections return `ruleSet: null`; the captured smart collection returns a `ruleSet` with `appliedDisjunctively: false` and a `TITLE CONTAINS VANS` rule
+- both captured custom and smart collections currently return `sortOrder: BEST_SELLING`; the custom collection's blank description comes back as empty strings for both `description` and `descriptionHtml`, not `null`
+- the catalog fixture now selects the same rich metadata fields so `collections` parity covers the captured null/empty shapes alongside nested product connection shape

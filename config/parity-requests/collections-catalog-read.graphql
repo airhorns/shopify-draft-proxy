@@ -4,8 +4,37 @@ query CollectionsCatalogRead($first: Int!) {
       cursor
       node {
         id
+        legacyResourceId
         title
         handle
+        updatedAt
+        description
+        descriptionHtml
+        image {
+          id
+          url
+          altText
+          width
+          height
+        }
+        productsCount {
+          count
+          precision
+        }
+        sortOrder
+        templateSuffix
+        seo {
+          title
+          description
+        }
+        ruleSet {
+          appliedDisjunctively
+          rules {
+            column
+            relation
+            condition
+          }
+        }
         products(first: 2) {
           edges {
             cursor

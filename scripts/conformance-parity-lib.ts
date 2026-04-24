@@ -1177,11 +1177,68 @@ function makeDefaultOption(productId: string): ProductOptionRecord {
   };
 }
 
+function stripCapturedHtml(value: string): string {
+  return value
+    .replace(/<[^>]*>/gu, '')
+    .replace(/\s+/gu, ' ')
+    .trim();
+}
+
 function makeSeedCollection(collectionId: string, source: Record<string, unknown> | null = null): CollectionRecord {
+  const rawSeo = readRecordField(source, 'seo');
+  const rawImage = readRecordField(source, 'image');
+  const rawRuleSet = readRecordField(source, 'ruleSet');
+  const descriptionHtml = readStringField(source, 'descriptionHtml');
+  const rules = readArrayField(rawRuleSet, 'rules').filter(isPlainObject);
+
   return {
     id: collectionId,
+    legacyResourceId: readStringField(source, 'legacyResourceId') ?? collectionId.split('/').at(-1) ?? null,
     title: readStringField(source, 'title') ?? 'Conformance seed collection',
     handle: readStringField(source, 'handle') ?? `conformance-seed-${collectionId.split('/').at(-1) ?? 'collection'}`,
+    updatedAt: readStringField(source, 'updatedAt'),
+    description:
+      readStringField(source, 'description') ?? (descriptionHtml ? stripCapturedHtml(descriptionHtml) : null),
+    descriptionHtml,
+    image: rawImage
+      ? {
+          id: readStringField(rawImage, 'id'),
+          altText: readStringField(rawImage, 'altText'),
+          url:
+            readStringField(rawImage, 'url') ??
+            readStringField(rawImage, 'src') ??
+            readStringField(rawImage, 'originalSrc') ??
+            readStringField(rawImage, 'transformedSrc'),
+          width: readNumberField(rawImage, 'width'),
+          height: readNumberField(rawImage, 'height'),
+        }
+      : null,
+    sortOrder: readStringField(source, 'sortOrder'),
+    templateSuffix: readStringField(source, 'templateSuffix'),
+    seo: {
+      title: readStringField(rawSeo, 'title'),
+      description: readStringField(rawSeo, 'description'),
+    },
+    ruleSet: rawRuleSet
+      ? {
+          appliedDisjunctively: readBooleanField(rawRuleSet, 'appliedDisjunctively') ?? false,
+          rules: rules
+            .map((rule) => {
+              const column = readStringField(rule, 'column');
+              const relation = readStringField(rule, 'relation');
+              const condition = readStringField(rule, 'condition');
+              return column && relation && condition !== null
+                ? {
+                    column,
+                    relation,
+                    condition,
+                    conditionObjectId: readStringField(rule, 'conditionObjectId'),
+                  }
+                : null;
+            })
+            .filter((rule): rule is NonNullable<typeof rule> => rule !== null),
+        }
+      : null,
   };
 }
 

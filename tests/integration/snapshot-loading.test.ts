@@ -58,7 +58,41 @@ describe('snapshot loading', () => {
             },
             productVariants: {},
             productOptions: {},
-            collections: {},
+            collections: {
+              'gid://shopify/Collection/8101': {
+                id: 'gid://shopify/Collection/8101',
+                legacyResourceId: '8101',
+                title: 'Snapshot Rich Collection',
+                handle: 'snapshot-rich-collection',
+                updatedAt: '2025-01-06T00:00:00.000Z',
+                description: 'Snapshot collection description',
+                descriptionHtml: '<p>Snapshot collection description</p>',
+                image: {
+                  id: 'gid://shopify/CollectionImage/8101',
+                  altText: 'Snapshot collection image',
+                  url: 'https://cdn.shopify.com/s/files/1/0000/0001/collections/snapshot.jpg',
+                  width: 640,
+                  height: 480,
+                },
+                sortOrder: 'MANUAL',
+                templateSuffix: 'snapshot',
+                seo: {
+                  title: 'Snapshot Collection SEO',
+                  description: 'Snapshot Collection SEO description',
+                },
+                ruleSet: {
+                  appliedDisjunctively: false,
+                  rules: [
+                    {
+                      column: 'TAG',
+                      relation: 'EQUALS',
+                      condition: 'snapshot',
+                      conditionObjectId: null,
+                    },
+                  ],
+                },
+              },
+            },
             customers: {
               'gid://shopify/Customer/7001': {
                 id: 'gid://shopify/Customer/7001',
@@ -182,6 +216,57 @@ describe('snapshot loading', () => {
       seo: {
         title: 'Snapshot Product SEO',
         description: 'Snapshot product SEO description',
+      },
+    });
+
+    const collectionResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query SnapshotCollection($id: ID!, $productId: ID!) { collection(id: $id) { id legacyResourceId title handle updatedAt description descriptionHtml image { id url altText width height } productsCount { count precision } hasProduct(id: $productId) sortOrder templateSuffix seo { title description } ruleSet { appliedDisjunctively rules { column relation condition conditionObject } } } }',
+        variables: {
+          id: 'gid://shopify/Collection/8101',
+          productId: 'gid://shopify/Product/9001',
+        },
+      });
+
+    expect(collectionResponse.status).toBe(200);
+    expect(collectionResponse.body.data.collection).toEqual({
+      id: 'gid://shopify/Collection/8101',
+      legacyResourceId: '8101',
+      title: 'Snapshot Rich Collection',
+      handle: 'snapshot-rich-collection',
+      updatedAt: '2025-01-06T00:00:00.000Z',
+      description: 'Snapshot collection description',
+      descriptionHtml: '<p>Snapshot collection description</p>',
+      image: {
+        id: 'gid://shopify/CollectionImage/8101',
+        url: 'https://cdn.shopify.com/s/files/1/0000/0001/collections/snapshot.jpg',
+        altText: 'Snapshot collection image',
+        width: 640,
+        height: 480,
+      },
+      productsCount: {
+        count: 0,
+        precision: 'EXACT',
+      },
+      hasProduct: false,
+      sortOrder: 'MANUAL',
+      templateSuffix: 'snapshot',
+      seo: {
+        title: 'Snapshot Collection SEO',
+        description: 'Snapshot Collection SEO description',
+      },
+      ruleSet: {
+        appliedDisjunctively: false,
+        rules: [
+          {
+            column: 'TAG',
+            relation: 'EQUALS',
+            condition: 'snapshot',
+            conditionObject: null,
+          },
+        ],
       },
     });
 
