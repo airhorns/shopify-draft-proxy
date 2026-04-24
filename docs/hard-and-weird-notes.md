@@ -1732,3 +1732,24 @@ Practical rule for the proxy:
 - local customer/address/consent/tax roots should stage locally before being marked implemented, because supported mutations must not hit Shopify during normal runtime
 - side-effect email roots and customer merge should stay explicit passthrough/deferred until a product decision says whether to block, simulate, or proxy them with stronger observability
 - the protected-customer-data denial mode remains a real fallback path in `scripts/capture-customer-conformance.mts`, but current successful fixtures should not be overwritten by stale blocker notes unless the capture script reproduces the denial again
+
+## 47. Store properties roots are deceptively broad for a "properties" category
+
+The first Store properties inventory for Admin GraphQL 2026-04 exposed several roots that should be tracked before runtime support, but should not be treated as harmless metadata reads/writes.
+
+Current scaffold decision:
+
+- `shop`, `location`, `locationByIdentifier`, `businessEntities`, `businessEntity`, and `cashManagementLocationSummary` are registry-tracked as planned overlay reads, but they are not implemented runtime capabilities yet
+- `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, `locationDelete`, generic `publishable*` mutations, and `shopPolicyUpdate` are registry-tracked as planned local-staging mutations, but they remain unsupported at runtime
+- the capture harness now records schema inventory plus safe read-only `shop` / `locations` / `location(id:)` baselines, while mutation validation probes are recorded as a plan instead of executed by default
+
+Safety traps:
+
+- location lifecycle roots can alter merchant fulfillment/inventory topology; do not capture happy paths on a shared dev store without a disposable location setup and a cleanup story
+- generic `publishablePublish*` / `publishableUnpublish*` roots can affect any `Publishable` implementer, not only product-specific publication paths already covered elsewhere
+- `shopPolicyUpdate` edits merchant legal policy content, so validation-only probes should come before any success-path fixture
+- `cashManagementLocationSummary` is POS/cash-management adjacent and may be gated by location, staff, POS, or cash-tracking permissions; treat access-denied or null/empty responses as domain evidence, not as generic read failures
+
+Practical rule:
+
+- keep Store properties registry inventory separate from runtime support; do not flip these roots to implemented until there is captured fixture evidence plus local model behavior for the specific root family
