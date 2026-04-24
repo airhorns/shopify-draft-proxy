@@ -1,0 +1,127 @@
+{
+  "mutation": {
+    "variables": {
+      "product": {
+        "title": "Hermes Product Inventory Read 1777062394222",
+        "status": "DRAFT",
+        "vendor": "HERMES",
+        "productType": "INVENTORY-CONFORMANCE",
+        "tags": ["conformance", "inventory-read", "1777062394222"]
+      }
+    },
+    "response": {
+      "data": {
+        "productCreate": {
+          "product": {
+            "id": "gid://shopify/Product/9263919956201",
+            "title": "Hermes Product Inventory Read 1777062394222",
+            "handle": "hermes-product-inventory-read-1777062394222",
+            "status": "DRAFT",
+            "totalInventory": 0,
+            "tracksInventory": false,
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/50933258846441",
+                  "title": "Default Title",
+                  "inventoryQuantity": 0,
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53081336217833",
+                    "tracked": false,
+                    "requiresShipping": true
+                  }
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/9263919956201",
+        "title": "Hermes Product Inventory Read 1777062394222",
+        "handle": "hermes-product-inventory-read-1777062394222",
+        "status": "DRAFT",
+        "totalInventory": 0,
+        "tracksInventory": false,
+        "variants": {
+          "nodes": [
+            {
+              "id": "gid://shopify/ProductVariant/50933258846441",
+              "title": "Default Title",
+              "inventoryQuantity": 0,
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53081336217833",
+                "tracked": false,
+                "requiresShipping": true
+              }
+            }
+          ]
+        }
+      },
+      "variant": {
+        "id": "gid://shopify/ProductVariant/50933258846441",
+        "title": "Default Title",
+        "inventoryQuantity": 0,
+        "inventoryItem": {
+          "id": "gid://shopify/InventoryItem/53081336217833",
+          "tracked": false,
+          "requiresShipping": true
+        },
+        "product": {
+          "id": "gid://shopify/Product/9263919956201",
+          "title": "Hermes Product Inventory Read 1777062394222",
+          "handle": "hermes-product-inventory-read-1777062394222",
+          "status": "DRAFT",
+          "totalInventory": 0,
+          "tracksInventory": false
+        }
+      },
+      "stock": {
+        "id": "gid://shopify/InventoryItem/53081336217833",
+        "tracked": false,
+        "requiresShipping": true,
+        "variant": {
+          "id": "gid://shopify/ProductVariant/50933258846441",
+          "title": "Default Title",
+          "sku": null,
+          "inventoryQuantity": 0,
+          "product": {
+            "id": "gid://shopify/Product/9263919956201",
+            "title": "Hermes Product Inventory Read 1777062394222",
+            "handle": "hermes-product-inventory-read-1777062394222",
+            "status": "DRAFT",
+            "totalInventory": 0,
+            "tracksInventory": false
+          }
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 17,
+        "actualQueryCost": 11,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1989,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

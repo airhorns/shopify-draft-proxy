@@ -77,11 +77,11 @@ describe('customer draft flow', () => {
       note: 'created locally',
       verifiedEmail: true,
       taxExempt: true,
-      tags: ['vip', 'draft'],
+      tags: ['draft', 'vip'],
       state: 'DISABLED',
       canDelete: true,
       defaultEmailAddress: { emailAddress: 'draft-customer@example.com' },
-      defaultPhoneNumber: { phoneNumber: '+141****0123' },
+      defaultPhoneNumber: { phoneNumber: '+14155550123' },
       defaultAddress: null,
     });
     expect(createResponse.body.data.customerCreate.customer.id).toMatch(/^gid:\/\/shopify\/Customer\//);
@@ -123,14 +123,14 @@ describe('customer draft flow', () => {
           displayName: 'Draft Customer',
           email: 'draft-customer@example.com',
           note: 'created locally',
-          defaultPhoneNumber: { phoneNumber: '+141****0123' },
+          defaultPhoneNumber: { phoneNumber: '+14155550123' },
         },
         catalog: {
           nodes: [
             {
               id: customerId,
               email: 'draft-customer@example.com',
-              tags: ['vip', 'draft'],
+              tags: ['draft', 'vip'],
             },
           ],
         },
@@ -219,7 +219,7 @@ describe('customer draft flow', () => {
       note: 'after update',
       locale: 'en',
       taxExempt: true,
-      tags: ['vip', 'newsletter'],
+      tags: ['newsletter', 'vip'],
       defaultEmailAddress: { emailAddress: 'ada@example.com' },
     });
     expect(updateResponse.body.data.customerUpdate.customer.updatedAt).not.toBe(createdAt);
@@ -254,14 +254,14 @@ describe('customer draft flow', () => {
           displayName: 'Ada Byron',
           note: 'after update',
           taxExempt: true,
-          tags: ['vip', 'newsletter'],
+          tags: ['newsletter', 'vip'],
         },
         customers: {
           nodes: [
             {
               id: 'gid://shopify/Customer/401',
               displayName: 'Ada Byron',
-              tags: ['vip', 'newsletter'],
+              tags: ['newsletter', 'vip'],
             },
           ],
         },

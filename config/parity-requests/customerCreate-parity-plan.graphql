@@ -19,6 +19,14 @@ mutation CustomerCreateParityPlan($input: CustomerInput!) {
       defaultPhoneNumber {
         phoneNumber
       }
+      defaultAddress {
+        address1
+        city
+        province
+        country
+        zip
+        formattedArea
+      }
       createdAt
       updatedAt
     }

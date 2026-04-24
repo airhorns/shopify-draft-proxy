@@ -1,13 +1,56 @@
 {
-  "scenarioId": "fileCreate-parity-plan",
-  "operationNames": ["fileCreate"],
-  "scenarioStatus": "planned",
-  "assertionKinds": ["payload-shape", "user-errors-parity", "state-inspection"],
-  "liveCaptureFiles": [],
+  "scenarioId": "file-create-delete-live-parity",
+  "operationNames": ["fileCreate", "fileDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/file-create-delete-parity.json"],
   "proxyRequest": {
-    "documentPath": null,
-    "variablesPath": null
+    "documentPath": "config/parity-requests/fileCreateDelete-parity.graphql",
+    "variablesPath": null,
+    "variablesCapturePath": "$.createMutation.variables"
   },
-  "comparisonMode": "planned",
-  "notes": "Store-level Files API create parity still needs dedicated live-write scenarios and payload assertions. The initial proxy slice stages FileCreateInput records locally and confirms they do not create product.media attachments."
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured live store-level Files API create/delete payloads. The scenario keeps generic `fileCreate` distinct from product media attachment and proves the generated file id can be deleted through `fileDelete`.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.fileCreate.files[0].id",
+        "matcher": "shopify-gid:MediaImage",
+        "reason": "The proxy generates a stable local MediaImage GID for the staged Files API image; Shopify returns the dev-store MediaImage GID."
+      },
+      {
+        "path": "$.fileCreate.files[0].createdAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy uses its deterministic staged timestamp sequence; Shopify returns the live creation timestamp."
+      },
+      {
+        "path": "$.fileDelete.deletedFileIds[0]",
+        "matcher": "shopify-gid:MediaImage",
+        "reason": "The delete target uses the local staged file id returned by the proxy create response; Shopify returns the live file id captured from the dev store."
+      }
+    ],
+    "targets": [
+      {
+        "name": "create-mutation-data",
+        "capturePath": "$.createMutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "delete-mutation-data",
+        "capturePath": "$.deleteMutation.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/fileDelete-parity.graphql",
+          "variables": {
+            "fileIds": [
+              {
+                "fromPrimaryProxyPath": "$.data.fileCreate.files[0].id"
+              }
+            ]
+          }
+        },
+        "proxyPath": "$.data"
+      }
+    ]
+  }
 }

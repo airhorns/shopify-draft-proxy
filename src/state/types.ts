@@ -619,6 +619,7 @@ export const stateSnapshotSchema = z.strictObject({
   files: z.record(z.string(), fileRecordSchema).default({}),
   productMetafields: z.record(z.string(), productMetafieldRecordSchema),
   deletedProductIds: z.record(z.string(), z.literal(true)),
+  deletedFileIds: z.record(z.string(), z.literal(true)).default({}),
   deletedCollectionIds: z.record(z.string(), z.literal(true)),
   deletedCustomerIds: z.record(z.string(), z.literal(true)),
 });

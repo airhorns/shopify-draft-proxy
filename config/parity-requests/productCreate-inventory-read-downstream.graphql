@@ -1,0 +1,59 @@
+query ProductCreateInventoryReadDownstream($productId: ID!, $variantId: ID!, $inventoryItemId: ID!) {
+  product(id: $productId) {
+    id
+    title
+    handle
+    status
+    totalInventory
+    tracksInventory
+    variants(first: 10) {
+      nodes {
+        id
+        title
+        inventoryQuantity
+        inventoryItem {
+          id
+          tracked
+          requiresShipping
+        }
+      }
+    }
+  }
+  variant: productVariant(id: $variantId) {
+    id
+    title
+    inventoryQuantity
+    inventoryItem {
+      id
+      tracked
+      requiresShipping
+    }
+    product {
+      id
+      title
+      handle
+      status
+      totalInventory
+      tracksInventory
+    }
+  }
+  stock: inventoryItem(id: $inventoryItemId) {
+    id
+    tracked
+    requiresShipping
+    variant {
+      id
+      title
+      sku
+      inventoryQuantity
+      product {
+        id
+        title
+        handle
+        status
+        totalInventory
+        tracksInventory
+      }
+    }
+  }
+}

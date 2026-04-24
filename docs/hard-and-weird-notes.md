@@ -219,6 +219,18 @@ A later healthy-again pass on this host exposed a repo-local repair bug rather t
 
 This note is historical for the old worktree-local repair path. The current conformance auth entry point is the shared home-folder credential at `~/.shopify-draft-proxy/conformance-admin-auth.json`, and `corepack pnpm conformance:refresh-auth` should use that same path as `corepack pnpm conformance:probe` / `corepack pnpm conformance:capture-orders`.
 
+## 8. Customer mutation payloads normalize tags and phone numbers differently than guessed
+
+The first strict customer CRUD parity promotion exposed two easy local-draft guesses that were wrong for the captured Shopify Admin GraphQL payloads:
+
+- `Customer.defaultPhoneNumber.phoneNumber` came back as the full submitted E.164-like phone string, not a masked display value.
+- `Customer.tags` came back sorted lexicographically on the captured create path, even when input order differed.
+
+Practical rule:
+
+- do not mask customer phone numbers in Admin GraphQL mutation/read serializers
+- sort locally staged customer tags before storing them, so later mutation payloads and downstream reads keep the same order Shopify returns
+
 Current shared-credential finding:
 
 - the checked-in app directory can exist without a repo-local `.env`; in that case app-secret resolution must fall back to `/tmp/shopify-conformance-app/<SHOPIFY_CONFORMANCE_APP_HANDLE>/.env` instead of stopping at the empty repo-local app copy
@@ -1537,6 +1549,22 @@ That distinction matters:
 - current `FileCreateInput` fields do not include a product reference, so locally staged `fileCreate` records should not appear under downstream `product.media`
 - the first useful local slice is therefore mutation-payload fidelity plus meta-state visibility and raw mutation log retention, while richer `files` query behavior can come later as a separate read-surface increment
 
+The matching generic media delete worklist item maps to `fileDelete`, not
+`productDeleteMedia`.
+
+Important distinction:
+
+- `productDeleteMedia(productId, mediaIds)` removes product-scoped media
+  attachments and returns `deletedMediaIds` plus `deletedProductImageIds`
+- `fileDelete(fileIds)` removes store-level Files API assets and returns
+  `deletedFileIds` plus `userErrors`
+- Shopify documents `fileDelete` as also cleaning associated product
+  references, so deleting a file id that is also present in `product.media`
+  should make immediate downstream product media reads omit that record
+- the local first pass keeps this product-reference cleanup in the staged media
+  family while preserving the original raw `fileDelete` mutation for commit
+  replay
+
 Practical rule:
 
 1. model `inventoryItemUpdate` as a product-backed staged mutation over the effective variant inventory-item record, not as a separate detached inventory-item table
@@ -1645,7 +1673,9 @@ Refreshing live conformance for `inventoryActivate`, `inventoryDeactivate`, and 
 
 Observed live behavior on this host:
 
-- freshly created default variants still begin with one `inventoryLevel` row at the primary location even while `inventoryItem.tracked` is still `false`
+- freshly created default variants still expose an `inventoryItem` immediately; current captures show
+  `inventoryQuantity: 0`, `inventoryItem.tracked: false`, and `inventoryItem.requiresShipping: true`, with one
+  `inventoryLevel` row at the primary location even while tracking is still false
 - `inventoryActivate(inventoryItemId:, locationId:)` against that already-active primary location still succeeds as a no-op and returns the current `inventoryLevel` payload
 - adding `available:` to that already-active-location call still does **not** silently restock the item; Shopify returned `userErrors[{ field: ['available'], message: 'Not allowed to set available quantity when the item is already active at the location.' }]`
 - `inventoryActivate(inventoryItemId:, locationId:)` against a known second location now succeeds and creates a new `inventoryLevel` row for that location
@@ -1741,3 +1771,24 @@ Practical rule for the proxy:
 - local customer/address/consent/tax roots should stage locally before being marked implemented, because supported mutations must not hit Shopify during normal runtime
 - side-effect email roots and customer merge should stay explicit passthrough/deferred until a product decision says whether to block, simulate, or proxy them with stronger observability
 - the protected-customer-data denial mode remains a real fallback path in `scripts/capture-customer-conformance.mts`, but current successful fixtures should not be overwritten by stale blocker notes unless the capture script reproduces the denial again
+
+## 47. Store properties roots are deceptively broad for a "properties" category
+
+The first Store properties inventory for Admin GraphQL 2026-04 exposed several roots that should be tracked before runtime support, but should not be treated as harmless metadata reads/writes.
+
+Current scaffold decision:
+
+- `shop`, `location`, `locationByIdentifier`, `businessEntities`, `businessEntity`, and `cashManagementLocationSummary` are registry-tracked as planned overlay reads, but they are not implemented runtime capabilities yet
+- `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, `locationDelete`, generic `publishable*` mutations, and `shopPolicyUpdate` are registry-tracked as planned local-staging mutations, but they remain unsupported at runtime
+- the capture harness now records schema inventory plus safe read-only `shop` / `locations` / `location(id:)` baselines, while mutation validation probes are recorded as a plan instead of executed by default
+
+Safety traps:
+
+- location lifecycle roots can alter merchant fulfillment/inventory topology; do not capture happy paths on a shared dev store without a disposable location setup and a cleanup story
+- generic `publishablePublish*` / `publishableUnpublish*` roots can affect any `Publishable` implementer, not only product-specific publication paths already covered elsewhere
+- `shopPolicyUpdate` edits merchant legal policy content, so validation-only probes should come before any success-path fixture
+- `cashManagementLocationSummary` is POS/cash-management adjacent and may be gated by location, staff, POS, or cash-tracking permissions; treat access-denied or null/empty responses as domain evidence, not as generic read failures
+
+Practical rule:
+
+- keep Store properties registry inventory separate from runtime support; do not flip these roots to implemented until there is captured fixture evidence plus local model behavior for the specific root family

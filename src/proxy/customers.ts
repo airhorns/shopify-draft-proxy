@@ -113,18 +113,7 @@ function buildCustomerDisplayName(
 }
 
 function maskPhoneNumber(phone: string | null): string | null {
-  if (!phone) {
-    return null;
-  }
-
-  const digits = phone.replace(/\D/gu, '');
-  if (digits.length < 4) {
-    return phone;
-  }
-
-  const prefixMatch = phone.match(/^\+\d{1,3}/u);
-  const prefix = prefixMatch?.[0] ?? '';
-  return `${prefix}****${digits.slice(-4)}`;
+  return phone;
 }
 
 function normalizeMoney(raw: unknown, fallback: CustomerRecord['amountSpent'] = null): CustomerRecord['amountSpent'] {
@@ -1234,7 +1223,9 @@ function normalizeCustomerTags(raw: unknown, fallback: string[]): string[] {
     return structuredClone(fallback);
   }
 
-  return raw.filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+  return raw
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .sort((left, right) => left.localeCompare(right));
 }
 
 function buildCreatedCustomer(input: Record<string, unknown>): CustomerRecord {
