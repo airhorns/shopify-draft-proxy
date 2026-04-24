@@ -5,6 +5,7 @@ import { createApp } from '../../src/app.js';
 import type { AppConfig } from '../../src/config.js';
 import { store } from '../../src/state/store.js';
 import { resetSyntheticIdentity } from '../../src/state/synthetic-identity.js';
+import type { OrderRecord } from '../../src/state/types.js';
 
 const snapshotConfig: AppConfig = {
   port: 3000,
@@ -150,5 +151,163 @@ describe('order query shapes', () => {
     expect(response.status).toBe(200);
     expect(response.body).toEqual(upstreamPayload);
     expect(fetchSpy).toHaveBeenCalledOnce();
+  });
+
+  it('returns Shopify-like empty detail shapes for absent merchant order nested data', async () => {
+    const order: OrderRecord = {
+      id: 'gid://shopify/Order/112',
+      name: '#112',
+      createdAt: '2026-04-24T00:00:00.000Z',
+      updatedAt: '2026-04-24T00:00:00.000Z',
+      displayFinancialStatus: 'PENDING',
+      displayFulfillmentStatus: 'UNFULFILLED',
+      note: null,
+      tags: [],
+      customAttributes: [],
+      billingAddress: null,
+      shippingAddress: null,
+      subtotalPriceSet: {
+        shopMoney: {
+          amount: '10.0',
+          currencyCode: 'CAD',
+        },
+      },
+      currentTotalPriceSet: {
+        shopMoney: {
+          amount: '10.0',
+          currencyCode: 'CAD',
+        },
+      },
+      totalPriceSet: {
+        shopMoney: {
+          amount: '10.0',
+          currencyCode: 'CAD',
+        },
+      },
+      totalRefundedSet: {
+        shopMoney: {
+          amount: '0.0',
+          currencyCode: 'CAD',
+        },
+      },
+      customer: null,
+      shippingLines: [],
+      lineItems: [],
+      transactions: [],
+      refunds: [],
+      returns: [],
+    };
+    store.upsertBaseOrders([order]);
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query OrderMerchantEmptyDetail($id: ID!) {
+          order(id: $id) {
+            id
+            currentSubtotalPriceSet { shopMoney { amount currencyCode } }
+            totalReceivedSet { shopMoney { amount currencyCode } }
+            netPaymentSet { shopMoney { amount currencyCode } }
+            totalRefundedShippingSet { shopMoney { amount currencyCode } }
+            totalShippingPriceSet { shopMoney { amount currencyCode } }
+            shippingLines(first: 2) {
+              nodes { title }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            lineItems(first: 2) {
+              nodes { id }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            fulfillmentOrders(first: 2) {
+              nodes { id status }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            fulfillments(first: 2) {
+              id
+              status
+            }
+            returns(first: 2) {
+              nodes { id status }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }`,
+        variables: {
+          id: order.id,
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.order).toEqual({
+      id: order.id,
+      currentSubtotalPriceSet: {
+        shopMoney: {
+          amount: '10.0',
+          currencyCode: 'CAD',
+        },
+      },
+      totalReceivedSet: {
+        shopMoney: {
+          amount: '0.0',
+          currencyCode: 'CAD',
+        },
+      },
+      netPaymentSet: {
+        shopMoney: {
+          amount: '0.0',
+          currencyCode: 'CAD',
+        },
+      },
+      totalRefundedShippingSet: {
+        shopMoney: {
+          amount: '0.0',
+          currencyCode: 'CAD',
+        },
+      },
+      totalShippingPriceSet: {
+        shopMoney: {
+          amount: '0.0',
+          currencyCode: 'CAD',
+        },
+      },
+      shippingLines: {
+        nodes: [],
+        pageInfo: {
+          hasNextPage: false,
+          hasPreviousPage: false,
+          startCursor: null,
+          endCursor: null,
+        },
+      },
+      lineItems: {
+        nodes: [],
+        pageInfo: {
+          hasNextPage: false,
+          hasPreviousPage: false,
+          startCursor: null,
+          endCursor: null,
+        },
+      },
+      fulfillmentOrders: {
+        nodes: [],
+        pageInfo: {
+          hasNextPage: false,
+          hasPreviousPage: false,
+          startCursor: null,
+          endCursor: null,
+        },
+      },
+      fulfillments: [],
+      returns: {
+        nodes: [],
+        pageInfo: {
+          hasNextPage: false,
+          hasPreviousPage: false,
+          startCursor: null,
+          endCursor: null,
+        },
+      },
+    });
   });
 });

@@ -12,6 +12,10 @@ import type {
   DraftOrderRecord,
   DraftOrderShippingLineRecord,
   CustomerRecord,
+  OrderFulfillmentLineItemRecord,
+  OrderFulfillmentOrderLineItemRecord,
+  OrderFulfillmentOrderRecord,
+  OrderFulfillmentRecord,
   MoneyV2Record,
   OrderCustomerRecord,
   OrderDiscountApplicationRecord,
@@ -146,6 +150,19 @@ function normalizeOrderTaxLines(raw: unknown, currencyCode: string): OrderTaxLin
 
 function sumTaxLines(taxLines: OrderTaxLineRecord[]): number {
   return taxLines.reduce((sum, taxLine) => sum + parseDecimalAmount(taxLine.priceSet?.shopMoney.amount), 0);
+}
+
+function subtractMoney(
+  left: { shopMoney: MoneyV2Record | null } | null | undefined,
+  right: { shopMoney: MoneyV2Record | null } | null | undefined,
+  currencyCode: string,
+): { shopMoney: MoneyV2Record } {
+  return {
+    shopMoney: normalizeMoney(
+      formatDecimalAmount(parseDecimalAmount(left?.shopMoney?.amount) - parseDecimalAmount(right?.shopMoney?.amount)),
+      left?.shopMoney?.currencyCode ?? right?.shopMoney?.currencyCode ?? currencyCode,
+    ),
+  };
 }
 
 function normalizeDraftOrderAddress(raw: unknown): DraftOrderAddressRecord | null {
@@ -612,9 +629,19 @@ function buildOrderFromInput(input: unknown): OrderRecord {
     subtotalPriceSet: {
       shopMoney: normalizeMoney(subtotal, currencyCode),
     },
+    currentSubtotalPriceSet: {
+      shopMoney: normalizeMoney(subtotal, currencyCode),
+    },
     currentTotalPriceSet: {
       shopMoney: normalizeMoney(currentTotal, currencyCode),
     },
+    currentTotalDiscountsSet: discounts.totalDiscountsSet ?? normalizeZeroMoneyBag(currencyCode),
+    currentTotalTaxSet:
+      parseDecimalAmount(taxTotal) > 0
+        ? {
+            shopMoney: normalizeMoney(taxTotal, currencyCode),
+          }
+        : normalizeZeroMoneyBag(currencyCode),
     totalPriceSet: {
       shopMoney: normalizeMoney(currentTotal, currencyCode),
     },
@@ -623,6 +650,16 @@ function buildOrderFromInput(input: unknown): OrderRecord {
     },
     totalRefundedSet: {
       shopMoney: normalizeMoney('0.0', currencyCode),
+    },
+    totalRefundedShippingSet: normalizeZeroMoneyBag(currencyCode),
+    totalReceivedSet: {
+      shopMoney: normalizeMoney(hasSuccessfulTransaction ? currentTotal : '0.0', currencyCode),
+    },
+    netPaymentSet: {
+      shopMoney: normalizeMoney(hasSuccessfulTransaction ? currentTotal : '0.0', currencyCode),
+    },
+    totalShippingPriceSet: {
+      shopMoney: normalizeMoney(shippingTotal, currencyCode),
     },
     totalTaxSet:
       parseDecimalAmount(taxTotal) > 0
@@ -638,6 +675,8 @@ function buildOrderFromInput(input: unknown): OrderRecord {
     customer,
     shippingLines,
     lineItems,
+    fulfillments: [],
+    fulfillmentOrders: [],
     transactions: normalizedTransactions,
     refunds: [],
     returns: [],
@@ -855,11 +894,21 @@ function recalculateOrderTotals(order: OrderRecord): OrderRecord {
     subtotalPriceSet: {
       shopMoney: normalizeMoney(subtotal, currencyCode),
     },
+    currentSubtotalPriceSet: {
+      shopMoney: normalizeMoney(subtotal, currencyCode),
+    },
     currentTotalPriceSet: {
       shopMoney: normalizeMoney(total, currencyCode),
     },
+    currentTotalTaxSet:
+      parseDecimalAmount(taxTotal) > 0
+        ? { shopMoney: normalizeMoney(taxTotal, currencyCode) }
+        : order.currentTotalTaxSet,
     totalPriceSet: {
       shopMoney: normalizeMoney(total, currencyCode),
+    },
+    totalShippingPriceSet: {
+      shopMoney: normalizeMoney(shippingTotal, currencyCode),
     },
     totalTaxSet:
       parseDecimalAmount(taxTotal) > 0 ? { shopMoney: normalizeMoney(taxTotal, currencyCode) } : order.totalTaxSet,
@@ -1111,14 +1160,22 @@ function applyRefundToOrder(order: OrderRecord, refund: OrderRefundRecord): Orde
   const total = parseDecimalAmount(order.totalPriceSet?.shopMoney.amount);
   const totalRefunded = sumRefundedAmount({ ...order, refunds: [...order.refunds, refund] });
   const displayFinancialStatus = totalRefunded >= total && total > 0 ? 'REFUNDED' : 'PARTIALLY_REFUNDED';
+  const currencyCode = readOrderCurrencyCode(order);
+  const totalRefundedSet = {
+    shopMoney: normalizeMoney(formatDecimalAmount(totalRefunded), currencyCode),
+  };
+  const netPaymentSet = subtractMoney(
+    order.totalReceivedSet ?? order.currentTotalPriceSet,
+    totalRefundedSet,
+    currencyCode,
+  );
 
   return {
     ...order,
     updatedAt: refund.createdAt,
     displayFinancialStatus,
-    totalRefundedSet: {
-      shopMoney: normalizeMoney(formatDecimalAmount(totalRefunded), readOrderCurrencyCode(order)),
-    },
+    totalRefundedSet,
+    netPaymentSet,
     transactions: [...structuredClone(order.transactions), ...structuredClone(refund.transactions)],
     refunds: [...structuredClone(order.refunds), structuredClone(refund)],
   };
@@ -1150,6 +1207,8 @@ function markOrderAsPaid(order: OrderRecord, gateway = 'manual'): OrderRecord {
     totalOutstandingSet: {
       shopMoney: normalizeMoney('0.0', currencyCode),
     },
+    totalReceivedSet: structuredClone(amountSet),
+    netPaymentSet: subtractMoney(amountSet, order.totalRefundedSet, currencyCode),
     transactions: [...structuredClone(order.transactions), transaction],
   };
 }
@@ -2338,6 +2397,308 @@ function serializeOrderLineItemsConnection(
   return result;
 }
 
+function serializeOrderFulfillmentLineItem(
+  field: FieldNode,
+  fulfillmentLineItem: OrderFulfillmentLineItemRecord,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = fulfillmentLineItem.id;
+        break;
+      case 'quantity':
+        result[key] = fulfillmentLineItem.quantity;
+        break;
+      case 'lineItem':
+        result[key] = fulfillmentLineItem.lineItemId
+          ? Object.fromEntries(
+              getSelectedChildFields(selection).map((lineItemSelection) => {
+                const lineItemKey = getFieldResponseKey(lineItemSelection);
+                switch (lineItemSelection.name.value) {
+                  case 'id':
+                    return [lineItemKey, fulfillmentLineItem.lineItemId];
+                  case 'title':
+                    return [lineItemKey, fulfillmentLineItem.title];
+                  default:
+                    return [lineItemKey, null];
+                }
+              }),
+            )
+          : null;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeOrderFulfillmentLineItemsConnection(
+  field: FieldNode,
+  fulfillmentLineItems: OrderFulfillmentLineItemRecord[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'nodes':
+        result[key] = fulfillmentLineItems.map((lineItem) => serializeOrderFulfillmentLineItem(selection, lineItem));
+        break;
+      case 'edges':
+        result[key] = fulfillmentLineItems.map((lineItem) => {
+          const edgeResult: Record<string, unknown> = {};
+          for (const edgeSelection of getSelectedChildFields(selection)) {
+            const edgeKey = getFieldResponseKey(edgeSelection);
+            switch (edgeSelection.name.value) {
+              case 'cursor':
+                edgeResult[edgeKey] = `cursor:${lineItem.id}`;
+                break;
+              case 'node':
+                edgeResult[edgeKey] = serializeOrderFulfillmentLineItem(edgeSelection, lineItem);
+                break;
+              default:
+                edgeResult[edgeKey] = null;
+                break;
+            }
+          }
+          return edgeResult;
+        });
+        break;
+      case 'pageInfo':
+        result[key] = serializePageInfo(selection);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeOrderFulfillment(field: FieldNode, fulfillment: OrderFulfillmentRecord): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = fulfillment.id;
+        break;
+      case 'status':
+        result[key] = fulfillment.status;
+        break;
+      case 'displayStatus':
+        result[key] = fulfillment.displayStatus ?? fulfillment.status;
+        break;
+      case 'createdAt':
+        result[key] = fulfillment.createdAt ?? null;
+        break;
+      case 'updatedAt':
+        result[key] = fulfillment.updatedAt ?? null;
+        break;
+      case 'trackingInfo':
+        result[key] = (fulfillment.trackingInfo ?? []).map((trackingInfo) =>
+          Object.fromEntries(
+            getSelectedChildFields(selection).map((trackingSelection) => {
+              const trackingKey = getFieldResponseKey(trackingSelection);
+              switch (trackingSelection.name.value) {
+                case 'number':
+                  return [trackingKey, trackingInfo.number];
+                case 'url':
+                  return [trackingKey, trackingInfo.url];
+                case 'company':
+                  return [trackingKey, trackingInfo.company];
+                default:
+                  return [trackingKey, null];
+              }
+            }),
+          ),
+        );
+        break;
+      case 'fulfillmentLineItems':
+        result[key] = serializeOrderFulfillmentLineItemsConnection(selection, fulfillment.fulfillmentLineItems ?? []);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeOrderFulfillmentOrderLineItem(
+  field: FieldNode,
+  lineItem: OrderFulfillmentOrderLineItemRecord,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = lineItem.id;
+        break;
+      case 'totalQuantity':
+        result[key] = lineItem.totalQuantity;
+        break;
+      case 'remainingQuantity':
+        result[key] = lineItem.remainingQuantity;
+        break;
+      case 'lineItem':
+        result[key] = lineItem.lineItemId
+          ? Object.fromEntries(
+              getSelectedChildFields(selection).map((lineItemSelection) => {
+                const lineItemKey = getFieldResponseKey(lineItemSelection);
+                switch (lineItemSelection.name.value) {
+                  case 'id':
+                    return [lineItemKey, lineItem.lineItemId];
+                  case 'title':
+                    return [lineItemKey, lineItem.title];
+                  default:
+                    return [lineItemKey, null];
+                }
+              }),
+            )
+          : null;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeOrderFulfillmentOrderLineItemsConnection(
+  field: FieldNode,
+  lineItems: OrderFulfillmentOrderLineItemRecord[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'nodes':
+        result[key] = lineItems.map((lineItem) => serializeOrderFulfillmentOrderLineItem(selection, lineItem));
+        break;
+      case 'edges':
+        result[key] = lineItems.map((lineItem) => {
+          const edgeResult: Record<string, unknown> = {};
+          for (const edgeSelection of getSelectedChildFields(selection)) {
+            const edgeKey = getFieldResponseKey(edgeSelection);
+            switch (edgeSelection.name.value) {
+              case 'cursor':
+                edgeResult[edgeKey] = `cursor:${lineItem.id}`;
+                break;
+              case 'node':
+                edgeResult[edgeKey] = serializeOrderFulfillmentOrderLineItem(edgeSelection, lineItem);
+                break;
+              default:
+                edgeResult[edgeKey] = null;
+                break;
+            }
+          }
+          return edgeResult;
+        });
+        break;
+      case 'pageInfo':
+        result[key] = serializePageInfo(selection);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeOrderFulfillmentOrder(
+  field: FieldNode,
+  fulfillmentOrder: OrderFulfillmentOrderRecord,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = fulfillmentOrder.id;
+        break;
+      case 'status':
+        result[key] = fulfillmentOrder.status;
+        break;
+      case 'requestStatus':
+        result[key] = fulfillmentOrder.requestStatus ?? null;
+        break;
+      case 'assignedLocation':
+        result[key] = fulfillmentOrder.assignedLocation
+          ? Object.fromEntries(
+              getSelectedChildFields(selection).map((locationSelection) => {
+                const locationKey = getFieldResponseKey(locationSelection);
+                switch (locationSelection.name.value) {
+                  case 'name':
+                    return [locationKey, fulfillmentOrder.assignedLocation?.name ?? null];
+                  default:
+                    return [locationKey, null];
+                }
+              }),
+            )
+          : null;
+        break;
+      case 'lineItems':
+        result[key] = serializeOrderFulfillmentOrderLineItemsConnection(selection, fulfillmentOrder.lineItems ?? []);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeOrderFulfillmentOrdersConnection(
+  field: FieldNode,
+  fulfillmentOrders: OrderFulfillmentOrderRecord[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'nodes':
+        result[key] = fulfillmentOrders.map((fulfillmentOrder) =>
+          serializeOrderFulfillmentOrder(selection, fulfillmentOrder),
+        );
+        break;
+      case 'edges':
+        result[key] = fulfillmentOrders.map((fulfillmentOrder) => {
+          const edgeResult: Record<string, unknown> = {};
+          for (const edgeSelection of getSelectedChildFields(selection)) {
+            const edgeKey = getFieldResponseKey(edgeSelection);
+            switch (edgeSelection.name.value) {
+              case 'cursor':
+                edgeResult[edgeKey] = `cursor:${fulfillmentOrder.id}`;
+                break;
+              case 'node':
+                edgeResult[edgeKey] = serializeOrderFulfillmentOrder(edgeSelection, fulfillmentOrder);
+                break;
+              default:
+                edgeResult[edgeKey] = null;
+                break;
+            }
+          }
+          return edgeResult;
+        });
+        break;
+      case 'pageInfo':
+        result[key] = serializePageInfo(selection);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
 function serializeOrderTransaction(field: FieldNode, transaction: OrderTransactionRecord): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const selection of getSelectedChildFields(field)) {
@@ -2735,6 +3096,44 @@ function serializeOrderMetafieldsConnection(
   return result;
 }
 
+function deriveOrderTotalShippingPriceSet(order: OrderRecord): { shopMoney: MoneyV2Record } {
+  const currencyCode = readOrderCurrencyCode(order);
+  const amount = order.shippingLines.reduce(
+    (sum, shippingLine) => sum + parseDecimalAmount(shippingLine.originalPriceSet?.shopMoney.amount),
+    0,
+  );
+  return {
+    shopMoney: normalizeMoney(formatDecimalAmount(amount), currencyCode),
+  };
+}
+
+function deriveOrderTotalReceivedSet(order: OrderRecord): { shopMoney: MoneyV2Record } {
+  const currencyCode = readOrderCurrencyCode(order);
+  const transactionTotal = order.transactions
+    .filter((transaction) => transaction.status === 'SUCCESS')
+    .reduce((sum, transaction) => sum + parseDecimalAmount(transaction.amountSet?.shopMoney.amount), 0);
+  if (transactionTotal > 0) {
+    return {
+      shopMoney: normalizeMoney(formatDecimalAmount(transactionTotal), currencyCode),
+    };
+  }
+
+  return {
+    shopMoney: normalizeMoney(
+      order.displayFinancialStatus === 'PAID' ? (order.currentTotalPriceSet?.shopMoney.amount ?? '0.0') : '0.0',
+      currencyCode,
+    ),
+  };
+}
+
+function deriveOrderNetPaymentSet(order: OrderRecord): { shopMoney: MoneyV2Record } {
+  return subtractMoney(
+    order.totalReceivedSet ?? deriveOrderTotalReceivedSet(order),
+    order.totalRefundedSet,
+    readOrderCurrencyCode(order),
+  );
+}
+
 function serializeOrderNode(field: FieldNode, order: OrderRecord): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const selection of getSelectedChildFields(field)) {
@@ -2821,8 +3220,20 @@ function serializeOrderNode(field: FieldNode, order: OrderRecord): Record<string
       case 'subtotalPriceSet':
         result[key] = serializeShopMoneySet(selection, order.subtotalPriceSet ?? null);
         break;
+      case 'currentSubtotalPriceSet':
+        result[key] = serializeShopMoneySet(selection, order.currentSubtotalPriceSet ?? order.subtotalPriceSet ?? null);
+        break;
       case 'currentTotalPriceSet':
         result[key] = serializeShopMoneySet(selection, order.currentTotalPriceSet ?? null);
+        break;
+      case 'currentTotalDiscountsSet':
+        result[key] = serializeShopMoneySet(
+          selection,
+          order.currentTotalDiscountsSet ?? order.totalDiscountsSet ?? null,
+        );
+        break;
+      case 'currentTotalTaxSet':
+        result[key] = serializeShopMoneySet(selection, order.currentTotalTaxSet ?? order.totalTaxSet ?? null);
         break;
       case 'totalPriceSet':
         result[key] = serializeShopMoneySet(selection, order.totalPriceSet ?? null);
@@ -2833,8 +3244,26 @@ function serializeOrderNode(field: FieldNode, order: OrderRecord): Record<string
           (order.totalOutstandingSet ?? order.currentTotalPriceSet)?.shopMoney ?? null,
         );
         break;
+      case 'totalReceivedSet':
+        result[key] = serializeShopMoneySet(selection, order.totalReceivedSet ?? deriveOrderTotalReceivedSet(order));
+        break;
+      case 'netPaymentSet':
+        result[key] = serializeShopMoneySet(selection, order.netPaymentSet ?? deriveOrderNetPaymentSet(order));
+        break;
       case 'totalRefundedSet':
         result[key] = serializeShopMoneySet(selection, order.totalRefundedSet ?? null);
+        break;
+      case 'totalRefundedShippingSet':
+        result[key] = serializeShopMoneySet(
+          selection,
+          order.totalRefundedShippingSet ?? normalizeZeroMoneyBag(readOrderCurrencyCode(order)),
+        );
+        break;
+      case 'totalShippingPriceSet':
+        result[key] = serializeShopMoneySet(
+          selection,
+          order.totalShippingPriceSet ?? deriveOrderTotalShippingPriceSet(order),
+        );
         break;
       case 'totalTaxSet':
         result[key] = serializeShopMoneySet(selection, order.totalTaxSet ?? null);
@@ -2862,6 +3291,14 @@ function serializeOrderNode(field: FieldNode, order: OrderRecord): Record<string
         break;
       case 'lineItems':
         result[key] = serializeOrderLineItemsConnection(selection, order.lineItems);
+        break;
+      case 'fulfillments':
+        result[key] = (order.fulfillments ?? []).map((fulfillment) =>
+          serializeOrderFulfillment(selection, fulfillment),
+        );
+        break;
+      case 'fulfillmentOrders':
+        result[key] = serializeOrderFulfillmentOrdersConnection(selection, order.fulfillmentOrders ?? []);
         break;
       case 'transactions':
         result[key] = order.transactions.map((transaction) => serializeOrderTransaction(selection, transaction));

@@ -1,0 +1,376 @@
+{
+  "variables": {
+    "id": "gid://shopify/Order/6832000000000"
+  },
+  "response": {
+    "data": {
+      "order": {
+        "id": "gid://shopify/Order/6832000000000",
+        "name": "#1401",
+        "email": "merchant-detail@example.com",
+        "phone": null,
+        "poNumber": "PO-1401",
+        "createdAt": "2026-04-22T14:05:00Z",
+        "updatedAt": "2026-04-23T16:45:00Z",
+        "closed": false,
+        "closedAt": null,
+        "cancelledAt": null,
+        "cancelReason": null,
+        "displayFinancialStatus": "PARTIALLY_REFUNDED",
+        "displayFulfillmentStatus": "FULFILLED",
+        "paymentGatewayNames": ["manual", "shopify_payments"],
+        "note": "Leave at receiving desk",
+        "tags": ["merchant-detail", "priority"],
+        "billingAddress": {
+          "firstName": "Ada",
+          "lastName": "Lovelace",
+          "address1": "123 Queen St W",
+          "address2": "Suite 400",
+          "company": "Analytical Engines Ltd",
+          "city": "Toronto",
+          "province": "Ontario",
+          "provinceCode": "ON",
+          "country": "Canada",
+          "countryCodeV2": "CA",
+          "zip": "M5H 2M9",
+          "phone": null
+        },
+        "shippingAddress": {
+          "firstName": "Ada",
+          "lastName": "Lovelace",
+          "address1": "500 King St W",
+          "address2": null,
+          "company": null,
+          "city": "Toronto",
+          "province": "Ontario",
+          "provinceCode": "ON",
+          "country": "Canada",
+          "countryCodeV2": "CA",
+          "zip": "M5V 1L9",
+          "phone": "+14165550100"
+        },
+        "subtotalPriceSet": {
+          "shopMoney": {
+            "amount": "120.0",
+            "currencyCode": "CAD"
+          }
+        },
+        "currentSubtotalPriceSet": {
+          "shopMoney": {
+            "amount": "90.0",
+            "currencyCode": "CAD"
+          }
+        },
+        "currentTotalPriceSet": {
+          "shopMoney": {
+            "amount": "104.5",
+            "currencyCode": "CAD"
+          }
+        },
+        "currentTotalTaxSet": {
+          "shopMoney": {
+            "amount": "11.5",
+            "currencyCode": "CAD"
+          }
+        },
+        "currentTotalDiscountsSet": {
+          "shopMoney": {
+            "amount": "10.0",
+            "currencyCode": "CAD"
+          }
+        },
+        "totalOutstandingSet": {
+          "shopMoney": {
+            "amount": "0.0",
+            "currencyCode": "CAD"
+          }
+        },
+        "totalReceivedSet": {
+          "shopMoney": {
+            "amount": "134.5",
+            "currencyCode": "CAD"
+          }
+        },
+        "netPaymentSet": {
+          "shopMoney": {
+            "amount": "104.5",
+            "currencyCode": "CAD"
+          }
+        },
+        "totalRefundedSet": {
+          "shopMoney": {
+            "amount": "30.0",
+            "currencyCode": "CAD"
+          }
+        },
+        "totalRefundedShippingSet": {
+          "shopMoney": {
+            "amount": "0.0",
+            "currencyCode": "CAD"
+          }
+        },
+        "totalShippingPriceSet": {
+          "shopMoney": {
+            "amount": "12.0",
+            "currencyCode": "CAD"
+          }
+        },
+        "totalTaxSet": {
+          "shopMoney": {
+            "amount": "12.5",
+            "currencyCode": "CAD"
+          }
+        },
+        "totalDiscountsSet": {
+          "shopMoney": {
+            "amount": "10.0",
+            "currencyCode": "CAD"
+          }
+        },
+        "discountCodes": ["SPRING10"],
+        "taxesIncluded": false,
+        "customer": {
+          "id": "gid://shopify/Customer/9001",
+          "email": "ada@example.com",
+          "displayName": "Ada Lovelace"
+        },
+        "shippingLines": {
+          "nodes": [
+            {
+              "title": "Standard",
+              "code": "STANDARD",
+              "source": "shopify",
+              "originalPriceSet": {
+                "shopMoney": {
+                  "amount": "12.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "taxLines": [
+                {
+                  "title": "HST",
+                  "rate": 0.13,
+                  "channelLiable": false,
+                  "priceSet": {
+                    "shopMoney": {
+                      "amount": "1.5",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "cursor:shipping-line:1",
+            "endCursor": "cursor:shipping-line:1"
+          }
+        },
+        "lineItems": {
+          "nodes": [
+            {
+              "id": "gid://shopify/LineItem/7001",
+              "title": "Merchant detail tee",
+              "quantity": 2,
+              "sku": "TEE-MERCHANT",
+              "variantTitle": "Blue / M",
+              "variant": {
+                "id": "gid://shopify/ProductVariant/8001"
+              },
+              "originalUnitPriceSet": {
+                "shopMoney": {
+                  "amount": "45.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "taxLines": [
+                {
+                  "title": "HST",
+                  "rate": 0.13,
+                  "channelLiable": false,
+                  "priceSet": {
+                    "shopMoney": {
+                      "amount": "10.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/LineItem/7002",
+              "title": "Merchant detail mug",
+              "quantity": 1,
+              "sku": "MUG-MERCHANT",
+              "variantTitle": null,
+              "variant": null,
+              "originalUnitPriceSet": {
+                "shopMoney": {
+                  "amount": "30.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "taxLines": []
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "cursor:gid://shopify/LineItem/7001",
+            "endCursor": "cursor:gid://shopify/LineItem/7002"
+          }
+        },
+        "fulfillmentOrders": {
+          "nodes": [
+            {
+              "id": "gid://shopify/FulfillmentOrder/6001",
+              "status": "CLOSED",
+              "requestStatus": "UNSUBMITTED",
+              "assignedLocation": {
+                "name": "Ottawa Warehouse"
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/6101",
+                    "totalQuantity": 2,
+                    "remainingQuantity": 0,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/7001",
+                      "title": "Merchant detail tee"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+          }
+        },
+        "fulfillments": [
+          {
+            "id": "gid://shopify/Fulfillment/5001",
+            "status": "SUCCESS",
+            "displayStatus": "FULFILLED",
+            "createdAt": "2026-04-23T16:30:00Z",
+            "updatedAt": "2026-04-23T16:45:00Z",
+            "trackingInfo": [
+              {
+                "number": "TRACK1401",
+                "url": "https://example.test/track/TRACK1401",
+                "company": "Canada Post"
+              }
+            ],
+            "fulfillmentLineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentLineItem/5101",
+                  "quantity": 2,
+                  "lineItem": {
+                    "id": "gid://shopify/LineItem/7001",
+                    "title": "Merchant detail tee"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          }
+        ],
+        "refunds": [
+          {
+            "id": "gid://shopify/Refund/4001",
+            "createdAt": "2026-04-23T17:10:00Z",
+            "totalRefundedSet": {
+              "shopMoney": {
+                "amount": "30.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "refundLineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/RefundLineItem/4101",
+                  "quantity": 1,
+                  "restockType": "RETURN",
+                  "lineItem": {
+                    "id": "gid://shopify/LineItem/7002",
+                    "title": "Merchant detail mug"
+                  },
+                  "subtotalSet": {
+                    "shopMoney": {
+                      "amount": "30.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          }
+        ],
+        "transactions": [
+          {
+            "id": "gid://shopify/OrderTransaction/3001",
+            "kind": "SALE",
+            "status": "SUCCESS",
+            "gateway": "manual",
+            "amountSet": {
+              "shopMoney": {
+                "amount": "134.5",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          {
+            "id": "gid://shopify/OrderTransaction/3002",
+            "kind": "REFUND",
+            "status": "SUCCESS",
+            "gateway": "manual",
+            "amountSet": {
+              "shopMoney": {
+                "amount": "30.0",
+                "currencyCode": "CAD"
+              }
+            }
+          }
+        ],
+        "returns": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Return/2001",
+              "status": "OPEN"
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+          }
+        }
+      }
+    }
+  }
+}
