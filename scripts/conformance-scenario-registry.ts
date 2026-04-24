@@ -32,6 +32,7 @@ export type ConformanceStatusDocument = {
     name: string;
     type: string;
     execution: string;
+    safetyPosture?: string;
     conformanceStatus: 'covered' | 'declared-gap';
     scenarioIds: string[];
     reason: string | null;
@@ -166,11 +167,14 @@ export function buildConformanceStatusDocument(repoRoot = defaultRepoRoot): Conf
         name: entry.name,
         type: entry.type,
         execution: entry.execution,
+        ...(entry.safetyPosture ? { safetyPosture: entry.safetyPosture } : {}),
         conformanceStatus: isCovered ? 'covered' : 'declared-gap',
         scenarioIds: operationScenarios.map((scenario) => scenario.id),
         reason: isCovered
           ? null
-          : 'No captured conformance scenario has been promoted for this implemented operation yet.',
+          : entry.safetyPosture === 'local-side-effect-suppression'
+            ? 'Live parity is intentionally deferred because this operation sends customer-visible email; local suppression is covered by runtime tests.'
+            : 'No captured conformance scenario has been promoted for this implemented operation yet.',
       };
     }),
     coveredOperationNames: coveredEntries.map((entry) => entry.name),

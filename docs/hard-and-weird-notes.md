@@ -1775,7 +1775,8 @@ Practical rule for the proxy:
 - do not treat registry presence as support; unimplemented customer roots are still classified as `implemented: false`
 - read roots should become overlay reads only after captured no-data and found-record behavior exists
 - local customer/address/consent/tax roots should stage locally before being marked implemented, because supported mutations must not hit Shopify during normal runtime
-- side-effect email roots and customer merge should stay explicit passthrough/deferred until a product decision says whether to block, simulate, or proxy them with stronger observability
+- `customerSendAccountInviteEmail` and `customerPaymentMethodSendUpdateEmail` are now locally suppressed side-effect roots: the proxy returns a selected Shopify-like payload with an explicit `userErrors` suppression message, records mutation-log status `suppressed`, does not call upstream at runtime, and does not replay those entries through `__meta/commit`
+- `customerMerge` stays explicit passthrough/deferred until a product decision says whether to block, simulate, or proxy it with stronger observability
 - the protected-customer-data denial mode remains a real fallback path in `scripts/capture-customer-conformance.mts`, but current successful fixtures should not be overwritten by stale blocker notes unless the capture script reproduces the denial again
 
 ## 47. Store properties roots are deceptively broad for a "properties" category

@@ -91,6 +91,19 @@ function interpretMutationLogEntry(
   };
 }
 
+function getCustomerSideEffectSuppressionNotes(rootField: string | null): string {
+  const notesByRootField: Record<string, string> = {
+    customerSendAccountInviteEmail:
+      'Locally suppressed customerSendAccountInviteEmail without sending customer email upstream.',
+    customerPaymentMethodSendUpdateEmail:
+      'Locally suppressed customerPaymentMethodSendUpdateEmail without sending customer email upstream.',
+  };
+
+  return rootField && notesByRootField[rootField]
+    ? notesByRootField[rootField]
+    : 'Locally suppressed customer side-effect mutation without sending customer email upstream.';
+}
+
 export function createProxyRouter(config: AppConfig): Router {
   const router = new Router();
   const upstream = createUpstreamGraphQLClient(config.shopifyAdminOrigin);
@@ -142,6 +155,35 @@ export function createProxyRouter(config: AppConfig): Router {
 
       ctx.status = 200;
       ctx.body = responseBody;
+      return;
+    }
+
+    if (capability.execution === 'suppress-locally' && capability.domain === 'customers') {
+      proxyLogger.warn(
+        {
+          execution: capability.execution,
+          operationName: capability.operationName,
+          operationType: parsed.type,
+          rootFields: parsed.rootFields,
+        },
+        'suppressing customer side-effect mutation locally',
+      );
+
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: ctx.path,
+        query: body.query,
+        variables,
+        requestBody,
+        status: 'suppressed',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        notes: getCustomerSideEffectSuppressionNotes(primaryRootField),
+      });
+
+      ctx.status = 200;
+      ctx.body = handleCustomerMutation(body.query, variables);
       return;
     }
 

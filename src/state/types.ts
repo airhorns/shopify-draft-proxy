@@ -655,7 +655,7 @@ export interface MutationLogEntry {
   variables: Record<string, unknown>;
   requestBody?: Record<string, unknown>;
   stagedResourceIds?: string[];
-  status: 'staged' | 'proxied' | 'committed' | 'failed';
+  status: 'staged' | 'suppressed' | 'proxied' | 'committed' | 'failed';
   interpreted: MutationLogInterpretedMetadata;
   notes?: string;
 }

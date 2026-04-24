@@ -315,19 +315,21 @@
     "name": "customerSendAccountInviteEmail",
     "type": "mutation",
     "domain": "customers",
-    "execution": "passthrough",
-    "implemented": false,
+    "execution": "suppress-locally",
+    "implemented": true,
     "matchNames": ["customerSendAccountInviteEmail", "CustomerSendAccountInviteEmail"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/customer-email-side-effects.test.ts"],
+    "safetyPosture": "local-side-effect-suppression"
   },
   {
     "name": "customerPaymentMethodSendUpdateEmail",
     "type": "mutation",
     "domain": "customers",
-    "execution": "passthrough",
-    "implemented": false,
+    "execution": "suppress-locally",
+    "implemented": true,
     "matchNames": ["customerPaymentMethodSendUpdateEmail", "CustomerPaymentMethodSendUpdateEmail"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/customer-email-side-effects.test.ts"],
+    "safetyPosture": "local-side-effect-suppression"
   },
   {
     "name": "customerMerge",
@@ -336,7 +338,8 @@
     "execution": "passthrough",
     "implemented": false,
     "matchNames": ["customerMerge", "CustomerMerge"],
-    "runtimeTests": []
+    "runtimeTests": [],
+    "safetyPosture": "intentional-passthrough-side-effect"
   },
   {
     "name": "tagsAdd",

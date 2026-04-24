@@ -9,7 +9,7 @@ export type CapabilityDomain =
   | 'store-properties'
   | 'discounts'
   | 'unknown';
-export type CapabilityExecution = 'overlay-read' | 'stage-locally' | 'passthrough';
+export type CapabilityExecution = 'overlay-read' | 'stage-locally' | 'suppress-locally' | 'passthrough';
 export type OperationType = 'query' | 'mutation';
 
 const operationRegistry = operationRegistrySchema.parse(operationRegistryJson);

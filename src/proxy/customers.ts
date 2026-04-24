@@ -1172,6 +1172,7 @@ function collectCustomerSearchConnections(
 type CustomerMutationUserError = {
   field: string[] | null;
   message: string;
+  code?: string | null;
 };
 
 function serializeCustomerMutationUserErrors(
@@ -1188,6 +1189,9 @@ function serializeCustomerMutationUserErrors(
           break;
         case 'message':
           result[key] = userError.message;
+          break;
+        case 'code':
+          result[key] = userError.code ?? null;
           break;
         default:
           result[key] = null;
@@ -1216,6 +1220,11 @@ function serializeShopSelection(field: FieldNode): Record<string, unknown> {
 
 function readCustomerInput(raw: unknown): Record<string, unknown> {
   return isObject(raw) ? raw : {};
+}
+
+function readRequiredIdArgument(args: Record<string, unknown>, argumentName: string): string | null {
+  const value = args[argumentName];
+  return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
 function normalizeCustomerTags(raw: unknown, fallback: string[]): string[] {
@@ -1398,6 +1407,36 @@ export function handleCustomerMutation(
         deletedCustomerId: customerId,
         shop: true,
         userErrors: [],
+      });
+      continue;
+    }
+
+    if (field.name.value === 'customerSendAccountInviteEmail') {
+      const customerId = readRequiredIdArgument(args, 'customerId');
+      const customer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      data[key] = serializeCustomerMutationPayload(field, {
+        customer,
+        userErrors: [
+          {
+            field: ['customerId'],
+            message:
+              'customerSendAccountInviteEmail is intentionally suppressed by the local proxy because it sends email.',
+          },
+        ],
+      });
+      continue;
+    }
+
+    if (field.name.value === 'customerPaymentMethodSendUpdateEmail') {
+      data[key] = serializeCustomerMutationPayload(field, {
+        customer: null,
+        userErrors: [
+          {
+            field: ['customerPaymentMethodId'],
+            message:
+              'customerPaymentMethodSendUpdateEmail is intentionally suppressed by the local proxy because it sends email.',
+          },
+        ],
       });
     }
   }
