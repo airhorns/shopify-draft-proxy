@@ -324,6 +324,15 @@ export function createProxyRouter(config: AppConfig): Router {
       (primaryRootField === 'orderCreate' ||
         primaryRootField === 'refundCreate' ||
         primaryRootField === 'orderUpdate' ||
+        primaryRootField === 'orderClose' ||
+        primaryRootField === 'orderOpen' ||
+        primaryRootField === 'orderMarkAsPaid' ||
+        primaryRootField === 'orderCreateManualPayment' ||
+        primaryRootField === 'orderCustomerSet' ||
+        primaryRootField === 'orderCustomerRemove' ||
+        primaryRootField === 'orderInvoiceSend' ||
+        primaryRootField === 'taxSummaryCreate' ||
+        primaryRootField === 'orderCancel' ||
         primaryRootField === 'orderEditBegin' ||
         primaryRootField === 'orderEditAddVariant' ||
         primaryRootField === 'orderEditSetQuantity' ||
@@ -351,6 +360,17 @@ export function createProxyRouter(config: AppConfig): Router {
             'Locally staged refundCreate in live-hybrid mode for a synthetic/local staged order or captured validation branch.',
           orderUpdate:
             'Locally handled orderUpdate in live-hybrid mode for captured validation branches or a synthetic/local staged order.',
+          orderClose: 'Locally staged orderClose in live-hybrid mode for a synthetic/local order.',
+          orderOpen: 'Locally staged orderOpen in live-hybrid mode for a synthetic/local order.',
+          orderMarkAsPaid: 'Locally staged orderMarkAsPaid in live-hybrid mode for a synthetic/local order.',
+          orderCreateManualPayment:
+            'Locally mirrored the captured orderCreateManualPayment access-denied branch without proxying the mutation upstream.',
+          orderCustomerSet: 'Locally staged orderCustomerSet in live-hybrid mode for a synthetic/local order.',
+          orderCustomerRemove: 'Locally staged orderCustomerRemove in live-hybrid mode for a synthetic/local order.',
+          orderInvoiceSend: 'Locally handled orderInvoiceSend in live-hybrid mode without sending invoice email.',
+          taxSummaryCreate:
+            'Locally mirrored the captured taxSummaryCreate access-denied branch without proxying the mutation upstream.',
+          orderCancel: 'Locally staged orderCancel in live-hybrid mode for a synthetic/local order.',
           orderEditBegin:
             'Locally staged the first calculated-order edit session in live-hybrid mode for a synthetic/local order.',
           orderEditAddVariant:

@@ -1,0 +1,97 @@
+{
+  "variables": {
+    "input": {
+      "id": "gid://shopify/Order/6830647771369"
+    }
+  },
+  "mutation": {
+    "response": {
+      "data": {
+        "orderMarkAsPaid": {
+          "order": {
+            "id": "gid://shopify/Order/6830647771369",
+            "name": "#1329",
+            "closed": false,
+            "closedAt": null,
+            "cancelledAt": null,
+            "cancelReason": null,
+            "displayFinancialStatus": "PAID",
+            "paymentGatewayNames": ["manual"],
+            "totalOutstandingSet": {
+              "shopMoney": {
+                "amount": "0.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "currentTotalPriceSet": {
+              "shopMoney": {
+                "amount": "19.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "customer": null,
+            "transactions": [
+              {
+                "kind": "SALE",
+                "status": "SUCCESS",
+                "gateway": "manual",
+                "amountSet": {
+                  "shopMoney": {
+                    "amount": "19.0",
+                    "currencyCode": "CAD"
+                  }
+                }
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "variables": {
+      "id": "gid://shopify/Order/6830647771369"
+    },
+    "response": {
+      "data": {
+        "order": {
+          "id": "gid://shopify/Order/6830647771369",
+          "name": "#1329",
+          "closed": false,
+          "closedAt": null,
+          "cancelledAt": null,
+          "cancelReason": null,
+          "displayFinancialStatus": "PAID",
+          "paymentGatewayNames": ["manual"],
+          "totalOutstandingSet": {
+            "shopMoney": {
+              "amount": "0.0",
+              "currencyCode": "CAD"
+            }
+          },
+          "currentTotalPriceSet": {
+            "shopMoney": {
+              "amount": "19.0",
+              "currencyCode": "CAD"
+            }
+          },
+          "customer": null,
+          "transactions": [
+            {
+              "kind": "SALE",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "19.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
