@@ -3,13 +3,42 @@ mutation DraftOrderCreateParityPlan($input: DraftOrderInput!) {
     draftOrder {
       id
       name
-      invoiceUrl
       status
+      ready
       email
+      customer {
+        id
+        email
+        displayName
+      }
+      taxExempt
+      taxesIncluded
+      reserveInventoryUntil
+      paymentTerms {
+        id
+        overdue
+        dueInDays
+        paymentTermsName
+        paymentTermsType
+        translatedName
+      }
       tags
+      invoiceUrl
       customAttributes {
         key
         value
+      }
+      appliedDiscount {
+        title
+        description
+        value
+        valueType
+        amountSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
       }
       billingAddress {
         firstName
@@ -19,7 +48,6 @@ mutation DraftOrderCreateParityPlan($input: DraftOrderInput!) {
         provinceCode
         countryCodeV2
         zip
-        phone
       }
       shippingAddress {
         firstName
@@ -29,21 +57,37 @@ mutation DraftOrderCreateParityPlan($input: DraftOrderInput!) {
         provinceCode
         countryCodeV2
         zip
-        phone
       }
       shippingLine {
         title
         code
+        custom
         originalPriceSet {
           shopMoney {
             amount
             currencyCode
           }
         }
+        discountedPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
       }
-      createdAt
-      updatedAt
       subtotalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalDiscountsSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalShippingPriceSet {
         shopMoney {
           amount
           currencyCode
@@ -55,18 +99,62 @@ mutation DraftOrderCreateParityPlan($input: DraftOrderInput!) {
           currencyCode
         }
       }
+      totalQuantityOfLineItems
       lineItems(first: 5) {
         nodes {
           id
           title
+          name
           quantity
           sku
           variantTitle
+          custom
+          requiresShipping
+          taxable
+          customAttributes {
+            key
+            value
+          }
+          appliedDiscount {
+            title
+            description
+            value
+            valueType
+            amountSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+            }
+          }
           originalUnitPriceSet {
             shopMoney {
               amount
               currencyCode
             }
+          }
+          originalTotalSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          discountedTotalSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          totalDiscountSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          variant {
+            id
+            title
+            sku
           }
         }
       }

@@ -345,7 +345,21 @@ Important live findings:
   - keep that slice intentionally narrower than live Shopify catalog/count parity: the current local replay is for staged synthetic drafts, not evidence-backed filtered/search semantics for non-empty live Shopify draft catalogs
   - practical rule: local staged `draftOrders` / `draftOrdersCount` support should not be treated as proof that `query:` filtering or broader live catalog ordering semantics are settled; those still need a cleaner captured Shopify baseline
 
-- document the `shippingLine: null` happy-path quirk explicitly so future local staging does not blindly echo the input shipping line into the immediate payload
+- the first `shippingLine: null` happy-path quirk was tied to the earlier
+  `priceWithCurrency` input shape; Shopify's current draft-order examples use
+  `shippingLine.price`, and HAR-117's refreshed live capture confirms that
+  documented shape comes back as a non-null custom shipping line in
+  `draftOrderCreate` and the immediate `draftOrder(id:)` detail read
+- current live auth on this host is healthy for `conformance:probe` and
+  `draftOrderCreate` capture; after the `read_payment_terms` grant, the
+  checked-in happy-path fixture no longer carries a top-level access-denied
+  error for `paymentTerms`
+- the refreshed happy-path fixture still has `paymentTerms: null`, but now that
+  is a readable Shopify value for a draft with no payment terms set, not a
+  field access failure
+- setting `input.paymentTerms` is a separate merchant permission branch: a
+  direct live probe on this host returned a `draftOrderCreate.userErrors[]`
+  message, `The user must have access to set payment terms.`
 - once `draftOrderCreate` is treated as a supported staged write, do not accidentally limit that local behavior to `snapshot` mode only; in live-hybrid the proxy should still stage the supported create locally and short-circuit immediate `draftOrder(id:)` reads for the newly staged synthetic draft id instead of proxying those supported roots upstream
 
 ### 7b. `orderCreate` also has inline GraphQL-validation branches before Shopify reaches the offline-token gate
@@ -464,7 +478,10 @@ Practical rule:
 - mirror the captured unknown-id userError **and** the missing-id `INVALID_VARIABLE` branch in `snapshot` mode without hitting upstream
 - do not claim live parity for the expanded simple-update field slice until a fresh Shopify conformance grant captures `orderUpdate-expanded-live-parity`
 - keep `live-hybrid` conservative until non-empty local order hydration/edit semantics exist; passthrough is safer than inventing order state
-- do not let this small success erase the separate creation blockers: `orderCreate` still needs `write_orders` plus an offline token, and `draftOrderCreate` still needs draft-order write/manage access
+- do not let this small success erase the remaining creation/read blockers:
+  `orderCreate` still needs `write_orders` plus an offline token, and
+  setting draft-order payment terms still needs merchant permission to set
+  payment terms
 
 ### 8a. The first calculated-order edit family is blocked uniformly on `write_order_edits` on this host
 

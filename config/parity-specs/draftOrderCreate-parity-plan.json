@@ -10,10 +10,31 @@
     "variablesCapturePath": "$.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "The merchant-realistic draft-order creation slice is promoted for locally supported strict fields: mutation userErrors, status/email/tags/customAttributes, address scalars, total price, line item basics, null shippingLine behavior, and immediate downstream `draftOrder(id:)` visibility. Shopify IDs, draft order name, invoice URL, timestamps, and cost extensions remain outside this contract until those generated values are modeled directly.",
+  "notes": "The checked-in live capture uses a merchant-realistic draftOrderCreate request with customer linkage, custom and variant line items, shipping line, discounts, tax/reserve fields, custom attributes, and paymentTerms selected; with the refreshed read_payment_terms grant Shopify now returns the field as a readable null because the draft has no payment terms set. The scenario replays captured variables and compares the complete selected DraftOrder payload. Shopify-generated IDs, draft order names, and invoice URLs are path-scoped expected differences.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [],
+    "expectedDifferences": [
+      {
+        "path": "$.id",
+        "matcher": "shopify-gid:DraftOrder",
+        "reason": "The proxy creates a stable synthetic draft order ID while the capture contains the live Shopify draft order ID."
+      },
+      {
+        "path": "$.name",
+        "matcher": "non-empty-string",
+        "reason": "Shopify allocates draft order names from store state; local staging uses a deterministic synthetic sequence."
+      },
+      {
+        "path": "$.invoiceUrl",
+        "matcher": "non-empty-string",
+        "reason": "Invoice URLs are generated per draft order by Shopify and locally synthesized by the proxy."
+      },
+      {
+        "path": "$.lineItems.nodes[*].id",
+        "matcher": "shopify-gid:DraftOrderLineItem",
+        "reason": "The proxy creates stable synthetic draft order line item IDs while the capture contains live Shopify IDs."
+      }
+    ],
     "targets": [
       {
         "name": "mutation-user-errors",
@@ -21,53 +42,13 @@
         "proxyPath": "$.data.draftOrderCreate.userErrors"
       },
       {
-        "name": "mutation-status",
-        "capturePath": "$.mutation.response.data.draftOrderCreate.draftOrder.status",
-        "proxyPath": "$.data.draftOrderCreate.draftOrder.status"
+        "name": "mutation-draft-order",
+        "capturePath": "$.mutation.response.data.draftOrderCreate.draftOrder",
+        "proxyPath": "$.data.draftOrderCreate.draftOrder"
       },
       {
-        "name": "mutation-email",
-        "capturePath": "$.mutation.response.data.draftOrderCreate.draftOrder.email",
-        "proxyPath": "$.data.draftOrderCreate.draftOrder.email"
-      },
-      {
-        "name": "mutation-tags",
-        "capturePath": "$.mutation.response.data.draftOrderCreate.draftOrder.tags",
-        "proxyPath": "$.data.draftOrderCreate.draftOrder.tags"
-      },
-      {
-        "name": "mutation-custom-attributes",
-        "capturePath": "$.mutation.response.data.draftOrderCreate.draftOrder.customAttributes",
-        "proxyPath": "$.data.draftOrderCreate.draftOrder.customAttributes"
-      },
-      {
-        "name": "mutation-shipping-line",
-        "capturePath": "$.mutation.response.data.draftOrderCreate.draftOrder.shippingLine",
-        "proxyPath": "$.data.draftOrderCreate.draftOrder.shippingLine"
-      },
-      {
-        "name": "mutation-total-price",
-        "capturePath": "$.mutation.response.data.draftOrderCreate.draftOrder.totalPriceSet",
-        "proxyPath": "$.data.draftOrderCreate.draftOrder.totalPriceSet"
-      },
-      {
-        "name": "mutation-line-item-title",
-        "capturePath": "$.mutation.response.data.draftOrderCreate.draftOrder.lineItems.nodes[0].title",
-        "proxyPath": "$.data.draftOrderCreate.draftOrder.lineItems.nodes[0].title"
-      },
-      {
-        "name": "mutation-line-item-quantity",
-        "capturePath": "$.mutation.response.data.draftOrderCreate.draftOrder.lineItems.nodes[0].quantity",
-        "proxyPath": "$.data.draftOrderCreate.draftOrder.lineItems.nodes[0].quantity"
-      },
-      {
-        "name": "mutation-line-item-sku",
-        "capturePath": "$.mutation.response.data.draftOrderCreate.draftOrder.lineItems.nodes[0].sku",
-        "proxyPath": "$.data.draftOrderCreate.draftOrder.lineItems.nodes[0].sku"
-      },
-      {
-        "name": "downstream-status",
-        "capturePath": "$.downstreamRead.response.data.draftOrder.status",
+        "name": "downstream-draft-order",
+        "capturePath": "$.downstreamRead.response.data.draftOrder",
         "proxyRequest": {
           "documentPath": "config/parity-requests/draftOrderCreate-downstream-read.graphql",
           "variables": {
@@ -76,363 +57,7 @@
             }
           }
         },
-        "proxyPath": "$.data.draftOrder.status"
-      },
-      {
-        "name": "downstream-email",
-        "capturePath": "$.downstreamRead.response.data.draftOrder.email",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/draftOrderCreate-downstream-read.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
-            }
-          }
-        },
-        "proxyPath": "$.data.draftOrder.email"
-      },
-      {
-        "name": "downstream-tags",
-        "capturePath": "$.downstreamRead.response.data.draftOrder.tags",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/draftOrderCreate-downstream-read.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
-            }
-          }
-        },
-        "proxyPath": "$.data.draftOrder.tags"
-      },
-      {
-        "name": "downstream-custom-attributes",
-        "capturePath": "$.downstreamRead.response.data.draftOrder.customAttributes",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/draftOrderCreate-downstream-read.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
-            }
-          }
-        },
-        "proxyPath": "$.data.draftOrder.customAttributes"
-      },
-      {
-        "name": "downstream-shipping-line",
-        "capturePath": "$.downstreamRead.response.data.draftOrder.shippingLine",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/draftOrderCreate-downstream-read.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
-            }
-          }
-        },
-        "proxyPath": "$.data.draftOrder.shippingLine"
-      },
-      {
-        "name": "downstream-total-price",
-        "capturePath": "$.downstreamRead.response.data.draftOrder.totalPriceSet",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/draftOrderCreate-downstream-read.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
-            }
-          }
-        },
-        "proxyPath": "$.data.draftOrder.totalPriceSet"
-      },
-      {
-        "name": "downstream-line-item-title",
-        "capturePath": "$.downstreamRead.response.data.draftOrder.lineItems.nodes[0].title",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/draftOrderCreate-downstream-read.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
-            }
-          }
-        },
-        "proxyPath": "$.data.draftOrder.lineItems.nodes[0].title"
-      },
-      {
-        "name": "downstream-line-item-quantity",
-        "capturePath": "$.downstreamRead.response.data.draftOrder.lineItems.nodes[0].quantity",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/draftOrderCreate-downstream-read.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
-            }
-          }
-        },
-        "proxyPath": "$.data.draftOrder.lineItems.nodes[0].quantity"
-      },
-      {
-        "name": "downstream-line-item-sku",
-        "capturePath": "$.downstreamRead.response.data.draftOrder.lineItems.nodes[0].sku",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/draftOrderCreate-downstream-read.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
-            }
-          }
-        },
-        "proxyPath": "$.data.draftOrder.lineItems.nodes[0].sku"
-      },
-      {
-        "name": "mutation-billingAddress-firstName",
-        "capturePath": "$.mutation.response.data.draftOrderCreate.draftOrder.billingAddress.firstName",
-        "proxyPath": "$.data.draftOrderCreate.draftOrder.billingAddress.firstName"
-      },
-      {
-        "name": "downstream-billingAddress-firstName",
-        "capturePath": "$.downstreamRead.response.data.draftOrder.billingAddress.firstName",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/draftOrderCreate-downstream-read.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
-            }
-          }
-        },
-        "proxyPath": "$.data.draftOrder.billingAddress.firstName"
-      },
-      {
-        "name": "mutation-billingAddress-lastName",
-        "capturePath": "$.mutation.response.data.draftOrderCreate.draftOrder.billingAddress.lastName",
-        "proxyPath": "$.data.draftOrderCreate.draftOrder.billingAddress.lastName"
-      },
-      {
-        "name": "downstream-billingAddress-lastName",
-        "capturePath": "$.downstreamRead.response.data.draftOrder.billingAddress.lastName",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/draftOrderCreate-downstream-read.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
-            }
-          }
-        },
-        "proxyPath": "$.data.draftOrder.billingAddress.lastName"
-      },
-      {
-        "name": "mutation-billingAddress-address1",
-        "capturePath": "$.mutation.response.data.draftOrderCreate.draftOrder.billingAddress.address1",
-        "proxyPath": "$.data.draftOrderCreate.draftOrder.billingAddress.address1"
-      },
-      {
-        "name": "downstream-billingAddress-address1",
-        "capturePath": "$.downstreamRead.response.data.draftOrder.billingAddress.address1",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/draftOrderCreate-downstream-read.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
-            }
-          }
-        },
-        "proxyPath": "$.data.draftOrder.billingAddress.address1"
-      },
-      {
-        "name": "mutation-billingAddress-city",
-        "capturePath": "$.mutation.response.data.draftOrderCreate.draftOrder.billingAddress.city",
-        "proxyPath": "$.data.draftOrderCreate.draftOrder.billingAddress.city"
-      },
-      {
-        "name": "downstream-billingAddress-city",
-        "capturePath": "$.downstreamRead.response.data.draftOrder.billingAddress.city",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/draftOrderCreate-downstream-read.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
-            }
-          }
-        },
-        "proxyPath": "$.data.draftOrder.billingAddress.city"
-      },
-      {
-        "name": "mutation-billingAddress-provinceCode",
-        "capturePath": "$.mutation.response.data.draftOrderCreate.draftOrder.billingAddress.provinceCode",
-        "proxyPath": "$.data.draftOrderCreate.draftOrder.billingAddress.provinceCode"
-      },
-      {
-        "name": "downstream-billingAddress-provinceCode",
-        "capturePath": "$.downstreamRead.response.data.draftOrder.billingAddress.provinceCode",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/draftOrderCreate-downstream-read.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
-            }
-          }
-        },
-        "proxyPath": "$.data.draftOrder.billingAddress.provinceCode"
-      },
-      {
-        "name": "mutation-billingAddress-countryCodeV2",
-        "capturePath": "$.mutation.response.data.draftOrderCreate.draftOrder.billingAddress.countryCodeV2",
-        "proxyPath": "$.data.draftOrderCreate.draftOrder.billingAddress.countryCodeV2"
-      },
-      {
-        "name": "downstream-billingAddress-countryCodeV2",
-        "capturePath": "$.downstreamRead.response.data.draftOrder.billingAddress.countryCodeV2",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/draftOrderCreate-downstream-read.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
-            }
-          }
-        },
-        "proxyPath": "$.data.draftOrder.billingAddress.countryCodeV2"
-      },
-      {
-        "name": "mutation-billingAddress-zip",
-        "capturePath": "$.mutation.response.data.draftOrderCreate.draftOrder.billingAddress.zip",
-        "proxyPath": "$.data.draftOrderCreate.draftOrder.billingAddress.zip"
-      },
-      {
-        "name": "downstream-billingAddress-zip",
-        "capturePath": "$.downstreamRead.response.data.draftOrder.billingAddress.zip",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/draftOrderCreate-downstream-read.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
-            }
-          }
-        },
-        "proxyPath": "$.data.draftOrder.billingAddress.zip"
-      },
-      {
-        "name": "mutation-shippingAddress-firstName",
-        "capturePath": "$.mutation.response.data.draftOrderCreate.draftOrder.shippingAddress.firstName",
-        "proxyPath": "$.data.draftOrderCreate.draftOrder.shippingAddress.firstName"
-      },
-      {
-        "name": "downstream-shippingAddress-firstName",
-        "capturePath": "$.downstreamRead.response.data.draftOrder.shippingAddress.firstName",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/draftOrderCreate-downstream-read.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
-            }
-          }
-        },
-        "proxyPath": "$.data.draftOrder.shippingAddress.firstName"
-      },
-      {
-        "name": "mutation-shippingAddress-lastName",
-        "capturePath": "$.mutation.response.data.draftOrderCreate.draftOrder.shippingAddress.lastName",
-        "proxyPath": "$.data.draftOrderCreate.draftOrder.shippingAddress.lastName"
-      },
-      {
-        "name": "downstream-shippingAddress-lastName",
-        "capturePath": "$.downstreamRead.response.data.draftOrder.shippingAddress.lastName",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/draftOrderCreate-downstream-read.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
-            }
-          }
-        },
-        "proxyPath": "$.data.draftOrder.shippingAddress.lastName"
-      },
-      {
-        "name": "mutation-shippingAddress-address1",
-        "capturePath": "$.mutation.response.data.draftOrderCreate.draftOrder.shippingAddress.address1",
-        "proxyPath": "$.data.draftOrderCreate.draftOrder.shippingAddress.address1"
-      },
-      {
-        "name": "downstream-shippingAddress-address1",
-        "capturePath": "$.downstreamRead.response.data.draftOrder.shippingAddress.address1",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/draftOrderCreate-downstream-read.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
-            }
-          }
-        },
-        "proxyPath": "$.data.draftOrder.shippingAddress.address1"
-      },
-      {
-        "name": "mutation-shippingAddress-city",
-        "capturePath": "$.mutation.response.data.draftOrderCreate.draftOrder.shippingAddress.city",
-        "proxyPath": "$.data.draftOrderCreate.draftOrder.shippingAddress.city"
-      },
-      {
-        "name": "downstream-shippingAddress-city",
-        "capturePath": "$.downstreamRead.response.data.draftOrder.shippingAddress.city",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/draftOrderCreate-downstream-read.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
-            }
-          }
-        },
-        "proxyPath": "$.data.draftOrder.shippingAddress.city"
-      },
-      {
-        "name": "mutation-shippingAddress-provinceCode",
-        "capturePath": "$.mutation.response.data.draftOrderCreate.draftOrder.shippingAddress.provinceCode",
-        "proxyPath": "$.data.draftOrderCreate.draftOrder.shippingAddress.provinceCode"
-      },
-      {
-        "name": "downstream-shippingAddress-provinceCode",
-        "capturePath": "$.downstreamRead.response.data.draftOrder.shippingAddress.provinceCode",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/draftOrderCreate-downstream-read.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
-            }
-          }
-        },
-        "proxyPath": "$.data.draftOrder.shippingAddress.provinceCode"
-      },
-      {
-        "name": "mutation-shippingAddress-countryCodeV2",
-        "capturePath": "$.mutation.response.data.draftOrderCreate.draftOrder.shippingAddress.countryCodeV2",
-        "proxyPath": "$.data.draftOrderCreate.draftOrder.shippingAddress.countryCodeV2"
-      },
-      {
-        "name": "downstream-shippingAddress-countryCodeV2",
-        "capturePath": "$.downstreamRead.response.data.draftOrder.shippingAddress.countryCodeV2",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/draftOrderCreate-downstream-read.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
-            }
-          }
-        },
-        "proxyPath": "$.data.draftOrder.shippingAddress.countryCodeV2"
-      },
-      {
-        "name": "mutation-shippingAddress-zip",
-        "capturePath": "$.mutation.response.data.draftOrderCreate.draftOrder.shippingAddress.zip",
-        "proxyPath": "$.data.draftOrderCreate.draftOrder.shippingAddress.zip"
-      },
-      {
-        "name": "downstream-shippingAddress-zip",
-        "capturePath": "$.downstreamRead.response.data.draftOrder.shippingAddress.zip",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/draftOrderCreate-downstream-read.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
-            }
-          }
-        },
-        "proxyPath": "$.data.draftOrder.shippingAddress.zip"
+        "proxyPath": "$.data.draftOrder"
       }
     ]
   }

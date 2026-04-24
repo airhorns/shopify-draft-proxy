@@ -1035,6 +1035,312 @@
     "runtimeTests": ["tests/integration/order-edit-flow.test.ts"]
   },
   {
+    "name": "discountNodes",
+    "type": "query",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["discountNodes", "DiscountNodes"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts"]
+  },
+  {
+    "name": "discountNodesCount",
+    "type": "query",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["discountNodesCount", "DiscountNodesCount"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts"]
+  },
+  {
+    "name": "discountNode",
+    "type": "query",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["discountNode", "DiscountNode"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts"]
+  },
+  {
+    "name": "codeDiscountNodes",
+    "type": "query",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["codeDiscountNodes", "CodeDiscountNodes"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts"]
+  },
+  {
+    "name": "codeDiscountNode",
+    "type": "query",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["codeDiscountNode", "CodeDiscountNode"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts"]
+  },
+  {
+    "name": "codeDiscountNodeByCode",
+    "type": "query",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["codeDiscountNodeByCode", "CodeDiscountNodeByCode"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts"]
+  },
+  {
+    "name": "automaticDiscountNodes",
+    "type": "query",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["automaticDiscountNodes", "AutomaticDiscountNodes"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts"]
+  },
+  {
+    "name": "automaticDiscountNode",
+    "type": "query",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["automaticDiscountNode", "AutomaticDiscountNode"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts"]
+  },
+  {
+    "name": "discountCodeBasicCreate",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["discountCodeBasicCreate", "DiscountCodeBasicCreate"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+  },
+  {
+    "name": "discountCodeBasicUpdate",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["discountCodeBasicUpdate", "DiscountCodeBasicUpdate"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+  },
+  {
+    "name": "discountCodeBxgyCreate",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["discountCodeBxgyCreate", "DiscountCodeBxgyCreate"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+  },
+  {
+    "name": "discountCodeBxgyUpdate",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["discountCodeBxgyUpdate", "DiscountCodeBxgyUpdate"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+  },
+  {
+    "name": "discountCodeFreeShippingCreate",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["discountCodeFreeShippingCreate", "DiscountCodeFreeShippingCreate"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+  },
+  {
+    "name": "discountCodeFreeShippingUpdate",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["discountCodeFreeShippingUpdate", "DiscountCodeFreeShippingUpdate"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+  },
+  {
+    "name": "discountCodeActivate",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["discountCodeActivate", "DiscountCodeActivate"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+  },
+  {
+    "name": "discountCodeDeactivate",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["discountCodeDeactivate", "DiscountCodeDeactivate"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+  },
+  {
+    "name": "discountCodeDelete",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["discountCodeDelete", "DiscountCodeDelete"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+  },
+  {
+    "name": "discountCodeBulkActivate",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["discountCodeBulkActivate", "DiscountCodeBulkActivate"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+  },
+  {
+    "name": "discountCodeBulkDeactivate",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["discountCodeBulkDeactivate", "DiscountCodeBulkDeactivate"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+  },
+  {
+    "name": "discountCodeBulkDelete",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["discountCodeBulkDelete", "DiscountCodeBulkDelete"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+  },
+  {
+    "name": "discountRedeemCodeBulkAdd",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["discountRedeemCodeBulkAdd", "DiscountRedeemCodeBulkAdd"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+  },
+  {
+    "name": "discountRedeemCodeBulkDelete",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["discountRedeemCodeBulkDelete", "DiscountRedeemCodeBulkDelete"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+  },
+  {
+    "name": "discountAutomaticBasicCreate",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["discountAutomaticBasicCreate", "DiscountAutomaticBasicCreate"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+  },
+  {
+    "name": "discountAutomaticBasicUpdate",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["discountAutomaticBasicUpdate", "DiscountAutomaticBasicUpdate"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+  },
+  {
+    "name": "discountAutomaticBxgyCreate",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["discountAutomaticBxgyCreate", "DiscountAutomaticBxgyCreate"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+  },
+  {
+    "name": "discountAutomaticBxgyUpdate",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["discountAutomaticBxgyUpdate", "DiscountAutomaticBxgyUpdate"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+  },
+  {
+    "name": "discountAutomaticFreeShippingCreate",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["discountAutomaticFreeShippingCreate", "DiscountAutomaticFreeShippingCreate"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+  },
+  {
+    "name": "discountAutomaticFreeShippingUpdate",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["discountAutomaticFreeShippingUpdate", "DiscountAutomaticFreeShippingUpdate"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+  },
+  {
+    "name": "discountAutomaticActivate",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["discountAutomaticActivate", "DiscountAutomaticActivate"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+  },
+  {
+    "name": "discountAutomaticDeactivate",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["discountAutomaticDeactivate", "DiscountAutomaticDeactivate"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+  },
+  {
+    "name": "discountAutomaticDelete",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["discountAutomaticDelete", "DiscountAutomaticDelete"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+  },
+  {
+    "name": "discountAutomaticBulkDelete",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["discountAutomaticBulkDelete", "DiscountAutomaticBulkDelete"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+  },
+  {
+    "name": "discountCodeAppUpdate",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["discountCodeAppUpdate", "DiscountCodeAppUpdate"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+  },
+  {
+    "name": "discountAutomaticAppUpdate",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["discountAutomaticAppUpdate", "DiscountAutomaticAppUpdate"],
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+  },
+  {
     "name": "fileCreate",
     "type": "mutation",
     "domain": "media",

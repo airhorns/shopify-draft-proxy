@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { runAdminGraphql, runAdminGraphqlRequest } from './conformance-graphql-client.mjs';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 import {
@@ -87,40 +88,15 @@ function describeCredentialObservation(token) {
 function buildGraphqlClient(token) {
   return {
     async runGraphql(query, variables = {}) {
-      const response = await fetch(`${adminOrigin}/admin/api/${apiVersion}/graphql.json`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...buildAdminAuthHeaders(token),
-        },
-        body: JSON.stringify({ query, variables }),
-      });
-
-      const payload = await response.json();
-      if (!response.ok || payload.errors) {
-        const error = new Error(JSON.stringify({ status: response.status, payload }, null, 2));
-        error.result = { status: response.status, payload };
-        throw error;
-      }
-
-      return payload;
+      return runAdminGraphql({ adminOrigin, apiVersion, headers: buildAdminAuthHeaders(token) }, query, variables);
     },
 
     async runGraphqlRaw(query, variables = {}) {
-      const response = await fetch(`${adminOrigin}/admin/api/${apiVersion}/graphql.json`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...buildAdminAuthHeaders(token),
-        },
-        body: JSON.stringify({ query, variables }),
-      });
-
-      const payload = await response.json();
-      return {
-        status: response.status,
-        payload,
-      };
+      return runAdminGraphqlRequest(
+        { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(token) },
+        query,
+        variables,
+      );
     },
   };
 }

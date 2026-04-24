@@ -413,6 +413,54 @@ describe('getOperationCapability', () => {
     });
   });
 
+  it('tracks discounts roots as explicit passthrough until local staging exists', () => {
+    expect(getOperationCapability({ type: 'query', name: 'DiscountNodes', rootFields: ['discountNodes'] })).toEqual({
+      domain: 'discounts',
+      execution: 'passthrough',
+      operationName: 'DiscountNodes',
+      type: 'query',
+    });
+
+    expect(
+      getOperationCapability({
+        type: 'query',
+        name: 'CodeDiscountNodeByCode',
+        rootFields: ['codeDiscountNodeByCode'],
+      }),
+    ).toEqual({
+      domain: 'discounts',
+      execution: 'passthrough',
+      operationName: 'CodeDiscountNodeByCode',
+      type: 'query',
+    });
+
+    expect(
+      getOperationCapability({
+        type: 'mutation',
+        name: 'CreateDiscount',
+        rootFields: ['discountCodeBasicCreate'],
+      }),
+    ).toEqual({
+      domain: 'discounts',
+      execution: 'passthrough',
+      operationName: 'discountCodeBasicCreate',
+      type: 'mutation',
+    });
+
+    expect(
+      getOperationCapability({
+        type: 'mutation',
+        name: 'DeleteAutomaticDiscounts',
+        rootFields: ['discountAutomaticBulkDelete'],
+      }),
+    ).toEqual({
+      domain: 'discounts',
+      execution: 'passthrough',
+      operationName: 'discountAutomaticBulkDelete',
+      type: 'mutation',
+    });
+  });
+
   it('marks inventoryItemUpdate as a locally staged mutation', () => {
     expect(
       getOperationCapability({ type: 'mutation', name: 'InventoryItemUpdate', rootFields: ['inventoryItemUpdate'] }),

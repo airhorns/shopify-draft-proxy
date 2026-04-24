@@ -7,6 +7,7 @@ import {
   refreshConformanceAccessToken,
   resolveDefaultAppEnvPath,
 } from './shopify-conformance-auth.mjs';
+import { runAdminGraphqlRequest } from './conformance-graphql-client.mjs';
 
 const storeDomain = process.env['SHOPIFY_CONFORMANCE_STORE_DOMAIN'];
 
@@ -49,14 +50,9 @@ function recommendedNextStep(error: unknown): string {
 }
 
 async function runProbe(accessToken: string) {
-  const response = await fetch(`${adminOrigin}/admin/api/${apiVersion}/graphql.json`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...buildAdminAuthHeaders(accessToken),
-    },
-    body: JSON.stringify({
-      query: `#graphql
+  const result = await runAdminGraphqlRequest(
+    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(accessToken) },
+    `#graphql
         query RefreshProbe {
           shop {
             id
@@ -65,14 +61,11 @@ async function runProbe(accessToken: string) {
           }
         }
       `,
-    }),
-  });
+  );
 
-  const payload = await response.json();
   return {
-    status: response.status,
-    ok: response.ok && !payload.errors,
-    payload,
+    ...result,
+    ok: result.status >= 200 && result.status < 300 && !result.payload.errors,
   };
 }
 
