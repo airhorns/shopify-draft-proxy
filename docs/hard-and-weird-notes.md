@@ -950,6 +950,8 @@ Takeaway:
 Public Shopify docs for the real mutations already force two different local semantics:
 
 - `collectionAddProducts` is atomic for duplicate membership: if any requested product is already in the collection, return a `userErrors` entry and add none of them
+- `collectionAddProducts` ignores product IDs that do not resolve to products, while still adding known products from the same request and returning the updated collection payload
+- `collectionAddProducts` returns `collection: null` plus an `id`-scoped user error for unknown collections and smart collections; smart collections cannot be manually managed through this mutation
 - `collectionRemoveProducts` is async in Shopify and explicitly does **not** validate product existence or prior membership, so a pragmatic first local pass can remove known memberships immediately, ignore unknown product ids, and return a synthetic done `job`
 
 That asymmetry is worth preserving in the local model instead of forcing one generic membership-mutation helper.

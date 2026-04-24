@@ -1,0 +1,46 @@
+query CollectionAddProductsDownstream($collectionId: ID!, $firstProductId: ID!, $secondProductId: ID!) {
+  collection(id: $collectionId) {
+    id
+    title
+    handle
+    products(first: 10) {
+      nodes {
+        id
+        title
+        handle
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+  }
+  first: product(id: $firstProductId) {
+    id
+    collections(first: 10) {
+      nodes {
+        id
+        title
+        handle
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+  }
+  second: product(id: $secondProductId) {
+    id
+    collections(first: 10) {
+      nodes {
+        id
+        title
+        handle
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+  }
+}

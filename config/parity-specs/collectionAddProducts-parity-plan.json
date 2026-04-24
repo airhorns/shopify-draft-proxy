@@ -14,18 +14,30 @@
   "notes": "Executed by the conformance parity runner against the local staged-mutation path with live fixture variables; expected differences are path-scoped to nondeterministic ids, timestamps, throttle metadata, or documented declared-gap fields.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [
-      {
-        "path": "$.collectionAddProducts.collection",
-        "ignore": true,
-        "regrettable": true,
-        "reason": "This field is a documented fidelity gap for the current staged local implementation."
-      }
-    ],
+    "expectedDifferences": [],
     "targets": [
       {
         "name": "mutation-data",
         "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/collectionAddProducts-downstream-read.graphql",
+          "variables": {
+            "collectionId": {
+              "fromPrimaryProxyPath": "$.data.collectionAddProducts.collection.id"
+            },
+            "firstProductId": {
+              "fromPrimaryProxyPath": "$.data.collectionAddProducts.collection.products.nodes[0].id"
+            },
+            "secondProductId": {
+              "fromPrimaryProxyPath": "$.data.collectionAddProducts.collection.products.nodes[1].id"
+            }
+          }
+        },
         "proxyPath": "$.data"
       }
     ]

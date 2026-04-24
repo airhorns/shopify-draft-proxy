@@ -263,6 +263,13 @@ function addProductsToCollection(
     };
   }
 
+  if (collection.isSmart) {
+    return {
+      collection: null,
+      userErrors: [{ field: ['id'], message: "Can't manually add products to a smart collection" }],
+    };
+  }
+
   const duplicateMembership = normalizedProductIds.find((productId) =>
     store.getEffectiveCollectionsByProductId(productId).some((candidate) => candidate.id === collection.id),
   );
@@ -273,11 +280,11 @@ function addProductsToCollection(
     };
   }
 
-  const missingProductId = normalizedProductIds.find((productId) => !store.getEffectiveProductById(productId));
-  if (missingProductId) {
+  const existingProductIds = normalizedProductIds.filter((productId) => store.getEffectiveProductById(productId));
+  if (existingProductIds.length === 0) {
     return {
-      collection: null,
-      userErrors: [{ field: ['productIds'], message: 'Product not found' }],
+      collection,
+      userErrors: [],
     };
   }
 
@@ -287,12 +294,12 @@ function addProductsToCollection(
     .filter((candidate) => candidate.id === collection.id)
     .map((candidate) => candidate.position)
     .filter((position): position is number => typeof position === 'number' && Number.isFinite(position));
-  const firstPosition = existingPositions.length > 0 ? Math.min(...existingPositions) : 0;
+  const firstPosition = existingPositions.length > 0 ? Math.max(...existingPositions) + 1 : 0;
 
-  for (const [index, productId] of normalizedProductIds.entries()) {
+  for (const [index, productId] of existingProductIds.entries()) {
     const nextCollections = [
       ...store.getEffectiveCollectionsByProductId(productId),
-      makeProductCollectionRecord(productId, collection, firstPosition - index - 1),
+      makeProductCollectionRecord(productId, collection, firstPosition + index),
     ];
     store.replaceStagedCollectionsForProduct(productId, nextCollections);
   }
@@ -758,6 +765,11 @@ function makeCollectionRecord(input: Record<string, unknown>, existing?: Collect
       typeof input['redirectNewHandle'] === 'boolean'
         ? input['redirectNewHandle']
         : (existing?.redirectNewHandle ?? false),
+    ...(existing?.isSmart !== undefined
+      ? { isSmart: existing.isSmart }
+      : hasOwnField(input, 'ruleSet') && rawRuleSet !== null && rawRuleSet !== undefined
+        ? { isSmart: true }
+        : {}),
   };
 }
 
@@ -2915,6 +2927,7 @@ function normalizeCollectionFields(
         }
       : { title: null, description: null },
     ruleSet: normalizeCollectionRuleSet(value['ruleSet']),
+    ...(value['ruleSet'] && isObject(value['ruleSet']) ? { isSmart: true } : {}),
   };
 }
 
@@ -7002,7 +7015,7 @@ export function handleProductMutation(
           data: {
             [responseKey]: {
               collection: null,
-              userErrors: [{ field: ['id'], message: 'Collection not found' }],
+              userErrors: [{ field: ['id'], message: 'Collection does not exist' }],
             },
           },
         };
