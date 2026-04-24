@@ -1,6 +1,7 @@
 // @ts-nocheck
 import 'dotenv/config';
 
+import { runAdminGraphqlRequest } from './conformance-graphql-client.mjs';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 const requiredVars = ['SHOPIFY_CONFORMANCE_STORE_DOMAIN', 'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
@@ -41,20 +42,14 @@ const query = `#graphql
   }
 `;
 
-const response = await fetch(`${adminOrigin}/admin/api/${apiVersion}/graphql.json`, {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    ...buildAdminAuthHeaders(adminAccessToken),
-  },
-  body: JSON.stringify({ query }),
-});
+const { status, payload } = await runAdminGraphqlRequest(
+  { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(adminAccessToken) },
+  query,
+);
 
-const payload = await response.json();
-
-if (!response.ok || payload.errors) {
+if (status < 200 || status >= 300 || payload.errors) {
   // oxlint-disable-next-line no-console -- CLI error output is intentionally written to stderr.
-  console.error(JSON.stringify({ status: response.status, payload }, null, 2));
+  console.error(JSON.stringify({ status, payload }, null, 2));
   process.exit(1);
 }
 

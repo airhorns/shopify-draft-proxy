@@ -4,6 +4,7 @@ import 'dotenv/config';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { runAdminGraphql, runAdminGraphqlRequest } from './conformance-graphql-client.mjs';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 import { parseWriteScopeBlocker, renderWriteScopeBlockerNote } from './product-mutation-conformance-lib.mjs';
@@ -33,28 +34,19 @@ function sleep(ms: number) {
 }
 
 async function postGraphql(query, variables = {}) {
-  const response = await fetch(`${adminOrigin}/admin/api/${apiVersion}/graphql.json`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...buildAdminAuthHeaders(adminAccessToken),
-    },
-    body: JSON.stringify({ query, variables }),
-  });
-
-  const payload = await response.json();
-  return { status: response.status, payload };
+  return runAdminGraphqlRequest(
+    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(adminAccessToken) },
+    query,
+    variables,
+  );
 }
 
 async function runGraphql(query, variables = {}) {
-  const { status, payload } = await postGraphql(query, variables);
-  if (status < 200 || status >= 300 || payload.errors) {
-    const error = new Error(JSON.stringify({ status, payload }, null, 2));
-    error.result = { status, payload };
-    throw error;
-  }
-
-  return payload;
+  return runAdminGraphql(
+    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(adminAccessToken) },
+    query,
+    variables,
+  );
 }
 
 async function runGraphqlAllowErrors(query, variables = {}) {

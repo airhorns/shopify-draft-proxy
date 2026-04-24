@@ -5,6 +5,7 @@ import 'dotenv/config';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { runAdminGraphql } from './conformance-graphql-client.mjs';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 const requiredVars = ['SHOPIFY_CONFORMANCE_STORE_DOMAIN', 'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
@@ -23,21 +24,11 @@ const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
 const outputPath = path.join(outputDir, 'inventory-item-update-parity.json');
 
 async function runGraphql(query, variables = {}) {
-  const response = await fetch(`${adminOrigin}/admin/api/${apiVersion}/graphql.json`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...buildAdminAuthHeaders(adminAccessToken),
-    },
-    body: JSON.stringify({ query, variables }),
-  });
-
-  const payload = await response.json();
-  if (!response.ok || payload.errors) {
-    throw new Error(JSON.stringify({ status: response.status, payload }, null, 2));
-  }
-
-  return payload;
+  return runAdminGraphql(
+    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(adminAccessToken) },
+    query,
+    variables,
+  );
 }
 
 const createMutation = `#graphql

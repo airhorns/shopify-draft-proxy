@@ -7,6 +7,27 @@ export type AdminGraphqlOptions = {
   fetchImpl?: ConformanceGraphqlFetch;
 };
 
+export type ConformanceGraphqlPayload<TData = unknown> = {
+  data?: TData;
+  errors?: unknown;
+  extensions?: unknown;
+};
+
+export type ConformanceGraphqlResult<TData = unknown> = {
+  status: number;
+  payload: ConformanceGraphqlPayload<TData>;
+};
+
+export class ConformanceGraphqlError<TData = unknown> extends Error {
+  readonly result: ConformanceGraphqlResult<TData>;
+
+  constructor(result: ConformanceGraphqlResult<TData>) {
+    super(formatGraphqlError(result.payload, result.status));
+    this.name = 'ConformanceGraphqlError';
+    this.result = result;
+  }
+}
+
 export function formatGraphqlError(payload: unknown, status: number): string {
   if (typeof payload === 'object' && payload !== null && 'errors' in payload) {
     const errors = (payload as { errors?: unknown }).errors;
@@ -33,11 +54,11 @@ export function formatGraphqlError(payload: unknown, status: number): string {
   return `HTTP ${status}`;
 }
 
-export async function runAdminGraphql(
+export async function runAdminGraphqlRequest<TData = unknown>(
   options: AdminGraphqlOptions,
   query: string,
   variables: Record<string, unknown> = {},
-): Promise<unknown> {
+): Promise<ConformanceGraphqlResult<TData>> {
   const fetchImpl = options.fetchImpl ?? fetch;
   const response = await fetchImpl(`${options.adminOrigin}/admin/api/${options.apiVersion}/graphql.json`, {
     method: 'POST',
@@ -47,11 +68,24 @@ export async function runAdminGraphql(
     },
     body: JSON.stringify({ query, variables }),
   });
-  const payload = (await response.json()) as unknown;
+  const payload = (await response.json()) as ConformanceGraphqlPayload<TData>;
 
-  if (!response.ok || (typeof payload === 'object' && payload !== null && 'errors' in payload)) {
-    throw new Error(formatGraphqlError(payload, response.status));
+  return {
+    status: response.status,
+    payload,
+  };
+}
+
+export async function runAdminGraphql<TData = unknown>(
+  options: AdminGraphqlOptions,
+  query: string,
+  variables: Record<string, unknown> = {},
+): Promise<ConformanceGraphqlPayload<TData>> {
+  const result = await runAdminGraphqlRequest<TData>(options, query, variables);
+
+  if (result.status < 200 || result.status >= 300 || result.payload.errors) {
+    throw new ConformanceGraphqlError(result);
   }
 
-  return payload;
+  return result.payload;
 }

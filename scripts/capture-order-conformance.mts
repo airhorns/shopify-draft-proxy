@@ -5,6 +5,7 @@ import 'dotenv/config';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { runAdminGraphqlRequest } from './conformance-graphql-client.mjs';
 import { extractManualStoreAuthTokenSummary } from './product-publication-conformance-lib.mjs';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
@@ -257,19 +258,11 @@ async function readOrderCreationParityMetadata(credential, manualStoreAuthSummar
 }
 
 async function runGraphql(query, variables = {}) {
-  const response = await fetch(`${adminOrigin}/admin/api/${apiVersion}/graphql.json`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...buildAdminAuthHeaders(adminAccessToken),
-    },
-    body: JSON.stringify({ query, variables }),
-  });
-
-  return {
-    status: response.status,
-    payload: await response.json(),
-  };
+  return runAdminGraphqlRequest(
+    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(adminAccessToken) },
+    query,
+    variables,
+  );
 }
 
 async function writeJson(filePath, payload) {

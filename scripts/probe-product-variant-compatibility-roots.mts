@@ -2,6 +2,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status and error output to stdio. */
 import 'dotenv/config';
 
+import { runAdminGraphqlRequest } from './conformance-graphql-client.mjs';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 const requiredVars = ['SHOPIFY_CONFORMANCE_STORE_DOMAIN', 'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
@@ -19,20 +20,11 @@ const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, api
 const linearIssue = 'HAR-189';
 
 async function runGraphqlRaw(query, variables = {}) {
-  const response = await fetch(`${adminOrigin}/admin/api/${apiVersion}/graphql.json`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...buildAdminAuthHeaders(adminAccessToken),
-    },
-    body: JSON.stringify({ query, variables }),
-  });
-
-  const payload = await response.json();
-  return {
-    status: response.status,
-    payload,
-  };
+  return runAdminGraphqlRequest(
+    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(adminAccessToken) },
+    query,
+    variables,
+  );
 }
 
 const createProbeMutation = `#graphql

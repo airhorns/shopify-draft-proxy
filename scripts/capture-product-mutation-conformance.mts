@@ -4,6 +4,7 @@ import 'dotenv/config';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { runAdminGraphql, runAdminGraphqlRequest } from './conformance-graphql-client.mjs';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 import { parseWriteScopeBlocker, renderWriteScopeBlockerNote } from './product-mutation-conformance-lib.mjs';
@@ -26,23 +27,26 @@ const pendingDir = 'pending';
 const blockerPath = path.join(pendingDir, 'product-mutation-conformance-scope-blocker.md');
 
 async function runGraphql(query, variables = {}) {
-  const response = await fetch(`${adminOrigin}/admin/api/${apiVersion}/graphql.json`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...buildAdminAuthHeaders(adminAccessToken),
-    },
-    body: JSON.stringify({ query, variables }),
-  });
+  return runAdminGraphql(
+    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(adminAccessToken) },
+    query,
+    variables,
+  );
+}
 
-  const payload = await response.json();
-  if (!response.ok || payload.errors) {
-    const error = new Error(JSON.stringify({ status: response.status, payload }, null, 2));
-    error.result = { status: response.status, payload };
+async function runGraphqlAllowGraphqlErrors(query, variables = {}) {
+  const result = await runAdminGraphqlRequest(
+    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(adminAccessToken) },
+    query,
+    variables,
+  );
+  if (result.status < 200 || result.status >= 300) {
+    const error = new Error(JSON.stringify(result, null, 2));
+    error.result = result;
     throw error;
   }
 
-  return payload;
+  return result.payload;
 }
 
 const productDetailQuery = `#graphql
@@ -499,30 +503,12 @@ try {
   const deleteValidationVariables = buildDeleteValidationVariables();
   const deleteValidationResponse = await runGraphql(deleteMutation, deleteValidationVariables);
   const deleteMissingIdValidationVariables = buildDeleteMissingIdValidationVariables();
-  const deleteMissingIdValidationResponse = await fetch(`${adminOrigin}/admin/api/${apiVersion}/graphql.json`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...buildAdminAuthHeaders(adminAccessToken),
-    },
-    body: JSON.stringify({ query: deleteMutation, variables: deleteMissingIdValidationVariables }),
-  }).then(async (response) => response.json());
-  const deleteInlineMissingIdValidationResponse = await fetch(`${adminOrigin}/admin/api/${apiVersion}/graphql.json`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...buildAdminAuthHeaders(adminAccessToken),
-    },
-    body: JSON.stringify({ query: deleteInlineMissingIdMutation, variables: {} }),
-  }).then(async (response) => response.json());
-  const deleteInlineNullIdValidationResponse = await fetch(`${adminOrigin}/admin/api/${apiVersion}/graphql.json`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...buildAdminAuthHeaders(adminAccessToken),
-    },
-    body: JSON.stringify({ query: deleteInlineNullIdMutation, variables: {} }),
-  }).then(async (response) => response.json());
+  const deleteMissingIdValidationResponse = await runGraphqlAllowGraphqlErrors(
+    deleteMutation,
+    deleteMissingIdValidationVariables,
+  );
+  const deleteInlineMissingIdValidationResponse = await runGraphqlAllowGraphqlErrors(deleteInlineMissingIdMutation);
+  const deleteInlineNullIdValidationResponse = await runGraphqlAllowGraphqlErrors(deleteInlineNullIdMutation);
   deleteResponse = await runGraphql(deleteMutation, { input: { id: createdProductId } });
   const postDeleteLookup = await runGraphql(deletedProductLookupQuery, {
     id: createdProductId,
