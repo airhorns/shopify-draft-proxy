@@ -364,11 +364,18 @@ describe('getOperationCapability', () => {
     });
   });
 
-  it('marks generic media fileCreate as a locally staged media mutation', () => {
+  it('marks generic media file mutations as locally staged media mutations', () => {
     expect(getOperationCapability({ type: 'mutation', name: 'FileCreate', rootFields: ['fileCreate'] })).toEqual({
       domain: 'media',
       execution: 'stage-locally',
       operationName: 'FileCreate',
+      type: 'mutation',
+    });
+
+    expect(getOperationCapability({ type: 'mutation', name: 'FileDelete', rootFields: ['fileDelete'] })).toEqual({
+      domain: 'media',
+      execution: 'stage-locally',
+      operationName: 'FileDelete',
       type: 'mutation',
     });
   });

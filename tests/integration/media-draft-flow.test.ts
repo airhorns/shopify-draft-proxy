@@ -141,4 +141,167 @@ describe('media draft flow', () => {
     expect(store.getState().stagedState.files).toEqual({});
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it('stages fileDelete locally for Files API records without proxying upstream', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('fileDelete should not hit upstream fetch');
+    });
+    const app = createApp(config).callback();
+
+    const createResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation FileCreate($files: [FileCreateInput!]!) { fileCreate(files: $files) { files { id alt } userErrors { field message code } } }',
+        variables: {
+          files: [
+            {
+              alt: 'Delete me',
+              contentType: 'IMAGE',
+              originalSource: 'https://cdn.example.com/delete-me.jpg',
+            },
+            {
+              alt: 'Keep me',
+              contentType: 'FILE',
+              originalSource: 'https://cdn.example.com/keep-me.pdf',
+            },
+          ],
+        },
+      });
+
+    const deletedFileId = createResponse.body.data.fileCreate.files[0].id as string;
+    const keptFileId = createResponse.body.data.fileCreate.files[1].id as string;
+    const deleteResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation FileDelete($fileIds: [ID!]!) { fileDelete(fileIds: $fileIds) { deletedFileIds userErrors { field message code } } }',
+        variables: { fileIds: [deletedFileId] },
+      });
+
+    expect(deleteResponse.status).toBe(200);
+    expect(deleteResponse.body.data.fileDelete).toEqual({
+      deletedFileIds: [deletedFileId],
+      userErrors: [],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(store.getState().stagedState.files).toEqual({
+      [keptFileId]: expect.objectContaining({
+        alt: 'Keep me',
+        originalSource: 'https://cdn.example.com/keep-me.pdf',
+      }),
+    });
+    expect(store.getState().stagedState.deletedFileIds).toEqual({
+      [deletedFileId]: true,
+    });
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(logResponse.body.entries.at(-1)).toMatchObject({
+      operationName: 'FileDelete',
+      query: expect.stringContaining('mutation FileDelete'),
+      variables: {
+        fileIds: [deletedFileId],
+      },
+      status: 'staged',
+      interpreted: {
+        primaryRootField: 'fileDelete',
+        capability: {
+          domain: 'media',
+          execution: 'stage-locally',
+        },
+      },
+    });
+  });
+
+  it('returns Shopify-like fileDelete user errors without staging unknown file ids', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('invalid fileDelete should not hit upstream fetch');
+    });
+    const app = createApp(config).callback();
+
+    const deleteResponse = await request(app).post('/admin/api/2026-04/graphql.json').send({
+      query:
+        'mutation { fileDelete(fileIds: ["gid://shopify/GenericFile/999999"]) { deletedFileIds userErrors { field message code } } }',
+    });
+
+    expect(deleteResponse.status).toBe(200);
+    expect(deleteResponse.body.data.fileDelete).toEqual({
+      deletedFileIds: null,
+      userErrors: [
+        {
+          field: ['fileIds'],
+          message: 'File id gid://shopify/GenericFile/999999 does not exist.',
+          code: 'FILE_DOES_NOT_EXIST',
+        },
+      ],
+    });
+    expect(store.getState().stagedState.files).toEqual({});
+    expect(store.getState().stagedState.deletedFileIds).toEqual({});
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('stages fileDelete locally and removes matching product media references from downstream reads', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('fileDelete should not hit upstream fetch');
+    });
+    const app = createApp(config).callback();
+
+    const productResponse = await request(app).post('/admin/api/2026-04/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Media file delete owner" }) { product { id } userErrors { field message } } }',
+    });
+    const productId = productResponse.body.data.productCreate.product.id as string;
+
+    const createMediaResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation ProductCreateMedia($productId: ID!, $media: [CreateMediaInput!]!) { productCreateMedia(productId: $productId, media: $media) { media { id alt mediaContentType status } mediaUserErrors { field message } } }',
+        variables: {
+          productId,
+          media: [
+            {
+              alt: 'Attached file image',
+              mediaContentType: 'IMAGE',
+              originalSource: 'https://cdn.example.com/attached-file-image.jpg',
+            },
+          ],
+        },
+      });
+
+    const mediaId = createMediaResponse.body.data.productCreateMedia.media[0].id as string;
+    const deleteResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation FileDelete($fileIds: [ID!]!) { fileDelete(fileIds: $fileIds) { deletedFileIds userErrors { field message code } } }',
+        variables: { fileIds: [mediaId] },
+      });
+
+    expect(deleteResponse.status).toBe(200);
+    expect(deleteResponse.body.data.fileDelete).toEqual({
+      deletedFileIds: [mediaId],
+      userErrors: [],
+    });
+
+    const downstreamMediaResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'query ProductMediaAfterFileDelete($id: ID!) { product(id: $id) { id media(first: 10) { nodes { id alt mediaContentType status } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }',
+        variables: { id: productId },
+      });
+
+    expect(downstreamMediaResponse.status).toBe(200);
+    expect(downstreamMediaResponse.body.data.product.media).toEqual({
+      nodes: [],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: null,
+        endCursor: null,
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });
