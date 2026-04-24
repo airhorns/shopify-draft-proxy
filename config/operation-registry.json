@@ -45,6 +45,15 @@
     "runtimeTests": ["tests/integration/product-query-shapes.test.ts", "tests/integration/product-draft-flow.test.ts"]
   },
   {
+    "name": "inventoryLevel",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["inventoryLevel", "InventoryLevel"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts", "tests/integration/product-draft-flow.test.ts"]
+  },
+  {
     "name": "collection",
     "type": "query",
     "domain": "products",
@@ -76,6 +85,60 @@
     "implemented": true,
     "matchNames": ["locations", "Locations"],
     "runtimeTests": ["tests/integration/location-query-shapes.test.ts"]
+  },
+  {
+    "name": "shop",
+    "type": "query",
+    "domain": "store-properties",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["shop", "Shop"],
+    "runtimeTests": []
+  },
+  {
+    "name": "location",
+    "type": "query",
+    "domain": "store-properties",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["location", "Location"],
+    "runtimeTests": []
+  },
+  {
+    "name": "locationByIdentifier",
+    "type": "query",
+    "domain": "store-properties",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["locationByIdentifier", "LocationByIdentifier"],
+    "runtimeTests": []
+  },
+  {
+    "name": "businessEntities",
+    "type": "query",
+    "domain": "store-properties",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["businessEntities", "BusinessEntities"],
+    "runtimeTests": []
+  },
+  {
+    "name": "businessEntity",
+    "type": "query",
+    "domain": "store-properties",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["businessEntity", "BusinessEntity"],
+    "runtimeTests": []
+  },
+  {
+    "name": "cashManagementLocationSummary",
+    "type": "query",
+    "domain": "store-properties",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["cashManagementLocationSummary", "CashManagementLocationSummary"],
+    "runtimeTests": []
   },
   {
     "name": "publications",
@@ -114,6 +177,24 @@
     "runtimeTests": ["tests/integration/customer-query-shapes.test.ts"]
   },
   {
+    "name": "customerByIdentifier",
+    "type": "query",
+    "domain": "customers",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["customerByIdentifier", "CustomerByIdentifier"],
+    "runtimeTests": []
+  },
+  {
+    "name": "customerMergePreview",
+    "type": "query",
+    "domain": "customers",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["customerMergePreview", "CustomerMergePreview"],
+    "runtimeTests": []
+  },
+  {
     "name": "customerCreate",
     "type": "mutation",
     "domain": "customers",
@@ -139,6 +220,123 @@
     "implemented": true,
     "matchNames": ["customerDelete", "CustomerDelete"],
     "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
+  },
+  {
+    "name": "customerAddressCreate",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["customerAddressCreate", "CustomerAddressCreate"],
+    "runtimeTests": []
+  },
+  {
+    "name": "customerAddressUpdate",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["customerAddressUpdate", "CustomerAddressUpdate"],
+    "runtimeTests": []
+  },
+  {
+    "name": "customerAddressDelete",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["customerAddressDelete", "CustomerAddressDelete"],
+    "runtimeTests": []
+  },
+  {
+    "name": "customerUpdateDefaultAddress",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["customerUpdateDefaultAddress", "CustomerUpdateDefaultAddress"],
+    "runtimeTests": []
+  },
+  {
+    "name": "customerEmailMarketingConsentUpdate",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["customerEmailMarketingConsentUpdate", "CustomerEmailMarketingConsentUpdate"],
+    "runtimeTests": []
+  },
+  {
+    "name": "customerSmsMarketingConsentUpdate",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["customerSmsMarketingConsentUpdate", "CustomerSmsMarketingConsentUpdate"],
+    "runtimeTests": []
+  },
+  {
+    "name": "customerAddTaxExemptions",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["customerAddTaxExemptions", "CustomerAddTaxExemptions"],
+    "runtimeTests": []
+  },
+  {
+    "name": "customerRemoveTaxExemptions",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["customerRemoveTaxExemptions", "CustomerRemoveTaxExemptions"],
+    "runtimeTests": []
+  },
+  {
+    "name": "customerReplaceTaxExemptions",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["customerReplaceTaxExemptions", "CustomerReplaceTaxExemptions"],
+    "runtimeTests": []
+  },
+  {
+    "name": "customerSet",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["customerSet", "CustomerSet"],
+    "runtimeTests": []
+  },
+  {
+    "name": "customerSendAccountInviteEmail",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["customerSendAccountInviteEmail", "CustomerSendAccountInviteEmail"],
+    "runtimeTests": []
+  },
+  {
+    "name": "customerPaymentMethodSendUpdateEmail",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["customerPaymentMethodSendUpdateEmail", "CustomerPaymentMethodSendUpdateEmail"],
+    "runtimeTests": []
+  },
+  {
+    "name": "customerMerge",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["customerMerge", "CustomerMerge"],
+    "runtimeTests": []
   },
   {
     "name": "tagsAdd",
@@ -232,6 +430,96 @@
     "implemented": true,
     "matchNames": ["productUnpublish", "ProductUnpublish"],
     "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
+  },
+  {
+    "name": "locationAdd",
+    "type": "mutation",
+    "domain": "store-properties",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["locationAdd", "LocationAdd"],
+    "runtimeTests": []
+  },
+  {
+    "name": "locationEdit",
+    "type": "mutation",
+    "domain": "store-properties",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["locationEdit", "LocationEdit"],
+    "runtimeTests": []
+  },
+  {
+    "name": "locationActivate",
+    "type": "mutation",
+    "domain": "store-properties",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["locationActivate", "LocationActivate"],
+    "runtimeTests": []
+  },
+  {
+    "name": "locationDeactivate",
+    "type": "mutation",
+    "domain": "store-properties",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["locationDeactivate", "LocationDeactivate"],
+    "runtimeTests": []
+  },
+  {
+    "name": "locationDelete",
+    "type": "mutation",
+    "domain": "store-properties",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["locationDelete", "LocationDelete"],
+    "runtimeTests": []
+  },
+  {
+    "name": "publishablePublish",
+    "type": "mutation",
+    "domain": "store-properties",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["publishablePublish", "PublishablePublish"],
+    "runtimeTests": []
+  },
+  {
+    "name": "publishablePublishToCurrentChannel",
+    "type": "mutation",
+    "domain": "store-properties",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["publishablePublishToCurrentChannel", "PublishablePublishToCurrentChannel"],
+    "runtimeTests": []
+  },
+  {
+    "name": "publishableUnpublish",
+    "type": "mutation",
+    "domain": "store-properties",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["publishableUnpublish", "PublishableUnpublish"],
+    "runtimeTests": []
+  },
+  {
+    "name": "publishableUnpublishToCurrentChannel",
+    "type": "mutation",
+    "domain": "store-properties",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["publishableUnpublishToCurrentChannel", "PublishableUnpublishToCurrentChannel"],
+    "runtimeTests": []
+  },
+  {
+    "name": "shopPolicyUpdate",
+    "type": "mutation",
+    "domain": "store-properties",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["shopPolicyUpdate", "ShopPolicyUpdate"],
+    "runtimeTests": []
   },
   {
     "name": "productOptionsCreate",

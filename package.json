@@ -33,10 +33,12 @@
     "conformance:probe-product-variant-compatibility-roots": "tsx ./scripts/probe-product-variant-compatibility-roots.mts",
     "conformance:capture-product-metafield-mutations": "tsx ./scripts/capture-product-metafield-mutation-conformance.mts",
     "conformance:capture-product-graph-mutations": "tsx ./scripts/capture-product-graph-mutation-conformance.mts",
+    "conformance:capture-product-inventory-reads": "tsx ./scripts/capture-product-inventory-read-conformance.mts",
     "conformance:capture-inventory-adjustments": "tsx ./scripts/capture-inventory-adjustment-conformance.mts",
     "conformance:capture-collections": "tsx ./scripts/capture-collection-conformance.mts",
     "conformance:capture-collection-mutations": "tsx ./scripts/capture-collection-mutation-conformance.mts",
     "conformance:capture-locations": "tsx ./scripts/capture-location-conformance.mts",
+    "conformance:capture-store-properties": "tsx ./scripts/capture-location-conformance.mts",
     "conformance:capture-orders": "tsx ./scripts/capture-order-conformance.mts",
     "conformance:capture-order-refunds": "tsx ./scripts/capture-order-refund-conformance.mts"
   },

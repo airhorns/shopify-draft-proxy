@@ -11,8 +11,9 @@
   "comparisonMode": "planned",
   "blocker": {
     "kind": "missing-live-order-edit-add-variant-access",
-    "blockerPath": "pending/order-editing-conformance-scope-blocker.md",
+    "blockerPath": null,
     "details": {
+      "linearIssue": "HAR-115",
       "requiredScopes": ["write_order_edits"],
       "probeRoots": ["orderEditAddVariant"],
       "blockedMutations": ["orderEditAddVariant"],

@@ -1,0 +1,316 @@
+query OrderMerchantDetailRead($id: ID!) {
+  order(id: $id) {
+    id
+    name
+    email
+    phone
+    poNumber
+    createdAt
+    updatedAt
+    closed
+    closedAt
+    cancelledAt
+    cancelReason
+    displayFinancialStatus
+    displayFulfillmentStatus
+    paymentGatewayNames
+    note
+    tags
+    billingAddress {
+      firstName
+      lastName
+      address1
+      address2
+      company
+      city
+      province
+      provinceCode
+      country
+      countryCodeV2
+      zip
+      phone
+    }
+    shippingAddress {
+      firstName
+      lastName
+      address1
+      address2
+      company
+      city
+      province
+      provinceCode
+      country
+      countryCodeV2
+      zip
+      phone
+    }
+    subtotalPriceSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+    currentSubtotalPriceSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+    currentTotalPriceSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+    currentTotalTaxSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+    currentTotalDiscountsSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+    totalOutstandingSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+    totalReceivedSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+    netPaymentSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+    totalRefundedSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+    totalRefundedShippingSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+    totalShippingPriceSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+    totalTaxSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+    totalDiscountsSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+    discountCodes
+    taxesIncluded
+    customer {
+      id
+      email
+      displayName
+    }
+    shippingLines(first: 5) {
+      nodes {
+        title
+        code
+        source
+        originalPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        taxLines {
+          title
+          rate
+          channelLiable
+          priceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    lineItems(first: 5) {
+      nodes {
+        id
+        title
+        quantity
+        sku
+        variantTitle
+        variant {
+          id
+        }
+        originalUnitPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        taxLines {
+          title
+          rate
+          channelLiable
+          priceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    fulfillmentOrders(first: 5) {
+      nodes {
+        id
+        status
+        requestStatus
+        assignedLocation {
+          name
+        }
+        lineItems(first: 5) {
+          nodes {
+            id
+            totalQuantity
+            remainingQuantity
+            lineItem {
+              id
+              title
+            }
+          }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+            startCursor
+            endCursor
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    fulfillments(first: 5) {
+      id
+      status
+      displayStatus
+      createdAt
+      updatedAt
+      trackingInfo {
+        number
+        url
+        company
+      }
+      fulfillmentLineItems(first: 5) {
+        nodes {
+          id
+          quantity
+          lineItem {
+            id
+            title
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+    refunds {
+      id
+      createdAt
+      totalRefundedSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      refundLineItems(first: 5) {
+        nodes {
+          id
+          quantity
+          restockType
+          lineItem {
+            id
+            title
+          }
+          subtotalSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+    transactions {
+      id
+      kind
+      status
+      gateway
+      amountSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    returns(first: 5) {
+      nodes {
+        id
+        status
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}

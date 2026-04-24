@@ -263,6 +263,13 @@ function addProductsToCollection(
     };
   }
 
+  if (collection.isSmart) {
+    return {
+      collection: null,
+      userErrors: [{ field: ['id'], message: "Can't manually add products to a smart collection" }],
+    };
+  }
+
   const duplicateMembership = normalizedProductIds.find((productId) =>
     store.getEffectiveCollectionsByProductId(productId).some((candidate) => candidate.id === collection.id),
   );
@@ -273,11 +280,11 @@ function addProductsToCollection(
     };
   }
 
-  const missingProductId = normalizedProductIds.find((productId) => !store.getEffectiveProductById(productId));
-  if (missingProductId) {
+  const existingProductIds = normalizedProductIds.filter((productId) => store.getEffectiveProductById(productId));
+  if (existingProductIds.length === 0) {
     return {
-      collection: null,
-      userErrors: [{ field: ['productIds'], message: 'Product not found' }],
+      collection,
+      userErrors: [],
     };
   }
 
@@ -287,12 +294,13 @@ function addProductsToCollection(
     .filter((candidate) => candidate.id === collection.id)
     .map((candidate) => candidate.position)
     .filter((position): position is number => typeof position === 'number' && Number.isFinite(position));
-  const firstPosition = existingPositions.length > 0 ? Math.min(...existingPositions) : 0;
+  const firstPosition = existingPositions.length > 0 ? Math.max(...existingPositions) + 1 : 0;
+  const addedCount = existingProductIds.length;
 
-  for (const [index, productId] of normalizedProductIds.entries()) {
+  for (const [index, productId] of existingProductIds.entries()) {
     const nextCollections = [
       ...store.getEffectiveCollectionsByProductId(productId),
-      makeProductCollectionRecord(productId, collection, firstPosition - index - 1),
+      makeProductCollectionRecord(productId, collection, firstPosition + (addedCount - index - 1)),
     ];
     store.replaceStagedCollectionsForProduct(productId, nextCollections);
   }
@@ -758,6 +766,24 @@ function makeCollectionRecord(input: Record<string, unknown>, existing?: Collect
       typeof input['redirectNewHandle'] === 'boolean'
         ? input['redirectNewHandle']
         : (existing?.redirectNewHandle ?? false),
+    ...(existing?.isSmart !== undefined
+      ? { isSmart: existing.isSmart }
+      : hasOwnField(input, 'ruleSet') && rawRuleSet !== null && rawRuleSet !== undefined
+        ? { isSmart: true }
+        : {}),
+  };
+}
+
+function makeDefaultInventoryItemRecord(): NonNullable<ProductVariantRecord['inventoryItem']> {
+  return {
+    id: makeSyntheticGid('InventoryItem'),
+    tracked: false,
+    requiresShipping: true,
+    measurement: null,
+    countryCodeOfOrigin: null,
+    provinceCodeOfOrigin: null,
+    harmonizedSystemCode: null,
+    inventoryLevels: null,
   };
 }
 
@@ -772,9 +798,9 @@ function makeDefaultVariantRecord(product: ProductRecord): ProductVariantRecord 
     compareAtPrice: null,
     taxable: null,
     inventoryPolicy: null,
-    inventoryQuantity: null,
+    inventoryQuantity: 0,
     selectedOptions: [],
-    inventoryItem: null,
+    inventoryItem: makeDefaultInventoryItemRecord(),
   };
 }
 
@@ -1345,6 +1371,15 @@ function readVariantSku(input: Record<string, unknown>, fallback: string | null)
 }
 
 const DEFAULT_INVENTORY_LEVEL_LOCATION_ID = 'gid://shopify/Location/1';
+
+function buildStableSyntheticInventoryLevelId(inventoryItemId: string, locationId: string): string {
+  const inventoryItemTail = inventoryItemId.split('/').at(-1) ?? encodeURIComponent(inventoryItemId);
+  const locationTail = locationId.split('/').at(-1) ?? encodeURIComponent(locationId);
+
+  return `gid://shopify/InventoryLevel/${inventoryItemTail}-${locationTail}?inventory_item_id=${encodeURIComponent(
+    inventoryItemId,
+  )}`;
+}
 
 function makeDefaultInventoryItemMeasurement(): NonNullable<
   NonNullable<ProductVariantRecord['inventoryItem']>['measurement']
@@ -2915,6 +2950,7 @@ function normalizeCollectionFields(
         }
       : { title: null, description: null },
     ruleSet: normalizeCollectionRuleSet(value['ruleSet']),
+    ...(value['ruleSet'] && isObject(value['ruleSet']) ? { isSmart: true } : {}),
   };
 }
 
@@ -3227,9 +3263,7 @@ function buildSyntheticInventoryLevel(
   const availableUpdatedAt = makeSyntheticTimestamp();
 
   return {
-    id:
-      existingLevel?.id ??
-      `${makeSyntheticGid('InventoryLevel')}?inventory_item_id=${encodeURIComponent(variant.inventoryItem.id)}`,
+    id: existingLevel?.id ?? buildStableSyntheticInventoryLevelId(variant.inventoryItem.id, locationId),
     cursor: existingLevel?.cursor ?? null,
     location: existingLevel?.location ?? { id: locationId, name: null },
     quantities: [
@@ -3593,6 +3627,8 @@ function serializeInventoryItemSelectionSet(
         switch (inventorySelection.name.value) {
           case 'id':
             return [inventoryKey, variant.inventoryItem?.id ?? null];
+          case 'sku':
+            return [inventoryKey, variant.sku ?? null];
           case 'tracked':
             return [inventoryKey, variant.inventoryItem?.tracked ?? null];
           case 'requiresShipping':
@@ -6246,10 +6282,11 @@ export function handleProductMutation(
       const product = store.stageCreateProduct(makeProductRecord(preparedCreateInput.input));
       store.replaceStagedOptionsForProduct(product.id, [makeDefaultOptionRecord(product)]);
       store.replaceStagedVariantsForProduct(product.id, [makeDefaultVariantRecord(product)]);
+      const syncedProduct = syncProductInventorySummary(product.id);
       return {
         data: {
           [responseKey]: {
-            product: serializeProduct(product, getChildField(field, 'product'), variables),
+            product: serializeProduct(syncedProduct ?? product, getChildField(field, 'product'), variables),
             userErrors: [],
           },
         },
@@ -7002,7 +7039,7 @@ export function handleProductMutation(
           data: {
             [responseKey]: {
               collection: null,
-              userErrors: [{ field: ['id'], message: 'Collection not found' }],
+              userErrors: [{ field: ['id'], message: 'Collection does not exist' }],
             },
           },
         };
@@ -8068,6 +8105,15 @@ export function handleProductQuery(
         const variant = id ? store.findEffectiveVariantByInventoryItemId(id) : null;
         data[responseKey] = variant
           ? serializeInventoryItemSelectionSet(variant, field.selectionSet?.selections ?? [], variables)
+          : null;
+        break;
+      }
+      case 'inventoryLevel': {
+        const rawId = args['id'];
+        const id = typeof rawId === 'string' ? rawId : null;
+        const target = id ? findInventoryLevelTarget(id) : null;
+        data[responseKey] = target
+          ? serializeInventoryLevelObject(target.variant, target.level, field.selectionSet?.selections ?? [], variables)
           : null;
         break;
       }

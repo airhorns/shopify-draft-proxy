@@ -11,8 +11,9 @@
   "comparisonMode": "planned",
   "blocker": {
     "kind": "missing-live-fulfillment-cancel-access",
-    "blockerPath": "pending/fulfillment-lifecycle-conformance-scope-blocker.md",
+    "blockerPath": null,
     "details": {
+      "linearIssue": "HAR-187",
       "requiredScopes": [],
       "requiredPermissions": [],
       "probeRoots": ["fulfillmentCancel"],

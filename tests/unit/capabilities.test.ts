@@ -88,7 +88,7 @@ describe('getOperationCapability', () => {
     });
   });
 
-  it('marks top-level product variant and inventory item queries as overlay-capable reads', () => {
+  it('marks top-level product variant, inventory item, and inventory level queries as overlay-capable reads', () => {
     expect(getOperationCapability({ type: 'query', name: 'ProductVariant', rootFields: ['productVariant'] })).toEqual({
       domain: 'products',
       execution: 'overlay-read',
@@ -100,6 +100,13 @@ describe('getOperationCapability', () => {
       domain: 'products',
       execution: 'overlay-read',
       operationName: 'InventoryItem',
+      type: 'query',
+    });
+
+    expect(getOperationCapability({ type: 'query', name: 'InventoryLevel', rootFields: ['inventoryLevel'] })).toEqual({
+      domain: 'products',
+      execution: 'overlay-read',
+      operationName: 'InventoryLevel',
       type: 'query',
     });
   });

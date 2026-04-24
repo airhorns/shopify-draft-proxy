@@ -1,0 +1,9 @@
+{
+  "product": {
+    "title": "Hermes Product Inventory Read",
+    "status": "DRAFT",
+    "vendor": "HERMES",
+    "productType": "INVENTORY-CONFORMANCE",
+    "tags": ["conformance", "inventory-read"]
+  }
+}

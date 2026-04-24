@@ -354,11 +354,12 @@ try {
     id: createdCollectionId,
     productIds: [firstProduct.id, secondProduct.id],
   });
-  const postAddRead = await runGraphql(postAddReadQuery, {
+  const postAddReadVariables = {
     collectionId: createdCollectionId,
     firstProductId: firstProduct.id,
     secondProductId: secondProduct.id,
-  });
+  };
+  const postAddRead = await runGraphql(postAddReadQuery, postAddReadVariables);
 
   const updateVariables = buildUpdateVariables(createdCollectionId, runId);
   updateResponse = await runGraphql(updateMutation, updateVariables);
@@ -402,6 +403,7 @@ try {
         },
         response: addResponse,
       },
+      downstreamReadVariables: postAddReadVariables,
       downstreamRead: postAddRead,
     },
     'collection-update-parity.json': {

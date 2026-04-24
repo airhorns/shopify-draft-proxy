@@ -1,0 +1,28 @@
+mutation ProductCreateInventoryReadParity($product: ProductCreateInput!) {
+  productCreate(product: $product) {
+    product {
+      id
+      title
+      handle
+      status
+      totalInventory
+      tracksInventory
+      variants(first: 10) {
+        nodes {
+          id
+          title
+          inventoryQuantity
+          inventoryItem {
+            id
+            tracked
+            requiresShipping
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

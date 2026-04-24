@@ -41,6 +41,10 @@ import type {
   InventoryLevelRecord,
   MutationLogInterpretedMetadata,
   OrderCustomerRecord,
+  OrderFulfillmentLineItemRecord,
+  OrderFulfillmentOrderLineItemRecord,
+  OrderFulfillmentOrderRecord,
+  OrderFulfillmentRecord,
   OrderLineItemRecord,
   OrderMetafieldRecord,
   OrderRecord,
@@ -760,8 +764,21 @@ function readCapturedOrderLineItems(order: Record<string, unknown> | null): Orde
       title: readStringField(lineItem, 'title'),
       quantity: readNumberField(lineItem, 'quantity') ?? 0,
       sku: readStringField(lineItem, 'sku'),
+      variantId: readStringField(readRecordField(lineItem, 'variant'), 'id'),
       variantTitle: readStringField(lineItem, 'variantTitle'),
       originalUnitPriceSet: readMoneySetField(lineItem, 'originalUnitPriceSet'),
+      taxLines: readCapturedOrderTaxLines(lineItem),
+    }));
+}
+
+function readCapturedOrderTaxLines(source: Record<string, unknown> | null): OrderRecord['taxLines'] {
+  return readArrayField(source, 'taxLines')
+    .filter(isPlainObject)
+    .map((taxLine) => ({
+      title: readStringField(taxLine, 'title'),
+      rate: readNumberField(taxLine, 'rate'),
+      channelLiable: readBooleanField(taxLine, 'channelLiable'),
+      priceSet: readMoneySetField(taxLine, 'priceSet'),
     }));
 }
 
@@ -771,7 +788,9 @@ function readCapturedOrderShippingLines(order: Record<string, unknown> | null): 
     .map((shippingLine) => ({
       title: readStringField(shippingLine, 'title'),
       code: readStringField(shippingLine, 'code'),
+      source: readStringField(shippingLine, 'source'),
       originalPriceSet: readMoneySetField(shippingLine, 'originalPriceSet'),
+      taxLines: readCapturedOrderTaxLines(shippingLine),
     }));
 }
 
@@ -843,6 +862,117 @@ function readCapturedOrderTransactions(order: Record<string, unknown> | null): O
     }));
 }
 
+function readCapturedFulfillmentLineItems(source: Record<string, unknown> | null): OrderFulfillmentLineItemRecord[] {
+  return readArrayField(readRecordField(source, 'fulfillmentLineItems'), 'nodes')
+    .filter(isPlainObject)
+    .map((fulfillmentLineItem, index) => {
+      const lineItem = readRecordField(fulfillmentLineItem, 'lineItem');
+      return {
+        id: readStringField(fulfillmentLineItem, 'id') ?? `gid://shopify/FulfillmentLineItem/conformance-${index}`,
+        lineItemId: readStringField(lineItem, 'id'),
+        title: readStringField(lineItem, 'title'),
+        quantity: readNumberField(fulfillmentLineItem, 'quantity') ?? 0,
+      };
+    });
+}
+
+function readCapturedOrderFulfillments(order: Record<string, unknown> | null): OrderFulfillmentRecord[] {
+  return readArrayField(order, 'fulfillments')
+    .filter(isPlainObject)
+    .map((fulfillment, index) => ({
+      id: readStringField(fulfillment, 'id') ?? `gid://shopify/Fulfillment/conformance-${index}`,
+      status: readStringField(fulfillment, 'status'),
+      displayStatus: readStringField(fulfillment, 'displayStatus'),
+      createdAt: readStringField(fulfillment, 'createdAt'),
+      updatedAt: readStringField(fulfillment, 'updatedAt'),
+      trackingInfo: readArrayField(fulfillment, 'trackingInfo')
+        .filter(isPlainObject)
+        .map((trackingInfo) => ({
+          number: readStringField(trackingInfo, 'number'),
+          url: readStringField(trackingInfo, 'url'),
+          company: readStringField(trackingInfo, 'company'),
+        })),
+      fulfillmentLineItems: readCapturedFulfillmentLineItems(fulfillment),
+    }));
+}
+
+function readCapturedFulfillmentOrderLineItems(
+  source: Record<string, unknown> | null,
+): OrderFulfillmentOrderLineItemRecord[] {
+  return readArrayField(readRecordField(source, 'lineItems'), 'nodes')
+    .filter(isPlainObject)
+    .map((fulfillmentOrderLineItem, index) => {
+      const lineItem = readRecordField(fulfillmentOrderLineItem, 'lineItem');
+      return {
+        id:
+          readStringField(fulfillmentOrderLineItem, 'id') ??
+          `gid://shopify/FulfillmentOrderLineItem/conformance-${index}`,
+        lineItemId: readStringField(lineItem, 'id'),
+        title: readStringField(lineItem, 'title'),
+        totalQuantity: readNumberField(fulfillmentOrderLineItem, 'totalQuantity') ?? 0,
+        remainingQuantity: readNumberField(fulfillmentOrderLineItem, 'remainingQuantity') ?? 0,
+      };
+    });
+}
+
+function readCapturedOrderFulfillmentOrders(order: Record<string, unknown> | null): OrderFulfillmentOrderRecord[] {
+  return readArrayField(readRecordField(order, 'fulfillmentOrders'), 'nodes')
+    .filter(isPlainObject)
+    .map((fulfillmentOrder, index) => ({
+      id: readStringField(fulfillmentOrder, 'id') ?? `gid://shopify/FulfillmentOrder/conformance-${index}`,
+      status: readStringField(fulfillmentOrder, 'status'),
+      requestStatus: readStringField(fulfillmentOrder, 'requestStatus'),
+      assignedLocation: readRecordField(fulfillmentOrder, 'assignedLocation')
+        ? {
+            name: readStringField(readRecordField(fulfillmentOrder, 'assignedLocation'), 'name'),
+          }
+        : null,
+      lineItems: readCapturedFulfillmentOrderLineItems(fulfillmentOrder),
+    }));
+}
+
+function readCapturedOrderRefundLineItems(
+  source: Record<string, unknown> | null,
+): OrderRecord['refunds'][number]['refundLineItems'] {
+  return readArrayField(readRecordField(source, 'refundLineItems'), 'nodes')
+    .filter(isPlainObject)
+    .map((refundLineItem, index) => {
+      const lineItem = readRecordField(refundLineItem, 'lineItem');
+      return {
+        id: readStringField(refundLineItem, 'id') ?? `gid://shopify/RefundLineItem/conformance-${index}`,
+        lineItemId: readStringField(lineItem, 'id') ?? `gid://shopify/LineItem/conformance-${index}`,
+        title: readStringField(lineItem, 'title'),
+        quantity: readNumberField(refundLineItem, 'quantity') ?? 0,
+        restockType: readStringField(refundLineItem, 'restockType'),
+        subtotalSet: readMoneySetField(refundLineItem, 'subtotalSet'),
+      };
+    });
+}
+
+function readCapturedOrderRefunds(order: Record<string, unknown> | null): OrderRecord['refunds'] {
+  return readArrayField(order, 'refunds')
+    .filter(isPlainObject)
+    .map((refund, index) => ({
+      id: readStringField(refund, 'id') ?? `gid://shopify/Refund/conformance-${index}`,
+      note: readStringField(refund, 'note'),
+      createdAt: readStringField(refund, 'createdAt') ?? '2026-04-19T00:00:00.000Z',
+      updatedAt:
+        readStringField(refund, 'updatedAt') ?? readStringField(refund, 'createdAt') ?? '2026-04-19T00:00:00.000Z',
+      totalRefundedSet: readMoneySetField(refund, 'totalRefundedSet'),
+      refundLineItems: readCapturedOrderRefundLineItems(refund),
+      transactions: readCapturedOrderTransactions(refund),
+    }));
+}
+
+function readCapturedOrderReturns(order: Record<string, unknown> | null): OrderRecord['returns'] {
+  return readArrayField(readRecordField(order, 'returns'), 'nodes')
+    .filter(isPlainObject)
+    .map((orderReturn, index) => ({
+      id: readStringField(orderReturn, 'id') ?? `gid://shopify/Return/conformance-${index}`,
+      status: readStringField(orderReturn, 'status'),
+    }));
+}
+
 function makeSeedOrder(orderId: string, source: Record<string, unknown> | null = null): OrderRecord {
   const now = '2026-04-19T00:00:00.000Z';
   const totalPriceSet = readMoneySetField(source, 'totalPriceSet');
@@ -880,21 +1010,37 @@ function makeSeedOrder(orderId: string, source: Record<string, unknown> | null =
     billingAddress: readCapturedAddress(source, 'billingAddress'),
     shippingAddress: readCapturedAddress(source, 'shippingAddress'),
     subtotalPriceSet,
+    currentSubtotalPriceSet: readMoneySetField(source, 'currentSubtotalPriceSet'),
     currentTotalPriceSet,
+    currentTotalDiscountsSet: readMoneySetField(source, 'currentTotalDiscountsSet'),
+    currentTotalTaxSet: readMoneySetField(source, 'currentTotalTaxSet'),
     totalPriceSet,
     totalOutstandingSet: readMoneySetField(source, 'totalOutstandingSet'),
-    totalRefundedSet: {
+    totalReceivedSet: readMoneySetField(source, 'totalReceivedSet'),
+    netPaymentSet: readMoneySetField(source, 'netPaymentSet'),
+    totalRefundedSet: readMoneySetField(source, 'totalRefundedSet') ?? {
       shopMoney: {
         amount: '0.0',
         currencyCode,
       },
     },
+    totalRefundedShippingSet: readMoneySetField(source, 'totalRefundedShippingSet'),
+    totalShippingPriceSet: readMoneySetField(source, 'totalShippingPriceSet'),
+    totalTaxSet: readMoneySetField(source, 'totalTaxSet'),
+    totalDiscountsSet: readMoneySetField(source, 'totalDiscountsSet'),
+    discountCodes: readArrayField(source, 'discountCodes').filter(
+      (discountCode): discountCode is string => typeof discountCode === 'string',
+    ),
+    taxLines: readCapturedOrderTaxLines(source),
+    taxesIncluded: readBooleanField(source, 'taxesIncluded'),
     customer: readCapturedOrderCustomer(source),
     shippingLines: readCapturedOrderShippingLines(source),
     lineItems: readCapturedOrderLineItems(source),
+    fulfillments: readCapturedOrderFulfillments(source),
+    fulfillmentOrders: readCapturedOrderFulfillmentOrders(source),
     transactions: readCapturedOrderTransactions(source),
-    refunds: [],
-    returns: [],
+    refunds: readCapturedOrderRefunds(source),
+    returns: readCapturedOrderReturns(source),
   };
 }
 
@@ -1920,6 +2066,17 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
 
   const payload = mutationPayloadFromCapture(capture);
   const mutationName = mutationNameFromCapture(capture);
+  const readOrderPayload =
+    readRecordField(
+      readRecordField(readRecordField(capture as Record<string, unknown>, 'response'), 'data'),
+      'order',
+    ) ?? readRecordField(readRecordField(capture as Record<string, unknown>, 'data'), 'order');
+  const readOrderId = readStringField(readOrderPayload, 'id') ?? readStringField(variables, 'id');
+  if (!mutationName && readOrderPayload && readOrderId) {
+    store.upsertBaseOrders([makeSeedOrder(readOrderId, readOrderPayload)]);
+    return;
+  }
+
   if (mutationName === 'orderUpdate') {
     const input = readRecordField(variables, 'input');
     const orderId = readStringField(input, 'id');
@@ -2126,6 +2283,13 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   if (collectionId) {
     const collection = makeSeedCollection(collectionId, collectionPayload);
     store.upsertBaseCollections([collection]);
+    const seedProducts = readArrayField(capture as Record<string, unknown>, 'seedProducts').filter(isPlainObject);
+    for (const seedProduct of seedProducts) {
+      const productId = readStringField(seedProduct, 'id');
+      if (productId?.startsWith('gid://shopify/Product/')) {
+        store.upsertBaseProducts([makeSeedProduct(productId, seedProduct)]);
+      }
+    }
     const rawProductNodes = readRecordField(collectionPayload, 'products')?.['nodes'];
     const productNodes = Array.isArray(rawProductNodes) ? rawProductNodes : [];
     if (mutationName === 'collectionUpdate') {
@@ -2142,7 +2306,12 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       if (typeof productIdValue !== 'string') {
         continue;
       }
-      store.upsertBaseProducts([makeSeedProduct(productIdValue)]);
+      if (mutationName === 'collectionAddProducts' && seedProducts.length > 0) {
+        continue;
+      }
+      if (!store.getEffectiveProductById(productIdValue)) {
+        store.upsertBaseProducts([makeSeedProduct(productIdValue)]);
+      }
     }
   }
 }
