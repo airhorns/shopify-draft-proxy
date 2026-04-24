@@ -18,7 +18,7 @@ tracker:
 polling:
   interval_ms: 10000
 workspace:
-  root: { { WORKSPACE_ROOT } }
+  root: {{WORKSPACE_ROOT}}
 hooks:
   after_create: |
     git clone --depth 1 {{SOURCE_REPO_URL}} .
@@ -26,14 +26,19 @@ hooks:
       corepack enable >/dev/null 2>&1 || true
     fi
     corepack pnpm install
-    if [ -f .env.example ] && [ ! -f .env ]; then
-      cp .env.example .env
+    if [ ! -f .env ]; then
+      cp /home/airhorns/code/shopify-draft-proxy/.env .env
     fi
 agent:
-  max_concurrent_agents: 3
+  max_concurrent_agents: 12
+  max_concurrent_agents_by_state:
+    todo: 3
+    in progress: 3
+    rework: 3
+    merging: 3
   max_turns: 24
 codex:
-  command: { { CODEX_COMMAND } }
+  command: {{CODEX_COMMAND}}
   approval_policy: never
   thread_sandbox: danger-full-access
 server:
