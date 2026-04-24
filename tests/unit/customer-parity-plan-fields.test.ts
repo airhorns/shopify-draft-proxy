@@ -156,5 +156,4 @@ describe('customer parity request scaffolds', () => {
       disabledQuery: 'state:DISABLED',
     });
   });
-
 });
