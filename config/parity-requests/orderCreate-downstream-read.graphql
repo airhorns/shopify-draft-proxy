@@ -1,6 +1,8 @@
 query OrderCreateDownstreamRead($id: ID!) {
   order(id: $id) {
+    id
     name
+    email
     note
     tags
     customAttributes {
@@ -31,6 +33,39 @@ query OrderCreateDownstreamRead($id: ID!) {
       shopMoney {
         amount
         currencyCode
+      }
+    }
+    totalTaxSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+    totalDiscountsSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+    discountCodes
+    lineItems(first: 5) {
+      nodes {
+        title
+        quantity
+        sku
+        variant {
+          id
+        }
+        taxLines {
+          title
+          rate
+          priceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
       }
     }
   }

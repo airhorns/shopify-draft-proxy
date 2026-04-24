@@ -3,11 +3,13 @@ import { z } from 'zod';
 const nullableStringSchema = z.string().nullable();
 const nullableNumberSchema = z.number().nullable();
 const nullableBooleanSchema = z.boolean().nullable();
+const moneyV2Schema = z.strictObject({
+  amount: nullableStringSchema,
+  currencyCode: nullableStringSchema,
+});
 const moneySetSchema = z.strictObject({
-  shopMoney: z.strictObject({
-    amount: nullableStringSchema,
-    currencyCode: nullableStringSchema,
-  }),
+  shopMoney: moneyV2Schema,
+  presentmentMoney: moneyV2Schema.optional(),
 });
 
 export const productSeoRecordSchema = z.strictObject({
@@ -186,7 +188,7 @@ export const productMetafieldRecordSchema = z.strictObject({
 });
 export type ProductMetafieldRecord = z.infer<typeof productMetafieldRecordSchema>;
 
-export const moneyV2RecordSchema = moneySetSchema.shape.shopMoney;
+export const moneyV2RecordSchema = moneyV2Schema;
 export type MoneyV2Record = z.infer<typeof moneyV2RecordSchema>;
 
 export const customerDefaultEmailAddressRecordSchema = z.strictObject({
@@ -328,10 +330,20 @@ export const orderCustomerRecordSchema = z.strictObject({
 });
 export type OrderCustomerRecord = z.infer<typeof orderCustomerRecordSchema>;
 
+export const orderTaxLineRecordSchema = z.strictObject({
+  title: nullableStringSchema,
+  rate: nullableNumberSchema,
+  channelLiable: nullableBooleanSchema,
+  priceSet: moneySetSchema.nullable(),
+});
+export type OrderTaxLineRecord = z.infer<typeof orderTaxLineRecordSchema>;
+
 export const orderShippingLineRecordSchema = z.strictObject({
   title: nullableStringSchema,
   code: nullableStringSchema,
+  source: nullableStringSchema.optional(),
   originalPriceSet: moneySetSchema.nullable(),
+  taxLines: z.array(orderTaxLineRecordSchema).optional(),
 });
 export type OrderShippingLineRecord = z.infer<typeof orderShippingLineRecordSchema>;
 
@@ -340,10 +352,23 @@ export const orderLineItemRecordSchema = z.strictObject({
   title: nullableStringSchema,
   quantity: z.number(),
   sku: nullableStringSchema,
+  variantId: nullableStringSchema.optional(),
   variantTitle: nullableStringSchema,
   originalUnitPriceSet: moneySetSchema.nullable(),
+  taxLines: z.array(orderTaxLineRecordSchema).optional(),
 });
 export type OrderLineItemRecord = z.infer<typeof orderLineItemRecordSchema>;
+
+export const orderDiscountApplicationRecordSchema = z.strictObject({
+  code: nullableStringSchema,
+  value: z.strictObject({
+    type: z.enum(['money', 'percentage']),
+    amount: nullableStringSchema.optional(),
+    currencyCode: nullableStringSchema.optional(),
+    percentage: nullableNumberSchema.optional(),
+  }),
+});
+export type OrderDiscountApplicationRecord = z.infer<typeof orderDiscountApplicationRecordSchema>;
 
 export const orderTransactionRecordSchema = z.strictObject({
   id: z.string(),
@@ -386,6 +411,7 @@ export const orderRecordSchema = z.strictObject({
   name: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  email: nullableStringSchema.optional(),
   closed: z.boolean().optional(),
   closedAt: nullableStringSchema.optional(),
   cancelledAt: nullableStringSchema.optional(),
@@ -404,6 +430,12 @@ export const orderRecordSchema = z.strictObject({
   totalPriceSet: moneySetSchema.nullable(),
   totalOutstandingSet: moneySetSchema.nullable().optional(),
   totalRefundedSet: moneySetSchema.nullable(),
+  totalTaxSet: moneySetSchema.nullable().optional(),
+  totalDiscountsSet: moneySetSchema.nullable().optional(),
+  discountCodes: z.array(z.string()).optional(),
+  discountApplications: z.array(orderDiscountApplicationRecordSchema).optional(),
+  taxLines: z.array(orderTaxLineRecordSchema).optional(),
+  taxesIncluded: nullableBooleanSchema.optional(),
   customer: orderCustomerRecordSchema.nullable(),
   shippingLines: z.array(orderShippingLineRecordSchema),
   lineItems: z.array(orderLineItemRecordSchema),
