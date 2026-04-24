@@ -5,6 +5,7 @@ import 'dotenv/config';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { runAdminGraphql, runAdminGraphqlRequest } from './conformance-graphql-client.mjs';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 const requiredVars = ['SHOPIFY_CONFORMANCE_STORE_DOMAIN', 'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
@@ -29,21 +30,11 @@ async function clearBlocker() {
 }
 
 async function runGraphql(query, variables = {}) {
-  const response = await fetch(`${adminOrigin}/admin/api/${apiVersion}/graphql.json`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...buildAdminAuthHeaders(adminAccessToken),
-    },
-    body: JSON.stringify({ query, variables }),
-  });
-
-  const payload = await response.json();
-  if (!response.ok || payload.errors) {
-    throw new Error(JSON.stringify({ status: response.status, payload }, null, 2));
-  }
-
-  return payload;
+  return runAdminGraphql(
+    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(adminAccessToken) },
+    query,
+    variables,
+  );
 }
 
 const accessScopesQuery = `#graphql
@@ -405,16 +396,16 @@ function isProtectedCustomerDataError(result) {
 }
 
 async function runGraphqlResult(query, variables = {}) {
-  try {
-    const payload = await runGraphql(query, variables);
-    return { ok: true, status: 200, payload };
-  } catch (error) {
-    try {
-      return { ok: false, ...JSON.parse(error instanceof Error ? error.message : String(error)) };
-    } catch {
-      throw error;
-    }
-  }
+  const result = await runAdminGraphqlRequest(
+    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(adminAccessToken) },
+    query,
+    variables,
+  );
+
+  return {
+    ok: result.status >= 200 && result.status < 300 && !result.payload?.errors,
+    ...result,
+  };
 }
 
 function renderProtectedCustomerDataBlocker({ message, accessScopeHandles, customersProbe, customerProbe }) {

@@ -5,6 +5,7 @@ import 'dotenv/config';
 import { mkdir, writeFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 
+import { runAdminGraphql, runAdminGraphqlRequest } from './conformance-graphql-client.mjs';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 import { parseWriteScopeBlocker, renderWriteScopeBlockerNote } from './product-mutation-conformance-lib.mjs';
@@ -26,43 +27,26 @@ const pendingDir = 'pending';
 const blockerPath = path.join(pendingDir, 'inventory-adjustment-conformance-scope-blocker.md');
 
 async function runGraphql(query, variables = {}) {
-  const response = await fetch(`${adminOrigin}/admin/api/${apiVersion}/graphql.json`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...buildAdminAuthHeaders(adminAccessToken),
-    },
-    body: JSON.stringify({ query, variables }),
-  });
-
-  const payload = await response.json();
-  if (!response.ok || payload.errors) {
-    const error = new Error(JSON.stringify({ status: response.status, payload }, null, 2));
-    error.result = { status: response.status, payload };
-    throw error;
-  }
-
-  return payload;
+  return runAdminGraphql(
+    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(adminAccessToken) },
+    query,
+    variables,
+  );
 }
 
 async function runGraphqlAllowGraphqlErrors(query, variables = {}) {
-  const response = await fetch(`${adminOrigin}/admin/api/${apiVersion}/graphql.json`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...buildAdminAuthHeaders(adminAccessToken),
-    },
-    body: JSON.stringify({ query, variables }),
-  });
-
-  const payload = await response.json();
-  if (!response.ok) {
-    const error = new Error(JSON.stringify({ status: response.status, payload }, null, 2));
-    error.result = { status: response.status, payload };
+  const result = await runAdminGraphqlRequest(
+    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(adminAccessToken) },
+    query,
+    variables,
+  );
+  if (result.status < 200 || result.status >= 300) {
+    const error = new Error(JSON.stringify(result, null, 2));
+    error.result = result;
     throw error;
   }
 
-  return payload;
+  return result.payload;
 }
 
 const createMutation = `#graphql
