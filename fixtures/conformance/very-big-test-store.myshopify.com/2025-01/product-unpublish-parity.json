@@ -1,9 +1,14 @@
 {
+  "seedProduct": {
+    "id": "gid://shopify/Product/9264051519721",
+    "title": "Hermes Product Publication Conformance 1777069980542",
+    "status": "DRAFT"
+  },
   "mutation": {
     "queryShape": "minimal-user-errors-only",
     "variables": {
       "input": {
-        "id": "gid://shopify/Product/9257219129577",
+        "id": "gid://shopify/Product/9264051519721",
         "productPublications": [
           {
             "publicationId": "gid://shopify/Publication/82090459369"
@@ -34,24 +39,20 @@
     "response": {
       "status": 200,
       "payload": {
-        "errors": [
-          {
-            "message": "Your app doesn't have a publication for this shop.",
-            "locations": [
-              {
-                "line": 6,
-                "column": 9
-              }
-            ],
-            "extensions": {
-              "code": "NOT_FOUND"
-            },
-            "path": ["productUnpublish", "product", "publishedOnCurrentPublication"]
-          }
-        ],
         "data": {
           "productUnpublish": {
-            "product": null,
+            "product": {
+              "id": "gid://shopify/Product/9264051519721",
+              "publishedOnCurrentPublication": false,
+              "availablePublicationsCount": {
+                "count": 0,
+                "precision": "EXACT"
+              },
+              "resourcePublicationsCount": {
+                "count": 0,
+                "precision": "EXACT"
+              }
+            },
             "userErrors": []
           }
         },
@@ -68,33 +69,25 @@
         }
       }
     },
-    "blocker": {
-      "operationName": "productUnpublish",
-      "message": "Your app doesn't have a publication for this shop.",
-      "errorCode": "NOT_FOUND"
-    }
+    "blocker": null
   },
   "downstreamRead": {
     "response": {
       "status": 200,
       "payload": {
-        "errors": [
-          {
-            "message": "Your app doesn't have a publication for this shop.",
-            "locations": [
-              {
-                "line": 5,
-                "column": 7
-              }
-            ],
-            "extensions": {
-              "code": "NOT_FOUND"
-            },
-            "path": ["product", "publishedOnCurrentPublication"]
-          }
-        ],
         "data": {
-          "product": null
+          "product": {
+            "id": "gid://shopify/Product/9264051519721",
+            "publishedOnCurrentPublication": false,
+            "availablePublicationsCount": {
+              "count": 0,
+              "precision": "EXACT"
+            },
+            "resourcePublicationsCount": {
+              "count": 0,
+              "precision": "EXACT"
+            }
+          }
         },
         "extensions": {
           "cost": {
@@ -109,10 +102,6 @@
         }
       }
     },
-    "blocker": {
-      "operationName": "product",
-      "message": "Your app doesn't have a publication for this shop.",
-      "errorCode": "NOT_FOUND"
-    }
+    "blocker": null
   }
 }

@@ -9,7 +9,6 @@ import path from 'node:path';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 import {
-  clearPublicationScopeBlocker,
   extractCliIdentityFromConfig,
   extractManualStoreAuthTokenSummary,
   extractScopesFromShopifyAppToml,
@@ -46,31 +45,7 @@ const conformanceAppHandle = process.env['SHOPIFY_CONFORMANCE_APP_HANDLE'] || nu
 const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || '2025-01';
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
-const pendingDir = 'pending';
-const blockerPath = path.join(pendingDir, 'product-publication-conformance-scope-blocker.md');
 const manualStoreAuthTokenPath = path.resolve('.manual-store-auth-token.json');
-const productPublishParitySpecPath = path.join('config', 'parity-specs', 'productPublish-parity-plan.json');
-
-async function loadPersistedPublicationDeployOutcome() {
-  try {
-    const rawSpec = await readFile(productPublishParitySpecPath, 'utf8');
-    const paritySpec = JSON.parse(rawSpec);
-    const details = paritySpec?.blocker?.details;
-    if (typeof details?.shopifyAppDeployStatus !== 'string' || details.shopifyAppDeployStatus.length === 0) {
-      return null;
-    }
-
-    return {
-      status: details.shopifyAppDeployStatus,
-      versionLabel:
-        typeof details?.shopifyAppDeployVersion === 'string' && details.shopifyAppDeployVersion.length > 0
-          ? details.shopifyAppDeployVersion
-          : null,
-    };
-  } catch {
-    return null;
-  }
-}
 
 function describeCredentialObservation(token) {
   const tokenFamilyMatch = token.match(/^(shp[a-z]+)_/i);
@@ -810,30 +785,6 @@ function buildPublicationScopeBlockerNote({
   ].join('\n');
 }
 
-async function writePublicationScopeBlocker({
-  scopeHandles,
-  blockers,
-  credentialSummary,
-  fallbackOutcome = null,
-  appScopeDrift = null,
-  shopifyAppCliAuth = null,
-  appDeployOutcome = null,
-  manualStoreAuthSummary = null,
-}) {
-  await mkdir(pendingDir, { recursive: true });
-  const note = buildPublicationScopeBlockerNote({
-    scopeHandles,
-    blockers,
-    credentialSummary,
-    fallbackOutcome,
-    appScopeDrift,
-    shopifyAppCliAuth,
-    appDeployOutcome,
-    manualStoreAuthSummary,
-  });
-  await writeFile(blockerPath, `${note}\n`, 'utf8');
-}
-
 function buildPublicationAggregateFieldBlockerNote({
   publicationId,
   publishAggregateBlocker,
@@ -914,12 +865,6 @@ function buildPublicationAggregateFieldBlockerNote({
     '- `corepack pnpm exec shopify app deploy --allow-updates`',
     '',
   ].join('\n');
-}
-
-async function writePublicationAggregateFieldBlocker(details) {
-  await mkdir(pendingDir, { recursive: true });
-  const note = buildPublicationAggregateFieldBlockerNote(details);
-  await writeFile(blockerPath, `${note}\n`, 'utf8');
 }
 
 async function collectPublicationMutationScopeProbe(client, runId) {
@@ -1235,7 +1180,7 @@ try {
   }
 
   if (probe.blockers.length > 0) {
-    await writePublicationScopeBlocker({
+    const blockerNote = buildPublicationScopeBlockerNote({
       scopeHandles: probe.scopeHandles,
       blockers: probe.blockers,
       credentialSummary: activeCredentialSummary,
@@ -1250,7 +1195,7 @@ try {
         {
           ok: false,
           blocked: true,
-          blockerPath,
+          blockerNote,
           blockers: probe.blockers,
           scopeHandles: probe.scopeHandles,
           appScopeDrift,
@@ -1276,7 +1221,8 @@ try {
   }
 
   const createResponse = await activeClient.runGraphql(createMutation, createVariables);
-  createdProductId = createResponse.data?.productCreate?.product?.id ?? null;
+  const seedProduct = createResponse.data?.productCreate?.product ?? null;
+  createdProductId = seedProduct?.id ?? null;
   if (!createdProductId) {
     throw new Error('Product publication capture did not return a product id.');
   }
@@ -1311,6 +1257,7 @@ try {
   const captures = {
     'publications-catalog.json': probe.listProbe,
     'product-publish-parity.json': {
+      seedProduct,
       mutation: {
         queryShape: 'product-id-and-user-errors',
         variables: publishVariables,
@@ -1326,6 +1273,7 @@ try {
       },
     },
     'product-unpublish-parity.json': {
+      seedProduct,
       mutation: {
         queryShape: 'minimal-user-errors-only',
         variables: unpublishVariables,
@@ -1346,20 +1294,27 @@ try {
     await writeFile(path.join(outputDir, filename), `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
   }
 
-  if (publishAggregateBlocker || publishReadBlocker || unpublishAggregateBlocker || unpublishReadBlocker) {
-    await writePublicationAggregateFieldBlocker({
-      publicationId,
-      publishAggregateBlocker,
-      publishReadBlocker,
-      unpublishAggregateBlocker,
-      unpublishReadBlocker,
-      appScopeDrift,
-      appDeployOutcome: appDeployOutcome ?? (await loadPersistedPublicationDeployOutcome()),
-      activeCredentialObservation,
-    });
-  } else {
-    await clearPublicationScopeBlocker(blockerPath);
-  }
+  const aggregateFieldBlocker =
+    publishAggregateBlocker || publishReadBlocker || unpublishAggregateBlocker || unpublishReadBlocker
+      ? {
+          publishAggregateBlocker,
+          publishReadBlocker,
+          unpublishAggregateBlocker,
+          unpublishReadBlocker,
+        }
+      : null;
+  const aggregateFieldBlockerNote = aggregateFieldBlocker
+    ? buildPublicationAggregateFieldBlockerNote({
+        publicationId,
+        publishAggregateBlocker,
+        publishReadBlocker,
+        unpublishAggregateBlocker,
+        unpublishReadBlocker,
+        appScopeDrift,
+        appDeployOutcome,
+        activeCredentialObservation,
+      })
+    : null;
 
   console.log(
     JSON.stringify(
@@ -1369,15 +1324,8 @@ try {
         files: Object.keys(captures),
         productId: createdProductId,
         publicationId,
-        aggregateFieldBlocker:
-          publishAggregateBlocker || publishReadBlocker || unpublishAggregateBlocker || unpublishReadBlocker
-            ? {
-                publishAggregateBlocker,
-                publishReadBlocker,
-                unpublishAggregateBlocker,
-                unpublishReadBlocker,
-              }
-            : null,
+        aggregateFieldBlocker,
+        aggregateFieldBlockerNote,
       },
       null,
       2,
@@ -1386,7 +1334,6 @@ try {
 } catch (error) {
   const publicationTargetBlocker = parsePublicationTargetBlocker(error?.result ?? null);
   if (publicationTargetBlocker) {
-    await mkdir(pendingDir, { recursive: true });
     const note = [
       '# Product publication conformance blocker',
       '',
@@ -1417,13 +1364,12 @@ try {
       '',
     ].join('\n');
 
-    await writeFile(blockerPath, `${note}\n`, 'utf8');
     console.log(
       JSON.stringify(
         {
           ok: false,
           blocked: true,
-          blockerPath,
+          blockerNote: note,
           blocker: publicationTargetBlocker,
         },
         null,
@@ -1435,7 +1381,6 @@ try {
 
   const blocker = parseWriteScopeBlocker(error?.result ?? null);
   if (blocker) {
-    await mkdir(pendingDir, { recursive: true });
     const note = renderWriteScopeBlockerNote({
       title: 'Product publication conformance blocker',
       whatFailed:
@@ -1452,13 +1397,12 @@ try {
         'Switch the repo conformance credential to a safe dev-store token with product write permissions and publication/listing read scopes, then rerun `corepack pnpm conformance:capture-product-publications`.',
     });
 
-    await writeFile(blockerPath, `${note}\n`, 'utf8');
     console.log(
       JSON.stringify(
         {
           ok: false,
           blocked: true,
-          blockerPath,
+          blockerNote: note,
           blocker,
         },
         null,

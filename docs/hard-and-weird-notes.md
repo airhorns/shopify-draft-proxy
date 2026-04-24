@@ -1392,34 +1392,30 @@ Current pragmatic direction:
 
 This keeps the proxy useful for common merchant publication-status checks without pretending full `resourcePublicationsV2` / publication-edge fidelity already exists.
 
-## 35. Publication-family live capture on this host moved past scope denial, but the conformance app still lacks a publication target
+## 35. Publication-family aggregate capture needs an app channel publication, and that can be created by Admin API
 
-The publication family (`productPublish` / `productUnpublish`) now has a dedicated live capture harness (`corepack pnpm conformance:capture-product-publications`), and the latest host run changed the blocker shape materially:
+The publication family (`productPublish` / `productUnpublish`) has a dedicated live capture harness (`corepack pnpm conformance:capture-product-publications`). HAR-188 settled the missing app-publication setup without using Shopify CLI's interactive app flow:
 
 - `corepack pnpm conformance:probe` still succeeds
-- the configured conformance app at `/tmp/shopify-conformance-app/hermes-conformance-products/shopify.app.toml` can now be inspected via Shopify CLI without interactive login on this host
-- `corepack pnpm exec shopify app deploy --allow-updates` can also run successfully for that app on this host
-- after that deploy pass, publication aggregate reads and safe publish/unpublish mutation-root probes can get past the earlier `ACCESS_DENIED` scope gate
-- the same live harness can still resolve a top-level `publications(first: 10)` catalog slice with real publication ids/names for the store
+- the same live harness can resolve a top-level `publications(first: 10)` catalog slice with real publication ids/names for the store
 - live `publications` catalog cursors are opaque base64-like values on this host, not synthetic `cursor:<gid>` wrappers
-- but the first full `productPublish` capture still fails with Shopify `NOT_FOUND`
-- Shopify's current live message is: `Your app doesn't have a publication for this shop.`
-- that means the blocker is no longer just missing publication scopes; the app itself still lacks a real publication target on the dev store
-- in this state, asking the proxy for aggregate publication fields in the mutation payload (`publishedOnCurrentPublication`, `availablePublicationsCount`, `resourcePublicationsCount`) is enough to surface the missing-publication failure during live capture
-- important current-host auth detail: the persisted conformance credential is presently a `shpca_...` Shopify user access token, and on this host that family still works only as a raw `X-Shopify-Access-Token` header for Admin GraphQL; switching it to bearer-style auth returns `401`, but keeping the raw header does **not** clear the publication-target blocker
+- Shopify Admin GraphQL 2025-01 does not expose `channelCreate`, but 2026-04 does
+- the store initially had only a Canada market while the checked-in channel specifications were US, DE, and AU
+- creating an ACTIVE US market with `marketCreate` and the existing web presence made the checked-in `example-us` channel specification usable
+- `channelCreate` with `specificationHandle: "example-us"` then created the app channel and a real app publication target on the shop
+- after that, the 2025-01 capture harness refreshed successful aggregate mutation and downstream-read payloads with no missing-publication blocker
+- important current-host auth detail: the persisted conformance credential is presently a `shpca_...` Shopify user access token, and on this host that family still works only as a raw `X-Shopify-Access-Token` header for Admin GraphQL; switching it to bearer-style auth returns `401`
 
 Practical rule:
 
 - keep probing the aggregate read slice plus safe publish/unpublish roots before attempting full aggregate-field safe-write capture for this family
-- do not treat successful app deploy alone as proof that aggregate publication-field parity is now capturable; app deploy can succeed while the app still has no publication on the shop
-- on this host, the publish root mutation itself can still succeed live when selecting non-aggregate payload fields (`product { id }` plus `userErrors`), even though aggregate publication fields remain blocked for the configured app
+- on this host, the publish root mutation succeeds live both for the minimal payload fields (`product { id }` plus `userErrors`) and for the aggregate publication-field payload once the app channel exists
 - the publication catalog therefore needs its own hydrated local state: product `publicationIds` preserve target ids for staged publish/unpublish replay, but only a dedicated `publications` catalog probe teaches the proxy the merchant-facing publication names
 - when local overlay reads replay hydrated publication catalogs, preserve those captured opaque publication edge/pageInfo cursors instead of regenerating synthetic `cursor:<gid>` values or pagination parity drifts as soon as staged product state is present
 - `productPublish` now has an executable strict-json parity target for the safe live mutation payload (`product { id }` plus `userErrors`) using variables from the captured safe live fixture
 - `productUnpublish` now has an executable strict-json parity target for the minimal live mutation payload (`userErrors`) using variables from the captured safe live fixture
-- that means `productPublish` / `productUnpublish` can be promoted from declared-gap to covered using explicit safe live mutation captures plus a checked-in field-level blocker note, rather than pretending the aggregate field slice is already settled
-- keep the aggregate publication-field blocker attached to the parity specs until the conformance app is installed/configured with a real publication target and the dedicated harness can refresh the fixtures with successful aggregate-field payloads and downstream reads
-- once the app has a publication, the dedicated harness remains the shortest path to refreshing the family because it already aligns the live mutation and downstream-read slices with the checked-in parity plans
+- `productPublish` / `productUnpublish` aggregate publication-field scenarios now have executable strict-json parity targets for the mutation payload and immediate downstream read
+- DRAFT products can accept the publish/unpublish mutation while still returning `publishedOnCurrentPublication: false` and zero aggregate publication counts; local aggregate serialization must account for product status, not only staged publication id membership
 
 ### 35a. `productPublish` product-id parity is the safe write-path slice
 
@@ -1429,9 +1425,9 @@ The first safe `productPublish` promotion deliberately compares only the live-ca
 - fixture variables are read from `$.mutation.variables` so the local parity harness replays the captured product/publication ids after seeding the product precondition
 - comparison target is the strict `$.mutation.response.data` vs local `$.data` payload
 - the local mutation serializer must not include unselected payload fields, because Shopify only returns the fields selected by the request
-- aggregate publication fields are intentionally excluded from this request because selecting `publishedOnCurrentPublication`, `availablePublicationsCount`, or `resourcePublicationsCount` still triggers the live missing-publication-target blocker on this host
+- aggregate publication fields are intentionally covered in separate scenarios so the minimal payload parity target stays narrow
 
-This closes the staged write-path payload comparison for successful `productPublish` identity/user-error behavior without weakening the larger aggregate-field blocker. The companion aggregate spec must stay blocked until the conformance app has a real publication target and Shopify can return `publishedOnCurrentPublication`, `availablePublicationsCount`, `resourcePublicationsCount`, and immediate downstream publication reads without the current `NOT_FOUND` response.
+This closes the staged write-path payload comparison for successful `productPublish` identity/user-error behavior while the companion aggregate spec covers `publishedOnCurrentPublication`, `availablePublicationsCount`, `resourcePublicationsCount`, and immediate downstream publication reads.
 
 ## 36. ProductSet list-field semantics need product-scoped staged child shadowing, not base+staged unions
 

@@ -1,0 +1,14 @@
+query ProductPublicationAggregateDownstream($id: ID!) {
+  product(id: $id) {
+    id
+    publishedOnCurrentPublication
+    availablePublicationsCount {
+      count
+      precision
+    }
+    resourcePublicationsCount {
+      count
+      precision
+    }
+  }
+}
