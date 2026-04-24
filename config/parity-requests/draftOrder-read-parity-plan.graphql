@@ -33,7 +33,14 @@ query DraftOrderReadParityPlan($id: ID!) {
     shippingLine {
       title
       code
+      custom
       originalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      discountedPriceSet {
         shopMoney {
           amount
           currencyCode

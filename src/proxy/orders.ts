@@ -7,8 +7,11 @@ import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-ide
 import type {
   CalculatedOrderRecord,
   DraftOrderAddressRecord,
+  DraftOrderAppliedDiscountRecord,
   DraftOrderAttributeRecord,
+  DraftOrderCustomerRecord,
   DraftOrderLineItemRecord,
+  DraftOrderPaymentTermsRecord,
   DraftOrderRecord,
   DraftOrderShippingLineRecord,
   CustomerRecord,
@@ -63,7 +66,11 @@ function parseDecimalAmount(raw: unknown): number {
 }
 
 function formatDecimalAmount(value: number): string {
-  return value.toFixed(1);
+  const fixed = value.toFixed(2);
+  if (fixed.endsWith('00')) {
+    return `${fixed.slice(0, -3)}.0`;
+  }
+  return fixed.endsWith('0') ? fixed.slice(0, -1) : fixed;
 }
 
 function normalizeMoneyBag(
@@ -152,6 +159,14 @@ function sumTaxLines(taxLines: OrderTaxLineRecord[]): number {
   return taxLines.reduce((sum, taxLine) => sum + parseDecimalAmount(taxLine.priceSet?.shopMoney.amount), 0);
 }
 
+function readString(raw: unknown): string | null {
+  return typeof raw === 'string' && raw.length > 0 ? raw : null;
+}
+
+function readBoolean(raw: unknown, fallback: boolean): boolean {
+  return typeof raw === 'boolean' ? raw : fallback;
+}
+
 function subtractMoney(
   left: { shopMoney: MoneyV2Record | null } | null | undefined,
   right: { shopMoney: MoneyV2Record | null } | null | undefined,
@@ -208,6 +223,97 @@ function normalizeDraftOrderAttributes(raw: unknown): DraftOrderAttributeRecord[
     .filter((attribute) => attribute.key.length > 0);
 }
 
+function normalizeDraftOrderAppliedDiscount(
+  raw: unknown,
+  currencyCode: string,
+): DraftOrderAppliedDiscountRecord | null {
+  if (typeof raw !== 'object' || raw === null) {
+    return null;
+  }
+
+  const discount = raw as Record<string, unknown>;
+  const value = parseDecimalAmount(discount['value']);
+  const amount = formatDecimalAmount(parseDecimalAmount(discount['amount']));
+
+  return {
+    title: readString(discount['title']),
+    description: readString(discount['description']),
+    value,
+    valueType: readString(discount['valueType']),
+    amountSet: {
+      shopMoney: normalizeMoney(amount, currencyCode),
+    },
+  };
+}
+
+function calculateDraftOrderDiscountAmount(
+  discount: DraftOrderAppliedDiscountRecord | null,
+  basisAmount: number,
+): number {
+  if (!discount) {
+    return 0;
+  }
+
+  if (discount.valueType === 'PERCENTAGE') {
+    return (basisAmount * (discount.value ?? 0)) / 100;
+  }
+
+  return parseDecimalAmount(discount.amountSet?.shopMoney.amount);
+}
+
+function buildDraftOrderCustomerFromInput(inputRecord: Record<string, unknown>): DraftOrderCustomerRecord | null {
+  const email = readString(inputRecord['email']);
+  const purchasingEntity =
+    typeof inputRecord['purchasingEntity'] === 'object' && inputRecord['purchasingEntity'] !== null
+      ? (inputRecord['purchasingEntity'] as Record<string, unknown>)
+      : {};
+  const customerId = readString(inputRecord['customerId']) ?? readString(purchasingEntity['customerId']);
+  const customer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+  const billingAddress = normalizeDraftOrderAddress(inputRecord['billingAddress']);
+  const shippingAddress = normalizeDraftOrderAddress(inputRecord['shippingAddress']);
+  const firstName = billingAddress?.firstName ?? shippingAddress?.firstName ?? null;
+  const lastName = billingAddress?.lastName ?? shippingAddress?.lastName ?? null;
+  const displayName = [firstName, lastName]
+    .filter((value): value is string => Boolean(value && value.length > 0))
+    .join(' ')
+    .trim();
+
+  if (!customerId && !email && !displayName) {
+    return null;
+  }
+
+  return {
+    id: customerId,
+    email: customer?.email ?? email,
+    displayName: customer?.displayName ?? (displayName.length > 0 ? displayName : email),
+  };
+}
+
+function normalizeDraftOrderPaymentTerms(raw: unknown): DraftOrderPaymentTermsRecord | null {
+  if (typeof raw !== 'object' || raw === null) {
+    return null;
+  }
+
+  const paymentTerms = raw as Record<string, unknown>;
+  const schedules = Array.isArray(paymentTerms['paymentSchedules']) ? paymentTerms['paymentSchedules'] : [];
+  const firstSchedule = schedules.find(
+    (schedule): schedule is Record<string, unknown> => typeof schedule === 'object' && schedule !== null,
+  );
+  const hasDueAt = typeof firstSchedule?.['dueAt'] === 'string';
+  const hasIssuedAt = typeof firstSchedule?.['issuedAt'] === 'string';
+  const name = hasDueAt ? 'Due on date' : hasIssuedAt ? 'Net terms' : 'Custom payment terms';
+
+  return {
+    id: makeSyntheticGid('PaymentTerms'),
+    due: false,
+    overdue: false,
+    dueInDays: null,
+    paymentTermsName: name,
+    paymentTermsType: hasDueAt ? 'FIXED' : hasIssuedAt ? 'NET' : 'UNKNOWN',
+    translatedName: name,
+  };
+}
+
 function normalizeOrderMetafields(
   orderId: string,
   raw: unknown,
@@ -261,15 +367,43 @@ function normalizeDraftOrderLineItems(raw: unknown, currencyCode: string): Draft
   return raw
     .filter((lineItem): lineItem is Record<string, unknown> => typeof lineItem === 'object' && lineItem !== null)
     .map((lineItem) => {
-      const price = formatDecimalAmount(parseDecimalAmount(lineItem['originalUnitPrice']));
+      const variantId = readString(lineItem['variantId']);
+      const variant = variantId ? store.getEffectiveVariantById(variantId) : null;
+      const product = variant ? store.getEffectiveProductById(variant.productId) : null;
+      const isVariantLine = Boolean(variant);
+      const quantity = typeof lineItem['quantity'] === 'number' ? lineItem['quantity'] : 0;
+      const rawUnitPrice = isVariantLine ? variant?.price : lineItem['originalUnitPrice'];
+      const unitPrice = parseDecimalAmount(rawUnitPrice);
+      const grossTotal = unitPrice * quantity;
+      const appliedDiscount = normalizeDraftOrderAppliedDiscount(lineItem['appliedDiscount'], currencyCode);
+      const discountTotal = calculateDraftOrderDiscountAmount(appliedDiscount, grossTotal);
+      const discountedTotal = Math.max(0, grossTotal - discountTotal);
+      const price = formatDecimalAmount(unitPrice);
       return {
         id: makeSyntheticGid('DraftOrderLineItem'),
-        title: typeof lineItem['title'] === 'string' ? lineItem['title'] : null,
-        quantity: typeof lineItem['quantity'] === 'number' ? lineItem['quantity'] : 0,
-        sku: typeof lineItem['sku'] === 'string' ? lineItem['sku'] : null,
-        variantTitle: null,
+        title: isVariantLine ? (product?.title ?? variant?.title ?? null) : readString(lineItem['title']),
+        name: isVariantLine ? (product?.title ?? variant?.title ?? null) : readString(lineItem['title']),
+        quantity,
+        sku: isVariantLine ? (variant?.sku ?? '') : readString(lineItem['sku']),
+        variantTitle: isVariantLine ? (variant?.title ?? null) : null,
+        variantId: variant?.id ?? null,
+        productId: product?.id ?? variant?.productId ?? null,
+        custom: !isVariantLine,
+        requiresShipping: readBoolean(lineItem['requiresShipping'], variant?.inventoryItem?.requiresShipping ?? true),
+        taxable: readBoolean(lineItem['taxable'], variant?.taxable ?? true),
+        customAttributes: normalizeDraftOrderAttributes(lineItem['customAttributes']),
+        appliedDiscount,
         originalUnitPriceSet: {
           shopMoney: normalizeMoney(price, currencyCode),
+        },
+        originalTotalSet: {
+          shopMoney: normalizeMoney(formatDecimalAmount(grossTotal), currencyCode),
+        },
+        discountedTotalSet: {
+          shopMoney: normalizeMoney(formatDecimalAmount(discountedTotal), currencyCode),
+        },
+        totalDiscountSet: {
+          shopMoney: normalizeMoney(formatDecimalAmount(discountTotal), currencyCode),
         },
       };
     });
@@ -294,7 +428,12 @@ function normalizeDraftOrderShippingLine(raw: unknown, currencyCode: string): Dr
 
   return {
     title: typeof shippingLine['title'] === 'string' ? shippingLine['title'] : null,
-    code: typeof shippingLine['code'] === 'string' ? shippingLine['code'] : null,
+    code:
+      typeof shippingLine['code'] === 'string'
+        ? shippingLine['code']
+        : typeof shippingLine['shippingRateHandle'] === 'string'
+          ? shippingLine['shippingRateHandle']
+          : 'custom',
     originalPriceSet: {
       shopMoney: normalizeMoney(formatDecimalAmount(parseDecimalAmount(price)), lineCurrency),
     },
@@ -689,12 +828,24 @@ function buildDraftOrderFromInput(input: unknown, shopifyAdminOrigin: string): D
   const draftOrderId = makeSyntheticGid('DraftOrder');
   const createdAt = makeSyntheticTimestamp();
   const lineItems = normalizeDraftOrderLineItems(inputRecord['lineItems'], currencyCode);
-  const subtotal = formatDecimalAmount(
-    lineItems.reduce(
-      (sum, lineItem) => sum + parseDecimalAmount(lineItem.originalUnitPriceSet?.shopMoney.amount) * lineItem.quantity,
-      0,
-    ),
+  const shippingLine = normalizeDraftOrderShippingLine(inputRecord['shippingLine'], currencyCode);
+  const appliedDiscount = normalizeDraftOrderAppliedDiscount(inputRecord['appliedDiscount'], currencyCode);
+  const lineDiscountTotal = lineItems.reduce(
+    (sum, lineItem) => sum + parseDecimalAmount(lineItem.totalDiscountSet?.shopMoney.amount),
+    0,
   );
+  const discountedLineSubtotal = formatDecimalAmount(
+    lineItems.reduce((sum, lineItem) => sum + parseDecimalAmount(lineItem.discountedTotalSet?.shopMoney.amount), 0),
+  );
+  const orderDiscountTotal = calculateDraftOrderDiscountAmount(
+    appliedDiscount,
+    parseDecimalAmount(discountedLineSubtotal),
+  );
+  const subtotal = formatDecimalAmount(Math.max(0, parseDecimalAmount(discountedLineSubtotal) - orderDiscountTotal));
+  const shippingTotal = parseDecimalAmount(shippingLine?.originalPriceSet?.shopMoney.amount);
+  const totalDiscount = formatDecimalAmount(lineDiscountTotal + orderDiscountTotal);
+  const totalShipping = formatDecimalAmount(shippingTotal);
+  const total = formatDecimalAmount(parseDecimalAmount(subtotal) + shippingTotal);
   const name = `#D${store.getDraftOrders().length + 1}`;
   const invoiceId = draftOrderId.split('/').at(-1) ?? 'draft-order';
 
@@ -703,7 +854,7 @@ function buildDraftOrderFromInput(input: unknown, shopifyAdminOrigin: string): D
     name,
     invoiceUrl: `${shopifyAdminOrigin.replace(/\/$/, '')}/draft_orders/${invoiceId}/invoice`,
     status: 'OPEN',
-    ready: false,
+    ready: true,
     email: typeof inputRecord['email'] === 'string' ? inputRecord['email'] : null,
     note: typeof inputRecord['note'] === 'string' ? inputRecord['note'] : null,
     tags: Array.isArray(inputRecord['tags'])
@@ -711,17 +862,29 @@ function buildDraftOrderFromInput(input: unknown, shopifyAdminOrigin: string): D
           .filter((tag): tag is string => typeof tag === 'string')
           .sort((left, right) => left.localeCompare(right))
       : [],
+    customer: buildDraftOrderCustomerFromInput(inputRecord),
+    taxExempt: readBoolean(inputRecord['taxExempt'], false),
+    taxesIncluded: readBoolean(inputRecord['taxesIncluded'], false),
+    reserveInventoryUntil: readString(inputRecord['reserveInventoryUntil']),
+    paymentTerms: normalizeDraftOrderPaymentTerms(inputRecord['paymentTerms']),
+    appliedDiscount,
     customAttributes: normalizeDraftOrderAttributes(inputRecord['customAttributes']),
     billingAddress: normalizeDraftOrderAddress(inputRecord['billingAddress']),
     shippingAddress: normalizeDraftOrderAddress(inputRecord['shippingAddress']),
-    shippingLine: null,
+    shippingLine,
     createdAt,
     updatedAt: createdAt,
     subtotalPriceSet: {
       shopMoney: normalizeMoney(subtotal, currencyCode),
     },
+    totalDiscountsSet: {
+      shopMoney: normalizeMoney(totalDiscount, currencyCode),
+    },
+    totalShippingPriceSet: {
+      shopMoney: normalizeMoney(totalShipping, currencyCode),
+    },
     totalPriceSet: {
-      shopMoney: normalizeMoney(subtotal, currencyCode),
+      shopMoney: normalizeMoney(total, currencyCode),
     },
     lineItems,
   };
@@ -822,6 +985,14 @@ function buildDraftOrderFromOrder(order: OrderRecord, shopifyAdminOrigin: string
   const draftOrderId = makeSyntheticGid('DraftOrder');
   const createdAt = makeSyntheticTimestamp();
   const invoiceId = draftOrderId.split('/').at(-1) ?? 'draft-order';
+  const currencyCode =
+    order.totalPriceSet?.shopMoney.currencyCode ?? order.subtotalPriceSet?.shopMoney.currencyCode ?? 'CAD';
+  const totalShipping = formatDecimalAmount(
+    order.shippingLines.reduce(
+      (sum, shippingLine) => sum + parseDecimalAmount(shippingLine.originalPriceSet?.shopMoney.amount),
+      0,
+    ),
+  );
 
   return {
     id: draftOrderId,
@@ -832,6 +1003,18 @@ function buildDraftOrderFromOrder(order: OrderRecord, shopifyAdminOrigin: string
     email: order.customer?.email ?? null,
     note: order.note,
     tags: structuredClone(order.tags),
+    customer: order.customer
+      ? {
+          id: order.customer.id,
+          email: order.customer.email,
+          displayName: order.customer.displayName,
+        }
+      : null,
+    taxExempt: false,
+    taxesIncluded: false,
+    reserveInventoryUntil: null,
+    paymentTerms: null,
+    appliedDiscount: null,
     customAttributes: structuredClone(order.customAttributes),
     billingAddress: structuredClone(order.billingAddress),
     shippingAddress: structuredClone(order.shippingAddress),
@@ -839,14 +1022,33 @@ function buildDraftOrderFromOrder(order: OrderRecord, shopifyAdminOrigin: string
     createdAt,
     updatedAt: createdAt,
     subtotalPriceSet: structuredClone(order.subtotalPriceSet),
+    totalDiscountsSet: {
+      shopMoney: normalizeMoney('0.0', currencyCode),
+    },
+    totalShippingPriceSet: {
+      shopMoney: normalizeMoney(totalShipping, currencyCode),
+    },
     totalPriceSet: structuredClone(order.totalPriceSet),
     lineItems: order.lineItems.map((lineItem) => ({
       id: makeSyntheticGid('DraftOrderLineItem'),
       title: lineItem.title,
+      name: lineItem.title,
       quantity: lineItem.quantity,
       sku: lineItem.sku,
       variantTitle: lineItem.variantTitle,
+      variantId: null,
+      productId: null,
+      custom: true,
+      requiresShipping: true,
+      taxable: true,
+      customAttributes: [],
+      appliedDiscount: null,
       originalUnitPriceSet: structuredClone(lineItem.originalUnitPriceSet),
+      originalTotalSet: structuredClone(lineItem.originalUnitPriceSet),
+      discountedTotalSet: structuredClone(lineItem.originalUnitPriceSet),
+      totalDiscountSet: {
+        shopMoney: normalizeMoney('0.0', currencyCode),
+      },
     })),
   };
 }
@@ -1464,6 +1666,136 @@ function serializeDraftOrderShippingLine(
       case 'taxLines':
         result[key] = serializeOrderTaxLines(selection, orderShippingLine.taxLines ?? []);
         break;
+      case 'discountedPriceSet':
+      case 'currentDiscountedPriceSet':
+        result[key] = serializeShopMoneySet(selection, shippingLine.originalPriceSet?.shopMoney ?? null);
+        break;
+      case 'custom':
+        result[key] = true;
+        break;
+      case 'carrierIdentifier':
+      case 'deliveryCategory':
+      case 'phone':
+      case 'shippingRateHandle':
+        result[key] = null;
+        break;
+      case 'isRemoved':
+        result[key] = false;
+        break;
+      case 'discountAllocations':
+        result[key] = [];
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeDraftOrderAppliedDiscount(
+  field: FieldNode,
+  discount: DraftOrderAppliedDiscountRecord | null,
+): Record<string, unknown> | null {
+  if (!discount) {
+    return null;
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'title':
+        result[key] = discount.title;
+        break;
+      case 'description':
+        result[key] = discount.description ?? '';
+        break;
+      case 'value':
+        result[key] = discount.value;
+        break;
+      case 'valueType':
+        result[key] = discount.valueType;
+        break;
+      case 'amountSet':
+        result[key] = serializeShopMoneySet(selection, discount.amountSet?.shopMoney ?? null);
+        break;
+      case 'amountV2':
+        result[key] = serializeMoneyField(selection, discount.amountSet?.shopMoney ?? null);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeDraftOrderCustomer(
+  field: FieldNode,
+  customer: DraftOrderCustomerRecord | null,
+): Record<string, unknown> | null {
+  if (!customer) {
+    return null;
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = customer.id;
+        break;
+      case 'email':
+        result[key] = customer.email;
+        break;
+      case 'displayName':
+        result[key] = customer.displayName;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeDraftOrderPaymentTerms(
+  field: FieldNode,
+  paymentTerms: DraftOrderPaymentTermsRecord | null,
+): Record<string, unknown> | null {
+  if (!paymentTerms) {
+    return null;
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = paymentTerms.id;
+        break;
+      case 'due':
+        result[key] = paymentTerms.due;
+        break;
+      case 'overdue':
+        result[key] = paymentTerms.overdue;
+        break;
+      case 'dueInDays':
+        result[key] = paymentTerms.dueInDays;
+        break;
+      case 'paymentTermsName':
+        result[key] = paymentTerms.paymentTermsName;
+        break;
+      case 'paymentTermsType':
+        result[key] = paymentTerms.paymentTermsType;
+        break;
+      case 'translatedName':
+        result[key] = paymentTerms.translatedName;
+        break;
+      case 'paymentSchedules':
+        result[key] = serializeDraftOrderLineItemsConnection(selection, []);
+        break;
       default:
         result[key] = null;
         break;
@@ -1486,6 +1818,9 @@ function serializeDraftOrderLineItemNode(
       case 'title':
         nodeResult[nodeKey] = lineItem.title;
         break;
+      case 'name':
+        nodeResult[nodeKey] = lineItem.name;
+        break;
       case 'quantity':
         nodeResult[nodeKey] = lineItem.quantity;
         break;
@@ -1493,10 +1828,71 @@ function serializeDraftOrderLineItemNode(
         nodeResult[nodeKey] = lineItem.sku;
         break;
       case 'variantTitle':
-        nodeResult[nodeKey] = lineItem.variantTitle;
+        nodeResult[nodeKey] = lineItem.variantTitle === 'Default Title' ? null : lineItem.variantTitle;
+        break;
+      case 'custom':
+        nodeResult[nodeKey] = lineItem.custom;
+        break;
+      case 'requiresShipping':
+        nodeResult[nodeKey] = lineItem.requiresShipping;
+        break;
+      case 'taxable':
+        nodeResult[nodeKey] = lineItem.taxable;
+        break;
+      case 'customAttributes':
+        nodeResult[nodeKey] = serializeDraftOrderAttributes(nodeSelection, lineItem.customAttributes);
+        break;
+      case 'appliedDiscount':
+        nodeResult[nodeKey] = serializeDraftOrderAppliedDiscount(nodeSelection, lineItem.appliedDiscount);
         break;
       case 'originalUnitPriceSet':
         nodeResult[nodeKey] = serializeShopMoneySet(nodeSelection, lineItem.originalUnitPriceSet ?? null);
+        break;
+      case 'originalTotalSet':
+        nodeResult[nodeKey] = serializeShopMoneySet(nodeSelection, lineItem.originalTotalSet?.shopMoney ?? null);
+        break;
+      case 'discountedTotalSet':
+        nodeResult[nodeKey] = serializeShopMoneySet(nodeSelection, lineItem.discountedTotalSet?.shopMoney ?? null);
+        break;
+      case 'totalDiscountSet':
+        nodeResult[nodeKey] = serializeShopMoneySet(nodeSelection, lineItem.totalDiscountSet?.shopMoney ?? null);
+        break;
+      case 'variant':
+        nodeResult[nodeKey] = lineItem.variantId
+          ? Object.fromEntries(
+              getSelectedChildFields(nodeSelection).map((variantSelection) => {
+                const variantKey = getFieldResponseKey(variantSelection);
+                switch (variantSelection.name.value) {
+                  case 'id':
+                    return [variantKey, lineItem.variantId];
+                  case 'title':
+                    return [variantKey, lineItem.variantTitle];
+                  case 'sku':
+                    return [variantKey, lineItem.sku === '' ? null : lineItem.sku];
+                  default:
+                    return [variantKey, null];
+                }
+              }),
+            )
+          : null;
+        break;
+      case 'product':
+        nodeResult[nodeKey] =
+          lineItem.productId && lineItem.name
+            ? Object.fromEntries(
+                getSelectedChildFields(nodeSelection).map((productSelection) => {
+                  const productKey = getFieldResponseKey(productSelection);
+                  switch (productSelection.name.value) {
+                    case 'id':
+                      return [productKey, lineItem.productId];
+                    case 'title':
+                      return [productKey, lineItem.name];
+                    default:
+                      return [productKey, null];
+                  }
+                }),
+              )
+            : null;
         break;
       default:
         nodeResult[nodeKey] = null;
@@ -1598,6 +1994,24 @@ function serializeDraftOrderNode(field: FieldNode, draftOrder: DraftOrderRecord)
       case 'tags':
         result[key] = structuredClone(draftOrder.tags);
         break;
+      case 'customer':
+        result[key] = serializeDraftOrderCustomer(selection, draftOrder.customer);
+        break;
+      case 'taxExempt':
+        result[key] = draftOrder.taxExempt;
+        break;
+      case 'taxesIncluded':
+        result[key] = draftOrder.taxesIncluded;
+        break;
+      case 'reserveInventoryUntil':
+        result[key] = draftOrder.reserveInventoryUntil;
+        break;
+      case 'paymentTerms':
+        result[key] = serializeDraftOrderPaymentTerms(selection, draftOrder.paymentTerms);
+        break;
+      case 'appliedDiscount':
+        result[key] = serializeDraftOrderAppliedDiscount(selection, draftOrder.appliedDiscount);
+        break;
       case 'customAttributes':
         result[key] = serializeDraftOrderAttributes(selection, draftOrder.customAttributes);
         break;
@@ -1622,8 +2036,17 @@ function serializeDraftOrderNode(field: FieldNode, draftOrder: DraftOrderRecord)
       case 'subtotalPriceSet':
         result[key] = serializeShopMoneySet(selection, draftOrder.subtotalPriceSet?.shopMoney ?? null);
         break;
+      case 'totalDiscountsSet':
+        result[key] = serializeShopMoneySet(selection, draftOrder.totalDiscountsSet?.shopMoney ?? null);
+        break;
+      case 'totalShippingPriceSet':
+        result[key] = serializeShopMoneySet(selection, draftOrder.totalShippingPriceSet?.shopMoney ?? null);
+        break;
       case 'totalPriceSet':
         result[key] = serializeShopMoneySet(selection, draftOrder.totalPriceSet?.shopMoney ?? null);
+        break;
+      case 'totalQuantityOfLineItems':
+        result[key] = draftOrder.lineItems.reduce((sum, lineItem) => sum + lineItem.quantity, 0);
         break;
       case 'lineItems':
         result[key] = serializeDraftOrderLineItemsConnection(selection, draftOrder.lineItems);
@@ -3564,6 +3987,87 @@ function serializeSelectedUserErrors(
   });
 }
 
+function serializeDraftOrderCreatePayloadWithUserErrors(
+  field: FieldNode,
+  userErrors: Array<{ field: string[] | null; message: string }>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const selectionKey = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'draftOrder':
+        payload[selectionKey] = null;
+        break;
+      case 'userErrors':
+        payload[selectionKey] = serializeSelectedUserErrors(selection, userErrors);
+        break;
+      default:
+        payload[selectionKey] = null;
+        break;
+    }
+  }
+  return payload;
+}
+
+function validateDraftOrderCreateInput(input: unknown): Array<{ field: string[] | null; message: string }> {
+  const inputRecord = typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {};
+  const lineItems = inputRecord['lineItems'];
+  if (!Array.isArray(lineItems) || lineItems.length === 0) {
+    return [{ field: null, message: 'Add at least 1 product' }];
+  }
+
+  const userErrors: Array<{ field: string[] | null; message: string }> = [];
+  lineItems.forEach((lineItem, index) => {
+    if (typeof lineItem !== 'object' || lineItem === null) {
+      userErrors.push({
+        field: ['input', 'lineItems', String(index)],
+        message: 'Line item is invalid',
+      });
+      return;
+    }
+
+    const lineItemRecord = lineItem as Record<string, unknown>;
+    const variantId = readString(lineItemRecord['variantId']);
+    const hasCustomTitle = readString(lineItemRecord['title']) !== null;
+    const hasCustomPrice =
+      lineItemRecord['originalUnitPrice'] !== undefined && lineItemRecord['originalUnitPrice'] !== null;
+
+    if (variantId) {
+      if (hasCustomTitle || hasCustomPrice) {
+        userErrors.push({
+          field: ['input', 'lineItems', String(index)],
+          message: 'Variant line items cannot include custom title or originalUnitPrice fields',
+        });
+        return;
+      }
+
+      if (!store.getEffectiveVariantById(variantId)) {
+        userErrors.push({
+          field: ['input', 'lineItems', String(index), 'variantId'],
+          message: 'Product variant does not exist',
+        });
+      }
+      return;
+    }
+
+    if (!hasCustomTitle) {
+      userErrors.push({
+        field: ['input', 'lineItems', String(index), 'title'],
+        message: "Title can't be blank",
+      });
+    }
+
+    if (!hasCustomPrice) {
+      userErrors.push({
+        field: ['input', 'lineItems', String(index), 'originalUnitPrice'],
+        message: "Original unit price can't be blank",
+      });
+    }
+  });
+
+  return userErrors;
+}
+
 function buildOrderUpdateMissingIdError(input: Record<string, unknown>): Record<string, unknown> {
   return {
     message: 'Variable $input of type OrderInput! was provided invalid value for id (Expected value to not be null)',
@@ -4521,6 +5025,12 @@ export function handleOrderMutation(
 
       if (input === null) {
         errors.push(buildDraftOrderCreateMissingInputError());
+        continue;
+      }
+
+      const userErrors = validateDraftOrderCreateInput(input);
+      if (userErrors.length > 0) {
+        data[key] = serializeDraftOrderCreatePayloadWithUserErrors(field, userErrors);
         continue;
       }
 

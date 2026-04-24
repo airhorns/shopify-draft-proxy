@@ -860,23 +860,68 @@ const draftOrderCreateProbe = `#graphql
         id
         name
         status
+        ready
         email
+        customer { id email displayName }
+        taxExempt
+        taxesIncluded
+        reserveInventoryUntil
+        paymentTerms {
+          id
+          overdue
+          dueInDays
+          paymentTermsName
+          paymentTermsType
+          translatedName
+        }
         tags
         invoiceUrl
         customAttributes { key value }
+        appliedDiscount {
+          title
+          description
+          value
+          valueType
+          amountSet { shopMoney { amount currencyCode } }
+        }
         billingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }
         shippingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }
         shippingLine {
           title
+          code
+          custom
           originalPriceSet { shopMoney { amount currencyCode } }
+          discountedPriceSet { shopMoney { amount currencyCode } }
         }
+        subtotalPriceSet { shopMoney { amount currencyCode } }
+        totalDiscountsSet { shopMoney { amount currencyCode } }
+        totalShippingPriceSet { shopMoney { amount currencyCode } }
         totalPriceSet { shopMoney { amount currencyCode } }
+        totalQuantityOfLineItems
         lineItems(first: 5) {
           nodes {
             id
             title
+            name
             quantity
             sku
+            variantTitle
+            custom
+            requiresShipping
+            taxable
+            customAttributes { key value }
+            appliedDiscount {
+              title
+              description
+              value
+              valueType
+              amountSet { shopMoney { amount currencyCode } }
+            }
+            originalUnitPriceSet { shopMoney { amount currencyCode } }
+            originalTotalSet { shopMoney { amount currencyCode } }
+            discountedTotalSet { shopMoney { amount currencyCode } }
+            totalDiscountSet { shopMoney { amount currencyCode } }
+            variant { id title sku }
           }
         }
       }
@@ -891,23 +936,68 @@ const draftOrderDetailRead = `#graphql
       id
       name
       status
+      ready
       email
+      customer { id email displayName }
+      taxExempt
+      taxesIncluded
+      reserveInventoryUntil
+      paymentTerms {
+        id
+        overdue
+        dueInDays
+        paymentTermsName
+        paymentTermsType
+        translatedName
+      }
       tags
       invoiceUrl
       customAttributes { key value }
+      appliedDiscount {
+        title
+        description
+        value
+        valueType
+        amountSet { shopMoney { amount currencyCode } }
+      }
       billingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }
       shippingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }
       shippingLine {
         title
+        code
+        custom
         originalPriceSet { shopMoney { amount currencyCode } }
+        discountedPriceSet { shopMoney { amount currencyCode } }
       }
+      subtotalPriceSet { shopMoney { amount currencyCode } }
+      totalDiscountsSet { shopMoney { amount currencyCode } }
+      totalShippingPriceSet { shopMoney { amount currencyCode } }
       totalPriceSet { shopMoney { amount currencyCode } }
+      totalQuantityOfLineItems
       lineItems(first: 5) {
         nodes {
           id
           title
+          name
           quantity
           sku
+          variantTitle
+          custom
+          requiresShipping
+          taxable
+          customAttributes { key value }
+          appliedDiscount {
+            title
+            description
+            value
+            valueType
+            amountSet { shopMoney { amount currencyCode } }
+          }
+          originalUnitPriceSet { shopMoney { amount currencyCode } }
+          originalTotalSet { shopMoney { amount currencyCode } }
+          discountedTotalSet { shopMoney { amount currencyCode } }
+          totalDiscountSet { shopMoney { amount currencyCode } }
+          variant { id title sku }
         }
       }
     }
@@ -1394,24 +1484,39 @@ async function main() {
     },
   };
 
+  const draftOrderReserveInventoryUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .replace(/\.\d{3}Z$/u, 'Z');
   const draftOrderCreateVariables = {
     input: {
+      purchasingEntity: {
+        customerId: 'gid://shopify/Customer/6157654556905',
+      },
       email: `hermes-draft-order-probe-${stamp}@example.com`,
-      note: 'draft order create parity probe',
-      tags: ['parity-probe', 'draft-order-create'],
+      note: 'merchant realistic draft order create parity probe',
+      taxExempt: true,
+      reserveInventoryUntil: draftOrderReserveInventoryUntil,
+      tags: ['parity-probe', 'draft-order-create', 'merchant-realistic'],
       customAttributes: [
         {
           key: 'source',
-          value: 'hermes-parity-plan',
+          value: 'phone-order',
         },
         {
-          key: 'channel',
-          value: 'cron-orders-bootstrap',
+          key: 'purchase-order',
+          value: `PO-${stamp}`,
         },
       ],
+      appliedDiscount: {
+        title: 'Loyalty credit',
+        description: 'merchant order-level discount',
+        value: 5,
+        amount: 5,
+        valueType: 'FIXED_AMOUNT',
+      },
       billingAddress: {
         firstName: 'Hermes',
-        lastName: 'Operator',
+        lastName: 'Buyer',
         address1: '123 Queen St W',
         city: 'Toronto',
         provinceCode: 'ON',
@@ -1421,29 +1526,41 @@ async function main() {
       },
       shippingAddress: {
         firstName: 'Hermes',
-        lastName: 'Operator',
-        address1: '123 Queen St W',
+        lastName: 'Buyer',
+        address1: '500 King St W',
         city: 'Toronto',
         provinceCode: 'ON',
         countryCode: 'CA',
-        zip: 'M5H 2M9',
-        phone: '+141****0101',
+        zip: 'M5V 1L9',
+        phone: '+141****0102',
       },
       shippingLine: {
-        title: 'Standard',
+        title: 'Merchant Courier',
         priceWithCurrency: {
-          amount: '5.00',
+          amount: '7.25',
           currencyCode: 'CAD',
         },
       },
       lineItems: [
         {
-          title: 'Hermes custom draft-order item',
-          quantity: 1,
-          originalUnitPrice: '10.00',
+          title: 'Custom installation service',
+          quantity: 2,
+          originalUnitPrice: '20.00',
           requiresShipping: false,
           taxable: false,
-          sku: `hermes-draft-order-probe-${stamp}`,
+          sku: `hermes-custom-service-${stamp}`,
+          appliedDiscount: {
+            title: 'Service discount',
+            description: '10 percent off service',
+            value: 10,
+            amount: 4,
+            valueType: 'PERCENTAGE',
+          },
+          customAttributes: [{ key: 'appointment', value: 'morning' }],
+        },
+        {
+          variantId: 'gid://shopify/ProductVariant/48540157378793',
+          quantity: 1,
         },
       ],
     },

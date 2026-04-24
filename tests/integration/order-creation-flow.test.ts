@@ -50,7 +50,7 @@ function makeVariant(productId: string, variantId: string): ProductVariantRecord
     productId,
     title: 'Red / Small',
     sku: 'RICH-VARIANT-RED-SMALL',
-    barcode: null,
+    barcode: 'custom',
     price: '20.00',
     compareAtPrice: null,
     taxable: true,
@@ -68,6 +68,46 @@ function makeVariant(productId: string, variantId: string): ProductVariantRecord
       inventoryLevels: [],
     },
   };
+}
+
+function seedDraftOrderVariantCatalog(): ProductVariantRecord {
+  const product = {
+    ...makeProduct('gid://shopify/Product/9001', 'Hermes stocked product'),
+    legacyResourceId: null,
+    handle: 'hermes-stocked-product',
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z',
+    vendor: 'Hermes',
+    productType: 'Test fixture',
+    tags: ['draft-order-variant'],
+    totalInventory: 6,
+  };
+  const baseVariant = makeVariant(product.id, 'gid://shopify/ProductVariant/9002');
+  const variant = {
+    ...baseVariant,
+    title: 'Medium / Black',
+    sku: 'HERMES-STOCKED-M-BLACK',
+    price: '15.50',
+    inventoryQuantity: 6,
+    selectedOptions: [
+      { name: 'Size', value: 'Medium' },
+      { name: 'Color', value: 'Black' },
+    ],
+    inventoryItem: {
+      id: 'gid://shopify/InventoryItem/9003',
+      tracked: true,
+      requiresShipping: true,
+      measurement: null,
+      countryCodeOfOrigin: null,
+      provinceCodeOfOrigin: null,
+      harmonizedSystemCode: null,
+      inventoryLevels: [],
+    },
+  };
+
+  store.stageCreateProduct(product);
+  store.replaceStagedVariantsForProduct(product.id, [variant]);
+  return variant;
 }
 
 describe('order creation flow', () => {
@@ -1199,7 +1239,16 @@ describe('order creation flow', () => {
               zip: 'M5H 2M9',
               phone: '+141****0101',
             },
-            shippingLine: null,
+            shippingLine: {
+              title: 'Standard',
+              code: 'custom',
+              originalPriceSet: {
+                shopMoney: {
+                  amount: '5.0',
+                  currencyCode: 'CAD',
+                },
+              },
+            },
             createdAt: '2024-01-01T00:00:01.000Z',
             updatedAt: '2024-01-01T00:00:01.000Z',
             subtotalPriceSet: {
@@ -1210,7 +1259,7 @@ describe('order creation flow', () => {
             },
             totalPriceSet: {
               shopMoney: {
-                amount: '10.0',
+                amount: '15.0',
                 currencyCode: 'CAD',
               },
             },
@@ -1321,6 +1370,554 @@ describe('order creation flow', () => {
     expect(detailResponse.body).toEqual({
       data: {
         draftOrder: createResponse.body.data.draftOrderCreate.draftOrder,
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('stages merchant-realistic draftOrderCreate fields and replays them through detail/catalog/count locally', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('merchant-realistic draft-order create parity should not hit upstream in snapshot mode');
+    });
+    const seededVariant = seedDraftOrderVariantCatalog();
+
+    const app = createApp(snapshotConfig).callback();
+    const createResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation DraftOrderCreateMerchantRealistic($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              id
+              name
+              invoiceUrl
+              status
+              ready
+              email
+              customer {
+                id
+                email
+                displayName
+              }
+              taxExempt
+              taxesIncluded
+              reserveInventoryUntil
+              paymentTerms {
+                id
+                due
+                overdue
+                dueInDays
+                paymentTermsName
+                paymentTermsType
+                translatedName
+              }
+              tags
+              customAttributes {
+                key
+                value
+              }
+              appliedDiscount {
+                title
+                description
+                value
+                valueType
+                amountSet {
+                  shopMoney {
+                    amount
+                    currencyCode
+                  }
+                }
+              }
+              billingAddress {
+                firstName
+                lastName
+                address1
+                city
+                provinceCode
+                countryCodeV2
+                zip
+                phone
+              }
+              shippingAddress {
+                firstName
+                lastName
+                address1
+                city
+                provinceCode
+                countryCodeV2
+                zip
+                phone
+              }
+              shippingLine {
+                title
+                code
+                custom
+                originalPriceSet {
+                  shopMoney {
+                    amount
+                    currencyCode
+                  }
+                }
+                discountedPriceSet {
+                  shopMoney {
+                    amount
+                    currencyCode
+                  }
+                }
+              }
+              subtotalPriceSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+              totalDiscountsSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+              totalShippingPriceSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+              totalPriceSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+              totalQuantityOfLineItems
+              lineItems(first: 5) {
+                nodes {
+                  id
+                  title
+                  name
+                  quantity
+                  sku
+                  variantTitle
+                  custom
+                  requiresShipping
+                  taxable
+                  customAttributes {
+                    key
+                    value
+                  }
+                  appliedDiscount {
+                    title
+                    description
+                    value
+                    valueType
+                    amountSet {
+                      shopMoney {
+                        amount
+                        currencyCode
+                      }
+                    }
+                  }
+                  originalUnitPriceSet {
+                    shopMoney {
+                      amount
+                      currencyCode
+                    }
+                  }
+                  originalTotalSet {
+                    shopMoney {
+                      amount
+                      currencyCode
+                    }
+                  }
+                  discountedTotalSet {
+                    shopMoney {
+                      amount
+                      currencyCode
+                    }
+                  }
+                  totalDiscountSet {
+                    shopMoney {
+                      amount
+                      currencyCode
+                    }
+                  }
+                  variant {
+                    id
+                    title
+                    sku
+                  }
+                }
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          input: {
+            purchasingEntity: {
+              customerId: 'gid://shopify/Customer/7001',
+            },
+            email: 'merchant-realistic-draft@example.com',
+            note: 'merchant realistic draft order create parity',
+            taxExempt: true,
+            reserveInventoryUntil: '2026-05-23T12:00:00Z',
+            paymentTerms: {
+              paymentSchedules: [{ dueAt: '2026-05-22T12:00:00Z' }],
+            },
+            tags: ['merchant-realistic', 'draft-order'],
+            customAttributes: [
+              { key: 'source', value: 'phone-order' },
+              { key: 'purchase-order', value: 'PO-117' },
+            ],
+            appliedDiscount: {
+              title: 'Loyalty credit',
+              description: 'merchant order-level discount',
+              value: 5,
+              amount: 5,
+              valueType: 'FIXED_AMOUNT',
+            },
+            billingAddress: {
+              firstName: 'Hermes',
+              lastName: 'Buyer',
+              address1: '123 Queen St W',
+              city: 'Toronto',
+              provinceCode: 'ON',
+              countryCode: 'CA',
+              zip: 'M5H 2M9',
+              phone: '+14165550101',
+            },
+            shippingAddress: {
+              firstName: 'Hermes',
+              lastName: 'Buyer',
+              address1: '500 King St W',
+              city: 'Toronto',
+              provinceCode: 'ON',
+              countryCode: 'CA',
+              zip: 'M5V 1L9',
+              phone: '+14165550102',
+            },
+            shippingLine: {
+              title: 'Merchant Courier',
+              priceWithCurrency: {
+                amount: '7.25',
+                currencyCode: 'CAD',
+              },
+            },
+            lineItems: [
+              {
+                title: 'Custom installation service',
+                quantity: 2,
+                originalUnitPrice: '20.00',
+                requiresShipping: false,
+                taxable: false,
+                sku: 'CUSTOM-INSTALL',
+                appliedDiscount: {
+                  title: 'Service discount',
+                  description: '10 percent off service',
+                  value: 10,
+                  amount: 4,
+                  valueType: 'PERCENTAGE',
+                },
+                customAttributes: [{ key: 'appointment', value: 'morning' }],
+              },
+              {
+                variantId: seededVariant.id,
+                quantity: 1,
+              },
+            ],
+          },
+        },
+      });
+
+    expect(createResponse.status).toBe(200);
+    expect(createResponse.body.data.draftOrderCreate.userErrors).toEqual([]);
+    expect(createResponse.body.data.draftOrderCreate.draftOrder).toEqual({
+      id: 'gid://shopify/DraftOrder/2',
+      name: '#D1',
+      invoiceUrl: 'https://example.myshopify.com/draft_orders/2/invoice',
+      status: 'OPEN',
+      ready: true,
+      email: 'merchant-realistic-draft@example.com',
+      customer: {
+        id: 'gid://shopify/Customer/7001',
+        email: 'merchant-realistic-draft@example.com',
+        displayName: 'Hermes Buyer',
+      },
+      taxExempt: true,
+      taxesIncluded: false,
+      reserveInventoryUntil: '2026-05-23T12:00:00Z',
+      paymentTerms: {
+        id: 'gid://shopify/PaymentTerms/5',
+        due: false,
+        overdue: false,
+        dueInDays: null,
+        paymentTermsName: 'Due on date',
+        paymentTermsType: 'FIXED',
+        translatedName: 'Due on date',
+      },
+      tags: ['draft-order', 'merchant-realistic'],
+      customAttributes: [
+        { key: 'source', value: 'phone-order' },
+        { key: 'purchase-order', value: 'PO-117' },
+      ],
+      appliedDiscount: {
+        title: 'Loyalty credit',
+        description: 'merchant order-level discount',
+        value: 5,
+        valueType: 'FIXED_AMOUNT',
+        amountSet: {
+          shopMoney: {
+            amount: '5.0',
+            currencyCode: 'CAD',
+          },
+        },
+      },
+      billingAddress: {
+        firstName: 'Hermes',
+        lastName: 'Buyer',
+        address1: '123 Queen St W',
+        city: 'Toronto',
+        provinceCode: 'ON',
+        countryCodeV2: 'CA',
+        zip: 'M5H 2M9',
+        phone: '+14165550101',
+      },
+      shippingAddress: {
+        firstName: 'Hermes',
+        lastName: 'Buyer',
+        address1: '500 King St W',
+        city: 'Toronto',
+        provinceCode: 'ON',
+        countryCodeV2: 'CA',
+        zip: 'M5V 1L9',
+        phone: '+14165550102',
+      },
+      shippingLine: {
+        title: 'Merchant Courier',
+        code: 'custom',
+        custom: true,
+        originalPriceSet: {
+          shopMoney: {
+            amount: '7.25',
+            currencyCode: 'CAD',
+          },
+        },
+        discountedPriceSet: {
+          shopMoney: {
+            amount: '7.25',
+            currencyCode: 'CAD',
+          },
+        },
+      },
+      subtotalPriceSet: {
+        shopMoney: {
+          amount: '46.5',
+          currencyCode: 'CAD',
+        },
+      },
+      totalDiscountsSet: {
+        shopMoney: {
+          amount: '9.0',
+          currencyCode: 'CAD',
+        },
+      },
+      totalShippingPriceSet: {
+        shopMoney: {
+          amount: '7.25',
+          currencyCode: 'CAD',
+        },
+      },
+      totalPriceSet: {
+        shopMoney: {
+          amount: '53.75',
+          currencyCode: 'CAD',
+        },
+      },
+      totalQuantityOfLineItems: 3,
+      lineItems: {
+        nodes: [
+          {
+            id: 'gid://shopify/DraftOrderLineItem/3',
+            title: 'Custom installation service',
+            name: 'Custom installation service',
+            quantity: 2,
+            sku: 'CUSTOM-INSTALL',
+            variantTitle: null,
+            custom: true,
+            requiresShipping: false,
+            taxable: false,
+            customAttributes: [{ key: 'appointment', value: 'morning' }],
+            appliedDiscount: {
+              title: 'Service discount',
+              description: '10 percent off service',
+              value: 10,
+              valueType: 'PERCENTAGE',
+              amountSet: {
+                shopMoney: {
+                  amount: '4.0',
+                  currencyCode: 'CAD',
+                },
+              },
+            },
+            originalUnitPriceSet: {
+              shopMoney: {
+                amount: '20.0',
+                currencyCode: 'CAD',
+              },
+            },
+            originalTotalSet: {
+              shopMoney: {
+                amount: '40.0',
+                currencyCode: 'CAD',
+              },
+            },
+            discountedTotalSet: {
+              shopMoney: {
+                amount: '36.0',
+                currencyCode: 'CAD',
+              },
+            },
+            totalDiscountSet: {
+              shopMoney: {
+                amount: '4.0',
+                currencyCode: 'CAD',
+              },
+            },
+            variant: null,
+          },
+          {
+            id: 'gid://shopify/DraftOrderLineItem/4',
+            title: 'Hermes stocked product',
+            name: 'Hermes stocked product',
+            quantity: 1,
+            sku: 'HERMES-STOCKED-M-BLACK',
+            variantTitle: 'Medium / Black',
+            custom: false,
+            requiresShipping: true,
+            taxable: true,
+            customAttributes: [],
+            appliedDiscount: null,
+            originalUnitPriceSet: {
+              shopMoney: {
+                amount: '15.5',
+                currencyCode: 'CAD',
+              },
+            },
+            originalTotalSet: {
+              shopMoney: {
+                amount: '15.5',
+                currencyCode: 'CAD',
+              },
+            },
+            discountedTotalSet: {
+              shopMoney: {
+                amount: '15.5',
+                currencyCode: 'CAD',
+              },
+            },
+            totalDiscountSet: {
+              shopMoney: {
+                amount: '0.0',
+                currencyCode: 'CAD',
+              },
+            },
+            variant: {
+              id: 'gid://shopify/ProductVariant/9002',
+              title: 'Medium / Black',
+              sku: 'HERMES-STOCKED-M-BLACK',
+            },
+          },
+        ],
+      },
+    });
+
+    const draftOrderId = createResponse.body.data.draftOrderCreate.draftOrder.id;
+    const detailResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query DraftOrderMerchantRealisticDetail($id: ID!) {
+          draftOrder(id: $id) {
+            id
+            customer {
+              id
+              email
+              displayName
+            }
+            shippingLine {
+              title
+              code
+            }
+            totalPriceSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+            }
+            totalQuantityOfLineItems
+          }
+          draftOrders(first: 10) {
+            nodes {
+              id
+              email
+              totalPriceSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+          }
+          draftOrdersCount {
+            count
+            precision
+          }
+        }`,
+        variables: { id: draftOrderId },
+      });
+
+    expect(detailResponse.status).toBe(200);
+    expect(detailResponse.body).toEqual({
+      data: {
+        draftOrder: {
+          id: draftOrderId,
+          customer: {
+            id: 'gid://shopify/Customer/7001',
+            email: 'merchant-realistic-draft@example.com',
+            displayName: 'Hermes Buyer',
+          },
+          shippingLine: {
+            title: 'Merchant Courier',
+            code: 'custom',
+          },
+          totalPriceSet: {
+            shopMoney: {
+              amount: '53.75',
+              currencyCode: 'CAD',
+            },
+          },
+          totalQuantityOfLineItems: 3,
+        },
+        draftOrders: {
+          nodes: [
+            {
+              id: draftOrderId,
+              email: 'merchant-realistic-draft@example.com',
+              totalPriceSet: {
+                shopMoney: {
+                  amount: '53.75',
+                  currencyCode: 'CAD',
+                },
+              },
+            },
+          ],
+        },
+        draftOrdersCount: {
+          count: 1,
+          precision: 'EXACT',
+        },
       },
     });
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -1440,6 +2037,123 @@ describe('order creation flow', () => {
         },
         draftOrdersCount: {
           count: 1,
+          precision: 'EXACT',
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns Shopify-like userErrors for draftOrderCreate with no line items without hitting upstream', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('draft-order no-line-items validation should not hit upstream in snapshot mode');
+    });
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation DraftOrderCreateNoLineItems($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              id
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          input: {
+            lineItems: [],
+          },
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        draftOrderCreate: {
+          draftOrder: null,
+          userErrors: [
+            {
+              field: null,
+              message: 'Add at least 1 product',
+            },
+          ],
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns userErrors for unsupported draftOrderCreate variant/custom line item combinations without staging', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('draft-order unsupported line item validation should not hit upstream in snapshot mode');
+    });
+    const seededVariant = seedDraftOrderVariantCatalog();
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation DraftOrderCreateUnsupportedLineItem($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              id
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          input: {
+            lineItems: [
+              {
+                variantId: seededVariant.id,
+                title: 'Should not be mixed with a variant',
+                originalUnitPrice: '1.00',
+                quantity: 1,
+              },
+            ],
+          },
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        draftOrderCreate: {
+          draftOrder: null,
+          userErrors: [
+            {
+              field: ['input', 'lineItems', '0'],
+              message: 'Variant line items cannot include custom title or originalUnitPrice fields',
+            },
+          ],
+        },
+      },
+    });
+
+    const countResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query DraftOrderCountAfterRejectedCreate {
+          draftOrdersCount {
+            count
+            precision
+          }
+        }`,
+      });
+
+    expect(countResponse.status).toBe(200);
+    expect(countResponse.body).toEqual({
+      data: {
+        draftOrdersCount: {
+          count: 0,
           precision: 'EXACT',
         },
       },
@@ -3581,7 +4295,7 @@ describe('order creation flow', () => {
         draftOrder: {
           id: draftOrderId,
           status: 'OPEN',
-          ready: false,
+          ready: true,
           order: null,
         },
         ordersCount: {
@@ -3734,7 +4448,10 @@ describe('order creation flow', () => {
               zip: 'M5H 2M9',
               phone: '+141****0101',
             },
-            shippingLine: null,
+            shippingLine: {
+              title: 'Standard',
+              code: 'custom',
+            },
             createdAt: '2024-01-01T00:00:01.000Z',
             updatedAt: '2024-01-01T00:00:01.000Z',
           },
@@ -3827,7 +4544,10 @@ describe('order creation flow', () => {
             zip: 'M5H 2M9',
             phone: '+141****0101',
           },
-          shippingLine: null,
+          shippingLine: {
+            title: 'Standard',
+            code: 'custom',
+          },
           createdAt: '2024-01-01T00:00:01.000Z',
           updatedAt: '2024-01-01T00:00:01.000Z',
         },
