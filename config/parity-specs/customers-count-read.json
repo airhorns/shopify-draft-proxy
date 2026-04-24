@@ -8,14 +8,22 @@
     "documentPath": "config/parity-requests/customers-count-read.graphql",
     "variablesPath": "config/parity-requests/customers-count-read.variables.json"
   },
-  "comparisonMode": "capture-only",
-  "notes": "Captured-only scaffold: live customersCount capture exercises total plus two filtered-looking `customersCount(query:)` slices (`email:` and `state:`), and on this host Shopify treated both query fields as invalid/no-op while still returning exact total counts plus `extensions.search[]` warnings. The local proxy intentionally mirrors that conservative captured behavior and warning metadata instead of reusing the richer `customers` search grammar for counts, but this scenario is not strict-comparison-ready until explicit `comparison.targets` are declared.",
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict comparison targets cover the captured customersCount data and `extensions.search[]` warnings for total plus two filtered-looking `customersCount(query:)` slices (`email:` and `state:`). On this host Shopify treated both query fields as invalid/no-op while still returning exact total counts plus warnings, and the local proxy mirrors that conservative captured behavior instead of reusing the richer `customers` search grammar for counts. Shopify cost extensions remain outside this contract.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "captured-only-explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "customers-count-data",
+        "capturePath": "$.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "customers-count-search-extensions",
+        "capturePath": "$.extensions.search",
+        "proxyPath": "$.extensions.search"
+      }
+    ]
   }
 }

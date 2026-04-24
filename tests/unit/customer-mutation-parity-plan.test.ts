@@ -13,6 +13,10 @@ describe('customer mutation parity request scaffolds', () => {
     const updateVariablesPath = resolve(repoRoot, 'config/parity-requests/customerUpdate-parity-plan.variables.json');
     const deleteDocumentPath = resolve(repoRoot, 'config/parity-requests/customerDelete-parity-plan.graphql');
     const deleteVariablesPath = resolve(repoRoot, 'config/parity-requests/customerDelete-parity-plan.variables.json');
+    const downstreamDocumentPath = resolve(
+      repoRoot,
+      'config/parity-requests/customer-mutation-downstream-read.graphql',
+    );
 
     expect(existsSync(createDocumentPath)).toBe(true);
     expect(existsSync(createVariablesPath)).toBe(true);
@@ -20,6 +24,7 @@ describe('customer mutation parity request scaffolds', () => {
     expect(existsSync(updateVariablesPath)).toBe(true);
     expect(existsSync(deleteDocumentPath)).toBe(true);
     expect(existsSync(deleteVariablesPath)).toBe(true);
+    expect(existsSync(downstreamDocumentPath)).toBe(true);
 
     const createDocument = readFileSync(createDocumentPath, 'utf8');
     const createVariables = JSON.parse(readFileSync(createVariablesPath, 'utf8')) as Record<string, unknown>;
@@ -27,6 +32,7 @@ describe('customer mutation parity request scaffolds', () => {
     const updateVariables = JSON.parse(readFileSync(updateVariablesPath, 'utf8')) as Record<string, unknown>;
     const deleteDocument = readFileSync(deleteDocumentPath, 'utf8');
     const deleteVariables = JSON.parse(readFileSync(deleteVariablesPath, 'utf8')) as Record<string, unknown>;
+    const downstreamDocument = readFileSync(downstreamDocumentPath, 'utf8');
 
     for (const document of [createDocument, updateDocument]) {
       expect(document).toContain('firstName');
@@ -42,6 +48,7 @@ describe('customer mutation parity request scaffolds', () => {
       expect(document).toContain('canDelete');
       expect(document).toContain('defaultEmailAddress {');
       expect(document).toContain('defaultPhoneNumber {');
+      expect(document).toContain('defaultAddress {');
       expect(document).toContain('createdAt');
       expect(document).toContain('updatedAt');
       expect(document).toContain('userErrors {');
@@ -82,5 +89,13 @@ describe('customer mutation parity request scaffolds', () => {
     expect(deleteVariables).toMatchObject({
       input: { id: 'gid://shopify/Customer/1' },
     });
+
+    expect(downstreamDocument).toContain('query CustomerMutationDownstream($id: ID!, $query: String!, $first: Int!)');
+    expect(downstreamDocument).toContain('customer(id: $id)');
+    expect(downstreamDocument).toContain('customers(first: $first, query: $query, sortKey: UPDATED_AT, reverse: true)');
+    expect(downstreamDocument).toContain('customersCount');
+    expect(downstreamDocument).toContain('defaultEmailAddress {');
+    expect(downstreamDocument).toContain('defaultPhoneNumber {');
+    expect(downstreamDocument).toContain('defaultAddress {');
   });
 });

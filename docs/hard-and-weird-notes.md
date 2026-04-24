@@ -219,6 +219,18 @@ A later healthy-again pass on this host exposed a repo-local repair bug rather t
 
 This note is historical for the old worktree-local repair path. The current conformance auth entry point is the shared home-folder credential at `~/.shopify-draft-proxy/conformance-admin-auth.json`, and `corepack pnpm conformance:refresh-auth` should use that same path as `corepack pnpm conformance:probe` / `corepack pnpm conformance:capture-orders`.
 
+## 8. Customer mutation payloads normalize tags and phone numbers differently than guessed
+
+The first strict customer CRUD parity promotion exposed two easy local-draft guesses that were wrong for the captured Shopify Admin GraphQL payloads:
+
+- `Customer.defaultPhoneNumber.phoneNumber` came back as the full submitted E.164-like phone string, not a masked display value.
+- `Customer.tags` came back sorted lexicographically on the captured create path, even when input order differed.
+
+Practical rule:
+
+- do not mask customer phone numbers in Admin GraphQL mutation/read serializers
+- sort locally staged customer tags before storing them, so later mutation payloads and downstream reads keep the same order Shopify returns
+
 Current shared-credential finding:
 
 - the checked-in app directory can exist without a repo-local `.env`; in that case app-secret resolution must fall back to `/tmp/shopify-conformance-app/<SHOPIFY_CONFORMANCE_APP_HANDLE>/.env` instead of stopping at the empty repo-local app copy

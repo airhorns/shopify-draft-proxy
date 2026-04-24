@@ -24,6 +24,11 @@ export type {
   ParitySpec,
   ProxyRequestSpec,
 } from '../src/json-schemas.js';
+import {
+  handleCustomerMutation,
+  handleCustomerQuery,
+  hydrateCustomersFromUpstreamResponse,
+} from '../src/proxy/customers.js';
 import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
 import { handleOrderMutation, handleOrderQuery } from '../src/proxy/orders.js';
 import {
@@ -35,6 +40,7 @@ import { makeSyntheticGid, makeSyntheticTimestamp, resetSyntheticIdentity } from
 import { store } from '../src/state/store.js';
 import type {
   CollectionRecord,
+  CustomerRecord,
   DraftOrderLineItemRecord,
   DraftOrderRecord,
   DraftOrderShippingLineRecord,
@@ -619,6 +625,25 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'stage-locally' && capability.domain === 'customers') {
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2025-01/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: handleCustomerMutation(document, variables),
+    };
+  }
+
   if (capability.execution === 'overlay-read' && capability.domain === 'products') {
     if (upstreamPayload !== undefined) {
       hydrateProductsFromUpstreamResponse(document, variables, upstreamPayload);
@@ -633,6 +658,23 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleProductQuery(document, variables, upstreamPayload === undefined ? 'snapshot' : 'live-hybrid'),
+    };
+  }
+
+  if (capability.execution === 'overlay-read' && capability.domain === 'customers') {
+    if (upstreamPayload !== undefined) {
+      hydrateCustomersFromUpstreamResponse(document, variables, upstreamPayload);
+      if (!hasStagedState()) {
+        return {
+          status: 200,
+          body: isPlainObject(upstreamPayload) ? upstreamPayload : {},
+        };
+      }
+    }
+
+    return {
+      status: 200,
+      body: handleCustomerQuery(document, variables),
     };
   }
 
@@ -674,6 +716,8 @@ function hasStagedState(): boolean {
     Object.keys(stagedState.productMetafields).length > 0 ||
     Object.keys(stagedState.deletedProductIds).length > 0 ||
     Object.keys(stagedState.deletedCollectionIds).length > 0 ||
+    Object.keys(stagedState.customers).length > 0 ||
+    Object.keys(stagedState.deletedCustomerIds).length > 0 ||
     Object.keys(stagedState.orders).length > 0 ||
     Object.keys(stagedState.draftOrders).length > 0 ||
     Object.keys(stagedState.calculatedOrders).length > 0
@@ -806,6 +850,143 @@ function readCapturedOrderCustomer(order: Record<string, unknown> | null): Order
     email: readStringField(customer, 'email'),
     displayName: readStringField(customer, 'displayName'),
   };
+}
+
+function readCustomerMoneyField(
+  value: Record<string, unknown> | null | undefined,
+  key: string,
+): CustomerRecord['amountSpent'] {
+  const rawMoney = readRecordField(value, key);
+  const amount = readStringField(rawMoney, 'amount');
+  const currencyCode = readStringField(rawMoney, 'currencyCode');
+  return amount || currencyCode
+    ? {
+        amount,
+        currencyCode,
+      }
+    : null;
+}
+
+function readCustomerDefaultAddress(
+  customer: Record<string, unknown> | null | undefined,
+): CustomerRecord['defaultAddress'] {
+  const address = readRecordField(customer, 'defaultAddress');
+  if (!address) {
+    return null;
+  }
+
+  return {
+    address1: readStringField(address, 'address1'),
+    city: readStringField(address, 'city'),
+    province: readStringField(address, 'province'),
+    country: readStringField(address, 'country'),
+    zip: readStringField(address, 'zip'),
+    formattedArea: readStringField(address, 'formattedArea'),
+  };
+}
+
+function makeSeedCustomer(customerId: string, source: Record<string, unknown> | null = null): CustomerRecord {
+  const email = readStringField(source, 'email');
+  const firstName = readStringField(source, 'firstName');
+  const lastName = readStringField(source, 'lastName');
+  const nameFromParts = [firstName, lastName]
+    .filter((part): part is string => typeof part === 'string' && part.length > 0)
+    .join(' ');
+  const defaultEmailAddress = readRecordField(source, 'defaultEmailAddress');
+
+  return {
+    id: customerId,
+    firstName,
+    lastName,
+    displayName: readStringField(source, 'displayName') ?? (nameFromParts || email),
+    email,
+    legacyResourceId: readStringField(source, 'legacyResourceId') ?? customerId.split('/').at(-1) ?? null,
+    locale: readStringField(source, 'locale'),
+    note: readStringField(source, 'note'),
+    canDelete: readBooleanField(source, 'canDelete') ?? true,
+    verifiedEmail: readBooleanField(source, 'verifiedEmail') ?? (email ? true : null),
+    taxExempt: readBooleanField(source, 'taxExempt') ?? false,
+    state: readStringField(source, 'state') ?? 'DISABLED',
+    tags: readArrayField(source, 'tags').filter((tag): tag is string => typeof tag === 'string'),
+    numberOfOrders: readNumberField(source, 'numberOfOrders') ?? readStringField(source, 'numberOfOrders') ?? 0,
+    amountSpent: readCustomerMoneyField(source, 'amountSpent'),
+    defaultEmailAddress:
+      defaultEmailAddress || email
+        ? { emailAddress: readStringField(defaultEmailAddress, 'emailAddress') ?? email }
+        : null,
+    defaultPhoneNumber: readRecordField(source, 'defaultPhoneNumber')
+      ? { phoneNumber: readStringField(readRecordField(source, 'defaultPhoneNumber'), 'phoneNumber') }
+      : null,
+    defaultAddress: readCustomerDefaultAddress(source),
+    createdAt: readStringField(source, 'createdAt') ?? '2024-01-01T00:00:00.000Z',
+    updatedAt: readStringField(source, 'updatedAt') ?? '2024-01-01T00:00:00.000Z',
+  };
+}
+
+function makePlaceholderCustomer(index: number): CustomerRecord {
+  const id = `gid://shopify/Customer/conformance-baseline-${index}`;
+  return {
+    id,
+    firstName: 'Conformance',
+    lastName: `Baseline ${index}`,
+    displayName: `Conformance Baseline ${index}`,
+    email: `customer-baseline-${index}@example.invalid`,
+    legacyResourceId: `conformance-baseline-${index}`,
+    locale: 'en',
+    note: null,
+    canDelete: true,
+    verifiedEmail: true,
+    taxExempt: false,
+    state: 'DISABLED',
+    tags: ['baseline'],
+    numberOfOrders: 0,
+    amountSpent: null,
+    defaultEmailAddress: { emailAddress: `customer-baseline-${index}@example.invalid` },
+    defaultPhoneNumber: null,
+    defaultAddress: null,
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z',
+  };
+}
+
+function seedCustomerMutationPreconditions(
+  capture: unknown,
+  variables: Record<string, unknown>,
+  mutationName: string | null,
+  payload: Record<string, unknown> | null,
+): boolean {
+  if (mutationName !== 'customerCreate' && mutationName !== 'customerUpdate' && mutationName !== 'customerDelete') {
+    return false;
+  }
+
+  const input = readRecordField(variables, 'input');
+  const customerPayload = readRecordField(payload, 'customer');
+  const downstreamData = readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data');
+  const downstreamCount = readNumberField(readRecordField(downstreamData, 'customersCount'), 'count');
+  const targetCustomerId =
+    readStringField(input, 'id') ??
+    readStringField(customerPayload, 'id') ??
+    readStringField(payload, 'deletedCustomerId');
+  const seedCustomers: CustomerRecord[] = [];
+
+  if (targetCustomerId && mutationName !== 'customerCreate') {
+    seedCustomers.push(makeSeedCustomer(targetCustomerId, customerPayload));
+  }
+
+  if (downstreamCount !== null) {
+    const targetContributesToDownstreamCount =
+      mutationName === 'customerCreate' || mutationName === 'customerUpdate' ? 1 : 0;
+    const placeholderCount = Math.max(0, downstreamCount - targetContributesToDownstreamCount);
+    for (let index = 0; index < placeholderCount; index += 1) {
+      seedCustomers.push(makePlaceholderCustomer(index));
+    }
+  }
+
+  if (seedCustomers.length > 0) {
+    store.upsertBaseCustomers(seedCustomers);
+  }
+
+  return true;
 }
 
 function readCapturedOrderMetafields(orderId: string, order: Record<string, unknown> | null): OrderMetafieldRecord[] {
@@ -2066,6 +2247,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
 
   const payload = mutationPayloadFromCapture(capture);
   const mutationName = mutationNameFromCapture(capture);
+  if (seedCustomerMutationPreconditions(capture, variables, mutationName, payload)) {
+    return;
+  }
+
   const readOrderPayload =
     readRecordField(
       readRecordField(readRecordField(capture as Record<string, unknown>, 'response'), 'data'),
