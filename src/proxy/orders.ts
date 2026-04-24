@@ -16,6 +16,7 @@ import type {
   OrderCustomerRecord,
   OrderDiscountApplicationRecord,
   OrderLineItemRecord,
+  OrderMetafieldRecord,
   OrderRecord,
   OrderRefundLineItemRecord,
   OrderRefundRecord,
@@ -164,8 +165,12 @@ function normalizeDraftOrderAddress(raw: unknown): DraftOrderAddressRecord | nul
     firstName: typeof address['firstName'] === 'string' ? address['firstName'] : null,
     lastName: typeof address['lastName'] === 'string' ? address['lastName'] : null,
     address1: typeof address['address1'] === 'string' ? address['address1'] : null,
+    address2: typeof address['address2'] === 'string' ? address['address2'] : null,
+    company: typeof address['company'] === 'string' ? address['company'] : null,
     city: typeof address['city'] === 'string' ? address['city'] : null,
+    province: typeof address['province'] === 'string' ? address['province'] : null,
     provinceCode: typeof address['provinceCode'] === 'string' ? address['provinceCode'] : null,
+    country: typeof address['country'] === 'string' ? address['country'] : null,
     countryCodeV2: countryCode,
     zip: typeof address['zip'] === 'string' ? address['zip'] : null,
     phone: typeof address['phone'] === 'string' ? address['phone'] : null,
@@ -184,6 +189,51 @@ function normalizeDraftOrderAttributes(raw: unknown): DraftOrderAttributeRecord[
       value: typeof attribute['value'] === 'string' ? attribute['value'] : null,
     }))
     .filter((attribute) => attribute.key.length > 0);
+}
+
+function normalizeOrderMetafields(
+  orderId: string,
+  raw: unknown,
+  existing: OrderMetafieldRecord[] = [],
+): OrderMetafieldRecord[] {
+  if (!Array.isArray(raw)) {
+    return existing.map((metafield) => structuredClone(metafield));
+  }
+
+  const metafieldsByIdentity = new Map(
+    existing.map((metafield) => [`${metafield.namespace}:${metafield.key}`, structuredClone(metafield)]),
+  );
+
+  for (const value of raw) {
+    if (typeof value !== 'object' || value === null) {
+      continue;
+    }
+
+    const input = value as Record<string, unknown>;
+    const namespace = typeof input['namespace'] === 'string' ? input['namespace'] : '';
+    const key = typeof input['key'] === 'string' ? input['key'] : '';
+    if (!namespace || !key) {
+      continue;
+    }
+
+    const identityKey = `${namespace}:${key}`;
+    const existingMetafield = metafieldsByIdentity.get(identityKey);
+    metafieldsByIdentity.set(identityKey, {
+      id: existingMetafield?.id ?? makeSyntheticGid('Metafield'),
+      orderId,
+      namespace,
+      key,
+      type: typeof input['type'] === 'string' ? input['type'] : (existingMetafield?.type ?? null),
+      value: typeof input['value'] === 'string' ? input['value'] : (existingMetafield?.value ?? null),
+    });
+  }
+
+  return Array.from(metafieldsByIdentity.values()).sort(
+    (left, right) =>
+      left.namespace.localeCompare(right.namespace) ||
+      left.key.localeCompare(right.key) ||
+      left.id.localeCompare(right.id),
+  );
 }
 
 function normalizeDraftOrderLineItems(raw: unknown, currencyCode: string): DraftOrderLineItemRecord[] {
@@ -526,6 +576,8 @@ function buildOrderFromInput(input: unknown): OrderRecord {
     createdAt,
     updatedAt: createdAt,
     email: typeof inputRecord['email'] === 'string' ? inputRecord['email'] : null,
+    phone: typeof inputRecord['phone'] === 'string' ? inputRecord['phone'] : null,
+    poNumber: typeof inputRecord['poNumber'] === 'string' ? inputRecord['poNumber'] : null,
     closed: false,
     closedAt: null,
     cancelledAt: null,
@@ -554,6 +606,7 @@ function buildOrderFromInput(input: unknown): OrderRecord {
           .sort((left, right) => left.localeCompare(right))
       : [],
     customAttributes: normalizeDraftOrderAttributes(inputRecord['customAttributes']),
+    metafields: normalizeOrderMetafields(orderId, inputRecord['metafields']),
     billingAddress: normalizeDraftOrderAddress(inputRecord['billingAddress']),
     shippingAddress: normalizeDraftOrderAddress(inputRecord['shippingAddress']),
     subtotalPriceSet: {
@@ -873,6 +926,8 @@ function buildOrderFromCompletedDraftOrder(
     createdAt,
     updatedAt: createdAt,
     email: draftOrder.email,
+    phone: draftOrder.billingAddress?.phone ?? draftOrder.shippingAddress?.phone ?? null,
+    poNumber: null,
     closed: false,
     closedAt: null,
     cancelledAt: null,
@@ -884,6 +939,7 @@ function buildOrderFromCompletedDraftOrder(
     note: draftOrder.note,
     tags: structuredClone(draftOrder.tags),
     customAttributes: structuredClone(draftOrder.customAttributes),
+    metafields: [],
     billingAddress: structuredClone(draftOrder.billingAddress),
     shippingAddress: structuredClone(draftOrder.shippingAddress),
     subtotalPriceSet: structuredClone(draftOrder.subtotalPriceSet),
@@ -1263,11 +1319,23 @@ function serializeDraftOrderAddress(
       case 'address1':
         result[key] = address.address1;
         break;
+      case 'address2':
+        result[key] = address.address2 ?? null;
+        break;
+      case 'company':
+        result[key] = address.company ?? null;
+        break;
       case 'city':
         result[key] = address.city;
         break;
+      case 'province':
+        result[key] = address.province ?? null;
+        break;
       case 'provinceCode':
         result[key] = address.provinceCode;
+        break;
+      case 'country':
+        result[key] = address.country ?? null;
         break;
       case 'countryCodeV2':
         result[key] = address.countryCodeV2;
@@ -2574,6 +2642,99 @@ function serializeOrderShippingLinesConnection(
   return result;
 }
 
+function serializeOrderMetafieldSelectionSet(
+  metafield: OrderMetafieldRecord,
+  selections: readonly FieldNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of selections) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = metafield.id;
+        break;
+      case 'namespace':
+        result[key] = metafield.namespace;
+        break;
+      case 'key':
+        result[key] = metafield.key;
+        break;
+      case 'type':
+        result[key] = metafield.type;
+        break;
+      case 'value':
+        result[key] = metafield.value;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeOrderMetafieldsConnection(
+  field: FieldNode,
+  metafields: OrderMetafieldRecord[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'nodes':
+        result[key] = metafields.map((metafield) =>
+          serializeOrderMetafieldSelectionSet(metafield, getSelectedChildFields(selection)),
+        );
+        break;
+      case 'edges':
+        result[key] = metafields.map((metafield) => {
+          const edgeResult: Record<string, unknown> = {};
+          for (const edgeSelection of getSelectedChildFields(selection)) {
+            const edgeKey = getFieldResponseKey(edgeSelection);
+            switch (edgeSelection.name.value) {
+              case 'cursor':
+                edgeResult[edgeKey] = `cursor:${metafield.id}`;
+                break;
+              case 'node':
+                edgeResult[edgeKey] = serializeOrderMetafieldSelectionSet(
+                  metafield,
+                  getSelectedChildFields(edgeSelection),
+                );
+                break;
+              default:
+                edgeResult[edgeKey] = null;
+                break;
+            }
+          }
+          return edgeResult;
+        });
+        break;
+      case 'pageInfo':
+        result[key] = Object.fromEntries(
+          getSelectedChildFields(selection).map((pageInfoSelection) => {
+            const pageInfoKey = getFieldResponseKey(pageInfoSelection);
+            switch (pageInfoSelection.name.value) {
+              case 'hasNextPage':
+              case 'hasPreviousPage':
+                return [pageInfoKey, false];
+              case 'startCursor':
+                return [pageInfoKey, metafields[0] ? `cursor:${metafields[0].id}` : null];
+              case 'endCursor':
+                return [pageInfoKey, metafields.length > 0 ? `cursor:${metafields[metafields.length - 1]!.id}` : null];
+              default:
+                return [pageInfoKey, null];
+            }
+          }),
+        );
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
 function serializeOrderNode(field: FieldNode, order: OrderRecord): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const selection of getSelectedChildFields(field)) {
@@ -2612,6 +2773,12 @@ function serializeOrderNode(field: FieldNode, order: OrderRecord): Record<string
       case 'paymentGatewayNames':
         result[key] = structuredClone(order.paymentGatewayNames ?? []);
         break;
+      case 'phone':
+        result[key] = order.phone ?? null;
+        break;
+      case 'poNumber':
+        result[key] = order.poNumber ?? null;
+        break;
       case 'displayFinancialStatus':
         result[key] = order.displayFinancialStatus;
         break;
@@ -2626,6 +2793,24 @@ function serializeOrderNode(field: FieldNode, order: OrderRecord): Record<string
         break;
       case 'customAttributes':
         result[key] = serializeDraftOrderAttributes(selection, order.customAttributes);
+        break;
+      case 'metafield': {
+        const args = getFieldArguments(selection, {});
+        const namespace = typeof args['namespace'] === 'string' ? args['namespace'] : null;
+        const metafieldKey = typeof args['key'] === 'string' ? args['key'] : null;
+        const metafield =
+          namespace && metafieldKey
+            ? (order.metafields ?? []).find(
+                (candidate) => candidate.namespace === namespace && candidate.key === metafieldKey,
+              )
+            : null;
+        result[key] = metafield
+          ? serializeOrderMetafieldSelectionSet(metafield, getSelectedChildFields(selection))
+          : null;
+        break;
+      }
+      case 'metafields':
+        result[key] = serializeOrderMetafieldsConnection(selection, order.metafields ?? []);
         break;
       case 'billingAddress':
         result[key] = serializeDraftOrderAddress(selection, order.billingAddress);
@@ -3287,6 +3472,35 @@ function serializeSelectedOrderMutationPayload(field: FieldNode): Record<string,
   return result;
 }
 
+function applyOrderUpdateInput(existingOrder: OrderRecord, input: Record<string, unknown>): OrderRecord {
+  const updatedOrder: OrderRecord = {
+    ...existingOrder,
+    updatedAt: makeSyntheticTimestamp(),
+    email: typeof input['email'] === 'string' ? input['email'] : (existingOrder.email ?? null),
+    phone: typeof input['phone'] === 'string' ? input['phone'] : (existingOrder.phone ?? null),
+    poNumber: typeof input['poNumber'] === 'string' ? input['poNumber'] : (existingOrder.poNumber ?? null),
+    note: typeof input['note'] === 'string' ? input['note'] : existingOrder.note,
+    tags: Array.isArray(input['tags'])
+      ? input['tags']
+          .filter((tag): tag is string => typeof tag === 'string')
+          .sort((left, right) => left.localeCompare(right))
+      : existingOrder.tags,
+    customAttributes: Array.isArray(input['customAttributes'])
+      ? normalizeDraftOrderAttributes(input['customAttributes'])
+      : existingOrder.customAttributes,
+    metafields: Array.isArray(input['metafields'])
+      ? normalizeOrderMetafields(existingOrder.id, input['metafields'], existingOrder.metafields ?? [])
+      : (existingOrder.metafields ?? []),
+    shippingAddress:
+      typeof input['shippingAddress'] === 'object' && input['shippingAddress'] !== null
+        ? normalizeDraftOrderAddress(input['shippingAddress'])
+        : existingOrder.shippingAddress,
+    customer: existingOrder.customer ? structuredClone(existingOrder.customer) : null,
+  };
+
+  return recalculateOrderTotals(updatedOrder);
+}
+
 function validateOrderCreateInput(input: unknown): Array<{ field: string[] | null; message: string }> {
   if (typeof input !== 'object' || input === null) {
     return [{ field: ['order'], message: 'Order input is required.' }];
@@ -3576,18 +3790,7 @@ export function handleOrderMutation(
 
       const existingOrder = store.getOrderById(id);
       if (existingOrder && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
-        const updatedOrder = store.updateOrder(
-          recalculateOrderTotals({
-            ...existingOrder,
-            updatedAt: makeSyntheticTimestamp(),
-            note: typeof input['note'] === 'string' ? input['note'] : existingOrder.note,
-            tags: Array.isArray(input['tags'])
-              ? input['tags']
-                  .filter((tag): tag is string => typeof tag === 'string')
-                  .sort((left, right) => left.localeCompare(right))
-              : existingOrder.tags,
-          }),
-        );
+        const updatedOrder = store.updateOrder(applyOrderUpdateInput(existingOrder, input));
 
         const payload: Record<string, unknown> = {};
         for (const selection of getSelectedChildFields(field)) {

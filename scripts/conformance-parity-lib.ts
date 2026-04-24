@@ -40,7 +40,9 @@ import type {
   DraftOrderShippingLineRecord,
   InventoryLevelRecord,
   MutationLogInterpretedMetadata,
+  OrderCustomerRecord,
   OrderLineItemRecord,
+  OrderMetafieldRecord,
   OrderRecord,
   OrderShippingLineRecord,
   ProductCollectionRecord,
@@ -773,7 +775,7 @@ function readCapturedOrderShippingLines(order: Record<string, unknown> | null): 
     }));
 }
 
-function readCapturedOrderCustomer(order: Record<string, unknown> | null): OrderRecord['customer'] {
+function readCapturedOrderCustomer(order: Record<string, unknown> | null): OrderCustomerRecord | null {
   const customer = readRecordField(order, 'customer');
   const id = readStringField(customer, 'id');
   if (!id) {
@@ -785,6 +787,48 @@ function readCapturedOrderCustomer(order: Record<string, unknown> | null): Order
     email: readStringField(customer, 'email'),
     displayName: readStringField(customer, 'displayName'),
   };
+}
+
+function readCapturedOrderMetafields(orderId: string, order: Record<string, unknown> | null): OrderMetafieldRecord[] {
+  const byIdentity = new Map<string, OrderMetafieldRecord>();
+  const addMetafield = (candidate: unknown): void => {
+    if (!isPlainObject(candidate)) {
+      return;
+    }
+    const id = readStringField(candidate, 'id');
+    const namespace = readStringField(candidate, 'namespace');
+    const key = readStringField(candidate, 'key');
+    if (!id?.startsWith('gid://shopify/Metafield/') || !namespace || !key) {
+      return;
+    }
+    byIdentity.set(`${namespace}:${key}`, {
+      id,
+      orderId,
+      namespace,
+      key,
+      type: readStringField(candidate, 'type'),
+      value: readStringField(candidate, 'value'),
+    });
+  };
+
+  for (const value of Object.values(order ?? {})) {
+    addMetafield(value);
+  }
+
+  const metafieldsConnection = readRecordField(order, 'metafields');
+  for (const node of readArrayField(metafieldsConnection, 'nodes')) {
+    addMetafield(node);
+  }
+  for (const edge of readArrayField(metafieldsConnection, 'edges').filter(isPlainObject)) {
+    addMetafield(readRecordField(edge, 'node'));
+  }
+
+  return Array.from(byIdentity.values()).sort(
+    (left, right) =>
+      left.namespace.localeCompare(right.namespace) ||
+      left.key.localeCompare(right.key) ||
+      left.id.localeCompare(right.id),
+  );
 }
 
 function readCapturedOrderTransactions(order: Record<string, unknown> | null): OrderRecord['transactions'] {
@@ -811,6 +855,9 @@ function makeSeedOrder(orderId: string, source: Record<string, unknown> | null =
     name: readStringField(source, 'name') ?? '#1',
     createdAt: readStringField(source, 'createdAt') ?? readStringField(source, 'updatedAt') ?? now,
     updatedAt: readStringField(source, 'updatedAt') ?? now,
+    email: readStringField(source, 'email'),
+    phone: readStringField(source, 'phone'),
+    poNumber: readStringField(source, 'poNumber'),
     closed: readBooleanField(source, 'closed') ?? false,
     closedAt: readStringField(source, 'closedAt'),
     cancelledAt: readStringField(source, 'cancelledAt'),
@@ -829,6 +876,7 @@ function makeSeedOrder(orderId: string, source: Record<string, unknown> | null =
         value: readStringField(attribute, 'value'),
       }))
       .filter((attribute) => attribute.key.length > 0),
+    metafields: readCapturedOrderMetafields(orderId, source),
     billingAddress: readCapturedAddress(source, 'billingAddress'),
     shippingAddress: readCapturedAddress(source, 'shippingAddress'),
     subtotalPriceSet,
@@ -920,8 +968,12 @@ function readCapturedAddress(
     firstName: readStringField(address, 'firstName'),
     lastName: readStringField(address, 'lastName'),
     address1: readStringField(address, 'address1'),
+    address2: readStringField(address, 'address2'),
+    company: readStringField(address, 'company'),
     city: readStringField(address, 'city'),
+    province: readStringField(address, 'province'),
     provinceCode: readStringField(address, 'provinceCode'),
+    country: readStringField(address, 'country'),
     countryCodeV2: readStringField(address, 'countryCodeV2'),
     zip: readStringField(address, 'zip'),
     phone: readStringField(address, 'phone'),

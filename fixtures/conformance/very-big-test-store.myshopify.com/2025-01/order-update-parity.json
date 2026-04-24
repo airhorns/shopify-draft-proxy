@@ -1,9 +1,39 @@
 {
   "variables": {
     "input": {
-      "id": "gid://shopify/Order/6824239235305",
-      "note": "order update live parity captured note",
-      "tags": ["live-parity", "order-update"]
+      "id": "gid://shopify/Order/6830627356905",
+      "email": "hermes-order-update-1776899624464@example.com",
+      "poNumber": "PO-UPDATE-1776899624464",
+      "note": "order update expanded live parity captured note",
+      "tags": ["expanded-live-parity", "order-update"],
+      "customAttributes": [
+        {
+          "key": "source",
+          "value": "expanded-live-parity"
+        }
+      ],
+      "shippingAddress": {
+        "firstName": "Ada",
+        "lastName": "Lovelace",
+        "address1": "190 MacLaren",
+        "address2": "Suite 200",
+        "company": "Analytical Engines Ltd",
+        "city": "Sudbury",
+        "province": "Ontario",
+        "provinceCode": "ON",
+        "country": "Canada",
+        "countryCode": "CA",
+        "zip": "K2P0V6",
+        "phone": "+161****2222"
+      },
+      "metafields": [
+        {
+          "namespace": "custom",
+          "key": "gift",
+          "type": "single_line_text_field",
+          "value": "yes"
+        }
+      ]
     }
   },
   "mutation": {
@@ -11,22 +41,68 @@
       "data": {
         "orderUpdate": {
           "order": {
-            "id": "gid://shopify/Order/6824239235305",
-            "name": "#1314",
-            "updatedAt": "2026-04-19T14:48:40Z",
-            "note": "order update live parity captured note",
-            "tags": ["live-parity", "order-update"]
+            "id": "gid://shopify/Order/6830627356905",
+            "name": "#1323",
+            "updatedAt": "2026-04-22T23:13:48Z",
+            "email": "hermes-order-update-1776899624464@example.com",
+            "phone": null,
+            "poNumber": "PO-UPDATE-1776899624464",
+            "note": "order update expanded live parity captured note",
+            "tags": ["expanded-live-parity", "order-update"],
+            "customer": {
+              "id": "gid://shopify/Customer/9096793751785",
+              "email": "hermes-order-probe-1776899624464@example.com",
+              "displayName": "Hermes Operator"
+            },
+            "customAttributes": [
+              {
+                "key": "source",
+                "value": "expanded-live-parity"
+              }
+            ],
+            "shippingAddress": {
+              "firstName": "Ada",
+              "lastName": "Lovelace",
+              "address1": "190 MacLaren",
+              "address2": "Suite 200",
+              "company": "Analytical Engines Ltd",
+              "city": "Sudbury",
+              "province": "Ontario",
+              "provinceCode": "ON",
+              "country": "Canada",
+              "countryCodeV2": "CA",
+              "zip": "K2P0V6",
+              "phone": "+161****2222"
+            },
+            "gift": {
+              "id": "gid://shopify/Metafield/35289666519273",
+              "namespace": "custom",
+              "key": "gift",
+              "type": "single_line_text_field",
+              "value": "yes"
+            },
+            "metafields": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Metafield/35289666519273",
+                  "namespace": "custom",
+                  "key": "gift",
+                  "type": "single_line_text_field",
+                  "value": "yes"
+                }
+              ]
+            }
           },
           "userErrors": []
         }
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 10,
-          "actualQueryCost": 10,
+          "requestedQueryCost": 20,
+          "actualQueryCost": 17,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
+            "currentlyAvailable": 1983,
             "restoreRate": 100
           }
         }
@@ -35,25 +111,71 @@
   },
   "downstreamRead": {
     "variables": {
-      "id": "gid://shopify/Order/6824239235305"
+      "id": "gid://shopify/Order/6830627356905"
     },
     "response": {
       "data": {
         "order": {
-          "id": "gid://shopify/Order/6824239235305",
-          "name": "#1314",
-          "updatedAt": "2026-04-19T14:48:40Z",
-          "note": "order update live parity captured note",
-          "tags": ["live-parity", "order-update"]
+          "id": "gid://shopify/Order/6830627356905",
+          "name": "#1323",
+          "updatedAt": "2026-04-22T23:13:48Z",
+          "email": "hermes-order-update-1776899624464@example.com",
+          "phone": null,
+          "poNumber": "PO-UPDATE-1776899624464",
+          "note": "order update expanded live parity captured note",
+          "tags": ["expanded-live-parity", "order-update"],
+          "customer": {
+            "id": "gid://shopify/Customer/9096793751785",
+            "email": "hermes-order-probe-1776899624464@example.com",
+            "displayName": "Hermes Operator"
+          },
+          "customAttributes": [
+            {
+              "key": "source",
+              "value": "expanded-live-parity"
+            }
+          ],
+          "shippingAddress": {
+            "firstName": "Ada",
+            "lastName": "Lovelace",
+            "address1": "190 MacLaren",
+            "address2": "Suite 200",
+            "company": "Analytical Engines Ltd",
+            "city": "Sudbury",
+            "province": "Ontario",
+            "provinceCode": "ON",
+            "country": "Canada",
+            "countryCodeV2": "CA",
+            "zip": "K2P0V6",
+            "phone": "+161****2222"
+          },
+          "gift": {
+            "id": "gid://shopify/Metafield/35289666519273",
+            "namespace": "custom",
+            "key": "gift",
+            "type": "single_line_text_field",
+            "value": "yes"
+          },
+          "metafields": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Metafield/35289666519273",
+                "namespace": "custom",
+                "key": "gift",
+                "type": "single_line_text_field",
+                "value": "yes"
+              }
+            ]
+          }
         }
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 1,
-          "actualQueryCost": 1,
+          "requestedQueryCost": 11,
+          "actualQueryCost": 8,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1999,
+            "currentlyAvailable": 1992,
             "restoreRate": 100
           }
         }

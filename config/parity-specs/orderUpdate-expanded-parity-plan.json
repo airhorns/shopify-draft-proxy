@@ -1,0 +1,49 @@
+{
+  "scenarioId": "order-update-expanded-live-parity",
+  "operationNames": ["orderUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "downstream-read-parity", "user-errors-parity"],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-update-parity.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orderUpdate-expanded-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/orderUpdate-expanded-parity-plan.variables.json",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured expanded `orderUpdate` live parity for the 2025-01-supported simple update fields: order email, PO number, note, tags, custom attributes, shipping address, and order metafields, plus immediate downstream `order(id:)` visibility. Shopify 2025-01 rejects `phone` as an `OrderInput` field, so phone remains read-only context in this scenario; billing address is not exposed on `OrderInput`.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.orderUpdate.order.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "Shopify returns the live order update timestamp; the proxy uses its deterministic staged-order timestamp while preserving timestamp shape."
+      },
+      {
+        "path": "$.order.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The downstream read observes the proxy's deterministic staged-order timestamp instead of Shopify's live update timestamp."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orderUpdate-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderUpdate.order.id"
+            }
+          }
+        },
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}
