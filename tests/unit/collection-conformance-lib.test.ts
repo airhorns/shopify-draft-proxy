@@ -42,7 +42,7 @@ describe('pickCollectionCaptureSeed', () => {
       ),
     ) as {
       data?: {
-        collection?: {
+        customCollection?: {
           id?: string;
           title?: string;
           handle?: string;
@@ -63,9 +63,9 @@ describe('pickCollectionCaptureSeed', () => {
                     edges: [
                       {
                         node: {
-                          id: detailFixture.data?.collection?.id,
-                          title: detailFixture.data?.collection?.title,
-                          handle: detailFixture.data?.collection?.handle,
+                          id: detailFixture.data?.customCollection?.id,
+                          title: detailFixture.data?.customCollection?.title,
+                          handle: detailFixture.data?.customCollection?.handle,
                         },
                       },
                     ],

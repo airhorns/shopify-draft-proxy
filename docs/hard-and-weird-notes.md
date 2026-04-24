@@ -1692,7 +1692,9 @@ Current local rule:
 - `productsCount` and `hasProduct(id:)` are derived from the effective product membership graph rather than stored on the collection record
 - local `collectionUpdate` preserves handle stability when the title changes without an explicit handle; `redirectNewHandle` is recorded in staged state for future conformance, but no redirect resource is modeled yet
 
-Pending live evidence:
+Live evidence refreshed on this host:
 
-- the current shared conformance token is invalid on this host, so HAR-151 could not refresh `conformance:capture-collections`
-- custom-vs-smart details for `ruleSet`, default `sortOrder`, and blank-description values should be recaptured when credentials are repaired; until then, runtime behavior stays limited to preserving captured/snapshot/input values and conservative local defaults for newly staged collections
+- `corepack pnpm conformance:capture-collections` now captures a custom collection (`Home page`) and a smart collection (`VANS`) in `collection-detail.json`
+- custom collections return `ruleSet: null`; the captured smart collection returns a `ruleSet` with `appliedDisjunctively: false` and a `TITLE CONTAINS VANS` rule
+- both captured custom and smart collections currently return `sortOrder: BEST_SELLING`; the custom collection's blank description comes back as empty strings for both `description` and `descriptionHtml`, not `null`
+- the catalog fixture now selects the same rich metadata fields so `collections` parity covers the captured null/empty shapes alongside nested product connection shape
