@@ -25,6 +25,7 @@ export type {
   ProxyRequestSpec,
 } from '../src/json-schemas.js';
 import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
+import { handleMediaMutation } from '../src/proxy/media.js';
 import { handleOrderMutation, handleOrderQuery } from '../src/proxy/orders.js';
 import {
   handleProductMutation,
@@ -595,6 +596,25 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'stage-locally' && capability.domain === 'media') {
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2025-01/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: handleMediaMutation(document, variables),
+    };
+  }
+
   if (capability.execution === 'stage-locally' && capability.domain === 'orders') {
     const body = handleOrderMutation(document, variables, 'snapshot');
     if (!body) {
@@ -671,8 +691,10 @@ function hasStagedState(): boolean {
     Object.keys(stagedState.collections).length > 0 ||
     Object.keys(stagedState.productCollections).length > 0 ||
     Object.keys(stagedState.productMedia).length > 0 ||
+    Object.keys(stagedState.files).length > 0 ||
     Object.keys(stagedState.productMetafields).length > 0 ||
     Object.keys(stagedState.deletedProductIds).length > 0 ||
+    Object.keys(stagedState.deletedFileIds).length > 0 ||
     Object.keys(stagedState.deletedCollectionIds).length > 0 ||
     Object.keys(stagedState.orders).length > 0 ||
     Object.keys(stagedState.draftOrders).length > 0 ||
@@ -1970,6 +1992,40 @@ function seedProductDuplicateSource(capture: unknown): boolean {
   return true;
 }
 
+function seedFileDeleteMediaReferencePreconditions(capture: unknown, variables: Record<string, unknown>): boolean {
+  if (mutationNameFromCapture(capture) !== 'fileDelete') {
+    return false;
+  }
+
+  const productRead = readRecordField(
+    readRecordField(capture as Record<string, unknown>, 'setup'),
+    'productReadBeforeDelete',
+  );
+  const product = readRecordField(readRecordField(productRead, 'data'), 'product');
+  const productId = readStringField(product, 'id');
+  if (!productId?.startsWith('gid://shopify/Product/')) {
+    return false;
+  }
+
+  const fileIds = new Set(
+    readArrayField(variables, 'fileIds').filter((fileId): fileId is string => typeof fileId === 'string'),
+  );
+  if (fileIds.size === 0) {
+    return false;
+  }
+
+  const capturedMedia = readCapturedProductMedia(productId, product).filter(
+    (mediaRecord) => typeof mediaRecord.id === 'string' && fileIds.has(mediaRecord.id),
+  );
+  if (capturedMedia.length === 0) {
+    return false;
+  }
+
+  store.upsertBaseProducts([makeSeedProduct(productId, product)]);
+  store.replaceBaseMediaForProduct(productId, capturedMedia);
+  return true;
+}
+
 function readCapturedProductMetafields(productId: string, product: Record<string, unknown>): ProductMetafieldRecord[] {
   const byIdentity = new Map<string, ProductMetafieldRecord>();
   const addMetafield = (candidate: unknown): void => {
@@ -2161,6 +2217,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   }
 
   if (seedInventoryItemUpdatePreconditions(capture)) {
+    return;
+  }
+
+  if (seedFileDeleteMediaReferencePreconditions(capture, variables)) {
     return;
   }
 

@@ -52,14 +52,10 @@ describe('media draft flow', () => {
     expect(createResponse.body.data.fileCreate.files).toEqual([
       {
         id: expect.stringMatching(/^gid:\/\/shopify\/MediaImage\//),
-        fileStatus: 'READY',
+        fileStatus: 'UPLOADED',
         alt: 'Lookbook hero image',
         createdAt: expect.any(String),
-        image: {
-          url: 'https://cdn.example.com/lookbook-hero.jpg',
-          width: null,
-          height: null,
-        },
+        image: null,
       },
     ]);
     expect(fetchSpy).not.toHaveBeenCalled();

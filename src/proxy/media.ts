@@ -106,7 +106,7 @@ function makeFileRecord(input: Record<string, unknown>): FileRecord {
     alt: typeof input['alt'] === 'string' ? input['alt'] : null,
     contentType,
     createdAt: makeSyntheticTimestamp(),
-    fileStatus: 'READY',
+    fileStatus: 'UPLOADED',
     filename,
     originalSource,
     imageUrl: contentType === 'IMAGE' ? originalSource : null,
@@ -218,7 +218,10 @@ function serializeFileSelectionSet(file: FileRecord, selections: readonly Select
         break;
       case 'image':
         if (file.contentType === 'IMAGE') {
-          result[key] = serializeImageSelectionSet(file, selection.selectionSet?.selections ?? []);
+          result[key] =
+            file.fileStatus === 'READY'
+              ? serializeImageSelectionSet(file, selection.selectionSet?.selections ?? [])
+              : null;
         }
         break;
       default:
