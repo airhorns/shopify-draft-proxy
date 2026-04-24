@@ -5,15 +5,8 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
+import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
-
-const requiredVars = ['SHOPIFY_CONFORMANCE_STORE_DOMAIN', 'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
-
-const missingVars = requiredVars.filter((name) => !process.env[name]);
-if (missingVars.length > 0) {
-  console.error(`Missing required environment variables: ${missingVars.join(', ')}`);
-  process.exit(1);
-}
 
 type GraphqlVariables = Record<string, unknown>;
 type UserError = { field: string[] | null; message: string };
@@ -64,18 +57,7 @@ type CapturePayload = {
   setup?: Record<string, unknown>;
 };
 
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-
-  return value;
-}
-
-const storeDomain = requireEnv('SHOPIFY_CONFORMANCE_STORE_DOMAIN');
-const adminOrigin = requireEnv('SHOPIFY_CONFORMANCE_ADMIN_ORIGIN');
-const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || '2025-01';
+const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
 const { runGraphql } = createAdminGraphqlClient({
