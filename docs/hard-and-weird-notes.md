@@ -1624,6 +1624,7 @@ Practical rule for the proxy:
 
 - preserve hydrated `inventoryLevels.edges[].cursor` / `location` / quantity rows when Shopify fixtures provide them
 - for staged-only reads without a hydrated level payload yet, synthesize a single product-scoped level instead of returning `null`
+- answer top-level `inventoryLevel(id:)` from the same effective product-backed level graph used by `inventoryItem.inventoryLevels`; unknown level IDs should return `null` rather than proxying in snapshot mode
 - keep the synthetic first pass intentionally narrow: one level, one location id, and quantity-name filtering for the captured `available` / `on_hand` / `incoming` slice
 - do not mistake this for full inventory parity; multi-location inventory, additional quantity families, and true inventory-level mutation semantics still need a broader inventory-domain model
 

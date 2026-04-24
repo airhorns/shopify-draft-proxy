@@ -1359,6 +1359,15 @@ function readVariantSku(input: Record<string, unknown>, fallback: string | null)
 
 const DEFAULT_INVENTORY_LEVEL_LOCATION_ID = 'gid://shopify/Location/1';
 
+function buildStableSyntheticInventoryLevelId(inventoryItemId: string, locationId: string): string {
+  const inventoryItemTail = inventoryItemId.split('/').at(-1) ?? encodeURIComponent(inventoryItemId);
+  const locationTail = locationId.split('/').at(-1) ?? encodeURIComponent(locationId);
+
+  return `gid://shopify/InventoryLevel/${inventoryItemTail}-${locationTail}?inventory_item_id=${encodeURIComponent(
+    inventoryItemId,
+  )}`;
+}
+
 function makeDefaultInventoryItemMeasurement(): NonNullable<
   NonNullable<ProductVariantRecord['inventoryItem']>['measurement']
 > {
@@ -3241,9 +3250,7 @@ function buildSyntheticInventoryLevel(
   const availableUpdatedAt = makeSyntheticTimestamp();
 
   return {
-    id:
-      existingLevel?.id ??
-      `${makeSyntheticGid('InventoryLevel')}?inventory_item_id=${encodeURIComponent(variant.inventoryItem.id)}`,
+    id: existingLevel?.id ?? buildStableSyntheticInventoryLevelId(variant.inventoryItem.id, locationId),
     cursor: existingLevel?.cursor ?? null,
     location: existingLevel?.location ?? { id: locationId, name: null },
     quantities: [
@@ -3607,6 +3614,8 @@ function serializeInventoryItemSelectionSet(
         switch (inventorySelection.name.value) {
           case 'id':
             return [inventoryKey, variant.inventoryItem?.id ?? null];
+          case 'sku':
+            return [inventoryKey, variant.sku ?? null];
           case 'tracked':
             return [inventoryKey, variant.inventoryItem?.tracked ?? null];
           case 'requiresShipping':
@@ -8082,6 +8091,15 @@ export function handleProductQuery(
         const variant = id ? store.findEffectiveVariantByInventoryItemId(id) : null;
         data[responseKey] = variant
           ? serializeInventoryItemSelectionSet(variant, field.selectionSet?.selections ?? [], variables)
+          : null;
+        break;
+      }
+      case 'inventoryLevel': {
+        const rawId = args['id'];
+        const id = typeof rawId === 'string' ? rawId : null;
+        const target = id ? findInventoryLevelTarget(id) : null;
+        data[responseKey] = target
+          ? serializeInventoryLevelObject(target.variant, target.level, field.selectionSet?.selections ?? [], variables)
           : null;
         break;
       }

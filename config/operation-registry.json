@@ -45,6 +45,15 @@
     "runtimeTests": ["tests/integration/product-query-shapes.test.ts", "tests/integration/product-draft-flow.test.ts"]
   },
   {
+    "name": "inventoryLevel",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["inventoryLevel", "InventoryLevel"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts", "tests/integration/product-draft-flow.test.ts"]
+  },
+  {
     "name": "collection",
     "type": "query",
     "domain": "products",
