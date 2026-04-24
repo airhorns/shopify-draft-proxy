@@ -2,13 +2,13 @@
   "scenarioId": "collections-catalog-read",
   "operationNames": ["collections"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "selected-fields", "pagination-shape"],
+  "assertionKinds": ["payload-shape", "selected-fields", "pagination-shape", "rich-collection-fields"],
   "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collections-catalog.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/collections-catalog-read.graphql",
     "variablesPath": "config/parity-requests/collections-catalog-read.variables.json"
   },
-  "notes": "Executed by the conformance parity runner against a local proxy harness with the captured Shopify payload supplied as the upstream read response; no live Shopify writes are performed.",
+  "notes": "Executed by the conformance parity runner against a local proxy harness with the captured Shopify payload supplied as the upstream read response; no live Shopify writes are performed. The catalog capture selects the rich collection metadata fields modeled by HAR-151 while preserving nested product pagination shape.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
