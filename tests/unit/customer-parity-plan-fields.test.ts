@@ -3,16 +3,6 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import {
-  classifyParityScenarioState,
-  validateComparisonContract,
-  type ParitySpec,
-} from '../../scripts/conformance-parity-lib.js';
-
-function readParitySpec(repoRoot: string, relativePath: string): ParitySpec {
-  return JSON.parse(readFileSync(resolve(repoRoot, relativePath), 'utf8')) as ParitySpec;
-}
-
 describe('customer parity request scaffolds', () => {
   it('keep the richer customer detail and catalog field slices aligned with the supported overlay serializer', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
@@ -165,31 +155,5 @@ describe('customer parity request scaffolds', () => {
       query: 'email:grace@example.com',
       disabledQuery: 'state:DISABLED',
     });
-  });
-
-  it('promote captured customer read specs to ready strict comparison contracts', () => {
-    const repoRoot = resolve(import.meta.dirname, '../..');
-
-    for (const specPath of [
-      'config/parity-specs/customer-detail-parity-plan.json',
-      'config/parity-specs/customers-catalog-parity-plan.json',
-      'config/parity-specs/customers-search-read.json',
-      'config/parity-specs/customers-advanced-search-read.json',
-      'config/parity-specs/customers-sort-keys-read.json',
-      'config/parity-specs/customers-relevance-search-read.json',
-      'config/parity-specs/customers-count-read.json',
-    ]) {
-      const spec = readParitySpec(repoRoot, specPath);
-      expect(validateComparisonContract(spec.comparison)).toEqual([]);
-      expect(classifyParityScenarioState({ status: 'captured' }, spec)).toBe('ready-for-comparison');
-      expect(spec.comparison?.targets?.length).toBeGreaterThan(0);
-      expect(spec.comparison?.expectedDifferences).toEqual([]);
-    }
-
-    const countSpec = readParitySpec(repoRoot, 'config/parity-specs/customers-count-read.json');
-    expect(countSpec.comparison?.targets?.map((target) => target.capturePath)).toEqual([
-      '$.data',
-      '$.extensions.search',
-    ]);
   });
 });

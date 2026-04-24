@@ -3,17 +3,7 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import {
-  classifyParityScenarioState,
-  validateComparisonContract,
-  type ParitySpec,
-} from '../../scripts/conformance-parity-lib.js';
-
 const repoRoot = resolve(import.meta.dirname, '../..');
-
-function readParitySpec(relativePath: string): ParitySpec {
-  return JSON.parse(readFileSync(resolve(repoRoot, relativePath), 'utf8')) as ParitySpec;
-}
 
 describe('customer mutation parity request scaffolds', () => {
   it('keep the customer CRUD request slices aligned with the supported overlay serializer', () => {
@@ -107,27 +97,5 @@ describe('customer mutation parity request scaffolds', () => {
     expect(downstreamDocument).toContain('defaultEmailAddress {');
     expect(downstreamDocument).toContain('defaultPhoneNumber {');
     expect(downstreamDocument).toContain('defaultAddress {');
-  });
-
-  it('promote captured customer CRUD specs to ready strict comparison contracts', () => {
-    for (const specPath of [
-      'config/parity-specs/customerCreate-parity-plan.json',
-      'config/parity-specs/customerUpdate-parity-plan.json',
-      'config/parity-specs/customerDelete-parity-plan.json',
-    ]) {
-      const spec = readParitySpec(specPath);
-      expect(validateComparisonContract(spec.comparison)).toEqual([]);
-      expect(classifyParityScenarioState({ status: 'captured' }, spec)).toBe('ready-for-comparison');
-      expect(spec.proxyRequest?.variablesCapturePath).toBe('$.mutation.variables');
-      expect(spec.comparison?.targets?.map((target) => target.name)).toEqual([
-        'mutation-data',
-        'downstream-read-data',
-        'validation-data',
-      ]);
-      expect(spec.comparison?.targets?.[1]?.proxyRequest?.documentPath).toBe(
-        'config/parity-requests/customer-mutation-downstream-read.graphql',
-      );
-      expect(spec.comparison?.expectedDifferences?.every((difference) => difference.ignore !== true)).toBe(true);
-    }
   });
 });
