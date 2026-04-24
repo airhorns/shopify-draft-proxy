@@ -4898,6 +4898,8 @@ function serializeMetafieldsConnection(
 }
 
 function serializeProductField(product: ProductRecord, field: FieldNode, variables: Record<string, unknown>): unknown {
+  const visiblePublicationCount = product.status === 'ACTIVE' ? product.publicationIds.length : 0;
+
   switch (field.name.value) {
     case 'id':
       return product.id;
@@ -4911,7 +4913,7 @@ function serializeProductField(product: ProductRecord, field: FieldNode, variabl
       return product.status;
     case 'publishedOnCurrentPublication':
     case 'publishedOnCurrentChannel':
-      return product.publicationIds.length > 0;
+      return visiblePublicationCount > 0;
     case 'publishedOnChannel': {
       const args = getFieldArguments(field, variables);
       const channelId = typeof args['channelId'] === 'string' ? args['channelId'] : null;
@@ -4922,9 +4924,9 @@ function serializeProductField(product: ProductRecord, field: FieldNode, variabl
       return product.publicationIds.includes(channelId);
     }
     case 'availablePublicationsCount':
-      return serializeCountValue(field, product.publicationIds.length);
+      return serializeCountValue(field, visiblePublicationCount);
     case 'resourcePublicationsCount':
-      return serializeCountValue(field, product.publicationIds.length);
+      return serializeCountValue(field, visiblePublicationCount);
     case 'vendor':
       return product.vendor;
     case 'productType':

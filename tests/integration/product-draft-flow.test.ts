@@ -1736,13 +1736,13 @@ describe('product draft flow', () => {
     expect(publishResponse.body.data.productPublish).toEqual({
       product: {
         id: productId,
-        publishedOnCurrentPublication: true,
+        publishedOnCurrentPublication: false,
         availablePublicationsCount: {
-          count: 1,
+          count: 0,
           precision: 'EXACT',
         },
         resourcePublicationsCount: {
-          count: 1,
+          count: 0,
           precision: 'EXACT',
         },
       },
