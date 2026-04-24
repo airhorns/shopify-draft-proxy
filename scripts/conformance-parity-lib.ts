@@ -2126,6 +2126,13 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   if (collectionId) {
     const collection = makeSeedCollection(collectionId, collectionPayload);
     store.upsertBaseCollections([collection]);
+    const seedProducts = readArrayField(capture as Record<string, unknown>, 'seedProducts').filter(isPlainObject);
+    for (const seedProduct of seedProducts) {
+      const productId = readStringField(seedProduct, 'id');
+      if (productId?.startsWith('gid://shopify/Product/')) {
+        store.upsertBaseProducts([makeSeedProduct(productId, seedProduct)]);
+      }
+    }
     const rawProductNodes = readRecordField(collectionPayload, 'products')?.['nodes'];
     const productNodes = Array.isArray(rawProductNodes) ? rawProductNodes : [];
     if (mutationName === 'collectionUpdate') {
@@ -2142,7 +2149,12 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       if (typeof productIdValue !== 'string') {
         continue;
       }
-      store.upsertBaseProducts([makeSeedProduct(productIdValue)]);
+      if (mutationName === 'collectionAddProducts' && seedProducts.length > 0) {
+        continue;
+      }
+      if (!store.getEffectiveProductById(productIdValue)) {
+        store.upsertBaseProducts([makeSeedProduct(productIdValue)]);
+      }
     }
   }
 }

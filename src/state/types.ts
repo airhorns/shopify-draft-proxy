@@ -166,6 +166,7 @@ export const collectionRecordSchema = z.strictObject({
   seo: productSeoRecordSchema.optional(),
   ruleSet: collectionRuleSetRecordSchema.nullable().optional(),
   redirectNewHandle: nullableBooleanSchema.optional(),
+  isSmart: z.boolean().optional(),
 });
 export type CollectionRecord = z.infer<typeof collectionRecordSchema>;
 
