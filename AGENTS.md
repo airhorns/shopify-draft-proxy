@@ -72,7 +72,9 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 
 1. Read `docs/original-intent.md`.
 2. Read `docs/architecture.md`.
-3. Read `docs/hard-and-weird-notes.md` before making fidelity assumptions.
+3. Know that `docs/hard-and-weird-notes.md` exists; search or read the
+   relevant parts when fidelity assumptions or unusual Shopify behavior matter,
+   and add to it when new hard/weird behavior is discovered.
 4. Check Linear for the next operation to implement.
 5. Add/adjust tests before implementation.
 6. Update docs after shipping behavior.
