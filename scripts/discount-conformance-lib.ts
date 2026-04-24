@@ -1,3 +1,5 @@
+import { type AdminGraphqlOptions, runAdminGraphql } from './conformance-graphql-client.js';
+
 export const DISCOUNT_REQUIRED_SCOPES = ['read_discounts', 'write_discounts'] as const;
 
 export type DiscountRequiredScope = (typeof DISCOUNT_REQUIRED_SCOPES)[number];
@@ -15,16 +17,6 @@ export type DiscountScopeProbeResult = {
 export type DiscountReadCapture = {
   discountNodesCount: unknown;
   discountNodesCatalog: unknown;
-};
-
-type FetchImpl = typeof fetch;
-
-type AdminGraphqlOptions = {
-  adminOrigin: string;
-  apiVersion: string;
-  accessToken: string;
-  headers: Record<string, string>;
-  fetchImpl?: FetchImpl;
 };
 
 type ScopeNode = {
@@ -121,51 +113,6 @@ export const DISCOUNT_NODES_CATALOG_QUERY = `#graphql
     }
   }
 `;
-
-function normalizeGraphqlError(payload: unknown, status: number): string {
-  if (typeof payload === 'object' && payload !== null && 'errors' in payload) {
-    const errors = (payload as { errors?: unknown }).errors;
-    if (Array.isArray(errors)) {
-      const messages = errors
-        .map((error) => {
-          if (typeof error === 'object' && error !== null && 'message' in error) {
-            const message = (error as { message?: unknown }).message;
-            return typeof message === 'string' ? message : null;
-          }
-          return null;
-        })
-        .filter((message): message is string => message !== null);
-      if (messages.length > 0) {
-        return messages.join('; ');
-      }
-    }
-
-    if (typeof errors === 'string') {
-      return errors;
-    }
-  }
-
-  return `HTTP ${status}`;
-}
-
-async function runAdminGraphql(options: AdminGraphqlOptions, query: string, variables = {}): Promise<unknown> {
-  const fetchImpl = options.fetchImpl ?? fetch;
-  const response = await fetchImpl(`${options.adminOrigin}/admin/api/${options.apiVersion}/graphql.json`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-    body: JSON.stringify({ query, variables }),
-  });
-  const payload = (await response.json()) as unknown;
-
-  if (!response.ok || (typeof payload === 'object' && payload !== null && 'errors' in payload)) {
-    throw new Error(normalizeGraphqlError(payload, response.status));
-  }
-
-  return payload;
-}
 
 export async function probeDiscountConformanceScopes(options: AdminGraphqlOptions): Promise<DiscountScopeProbeResult> {
   const payload = (await runAdminGraphql(options, DISCOUNT_ACCESS_SCOPES_QUERY)) as AccessScopesPayload;

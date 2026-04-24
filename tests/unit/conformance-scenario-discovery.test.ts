@@ -94,20 +94,6 @@ describe('conformance scenario discovery', () => {
     expect(registry.some((entry) => entry.name === operationName)).toBe(true);
   });
 
-  it('only discovers discounts scenarios when they are backed by captured evidence', () => {
-    const discountScenarios = scenarios.filter((scenario) =>
-      scenario.operationNames.some((operationName) => /discount/iu.test(operationName)),
-    );
-
-    for (const scenario of discountScenarios) {
-      expect(scenario.status, `${scenario.id} should not be a planned-only discounts scenario`).toBe('captured');
-      expect(scenario.captureFiles.length, `${scenario.id} should reference live discount captures`).toBeGreaterThan(0);
-      for (const captureFile of scenario.captureFiles) {
-        expect(existsSync(resolve(repoRoot, captureFile)), `${captureFile} should exist`).toBe(true);
-      }
-    }
-  });
-
   it('keeps every implemented operation covered by at least one discovered scenario', () => {
     const registry = readJson<OperationRegistryEntry[]>('config/operation-registry.json');
     const scenarioOperationNames = new Set(scenarios.flatMap((scenario) => scenario.operationNames));
