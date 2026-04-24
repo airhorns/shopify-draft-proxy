@@ -21,7 +21,8 @@ During this run (originally, then reconfirmed on the later `productChangeStatus`
 
 ## Current state
 
-- repo `.env` still points `SHOPIFY_CONFORMANCE_ADMIN_ACCESS_TOKEN` at the expired CLI-derived bearer token
+- historical note: repo `.env` in the original checkout pointed `SHOPIFY_CONFORMANCE_ADMIN_ACCESS_TOKEN` at the expired CLI-derived bearer token, but current mainline conformance scripts no longer use repo `.env` as the canonical credential source
+- current canonical conformance credential path is `~/.shopify-draft-proxy/conformance-admin-auth.json`
 - `~/.config/shopify-cli-kit-nodejs/config.json` still contains the same unrecoverable access/refresh token pair
 - because the refresh call returned `invalid_grant`, this host cannot recover the current CLI-backed grant non-interactively
 
@@ -51,9 +52,9 @@ Any increment that needs fresh live conformance verification or refreshed fixtur
 
 ## Recommended next step
 
-Provision a dedicated dev-store Admin API token for `very-big-test-store.myshopify.com` and wire `SHOPIFY_CONFORMANCE_ADMIN_ACCESS_TOKEN` to that stable credential.
+Provision a dedicated dev-store Admin API token or fresh expiring offline token pair for `very-big-test-store.myshopify.com` and persist it into the shared home-folder credential at `~/.shopify-draft-proxy/conformance-admin-auth.json`.
 
 If the project must stay on the Shopify CLI-session path, a human needs to re-authenticate Shopify CLI on this host and immediately persist the refreshed token pair back into both:
 
 - `~/.config/shopify-cli-kit-nodejs/config.json`
-- `/home/airhorns/code/shopify-draft-proxy/.env`
+- `~/.shopify-draft-proxy/conformance-admin-auth.json` (or regenerate the repo's manual store-auth link and exchange flow so the shared home credential is replaced atomically)
