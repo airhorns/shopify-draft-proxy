@@ -3,11 +3,9 @@ mutation OrderCreateParityPlan($order: OrderCreateOrderInput!, $options: OrderCr
     order {
       id
       name
-      createdAt
-      updatedAt
+      email
       displayFinancialStatus
       displayFulfillmentStatus
-      canMarkAsPaid
       note
       tags
       customAttributes {
@@ -22,7 +20,6 @@ mutation OrderCreateParityPlan($order: OrderCreateOrderInput!, $options: OrderCr
         provinceCode
         countryCodeV2
         zip
-        phone
       }
       shippingAddress {
         firstName
@@ -32,13 +29,6 @@ mutation OrderCreateParityPlan($order: OrderCreateOrderInput!, $options: OrderCr
         provinceCode
         countryCodeV2
         zip
-        phone
-      }
-      subtotalPriceSet {
-        shopMoney {
-          amount
-          currencyCode
-        }
       }
       currentTotalPriceSet {
         shopMoney {
@@ -46,25 +36,38 @@ mutation OrderCreateParityPlan($order: OrderCreateOrderInput!, $options: OrderCr
           currencyCode
         }
       }
-      totalPriceSet {
+      totalTaxSet {
         shopMoney {
           amount
           currencyCode
         }
       }
-      customer {
-        id
-        email
-        displayName
+      totalDiscountsSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
       }
+      discountCodes
       shippingLines(first: 5) {
         nodes {
           title
           code
+          source
           originalPriceSet {
             shopMoney {
               amount
               currencyCode
+            }
+          }
+          taxLines {
+            title
+            rate
+            priceSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
             }
           }
         }
@@ -76,10 +79,27 @@ mutation OrderCreateParityPlan($order: OrderCreateOrderInput!, $options: OrderCr
           quantity
           sku
           variantTitle
+          variant {
+            id
+          }
           originalUnitPriceSet {
             shopMoney {
               amount
               currencyCode
+            }
+            presentmentMoney {
+              amount
+              currencyCode
+            }
+          }
+          taxLines {
+            title
+            rate
+            priceSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
             }
           }
         }

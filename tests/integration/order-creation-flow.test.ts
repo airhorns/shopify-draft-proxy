@@ -18,20 +18,20 @@ const liveHybridConfig: AppConfig = {
   readMode: 'live-hybrid',
 };
 
-function seedDraftOrderVariantCatalog(): ProductVariantRecord {
-  const product: ProductRecord = {
-    id: 'gid://shopify/Product/9001',
-    legacyResourceId: null,
-    title: 'Hermes stocked product',
-    handle: 'hermes-stocked-product',
+function makeProduct(id: string, title: string): ProductRecord {
+  return {
+    id,
+    legacyResourceId: id.split('/').at(-1) ?? null,
+    title,
+    handle: title.toLowerCase().replace(/\s+/g, '-'),
     status: 'ACTIVE',
     publicationIds: [],
-    createdAt: '2024-01-01T00:00:00.000Z',
-    updatedAt: '2024-01-01T00:00:00.000Z',
-    vendor: 'Hermes',
-    productType: 'Test fixture',
-    tags: ['draft-order-variant'],
-    totalInventory: 6,
+    createdAt: '2025-01-01T00:00:00.000Z',
+    updatedAt: '2025-01-01T00:00:00.000Z',
+    vendor: null,
+    productType: null,
+    tags: [],
+    totalInventory: 8,
     tracksInventory: true,
     descriptionHtml: null,
     onlineStorePreviewUrl: null,
@@ -42,16 +42,52 @@ function seedDraftOrderVariantCatalog(): ProductVariantRecord {
     },
     category: null,
   };
-  const variant: ProductVariantRecord = {
-    id: 'gid://shopify/ProductVariant/9002',
-    productId: product.id,
-    title: 'Medium / Black',
-    sku: 'HERMES-STOCKED-M-BLACK',
+}
+
+function makeVariant(productId: string, variantId: string): ProductVariantRecord {
+  return {
+    id: variantId,
+    productId,
+    title: 'Red / Small',
+    sku: 'RICH-VARIANT-RED-SMALL',
     barcode: null,
-    price: '15.50',
+    price: '20.00',
     compareAtPrice: null,
     taxable: true,
     inventoryPolicy: 'DENY',
+    inventoryQuantity: 8,
+    selectedOptions: [{ name: 'Color', value: 'Red' }],
+    inventoryItem: {
+      id: 'gid://shopify/InventoryItem/9101',
+      tracked: true,
+      requiresShipping: true,
+      measurement: null,
+      countryCodeOfOrigin: null,
+      provinceCodeOfOrigin: null,
+      harmonizedSystemCode: null,
+      inventoryLevels: [],
+    },
+  };
+}
+
+function seedDraftOrderVariantCatalog(): ProductVariantRecord {
+  const product = {
+    ...makeProduct('gid://shopify/Product/9001', 'Hermes stocked product'),
+    legacyResourceId: null,
+    handle: 'hermes-stocked-product',
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z',
+    vendor: 'Hermes',
+    productType: 'Test fixture',
+    tags: ['draft-order-variant'],
+    totalInventory: 6,
+  };
+  const baseVariant = makeVariant(product.id, 'gid://shopify/ProductVariant/9002');
+  const variant = {
+    ...baseVariant,
+    title: 'Medium / Black',
+    sku: 'HERMES-STOCKED-M-BLACK',
+    price: '15.50',
     inventoryQuantity: 6,
     selectedOptions: [
       { name: 'Size', value: 'Medium' },
@@ -65,6 +101,7 @@ function seedDraftOrderVariantCatalog(): ProductVariantRecord {
       countryCodeOfOrigin: null,
       provinceCodeOfOrigin: null,
       harmonizedSystemCode: null,
+      inventoryLevels: [],
     },
   };
 
@@ -422,6 +459,423 @@ describe('order creation flow', () => {
         ordersCount: {
           count: 1,
           precision: 'EXACT',
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('stages rich orderCreate options, taxes, discounts, currencies, and variant-backed line items locally', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('rich orderCreate parity should not hit upstream in snapshot mode');
+    });
+    const product = makeProduct('gid://shopify/Product/9100', 'Inventory-backed coat');
+    const variant = makeVariant(product.id, 'gid://shopify/ProductVariant/9100');
+    store.upsertBaseProducts([product]);
+    store.replaceBaseVariantsForProduct(product.id, [variant]);
+
+    const app = createApp(snapshotConfig).callback();
+    const createResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation RichOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
+          orderCreate(order: $order, options: $options) {
+            order {
+              id
+              email
+              displayFinancialStatus
+              displayFulfillmentStatus
+              paymentGatewayNames
+              subtotalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+              totalTaxSet { shopMoney { amount currencyCode } }
+              totalDiscountsSet { shopMoney { amount currencyCode } }
+              currentTotalPriceSet { shopMoney { amount currencyCode } }
+              discountCodes
+              discountApplications(first: 5) {
+                nodes {
+                  code
+                  value {
+                    ... on MoneyV2 {
+                      amount
+                      currencyCode
+                    }
+                    ... on PricingPercentageValue {
+                      percentage
+                    }
+                  }
+                }
+              }
+              shippingLines(first: 5) {
+                nodes {
+                  title
+                  code
+                  source
+                  originalPriceSet { shopMoney { amount currencyCode } }
+                  taxLines { title rate priceSet { shopMoney { amount currencyCode } } }
+                }
+              }
+              lineItems(first: 5) {
+                nodes {
+                  id
+                  title
+                  quantity
+                  sku
+                  variantTitle
+                  variant { id }
+                  originalUnitPriceSet {
+                    shopMoney { amount currencyCode }
+                    presentmentMoney { amount currencyCode }
+                  }
+                  taxLines {
+                    title
+                    rate
+                    priceSet { shopMoney { amount currencyCode } }
+                  }
+                }
+              }
+              transactions {
+                kind
+                status
+                gateway
+                amountSet { shopMoney { amount currencyCode } }
+              }
+            }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          order: {
+            currency: 'USD',
+            presentmentCurrency: 'CAD',
+            email: 'rich-order@example.com',
+            fulfillmentStatus: 'FULFILLED',
+            discountCode: {
+              itemFixedDiscountCode: {
+                code: 'SAVE5',
+                amountSet: {
+                  shopMoney: {
+                    amount: '5.00',
+                    currencyCode: 'USD',
+                  },
+                },
+              },
+            },
+            shippingLines: [
+              {
+                title: 'Standard',
+                code: 'STANDARD',
+                source: 'hermes-rich-parity',
+                priceSet: {
+                  shopMoney: {
+                    amount: '5.00',
+                    currencyCode: 'USD',
+                  },
+                },
+                taxLines: [
+                  {
+                    title: 'Shipping tax',
+                    rate: 0.1,
+                    priceSet: {
+                      shopMoney: {
+                        amount: '0.50',
+                        currencyCode: 'USD',
+                      },
+                    },
+                  },
+                ],
+              },
+            ],
+            lineItems: [
+              {
+                variantId: variant.id,
+                quantity: 2,
+                priceSet: {
+                  shopMoney: {
+                    amount: '20.00',
+                    currencyCode: 'USD',
+                  },
+                  presentmentMoney: {
+                    amount: '27.00',
+                    currencyCode: 'CAD',
+                  },
+                },
+                taxLines: [
+                  {
+                    title: 'Line tax',
+                    rate: 0.05,
+                    priceSet: {
+                      shopMoney: {
+                        amount: '2.00',
+                        currencyCode: 'USD',
+                      },
+                    },
+                  },
+                ],
+              },
+            ],
+            transactions: [
+              {
+                kind: 'SALE',
+                status: 'SUCCESS',
+                gateway: 'manual',
+                amountSet: {
+                  shopMoney: {
+                    amount: '42.50',
+                    currencyCode: 'USD',
+                  },
+                },
+              },
+            ],
+          },
+          options: {
+            inventoryBehaviour: 'BYPASS',
+            sendReceipt: false,
+            sendFulfillmentReceipt: false,
+          },
+        },
+      });
+
+    expect(createResponse.status).toBe(200);
+    expect(createResponse.body.data.orderCreate.userErrors).toEqual([]);
+    expect(createResponse.body.data.orderCreate.order).toMatchObject({
+      email: 'rich-order@example.com',
+      displayFinancialStatus: 'PAID',
+      displayFulfillmentStatus: 'FULFILLED',
+      paymentGatewayNames: ['manual'],
+      subtotalPriceSet: {
+        shopMoney: {
+          amount: '40.0',
+          currencyCode: 'USD',
+        },
+        presentmentMoney: null,
+      },
+      totalTaxSet: {
+        shopMoney: {
+          amount: '2.5',
+          currencyCode: 'USD',
+        },
+      },
+      totalDiscountsSet: {
+        shopMoney: {
+          amount: '5.0',
+          currencyCode: 'USD',
+        },
+      },
+      currentTotalPriceSet: {
+        shopMoney: {
+          amount: '42.5',
+          currencyCode: 'USD',
+        },
+      },
+      discountCodes: ['SAVE5'],
+      discountApplications: {
+        nodes: [
+          {
+            code: 'SAVE5',
+            value: {
+              amount: '5.0',
+              currencyCode: 'USD',
+              percentage: null,
+            },
+          },
+        ],
+      },
+      shippingLines: {
+        nodes: [
+          {
+            title: 'Standard',
+            code: 'STANDARD',
+            source: 'hermes-rich-parity',
+            originalPriceSet: {
+              shopMoney: {
+                amount: '5.0',
+                currencyCode: 'USD',
+              },
+            },
+            taxLines: [
+              {
+                title: 'Shipping tax',
+                rate: 0.1,
+                priceSet: {
+                  shopMoney: {
+                    amount: '0.5',
+                    currencyCode: 'USD',
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      },
+      lineItems: {
+        nodes: [
+          {
+            title: 'Inventory-backed coat',
+            quantity: 2,
+            sku: 'RICH-VARIANT-RED-SMALL',
+            variantTitle: 'Red / Small',
+            variant: {
+              id: variant.id,
+            },
+            originalUnitPriceSet: {
+              shopMoney: {
+                amount: '20.0',
+                currencyCode: 'USD',
+              },
+              presentmentMoney: {
+                amount: '27.0',
+                currencyCode: 'CAD',
+              },
+            },
+            taxLines: [
+              {
+                title: 'Line tax',
+                rate: 0.05,
+                priceSet: {
+                  shopMoney: {
+                    amount: '2.0',
+                    currencyCode: 'USD',
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      },
+      transactions: [
+        {
+          kind: 'SALE',
+          status: 'SUCCESS',
+          gateway: 'manual',
+          amountSet: {
+            shopMoney: {
+              amount: '42.5',
+              currencyCode: 'USD',
+            },
+          },
+        },
+      ],
+    });
+
+    const orderId = createResponse.body.data.orderCreate.order.id;
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query RichOrderCreateRead($id: ID!) {
+          order(id: $id) {
+            id
+            totalTaxSet { shopMoney { amount currencyCode } }
+            totalDiscountsSet { shopMoney { amount currencyCode } }
+            discountCodes
+            lineItems(first: 1) {
+              nodes {
+                variant { id }
+                taxLines { title }
+              }
+            }
+          }
+          orders(first: 5) {
+            nodes { id discountCodes }
+          }
+          ordersCount { count precision }
+        }`,
+        variables: {
+          id: orderId,
+        },
+      });
+
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body).toEqual({
+      data: {
+        order: {
+          id: orderId,
+          totalTaxSet: {
+            shopMoney: {
+              amount: '2.5',
+              currencyCode: 'USD',
+            },
+          },
+          totalDiscountsSet: {
+            shopMoney: {
+              amount: '5.0',
+              currencyCode: 'USD',
+            },
+          },
+          discountCodes: ['SAVE5'],
+          lineItems: {
+            nodes: [
+              {
+                variant: {
+                  id: variant.id,
+                },
+                taxLines: [{ title: 'Line tax' }],
+              },
+            ],
+          },
+        },
+        orders: {
+          nodes: [
+            {
+              id: orderId,
+              discountCodes: ['SAVE5'],
+            },
+          ],
+        },
+        ordersCount: {
+          count: 1,
+          precision: 'EXACT',
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns local orderCreate userErrors for unsupported conflicting tax-line inputs without proxying upstream', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('invalid orderCreate tax-line request should not hit upstream in snapshot mode');
+    });
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation InvalidOrderCreate($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          order: {
+            lineItems: [
+              {
+                title: 'Taxed line',
+                quantity: 1,
+                priceSet: {
+                  shopMoney: {
+                    amount: '10.00',
+                    currencyCode: 'USD',
+                  },
+                },
+                taxLines: [{ title: 'Line tax', rate: 0.05 }],
+              },
+            ],
+            taxLines: [{ title: 'Order tax', rate: 0.05 }],
+          },
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        orderCreate: {
+          order: null,
+          userErrors: [
+            {
+              field: ['order', 'taxLines'],
+              message: 'Tax lines can be specified on the order or on line items and shipping lines, but not both.',
+            },
+          ],
         },
       },
     });

@@ -1,10 +1,24 @@
 {
   "variables": {
     "order": {
-      "email": "hermes-order-probe-1776610115303@example.com",
-      "note": "order create parity probe",
-      "tags": ["parity-probe", "order-create"],
+      "email": "hermes-order-parity-plan-20260418@example.com",
+      "note": "order create parity plan",
+      "tags": ["parity-plan", "order-create"],
       "test": true,
+      "currency": "USD",
+      "presentmentCurrency": "CAD",
+      "fulfillmentStatus": "FULFILLED",
+      "discountCode": {
+        "itemFixedDiscountCode": {
+          "code": "SAVE5",
+          "amountSet": {
+            "shopMoney": {
+              "amount": "5.00",
+              "currencyCode": "USD"
+            }
+          }
+        }
+      },
       "customAttributes": [
         {
           "key": "source",
@@ -43,24 +57,53 @@
           "priceSet": {
             "shopMoney": {
               "amount": "5.00",
-              "currencyCode": "CAD"
+              "currencyCode": "USD"
             }
-          }
+          },
+          "taxLines": [
+            {
+              "title": "Shipping tax",
+              "rate": 0.1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "0.50",
+                  "currencyCode": "USD"
+                }
+              }
+            }
+          ]
         }
       ],
       "lineItems": [
         {
-          "title": "Hermes custom order line item",
-          "quantity": 1,
+          "variantId": "gid://shopify/ProductVariant/48540157378793",
+          "title": "Hermes inventory-backed line item",
+          "quantity": 2,
           "priceSet": {
             "shopMoney": {
-              "amount": "10.00",
+              "amount": "20.00",
+              "currencyCode": "USD"
+            },
+            "presentmentMoney": {
+              "amount": "27.00",
               "currencyCode": "CAD"
             }
           },
-          "requiresShipping": false,
-          "taxable": false,
-          "sku": "hermes-order-probe-1776610115303"
+          "requiresShipping": true,
+          "taxable": true,
+          "sku": "hermes-order-parity-plan-20260418",
+          "taxLines": [
+            {
+              "title": "Line tax",
+              "rate": 0.05,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "2.00",
+                  "currencyCode": "USD"
+                }
+              }
+            }
+          ]
         }
       ],
       "transactions": [
@@ -71,12 +114,17 @@
           "test": true,
           "amountSet": {
             "shopMoney": {
-              "amount": "15.00",
-              "currencyCode": "CAD"
+              "amount": "42.50",
+              "currencyCode": "USD"
             }
           }
         }
       ]
+    },
+    "options": {
+      "inventoryBehaviour": "BYPASS",
+      "sendReceipt": false,
+      "sendFulfillmentReceipt": false
     }
   },
   "mutation": {
@@ -86,9 +134,9 @@
           "order": {
             "id": "gid://shopify/Order/6824239235305",
             "name": "#1314",
-            "email": "hermes-order-probe-1776610115303@example.com",
-            "note": "order create parity probe",
-            "tags": ["order-create", "parity-probe"],
+            "email": "hermes-order-parity-plan-20260418@example.com",
+            "note": "order create parity plan",
+            "tags": ["order-create", "parity-plan"],
             "customAttributes": [
               {
                 "key": "source",
@@ -126,27 +174,78 @@
                   "originalPriceSet": {
                     "shopMoney": {
                       "amount": "5.0",
-                      "currencyCode": "CAD"
+                      "currencyCode": "USD"
                     }
-                  }
+                  },
+                  "taxLines": [
+                    {
+                      "title": "Shipping tax",
+                      "rate": 0.1,
+                      "priceSet": {
+                        "shopMoney": {
+                          "amount": "0.5",
+                          "currencyCode": "USD"
+                        }
+                      }
+                    }
+                  ]
                 }
               ]
             },
             "displayFinancialStatus": "PAID",
-            "displayFulfillmentStatus": "UNFULFILLED",
+            "displayFulfillmentStatus": "FULFILLED",
             "currentTotalPriceSet": {
               "shopMoney": {
-                "amount": "15.0",
-                "currencyCode": "CAD"
+                "amount": "42.5",
+                "currencyCode": "USD"
               }
             },
+            "totalTaxSet": {
+              "shopMoney": {
+                "amount": "2.5",
+                "currencyCode": "USD"
+              }
+            },
+            "totalDiscountsSet": {
+              "shopMoney": {
+                "amount": "5.0",
+                "currencyCode": "USD"
+              }
+            },
+            "discountCodes": ["SAVE5"],
             "lineItems": {
               "nodes": [
                 {
                   "id": "gid://shopify/LineItem/16190346854633",
-                  "title": "Hermes custom order line item",
-                  "quantity": 1,
-                  "sku": "hermes-order-probe-1776610115303"
+                  "title": "Hermes inventory-backed line item",
+                  "quantity": 2,
+                  "sku": "hermes-order-parity-plan-20260418",
+                  "variant": {
+                    "id": "gid://shopify/ProductVariant/48540157378793"
+                  },
+                  "variantTitle": null,
+                  "originalUnitPriceSet": {
+                    "shopMoney": {
+                      "amount": "20.0",
+                      "currencyCode": "USD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "27.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "taxLines": [
+                    {
+                      "title": "Line tax",
+                      "rate": 0.05,
+                      "priceSet": {
+                        "shopMoney": {
+                          "amount": "2.0",
+                          "currencyCode": "USD"
+                        }
+                      }
+                    }
+                  ]
                 }
               ]
             }
@@ -176,9 +275,9 @@
         "order": {
           "id": "gid://shopify/Order/6824239235305",
           "name": "#1314",
-          "email": "hermes-order-probe-1776610115303@example.com",
-          "note": "order create parity probe",
-          "tags": ["order-create", "parity-probe"],
+          "email": "hermes-order-parity-plan-20260418@example.com",
+          "note": "order create parity plan",
+          "tags": ["order-create", "parity-plan"],
           "customAttributes": [
             {
               "key": "source",
@@ -208,12 +307,49 @@
             "zip": "M5H 2M9"
           },
           "displayFinancialStatus": "PAID",
-          "displayFulfillmentStatus": "UNFULFILLED",
+          "displayFulfillmentStatus": "FULFILLED",
           "currentTotalPriceSet": {
             "shopMoney": {
-              "amount": "15.0",
-              "currencyCode": "CAD"
+              "amount": "42.5",
+              "currencyCode": "USD"
             }
+          },
+          "totalTaxSet": {
+            "shopMoney": {
+              "amount": "2.5",
+              "currencyCode": "USD"
+            }
+          },
+          "totalDiscountsSet": {
+            "shopMoney": {
+              "amount": "5.0",
+              "currencyCode": "USD"
+            }
+          },
+          "discountCodes": ["SAVE5"],
+          "lineItems": {
+            "nodes": [
+              {
+                "title": "Hermes inventory-backed line item",
+                "quantity": 2,
+                "sku": "hermes-order-parity-plan-20260418",
+                "variant": {
+                  "id": "gid://shopify/ProductVariant/48540157378793"
+                },
+                "taxLines": [
+                  {
+                    "title": "Line tax",
+                    "rate": 0.05,
+                    "priceSet": {
+                      "shopMoney": {
+                        "amount": "2.0",
+                        "currencyCode": "USD"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
           }
         }
       },

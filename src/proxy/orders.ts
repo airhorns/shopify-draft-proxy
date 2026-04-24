@@ -17,12 +17,14 @@ import type {
   CustomerRecord,
   MoneyV2Record,
   OrderCustomerRecord,
+  OrderDiscountApplicationRecord,
   OrderLineItemRecord,
   OrderRecord,
   OrderRefundLineItemRecord,
   OrderRefundRecord,
   OrderReturnRecord,
   OrderShippingLineRecord,
+  OrderTaxLineRecord,
   OrderTransactionRecord,
 } from '../state/types.js';
 
@@ -31,9 +33,19 @@ function getFieldResponseKey(field: FieldNode): string {
 }
 
 function getSelectedChildFields(field: FieldNode): FieldNode[] {
-  return (field.selectionSet?.selections ?? []).filter(
-    (selection): selection is FieldNode => selection.kind === Kind.FIELD,
-  );
+  return (field.selectionSet?.selections ?? []).flatMap((selection) => {
+    if (selection.kind === Kind.FIELD) {
+      return [selection];
+    }
+
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      return selection.selectionSet.selections.filter(
+        (inlineSelection): inlineSelection is FieldNode => inlineSelection.kind === Kind.FIELD,
+      );
+    }
+
+    return [];
+  });
 }
 
 function normalizeMoney(amount: string | null, currencyCode: string | null): MoneyV2Record {
@@ -50,6 +62,92 @@ function parseDecimalAmount(raw: unknown): number {
 
 function formatDecimalAmount(value: number): string {
   return value.toFixed(1);
+}
+
+function normalizeMoneyBag(
+  raw: unknown,
+  currencyCode: string,
+  fallbackAmount: unknown = 0,
+): { shopMoney: MoneyV2Record; presentmentMoney?: MoneyV2Record } {
+  const moneyBag = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
+  const shopMoney =
+    typeof moneyBag['shopMoney'] === 'object' && moneyBag['shopMoney'] !== null
+      ? (moneyBag['shopMoney'] as Record<string, unknown>)
+      : {};
+  const presentmentMoney =
+    typeof moneyBag['presentmentMoney'] === 'object' && moneyBag['presentmentMoney'] !== null
+      ? (moneyBag['presentmentMoney'] as Record<string, unknown>)
+      : null;
+  const amount = formatDecimalAmount(parseDecimalAmount(shopMoney['amount'] ?? moneyBag['amount'] ?? fallbackAmount));
+  const normalized: { shopMoney: MoneyV2Record; presentmentMoney?: MoneyV2Record } = {
+    shopMoney: normalizeMoney(
+      amount,
+      typeof shopMoney['currencyCode'] === 'string'
+        ? shopMoney['currencyCode']
+        : typeof moneyBag['currencyCode'] === 'string'
+          ? moneyBag['currencyCode']
+          : currencyCode,
+    ),
+  };
+
+  if (presentmentMoney) {
+    normalized.presentmentMoney = normalizeMoney(
+      formatDecimalAmount(parseDecimalAmount(presentmentMoney['amount'])),
+      typeof presentmentMoney['currencyCode'] === 'string'
+        ? presentmentMoney['currencyCode']
+        : normalized.shopMoney.currencyCode,
+    );
+  }
+
+  return normalized;
+}
+
+function normalizeZeroMoneyBag(currencyCode: string): { shopMoney: MoneyV2Record } {
+  return {
+    shopMoney: normalizeMoney('0.0', currencyCode),
+  };
+}
+
+function readOrderCurrencyFromInput(inputRecord: Record<string, unknown>): string {
+  if (typeof inputRecord['currency'] === 'string') {
+    return inputRecord['currency'];
+  }
+
+  for (const lineItem of Array.isArray(inputRecord['lineItems']) ? inputRecord['lineItems'] : []) {
+    if (typeof lineItem !== 'object' || lineItem === null) {
+      continue;
+    }
+    const priceSet = (lineItem as Record<string, unknown>)['priceSet'];
+    const shopMoney =
+      typeof priceSet === 'object' && priceSet !== null ? (priceSet as Record<string, unknown>)['shopMoney'] : null;
+    if (typeof shopMoney === 'object' && shopMoney !== null) {
+      const currencyCode = (shopMoney as Record<string, unknown>)['currencyCode'];
+      if (typeof currencyCode === 'string') {
+        return currencyCode;
+      }
+    }
+  }
+
+  return 'CAD';
+}
+
+function normalizeOrderTaxLines(raw: unknown, currencyCode: string): OrderTaxLineRecord[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  return raw
+    .filter((taxLine): taxLine is Record<string, unknown> => typeof taxLine === 'object' && taxLine !== null)
+    .map((taxLine) => ({
+      title: typeof taxLine['title'] === 'string' ? taxLine['title'] : null,
+      rate: typeof taxLine['rate'] === 'number' ? taxLine['rate'] : parseDecimalAmount(taxLine['rate']),
+      channelLiable: typeof taxLine['channelLiable'] === 'boolean' ? taxLine['channelLiable'] : null,
+      priceSet: normalizeMoneyBag(taxLine['priceSet'], currencyCode),
+    }));
+}
+
+function sumTaxLines(taxLines: OrderTaxLineRecord[]): number {
+  return taxLines.reduce((sum, taxLine) => sum + parseDecimalAmount(taxLine.priceSet?.shopMoney.amount), 0);
 }
 
 function readString(raw: unknown): string | null {
@@ -269,30 +367,30 @@ function normalizeOrderLineItems(raw: unknown, currencyCode: string): OrderLineI
   return raw
     .filter((lineItem): lineItem is Record<string, unknown> => typeof lineItem === 'object' && lineItem !== null)
     .map((lineItem) => {
+      const variantId = typeof lineItem['variantId'] === 'string' ? lineItem['variantId'] : null;
+      const variant = variantId ? store.getEffectiveVariantById(variantId) : null;
+      const product = variant ? store.getEffectiveProductById(variant.productId) : null;
       const rawPriceSet =
         typeof lineItem['originalUnitPriceSet'] === 'object' && lineItem['originalUnitPriceSet'] !== null
           ? lineItem['originalUnitPriceSet']
           : lineItem['priceSet'];
-      const originalUnitPriceSet =
-        typeof rawPriceSet === 'object' && rawPriceSet !== null ? (rawPriceSet as Record<string, unknown>) : {};
-      const shopMoney =
-        typeof originalUnitPriceSet['shopMoney'] === 'object' && originalUnitPriceSet['shopMoney'] !== null
-          ? (originalUnitPriceSet['shopMoney'] as Record<string, unknown>)
-          : {};
-      const price = formatDecimalAmount(parseDecimalAmount(shopMoney['amount']));
+      const fallbackPrice = variant?.price ?? 0;
 
       return {
         id: makeSyntheticGid('LineItem'),
-        title: typeof lineItem['title'] === 'string' ? lineItem['title'] : null,
+        title:
+          typeof lineItem['title'] === 'string'
+            ? lineItem['title']
+            : product?.title
+              ? product.title
+              : (variant?.title ?? null),
         quantity: typeof lineItem['quantity'] === 'number' ? lineItem['quantity'] : 0,
-        sku: typeof lineItem['sku'] === 'string' ? lineItem['sku'] : null,
-        variantTitle: null,
-        originalUnitPriceSet: {
-          shopMoney: normalizeMoney(
-            price,
-            typeof shopMoney['currencyCode'] === 'string' ? shopMoney['currencyCode'] : currencyCode,
-          ),
-        },
+        sku: typeof lineItem['sku'] === 'string' ? lineItem['sku'] : (variant?.sku ?? null),
+        variantId,
+        variantTitle:
+          typeof lineItem['variantTitle'] === 'string' ? lineItem['variantTitle'] : (variant?.title ?? null),
+        originalUnitPriceSet: normalizeMoneyBag(rawPriceSet, currencyCode, fallbackPrice),
+        taxLines: normalizeOrderTaxLines(lineItem['taxLines'], currencyCode),
       };
     });
 }
@@ -312,21 +410,13 @@ function normalizeOrderShippingLines(raw: unknown, currencyCode: string): OrderS
         typeof shippingLine['priceSet'] === 'object' && shippingLine['priceSet'] !== null
           ? (shippingLine['priceSet'] as Record<string, unknown>)
           : {};
-      const shopMoney =
-        typeof priceSet['shopMoney'] === 'object' && priceSet['shopMoney'] !== null
-          ? (priceSet['shopMoney'] as Record<string, unknown>)
-          : {};
-      const amount = formatDecimalAmount(parseDecimalAmount(shopMoney['amount']));
 
       return {
         title: typeof shippingLine['title'] === 'string' ? shippingLine['title'] : null,
         code: typeof shippingLine['code'] === 'string' ? shippingLine['code'] : null,
-        originalPriceSet: {
-          shopMoney: normalizeMoney(
-            amount,
-            typeof shopMoney['currencyCode'] === 'string' ? shopMoney['currencyCode'] : currencyCode,
-          ),
-        },
+        source: typeof shippingLine['source'] === 'string' ? shippingLine['source'] : null,
+        originalPriceSet: normalizeMoneyBag(priceSet, currencyCode),
+        taxLines: normalizeOrderTaxLines(shippingLine['taxLines'], currencyCode),
       };
     });
 }
@@ -360,14 +450,111 @@ function normalizeOrderTransactions(raw: unknown, currencyCode: string): OrderTr
         kind: typeof transaction['kind'] === 'string' ? transaction['kind'] : null,
         status: typeof transaction['status'] === 'string' ? transaction['status'] : 'SUCCESS',
         gateway: typeof transaction['gateway'] === 'string' ? transaction['gateway'] : null,
-        amountSet: {
-          shopMoney: normalizeMoney(
-            amount,
-            typeof shopMoney['currencyCode'] === 'string' ? shopMoney['currencyCode'] : currencyCode,
-          ),
-        },
+        amountSet: normalizeMoneyBag(amountSet, currencyCode, amount),
       };
     });
+}
+
+function readDiscountCodeInput(inputRecord: Record<string, unknown>): Record<string, unknown> | null {
+  const discountCode = inputRecord['discountCode'];
+  return typeof discountCode === 'object' && discountCode !== null ? (discountCode as Record<string, unknown>) : null;
+}
+
+function normalizeOrderDiscountApplications(
+  inputRecord: Record<string, unknown>,
+  currencyCode: string,
+  discountableSubtotal: number,
+  shippingTotal: number,
+): {
+  discountCodes: string[];
+  discountApplications: OrderDiscountApplicationRecord[];
+  totalDiscountsSet: { shopMoney: MoneyV2Record } | null;
+} {
+  const discountCode = readDiscountCodeInput(inputRecord);
+  if (!discountCode) {
+    return {
+      discountCodes: [],
+      discountApplications: [],
+      totalDiscountsSet: null,
+    };
+  }
+
+  const fixedDiscount = readDiscountCodeAttributes(discountCode, 'itemFixedDiscountCode');
+  if (fixedDiscount) {
+    const code = typeof fixedDiscount['code'] === 'string' ? fixedDiscount['code'] : null;
+    const amountSet = normalizeMoneyBag(fixedDiscount['amountSet'], currencyCode);
+    return {
+      discountCodes: code ? [code] : [],
+      discountApplications: [
+        {
+          code,
+          value: {
+            type: 'money',
+            amount: amountSet.shopMoney.amount,
+            currencyCode: amountSet.shopMoney.currencyCode,
+          },
+        },
+      ],
+      totalDiscountsSet: amountSet,
+    };
+  }
+
+  const percentageDiscount = readDiscountCodeAttributes(discountCode, 'itemPercentageDiscountCode');
+  if (percentageDiscount) {
+    const code = typeof percentageDiscount['code'] === 'string' ? percentageDiscount['code'] : null;
+    const percentage = parseDecimalAmount(percentageDiscount['percentage']);
+    const amount = formatDecimalAmount((discountableSubtotal * percentage) / 100);
+    return {
+      discountCodes: code ? [code] : [],
+      discountApplications: [
+        {
+          code,
+          value: {
+            type: 'percentage',
+            percentage,
+          },
+        },
+      ],
+      totalDiscountsSet: {
+        shopMoney: normalizeMoney(amount, currencyCode),
+      },
+    };
+  }
+
+  const freeShippingDiscount = readDiscountCodeAttributes(discountCode, 'freeShippingDiscountCode');
+  if (freeShippingDiscount) {
+    const code = typeof freeShippingDiscount['code'] === 'string' ? freeShippingDiscount['code'] : null;
+    return {
+      discountCodes: code ? [code] : [],
+      discountApplications: [
+        {
+          code,
+          value: {
+            type: 'money',
+            amount: formatDecimalAmount(shippingTotal),
+            currencyCode,
+          },
+        },
+      ],
+      totalDiscountsSet: {
+        shopMoney: normalizeMoney(formatDecimalAmount(shippingTotal), currencyCode),
+      },
+    };
+  }
+
+  return {
+    discountCodes: [],
+    discountApplications: [],
+    totalDiscountsSet: null,
+  };
+}
+
+function readDiscountCodeAttributes(
+  discountCode: Record<string, unknown>,
+  key: string,
+): Record<string, unknown> | null {
+  const attributes = discountCode[key];
+  return typeof attributes === 'object' && attributes !== null ? (attributes as Record<string, unknown>) : null;
 }
 
 function buildOrderCustomerFromInput(inputRecord: Record<string, unknown>): OrderCustomerRecord | null {
@@ -413,7 +600,7 @@ function buildOrderCustomerFromDraftOrder(draftOrder: DraftOrderRecord): OrderCu
 
 function buildOrderFromInput(input: unknown): OrderRecord {
   const inputRecord = typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {};
-  const currencyCode = 'CAD';
+  const currencyCode = readOrderCurrencyFromInput(inputRecord);
   const orderId = makeSyntheticGid('Order');
   const createdAt = makeSyntheticTimestamp();
   const lineItems = normalizeOrderLineItems(inputRecord['lineItems'], currencyCode);
@@ -430,7 +617,23 @@ function buildOrderFromInput(input: unknown): OrderRecord {
       0,
     ),
   );
+  const orderTaxLines = normalizeOrderTaxLines(inputRecord['taxLines'], currencyCode);
+  const taxTotal = formatDecimalAmount(
+    sumTaxLines(orderTaxLines) +
+      lineItems.reduce((sum, lineItem) => sum + sumTaxLines(lineItem.taxLines ?? []), 0) +
+      shippingLines.reduce((sum, shippingLine) => sum + sumTaxLines(shippingLine.taxLines ?? []), 0),
+  );
+  const discounts = normalizeOrderDiscountApplications(
+    inputRecord,
+    currencyCode,
+    parseDecimalAmount(subtotal),
+    parseDecimalAmount(shippingTotal),
+  );
+  const discountTotal = parseDecimalAmount(discounts.totalDiscountsSet?.shopMoney.amount);
   const total = formatDecimalAmount(parseDecimalAmount(subtotal) + parseDecimalAmount(shippingTotal));
+  const currentTotal = formatDecimalAmount(
+    Math.max(0, parseDecimalAmount(total) + parseDecimalAmount(taxTotal) - discountTotal),
+  );
   const transactions = Array.isArray(inputRecord['transactions']) ? inputRecord['transactions'] : [];
   const hasSuccessfulTransaction = transactions.some((transaction) => {
     if (typeof transaction !== 'object' || transaction === null) {
@@ -447,14 +650,28 @@ function buildOrderFromInput(input: unknown): OrderRecord {
     name: `#${store.getOrders().length + 1}`,
     createdAt,
     updatedAt: createdAt,
+    email: typeof inputRecord['email'] === 'string' ? inputRecord['email'] : null,
     closed: false,
     closedAt: null,
     cancelledAt: null,
     cancelReason: null,
-    sourceName: null,
-    paymentGatewayNames: hasSuccessfulTransaction ? ['manual'] : [],
-    displayFinancialStatus: hasSuccessfulTransaction ? 'PAID' : 'PENDING',
-    displayFulfillmentStatus: 'UNFULFILLED',
+    sourceName: typeof inputRecord['sourceName'] === 'string' ? inputRecord['sourceName'] : null,
+    paymentGatewayNames: (() => {
+      const gatewayNames = normalizedTransactions
+        .map((transaction) => transaction.gateway)
+        .filter((gateway): gateway is string => typeof gateway === 'string' && gateway.length > 0);
+      return gatewayNames.length > 0 ? gatewayNames : hasSuccessfulTransaction ? ['manual'] : [];
+    })(),
+    displayFinancialStatus:
+      typeof inputRecord['financialStatus'] === 'string'
+        ? inputRecord['financialStatus'].toUpperCase()
+        : hasSuccessfulTransaction
+          ? 'PAID'
+          : 'PENDING',
+    displayFulfillmentStatus:
+      typeof inputRecord['fulfillmentStatus'] === 'string'
+        ? inputRecord['fulfillmentStatus'].toUpperCase()
+        : 'UNFULFILLED',
     note: typeof inputRecord['note'] === 'string' ? inputRecord['note'] : null,
     tags: Array.isArray(inputRecord['tags'])
       ? inputRecord['tags']
@@ -468,17 +685,28 @@ function buildOrderFromInput(input: unknown): OrderRecord {
       shopMoney: normalizeMoney(subtotal, currencyCode),
     },
     currentTotalPriceSet: {
-      shopMoney: normalizeMoney(total, currencyCode),
+      shopMoney: normalizeMoney(currentTotal, currencyCode),
     },
     totalPriceSet: {
-      shopMoney: normalizeMoney(total, currencyCode),
+      shopMoney: normalizeMoney(currentTotal, currencyCode),
     },
     totalOutstandingSet: {
-      shopMoney: normalizeMoney(hasSuccessfulTransaction ? '0.0' : total, currencyCode),
+      shopMoney: normalizeMoney(hasSuccessfulTransaction ? '0.0' : currentTotal, currencyCode),
     },
     totalRefundedSet: {
       shopMoney: normalizeMoney('0.0', currencyCode),
     },
+    totalTaxSet:
+      parseDecimalAmount(taxTotal) > 0
+        ? {
+            shopMoney: normalizeMoney(taxTotal, currencyCode),
+          }
+        : normalizeZeroMoneyBag(currencyCode),
+    totalDiscountsSet: discounts.totalDiscountsSet ?? normalizeZeroMoneyBag(currencyCode),
+    discountCodes: discounts.discountCodes,
+    discountApplications: discounts.discountApplications,
+    taxLines: orderTaxLines,
+    taxesIncluded: typeof inputRecord['taxesIncluded'] === 'boolean' ? inputRecord['taxesIncluded'] : false,
     customer,
     shippingLines,
     lineItems,
@@ -740,7 +968,18 @@ function recalculateOrderTotals(order: OrderRecord): OrderRecord {
       0,
     ),
   );
-  const total = formatDecimalAmount(parseDecimalAmount(subtotal) + parseDecimalAmount(shippingTotal));
+  const taxTotal = formatDecimalAmount(
+    sumTaxLines(order.taxLines ?? []) +
+      order.lineItems.reduce((sum, lineItem) => sum + sumTaxLines(lineItem.taxLines ?? []), 0) +
+      order.shippingLines.reduce((sum, shippingLine) => sum + sumTaxLines(shippingLine.taxLines ?? []), 0),
+  );
+  const discountTotal = parseDecimalAmount(order.totalDiscountsSet?.shopMoney.amount);
+  const total = formatDecimalAmount(
+    Math.max(
+      0,
+      parseDecimalAmount(subtotal) + parseDecimalAmount(shippingTotal) + parseDecimalAmount(taxTotal) - discountTotal,
+    ),
+  );
 
   return {
     ...order,
@@ -753,6 +992,8 @@ function recalculateOrderTotals(order: OrderRecord): OrderRecord {
     totalPriceSet: {
       shopMoney: normalizeMoney(total, currencyCode),
     },
+    totalTaxSet:
+      parseDecimalAmount(taxTotal) > 0 ? { shopMoney: normalizeMoney(taxTotal, currencyCode) } : order.totalTaxSet,
   };
 }
 
@@ -782,13 +1023,23 @@ function buildOrderLineItemsFromDraftOrder(draftOrder: DraftOrderRecord): OrderL
     title: lineItem.title,
     quantity: lineItem.quantity,
     sku: lineItem.sku,
+    variantId: null,
     variantTitle: lineItem.variantTitle,
     originalUnitPriceSet: structuredClone(lineItem.originalUnitPriceSet),
+    taxLines: [],
   }));
 }
 
 function buildOrderShippingLinesFromDraftOrder(draftOrder: DraftOrderRecord): OrderShippingLineRecord[] {
-  return draftOrder.shippingLine ? [structuredClone(draftOrder.shippingLine)] : [];
+  return draftOrder.shippingLine
+    ? [
+        {
+          ...structuredClone(draftOrder.shippingLine),
+          source: null,
+          taxLines: [],
+        },
+      ]
+    : [];
 }
 
 function buildOrderFromCompletedDraftOrder(
@@ -805,6 +1056,7 @@ function buildOrderFromCompletedDraftOrder(
     name: `#${store.getOrders().length + 1}`,
     createdAt,
     updatedAt: createdAt,
+    email: draftOrder.email,
     closed: false,
     closedAt: null,
     cancelledAt: null,
@@ -830,6 +1082,12 @@ function buildOrderFromCompletedDraftOrder(
     totalRefundedSet: {
       shopMoney: normalizeMoney('0.0', currencyCode),
     },
+    totalTaxSet: normalizeZeroMoneyBag(currencyCode),
+    totalDiscountsSet: normalizeZeroMoneyBag(currencyCode),
+    discountCodes: [],
+    discountApplications: [],
+    taxLines: [],
+    taxesIncluded: false,
     customer: buildOrderCustomerFromDraftOrder(draftOrder),
     shippingLines: buildOrderShippingLinesFromDraftOrder(draftOrder),
     lineItems: buildOrderLineItemsFromDraftOrder(draftOrder),
@@ -852,10 +1110,12 @@ function buildCalculatedLineItemFromVariant(variantId: string, quantity: number)
     title: product?.title ?? variant.title,
     quantity,
     sku: variant.sku,
+    variantId,
     variantTitle: variant.title,
     originalUnitPriceSet: {
       shopMoney: normalizeMoney(formatDecimalAmount(parseDecimalAmount(variant.price)), currencyCode),
     },
+    taxLines: [],
   };
 }
 
@@ -1137,13 +1397,27 @@ function serializeMoneyField(field: FieldNode, money: MoneyV2Record | null): Rec
   return result;
 }
 
-function serializeShopMoneySet(field: FieldNode, money: MoneyV2Record | null): Record<string, unknown> | null {
+function serializeShopMoneySet(
+  field: FieldNode,
+  money:
+    | MoneyV2Record
+    | {
+        shopMoney: MoneyV2Record | null;
+        presentmentMoney?: MoneyV2Record | null | undefined;
+      }
+    | null,
+): Record<string, unknown> | null {
+  const shopMoney = money && 'shopMoney' in money ? money.shopMoney : money;
+  const presentmentMoney = money && 'shopMoney' in money ? (money.presentmentMoney ?? null) : null;
   const result: Record<string, unknown> = {};
   for (const selection of getSelectedChildFields(field)) {
     const key = getFieldResponseKey(selection);
     switch (selection.name.value) {
       case 'shopMoney':
-        result[key] = serializeMoneyField(selection, money);
+        result[key] = serializeMoneyField(selection, shopMoney);
+        break;
+      case 'presentmentMoney':
+        result[key] = serializeMoneyField(selection, presentmentMoney);
         break;
       default:
         result[key] = null;
@@ -1227,6 +1501,7 @@ function serializeDraftOrderShippingLine(
   if (!shippingLine) {
     return null;
   }
+  const orderShippingLine = shippingLine as DraftOrderShippingLineRecord & Partial<OrderShippingLineRecord>;
   const result: Record<string, unknown> = {};
   for (const selection of getSelectedChildFields(field)) {
     const key = getFieldResponseKey(selection);
@@ -1237,8 +1512,14 @@ function serializeDraftOrderShippingLine(
       case 'code':
         result[key] = shippingLine.code;
         break;
+      case 'source':
+        result[key] = orderShippingLine.source ?? null;
+        break;
       case 'originalPriceSet':
-        result[key] = serializeShopMoneySet(selection, shippingLine.originalPriceSet?.shopMoney ?? null);
+        result[key] = serializeShopMoneySet(selection, shippingLine.originalPriceSet ?? null);
+        break;
+      case 'taxLines':
+        result[key] = serializeOrderTaxLines(selection, orderShippingLine.taxLines ?? []);
         break;
       case 'discountedPriceSet':
       case 'currentDiscountedPriceSet':
@@ -1247,7 +1528,6 @@ function serializeDraftOrderShippingLine(
       case 'custom':
         result[key] = true;
         break;
-      case 'source':
       case 'carrierIdentifier':
       case 'deliveryCategory':
       case 'phone':
@@ -1257,7 +1537,6 @@ function serializeDraftOrderShippingLine(
       case 'isRemoved':
         result[key] = false;
         break;
-      case 'taxLines':
       case 'discountAllocations':
         result[key] = [];
         break;
@@ -1422,7 +1701,7 @@ function serializeDraftOrderLineItemNode(
         nodeResult[nodeKey] = serializeDraftOrderAppliedDiscount(nodeSelection, lineItem.appliedDiscount);
         break;
       case 'originalUnitPriceSet':
-        nodeResult[nodeKey] = serializeShopMoneySet(nodeSelection, lineItem.originalUnitPriceSet?.shopMoney ?? null);
+        nodeResult[nodeKey] = serializeShopMoneySet(nodeSelection, lineItem.originalUnitPriceSet ?? null);
         break;
       case 'originalTotalSet':
         nodeResult[nodeKey] = serializeShopMoneySet(nodeSelection, lineItem.originalTotalSet?.shopMoney ?? null);
@@ -2170,6 +2449,126 @@ function serializeOrderCustomer(
   return result;
 }
 
+function serializeOrderTaxLines(field: FieldNode, taxLines: OrderTaxLineRecord[]): Array<Record<string, unknown>> {
+  return taxLines.map((taxLine) => {
+    const result: Record<string, unknown> = {};
+    for (const selection of getSelectedChildFields(field)) {
+      const key = getFieldResponseKey(selection);
+      switch (selection.name.value) {
+        case 'title':
+          result[key] = taxLine.title;
+          break;
+        case 'rate':
+          result[key] = taxLine.rate;
+          break;
+        case 'channelLiable':
+          result[key] = taxLine.channelLiable;
+          break;
+        case 'priceSet':
+          result[key] = serializeShopMoneySet(selection, taxLine.priceSet ?? null);
+          break;
+        default:
+          result[key] = null;
+          break;
+      }
+    }
+    return result;
+  });
+}
+
+function serializeOrderDiscountApplicationsConnection(
+  field: FieldNode,
+  discountApplications: OrderDiscountApplicationRecord[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'nodes':
+        result[key] = discountApplications.map((discountApplication) =>
+          serializeOrderDiscountApplication(selection, discountApplication),
+        );
+        break;
+      case 'edges':
+        result[key] = discountApplications.map((discountApplication, index) => {
+          const edgeResult: Record<string, unknown> = {};
+          for (const edgeSelection of getSelectedChildFields(selection)) {
+            const edgeKey = getFieldResponseKey(edgeSelection);
+            switch (edgeSelection.name.value) {
+              case 'cursor':
+                edgeResult[edgeKey] = `cursor:discount-application:${index + 1}`;
+                break;
+              case 'node':
+                edgeResult[edgeKey] = serializeOrderDiscountApplication(edgeSelection, discountApplication);
+                break;
+              default:
+                edgeResult[edgeKey] = null;
+                break;
+            }
+          }
+          return edgeResult;
+        });
+        break;
+      case 'pageInfo':
+        result[key] = serializePageInfo(selection);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeOrderDiscountApplication(
+  field: FieldNode,
+  discountApplication: OrderDiscountApplicationRecord,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'code':
+        result[key] = discountApplication.code;
+        break;
+      case 'value':
+        result[key] = serializeOrderDiscountApplicationValue(selection, discountApplication);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeOrderDiscountApplicationValue(
+  field: FieldNode,
+  discountApplication: OrderDiscountApplicationRecord,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'amount':
+        result[key] = discountApplication.value.type === 'money' ? (discountApplication.value.amount ?? null) : null;
+        break;
+      case 'currencyCode':
+        result[key] =
+          discountApplication.value.type === 'money' ? (discountApplication.value.currencyCode ?? null) : null;
+        break;
+      case 'percentage':
+        result[key] =
+          discountApplication.value.type === 'percentage' ? (discountApplication.value.percentage ?? null) : null;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
 function serializeOrderLineItemNode(field: FieldNode, lineItem: OrderLineItemRecord): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const selection of getSelectedChildFields(field)) {
@@ -2187,11 +2586,29 @@ function serializeOrderLineItemNode(field: FieldNode, lineItem: OrderLineItemRec
       case 'sku':
         result[key] = lineItem.sku;
         break;
+      case 'variant':
+        result[key] = lineItem.variantId
+          ? Object.fromEntries(
+              getSelectedChildFields(selection).map((variantSelection) => {
+                const variantKey = getFieldResponseKey(variantSelection);
+                switch (variantSelection.name.value) {
+                  case 'id':
+                    return [variantKey, lineItem.variantId];
+                  default:
+                    return [variantKey, null];
+                }
+              }),
+            )
+          : null;
+        break;
       case 'variantTitle':
         result[key] = lineItem.variantTitle;
         break;
       case 'originalUnitPriceSet':
-        result[key] = serializeShopMoneySet(selection, lineItem.originalUnitPriceSet?.shopMoney ?? null);
+        result[key] = serializeShopMoneySet(selection, lineItem.originalUnitPriceSet ?? null);
+        break;
+      case 'taxLines':
+        result[key] = serializeOrderTaxLines(selection, lineItem.taxLines ?? []);
         break;
       default:
         result[key] = null;
@@ -2276,7 +2693,7 @@ function serializeOrderTransaction(field: FieldNode, transaction: OrderTransacti
         result[key] = transaction.gateway;
         break;
       case 'amountSet':
-        result[key] = serializeShopMoneySet(selection, transaction.amountSet?.shopMoney ?? null);
+        result[key] = serializeShopMoneySet(selection, transaction.amountSet ?? null);
         break;
       default:
         result[key] = null;
@@ -2579,6 +2996,9 @@ function serializeOrderNode(field: FieldNode, order: OrderRecord): Record<string
       case 'updatedAt':
         result[key] = order.updatedAt;
         break;
+      case 'email':
+        result[key] = order.email ?? order.customer?.email ?? null;
+        break;
       case 'closed':
         result[key] = order.closed ?? false;
         break;
@@ -2619,13 +3039,13 @@ function serializeOrderNode(field: FieldNode, order: OrderRecord): Record<string
         result[key] = serializeDraftOrderAddress(selection, order.shippingAddress);
         break;
       case 'subtotalPriceSet':
-        result[key] = serializeShopMoneySet(selection, order.subtotalPriceSet?.shopMoney ?? null);
+        result[key] = serializeShopMoneySet(selection, order.subtotalPriceSet ?? null);
         break;
       case 'currentTotalPriceSet':
-        result[key] = serializeShopMoneySet(selection, order.currentTotalPriceSet?.shopMoney ?? null);
+        result[key] = serializeShopMoneySet(selection, order.currentTotalPriceSet ?? null);
         break;
       case 'totalPriceSet':
-        result[key] = serializeShopMoneySet(selection, order.totalPriceSet?.shopMoney ?? null);
+        result[key] = serializeShopMoneySet(selection, order.totalPriceSet ?? null);
         break;
       case 'totalOutstandingSet':
         result[key] = serializeShopMoneySet(
@@ -2634,7 +3054,25 @@ function serializeOrderNode(field: FieldNode, order: OrderRecord): Record<string
         );
         break;
       case 'totalRefundedSet':
-        result[key] = serializeShopMoneySet(selection, order.totalRefundedSet?.shopMoney ?? null);
+        result[key] = serializeShopMoneySet(selection, order.totalRefundedSet ?? null);
+        break;
+      case 'totalTaxSet':
+        result[key] = serializeShopMoneySet(selection, order.totalTaxSet ?? null);
+        break;
+      case 'totalDiscountsSet':
+        result[key] = serializeShopMoneySet(selection, order.totalDiscountsSet ?? null);
+        break;
+      case 'discountCodes':
+        result[key] = structuredClone(order.discountCodes ?? []);
+        break;
+      case 'discountApplications':
+        result[key] = serializeOrderDiscountApplicationsConnection(selection, order.discountApplications ?? []);
+        break;
+      case 'taxLines':
+        result[key] = serializeOrderTaxLines(selection, order.taxLines ?? []);
+        break;
+      case 'taxesIncluded':
+        result[key] = order.taxesIncluded ?? false;
         break;
       case 'customer':
         result[key] = serializeOrderCustomer(selection, order.customer);
@@ -2785,6 +3223,11 @@ function readOrderUpdateInput(variables: Record<string, unknown>): Record<string
 
 function readOrderCreateInput(variables: Record<string, unknown>): unknown {
   return variables['order'] ?? null;
+}
+
+function readOrderCreateOptions(variables: Record<string, unknown>): Record<string, unknown> {
+  const options = variables['options'];
+  return typeof options === 'object' && options !== null ? (options as Record<string, unknown>) : {};
 }
 
 function readDraftOrderCreateInput(variables: Record<string, unknown>): unknown {
@@ -3330,6 +3773,78 @@ function serializeSelectedOrderMutationPayload(field: FieldNode): Record<string,
   return result;
 }
 
+function validateOrderCreateInput(input: unknown): Array<{ field: string[] | null; message: string }> {
+  if (typeof input !== 'object' || input === null) {
+    return [{ field: ['order'], message: 'Order input is required.' }];
+  }
+
+  const inputRecord = input as Record<string, unknown>;
+  const lineItems = Array.isArray(inputRecord['lineItems']) ? inputRecord['lineItems'] : [];
+  if (lineItems.length === 0) {
+    return [{ field: ['order', 'lineItems'], message: 'Line items must include at least one line item.' }];
+  }
+
+  const hasOrderTaxLines = Array.isArray(inputRecord['taxLines']) && inputRecord['taxLines'].length > 0;
+  const hasNestedLineTaxLines = lineItems.some(
+    (lineItem) =>
+      typeof lineItem === 'object' &&
+      lineItem !== null &&
+      Array.isArray((lineItem as Record<string, unknown>)['taxLines']) &&
+      ((lineItem as Record<string, unknown>)['taxLines'] as unknown[]).length > 0,
+  );
+  const shippingLines = Array.isArray(inputRecord['shippingLines']) ? inputRecord['shippingLines'] : [];
+  const hasNestedShippingTaxLines = shippingLines.some(
+    (shippingLine) =>
+      typeof shippingLine === 'object' &&
+      shippingLine !== null &&
+      Array.isArray((shippingLine as Record<string, unknown>)['taxLines']) &&
+      ((shippingLine as Record<string, unknown>)['taxLines'] as unknown[]).length > 0,
+  );
+  if (hasOrderTaxLines && (hasNestedLineTaxLines || hasNestedShippingTaxLines)) {
+    return [
+      {
+        field: ['order', 'taxLines'],
+        message: 'Tax lines can be specified on the order or on line items and shipping lines, but not both.',
+      },
+    ];
+  }
+
+  const discountCode = readDiscountCodeInput(inputRecord);
+  if (discountCode) {
+    const supportedDiscountKeys = [
+      'freeShippingDiscountCode',
+      'itemFixedDiscountCode',
+      'itemPercentageDiscountCode',
+    ].filter((key) => readDiscountCodeAttributes(discountCode, key) !== null);
+    if (supportedDiscountKeys.length > 1) {
+      return [
+        {
+          field: ['order', 'discountCode'],
+          message: 'Only one discount code type can be applied to an order.',
+        },
+      ];
+    }
+  }
+
+  return [];
+}
+
+function validateOrderCreateOptions(
+  options: Record<string, unknown>,
+): Array<{ field: string[] | null; message: string }> {
+  const inventoryBehaviour = options['inventoryBehaviour'];
+  if (
+    inventoryBehaviour !== undefined &&
+    inventoryBehaviour !== 'BYPASS' &&
+    inventoryBehaviour !== 'DECREMENT_IGNORING_POLICY' &&
+    inventoryBehaviour !== 'DECREMENT_OBEYING_POLICY'
+  ) {
+    return [{ field: ['options', 'inventoryBehaviour'], message: 'Inventory behaviour is not supported.' }];
+  }
+
+  return [];
+}
+
 function serializeDraftOrderCompletePayload(
   field: FieldNode,
   draftOrder: DraftOrderRecord | null,
@@ -3790,6 +4305,28 @@ export function handleOrderMutation(
 
       if (readMode === 'snapshot' || readMode === 'live-hybrid') {
         handled = true;
+        const options = readOrderCreateOptions(variables);
+        const validationErrors = [...validateOrderCreateInput(order), ...validateOrderCreateOptions(options)];
+        if (validationErrors.length > 0) {
+          const payload: Record<string, unknown> = {};
+          for (const selection of getSelectedChildFields(field)) {
+            const selectionKey = getFieldResponseKey(selection);
+            switch (selection.name.value) {
+              case 'order':
+                payload[selectionKey] = null;
+                break;
+              case 'userErrors':
+                payload[selectionKey] = serializeSelectedUserErrors(selection, validationErrors);
+                break;
+              default:
+                payload[selectionKey] = null;
+                break;
+            }
+          }
+          data[key] = payload;
+          continue;
+        }
+
         const stagedOrder = store.stageCreateOrder(buildOrderFromInput(order));
         const payload: Record<string, unknown> = {};
         for (const selection of getSelectedChildFields(field)) {
