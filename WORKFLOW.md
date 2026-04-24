@@ -18,7 +18,7 @@ tracker:
 polling:
   interval_ms: 10000
 workspace:
-  root: {{WORKSPACE_ROOT}}
+  root: '{{WORKSPACE_ROOT}}'
 hooks:
   after_create: |
     git clone --depth 1 {{SOURCE_REPO_URL}} .
@@ -38,7 +38,7 @@ agent:
     merging: 3
   max_turns: 24
 codex:
-  command: {{CODEX_COMMAND}}
+  command: '{{CODEX_COMMAND}}'
   approval_policy: never
   thread_sandbox: danger-full-access
 server:
