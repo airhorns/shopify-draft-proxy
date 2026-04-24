@@ -117,6 +117,14 @@ App -> Koa server -> operation classifier
 - compares captured Shopify payload slices to proxy payload slices with strict JSON semantics
 - allows nondeterministic values only through explicit path-scoped rules in parity specs
 
+### `scripts/capture-discount-conformance.ts`
+
+- probes the live conformance app's Admin access scopes through `currentAppInstallation.accessScopes`
+- records `read_discounts` / `write_discounts` availability before attempting discount catalog captures
+- obtains tokens only through `scripts/shopify-conformance-auth.mts`; repo `.env` files must not contain Admin access tokens
+- fails before discount reads or writes when either required discount scope is missing
+- writes discount capture files using the `discount-*` conformance naming convention only after scope checks pass
+
 ## State model
 
 The runtime should use a normalized object graph rather than raw GraphQL blobs.

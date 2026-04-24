@@ -37,7 +37,7 @@ export const graphqlVariablesSchema = z.record(z.string(), z.unknown());
 export const operationRegistryEntrySchema = z.strictObject({
   name: z.string().min(1),
   type: z.enum(['query', 'mutation']),
-  domain: z.enum(['products', 'media', 'customers', 'orders', 'unknown']),
+  domain: z.enum(['products', 'media', 'customers', 'orders', 'discounts', 'unknown']),
   execution: z.enum(['overlay-read', 'stage-locally', 'passthrough']),
   implemented: z.boolean(),
   matchNames: z.array(z.string().min(1)),
