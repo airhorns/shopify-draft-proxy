@@ -7,6 +7,24 @@
       "draftOrders": {
         "edges": [
           {
+            "cursor": "eyJsYXN0X2lkIjoxMzA3ODA5MTg2MDI1LCJsYXN0X3ZhbHVlIjoiMTMwNzgwOTE4NjAyNSJ9",
+            "node": {
+              "id": "gid://shopify/DraftOrder/1307809186025",
+              "name": "#D47",
+              "status": "OPEN",
+              "email": "hermes-draft-order-probe-1777070054514@example.com",
+              "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
+              "createdAt": "2026-04-24T22:34:17Z",
+              "updatedAt": "2026-04-24T22:34:17Z",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "38.25",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          },
+          {
             "cursor": "eyJsYXN0X2lkIjoxMzA3Nzg0NTQ0NDg5LCJsYXN0X3ZhbHVlIjoiMTMwNzc4NDU0NDQ4OSJ9",
             "node": {
               "id": "gid://shopify/DraftOrder/1307784544489",
@@ -77,31 +95,13 @@
                 }
               }
             }
-          },
-          {
-            "cursor": "eyJsYXN0X2lkIjoxMzA2ODYzMTQxMDk3LCJsYXN0X3ZhbHVlIjoiMTMwNjg2MzE0MTA5NyJ9",
-            "node": {
-              "id": "gid://shopify/DraftOrder/1306863141097",
-              "name": "#D42",
-              "status": "OPEN",
-              "email": "hermes-draft-order-probe-1776899588766@example.com",
-              "tags": ["draft-order-create", "parity-probe"],
-              "createdAt": "2026-04-22T23:13:11Z",
-              "updatedAt": "2026-04-22T23:13:11Z",
-              "totalPriceSet": {
-                "shopMoney": {
-                  "amount": "10.0",
-                  "currencyCode": "CAD"
-                }
-              }
-            }
           }
         ],
         "pageInfo": {
           "hasNextPage": true,
           "hasPreviousPage": false,
-          "startCursor": "eyJsYXN0X2lkIjoxMzA3Nzg0NTQ0NDg5LCJsYXN0X3ZhbHVlIjoiMTMwNzc4NDU0NDQ4OSJ9",
-          "endCursor": "eyJsYXN0X2lkIjoxMzA2ODYzMTQxMDk3LCJsYXN0X3ZhbHVlIjoiMTMwNjg2MzE0MTA5NyJ9"
+          "startCursor": "eyJsYXN0X2lkIjoxMzA3ODA5MTg2MDI1LCJsYXN0X3ZhbHVlIjoiMTMwNzgwOTE4NjAyNSJ9",
+          "endCursor": "eyJsYXN0X2lkIjoxMzA2ODYzMjcyMTY5LCJsYXN0X3ZhbHVlIjoiMTMwNjg2MzI3MjE2OSJ9"
         }
       }
     },

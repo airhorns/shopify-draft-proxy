@@ -10,7 +10,7 @@
     "variablesCapturePath": "$.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "The checked-in live capture uses a merchant-realistic draftOrderCreate request with customer linkage, custom and variant line items, shipping line, discounts, tax/reserve fields, custom attributes, and paymentTerms selected as null because the current credential lacks read_payment_terms. The scenario replays captured variables and compares the complete selected DraftOrder payload. Shopify-generated IDs, draft order names, and invoice URLs are path-scoped expected differences.",
+  "notes": "The checked-in live capture uses a merchant-realistic draftOrderCreate request with customer linkage, custom and variant line items, shipping line, discounts, tax/reserve fields, custom attributes, and paymentTerms selected; with the refreshed read_payment_terms grant Shopify now returns the field as a readable null because the draft has no payment terms set. The scenario replays captured variables and compares the complete selected DraftOrder payload. Shopify-generated IDs, draft order names, and invoice URLs are path-scoped expected differences.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [

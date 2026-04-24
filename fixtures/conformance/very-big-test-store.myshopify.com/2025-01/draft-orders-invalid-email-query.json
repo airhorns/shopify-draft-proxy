@@ -36,7 +36,7 @@
         }
       },
       "draftOrdersCount": {
-        "count": 46,
+        "count": 47,
         "precision": "EXACT"
       }
     },
@@ -46,7 +46,7 @@
         "actualQueryCost": 13,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1987,
+          "currentlyAvailable": 1986,
           "restoreRate": 100
         }
       },

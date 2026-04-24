@@ -5,7 +5,7 @@
   "response": {
     "data": {
       "draftOrdersCount": {
-        "count": 46,
+        "count": 47,
         "precision": "EXACT"
       }
     },
