@@ -335,10 +335,13 @@ Important live findings:
 
 - the first `shippingLine: null` happy-path quirk was tied to the earlier
   `priceWithCurrency` input shape; Shopify's current draft-order examples use
-  `shippingLine.price`, and HAR-117's local staging models that documented
-  shape as a non-null custom shipping line while keeping the old captured
-  `priceWithCurrency` fixture as historical evidence until live auth is healthy
-  enough to refresh it
+  `shippingLine.price`, and HAR-117's refreshed live capture confirms that
+  documented shape comes back as a non-null custom shipping line in
+  `draftOrderCreate` and the immediate `draftOrder(id:)` detail read
+- current live auth on this host is healthy for `conformance:probe` and
+  `draftOrderCreate` capture; the remaining `paymentTerms: null` result is not
+  an auth-refresh failure, but a narrower app-scope gap:
+  `read_payment_terms` is required to read that field
 - once `draftOrderCreate` is treated as a supported staged write, do not accidentally limit that local behavior to `snapshot` mode only; in live-hybrid the proxy should still stage the supported create locally and short-circuit immediate `draftOrder(id:)` reads for the newly staged synthetic draft id instead of proxying those supported roots upstream
 
 ### 7b. `orderCreate` also has inline GraphQL-validation branches before Shopify reaches the offline-token gate
@@ -457,7 +460,10 @@ Practical rule:
 - mirror the captured unknown-id userError **and** the missing-id `INVALID_VARIABLE` branch in `snapshot` mode without hitting upstream
 - do not claim live parity for the expanded simple-update field slice until a fresh Shopify conformance grant captures `orderUpdate-expanded-live-parity`
 - keep `live-hybrid` conservative until non-empty local order hydration/edit semantics exist; passthrough is safer than inventing order state
-- do not let this small success erase the separate creation blockers: `orderCreate` still needs `write_orders` plus an offline token, and `draftOrderCreate` still needs draft-order write/manage access
+- do not let this small success erase the remaining creation/read blockers:
+  `orderCreate` still needs `write_orders` plus an offline token, and
+  draft-order payment terms still need a conformance app grant that includes
+  `read_payment_terms`
 
 ### 8a. The first calculated-order edit family is blocked uniformly on `write_order_edits` on this host
 
