@@ -1,0 +1,170 @@
+{
+  "setup": {
+    "productCreate": {
+      "variables": {
+        "product": {
+          "title": "Hermes fileDelete media reference 1777064718787",
+          "status": "DRAFT"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/9264017572073",
+              "title": "Hermes fileDelete media reference 1777064718787"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "productCreateMedia": {
+      "variables": {
+        "productId": "gid://shopify/Product/9264017572073",
+        "media": [
+          {
+            "mediaContentType": "IMAGE",
+            "originalSource": "https://placehold.co/600x400/png",
+            "alt": "File delete media reference"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "productCreateMedia": {
+            "media": [
+              {
+                "id": "gid://shopify/MediaImage/39514533167337",
+                "alt": "File delete media reference",
+                "mediaContentType": "IMAGE",
+                "status": "UPLOADED",
+                "preview": {
+                  "image": null
+                },
+                "image": null
+              }
+            ],
+            "mediaUserErrors": [],
+            "product": {
+              "id": "gid://shopify/Product/9264017572073",
+              "media": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/MediaImage/39514533167337",
+                    "alt": "File delete media reference",
+                    "mediaContentType": "IMAGE",
+                    "status": "UPLOADED",
+                    "preview": {
+                      "image": null
+                    },
+                    "image": null
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 41,
+            "actualQueryCost": 28,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1972,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "productReadBeforeDelete": {
+      "data": {
+        "product": {
+          "id": "gid://shopify/Product/9264017572073",
+          "media": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MediaImage/39514533167337",
+                "alt": "File delete media reference",
+                "mediaContentType": "IMAGE",
+                "status": "PROCESSING",
+                "preview": {
+                  "image": null
+                },
+                "image": null
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 19,
+          "actualQueryCost": 6,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1994,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "mutation": {
+    "variables": {
+      "fileIds": ["gid://shopify/MediaImage/39514533167337"]
+    },
+    "response": {
+      "data": {
+        "fileDelete": {
+          "deletedFileIds": ["gid://shopify/MediaImage/39514533167337"],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/9264017572073",
+        "media": {
+          "nodes": []
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 19,
+        "actualQueryCost": 7,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1993,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

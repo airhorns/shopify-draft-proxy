@@ -26,6 +26,7 @@
     "conformance:capture-product-state-mutations": "tsx ./scripts/capture-product-state-mutation-conformance.mts",
     "conformance:capture-product-publications": "tsx ./scripts/capture-product-publication-conformance.mts",
     "conformance:capture-product-media-mutations": "tsx ./scripts/capture-product-media-mutation-conformance.mts",
+    "conformance:capture-file-mutations": "tsx ./scripts/capture-file-mutation-conformance.mts",
     "conformance:capture-product-option-mutations": "tsx ./scripts/capture-product-option-mutation-conformance.mts",
     "conformance:capture-product-variant-mutations": "tsx ./scripts/capture-product-variant-mutation-conformance.mts",
     "conformance:capture-inventory-item-mutations": "tsx ./scripts/capture-inventory-item-mutation-conformance.mts",

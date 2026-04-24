@@ -23,6 +23,7 @@ const emptySnapshot = {
   files: {},
   productMetafields: {},
   deletedProductIds: {},
+  deletedFileIds: {},
   deletedCollectionIds: {},
   deletedCustomerIds: {},
   orders: {},

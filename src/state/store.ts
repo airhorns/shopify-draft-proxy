@@ -42,6 +42,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   files: {},
   productMetafields: {},
   deletedProductIds: {},
+  deletedFileIds: {},
   deletedCollectionIds: {},
   deletedCustomerIds: {},
 };
@@ -641,10 +642,49 @@ export class InMemoryStore {
 
   stageCreateFiles(files: FileRecord[]): FileRecord[] {
     for (const file of files) {
+      delete this.stagedState.deletedFileIds[file.id];
       this.stagedState.files[file.id] = structuredClone(file);
     }
 
     return files.map((file) => structuredClone(file));
+  }
+
+  stageDeleteFiles(fileIds: string[]): void {
+    const deletedFileIds = new Set(fileIds);
+
+    for (const fileId of deletedFileIds) {
+      delete this.stagedState.files[fileId];
+      this.stagedState.deletedFileIds[fileId] = true;
+    }
+
+    const productIdsWithDeletedMedia = new Set(
+      [...Object.values(this.baseState.productMedia), ...Object.values(this.stagedState.productMedia)]
+        .filter((mediaRecord) => mediaRecord.id && deletedFileIds.has(mediaRecord.id))
+        .map((mediaRecord) => mediaRecord.productId),
+    );
+
+    for (const productId of productIdsWithDeletedMedia) {
+      const nextMedia = this.getEffectiveMediaByProductId(productId).filter(
+        (mediaRecord) => !mediaRecord.id || !deletedFileIds.has(mediaRecord.id),
+      );
+      this.replaceStagedMediaForProduct(productId, nextMedia);
+    }
+  }
+
+  hasEffectiveFileById(fileId: string): boolean {
+    if (this.stagedState.deletedFileIds[fileId]) {
+      return false;
+    }
+
+    if (this.stagedState.files[fileId] || this.baseState.files[fileId]) {
+      return true;
+    }
+
+    return [...Object.values(this.baseState.productMedia), ...Object.values(this.stagedState.productMedia)].some(
+      (mediaRecord) =>
+        mediaRecord.id === fileId &&
+        this.getEffectiveMediaByProductId(mediaRecord.productId).some((candidate) => candidate.id === fileId),
+    );
   }
 
   replaceBaseMetafieldsForProduct(productId: string, metafields: ProductMetafieldRecord[]): void {
