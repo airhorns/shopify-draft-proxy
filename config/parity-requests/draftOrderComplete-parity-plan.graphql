@@ -24,13 +24,6 @@ mutation DraftOrderCompleteParityPlan($id: ID!, $paymentGatewayId: ID, $sourceNa
           title
           quantity
           sku
-          variantTitle
-          originalUnitPriceSet {
-            shopMoney {
-              amount
-              currencyCode
-            }
-          }
         }
       }
       order {

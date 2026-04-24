@@ -5,9 +5,9 @@ import 'dotenv/config';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { runAdminGraphqlRequest } from './conformance-graphql-client.mjs';
-import { extractManualStoreAuthTokenSummary } from './product-publication-conformance-lib.mjs';
-import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import { runAdminGraphqlRequest } from './conformance-graphql-client.ts';
+import { extractManualStoreAuthTokenSummary } from './product-publication-conformance-lib.mts';
+import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mts';
 
 const requiredVars = ['SHOPIFY_CONFORMANCE_STORE_DOMAIN', 'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
 
@@ -72,6 +72,7 @@ const draftOrderCompleteInlineMissingIdFixturePath = path.join(
 );
 const draftOrderCompleteInlineNullIdFixturePath = path.join(fixtureDir, 'draft-order-complete-inline-null-id.json');
 const draftOrderCompleteMissingIdFixturePath = path.join(fixtureDir, 'draft-order-complete-missing-id.json');
+const draftOrderCompleteParityFixturePath = path.join(fixtureDir, 'draft-order-complete-parity.json');
 const orderEditBeginMissingIdFixturePath = path.join(fixtureDir, 'order-edit-begin-missing-id.json');
 const orderEditAddVariantMissingIdFixturePath = path.join(fixtureDir, 'order-edit-add-variant-missing-id.json');
 const orderEditSetQuantityMissingIdFixturePath = path.join(fixtureDir, 'order-edit-set-quantity-missing-id.json');
@@ -1004,6 +1005,51 @@ const draftOrderDetailRead = `#graphql
   }
 `;
 
+const draftOrderCompleteDownstreamRead = `#graphql
+  query DraftOrderCompleteDownstreamRead($id: ID!) {
+    draftOrder(id: $id) {
+      id
+      name
+      status
+      ready
+      invoiceUrl
+      completedAt
+      totalPriceSet { shopMoney { amount currencyCode } }
+      lineItems(first: 5) {
+        nodes {
+          id
+          title
+          quantity
+          sku
+          variantTitle
+          originalUnitPriceSet { shopMoney { amount currencyCode } }
+        }
+      }
+      order {
+        id
+        name
+        sourceName
+        paymentGatewayNames
+        displayFinancialStatus
+        displayFulfillmentStatus
+        note
+        tags
+        currentTotalPriceSet { shopMoney { amount currencyCode } }
+        lineItems(first: 5) {
+          nodes {
+            id
+            title
+            quantity
+            sku
+            variantTitle
+            originalUnitPriceSet { shopMoney { amount currencyCode } }
+          }
+        }
+      }
+    }
+  }
+`;
+
 const draftOrdersCatalogRead = `#graphql
   query DraftOrdersReadParityPlan($first: Int!) {
     draftOrders(first: $first, reverse: true) {
@@ -1570,8 +1616,7 @@ async function main() {
     paymentGatewayId: null,
     sourceName: 'hermes-cron-orders',
   };
-  const draftOrderCompleteVariables = {
-    id: 'gid://shopify/DraftOrder/0',
+  const draftOrderCompleteBaseVariables = {
     paymentGatewayId: null,
     sourceName: 'hermes-cron-orders',
     paymentPending: false,
@@ -1651,7 +1696,24 @@ async function main() {
     draftOrderCompleteMissingIdProbe,
     draftOrderCompleteMissingIdVariables,
   );
+  const createdDraftOrderId = draftOrderCreateResult.payload?.data?.draftOrderCreate?.draftOrder?.id ?? null;
+  const draftOrderDetailResult = createdDraftOrderId
+    ? await runGraphql(draftOrderDetailRead, { id: createdDraftOrderId })
+    : null;
+  const draftOrderCompleteVariables = {
+    id: createdDraftOrderId ?? 'gid://shopify/DraftOrder/0',
+    ...draftOrderCompleteBaseVariables,
+  };
   const draftOrderCompleteResult = await runGraphql(draftOrderCompleteProbe, draftOrderCompleteVariables);
+  const completedDraftOrder = draftOrderCompleteResult.payload?.data?.draftOrderComplete?.draftOrder ?? null;
+  const completedDraftOrderId = completedDraftOrder?.id ?? null;
+  const completedOrderId = completedDraftOrder?.order?.id ?? null;
+  const draftOrderReadAfterCompleteResult = completedDraftOrderId
+    ? await runGraphql(draftOrderCompleteDownstreamRead, { id: completedDraftOrderId })
+    : null;
+  const orderReadAfterDraftOrderCompleteResult = completedOrderId
+    ? await runGraphql(orderReadAfterCreate, { id: completedOrderId })
+    : null;
   const orderEditBeginMissingIdResult = await runGraphql(
     orderEditBeginMissingIdProbe,
     orderEditBeginMissingIdVariables,
@@ -1674,7 +1736,6 @@ async function main() {
   const orderEditCommitResult = await runGraphql(orderEditCommitProbe, orderEditCommitVariables);
 
   const createdOrderId = orderCreateResult.payload?.data?.orderCreate?.order?.id ?? null;
-  const createdDraftOrderId = draftOrderCreateResult.payload?.data?.draftOrderCreate?.draftOrder?.id ?? null;
   const orderReadAfterCreateResult = createdOrderId
     ? await runGraphql(orderReadAfterCreate, { id: createdOrderId })
     : null;
@@ -1691,9 +1752,6 @@ async function main() {
     : null;
   const orderReadAfterUpdateResult = createdOrderId
     ? await runGraphql(orderReadAfterUpdate, { id: createdOrderId })
-    : null;
-  const draftOrderDetailResult = createdDraftOrderId
-    ? await runGraphql(draftOrderDetailRead, { id: createdDraftOrderId })
     : null;
   const draftOrdersCatalogVariables = { first: 5 };
   const draftOrdersCountVariables = { query: null };
@@ -1731,6 +1789,8 @@ async function main() {
     getAuthFailureMessage(draftOrderCompleteInlineNullIdResult) ??
     getAuthFailureMessage(draftOrderCompleteMissingIdResult) ??
     getAuthFailureMessage(draftOrderCompleteResult) ??
+    getAuthFailureMessage(draftOrderReadAfterCompleteResult) ??
+    getAuthFailureMessage(orderReadAfterDraftOrderCompleteResult) ??
     getAuthFailureMessage(orderEditBeginMissingIdResult) ??
     getAuthFailureMessage(orderEditBeginResult) ??
     getAuthFailureMessage(orderEditAddVariantMissingIdResult) ??
@@ -1937,6 +1997,34 @@ async function main() {
         response: draftOrderCompleteMissingIdResult.payload,
       },
     });
+    if (completedDraftOrderId && completedOrderId) {
+      await writeJson(draftOrderCompleteParityFixturePath, {
+        setup: {
+          draftOrderCreate: {
+            variables: draftOrderCreateVariables,
+            mutation: {
+              response: draftOrderCreateResult.payload,
+            },
+            downstreamRead: {
+              variables: { id: createdDraftOrderId },
+              response: draftOrderDetailResult?.payload ?? null,
+            },
+          },
+        },
+        variables: draftOrderCompleteVariables,
+        mutation: {
+          response: draftOrderCompleteResult.payload,
+        },
+        downstreamRead: {
+          variables: { id: completedDraftOrderId },
+          response: draftOrderReadAfterCompleteResult?.payload ?? null,
+        },
+        downstreamOrderRead: {
+          variables: { id: completedOrderId },
+          response: orderReadAfterDraftOrderCompleteResult?.payload ?? null,
+        },
+      });
+    }
     await writeJson(orderEditBeginMissingIdFixturePath, {
       query: orderEditBeginMissingIdProbe.replace(/^#graphql\n/, '').trim(),
       variables: orderEditBeginMissingIdVariables,
@@ -2092,15 +2180,18 @@ ${
 }
 
 ### \`draftOrderComplete\`
-- result: access denied
-- exact message: ${draftOrderCompleteResult.payload?.errors?.[0]?.message ?? parityMetadata.draftOrderComplete?.blocker?.details?.failingMessage ?? 'missing error payload'}
-- required access summary: ${draftOrderCompleteAccessSummary}
+- result: ${completedDraftOrderId && completedOrderId ? 'captured success on the current repo credential' : 'access denied or not freshly captured on the current repo credential'}
+${
+  completedDraftOrderId && completedOrderId
+    ? `- checked-in happy-path fixture: \`${draftOrderCompleteParityFixturePath}\`\n- immediate downstream draft detail and order reads were captured`
+    : `- exact message: ${draftOrderCompleteResult.payload?.errors?.[0]?.message ?? parityMetadata.draftOrderComplete?.blocker?.details?.failingMessage ?? 'missing error payload'}\n- required access summary: ${draftOrderCompleteAccessSummary}`
+}
 
 ## Repo impact
 
 - \`${orderCreateParityFixturePath}\` and \`${draftOrderCreateParityFixturePath}\` remain the live references for the current happy-path creation slices
 - the checked-in fixtures continue to back immediate \`order(id:)\` and \`draftOrder(id:)\` read-after-write visibility
-- the creation family still keeps \`draftOrderComplete\` blocked until write access can mark as paid or set payment terms
+${completedDraftOrderId && completedOrderId ? `- \`${draftOrderCompleteParityFixturePath}\` now backs successful draft-to-order completion plus downstream reads` : '- the creation family still keeps `draftOrderComplete` blocked until write access can mark as paid or set payment terms'}
 
 Refresh this note with \`corepack pnpm conformance:capture-orders\` after any credential or store-state change.`;
 

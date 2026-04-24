@@ -7,6 +7,42 @@
       "draftOrders": {
         "edges": [
           {
+            "cursor": "eyJsYXN0X2lkIjoxMzA3ODIxMzEwMTg1LCJsYXN0X3ZhbHVlIjoiMTMwNzgyMTMxMDE4NSJ9",
+            "node": {
+              "id": "gid://shopify/DraftOrder/1307821310185",
+              "name": "#D49",
+              "status": "COMPLETED",
+              "email": "hermes-draft-order-probe-1777074686016@example.com",
+              "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
+              "createdAt": "2026-04-24T23:51:28Z",
+              "updatedAt": "2026-04-24T23:51:30Z",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "38.25",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjoxMzA3ODE5OTY2Njk3LCJsYXN0X3ZhbHVlIjoiMTMwNzgxOTk2NjY5NyJ9",
+            "node": {
+              "id": "gid://shopify/DraftOrder/1307819966697",
+              "name": "#D48",
+              "status": "OPEN",
+              "email": "hermes-draft-order-probe-1777074330285@example.com",
+              "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
+              "createdAt": "2026-04-24T23:45:32Z",
+              "updatedAt": "2026-04-24T23:45:32Z",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "38.25",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          },
+          {
             "cursor": "eyJsYXN0X2lkIjoxMzA3ODA5MTg2MDI1LCJsYXN0X3ZhbHVlIjoiMTMwNzgwOTE4NjAyNSJ9",
             "node": {
               "id": "gid://shopify/DraftOrder/1307809186025",
@@ -59,49 +95,13 @@
                 }
               }
             }
-          },
-          {
-            "cursor": "eyJsYXN0X2lkIjoxMzA3NzUzMzE2NTg1LCJsYXN0X3ZhbHVlIjoiMTMwNzc1MzMxNjU4NSJ9",
-            "node": {
-              "id": "gid://shopify/DraftOrder/1307753316585",
-              "name": "#D44",
-              "status": "OPEN",
-              "email": "hermes-draft-order-debug-1777055708745@example.com",
-              "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
-              "createdAt": "2026-04-24T18:35:09Z",
-              "updatedAt": "2026-04-24T18:35:09Z",
-              "totalPriceSet": {
-                "shopMoney": {
-                  "amount": "38.25",
-                  "currencyCode": "CAD"
-                }
-              }
-            }
-          },
-          {
-            "cursor": "eyJsYXN0X2lkIjoxMzA2ODYzMjcyMTY5LCJsYXN0X3ZhbHVlIjoiMTMwNjg2MzI3MjE2OSJ9",
-            "node": {
-              "id": "gid://shopify/DraftOrder/1306863272169",
-              "name": "#D43",
-              "status": "OPEN",
-              "email": "hermes-draft-order-probe-1776899624464@example.com",
-              "tags": ["draft-order-create", "parity-probe"],
-              "createdAt": "2026-04-22T23:13:47Z",
-              "updatedAt": "2026-04-22T23:13:47Z",
-              "totalPriceSet": {
-                "shopMoney": {
-                  "amount": "10.0",
-                  "currencyCode": "CAD"
-                }
-              }
-            }
           }
         ],
         "pageInfo": {
           "hasNextPage": true,
           "hasPreviousPage": false,
-          "startCursor": "eyJsYXN0X2lkIjoxMzA3ODA5MTg2MDI1LCJsYXN0X3ZhbHVlIjoiMTMwNzgwOTE4NjAyNSJ9",
-          "endCursor": "eyJsYXN0X2lkIjoxMzA2ODYzMjcyMTY5LCJsYXN0X3ZhbHVlIjoiMTMwNjg2MzI3MjE2OSJ9"
+          "startCursor": "eyJsYXN0X2lkIjoxMzA3ODIxMzEwMTg1LCJsYXN0X3ZhbHVlIjoiMTMwNzgyMTMxMDE4NSJ9",
+          "endCursor": "eyJsYXN0X2lkIjoxMzA3NzUzOTM5MTc3LCJsYXN0X3ZhbHVlIjoiMTMwNzc1MzkzOTE3NyJ9"
         }
       }
     },

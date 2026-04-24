@@ -3905,7 +3905,7 @@ describe('order creation flow', () => {
         id: expect.stringMatching(/^gid:\/\/shopify\/Order\/\d+$/u),
         name: '#1',
         sourceName: 'hermes-cron-orders',
-        paymentGatewayNames: [],
+        paymentGatewayNames: ['manual'],
         displayFinancialStatus: 'PAID',
         displayFulfillmentStatus: 'UNFULFILLED',
         note: 'complete this staged draft locally',

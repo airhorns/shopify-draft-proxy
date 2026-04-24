@@ -4,10 +4,10 @@
       "purchasingEntity": {
         "customerId": "gid://shopify/Customer/6157654556905"
       },
-      "email": "hermes-draft-order-probe-1777070054514@example.com",
+      "email": "hermes-draft-order-probe-1777074686016@example.com",
       "note": "merchant realistic draft order create parity probe",
       "taxExempt": true,
-      "reserveInventoryUntil": "2026-05-24T22:34:14Z",
+      "reserveInventoryUntil": "2026-05-24T23:51:26Z",
       "tags": ["parity-probe", "draft-order-create", "merchant-realistic"],
       "customAttributes": [
         {
@@ -16,7 +16,7 @@
         },
         {
           "key": "purchase-order",
-          "value": "PO-1777070054514"
+          "value": "PO-1777074686016"
         }
       ],
       "appliedDiscount": {
@@ -60,7 +60,7 @@
           "originalUnitPrice": "20.00",
           "requiresShipping": false,
           "taxable": false,
-          "sku": "hermes-custom-service-1777070054514",
+          "sku": "hermes-custom-service-1777074686016",
           "appliedDiscount": {
             "title": "Service discount",
             "description": "10 percent off service",
@@ -87,11 +87,11 @@
       "data": {
         "draftOrderCreate": {
           "draftOrder": {
-            "id": "gid://shopify/DraftOrder/1307809186025",
-            "name": "#D47",
+            "id": "gid://shopify/DraftOrder/1307821310185",
+            "name": "#D49",
             "status": "OPEN",
             "ready": true,
-            "email": "hermes-draft-order-probe-1777070054514@example.com",
+            "email": "hermes-draft-order-probe-1777074686016@example.com",
             "customer": {
               "id": "gid://shopify/Customer/6157654556905",
               "email": "egnition_sample_29@egnition.com",
@@ -99,10 +99,10 @@
             },
             "taxExempt": true,
             "taxesIncluded": false,
-            "reserveInventoryUntil": "2026-05-24T22:34:14Z",
+            "reserveInventoryUntil": "2026-05-24T23:51:26Z",
             "paymentTerms": null,
             "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
-            "invoiceUrl": "https://very-big-test-store.myshopify.com/63755419881/invoices/3d1953f7d8deeb21cd14e06c7577ef28",
+            "invoiceUrl": "https://very-big-test-store.myshopify.com/63755419881/invoices/e04fd3515ee6c6f74d10f49418b78e29",
             "customAttributes": [
               {
                 "key": "source",
@@ -110,7 +110,7 @@
               },
               {
                 "key": "purchase-order",
-                "value": "PO-1777070054514"
+                "value": "PO-1777074686016"
               }
             ],
             "appliedDiscount": {
@@ -188,11 +188,11 @@
             "lineItems": {
               "nodes": [
                 {
-                  "id": "gid://shopify/DraftOrderLineItem/58863786557673",
+                  "id": "gid://shopify/DraftOrderLineItem/58863835119849",
                   "title": "Custom installation service",
                   "name": "Custom installation service",
                   "quantity": 2,
-                  "sku": "hermes-custom-service-1777070054514",
+                  "sku": "hermes-custom-service-1777074686016",
                   "variantTitle": null,
                   "custom": true,
                   "requiresShipping": false,
@@ -242,7 +242,7 @@
                   "variant": null
                 },
                 {
-                  "id": "gid://shopify/DraftOrderLineItem/58863786590441",
+                  "id": "gid://shopify/DraftOrderLineItem/58863835152617",
                   "title": "Test Product - 6635",
                   "name": "Test Product - 6635",
                   "quantity": 1,
@@ -295,7 +295,7 @@
           "actualQueryCost": 24,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1997,
+            "currentlyAvailable": 1976,
             "restoreRate": 100
           }
         }
@@ -304,16 +304,16 @@
   },
   "downstreamRead": {
     "variables": {
-      "id": "gid://shopify/DraftOrder/1307809186025"
+      "id": "gid://shopify/DraftOrder/1307821310185"
     },
     "response": {
       "data": {
         "draftOrder": {
-          "id": "gid://shopify/DraftOrder/1307809186025",
-          "name": "#D47",
+          "id": "gid://shopify/DraftOrder/1307821310185",
+          "name": "#D49",
           "status": "OPEN",
           "ready": true,
-          "email": "hermes-draft-order-probe-1777070054514@example.com",
+          "email": "hermes-draft-order-probe-1777074686016@example.com",
           "customer": {
             "id": "gid://shopify/Customer/6157654556905",
             "email": "egnition_sample_29@egnition.com",
@@ -321,10 +321,10 @@
           },
           "taxExempt": true,
           "taxesIncluded": false,
-          "reserveInventoryUntil": "2026-05-24T22:34:14Z",
+          "reserveInventoryUntil": "2026-05-24T23:51:26Z",
           "paymentTerms": null,
           "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
-          "invoiceUrl": "https://very-big-test-store.myshopify.com/63755419881/invoices/3d1953f7d8deeb21cd14e06c7577ef28",
+          "invoiceUrl": "https://very-big-test-store.myshopify.com/63755419881/invoices/e04fd3515ee6c6f74d10f49418b78e29",
           "customAttributes": [
             {
               "key": "source",
@@ -332,7 +332,7 @@
             },
             {
               "key": "purchase-order",
-              "value": "PO-1777070054514"
+              "value": "PO-1777074686016"
             }
           ],
           "appliedDiscount": {
@@ -410,11 +410,11 @@
           "lineItems": {
             "nodes": [
               {
-                "id": "gid://shopify/DraftOrderLineItem/58863786557673",
+                "id": "gid://shopify/DraftOrderLineItem/58863835119849",
                 "title": "Custom installation service",
                 "name": "Custom installation service",
                 "quantity": 2,
-                "sku": "hermes-custom-service-1777070054514",
+                "sku": "hermes-custom-service-1777074686016",
                 "variantTitle": null,
                 "custom": true,
                 "requiresShipping": false,
@@ -464,7 +464,7 @@
                 "variant": null
               },
               {
-                "id": "gid://shopify/DraftOrderLineItem/58863786590441",
+                "id": "gid://shopify/DraftOrderLineItem/58863835152617",
                 "title": "Test Product - 6635",
                 "name": "Test Product - 6635",
                 "quantity": 1,

@@ -1257,7 +1257,7 @@ function readCapturedDraftOrderLineItems(draftOrder: Record<string, unknown> | n
         title,
         name: readStringField(lineItem, 'name') ?? title,
         quantity: readNumberField(lineItem, 'quantity') ?? 0,
-        sku: readStringField(lineItem, 'sku'),
+        sku: typeof lineItem['sku'] === 'string' ? lineItem['sku'] : null,
         variantTitle: readStringField(lineItem, 'variantTitle'),
         variantId: readStringField(readRecordField(lineItem, 'variant'), 'id'),
         productId: null,
@@ -2418,6 +2418,37 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
           },
         },
       ]);
+    }
+    return;
+  }
+
+  if (mutationName === 'draftOrderComplete') {
+    const draftOrderId = readStringField(variables, 'id');
+    if (draftOrderId) {
+      const setupDraftOrder = readRecordField(
+        readRecordField(
+          readRecordField(
+            readRecordField(
+              readRecordField(readRecordField(capture as Record<string, unknown>, 'setup'), 'draftOrderCreate'),
+              'mutation',
+            ),
+            'response',
+          ),
+          'data',
+        ),
+        'draftOrderCreate',
+      );
+      const setupSource = readRecordField(setupDraftOrder, 'draftOrder');
+      const completedSource = readRecordField(payload, 'draftOrder');
+      const setupInput = readRecordField(
+        readRecordField(readRecordField(capture as Record<string, unknown>, 'setup'), 'draftOrderCreate'),
+        'variables',
+      )?.['input'];
+      const seedDraftOrder = makeSeedDraftOrder(draftOrderId, setupSource ?? completedSource);
+      if (!seedDraftOrder.note && isPlainObject(setupInput)) {
+        seedDraftOrder.note = readStringField(setupInput, 'note');
+      }
+      store.stageCreateDraftOrder(seedDraftOrder);
     }
     return;
   }
