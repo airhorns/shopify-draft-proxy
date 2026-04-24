@@ -1538,6 +1538,22 @@ That distinction matters:
 - current `FileCreateInput` fields do not include a product reference, so locally staged `fileCreate` records should not appear under downstream `product.media`
 - the first useful local slice is therefore mutation-payload fidelity plus meta-state visibility and raw mutation log retention, while richer `files` query behavior can come later as a separate read-surface increment
 
+The matching generic media delete worklist item maps to `fileDelete`, not
+`productDeleteMedia`.
+
+Important distinction:
+
+- `productDeleteMedia(productId, mediaIds)` removes product-scoped media
+  attachments and returns `deletedMediaIds` plus `deletedProductImageIds`
+- `fileDelete(fileIds)` removes store-level Files API assets and returns
+  `deletedFileIds` plus `userErrors`
+- Shopify documents `fileDelete` as also cleaning associated product
+  references, so deleting a file id that is also present in `product.media`
+  should make immediate downstream product media reads omit that record
+- the local first pass keeps this product-reference cleanup in the staged media
+  family while preserving the original raw `fileDelete` mutation for commit
+  replay
+
 Practical rule:
 
 1. model `inventoryItemUpdate` as a product-backed staged mutation over the effective variant inventory-item record, not as a separate detached inventory-item table

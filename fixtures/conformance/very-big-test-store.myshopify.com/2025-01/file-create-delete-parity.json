@@ -1,0 +1,64 @@
+{
+  "createMutation": {
+    "variables": {
+      "files": [
+        {
+          "contentType": "IMAGE",
+          "originalSource": "https://placehold.co/600x400/png",
+          "alt": "Hermes Files API conformance 1777064718787"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "fileCreate": {
+          "files": [
+            {
+              "id": "gid://shopify/MediaImage/39514533134569",
+              "alt": "Hermes Files API conformance 1777064718787",
+              "createdAt": "2026-04-24T21:05:18Z",
+              "fileStatus": "UPLOADED",
+              "image": null
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 21,
+          "actualQueryCost": 21,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1979,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "deleteMutation": {
+    "variables": {
+      "fileIds": ["gid://shopify/MediaImage/39514533134569"]
+    },
+    "response": {
+      "data": {
+        "fileDelete": {
+          "deletedFileIds": ["gid://shopify/MediaImage/39514533134569"],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

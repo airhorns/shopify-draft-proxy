@@ -198,11 +198,18 @@ describe('getOperationCapability anonymous operations', () => {
     });
   });
 
-  it('classifies anonymous generic media create mutations by root field name', () => {
+  it('classifies anonymous generic media mutations by root field name', () => {
     expect(getOperationCapability({ type: 'mutation', name: null, rootFields: ['fileCreate'] })).toEqual({
       domain: 'media',
       execution: 'stage-locally',
       operationName: 'fileCreate',
+      type: 'mutation',
+    });
+
+    expect(getOperationCapability({ type: 'mutation', name: null, rootFields: ['fileDelete'] })).toEqual({
+      domain: 'media',
+      execution: 'stage-locally',
+      operationName: 'fileDelete',
       type: 'mutation',
     });
   });

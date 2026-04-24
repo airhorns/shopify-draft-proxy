@@ -26,6 +26,10 @@ function readFilesInput(raw: unknown): Record<string, unknown>[] {
   return Array.isArray(raw) ? raw.filter((file): file is Record<string, unknown> => isObject(file)) : [];
 }
 
+function readFileIdsInput(raw: unknown): string[] {
+  return Array.isArray(raw) ? raw.filter((fileId): fileId is string => typeof fileId === 'string') : [];
+}
+
 function isValidUrl(value: string): boolean {
   try {
     const url = new URL(value);
@@ -102,7 +106,7 @@ function makeFileRecord(input: Record<string, unknown>): FileRecord {
     alt: typeof input['alt'] === 'string' ? input['alt'] : null,
     contentType,
     createdAt: makeSyntheticTimestamp(),
-    fileStatus: 'READY',
+    fileStatus: 'UPLOADED',
     filename,
     originalSource,
     imageUrl: contentType === 'IMAGE' ? originalSource : null,
@@ -214,7 +218,10 @@ function serializeFileSelectionSet(file: FileRecord, selections: readonly Select
         break;
       case 'image':
         if (file.contentType === 'IMAGE') {
-          result[key] = serializeImageSelectionSet(file, selection.selectionSet?.selections ?? []);
+          result[key] =
+            file.fileStatus === 'READY'
+              ? serializeImageSelectionSet(file, selection.selectionSet?.selections ?? [])
+              : null;
         }
         break;
       default:
@@ -257,6 +264,44 @@ export function handleMediaMutation(query: string, variables: Record<string, unk
             files: createdFiles.map((file) =>
               serializeFileSelectionSet(file, filesField?.selectionSet?.selections ?? []),
             ),
+            userErrors: [],
+          },
+        },
+      };
+    }
+    case 'fileDelete': {
+      const fileIds = readFileIdsInput(args['fileIds']);
+      const deletedFileIdsField = getChildField(field, 'deletedFileIds');
+      const userErrorsField = getChildField(field, 'userErrors');
+      const missingFileId = fileIds.find((fileId) => !store.hasEffectiveFileById(fileId));
+      const userErrors: FilesUserError[] = missingFileId
+        ? [
+            {
+              field: ['fileIds'],
+              message: `File id ${missingFileId} does not exist.`,
+              code: 'FILE_DOES_NOT_EXIST',
+            },
+          ]
+        : [];
+
+      if (userErrors.length > 0) {
+        return {
+          data: {
+            [responseKey]: {
+              deletedFileIds: null,
+              userErrors: userErrors.map((error) =>
+                serializeFilesUserError(error, userErrorsField?.selectionSet?.selections ?? []),
+              ),
+            },
+          },
+        };
+      }
+
+      store.stageDeleteFiles(fileIds);
+      return {
+        data: {
+          [responseKey]: {
+            deletedFileIds: deletedFileIdsField ? fileIds : undefined,
             userErrors: [],
           },
         },
