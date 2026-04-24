@@ -1,32 +1,22 @@
 // @ts-nocheck
 import 'dotenv/config';
 
-import { runAdminGraphqlRequest } from './conformance-graphql-client.mjs';
+import { resolveConformanceTargetEnv } from './conformance-env-guard.js';
+import { runAdminGraphqlRequest } from './conformance-graphql-client.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
-const requiredVars = ['SHOPIFY_CONFORMANCE_STORE_DOMAIN', 'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
-
-const missingVars = requiredVars.filter((name) => !process.env[name]);
-
-if (missingVars.length > 0) {
+let conformanceTarget;
+try {
+  conformanceTarget = resolveConformanceTargetEnv();
+} catch (error) {
   // oxlint-disable-next-line no-console -- CLI error output is intentionally written to stderr.
-  console.error(`Missing required environment variables: ${missingVars.join(', ')}`);
+  console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);
 }
 
-const storeDomain = process.env['SHOPIFY_CONFORMANCE_STORE_DOMAIN'];
-const adminOrigin = process.env['SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
+const { adminOrigin, storeDomain } = conformanceTarget;
 const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || '2025-01';
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
-const expectedOrigin = `https://${storeDomain}`;
-
-if (adminOrigin !== expectedOrigin) {
-  // oxlint-disable-next-line no-console -- CLI error output is intentionally written to stderr.
-  console.error(
-    `Expected SHOPIFY_CONFORMANCE_ADMIN_ORIGIN=${expectedOrigin} to match SHOPIFY_CONFORMANCE_STORE_DOMAIN=${storeDomain}`,
-  );
-  process.exit(1);
-}
 
 const query = `#graphql
   query ConformanceProbe {

@@ -26,15 +26,7 @@ hooks:
       corepack enable >/dev/null 2>&1 || true
     fi
     corepack pnpm install
-    canonical_env=/home/airhorns/code/shopify-draft-proxy/.env
-    if [ -f "$canonical_env" ]; then
-      if [ -f .env ] && [ -f .env.example ] && cmp -s .env .env.example; then
-        rm .env
-      fi
-      if [ ! -e .env ]; then
-        ln -s "$canonical_env" .env
-      fi
-    fi
+    corepack pnpm workspace:ensure-env
 agent:
   max_concurrent_agents: 12
   max_concurrent_agents_by_state:
