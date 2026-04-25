@@ -1,0 +1,26 @@
+{
+  "scenarioId": "standard-metafield-definition-enable-validation",
+  "operationNames": ["standardMetafieldDefinitionEnable"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/standard-metafield-definition-enable-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/standard-metafield-definition-enable-validation.graphql",
+    "variablesCapturePath": "$.validation[2].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict comparison covers the safe no-side-effect unknown namespace/key validation branch for standardMetafieldDefinitionEnable. Successful local staging is covered by the integration runtime test because live success creates a real Shopify metafield definition.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "unknown-template-selector-user-error",
+        "capturePath": "$.validation[2].response.data.standardMetafieldDefinitionEnable",
+        "proxyPath": "$.data.standardMetafieldDefinitionEnable"
+      }
+    ]
+  }
+}

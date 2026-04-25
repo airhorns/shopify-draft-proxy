@@ -49,6 +49,7 @@ Local staged mutations:
 
 - Order and draft-order reads use the shared Shopify-style search parser for catalog, count, invalid-query, and pagination slices covered by parity fixtures.
 - Order fulfillment mutations stage locally in snapshot mode. `fulfillmentCreate` covers validation slices plus the happy path, while `fulfillmentTrackingInfoUpdate` and `fulfillmentCancel` update seeded fulfillment records locally.
+- Nested `Order.fulfillments` and `Order.fulfillmentOrders` remain the order-owned source for top-level fulfillment reads. The shipping/fulfillments endpoint docs describe the top-level `fulfillment(id:)`, `fulfillmentOrder(id:)`, and fulfillment-order catalog roots that now serialize from the same local order graph.
 - Fulfillment flows return Shopify-shaped `userErrors` and expose staged state through immediate downstream order fulfillment reads without sending supported mutations to Shopify at runtime. Broader shipping/fulfillment roots and coverage boundaries are tracked in `docs/endpoints/shipping-fulfillments.md`.
 - Draft-order create/complete/update/duplicate/delete/invoice/create-from-order flows preserve staged state for downstream reads and commit replay.
 - Order edit operations use calculated-order state during the edit session and materialize changes on `orderEditCommit`.
@@ -65,7 +66,7 @@ Local staged mutations:
 - Order payment transaction changes: `tests/integration/order-payment-transaction-flow.test.ts`
 - Order create/update flows: `tests/integration/order-creation-flow.test.ts`, `tests/integration/order-draft-flow.test.ts`
 - Draft-order mutation family: `tests/integration/draft-order-mutation-family-flow.test.ts`
-- Fulfillments: `tests/integration/order-fulfillment-flow.test.ts`
+- Fulfillments: `tests/integration/order-fulfillment-flow.test.ts`, `tests/integration/order-query-shapes.test.ts`
 - Order editing: `tests/integration/order-edit-flow.test.ts`
 - Refunds: `tests/integration/order-refund-flow.test.ts`
 - Conformance fixtures and requests: `config/parity-specs/order*.json`, `config/parity-specs/draftOrder*.json`, `config/parity-specs/draftOrders*.json`, `config/parity-specs/fulfillment*.json`, `config/parity-specs/refund*.json`, and matching files under `config/parity-requests/`

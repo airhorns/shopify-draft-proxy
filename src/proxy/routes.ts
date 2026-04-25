@@ -472,6 +472,28 @@ export function createProxyRouter(config: AppConfig): Router {
       return;
     }
 
+    if (capability.execution === 'stage-locally' && capability.domain === 'metafields') {
+      const responseBody = handleMetafieldDefinitionMutation(body.query, variables);
+
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: ctx.path,
+        query: body.query,
+        variables,
+        requestBody,
+        stagedResourceIds: collectProxySyntheticGids(responseBody),
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        notes: 'Staged locally in the in-memory metafield definition draft store.',
+      });
+
+      ctx.status = 200;
+      ctx.body = responseBody;
+      return;
+    }
+
     if (
       capability.execution === 'stage-locally' &&
       capability.domain === 'payments' &&
@@ -800,6 +822,14 @@ export function createProxyRouter(config: AppConfig): Router {
     }
 
     if (capability.execution === 'overlay-read' && capability.domain === 'shipping-fulfillments') {
+      const orderBackedFulfillmentRoots = new Set([
+        'fulfillment',
+        'fulfillmentOrder',
+        'fulfillmentOrders',
+        'assignedFulfillmentOrders',
+        'manualHoldsFulfillmentOrders',
+      ]);
+
       if (config.readMode === 'snapshot') {
         if (primaryRootField === 'deliveryProfile' || primaryRootField === 'deliveryProfiles') {
           ctx.status = 200;
@@ -808,7 +838,32 @@ export function createProxyRouter(config: AppConfig): Router {
         }
 
         ctx.status = 200;
-        ctx.body = handleStorePropertiesQuery(body.query, variables);
+        ctx.body =
+          primaryRootField !== null && orderBackedFulfillmentRoots.has(primaryRootField)
+            ? handleOrderQuery(body.query, variables)
+            : handleStorePropertiesQuery(body.query, variables);
+        return;
+      }
+
+      if (
+        config.readMode === 'live-hybrid' &&
+        primaryRootField !== null &&
+        orderBackedFulfillmentRoots.has(primaryRootField)
+      ) {
+        const response = await upstream.request({
+          path: ctx.path,
+          headers: {
+            'content-type': 'application/json',
+            'x-shopify-access-token': ctx.get('x-shopify-access-token'),
+          },
+          body: {
+            query: body.query,
+            variables,
+          },
+        });
+
+        ctx.status = response.status;
+        ctx.body = await response.json();
         return;
       }
 

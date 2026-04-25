@@ -12,6 +12,20 @@ Local staged mutations currently live under the orders group because they operat
 
 Those roots are implemented in `tests/integration/order-fulfillment-flow.test.ts` and covered by `config/parity-specs/fulfillment*.json`. HAR-122/HAR-187 provide the evidence-backed fulfillment lifecycle slices; this document does not duplicate those request/fixture details.
 
+Top-level fulfillment and fulfillment-order reads are implemented as snapshot/local reads over the existing order graph:
+
+- `fulfillment`
+- `fulfillmentOrder`
+- `fulfillmentOrders`
+- `assignedFulfillmentOrders`
+- `manualHoldsFulfillmentOrders`
+
+`fulfillment(id:)` and `fulfillmentOrder(id:)` resolve only records already present on local `Order.fulfillments` / `Order.fulfillmentOrders` data and return `null` for missing IDs. They do not invent fulfillment records, fulfillment orders, holds, delivery methods, or lifecycle replacement records absent from the snapshot or staged order graph.
+
+`fulfillmentOrders` lists local order-graph fulfillment orders, excludes `CLOSED` records unless `includeClosed: true` is selected, and supports the captured local subset of ID/status sorting, `reverse`, cursor pagination, and `query` terms for `id`, `status`, and `request_status`. `manualHoldsFulfillmentOrders` currently returns the captured no-hold empty connection because the local model does not store fulfillment holds yet. `assignedFulfillmentOrders` currently returns an empty local connection; the HAR-232 live fixture records that the active conformance credential receives `["The api_client is not associated with any fulfillment service."]` for that root, so broader assignment-status and fulfillment-service scope behavior remains an explicit access-scoped gap rather than guessed behavior.
+
+Captured HAR-232 evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/fulfillment-top-level-reads.json` with parity coverage in `config/parity-specs/fulfillment-top-level-reads.json`. Runtime coverage is in `tests/integration/order-query-shapes.test.ts`.
+
 Fulfillment service reads and lifecycle writes are implemented as a shipping/fulfillments slice because they create and mutate service-managed locations:
 
 - `fulfillmentService`
@@ -71,17 +85,7 @@ Delivery-profile writes are implemented for a deliberately bounded, conformance-
 
 These roots are known Admin GraphQL shipping/fulfillment surface area, but they are not locally implemented. They are registered with `implemented: false` as explicit future local-model commitments, not as supported passthrough behavior.
 
-Top-level fulfillment:
-
-- `fulfillment`
 - `fulfillmentEventCreate`
-
-Fulfillment-order reads:
-
-- `assignedFulfillmentOrders`
-- `fulfillmentOrder`
-- `fulfillmentOrders`
-- `manualHoldsFulfillmentOrders`
 
 Fulfillment-order mutations:
 
@@ -122,7 +126,7 @@ Shipping-line order-edit roots:
 ## Behavior boundaries
 
 - The proxy must not treat any registry-only root above as supported runtime behavior. Until a root has local state modeling and executable tests, unsupported mutations remain on the generic unsupported path and must stay visible in observability.
-- Top-level `fulfillment(id:)` is not equivalent to order-scoped `order.fulfillments`; first-class fulfillment lookup needs its own missing-id, access-scope, tracking-info, event, and line-item shape evidence.
+- Top-level `fulfillment(id:)` now has missing-id, tracking-info, and line-item shape evidence for records already present on the local order graph. Fulfillment events and broader access-scope behavior still need separate captures before expansion.
 - Fulfillment orders are created by Shopify after order routing, not by a direct create mutation. Local support needs to model fulfillment-order generation from order/draft-order creation, location assignment, line-item grouping, status/requestStatus, holds, merchant requests, and delivery methods.
 - Fulfillment-order visibility is scope-sensitive. `assignedFulfillmentOrders`, `fulfillmentOrders`, and `Order.fulfillmentOrders` can return different subsets depending on assigned, merchant-managed, third-party, and marketplace fulfillment-order scopes.
 - Fulfillment-order lifecycle mutations can create replacement orders, split or merge line items, change assigned locations, add/release holds, change deadlines, and update request status. Do not model one of these as a simple status patch without captured downstream reads.
@@ -134,6 +138,7 @@ Shipping-line order-edit roots:
 ## Validation anchors
 
 - Implemented order-scoped fulfillments: `tests/integration/order-fulfillment-flow.test.ts`
+- Implemented top-level fulfillment reads: `tests/integration/order-query-shapes.test.ts`
 - Implemented fulfillment services: `tests/integration/fulfillment-service-flow.test.ts`
 - Implemented carrier services: `tests/integration/carrier-service-flow.test.ts`
 - Implemented delivery-profile reads: `tests/integration/delivery-profile-query-shapes.test.ts`

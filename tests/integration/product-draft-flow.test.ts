@@ -1791,6 +1791,159 @@ describe('product draft flow', () => {
     });
   });
 
+  it('keeps product published_status search visibility aligned with staged publication and status writes', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      return new Response(
+        JSON.stringify({
+          data: { product: null, products: { nodes: [] }, productsCount: { count: 0, precision: 'EXACT' } },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    });
+
+    const app = createApp(config).callback();
+
+    const createPublishedResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Published Visibility Hat", status: ACTIVE }) { product { id } userErrors { field message } } }',
+    });
+    const publishedProductId = createPublishedResponse.body.data.productCreate.product.id as string;
+
+    const createUnpublishedResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Unpublished Visibility Hat", status: ACTIVE }) { product { id } userErrors { field message } } }',
+    });
+    const unpublishedProductId = createUnpublishedResponse.body.data.productCreate.product.id as string;
+
+    const publishResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation Publish($input: ProductPublishInput!) { productPublish(input: $input) { product { id publishedOnCurrentPublication availablePublicationsCount { count precision } } userErrors { field message } } }',
+        variables: {
+          input: {
+            id: publishedProductId,
+            productPublications: [{ publicationId: 'gid://shopify/Publication/1' }],
+          },
+        },
+      });
+
+    expect(publishResponse.status).toBe(200);
+    expect(publishResponse.body.data.productPublish).toEqual({
+      product: {
+        id: publishedProductId,
+        publishedOnCurrentPublication: true,
+        availablePublicationsCount: {
+          count: 1,
+          precision: 'EXACT',
+        },
+      },
+      userErrors: [],
+    });
+
+    const initialVisibilityResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `#graphql
+          query InitialVisibility {
+            published: products(first: 10, query: "published_status:published") {
+              nodes {
+                id
+                publishedOnCurrentPublication
+              }
+            }
+            publishedCount: productsCount(query: "published_status:published") {
+              count
+              precision
+            }
+            unpublished: products(first: 10, query: "published_status:unpublished") {
+              nodes {
+                id
+                publishedOnCurrentPublication
+              }
+            }
+            unpublishedCount: productsCount(query: "published_status:unpublished") {
+              count
+              precision
+            }
+          }
+        `,
+      });
+
+    expect(initialVisibilityResponse.status).toBe(200);
+    expect(initialVisibilityResponse.body.data.published.nodes).toEqual([
+      {
+        id: publishedProductId,
+        publishedOnCurrentPublication: true,
+      },
+    ]);
+    expect(initialVisibilityResponse.body.data.publishedCount).toEqual({
+      count: 1,
+      precision: 'EXACT',
+    });
+    expect(initialVisibilityResponse.body.data.unpublished.nodes).toEqual([
+      {
+        id: unpublishedProductId,
+        publishedOnCurrentPublication: false,
+      },
+    ]);
+    expect(initialVisibilityResponse.body.data.unpublishedCount).toEqual({
+      count: 1,
+      precision: 'EXACT',
+    });
+
+    const archiveResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation Archive($productId: ID!) { productChangeStatus(productId: $productId, status: ARCHIVED) { product { id status publishedOnCurrentPublication availablePublicationsCount { count precision } } userErrors { field message } } }',
+        variables: { productId: publishedProductId },
+      });
+
+    expect(archiveResponse.status).toBe(200);
+    expect(archiveResponse.body.data.productChangeStatus).toEqual({
+      product: {
+        id: publishedProductId,
+        status: 'ARCHIVED',
+        publishedOnCurrentPublication: false,
+        availablePublicationsCount: {
+          count: 0,
+          precision: 'EXACT',
+        },
+      },
+      userErrors: [],
+    });
+
+    const archivedVisibilityResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query ArchivedVisibility { publishedCount: productsCount(query: "published_status:published") { count precision } unpublished: products(first: 10, query: "published_status:unpublished") { nodes { id publishedOnCurrentPublication } } unpublishedCount: productsCount(query: "published_status:unpublished") { count precision } }',
+    });
+
+    expect(archivedVisibilityResponse.status).toBe(200);
+    expect(archivedVisibilityResponse.body.data.publishedCount).toEqual({
+      count: 0,
+      precision: 'EXACT',
+    });
+    expect(archivedVisibilityResponse.body.data.unpublished.nodes).toHaveLength(2);
+    expect(archivedVisibilityResponse.body.data.unpublished.nodes).toEqual(
+      expect.arrayContaining([
+        {
+          id: publishedProductId,
+          publishedOnCurrentPublication: false,
+        },
+        {
+          id: unpublishedProductId,
+          publishedOnCurrentPublication: false,
+        },
+      ]),
+    );
+    expect(archivedVisibilityResponse.body.data.unpublishedCount).toEqual({
+      count: 2,
+      precision: 'EXACT',
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
   it('stages productPublish and productUnpublish locally for created products with downstream publication reads', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       return new Response(JSON.stringify({ data: { product: null } }), {

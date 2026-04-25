@@ -5577,6 +5577,25 @@ function matchesNullableProductTimestampTerm(productValue: string | null, rawVal
   return productValue === null ? false : matchesProductTimestampTerm(productValue, normalizedValue);
 }
 
+function isProductPublished(product: Pick<ProductRecord, 'publicationIds' | 'status'>): boolean {
+  return product.status === 'ACTIVE' && product.publicationIds.length > 0;
+}
+
+function matchesProductPublicationStatus(product: ProductRecord, rawValue: string): boolean {
+  const normalizedValue = stripSearchValueQuotes(rawValue).trim().toLowerCase();
+  if (normalizedValue === 'published' || normalizedValue === 'visible') {
+    return isProductPublished(product);
+  }
+  if (normalizedValue === 'unpublished' || normalizedValue === 'hidden') {
+    return !isProductPublished(product);
+  }
+  if (normalizedValue === 'any') {
+    return true;
+  }
+
+  return true;
+}
+
 function isPrefixPattern(rawValue: string): boolean {
   return rawValue.endsWith('*');
 }
@@ -5674,6 +5693,10 @@ function matchesPositiveProductQueryTerm(product: ProductRecord, term: SearchQue
       return matchesProductTimestampTerm(product.createdAt, value);
     case 'published_at':
       return matchesNullableProductTimestampTerm(product.publishedAt ?? null, value);
+    case 'published_status':
+    case 'product_publication_status':
+    case 'publishable_status':
+      return matchesProductPublicationStatus(product, value);
     case 'updated_at':
       return matchesProductTimestampTerm(product.updatedAt, value);
     case 'tag_not':

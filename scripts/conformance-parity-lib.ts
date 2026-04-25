@@ -1023,10 +1023,35 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'overlay-read' && capability.domain === 'shipping-fulfillments') {
+    const primaryRootField = parsed.rootFields[0] ?? capability.operationName;
     if (parsed.rootFields.some((rootField) => rootField === 'deliveryProfile' || rootField === 'deliveryProfiles')) {
       return {
         status: 200,
         body: handleDeliveryProfileQuery(document, variables),
+      };
+    }
+
+    if (
+      parsed.rootFields.some((rootField) =>
+        [
+          'fulfillment',
+          'fulfillmentOrder',
+          'fulfillmentOrders',
+          'assignedFulfillmentOrders',
+          'manualHoldsFulfillmentOrders',
+        ].includes(rootField),
+      )
+    ) {
+      return {
+        status: 200,
+        body: handleOrderQuery(document, variables),
+      };
+    }
+
+    if (primaryRootField === 'fulfillmentService') {
+      return {
+        status: 200,
+        body: handleStorePropertiesQuery(document, variables),
       };
     }
 
