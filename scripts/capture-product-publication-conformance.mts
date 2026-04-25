@@ -6,8 +6,8 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { runAdminGraphql, runAdminGraphqlRequest } from './conformance-graphql-client.mjs';
-import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import { runAdminGraphql, runAdminGraphqlRequest } from './conformance-graphql-client.ts';
+import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mts';
 
 import {
   extractCliIdentityFromConfig,
@@ -25,12 +25,12 @@ import {
   persistShopifyCliIdentity,
   shouldAttemptShopifyAppDeploy,
   shouldProbeManualStoreAuthFallback,
-} from './product-publication-conformance-lib.mjs';
+} from './product-publication-conformance-lib.mts';
 import {
   parseAccessDeniedErrors,
   parseWriteScopeBlocker,
   renderWriteScopeBlockerNote,
-} from './product-mutation-conformance-lib.mjs';
+} from './product-mutation-conformance-lib.mts';
 
 const requiredVars = ['SHOPIFY_CONFORMANCE_STORE_DOMAIN', 'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
 

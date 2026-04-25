@@ -602,6 +602,32 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (
+    capability.execution === 'stage-locally' &&
+    capability.domain === 'store-properties' &&
+    (capability.operationName === 'publishablePublish' ||
+      capability.operationName === 'PublishablePublish' ||
+      capability.operationName === 'publishableUnpublish' ||
+      capability.operationName === 'PublishableUnpublish')
+  ) {
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2025-01/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: handleProductMutation(document, variables, 'snapshot'),
+    };
+  }
+
   if (capability.execution === 'stage-locally' && capability.domain === 'media') {
     store.appendLog({
       id: makeSyntheticGid('MutationLogEntry'),
@@ -1573,6 +1599,9 @@ function makeSeedCollection(collectionId: string, source: Record<string, unknown
     legacyResourceId: readStringField(source, 'legacyResourceId') ?? collectionId.split('/').at(-1) ?? null,
     title: readStringField(source, 'title') ?? 'Conformance seed collection',
     handle: readStringField(source, 'handle') ?? `conformance-seed-${collectionId.split('/').at(-1) ?? 'collection'}`,
+    publicationIds: readArrayField(source, 'publicationIds').filter(
+      (publicationId): publicationId is string => typeof publicationId === 'string',
+    ),
     updatedAt: readStringField(source, 'updatedAt'),
     description:
       readStringField(source, 'description') ?? (descriptionHtml ? stripCapturedHtml(descriptionHtml) : null),
@@ -1676,6 +1705,44 @@ function seedCollectionProducts(collection: CollectionRecord, productNodes: unkn
   }
   for (const membership of collectionMemberships) {
     store.replaceBaseCollectionsForProduct(membership.productId, [membership]);
+  }
+}
+
+function seedCapturedProductCollectionMemberships(capture: unknown, targetCollectionId: string): void {
+  const downstreamData = readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data');
+  if (!downstreamData) {
+    return;
+  }
+
+  for (const value of Object.values(downstreamData)) {
+    if (!isPlainObject(value)) {
+      continue;
+    }
+
+    const productId = readStringField(value, 'id');
+    if (!productId?.startsWith('gid://shopify/Product/')) {
+      continue;
+    }
+
+    const collectionNodes = readArrayField(readRecordField(value, 'collections'), 'nodes').filter(isPlainObject);
+    const memberships: ProductCollectionRecord[] = [];
+    for (const collectionNode of collectionNodes) {
+      const collectionId = readStringField(collectionNode, 'id');
+      if (!collectionId || collectionId === targetCollectionId) {
+        continue;
+      }
+
+      const collection = makeSeedCollection(collectionId, collectionNode);
+      store.upsertBaseCollections([collection]);
+      memberships.push({
+        ...collection,
+        productId,
+      });
+    }
+
+    if (memberships.length > 0) {
+      store.replaceBaseCollectionsForProduct(productId, memberships);
+    }
   }
 }
 
@@ -2613,7 +2680,11 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     seedMetafieldsSetOwnerProducts(capture, variables);
   }
 
-  const collectionPayload = readRecordField(payload, 'collection');
+  const collectionPayload =
+    readRecordField(payload, 'collection') ??
+    (readStringField(readRecordField(payload, 'publishable'), 'id')?.startsWith('gid://shopify/Collection/')
+      ? readRecordField(payload, 'publishable')
+      : null);
   const rawCollectionId =
     readStringField(variables, 'id') ?? readStringField(input, 'id') ?? readStringField(collectionPayload, 'id');
   const collectionId = rawCollectionId?.startsWith('gid://shopify/Collection/') ? rawCollectionId : null;
@@ -2638,6 +2709,9 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
           store.upsertBaseProducts([makeSeedProduct(productId, node)]);
         }
       }
+    }
+    if (mutationName === 'collectionAddProducts') {
+      seedCapturedProductCollectionMemberships(capture, collectionId);
     }
     for (const productIdValue of readArrayField(variables, 'productIds')) {
       if (typeof productIdValue !== 'string') {

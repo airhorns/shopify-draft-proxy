@@ -35,6 +35,7 @@ const storePropertiesMutationRoots = [
 ] as const;
 
 const storePropertiesRoots = [...storePropertiesQueryRoots, ...storePropertiesMutationRoots] as const;
+const locallySupportedPublishableRoots = ['publishablePublish', 'publishableUnpublish'] as const;
 
 function readText(relativePath: string): string {
   return readFileSync(resolve(repoRoot, relativePath), 'utf8');
@@ -53,8 +54,17 @@ describe('Store properties registry scaffold', () => {
       const entry = entriesByName.get(root);
       expect(entry, `${root} should be declared in the operation registry`).toBeDefined();
       expect(entry?.domain, `${root} should be grouped under Store properties`).toBe('store-properties');
-      expect(entry?.implemented, `${root} should remain scaffold-only`).toBe(false);
-      expect(entry?.runtimeTests, `${root} should not claim runtime coverage`).toEqual([]);
+      if ((locallySupportedPublishableRoots as readonly string[]).includes(root)) {
+        expect(entry?.implemented, `${root} should be locally supported for Product/Collection publishables`).toBe(
+          true,
+        );
+        expect(entry?.runtimeTests, `${root} should declare runtime coverage`).toEqual([
+          'tests/integration/collection-draft-flow.test.ts',
+        ]);
+      } else {
+        expect(entry?.implemented, `${root} should remain scaffold-only`).toBe(false);
+        expect(entry?.runtimeTests, `${root} should not claim runtime coverage`).toEqual([]);
+      }
     }
 
     for (const root of storePropertiesQueryRoots) {
@@ -95,12 +105,39 @@ describe('Store properties registry scaffold', () => {
     });
   });
 
+  it('routes the Product/Collection publishable roots once local staging exists', () => {
+    expect(
+      getOperationCapability({ type: 'mutation', name: 'PublishablePublish', rootFields: ['publishablePublish'] }),
+    ).toEqual({
+      domain: 'store-properties',
+      execution: 'stage-locally',
+      operationName: 'PublishablePublish',
+      type: 'mutation',
+    });
+
+    expect(
+      getOperationCapability({
+        type: 'mutation',
+        name: 'PublishableUnpublish',
+        rootFields: ['publishableUnpublish'],
+      }),
+    ).toEqual({
+      domain: 'store-properties',
+      execution: 'stage-locally',
+      operationName: 'PublishableUnpublish',
+      type: 'mutation',
+    });
+  });
+
   it('does not create planned-only parity scenarios for scaffold-only Store properties roots', () => {
     const scenarios = loadConformanceScenarios(repoRoot);
     const scenarioOperations = new Set(scenarios.flatMap((scenario) => scenario.operationNames));
     const statusDocument = buildConformanceStatusDocument(repoRoot);
 
     for (const root of storePropertiesRoots) {
+      if ((locallySupportedPublishableRoots as readonly string[]).includes(root)) {
+        continue;
+      }
       expect(scenarioOperations.has(root), `${root} should wait for captured evidence or executable comparison`).toBe(
         false,
       );

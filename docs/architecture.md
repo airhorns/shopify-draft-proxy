@@ -222,6 +222,14 @@ Current implementation notes:
 - commit replay tracks proxy-created resource IDs returned by local staging and, after a successful upstream replay returns authoritative Shopify IDs, rewrites later staged mutation inputs from the proxy synthetic IDs to the real IDs before sending them upstream
 - commit replay persists per-entry `committed` / `failed` statuses back into the in-memory log and stops at the first upstream transport or GraphQL failure
 
+Collection publication implementation note:
+
+- collection records carry aggregate publication target ids alongside product publication ids
+- staged `collectionCreate` starts with no publication ids, so collection publication counts and `publishedOnPublication(publicationId:)` serialize as unpublished until a local `publishablePublish` mutation adds a target
+- `publishedOnCurrentPublication` is not inferred from aggregate publication count for collections; captured Online Store publishable writes leave it false when the app's current publication is not the target
+- local `publishablePublish` / `publishableUnpublish` currently stages Product and Collection publishables only; broader publishable implementers remain unsupported passthrough
+- top-level `collections(query: "published_status:...")` applies the locally modeled aggregate collection publication state for staged/snapshot reads
+
 Commit response should include:
 
 - ordered attempts

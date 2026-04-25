@@ -145,6 +145,42 @@ export function createProxyRouter(config: AppConfig): Router {
       return;
     }
 
+    if (
+      capability.execution === 'stage-locally' &&
+      capability.domain === 'store-properties' &&
+      (primaryRootField === 'publishablePublish' || primaryRootField === 'publishableUnpublish')
+    ) {
+      proxyLogger.debug(
+        {
+          execution: capability.execution,
+          operationName: capability.operationName,
+          operationType: parsed.type,
+          rootFields: parsed.rootFields,
+        },
+        'staging supported publishable mutation locally',
+      );
+
+      const responseBody = handleProductMutation(body.query, variables, config.readMode);
+
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: ctx.path,
+        query: body.query,
+        variables,
+        requestBody,
+        stagedResourceIds: collectProxySyntheticGids(responseBody),
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        notes: 'Staged locally in the in-memory publishable draft store.',
+      });
+
+      ctx.status = 200;
+      ctx.body = responseBody;
+      return;
+    }
+
     if (capability.execution === 'stage-locally' && capability.domain === 'customers') {
       store.appendLog({
         id: makeSyntheticGid('MutationLogEntry'),

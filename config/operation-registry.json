@@ -481,9 +481,9 @@
     "type": "mutation",
     "domain": "store-properties",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["publishablePublish", "PublishablePublish"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/collection-draft-flow.test.ts"]
   },
   {
     "name": "publishablePublishToCurrentChannel",
@@ -499,9 +499,9 @@
     "type": "mutation",
     "domain": "store-properties",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["publishableUnpublish", "PublishableUnpublish"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/collection-draft-flow.test.ts"]
   },
   {
     "name": "publishableUnpublishToCurrentChannel",

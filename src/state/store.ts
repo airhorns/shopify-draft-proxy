@@ -1021,6 +1021,17 @@ export class InMemoryStore {
       }
     }
 
+    for (const collection of this.listEffectiveCollections()) {
+      for (const publicationId of collection.publicationIds ?? []) {
+        if (!publicationsById.has(publicationId)) {
+          publicationsById.set(publicationId, {
+            id: publicationId,
+            name: null,
+          });
+        }
+      }
+    }
+
     return Array.from(publicationsById.values()).sort((left, right) => compareResourceIds(left.id, right.id));
   }
 

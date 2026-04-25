@@ -101,6 +101,163 @@ describe('collection draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('stages collection publication visibility and publishable publish/unpublish locally', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const app = createApp(config).callback();
+
+    const createResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateCollection($input: CollectionInput!) { collectionCreate(input: $input) { collection { id title publishedOnCurrentPublication publishedOnPublication(publicationId: "gid://shopify/Publication/1") availablePublicationsCount { count precision } resourcePublicationsCount { count precision } } userErrors { field message } } }',
+        variables: {
+          input: {
+            title: 'Publication Hats',
+          },
+        },
+      });
+
+    expect(createResponse.status).toBe(200);
+    const collectionId = createResponse.body.data.collectionCreate.collection.id as string;
+    expect(createResponse.body.data.collectionCreate).toEqual({
+      collection: {
+        id: collectionId,
+        title: 'Publication Hats',
+        publishedOnCurrentPublication: false,
+        publishedOnPublication: false,
+        availablePublicationsCount: {
+          count: 0,
+          precision: 'EXACT',
+        },
+        resourcePublicationsCount: {
+          count: 0,
+          precision: 'EXACT',
+        },
+      },
+      userErrors: [],
+    });
+
+    const unpublishedRead = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query PublicationRead($id: ID!) { collection(id: $id) { id publishedOnCurrentPublication availablePublicationsCount { count precision } resourcePublicationsCount { count precision } } published: collections(first: 10, query: "published_status:published") { nodes { id title } } unpublished: collections(first: 10, query: "published_status:unpublished") { nodes { id title } } }',
+        variables: {
+          id: collectionId,
+        },
+      });
+
+    expect(unpublishedRead.status).toBe(200);
+    expect(unpublishedRead.body.data).toEqual({
+      collection: {
+        id: collectionId,
+        publishedOnCurrentPublication: false,
+        availablePublicationsCount: {
+          count: 0,
+          precision: 'EXACT',
+        },
+        resourcePublicationsCount: {
+          count: 0,
+          precision: 'EXACT',
+        },
+      },
+      published: {
+        nodes: [],
+      },
+      unpublished: {
+        nodes: [{ id: collectionId, title: 'Publication Hats' }],
+      },
+    });
+
+    const publishResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation PublishCollection($id: ID!, $input: [PublicationInput!]!) { publishablePublish(id: $id, input: $input) { publishable { __typename ... on Collection { id publishedOnCurrentPublication publishedOnPublication(publicationId: "gid://shopify/Publication/1") availablePublicationsCount { count precision } resourcePublicationsCount { count precision } } } shop { publicationCount } userErrors { field message } } }',
+        variables: {
+          id: collectionId,
+          input: [{ publicationId: 'gid://shopify/Publication/1' }],
+        },
+      });
+
+    expect(publishResponse.status).toBe(200);
+    expect(publishResponse.body.data.publishablePublish).toEqual({
+      publishable: {
+        __typename: 'Collection',
+        id: collectionId,
+        publishedOnCurrentPublication: false,
+        publishedOnPublication: true,
+        availablePublicationsCount: {
+          count: 1,
+          precision: 'EXACT',
+        },
+        resourcePublicationsCount: {
+          count: 1,
+          precision: 'EXACT',
+        },
+      },
+      shop: {
+        publicationCount: 1,
+      },
+      userErrors: [],
+    });
+
+    const publishedRead = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query PublishedRead($id: ID!) { collection(id: $id) { id publishedOnCurrentPublication publishedOnPublication(publicationId: "gid://shopify/Publication/1") } published: collections(first: 10, query: "published_status:published") { nodes { id title } } unpublished: collections(first: 10, query: "published_status:unpublished") { nodes { id title } } }',
+        variables: {
+          id: collectionId,
+        },
+      });
+
+    expect(publishedRead.status).toBe(200);
+    expect(publishedRead.body.data).toEqual({
+      collection: {
+        id: collectionId,
+        publishedOnCurrentPublication: false,
+        publishedOnPublication: true,
+      },
+      published: {
+        nodes: [{ id: collectionId, title: 'Publication Hats' }],
+      },
+      unpublished: {
+        nodes: [],
+      },
+    });
+
+    const unpublishResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation UnpublishCollection($id: ID!, $input: [PublicationInput!]!) { publishableUnpublish(id: $id, input: $input) { publishable { ... on Collection { id publishedOnCurrentPublication publishedOnPublication(publicationId: "gid://shopify/Publication/1") availablePublicationsCount { count precision } resourcePublicationsCount { count precision } } } userErrors { field message } } }',
+        variables: {
+          id: collectionId,
+          input: [{ publicationId: 'gid://shopify/Publication/1' }],
+        },
+      });
+
+    expect(unpublishResponse.status).toBe(200);
+    expect(unpublishResponse.body.data.publishableUnpublish).toEqual({
+      publishable: {
+        id: collectionId,
+        publishedOnCurrentPublication: false,
+        publishedOnPublication: false,
+        availablePublicationsCount: {
+          count: 0,
+          precision: 'EXACT',
+        },
+        resourcePublicationsCount: {
+          count: 0,
+          precision: 'EXACT',
+        },
+      },
+      userErrors: [],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('stages rich collectionCreate and collectionUpdate fields for downstream reads', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     const app = createApp(config).callback();
@@ -584,8 +741,8 @@ describe('collection draft flow', () => {
             handle: 'featured-hats',
             products: {
               nodes: [
-                { id: 'gid://shopify/Product/31', title: 'Blue Hat', handle: 'blue-hat' },
                 { id: 'gid://shopify/Product/30', title: 'Green Hat', handle: 'green-hat' },
+                { id: 'gid://shopify/Product/31', title: 'Blue Hat', handle: 'blue-hat' },
               ],
               pageInfo: {
                 hasNextPage: false,
@@ -619,8 +776,8 @@ describe('collection draft flow', () => {
           handle: 'featured-hats',
           products: {
             nodes: [
-              { id: 'gid://shopify/Product/31', title: 'Blue Hat', handle: 'blue-hat' },
               { id: 'gid://shopify/Product/30', title: 'Green Hat', handle: 'green-hat' },
+              { id: 'gid://shopify/Product/31', title: 'Blue Hat', handle: 'blue-hat' },
             ],
             pageInfo: {
               hasNextPage: false,
@@ -636,8 +793,8 @@ describe('collection draft flow', () => {
               handle: 'featured-hats',
               products: {
                 nodes: [
-                  { id: 'gid://shopify/Product/31', title: 'Blue Hat', handle: 'blue-hat' },
                   { id: 'gid://shopify/Product/30', title: 'Green Hat', handle: 'green-hat' },
+                  { id: 'gid://shopify/Product/31', title: 'Blue Hat', handle: 'blue-hat' },
                 ],
                 pageInfo: {
                   hasNextPage: false,
