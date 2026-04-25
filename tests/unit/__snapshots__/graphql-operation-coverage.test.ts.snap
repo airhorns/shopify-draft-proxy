@@ -32,7 +32,6 @@ exports[`GraphQL operation coverage > snapshots introspected Admin GraphQL mutat
   "catalogDelete",
   "catalogUpdate",
   "collectionAddProductsV2",
-  "collectionReorderProducts",
   "combinedListingUpdate",
   "commentApprove",
   "commentDelete",

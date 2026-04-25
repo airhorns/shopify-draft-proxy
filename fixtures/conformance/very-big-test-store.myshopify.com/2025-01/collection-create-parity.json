@@ -13,23 +13,20 @@
       "status": "ACTIVE"
     }
   ],
-  "seedPublication": {
-    "id": "gid://shopify/Publication/82090459369",
-    "name": "Online Store"
-  },
   "mutation": {
     "variables": {
       "input": {
-        "title": "Hermes Collection Conformance 1777078204269"
+        "title": "Hermes Collection Conformance 1777078305206",
+        "sortOrder": "MANUAL"
       }
     },
     "response": {
       "data": {
         "collectionCreate": {
           "collection": {
-            "id": "gid://shopify/Collection/468787757289",
-            "title": "Hermes Collection Conformance 1777078204269",
-            "handle": "hermes-collection-conformance-1777078204269",
+            "id": "gid://shopify/Collection/468787822825",
+            "title": "Hermes Collection Conformance 1777078305206",
+            "handle": "hermes-collection-conformance-1777078305206",
             "products": {
               "nodes": [],
               "pageInfo": {
@@ -57,9 +54,9 @@
   "downstreamRead": {
     "data": {
       "collection": {
-        "id": "gid://shopify/Collection/468787757289",
-        "title": "Hermes Collection Conformance 1777078204269",
-        "handle": "hermes-collection-conformance-1777078204269",
+        "id": "gid://shopify/Collection/468787822825",
+        "title": "Hermes Collection Conformance 1777078305206",
+        "handle": "hermes-collection-conformance-1777078305206",
         "products": {
           "nodes": [],
           "pageInfo": {
@@ -71,9 +68,9 @@
       "collections": {
         "nodes": [
           {
-            "id": "gid://shopify/Collection/468787757289",
-            "title": "Hermes Collection Conformance 1777078204269",
-            "handle": "hermes-collection-conformance-1777078204269",
+            "id": "gid://shopify/Collection/468787822825",
+            "title": "Hermes Collection Conformance 1777078305206",
+            "handle": "hermes-collection-conformance-1777078305206",
             "products": {
               "nodes": [],
               "pageInfo": {

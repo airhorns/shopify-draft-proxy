@@ -13,20 +13,16 @@
       "status": "ACTIVE"
     }
   ],
-  "seedPublication": {
-    "id": "gid://shopify/Publication/82090459369",
-    "name": "Online Store"
-  },
   "mutation": {
     "variables": {
-      "id": "gid://shopify/Collection/468787757289",
+      "id": "gid://shopify/Collection/468787822825",
       "productIds": ["gid://shopify/Product/8971842846953"]
     },
     "response": {
       "data": {
         "collectionRemoveProducts": {
           "job": {
-            "id": "gid://shopify/Job/7c4e92ca-0d56-41ce-a456-6640cc8ba1bc",
+            "id": "gid://shopify/Job/345cd4bb-b44a-4374-96a5-23c99749a865",
             "done": false
           },
           "userErrors": []
@@ -38,7 +34,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1966,
+            "currentlyAvailable": 1968,
             "restoreRate": 100
           }
         }
@@ -48,9 +44,9 @@
   "downstreamRead": {
     "data": {
       "collection": {
-        "id": "gid://shopify/Collection/468787757289",
-        "title": "Hermes Collection Conformance 1777078204269 Updated",
-        "handle": "hermes-collection-conformance-1777078204269-updated",
+        "id": "gid://shopify/Collection/468787822825",
+        "title": "Hermes Collection Conformance 1777078305206 Updated",
+        "handle": "hermes-collection-conformance-1777078305206-updated",
         "products": {
           "nodes": [
             {
@@ -85,9 +81,9 @@
               "handle": "adidas"
             },
             {
-              "id": "gid://shopify/Collection/468787757289",
-              "title": "Hermes Collection Conformance 1777078204269 Updated",
-              "handle": "hermes-collection-conformance-1777078204269-updated"
+              "id": "gid://shopify/Collection/468787822825",
+              "title": "Hermes Collection Conformance 1777078305206 Updated",
+              "handle": "hermes-collection-conformance-1777078305206-updated"
             }
           ],
           "pageInfo": {
@@ -103,7 +99,7 @@
         "actualQueryCost": 16,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1959,
+          "currentlyAvailable": 1962,
           "restoreRate": 100
         }
       }

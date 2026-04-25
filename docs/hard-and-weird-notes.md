@@ -1823,7 +1823,16 @@ Collection-specific facts from the current capture:
 - `collections(query: "published_status:published")` and `published_status:unpublished` filter against the same aggregate collection state in local reads
 - full `resourcePublications` / `resourcePublicationsV2` edge parity remains pending collection-specific live capture because the current safe local model only proves the aggregate publication fields and search visibility path
 
-## 48. Business entity Store properties reads expose payments-adjacent data
+## 48. Manual collection ordering is not the default collection write path
+
+Live collection capture for `collectionReorderProducts` exposed two easy traps:
+
+- a freshly-created collection is not reorderable unless it is explicitly created with `sortOrder: MANUAL`
+- `collectionAddProducts` on a manual collection preserves the request `productIds` order in the immediate collection product connection
+
+`collectionReorderProducts` itself returns an async `Job` payload with `done: false` on success, and downstream `collection.products(sortKey: COLLECTION_DEFAULT)` plus `sortKey: MANUAL` both reflected the reordered manual order in the captured two-product slice. Reorder parity should therefore seed a manual collection baseline before staging moves, and should treat only the opaque job id as nondeterministic.
+
+## 49. Business entity Store properties reads expose payments-adjacent data
 
 The first `businessEntities` / `businessEntity` capture for Admin GraphQL 2026-04 showed a single primary entity on the conformance store. `businessEntity` without an `id` returned that primary entity, and an unknown `gid://shopify/BusinessEntity/...` returned `null`.
 

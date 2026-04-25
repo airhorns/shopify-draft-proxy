@@ -13,36 +13,32 @@
       "status": "ACTIVE"
     }
   ],
-  "seedPublication": {
-    "id": "gid://shopify/Publication/82090459369",
-    "name": "Online Store"
-  },
   "mutation": {
     "variables": {
       "input": {
-        "id": "gid://shopify/Collection/468787757289",
-        "title": "Hermes Collection Conformance 1777078204269 Updated",
-        "handle": "hermes-collection-conformance-1777078204269-updated"
+        "id": "gid://shopify/Collection/468787822825",
+        "title": "Hermes Collection Conformance 1777078305206 Updated",
+        "handle": "hermes-collection-conformance-1777078305206-updated"
       }
     },
     "response": {
       "data": {
         "collectionUpdate": {
           "collection": {
-            "id": "gid://shopify/Collection/468787757289",
-            "title": "Hermes Collection Conformance 1777078204269 Updated",
-            "handle": "hermes-collection-conformance-1777078204269-updated",
+            "id": "gid://shopify/Collection/468787822825",
+            "title": "Hermes Collection Conformance 1777078305206 Updated",
+            "handle": "hermes-collection-conformance-1777078305206-updated",
             "products": {
               "nodes": [
-                {
-                  "id": "gid://shopify/Product/8971842846953",
-                  "title": "Test Product - 6635",
-                  "handle": "test-product-ge91cbbd6"
-                },
                 {
                   "id": "gid://shopify/Product/8397257572585",
                   "title": "ADIDAS | CLASSIC BACKPACK | LEGEND INK MULTICOLOUR",
                   "handle": "adidas-classic-backpack-legend-ink-multicolour"
+                },
+                {
+                  "id": "gid://shopify/Product/8971842846953",
+                  "title": "Test Product - 6635",
+                  "handle": "test-product-ge91cbbd6"
                 }
               ],
               "pageInfo": {
@@ -60,7 +56,7 @@
           "actualQueryCost": 14,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1974,
+            "currentlyAvailable": 1973,
             "restoreRate": 100
           }
         }
@@ -70,20 +66,20 @@
   "downstreamRead": {
     "data": {
       "collection": {
-        "id": "gid://shopify/Collection/468787757289",
-        "title": "Hermes Collection Conformance 1777078204269 Updated",
-        "handle": "hermes-collection-conformance-1777078204269-updated",
+        "id": "gid://shopify/Collection/468787822825",
+        "title": "Hermes Collection Conformance 1777078305206 Updated",
+        "handle": "hermes-collection-conformance-1777078305206-updated",
         "products": {
           "nodes": [
-            {
-              "id": "gid://shopify/Product/8971842846953",
-              "title": "Test Product - 6635",
-              "handle": "test-product-ge91cbbd6"
-            },
             {
               "id": "gid://shopify/Product/8397257572585",
               "title": "ADIDAS | CLASSIC BACKPACK | LEGEND INK MULTICOLOUR",
               "handle": "adidas-classic-backpack-legend-ink-multicolour"
+            },
+            {
+              "id": "gid://shopify/Product/8971842846953",
+              "title": "Test Product - 6635",
+              "handle": "test-product-ge91cbbd6"
             }
           ],
           "pageInfo": {
@@ -95,20 +91,20 @@
       "collections": {
         "nodes": [
           {
-            "id": "gid://shopify/Collection/468787757289",
-            "title": "Hermes Collection Conformance 1777078204269 Updated",
-            "handle": "hermes-collection-conformance-1777078204269-updated",
+            "id": "gid://shopify/Collection/468787822825",
+            "title": "Hermes Collection Conformance 1777078305206 Updated",
+            "handle": "hermes-collection-conformance-1777078305206-updated",
             "products": {
               "nodes": [
-                {
-                  "id": "gid://shopify/Product/8971842846953",
-                  "title": "Test Product - 6635",
-                  "handle": "test-product-ge91cbbd6"
-                },
                 {
                   "id": "gid://shopify/Product/8397257572585",
                   "title": "ADIDAS | CLASSIC BACKPACK | LEGEND INK MULTICOLOUR",
                   "handle": "adidas-classic-backpack-legend-ink-multicolour"
+                },
+                {
+                  "id": "gid://shopify/Product/8971842846953",
+                  "title": "Test Product - 6635",
+                  "handle": "test-product-ge91cbbd6"
                 }
               ],
               "pageInfo": {
@@ -266,9 +262,9 @@
         "collections": {
           "nodes": [
             {
-              "id": "gid://shopify/Collection/468787757289",
-              "title": "Hermes Collection Conformance 1777078204269 Updated",
-              "handle": "hermes-collection-conformance-1777078204269-updated"
+              "id": "gid://shopify/Collection/468787822825",
+              "title": "Hermes Collection Conformance 1777078305206 Updated",
+              "handle": "hermes-collection-conformance-1777078305206-updated"
             }
           ],
           "pageInfo": {
@@ -284,7 +280,7 @@
         "actualQueryCost": 26,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1962,
+          "currentlyAvailable": 1964,
           "restoreRate": 100
         }
       }
