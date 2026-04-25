@@ -11,6 +11,7 @@
     "variablesPath": "config/parity-requests/collectionRemoveProducts-parity-plan.variables.json",
     "variablesCapturePath": "$.mutation.variables"
   },
+  "comparisonMode": "captured-vs-proxy-request",
   "notes": "Executed by the conformance parity runner against the local staged-mutation path with live fixture variables; expected differences are path-scoped to nondeterministic ids, timestamps, throttle metadata, or documented declared-gap fields.",
   "comparison": {
     "mode": "strict-json",

@@ -105,6 +105,7 @@ function interpretMutationLogEntry(
 
 export type ParityScenarioState =
   | 'ready-for-comparison'
+  | 'enforced-by-fixture'
   | 'invalid-missing-comparison-contract'
   | 'blocked-with-proxy-request'
   | 'not-yet-implemented';
@@ -240,29 +241,85 @@ export function classifyParityScenarioState(
   scenario: Pick<Scenario, 'status'>,
   paritySpec: ParitySpec | null | undefined,
 ): ParityScenarioState {
-  if (paritySpec?.blocker && hasProxyRequest(paritySpec)) {
-    return 'blocked-with-proxy-request';
-  }
-
   if (scenario.status === 'captured') {
+    if (paritySpec?.comparisonMode === 'captured-fixture' && (paritySpec.liveCaptureFiles?.length ?? 0) > 0) {
+      return 'enforced-by-fixture';
+    }
+
     return hasProxyRequest(paritySpec) && hasComparisonContract(paritySpec)
       ? 'ready-for-comparison'
       : 'invalid-missing-comparison-contract';
+  }
+
+  if (paritySpec?.blocker && hasProxyRequest(paritySpec)) {
+    return 'blocked-with-proxy-request';
   }
 
   return 'not-yet-implemented';
 }
 
 export const parityStatusNote =
-  'readyForComparison means a captured scenario has a proxy request and an explicit strict-json comparison contract. invalid scenarios are captured recordings that cannot run high-assurance comparison yet. notYetImplemented scenarios are legacy non-executable entries; do not add new planned-only or blocked-only parity specs.';
+  'readyForComparison means a captured scenario has a proxy request and an explicit strict-json comparison contract. enforcedByFixture means a captured multi-step fixture is enforced outside the generic parity runner by committed runtime tests. invalid captured scenarios are not allowed in checked-in inventory. notYetImplemented scenarios are legacy non-executable entries; do not add new planned-only or blocked-only parity specs.';
+
+export function validateParityScenarioInventoryEntry(
+  scenario: Pick<Scenario, 'id' | 'status' | 'captureFiles'>,
+  paritySpec: ParitySpec,
+): string[] {
+  const errors: string[] = [];
+  const mode = paritySpec.comparisonMode;
+
+  if (scenario.status !== 'captured') {
+    return errors;
+  }
+
+  if (paritySpec.blocker) {
+    errors.push(
+      `Captured scenario ${scenario.id} must not declare a blocker; remove it from checked-in parity inventory until it is enforceable.`,
+    );
+  }
+
+  if (mode === 'planned') {
+    errors.push(`Captured scenario ${scenario.id} must use an enforced captured comparison mode.`);
+    return errors;
+  }
+
+  if (mode === 'captured-fixture') {
+    if ((scenario.captureFiles?.length ?? paritySpec.liveCaptureFiles?.length ?? 0) === 0) {
+      errors.push(`Captured fixture scenario ${scenario.id} must reference at least one capture fixture.`);
+    }
+    if ((paritySpec.runtimeTestFiles?.length ?? 0) === 0) {
+      errors.push(`Captured fixture scenario ${scenario.id} must reference at least one runtime test file.`);
+    }
+    return errors;
+  }
+
+  if (!hasProxyRequest(paritySpec)) {
+    errors.push(`Captured scenario ${scenario.id} must declare a proxy request.`);
+  }
+
+  const comparisonErrors = validateComparisonContract(paritySpec.comparison);
+  if (comparisonErrors.length > 0) {
+    errors.push(...comparisonErrors.map((error) => `Captured scenario ${scenario.id}: ${error}`));
+  }
+
+  if (!hasComparisonContract(paritySpec)) {
+    errors.push(`Captured scenario ${scenario.id} must declare at least one executable comparison target.`);
+  }
+
+  return errors;
+}
 
 export function summarizeParityResults(results: Array<{ state: ParityScenarioState }>): {
   readyForComparison: number;
   pending: number;
-  statusCounts: Record<'readyForComparison' | 'invalidMissingComparisonContract' | 'notYetImplemented', number>;
+  statusCounts: Record<
+    'readyForComparison' | 'enforcedByFixture' | 'invalidMissingComparisonContract' | 'notYetImplemented',
+    number
+  >;
   statusNote: string;
 } {
   const readyForComparison = results.filter((result) => result.state === 'ready-for-comparison').length;
+  const enforcedByFixture = results.filter((result) => result.state === 'enforced-by-fixture').length;
   const invalidMissingComparisonContract = results.filter(
     (result) => result.state === 'invalid-missing-comparison-contract',
   ).length;
@@ -270,9 +327,10 @@ export function summarizeParityResults(results: Array<{ state: ParityScenarioSta
 
   return {
     readyForComparison,
-    pending: results.length - readyForComparison,
+    pending: results.length - readyForComparison - enforcedByFixture,
     statusCounts: {
       readyForComparison,
+      enforcedByFixture,
       invalidMissingComparisonContract,
       notYetImplemented,
     },
@@ -3778,6 +3836,19 @@ function readCapturedProductMedia(
 }
 
 function seedPreconditionsFromCapture(capture: unknown, variables: Record<string, unknown>): void {
+  const seedProducts = readArrayField(capture as Record<string, unknown>, 'seedProducts').filter(isPlainObject);
+  for (const seedProduct of seedProducts) {
+    const productId = readStringField(seedProduct, 'id');
+    if (!productId?.startsWith('gid://shopify/Product/')) {
+      continue;
+    }
+    store.upsertBaseProducts([makeSeedProduct(productId, seedProduct)]);
+    const variants = readCapturedProductVariants(productId, seedProduct);
+    if (variants.length > 0) {
+      store.replaceBaseVariantsForProduct(productId, variants);
+    }
+  }
+
   seedProductMetafieldsReadPreconditions(capture);
   seedMetafieldDefinitionPreconditions(capture);
   if (seedInventoryLinkagePreconditions(capture)) {

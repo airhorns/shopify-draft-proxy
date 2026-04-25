@@ -3,19 +3,36 @@
   "operationNames": ["products", "productsCount"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "selected-fields", "search-filter-semantics"],
-  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-variant-search.json"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products-variant-search.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products-variant-search-read.graphql",
     "variablesPath": "config/parity-requests/products-variant-search-read.variables.json"
   },
-  "comparisonMode": "capture-only",
-  "notes": "Live variant-backed product search capture now has a concrete proxy request scaffold covering sku-filtered `products` plus `productsCount` cursor fields used by the current overlay serializer. Comparator wiring can reuse this request scaffold once proxy-vs-Shopify comparison is implemented.",
+  "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
+    "expectedDifferences": [
+      {
+        "path": "$.products.pageInfo.startCursor",
+        "ignore": true,
+        "regrettable": true,
+        "reason": "Shopify connection cursors are opaque; the proxy guarantees stable cursor-window behavior but not Shopify's internal cursor encoding."
+      },
+      {
+        "path": "$.products.pageInfo.endCursor",
+        "ignore": true,
+        "regrettable": true,
+        "reason": "Shopify connection cursors are opaque; the proxy guarantees stable cursor-window behavior but not Shopify's internal cursor encoding."
+      }
+    ],
+    "targets": [
+      {
+        "name": "products-variant-search-data",
+        "capturePath": "$.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
   },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
-  }
+  "notes": "Live capture seeds a real product variant SKU from the conformance store, then replays the products/productsCount search locally from normalized product and variant state."
 }

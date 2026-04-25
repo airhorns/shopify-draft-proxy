@@ -8,14 +8,17 @@
     "documentPath": "config/parity-requests/locations-catalog-read.graphql",
     "variablesPath": "config/parity-requests/locations-catalog-read.variables.json"
   },
-  "comparisonMode": "capture-only",
-  "notes": "Live locations catalog capture now covers top-level `locations` pagination for the location slice (`id`, `name`) that the inventory overlay can derive from effective inventory levels.",
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable read parity for top-level `locations` pagination. The local overlay harness receives the captured Shopify response as its upstream live-read payload and must preserve the selected `id`, `name`, cursor, and pageInfo shape without staging or synthesizing location rows from the capture.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "locations-catalog-data",
+        "capturePath": "$.data",
+        "proxyPath": "$.data"
+      }
+    ]
   }
 }

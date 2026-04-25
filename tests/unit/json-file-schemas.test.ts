@@ -46,6 +46,31 @@ describe('schemaful JSON files', () => {
     }
   });
 
+  it('rejects parity specs with comparison modes outside the enforced-mode schema', () => {
+    expect(
+      paritySpecSchema.safeParse({
+        scenarioId: 'passive-recording-example',
+        comparisonMode: 'passive-recording',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('requires captured parity specs to declare a non-planned comparison mode', () => {
+    expect(
+      paritySpecSchema.safeParse({
+        scenarioId: 'captured-without-mode',
+        scenarioStatus: 'captured',
+      }).success,
+    ).toBe(false);
+    expect(
+      paritySpecSchema.safeParse({
+        scenarioId: 'captured-planned-mode',
+        scenarioStatus: 'captured',
+        comparisonMode: 'planned',
+      }).success,
+    ).toBe(false);
+  });
+
   it('validates every checked-in parity request variables file as GraphQL variables', () => {
     const variablesPaths = listFiles(path.join(repoRoot, 'config/parity-requests'), (filePath) =>
       filePath.endsWith('.variables.json'),
