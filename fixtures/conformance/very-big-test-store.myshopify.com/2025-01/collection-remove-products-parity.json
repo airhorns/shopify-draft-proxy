@@ -20,9 +20,7 @@
   "mutation": {
     "variables": {
       "id": "gid://shopify/Collection/468787757289",
-      "productIds": [
-        "gid://shopify/Product/8971842846953"
-      ]
+      "productIds": ["gid://shopify/Product/8971842846953"]
     },
     "response": {
       "data": {

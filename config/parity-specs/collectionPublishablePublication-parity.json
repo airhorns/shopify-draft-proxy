@@ -3,7 +3,9 @@
   "operationNames": ["publishablePublish", "publishableUnpublish"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
-  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collection-publication-parity.json"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collection-publication-parity.json"
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/collectionPublishablePublish-parity.graphql",
     "variablesCapturePath": "$.mutation.variables"
