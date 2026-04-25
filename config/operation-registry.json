@@ -167,6 +167,96 @@
     "runtimeTests": []
   },
   {
+    "name": "customerPaymentMethod",
+    "type": "query",
+    "domain": "payments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["customerPaymentMethod", "CustomerPaymentMethod"],
+    "runtimeTests": [],
+    "supportNotes": "Payment-area scaffold only. The 2026-04-25 harry-test-heelo probe still returned ACCESS_DENIED without read_customer_payment_methods; future capture requires read_customers plus read_customer_payment_methods and should settle revoked/empty payment-method behavior before local overlay support."
+  },
+  {
+    "name": "orderPaymentStatus",
+    "type": "query",
+    "domain": "payments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["orderPaymentStatus", "OrderPaymentStatus"],
+    "runtimeTests": [],
+    "supportNotes": "Payment-area scaffold only. The 2026-04-25 harry-test-heelo probe can capture unknown-id null behavior; future capture should use safe order/payment status reads and document required order access before local overlay support."
+  },
+  {
+    "name": "paymentCustomization",
+    "type": "query",
+    "domain": "payments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["paymentCustomization", "PaymentCustomization"],
+    "runtimeTests": [],
+    "supportNotes": "Payment customization scaffold only. The 2026-04-25 harry-test-heelo probe can capture unknown-id null behavior with read_payment_customizations; future capture should record no-data/null behavior before local overlay support."
+  },
+  {
+    "name": "paymentCustomizations",
+    "type": "query",
+    "domain": "payments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["paymentCustomizations", "PaymentCustomizations"],
+    "runtimeTests": [],
+    "supportNotes": "Payment customization scaffold only. The 2026-04-25 harry-test-heelo probe can capture an empty connection with read_payment_customizations; future capture should record connection filters, empty pages, and pagination shape before local overlay support."
+  },
+  {
+    "name": "paymentTermsTemplates",
+    "type": "query",
+    "domain": "payments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["paymentTermsTemplates", "PaymentTermsTemplates"],
+    "runtimeTests": [],
+    "supportNotes": "Payment terms scaffold only. The 2026-04-25 harry-test-heelo probe can capture the template catalog; future capture should also record paymentTermsType filtering before local overlay support."
+  },
+  {
+    "name": "shopPayPaymentRequestReceipt",
+    "type": "query",
+    "domain": "payments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["shopPayPaymentRequestReceipt", "ShopPayPaymentRequestReceipt"],
+    "runtimeTests": [],
+    "supportNotes": "Shop Pay payment request receipt scaffold only. The 2026-04-25 harry-test-heelo probe can capture unknown-token null behavior; future capture should avoid creating customer-visible payment requests before local overlay support."
+  },
+  {
+    "name": "shopPayPaymentRequestReceipts",
+    "type": "query",
+    "domain": "payments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["shopPayPaymentRequestReceipts", "ShopPayPaymentRequestReceipts"],
+    "runtimeTests": [],
+    "supportNotes": "Shop Pay payment request receipt scaffold only. The 2026-04-25 harry-test-heelo probe can capture empty connection behavior; future capture should avoid creating customer-visible payment requests before local overlay support."
+  },
+  {
+    "name": "shopifyPaymentsAccount",
+    "type": "query",
+    "domain": "payments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["shopifyPaymentsAccount", "ShopifyPaymentsAccount"],
+    "runtimeTests": [],
+    "supportNotes": "Shopify Payments account scaffold only. The 2026-04-25 harry-test-heelo probe still returned ACCESS_DENIED without read_shopify_payments/read_shopify_payments_accounts; future top-level capture must not synthesize balances, payouts, disputes, bank accounts, or descriptors without fixture evidence."
+  },
+  {
+    "name": "tenderTransactions",
+    "type": "query",
+    "domain": "payments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["tenderTransactions", "TenderTransactions"],
+    "runtimeTests": [],
+    "supportNotes": "Tender transaction scaffold only. The 2026-04-25 harry-test-heelo probe can capture an empty read-only listing; future capture should preserve payment-details nullability and record no-data connection behavior before local overlay support."
+  },
+  {
     "name": "publications",
     "type": "query",
     "domain": "products",
@@ -358,11 +448,12 @@
   {
     "name": "customerPaymentMethodSendUpdateEmail",
     "type": "mutation",
-    "domain": "customers",
+    "domain": "payments",
     "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["customerPaymentMethodSendUpdateEmail", "CustomerPaymentMethodSendUpdateEmail"],
-    "runtimeTests": []
+    "runtimeTests": [],
+    "supportNotes": "Customer payment method email scaffold only. This is customer-visible side effect work; future capture requires write_customers plus write_customer_payment_methods and a no-recipient or otherwise safe email plan before local staging support."
   },
   {
     "name": "customerMerge",
@@ -1106,6 +1197,222 @@
     "implemented": true,
     "matchNames": ["orderCreateManualPayment", "OrderCreateManualPayment"],
     "runtimeTests": ["tests/integration/order-lifecycle-payment-customer-flow.test.ts"]
+  },
+  {
+    "name": "customerPaymentMethodCreateFromDuplicationData",
+    "type": "mutation",
+    "domain": "payments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["customerPaymentMethodCreateFromDuplicationData", "CustomerPaymentMethodCreateFromDuplicationData"],
+    "runtimeTests": [],
+    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods and must avoid creating reusable vaulted payment data without an isolated test customer/payment method lifecycle."
+  },
+  {
+    "name": "customerPaymentMethodCreditCardCreate",
+    "type": "mutation",
+    "domain": "payments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["customerPaymentMethodCreditCardCreate", "CustomerPaymentMethodCreditCardCreate"],
+    "runtimeTests": [],
+    "supportNotes": "Customer payment method scaffold only. Requires write_customers plus write_customer_payment_methods and PCI-sensitive card session inputs; future capture must use safe non-real payment data and record async/processing behavior before local staging support."
+  },
+  {
+    "name": "customerPaymentMethodCreditCardUpdate",
+    "type": "mutation",
+    "domain": "payments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["customerPaymentMethodCreditCardUpdate", "CustomerPaymentMethodCreditCardUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "Customer payment method scaffold only. Requires write_customers plus write_customer_payment_methods and an isolated vaulted payment method; future capture must avoid real card data and document revoked/updated read-after-write behavior."
+  },
+  {
+    "name": "customerPaymentMethodGetDuplicationData",
+    "type": "mutation",
+    "domain": "payments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["customerPaymentMethodGetDuplicationData", "CustomerPaymentMethodGetDuplicationData"],
+    "runtimeTests": [],
+    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods and should treat returned duplication data as sensitive ephemeral payment material."
+  },
+  {
+    "name": "customerPaymentMethodGetUpdateUrl",
+    "type": "mutation",
+    "domain": "payments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["customerPaymentMethodGetUpdateUrl", "CustomerPaymentMethodGetUpdateUrl"],
+    "runtimeTests": [],
+    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods and must treat returned update URLs as sensitive, expiring customer-payment links."
+  },
+  {
+    "name": "customerPaymentMethodPaypalBillingAgreementCreate",
+    "type": "mutation",
+    "domain": "payments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": [
+      "customerPaymentMethodPaypalBillingAgreementCreate",
+      "CustomerPaymentMethodPaypalBillingAgreementCreate"
+    ],
+    "runtimeTests": [],
+    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods and isolated PayPal billing-agreement test data before local staging support."
+  },
+  {
+    "name": "customerPaymentMethodPaypalBillingAgreementUpdate",
+    "type": "mutation",
+    "domain": "payments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": [
+      "customerPaymentMethodPaypalBillingAgreementUpdate",
+      "CustomerPaymentMethodPaypalBillingAgreementUpdate"
+    ],
+    "runtimeTests": [],
+    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods and an isolated PayPal billing-agreement test method before local staging support."
+  },
+  {
+    "name": "customerPaymentMethodRemoteCreate",
+    "type": "mutation",
+    "domain": "payments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["customerPaymentMethodRemoteCreate", "CustomerPaymentMethodRemoteCreate"],
+    "runtimeTests": [],
+    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods, safe remote gateway identifiers, and polling evidence through customerPaymentMethod before local staging support."
+  },
+  {
+    "name": "customerPaymentMethodRevoke",
+    "type": "mutation",
+    "domain": "payments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["customerPaymentMethodRevoke", "CustomerPaymentMethodRevoke"],
+    "runtimeTests": [],
+    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods and an isolated payment method because revoke is destructive for recurring billing flows."
+  },
+  {
+    "name": "orderCapture",
+    "type": "mutation",
+    "domain": "payments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["orderCapture", "OrderCapture"],
+    "runtimeTests": [],
+    "supportNotes": "Order payment scaffold only. Future capture requires write_orders or write_marketplace_orders plus capture_payments_for_orders permission and must use an isolated authorized transaction because the happy path captures funds."
+  },
+  {
+    "name": "orderCreateMandatePayment",
+    "type": "mutation",
+    "domain": "payments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["orderCreateMandatePayment", "OrderCreateMandatePayment"],
+    "runtimeTests": [],
+    "supportNotes": "Mandate payment scaffold only. Future capture requires write_payment_mandate, pay_orders_by_vaulted_card permission, a mandate-backed order schedule, idempotency-key handling, and Shopify Plus coverage for amount-specific branches."
+  },
+  {
+    "name": "paymentCustomizationActivation",
+    "type": "mutation",
+    "domain": "payments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["paymentCustomizationActivation", "PaymentCustomizationActivation"],
+    "runtimeTests": [],
+    "supportNotes": "Payment customization scaffold only. Future capture requires write_payment_customizations and disposable customization records because activation changes checkout payment behavior."
+  },
+  {
+    "name": "paymentCustomizationCreate",
+    "type": "mutation",
+    "domain": "payments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["paymentCustomizationCreate", "PaymentCustomizationCreate"],
+    "runtimeTests": [],
+    "supportNotes": "Payment customization scaffold only. Future capture requires write_payment_customizations, a test Shopify Function handle, and cleanup for created checkout payment configuration."
+  },
+  {
+    "name": "paymentCustomizationDelete",
+    "type": "mutation",
+    "domain": "payments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["paymentCustomizationDelete", "PaymentCustomizationDelete"],
+    "runtimeTests": [],
+    "supportNotes": "Payment customization scaffold only. Future capture requires write_payment_customizations and disposable customization records because delete is destructive."
+  },
+  {
+    "name": "paymentCustomizationUpdate",
+    "type": "mutation",
+    "domain": "payments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["paymentCustomizationUpdate", "PaymentCustomizationUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "Payment customization scaffold only. Future capture requires write_payment_customizations and disposable customization records because updates can change checkout payment behavior."
+  },
+  {
+    "name": "paymentReminderSend",
+    "type": "mutation",
+    "domain": "payments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["paymentReminderSend", "PaymentReminderSend"],
+    "runtimeTests": [],
+    "supportNotes": "Payment reminder scaffold only. Future capture requires write_orders and a no-recipient or otherwise safe email plan because the happy path sends a customer-visible payment reminder."
+  },
+  {
+    "name": "paymentTermsCreate",
+    "type": "mutation",
+    "domain": "payments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["paymentTermsCreate", "PaymentTermsCreate"],
+    "runtimeTests": [],
+    "supportNotes": "Payment terms scaffold only. Future capture requires write_payment_terms plus order or draft-order access and must use an isolated order because it changes due dates/payment schedules."
+  },
+  {
+    "name": "paymentTermsDelete",
+    "type": "mutation",
+    "domain": "payments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["paymentTermsDelete", "PaymentTermsDelete"],
+    "runtimeTests": [],
+    "supportNotes": "Payment terms scaffold only. Future capture requires write_payment_terms plus order or draft-order access and disposable terms because delete changes payment schedules."
+  },
+  {
+    "name": "paymentTermsUpdate",
+    "type": "mutation",
+    "domain": "payments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["paymentTermsUpdate", "PaymentTermsUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "Payment terms scaffold only. Future capture requires write_payment_terms plus order or draft-order access and an isolated payment schedule because updates change due dates/payment status."
+  },
+  {
+    "name": "shopifyPaymentsPayoutAlternateCurrencyCreate",
+    "type": "mutation",
+    "domain": "payments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["shopifyPaymentsPayoutAlternateCurrencyCreate", "ShopifyPaymentsPayoutAlternateCurrencyCreate"],
+    "runtimeTests": [],
+    "supportNotes": "Shopify Payments payout scaffold only. Future capture requires Shopify Payments payout/account access and must not run happy paths on shared stores because it can alter real payout configuration or money movement."
+  },
+  {
+    "name": "transactionVoid",
+    "type": "mutation",
+    "domain": "payments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["transactionVoid", "TransactionVoid"],
+    "runtimeTests": [],
+    "supportNotes": "Order payment scaffold only. Future capture requires write_orders plus cancel-order permission and an isolated uncaptured authorization because the happy path voids payment authorization."
   },
   {
     "name": "orderCustomerSet",
