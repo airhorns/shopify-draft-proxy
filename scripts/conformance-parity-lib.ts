@@ -30,6 +30,11 @@ import {
   hydrateCustomersFromUpstreamResponse,
 } from '../src/proxy/customers.js';
 import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
+import {
+  handleMarketsQuery,
+  hydrateMarketsFromUpstreamResponse,
+  seedMarketsFromCapture,
+} from '../src/proxy/markets.js';
 import { handleMediaMutation } from '../src/proxy/media.js';
 import { handleOrderMutation, handleOrderQuery } from '../src/proxy/orders.js';
 import {
@@ -757,6 +762,17 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleStorePropertiesQuery(document, variables),
+    };
+  }
+
+  if (capability.execution === 'overlay-read' && capability.domain === 'markets') {
+    if (upstreamPayload !== undefined) {
+      hydrateMarketsFromUpstreamResponse(document, variables, upstreamPayload);
+    }
+
+    return {
+      status: 200,
+      body: handleMarketsQuery(document, variables),
     };
   }
 
@@ -2890,6 +2906,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   }
 
   if (seedBusinessEntityPreconditions(capture)) {
+    return;
+  }
+
+  if (seedMarketsFromCapture(capture)) {
     return;
   }
 

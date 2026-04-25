@@ -8,6 +8,7 @@ export type CapabilityDomain =
   | 'orders'
   | 'store-properties'
   | 'discounts'
+  | 'markets'
   | 'metafields'
   | 'unknown';
 export type CapabilityExecution = 'overlay-read' | 'stage-locally' | 'passthrough';

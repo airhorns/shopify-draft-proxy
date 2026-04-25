@@ -1,0 +1,52 @@
+fragment MarketCatalogReadFields on Catalog {
+  __typename
+  id
+  title
+  status
+  priceList {
+    id
+    name
+    currency
+  }
+  publication {
+    id
+    autoPublish
+  }
+  ... on MarketCatalog {
+    markets(first: 5) {
+      edges {
+        cursor
+        node {
+          id
+          name
+          handle
+          status
+          type
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}
+
+query MarketCatalogsRead($first: Int!) {
+  catalogs(first: $first, type: MARKET) {
+    edges {
+      cursor
+      node {
+        ...MarketCatalogReadFields
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}
