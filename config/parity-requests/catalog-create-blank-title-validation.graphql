@@ -1,0 +1,13 @@
+#graphql
+mutation CatalogCreateBlankTitle($input: CatalogCreateInput!) {
+  catalogCreate(input: $input) {
+    catalog {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

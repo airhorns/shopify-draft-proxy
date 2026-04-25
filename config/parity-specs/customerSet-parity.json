@@ -1,0 +1,40 @@
+{
+  "scenarioId": "customer-set-live-parity",
+  "operationNames": ["customerSet"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customer-set-parity.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customerSet-parity.graphql",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict comparison covers the first local customerSet create branch. The same fixture records id update, email upsert/update, address-list replacement, empty-address replacement, missing-identity validation, unknown-id validation, and custom-id top-level error evidence; those multi-step branches are covered by integration tests because the parity runner currently compares one primary mutation request per scenario.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.customerSet.customer.id",
+        "matcher": "shopify-gid:Customer",
+        "reason": "The proxy stages customerSet locally and returns a stable synthetic Customer GID instead of Shopify's live Customer GID."
+      },
+      {
+        "path": "$.customerSet.customer.createdAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy stages customerSet with a deterministic local timestamp while Shopify returns the live write timestamp."
+      },
+      {
+        "path": "$.customerSet.customer.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy stages customerSet with a deterministic local timestamp while Shopify returns the live write timestamp."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

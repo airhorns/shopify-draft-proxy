@@ -191,6 +191,7 @@ export const locationRecordSchema = z.strictObject({
   isFulfillmentService: nullableBooleanSchema.optional(),
   shipsInventory: nullableBooleanSchema.optional(),
   updatedAt: nullableStringSchema.optional(),
+  deleted: z.boolean().optional(),
   address: locationAddressRecordSchema.nullable().optional(),
   suggestedAddresses: z.array(locationSuggestedAddressRecordSchema).optional(),
   metafields: z.array(locationMetafieldRecordSchema).optional(),
@@ -459,6 +460,12 @@ export const customerAddressRecordSchema = z.strictObject({
   formattedArea: nullableStringSchema,
 });
 export type CustomerAddressRecord = z.infer<typeof customerAddressRecordSchema>;
+
+export const customerPaymentMethodRecordSchema = z.strictObject({
+  id: z.string(),
+  customerId: nullableStringSchema,
+});
+export type CustomerPaymentMethodRecord = z.infer<typeof customerPaymentMethodRecordSchema>;
 
 export const customerRecordSchema = z.strictObject({
   id: z.string(),
@@ -935,8 +942,22 @@ export const orderTransactionRecordSchema = z.strictObject({
   status: nullableStringSchema,
   gateway: nullableStringSchema,
   amountSet: moneySetSchema.nullable(),
+  parentTransactionId: nullableStringSchema.optional(),
+  paymentId: nullableStringSchema.optional(),
+  paymentReferenceId: nullableStringSchema.optional(),
+  processedAt: nullableStringSchema.optional(),
 });
 export type OrderTransactionRecord = z.infer<typeof orderTransactionRecordSchema>;
+
+export const orderMandatePaymentRecordSchema = z.strictObject({
+  idempotencyKey: z.string(),
+  orderId: z.string(),
+  jobId: z.string(),
+  paymentReferenceId: z.string(),
+  transactionId: z.string(),
+  createdAt: z.string(),
+});
+export type OrderMandatePaymentRecord = z.infer<typeof orderMandatePaymentRecordSchema>;
 
 export const orderRefundLineItemRecordSchema = z.strictObject({
   id: z.string(),
@@ -994,6 +1015,8 @@ export const orderRecordSchema = z.strictObject({
   currentTotalTaxSet: moneySetSchema.nullable().optional(),
   totalPriceSet: moneySetSchema.nullable(),
   totalOutstandingSet: moneySetSchema.nullable().optional(),
+  totalCapturableSet: moneySetSchema.nullable().optional(),
+  capturable: z.boolean().optional(),
   totalReceivedSet: moneySetSchema.nullable().optional(),
   netPaymentSet: moneySetSchema.nullable().optional(),
   totalRefundedSet: moneySetSchema.nullable(),
@@ -1199,6 +1222,7 @@ export const stateSnapshotSchema = z.strictObject({
   publications: z.record(z.string(), publicationRecordSchema).default({}),
   customers: z.record(z.string(), customerRecordSchema),
   customerAddresses: z.record(z.string(), customerAddressRecordSchema).default({}),
+  customerPaymentMethods: z.record(z.string(), customerPaymentMethodRecordSchema).default({}),
   segments: z.record(z.string(), segmentRecordSchema).default({}),
   discounts: z.record(z.string(), discountRecordSchema).default({}),
   paymentCustomizations: z.record(z.string(), paymentCustomizationRecordSchema).default({}),
@@ -1230,6 +1254,7 @@ export const stateSnapshotSchema = z.strictObject({
   deletedSegmentIds: z.record(z.string(), z.literal(true)).default({}),
   deletedDiscountIds: z.record(z.string(), z.literal(true)).default({}),
   deletedMarketIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedCatalogIds: z.record(z.string(), z.literal(true)).default({}),
   deletedWebPresenceIds: z.record(z.string(), z.literal(true)).default({}),
   mergedCustomerIds: z.record(z.string(), z.string()).default({}),
   customerMergeRequests: z.record(z.string(), customerMergeRequestRecordSchema).default({}),

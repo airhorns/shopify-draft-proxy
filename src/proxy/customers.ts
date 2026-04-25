@@ -186,6 +186,21 @@ const VALID_CUSTOMER_METAFIELD_TYPE_MESSAGE = `Type must be one of the following
   ...CUSTOMER_METAFIELD_LIST_TYPES,
 ].join(', ')}.`;
 
+const SUPPORTED_CUSTOMER_SET_INPUT_FIELDS = new Set([
+  'addresses',
+  'email',
+  'firstName',
+  'lastName',
+  'locale',
+  'note',
+  'phone',
+  'tags',
+  'taxExempt',
+  'taxExemptions',
+]);
+
+const SUPPORTED_CUSTOMER_SET_IDENTIFIER_FIELDS = new Set(['id', 'email', 'phone']);
+
 const COUNTRY_NAMES_BY_CODE: Record<string, string> = {
   CA: 'Canada',
   US: 'United States',
@@ -1210,6 +1225,25 @@ function findCustomerByIdentifier(identifier: Record<string, unknown>): Customer
   return null;
 }
 
+function findCustomerByCustomerSetIdentifier(identifier: Record<string, unknown>): CustomerRecord | null {
+  const id = normalizeCustomerIdentifierValue(identifier['id']);
+  if (id) {
+    return store.getEffectiveCustomerById(id);
+  }
+
+  const email = normalizeCustomerIdentifierValue(identifier['email']);
+  if (email) {
+    return findCustomerByIdentifier({ emailAddress: email });
+  }
+
+  const phone = normalizeCustomerIdentifierValue(identifier['phone']);
+  if (phone) {
+    return findCustomerByIdentifier({ phoneNumber: phone });
+  }
+
+  return null;
+}
+
 function countProvidedCustomerIdentifiers(identifier: Record<string, unknown>): number {
   return ['id', 'emailAddress', 'phoneNumber', 'customId'].filter((key) => identifier[key] !== undefined).length;
 }
@@ -2106,6 +2140,10 @@ function readCustomerInput(raw: unknown): Record<string, unknown> {
   return isObject(raw) ? raw : {};
 }
 
+function readCustomerSetIdentifier(raw: unknown): Record<string, unknown> {
+  return isObject(raw) ? raw : {};
+}
+
 function normalizeCustomerTags(raw: unknown, fallback: string[]): string[] {
   if (!Array.isArray(raw)) {
     return structuredClone(fallback);
@@ -2198,6 +2236,10 @@ function readCustomerAddressInput(raw: unknown): Record<string, unknown> {
   return isObject(raw) ? raw : {};
 }
 
+function readCustomerAddressInputs(raw: unknown): Record<string, unknown>[] {
+  return Array.isArray(raw) ? raw.map(readCustomerAddressInput) : [];
+}
+
 function buildCreatedCustomerAddress(customerId: string, input: Record<string, unknown>): CustomerAddressRecord {
   const position = store.listEffectiveCustomerAddresses(customerId).length;
   return normalizeCustomerAddress(customerId, input, {
@@ -2226,6 +2268,18 @@ function buildCustomerWithDefaultAddress(
     defaultAddress: defaultAddress ? customerAddressToDefaultAddress(defaultAddress) : null,
     updatedAt: makeSyntheticTimestamp(),
   };
+}
+
+function replaceCustomerSetAddresses(customer: CustomerRecord, rawAddresses: unknown): CustomerRecord {
+  for (const address of store.listEffectiveCustomerAddresses(customer.id)) {
+    store.stageDeleteCustomerAddress(address.id);
+  }
+
+  const addresses = readCustomerAddressInputs(rawAddresses).map((addressInput) =>
+    store.stageUpsertCustomerAddress(buildCreatedCustomerAddress(customer.id, addressInput)),
+  );
+
+  return store.stageUpdateCustomer(buildCustomerWithDefaultAddress(customer, addresses[0] ?? null));
 }
 
 function buildMissingCustomerAddressCustomerError(fieldPath: string[]): CustomerMutationUserError {
@@ -2508,6 +2562,109 @@ function validateCustomerCreateInput(input: Record<string, unknown>): CustomerMu
   return [{ field: null, message: 'A name, phone number, or email address must be present' }];
 }
 
+function validateCustomerSetCreateInput(input: Record<string, unknown>): CustomerMutationUserError[] {
+  const hasEmail = typeof input['email'] === 'string' && input['email'].trim().length > 0;
+  const hasPhone = typeof input['phone'] === 'string' && input['phone'].trim().length > 0;
+  const hasFirstName = typeof input['firstName'] === 'string' && input['firstName'].trim().length > 0;
+  const hasLastName = typeof input['lastName'] === 'string' && input['lastName'].trim().length > 0;
+  if (hasEmail || hasPhone || hasFirstName || hasLastName) {
+    return [];
+  }
+
+  return [{ field: ['input'], message: 'A name, phone number, or email address must be present' }];
+}
+
+function validateSupportedCustomerSetInput(input: Record<string, unknown>): CustomerMutationUserError[] {
+  const unsupportedFields = Object.keys(input).filter((field) => !SUPPORTED_CUSTOMER_SET_INPUT_FIELDS.has(field));
+  const unsupportedErrors = unsupportedFields.map((field): CustomerMutationUserError => {
+    return {
+      field: ['input', field],
+      message: `customerSet input field '${field}' is not supported by local staging yet`,
+    };
+  });
+
+  const addressErrors: CustomerMutationUserError[] =
+    hasOwnField(input, 'addresses') && !Array.isArray(input['addresses'])
+      ? [{ field: ['input', 'addresses'], message: 'Addresses must be an array' }]
+      : [];
+
+  return [...unsupportedErrors, ...addressErrors, ...validateCustomerTaxExemptionInput(input)];
+}
+
+function providedCustomerSetIdentifierFields(identifier: Record<string, unknown>): string[] {
+  return ['id', 'email', 'phone', 'customId'].filter((field) => identifier[field] !== undefined);
+}
+
+function validateCustomerSetIdentifier(identifier: Record<string, unknown>): CustomerMutationUserError[] {
+  const unsupportedFields = Object.keys(identifier).filter(
+    (field) => field !== 'customId' && !SUPPORTED_CUSTOMER_SET_IDENTIFIER_FIELDS.has(field),
+  );
+  const unsupportedErrors = unsupportedFields.map((field): CustomerMutationUserError => {
+    return {
+      field: ['identifier', field],
+      message: `customerSet identifier field '${field}' is not supported by local staging yet`,
+    };
+  });
+
+  const providedFields = providedCustomerSetIdentifierFields(identifier);
+  if (providedFields.length <= 1) {
+    return unsupportedErrors;
+  }
+
+  return [
+    ...unsupportedErrors,
+    {
+      field: ['identifier'],
+      message: 'Customer set identifier must provide exactly one identifier',
+    },
+  ];
+}
+
+function validateCustomerSetIdentifierInputAlignment(
+  input: Record<string, unknown>,
+  identifier: Record<string, unknown>,
+): CustomerMutationUserError[] {
+  const email = normalizeCustomerIdentifierValue(identifier['email']);
+  const inputEmail = normalizeCustomerIdentifierValue(input['email']);
+  if (email && !inputEmail) {
+    return [
+      {
+        field: ['input'],
+        message: 'The input field corresponding to the identifier is required.',
+      },
+    ];
+  }
+  if (email && inputEmail && email.toLowerCase() !== inputEmail.toLowerCase()) {
+    return [
+      {
+        field: ['input', 'email'],
+        message: 'customerSet local staging requires input.email to match identifier.email',
+      },
+    ];
+  }
+
+  const phone = normalizeCustomerIdentifierValue(identifier['phone']);
+  const inputPhone = normalizeCustomerIdentifierValue(input['phone']);
+  if (phone && !inputPhone) {
+    return [
+      {
+        field: ['input'],
+        message: 'The input field corresponding to the identifier is required.',
+      },
+    ];
+  }
+  if (phone && inputPhone && phone !== inputPhone) {
+    return [
+      {
+        field: ['input', 'phone'],
+        message: 'customerSet local staging requires input.phone to match identifier.phone',
+      },
+    ];
+  }
+
+  return [];
+}
+
 function readConsentPayload(input: Record<string, unknown>, key: string): Record<string, unknown> {
   const value = input[key];
   return isObject(value) ? value : {};
@@ -2611,11 +2768,30 @@ function buildSmsMarketingConsentUpdatedCustomer(
   };
 }
 
+function buildAccountInviteBufferedCustomer(existing: CustomerRecord): CustomerRecord {
+  return {
+    ...existing,
+    state: existing.state === 'ENABLED' ? existing.state : 'INVITED',
+    updatedAt: makeSyntheticTimestamp(),
+  };
+}
+
+function buildSyntheticAccountActivationUrl(customerId: string): string {
+  const customerKey = customerId.split('/').pop() ?? 'customer';
+  const token = makeSyntheticGid('CustomerAccountActivationToken').split('/').pop() ?? 'token';
+  return `https://shopify-draft-proxy.local/customer-activation/${encodeURIComponent(customerKey)}?token=${encodeURIComponent(token)}`;
+}
+
+function isCustomerPaymentMethodGid(value: string): boolean {
+  return value.startsWith('gid://shopify/CustomerPaymentMethod/');
+}
+
 function serializeCustomerMutationPayload(
   field: FieldNode,
   payload: {
     customer?: CustomerRecord | null;
     customerAddress?: CustomerAddressRecord | null;
+    accountActivationUrl?: string | null;
     deletedCustomerId?: string | null;
     deletedCustomerAddressId?: string | null;
     resultingCustomerId?: string | null;
@@ -2631,6 +2807,9 @@ function serializeCustomerMutationPayload(
     switch (selection.name.value) {
       case 'customer':
         result[key] = payload.customer ? serializeCustomerSelection(payload.customer, selection, variables) : null;
+        break;
+      case 'accountActivationUrl':
+        result[key] = payload.accountActivationUrl ?? null;
         break;
       case 'customerAddress':
       case 'address':
@@ -2832,6 +3011,131 @@ export function handleCustomerMutation(
           upsertMetafieldsForCustomer(customer.id, metafieldInputs),
         );
       }
+      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
+      continue;
+    }
+
+    if (field.name.value === 'customerGenerateAccountActivationUrl') {
+      const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
+      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      if (!customerId || !existingCustomer) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            accountActivationUrl: null,
+            userErrors: [{ field: ['customerId'], message: "The customer can't be found." }],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      data[key] = serializeCustomerMutationPayload(
+        field,
+        {
+          accountActivationUrl: buildSyntheticAccountActivationUrl(customerId),
+          userErrors: [],
+        },
+        variables,
+      );
+      continue;
+    }
+
+    if (field.name.value === 'customerSendAccountInviteEmail') {
+      const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
+      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      if (!customerId || !existingCustomer) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customer: null,
+            userErrors: [{ field: ['customerId'], message: "Customer can't be found" }],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      const customer = store.stageUpdateCustomer(buildAccountInviteBufferedCustomer(existingCustomer));
+      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
+      continue;
+    }
+
+    if (field.name.value === 'customerPaymentMethodSendUpdateEmail') {
+      const customerPaymentMethodId =
+        typeof args['customerPaymentMethodId'] === 'string' ? args['customerPaymentMethodId'] : null;
+      const paymentMethod =
+        customerPaymentMethodId && isCustomerPaymentMethodGid(customerPaymentMethodId)
+          ? store.getEffectiveCustomerPaymentMethodById(customerPaymentMethodId)
+          : null;
+      if (!customerPaymentMethodId || !paymentMethod) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customer: null,
+            userErrors: [{ field: ['customerPaymentMethodId'], message: 'Customer payment method does not exist' }],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      const customer = paymentMethod.customerId ? store.getEffectiveCustomerById(paymentMethod.customerId) : null;
+      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
+      continue;
+    }
+
+    if (field.name.value === 'customerSet') {
+      const input = readCustomerInput(args['input']);
+      const identifier = readCustomerSetIdentifier(args['identifier']);
+      if (hasOwnField(identifier, 'customId')) {
+        data[key] = null;
+        errors.push(buildCustomerCustomIdentifierError(field));
+        continue;
+      }
+
+      const existingCustomer = findCustomerByCustomerSetIdentifier(identifier);
+      const effectiveInput = input;
+      const userErrors = [
+        ...validateSupportedCustomerSetInput(effectiveInput),
+        ...validateCustomerSetIdentifier(identifier),
+        ...validateCustomerSetIdentifierInputAlignment(effectiveInput, identifier),
+      ];
+      if (hasOwnField(effectiveInput, 'addresses') && !existingCustomer) {
+        userErrors.push({
+          field: ['input', 'addresses'],
+          message: 'customerSet local staging supports addresses only when updating an existing customer',
+        });
+      }
+
+      const idIdentifier = normalizeCustomerIdentifierValue(identifier['id']);
+      if (idIdentifier && !existingCustomer) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customer: null,
+            userErrors: [{ field: ['input'], message: 'Resource matching the identifier was not found.' }],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      if (!existingCustomer) {
+        userErrors.push(...validateCustomerSetCreateInput(effectiveInput));
+      }
+
+      if (userErrors.length > 0) {
+        data[key] = serializeCustomerMutationPayload(field, { customer: null, userErrors }, variables);
+        continue;
+      }
+
+      const stagedCustomer = existingCustomer
+        ? store.stageUpdateCustomer(buildUpdatedCustomer(existingCustomer, effectiveInput))
+        : store.stageCreateCustomer(buildCreatedCustomer(effectiveInput));
+      const customer = hasOwnField(effectiveInput, 'addresses')
+        ? replaceCustomerSetAddresses(stagedCustomer, effectiveInput['addresses'])
+        : stagedCustomer;
       data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
       continue;
     }
