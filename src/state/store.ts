@@ -65,6 +65,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedCollectionIds: {},
   deletedCustomerIds: {},
   deletedDiscountIds: {},
+  deletedMarketIds: {},
   mergedCustomerIds: {},
   customerMergeRequests: {},
 };
@@ -469,6 +470,8 @@ export class InMemoryStore {
       const market = rawMarket as Record<string, unknown>;
       const id = market['id'];
       if (typeof id === 'string' && id.length > 0) {
+        delete this.baseState.deletedMarketIds[id];
+        delete this.stagedState.deletedMarketIds[id];
         const previous = this.baseState.markets[id];
         const cursor = typeof rawCursor === 'string' && rawCursor.length > 0 ? rawCursor : (previous?.cursor ?? null);
         this.baseState.markets[id] = {
@@ -510,6 +513,70 @@ export class InMemoryStore {
   getBaseMarketsRootPayload(rootField: string): unknown | null {
     const payload = this.baseMarketsRootPayloads[rootField];
     return payload === undefined ? null : structuredClone(payload);
+  }
+
+  stageCreateMarket(market: MarketRecord): MarketRecord {
+    delete this.stagedState.deletedMarketIds[market.id];
+    this.stagedState.markets[market.id] = structuredClone(market);
+    if (!this.stagedState.marketOrder.includes(market.id)) {
+      this.stagedState.marketOrder.push(market.id);
+    }
+    return structuredClone(market);
+  }
+
+  stageUpdateMarket(market: MarketRecord): MarketRecord {
+    delete this.stagedState.deletedMarketIds[market.id];
+    this.stagedState.markets[market.id] = structuredClone(market);
+    if (!this.baseState.marketOrder.includes(market.id) && !this.stagedState.marketOrder.includes(market.id)) {
+      this.stagedState.marketOrder.push(market.id);
+    }
+    return structuredClone(market);
+  }
+
+  stageDeleteMarket(marketId: string): void {
+    delete this.stagedState.markets[marketId];
+    this.stagedState.marketOrder = this.stagedState.marketOrder.filter((id) => id !== marketId);
+    this.stagedState.deletedMarketIds[marketId] = true;
+  }
+
+  getEffectiveMarketRecordById(marketId: string): MarketRecord | null {
+    if (this.stagedState.deletedMarketIds[marketId]) {
+      return null;
+    }
+
+    const market = this.stagedState.markets[marketId] ?? this.baseState.markets[marketId] ?? null;
+    return market ? structuredClone(market) : null;
+  }
+
+  getEffectiveMarketById(marketId: string): unknown | null {
+    return this.getEffectiveMarketRecordById(marketId)?.data ?? null;
+  }
+
+  listEffectiveMarkets(): MarketRecord[] {
+    const mergedMarkets = new Map<string, MarketRecord>();
+    const orderedIds = [...this.baseState.marketOrder, ...this.stagedState.marketOrder];
+
+    for (const id of orderedIds) {
+      const market = this.getEffectiveMarketRecordById(id);
+      if (market) {
+        mergedMarkets.set(id, market);
+      }
+    }
+
+    for (const market of [...Object.values(this.baseState.markets), ...Object.values(this.stagedState.markets)]) {
+      if (mergedMarkets.has(market.id) || this.stagedState.deletedMarketIds[market.id]) {
+        continue;
+      }
+      mergedMarkets.set(market.id, structuredClone(market));
+    }
+
+    return Array.from(mergedMarkets.values());
+  }
+
+  hasStagedMarkets(): boolean {
+    return (
+      Object.keys(this.stagedState.markets).length > 0 || Object.keys(this.stagedState.deletedMarketIds).length > 0
+    );
   }
 
   setBaseSegmentsRootPayload(rootField: string, payload: unknown): void {

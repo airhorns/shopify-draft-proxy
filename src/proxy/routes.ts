@@ -11,7 +11,7 @@ import { getOperationCapability, type OperationCapability } from './capabilities
 import { handleMediaMutation } from './media.js';
 import { handleCustomerMutation, handleCustomerQuery, hydrateCustomersFromUpstreamResponse } from './customers.js';
 import { handleDiscountQuery } from './discounts.js';
-import { handleMarketsQuery, hydrateMarketsFromUpstreamResponse } from './markets.js';
+import { handleMarketMutation, handleMarketsQuery, hydrateMarketsFromUpstreamResponse } from './markets.js';
 import { handleOrderMutation, handleOrderQuery, shouldServeDraftOrderCatalogLocally } from './orders.js';
 import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamResponse } from './products.js';
 import { handleSegmentsQuery, hydrateSegmentsFromUpstreamResponse } from './segments.js';
@@ -228,6 +228,28 @@ export function createProxyRouter(config: AppConfig): Router {
 
       ctx.status = 200;
       ctx.body = handleMediaMutation(body.query, variables);
+      return;
+    }
+
+    if (capability.execution === 'stage-locally' && capability.domain === 'markets') {
+      const responseBody = handleMarketMutation(body.query, variables);
+
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: ctx.path,
+        query: body.query,
+        variables,
+        requestBody,
+        stagedResourceIds: collectProxySyntheticGids(responseBody),
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        notes: 'Staged locally in the in-memory Markets draft store.',
+      });
+
+      ctx.status = 200;
+      ctx.body = responseBody;
       return;
     }
 
@@ -451,7 +473,7 @@ export function createProxyRouter(config: AppConfig): Router {
         hydrateMarketsFromUpstreamResponse(body.query, variables, upstreamBody);
 
         ctx.status = response.status;
-        ctx.body = upstreamBody;
+        ctx.body = store.hasStagedMarkets() ? handleMarketsQuery(body.query, variables) : upstreamBody;
         return;
       }
     }
