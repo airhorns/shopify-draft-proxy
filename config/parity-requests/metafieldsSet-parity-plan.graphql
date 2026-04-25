@@ -6,10 +6,13 @@ mutation MetafieldsSetParityPlan($metafields: [MetafieldsSetInput!]!) {
       key
       type
       value
+      compareDigest
     }
     userErrors {
       field
       message
+      code
+      elementIndex
     }
   }
 }

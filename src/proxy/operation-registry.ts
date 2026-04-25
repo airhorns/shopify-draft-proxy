@@ -8,6 +8,7 @@ export type CapabilityDomain =
   | 'orders'
   | 'store-properties'
   | 'discounts'
+  | 'payments'
   | 'marketing'
   | 'privacy'
   | 'segments'
