@@ -15,3 +15,15 @@ Shared helpers for GraphQL Admin proxy serializers.
 - `serializeEmptyConnectionPageInfo(selection, options)` serializes an empty no-data `pageInfo` shape with false booleans and null cursors.
 
 Use this module for GraphQL selection, cursor, pagination, and PageInfo behavior shared across proxy resource files. Resource-specific domain decisions, such as how to sort products or preserve captured customer baseline cursors, should stay in the resource module and pass explicit values into these helpers.
+
+## `src/proxy/metafields.ts`
+
+Shared helpers for owner-scoped metafield serializers and staging input handling.
+
+- `normalizeOwnerMetafield(ownerKey, ownerId, raw)` normalizes a selected upstream metafield object into an owner-scoped record such as product, customer, or order metafields.
+- `readMetafieldInputObjects(raw)` filters mutation input arrays down to object inputs before owner-specific validation or staging.
+- `upsertOwnerMetafields(ownerKey, ownerId, inputs, existingMetafields, options)` applies Shopify-like `(namespace, key)` owner-scoped replacement semantics, with optional id lookup and identity trimming for input styles such as customer metafields.
+- `serializeMetafieldSelection(...)`, `serializeMetafieldSelectionSet(...)`, and `serializeMetafieldsConnection(...)` serialize singular `metafield(...)` and connection-style `metafields(...)` selections, including aliases, stable synthetic cursors, PageInfo, and optional inline-fragment flattening for order serializers.
+- `mergeMetafieldRecords(existing, next)` merges hydrated singular and connection metafields by `(namespace, key)` when upstream payloads provide both shapes.
+
+Use this module before adding product-, customer-, or order-local metafield serializer/upsert helpers. Owner-specific validation, store placement, and captured Shopify quirks should remain in the resource module that owns them.
