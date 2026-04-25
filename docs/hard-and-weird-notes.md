@@ -2123,3 +2123,22 @@ Practical rule:
 
 - use `discountNode(id:)` for family-agnostic detail reads
 - keep parity scenarios for `codeDiscountNode(id:)` and `automaticDiscountNode(id:)` on matching ID families; do not use mismatched-family calls as ordinary null-read evidence
+
+## 58. Admin customer address roots use MailingAddress payloads and split validation styles
+
+HAR-152 captured customer address lifecycle evidence on Admin GraphQL 2025-01 with `corepack pnpm conformance:capture-customer-addresses`.
+
+Captured facts:
+
+- `customerAddressCreate(customerId:, address:, setAsDefault:)` and `customerAddressUpdate(customerId:, addressId:, address:, setAsDefault:)` return payload field `address`, not `customerAddress`, and that object is a `MailingAddress`
+- `customerAddressDelete(customerId:, addressId:)` returns `deletedAddressId`
+- `customerUpdateDefaultAddress(customerId:, addressId:)` returns a `customer` payload with `defaultAddress` and `addressesV2`
+- `MailingAddressInput` accepts `countryCode` and `provinceCode`; the response expands those to full `country` / `province` strings plus `countryCodeV2` / `provinceCode`
+- unknown customer ids on address create return payload `userErrors` with `field: ["customerId"]` and message `Customer does not exist`
+- unknown address ids on update, delete, and default-address selection return top-level GraphQL errors with message `invalid id`, extension code `RESOURCE_NOT_FOUND`, and `data.<root>: null`
+
+Practical rule:
+
+- locally stage address lifecycle roots against a normalized customer-owned address graph and keep `Customer.defaultAddress` synchronized from the selected address row
+- use fixture-backed top-level errors for unknown address ids instead of turning those branches into payload `userErrors`
+- keep broader address validation, normalization, and territory-specific postal validation out of local support until new fixtures capture those branches

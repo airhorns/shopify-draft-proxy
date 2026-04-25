@@ -194,6 +194,393 @@ describe('customer draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('stages customer address lifecycle mutations and overlays downstream address reads', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('customer address mutations should not hit upstream fetch');
+    });
+
+    const app = createApp(snapshotConfig).callback();
+    const createCustomerResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CustomerCreate($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id email }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            email: 'address-flow@example.com',
+            firstName: 'Address',
+            lastName: 'Flow',
+          },
+        },
+      });
+    const customerId = createCustomerResponse.body.data.customerCreate.customer.id;
+
+    const createAddressResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation AddressCreate($customerId: ID!) {
+          customerAddressCreate(
+            customerId: $customerId
+            address: {
+              firstName: "Ada"
+              lastName: "Lovelace"
+              address1: "1 Main"
+              city: "Ottawa"
+              countryCode: CA
+              provinceCode: "ON"
+              zip: "K1A 0B1"
+            }
+            setAsDefault: true
+          ) {
+            address { id address1 city country countryCodeV2 provinceCode zip }
+            userErrors { field message }
+          }
+        }`,
+        variables: { customerId },
+      });
+    expect(createAddressResponse.status).toBe(200);
+    expect(createAddressResponse.body.data.customerAddressCreate.userErrors).toEqual([]);
+    const firstAddressId = createAddressResponse.body.data.customerAddressCreate.address.id;
+
+    const createSecondAddressResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation AddressCreateSecond($customerId: ID!) {
+          customerAddressCreate(
+            customerId: $customerId
+            address: { address1: "2 Side", city: "Toronto", countryCode: CA, provinceCode: "ON", zip: "M5H 2N2" }
+          ) {
+            address { id address1 city countryCodeV2 provinceCode zip }
+            userErrors { field message }
+          }
+        }`,
+        variables: { customerId },
+      });
+    const secondAddressId = createSecondAddressResponse.body.data.customerAddressCreate.address.id;
+
+    const updateSecondAddressResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation AddressUpdate($customerId: ID!, $addressId: ID!) {
+          customerAddressUpdate(
+            customerId: $customerId
+            addressId: $addressId
+            address: { city: "Montreal", provinceCode: "QC", zip: "H2Y 1C6" }
+          ) {
+            address { id address1 city provinceCode zip }
+            userErrors { field message }
+          }
+        }`,
+        variables: { customerId, addressId: secondAddressId },
+      });
+    expect(updateSecondAddressResponse.body.data.customerAddressUpdate).toEqual({
+      address: {
+        id: secondAddressId,
+        address1: '2 Side',
+        city: 'Montreal',
+        provinceCode: 'QC',
+        zip: 'H2Y 1C6',
+      },
+      userErrors: [],
+    });
+
+    const defaultAddressResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation DefaultAddress($customerId: ID!, $addressId: ID!) {
+          customerUpdateDefaultAddress(customerId: $customerId, addressId: $addressId) {
+            customer { id defaultAddress { id address1 city provinceCode zip } }
+            userErrors { field message }
+          }
+        }`,
+        variables: { customerId, addressId: secondAddressId },
+      });
+    expect(defaultAddressResponse.body.data.customerUpdateDefaultAddress).toEqual({
+      customer: {
+        id: customerId,
+        defaultAddress: {
+          id: secondAddressId,
+          address1: '2 Side',
+          city: 'Montreal',
+          provinceCode: 'QC',
+          zip: 'H2Y 1C6',
+        },
+      },
+      userErrors: [],
+    });
+
+    const deleteFirstAddressResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation AddressDelete($customerId: ID!, $addressId: ID!) {
+          customerAddressDelete(customerId: $customerId, addressId: $addressId) {
+            deletedAddressId
+            userErrors { field message }
+          }
+        }`,
+        variables: { customerId, addressId: firstAddressId },
+      });
+    expect(deleteFirstAddressResponse.body.data.customerAddressDelete).toEqual({
+      deletedAddressId: firstAddressId,
+      userErrors: [],
+    });
+
+    const readResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query AddressReadback($id: ID!) {
+          detail: customer(id: $id) {
+            id
+            defaultAddress { id address1 city provinceCode zip }
+            addressesV2(first: 5) {
+              nodes { id address1 city provinceCode zip }
+              edges { cursor node { id city } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          byIdentifier: customerByIdentifier(identifier: { emailAddress: "address-flow@example.com" }) {
+            id
+            defaultAddress { id city }
+            addressesV2(first: 5) { nodes { id city } }
+          }
+          catalog: customers(first: 5, query: "email:address-flow@example.com") {
+            nodes {
+              id
+              defaultAddress { id city }
+              addressesV2(first: 5) { nodes { id city } }
+            }
+          }
+        }`,
+        variables: { id: customerId },
+      });
+
+    expect(readResponse.body.data).toEqual({
+      detail: {
+        id: customerId,
+        defaultAddress: {
+          id: secondAddressId,
+          address1: '2 Side',
+          city: 'Montreal',
+          provinceCode: 'QC',
+          zip: 'H2Y 1C6',
+        },
+        addressesV2: {
+          nodes: [
+            {
+              id: secondAddressId,
+              address1: '2 Side',
+              city: 'Montreal',
+              provinceCode: 'QC',
+              zip: 'H2Y 1C6',
+            },
+          ],
+          edges: [
+            {
+              cursor: `customer-address-${customerId}-1`,
+              node: {
+                id: secondAddressId,
+                city: 'Montreal',
+              },
+            },
+          ],
+          pageInfo: {
+            hasNextPage: false,
+            hasPreviousPage: false,
+            startCursor: `customer-address-${customerId}-1`,
+            endCursor: `customer-address-${customerId}-1`,
+          },
+        },
+      },
+      byIdentifier: {
+        id: customerId,
+        defaultAddress: {
+          id: secondAddressId,
+          city: 'Montreal',
+        },
+        addressesV2: {
+          nodes: [
+            {
+              id: secondAddressId,
+              city: 'Montreal',
+            },
+          ],
+        },
+      },
+      catalog: {
+        nodes: [
+          {
+            id: customerId,
+            defaultAddress: {
+              id: secondAddressId,
+              city: 'Montreal',
+            },
+            addressesV2: {
+              nodes: [
+                {
+                  id: secondAddressId,
+                  city: 'Montreal',
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(logResponse.body.entries.map((entry: { operationName: string }) => entry.operationName)).toEqual([
+      'CustomerCreate',
+      'customerAddressCreate',
+      'customerAddressCreate',
+      'customerAddressUpdate',
+      'customerUpdateDefaultAddress',
+      'customerAddressDelete',
+    ]);
+    expect(logResponse.body.entries.at(-1).requestBody.variables).toEqual({
+      customerId,
+      addressId: firstAddressId,
+    });
+
+    const stateResponse = await request(app).get('/__meta/state');
+    expect(stateResponse.body.stagedState.customerAddresses[secondAddressId]).toMatchObject({
+      id: secondAddressId,
+      customerId,
+      address1: '2 Side',
+      city: 'Montreal',
+      provinceCode: 'QC',
+      zip: 'H2Y 1C6',
+    });
+    expect(stateResponse.body.stagedState.deletedCustomerAddressIds[firstAddressId]).toBe(true);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('mirrors fixture-backed customer address validation branches locally', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('customer address validation should not hit upstream fetch');
+    });
+
+    const app = createApp(snapshotConfig).callback();
+    const createCustomerResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CustomerCreate($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            email: 'address-validation@example.com',
+            firstName: 'Address',
+            lastName: 'Validation',
+          },
+        },
+      });
+    const customerId = createCustomerResponse.body.data.customerCreate.customer.id;
+
+    const unknownCustomerResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation UnknownCustomerAddressCreate($customerId: ID!) {
+          customerAddressCreate(
+            customerId: $customerId
+            address: { address1: "1 Main", city: "Ottawa", countryCode: CA, provinceCode: "ON", zip: "K1A 0B1" }
+            setAsDefault: true
+          ) {
+            address { id }
+            userErrors { field message }
+          }
+        }`,
+        variables: { customerId: 'gid://shopify/Customer/999999999999999' },
+      });
+    expect(unknownCustomerResponse.body).toEqual({
+      data: {
+        customerAddressCreate: {
+          address: null,
+          userErrors: [
+            {
+              field: ['customerId'],
+              message: 'Customer does not exist',
+            },
+          ],
+        },
+      },
+    });
+
+    const unknownAddressId = 'gid://shopify/MailingAddress/999999999999999';
+    const unknownUpdateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation UnknownAddressUpdate($customerId: ID!, $addressId: ID!) {
+          customerAddressUpdate(customerId: $customerId, addressId: $addressId, address: { city: "Ghost" }) {
+            address { id }
+            userErrors { field message }
+          }
+        }`,
+        variables: { customerId, addressId: unknownAddressId },
+      });
+    expect(unknownUpdateResponse.body).toEqual({
+      data: { customerAddressUpdate: null },
+      errors: [
+        {
+          message: 'invalid id',
+          path: ['customerAddressUpdate'],
+          extensions: { code: 'RESOURCE_NOT_FOUND' },
+        },
+      ],
+    });
+
+    const unknownDefaultResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation UnknownDefaultAddress($customerId: ID!, $addressId: ID!) {
+          customerUpdateDefaultAddress(customerId: $customerId, addressId: $addressId) {
+            customer { id }
+            userErrors { field message }
+          }
+        }`,
+        variables: { customerId, addressId: unknownAddressId },
+      });
+    expect(unknownDefaultResponse.body).toEqual({
+      data: { customerUpdateDefaultAddress: null },
+      errors: [
+        {
+          message: 'invalid id',
+          path: ['customerUpdateDefaultAddress'],
+          extensions: { code: 'RESOURCE_NOT_FOUND' },
+        },
+      ],
+    });
+
+    const unknownDeleteResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation UnknownAddressDelete($customerId: ID!, $addressId: ID!) {
+          customerAddressDelete(customerId: $customerId, addressId: $addressId) {
+            deletedAddressId
+            userErrors { field message }
+          }
+        }`,
+        variables: { customerId, addressId: unknownAddressId },
+      });
+    expect(unknownDeleteResponse.body).toEqual({
+      data: { customerAddressDelete: null },
+      errors: [
+        {
+          message: 'invalid id',
+          path: ['customerAddressDelete'],
+          extensions: { code: 'RESOURCE_NOT_FOUND' },
+        },
+      ],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('exposes staged customerCreate rows through filtered reverse and backward customer windows', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('staged customer connection replay should not hit upstream fetch');
