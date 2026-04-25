@@ -2198,3 +2198,24 @@ Practical rule:
 
 - model catalog and price-list reads from captured normalized records, but keep quantity rules and price-list write surfaces unsupported until captures prove the non-empty shape.
 - when testing price filters, use numeric Shopify legacy IDs in search strings even though the returned nodes use GIDs.
+
+## 61. `metafieldsSet` CAS and validation semantics are a mix of GraphQL and resolver errors
+
+HAR-142 expanded product-owned `metafieldsSet` coverage beyond happy-path upserts. Captured fixtures from `corepack pnpm conformance:capture-product-metafield-mutations` now cover compare-and-set success, stale digest failure, `compareDigest: null` creation, duplicate inputs, missing input fields, and over-limit input count.
+
+Important captured behavior:
+
+- `compareDigest` is an opaque CAS token on Shopify. Local staged metafields use deterministic draft digests instead, and parity treats the digest strings as opaque non-empty values for staged writes.
+- A stale `compareDigest` returns `userErrors[{ field: ['metafields', '0'], code: 'STALE_OBJECT', elementIndex: null }]`, leaves `metafields: []`, and does not mutate downstream product metafields.
+- `compareDigest: null` creates the metafield only when it is absent from the effective owner-scoped set.
+- More than 25 inputs returns `metafields: null` plus a resolver-level userError at `['metafields']`.
+- Missing `type` for a new metafield is a resolver-level userError (`Type can't be blank`) and is atomic.
+- Missing `ownerId`, `key`, or `value` in variables fails earlier as a top-level GraphQL `INVALID_VARIABLE` error.
+- Missing `namespace` is not an error in the captured branch. Shopify stores the metafield under the installed app namespace (`app--347082227713` on the current conformance app).
+- Duplicate `(ownerId, namespace, key)` inputs are accepted sequentially. The mutation payload includes one result per input, and the downstream product read reflects the last submitted value.
+
+Practical rule:
+
+- validate the full `metafieldsSet` input batch before replacing the staged product metafield set when any resolver-level error is present
+- keep required-input GraphQL validation branches separate from resolver `userErrors`
+- do not broaden owner support from this evidence; these fixtures remain product-owned metafield coverage

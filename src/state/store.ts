@@ -1574,12 +1574,19 @@ export class InMemoryStore {
             .filter((metafield) => metafield.productId === productId)
             .map((metafield) => structuredClone(metafield));
 
-    return sourceMetafields.sort(
-      (left, right) =>
+    return sourceMetafields.sort((left, right) => {
+      const leftAppNamespace = left.namespace.startsWith('app--');
+      const rightAppNamespace = right.namespace.startsWith('app--');
+      if (leftAppNamespace !== rightAppNamespace) {
+        return leftAppNamespace ? 1 : -1;
+      }
+
+      return (
         left.namespace.localeCompare(right.namespace) ||
         left.key.localeCompare(right.key) ||
-        left.id.localeCompare(right.id),
-    );
+        left.id.localeCompare(right.id)
+      );
+    });
   }
 
   getEffectiveMetafieldsByCustomerId(customerId: string): CustomerMetafieldRecord[] {
