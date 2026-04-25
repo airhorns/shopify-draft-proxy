@@ -1,4 +1,4 @@
-import { Kind, type FieldNode, type SelectionNode } from 'graphql';
+import { Kind, type FieldNode, type SelectionNode, type ValueNode } from 'graphql';
 
 import { logger } from '../logger.js';
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
@@ -165,10 +165,10 @@ function getEffectiveInventoryLevels(variant: ProductVariantRecord): InventoryLe
   const hydratedLevels = variant.inventoryItem?.inventoryLevels;
   if (!hydratedLevels || hydratedLevels.length === 0) {
     const syntheticLevel = buildSyntheticInventoryLevel(variant);
-    return syntheticLevel ? [syntheticLevel] : [];
+    return syntheticLevel && !store.isLocationDeleted(syntheticLevel.location?.id ?? '') ? [syntheticLevel] : [];
   }
 
-  return structuredClone(hydratedLevels);
+  return structuredClone(hydratedLevels).filter((level) => !store.isLocationDeleted(level.location?.id ?? ''));
 }
 
 function listLocationInventoryLevels(): LocationInventoryLevelRecord[] {
@@ -231,6 +231,10 @@ function listEffectiveLocations(): LocationRecord[] {
 }
 
 function findEffectiveLocationById(id: string): LocationRecord | null {
+  if (store.isLocationDeleted(id)) {
+    return null;
+  }
+
   return listEffectiveLocations().find((location) => location.id === id) ?? null;
 }
 
@@ -1635,6 +1639,63 @@ function readOptionalInputString(input: Record<string, unknown>, key: string): s
   return typeof value === 'string' ? value : null;
 }
 
+function resolveGraphQLValueNode(node: ValueNode, variables: Record<string, unknown>): unknown {
+  switch (node.kind) {
+    case Kind.NULL:
+      return null;
+    case Kind.STRING:
+    case Kind.ENUM:
+    case Kind.BOOLEAN:
+      return node.value;
+    case Kind.INT:
+      return Number.parseInt(node.value, 10);
+    case Kind.FLOAT:
+      return Number.parseFloat(node.value);
+    case Kind.LIST:
+      return node.values.map((value) => resolveGraphQLValueNode(value, variables));
+    case Kind.OBJECT:
+      return Object.fromEntries(
+        node.fields.map((field) => [field.name.value, resolveGraphQLValueNode(field.value, variables)]),
+      );
+    case Kind.VARIABLE:
+      return variables[node.name.value] ?? null;
+  }
+}
+
+function readIdempotencyKey(field: FieldNode, variables: Record<string, unknown>): string | null {
+  const directive = field.directives?.find((candidate) => candidate.name.value === 'idempotent') ?? null;
+  const keyArgument =
+    directive?.arguments?.find((argument) => argument.name.value === 'key') ??
+    directive?.arguments?.find((argument) => argument.name.value === 'idempotencyKey') ??
+    null;
+  if (!keyArgument) {
+    return null;
+  }
+
+  const key = resolveGraphQLValueNode(keyArgument.value, variables);
+  return typeof key === 'string' && key.trim().length > 0 ? key : null;
+}
+
+function buildMissingIdempotencyKeyError(field: FieldNode): GraphQLResponseError {
+  return {
+    message: 'The @idempotent directive is required for this mutation but was not provided.',
+    ...(field.loc
+      ? {
+          locations: [
+            {
+              line: field.loc.startToken.line,
+              column: field.loc.startToken.column,
+            },
+          ],
+        }
+      : {}),
+    path: [responseKey(field)],
+    extensions: {
+      code: 'BAD_REQUEST',
+    },
+  };
+}
+
 function buildLocationFormattedAddress(address: LocationAddressRecord): string[] {
   const lines = [
     address.address1,
@@ -1855,6 +1916,289 @@ function stageLocationEdit(
   return { location: store.stageUpdateLocation(nextLocation), userErrors: [] };
 }
 
+type LocationLifecyclePayload = { location: LocationRecord | null; userErrors: LocationUserErrorRecord[] };
+type LocationDeletePayload = { deletedLocationId: string | null; userErrors: LocationUserErrorRecord[] };
+
+function locationNotFoundError(field: string): LocationUserErrorRecord {
+  return { field: [field], message: 'Location not found.', code: 'LOCATION_NOT_FOUND' };
+}
+
+function isLocationActive(location: LocationRecord): boolean {
+  return location.isActive ?? true;
+}
+
+function locationHasInventory(locationId: string): boolean {
+  return listInventoryLevelsForLocation(locationId).length > 0;
+}
+
+function mergeInventoryQuantities(
+  destination: InventoryLevelRecord['quantities'],
+  source: InventoryLevelRecord['quantities'],
+): InventoryLevelRecord['quantities'] {
+  const quantitiesByName = new Map(destination.map((quantity) => [quantity.name, structuredClone(quantity)]));
+
+  for (const sourceQuantity of source) {
+    const existing = quantitiesByName.get(sourceQuantity.name) ?? {
+      name: sourceQuantity.name,
+      quantity: 0,
+      updatedAt: null,
+    };
+    quantitiesByName.set(sourceQuantity.name, {
+      ...existing,
+      quantity: (existing.quantity ?? 0) + (sourceQuantity.quantity ?? 0),
+      updatedAt: sourceQuantity.updatedAt ?? existing.updatedAt,
+    });
+  }
+
+  return [...quantitiesByName.values()];
+}
+
+function transferLocationInventory(sourceLocationId: string, destinationLocation: LocationRecord): void {
+  for (const product of store.listEffectiveProducts()) {
+    const variants = store.getEffectiveVariantsByProductId(product.id);
+    let changed = false;
+    const nextVariants = variants.map((variant) => {
+      if (!variant.inventoryItem) {
+        return variant;
+      }
+
+      const levels = getEffectiveInventoryLevels(variant);
+      const sourceLevels = levels.filter((level) => level.location?.id === sourceLocationId);
+      if (sourceLevels.length === 0) {
+        return variant;
+      }
+
+      changed = true;
+      const nextLevels = levels.filter((level) => level.location?.id !== sourceLocationId);
+      let destinationIndex = nextLevels.findIndex((level) => level.location?.id === destinationLocation.id);
+      for (const sourceLevel of sourceLevels) {
+        if (destinationIndex === -1) {
+          const nextDestinationLevel: InventoryLevelRecord = {
+            ...structuredClone(sourceLevel),
+            id: buildStableSyntheticInventoryLevelId(variant.inventoryItem.id, destinationLocation.id),
+            cursor: null,
+            location: { id: destinationLocation.id, name: destinationLocation.name },
+          };
+          nextLevels.push(nextDestinationLevel);
+          destinationIndex = nextLevels.length - 1;
+          continue;
+        }
+
+        const destinationLevel = nextLevels[destinationIndex];
+        if (!destinationLevel) {
+          continue;
+        }
+
+        nextLevels[destinationIndex] = {
+          ...destinationLevel,
+          quantities: mergeInventoryQuantities(destinationLevel.quantities, sourceLevel.quantities),
+        };
+      }
+
+      return {
+        ...structuredClone(variant),
+        inventoryItem: {
+          ...structuredClone(variant.inventoryItem),
+          inventoryLevels: nextLevels,
+        },
+      };
+    });
+
+    if (changed) {
+      store.replaceStagedVariantsForProduct(product.id, nextVariants);
+    }
+  }
+}
+
+function stageLocationDeactivate(
+  locationId: string | null,
+  destinationLocationId: string | null,
+): LocationLifecyclePayload {
+  if (!locationId) {
+    return { location: null, userErrors: [locationNotFoundError('locationId')] };
+  }
+
+  const existing = store.getEffectiveLocationById(locationId) ?? findEffectiveLocationById(locationId);
+  if (!existing) {
+    return { location: null, userErrors: [locationNotFoundError('locationId')] };
+  }
+
+  if (!isLocationActive(existing)) {
+    return { location: existing, userErrors: [] };
+  }
+
+  if (existing.hasUnfulfilledOrders === true) {
+    return {
+      location: existing,
+      userErrors: [
+        {
+          field: ['locationId'],
+          message: 'Location could not be deactivated because it has pending orders.',
+          code: 'HAS_FULFILLMENT_ORDERS_ERROR',
+        },
+      ],
+    };
+  }
+
+  if (locationHasInventory(existing.id)) {
+    if (!destinationLocationId) {
+      return {
+        location: existing,
+        userErrors: [
+          {
+            field: ['locationId'],
+            message:
+              'Location could not be deactivated without specifying where to relocate inventory stocked at the location.',
+            code: 'HAS_ACTIVE_INVENTORY_ERROR',
+          },
+        ],
+      };
+    }
+
+    if (destinationLocationId === existing.id) {
+      return {
+        location: existing,
+        userErrors: [
+          {
+            field: ['destinationLocationId'],
+            message: 'Destination location must be different from the location being deactivated.',
+            code: 'GENERIC_ERROR',
+          },
+        ],
+      };
+    }
+
+    const destinationLocation =
+      store.getEffectiveLocationById(destinationLocationId) ?? findEffectiveLocationById(destinationLocationId);
+    if (!destinationLocation || !isLocationActive(destinationLocation)) {
+      return {
+        location: existing,
+        userErrors: [locationNotFoundError('destinationLocationId')],
+      };
+    }
+
+    transferLocationInventory(existing.id, destinationLocation);
+  }
+
+  const now = makeSyntheticTimestamp();
+  const nextLocation: LocationRecord = {
+    ...existing,
+    activatable: true,
+    deactivatable: false,
+    deactivatedAt: now,
+    deletable: true,
+    fulfillsOnlineOrders: false,
+    hasActiveInventory: false,
+    isActive: false,
+    shipsInventory: false,
+    updatedAt: now,
+  };
+
+  return { location: store.stageUpdateLocation(nextLocation), userErrors: [] };
+}
+
+function stageLocationActivate(locationId: string | null): LocationLifecyclePayload {
+  if (!locationId) {
+    return { location: null, userErrors: [locationNotFoundError('locationId')] };
+  }
+
+  const existing = store.getEffectiveLocationById(locationId) ?? findEffectiveLocationById(locationId);
+  if (!existing) {
+    return { location: null, userErrors: [locationNotFoundError('locationId')] };
+  }
+
+  if (isLocationActive(existing)) {
+    return { location: existing, userErrors: [] };
+  }
+
+  if (existing.activatable === false) {
+    return {
+      location: existing,
+      userErrors: [{ field: ['locationId'], message: 'Location cannot be activated.', code: 'GENERIC_ERROR' }],
+    };
+  }
+
+  const duplicateActiveName = listEffectiveLocations().some(
+    (location) => location.id !== existing.id && isLocationActive(location) && location.name === existing.name,
+  );
+  if (duplicateActiveName) {
+    return {
+      location: existing,
+      userErrors: [
+        {
+          field: ['locationId'],
+          message: 'A location with this name already exists.',
+          code: 'HAS_NON_UNIQUE_NAME',
+        },
+      ],
+    };
+  }
+
+  const now = makeSyntheticTimestamp();
+  const nextLocation: LocationRecord = {
+    ...existing,
+    activatable: false,
+    deactivatable: true,
+    deactivatedAt: null,
+    deletable: false,
+    fulfillsOnlineOrders: existing.fulfillsOnlineOrders ?? true,
+    isActive: true,
+    shipsInventory: true,
+    updatedAt: now,
+  };
+
+  return { location: store.stageUpdateLocation(nextLocation), userErrors: [] };
+}
+
+function stageLocationDelete(locationId: string | null): LocationDeletePayload {
+  if (!locationId) {
+    return { deletedLocationId: null, userErrors: [locationNotFoundError('locationId')] };
+  }
+
+  const existing = store.getEffectiveLocationById(locationId) ?? findEffectiveLocationById(locationId);
+  if (!existing) {
+    return { deletedLocationId: null, userErrors: [locationNotFoundError('locationId')] };
+  }
+
+  const userErrors: LocationUserErrorRecord[] = [];
+
+  if (isLocationActive(existing)) {
+    userErrors.push({
+      field: ['locationId'],
+      message: 'The location cannot be deleted while it is active.',
+      code: 'LOCATION_IS_ACTIVE',
+    });
+  }
+
+  if (locationHasInventory(existing.id)) {
+    userErrors.push({
+      field: ['locationId'],
+      message: 'The location cannot be deleted while it has inventory.',
+      code: 'LOCATION_HAS_INVENTORY',
+    });
+  }
+
+  if (existing.hasUnfulfilledOrders === true) {
+    userErrors.push({
+      field: ['locationId'],
+      message: 'The location cannot be deleted while it has pending orders.',
+      code: 'LOCATION_HAS_PENDING_ORDERS',
+    });
+  }
+
+  if (userErrors.length > 0) {
+    return { deletedLocationId: null, userErrors };
+  }
+
+  store.stageUpdateLocation({
+    ...existing,
+    deleted: true,
+    updatedAt: makeSyntheticTimestamp(),
+  });
+
+  return { deletedLocationId: existing.id, userErrors: [] };
+}
+
 function serializeLocationMutationPayload(
   payload: { location: LocationRecord | null; userErrors: LocationUserErrorRecord[] },
   payloadTypename: string,
@@ -1897,9 +2241,54 @@ function serializeLocationMutationPayload(
           : null;
         break;
       case 'userErrors':
+      case 'locationActivateUserErrors':
+      case 'locationDeactivateUserErrors':
         result[key] = serializeLocationUserErrors(
           payload.userErrors,
           userErrorTypename,
+          selection.selectionSet?.selections ?? [],
+        );
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeLocationDeletePayload(
+  payload: LocationDeletePayload,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'LocationDeletePayload') {
+        continue;
+      }
+      Object.assign(result, serializeLocationDeletePayload(payload, selection.selectionSet.selections));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'LocationDeletePayload';
+        break;
+      case 'deletedLocationId':
+        result[key] = payload.deletedLocationId;
+        break;
+      case 'userErrors':
+      case 'locationDeleteUserErrors':
+        result[key] = serializeLocationUserErrors(
+          payload.userErrors,
+          'LocationDeleteUserError',
           selection.selectionSet?.selections ?? [],
         );
         break;
@@ -2098,6 +2487,49 @@ export function handleStorePropertiesMutation(
           'LocationEditUserError',
           field.selectionSet?.selections ?? [],
           variables,
+        );
+        break;
+      }
+      case 'locationActivate': {
+        if (!readIdempotencyKey(field, variables)) {
+          return { errors: [buildMissingIdempotencyKeyError(field)], data: { [key]: null } };
+        }
+
+        const args = getFieldArguments(field, variables);
+        const locationId = typeof args['locationId'] === 'string' ? args['locationId'] : null;
+        data[key] = serializeLocationMutationPayload(
+          stageLocationActivate(locationId),
+          'LocationActivatePayload',
+          'LocationActivateUserError',
+          field.selectionSet?.selections ?? [],
+          variables,
+        );
+        break;
+      }
+      case 'locationDeactivate': {
+        if (!readIdempotencyKey(field, variables)) {
+          return { errors: [buildMissingIdempotencyKeyError(field)], data: { [key]: null } };
+        }
+
+        const args = getFieldArguments(field, variables);
+        const locationId = typeof args['locationId'] === 'string' ? args['locationId'] : null;
+        const destinationLocationId =
+          typeof args['destinationLocationId'] === 'string' ? args['destinationLocationId'] : null;
+        data[key] = serializeLocationMutationPayload(
+          stageLocationDeactivate(locationId, destinationLocationId),
+          'LocationDeactivatePayload',
+          'LocationDeactivateUserError',
+          field.selectionSet?.selections ?? [],
+          variables,
+        );
+        break;
+      }
+      case 'locationDelete': {
+        const args = getFieldArguments(field, variables);
+        const locationId = typeof args['locationId'] === 'string' ? args['locationId'] : null;
+        data[key] = serializeLocationDeletePayload(
+          stageLocationDelete(locationId),
+          field.selectionSet?.selections ?? [],
         );
         break;
       }

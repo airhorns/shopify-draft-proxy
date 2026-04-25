@@ -1,0 +1,29 @@
+{
+  "scenarioId": "location-deactivate-missing-idempotency-validation",
+  "operationNames": ["locationDeactivate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["graphql-error-parity", "idempotency-parity"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/location-lifecycle-validation.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/location-deactivate-missing-idempotency-validation.graphql",
+    "variablesCapturePath": "$.cases[1].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Safe live Shopify validation capture for Admin GraphQL 2026-04. Missing @idempotent on locationDeactivate fails before resolver side effects.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "missing-idempotency-errors",
+        "capturePath": "$.cases[1].response.payload.errors",
+        "proxyPath": "$.errors"
+      },
+      {
+        "name": "missing-idempotency-data",
+        "capturePath": "$.cases[1].response.payload.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

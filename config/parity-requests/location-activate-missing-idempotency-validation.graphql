@@ -1,0 +1,7 @@
+#graphql
+mutation LocationActivateMissingIdempotencyKey($locationId: ID!) {
+  locationActivate(locationId: $locationId) {
+    location { id isActive }
+    locationActivateUserErrors { field message code }
+  }
+}

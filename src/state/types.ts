@@ -172,6 +172,7 @@ export const locationRecordSchema = z.strictObject({
   isFulfillmentService: nullableBooleanSchema.optional(),
   shipsInventory: nullableBooleanSchema.optional(),
   updatedAt: nullableStringSchema.optional(),
+  deleted: z.boolean().optional(),
   address: locationAddressRecordSchema.nullable().optional(),
   suggestedAddresses: z.array(locationSuggestedAddressRecordSchema).optional(),
   metafields: z.array(locationMetafieldRecordSchema).optional(),
