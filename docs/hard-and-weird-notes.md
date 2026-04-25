@@ -1995,7 +1995,9 @@ Captured shape for the first local slice:
 Practical rule:
 
 - local business entity snapshots can fixture safe account scalars only when they were explicitly captured
-- do not synthesize balances, payouts, bank accounts, statement descriptors, disputes, or account opener details from Store properties reads
+- direct `shopifyPaymentsAccount` snapshot reads share the same normalized safe account fixture as `BusinessEntity.shopifyPaymentsAccount`; if no account fixture is present, the root returns `null` rather than inventing account data
+- `payouts`, `disputes`, and `balanceTransactions` are modeled only as empty no-data connections until non-empty Shopify Payments account activity is captured with account-level scopes
+- do not synthesize balances, bank accounts, statement descriptors, payout schedules, or account opener details from Store properties reads
 - order and market attribution should treat `BusinessEntity` as an identity link for now; do not model Markets assignment or order attribution rules until there is separate captured evidence for those domains
 
 ## 50. Shop baseline reads are broad, and some feature fields are access-gated
@@ -2199,6 +2201,7 @@ Observed current-version surface:
 - the current store returned an empty `paymentCustomizations` connection, an empty `tenderTransactions` connection, an empty Shop Pay receipt connection, and the standard payment-terms template catalog
 - `shopifyPaymentsAccount` still returns field-level `ACCESS_DENIED`; Shopify requires `read_shopify_payments` or `read_shopify_payments_accounts`, and the refreshed app scopes only include dispute/payout sub-scopes
 - `customerPaymentMethod(id:)` still returns field-level `ACCESS_DENIED`; Shopify requires `read_customers` plus `read_customer_payment_methods`, and the refreshed app scopes still lack `read_customer_payment_methods`
+- HAR-220 re-ran the direct `shopifyPaymentsAccount` probe with the configured `harry-test-heelo.myshopify.com` 2025-01 credential on 2026-04-25. It still returned `shopifyPaymentsAccount: null` with `ACCESS_DENIED`, so the checked-in parity scenario compares only the null data branch while targeted runtime tests cover fixture-backed safe scalar and empty connection behavior.
 
 Capture prerequisites and safety constraints:
 

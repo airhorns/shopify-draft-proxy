@@ -531,6 +531,33 @@ export function createProxyRouter(config: AppConfig): Router {
       }
     }
 
+    if (
+      capability.execution === 'overlay-read' &&
+      capability.domain === 'payments' &&
+      primaryRootField === 'shopifyPaymentsAccount'
+    ) {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleStorePropertiesQuery(body.query, variables);
+        return;
+      }
+
+      if (config.readMode === 'live-hybrid') {
+        const primaryBusinessEntity = store.getPrimaryBusinessEntity();
+        const hasLocalShopifyPaymentsAccount =
+          Boolean(primaryBusinessEntity?.shopifyPaymentsAccount) ||
+          store
+            .listEffectiveBusinessEntities()
+            .some((businessEntity) => businessEntity.shopifyPaymentsAccount !== null);
+
+        if (hasLocalShopifyPaymentsAccount) {
+          ctx.status = 200;
+          ctx.body = handleStorePropertiesQuery(body.query, variables);
+          return;
+        }
+      }
+    }
+
     if (capability.execution === 'overlay-read' && capability.domain === 'markets') {
       if (config.readMode === 'snapshot') {
         ctx.status = 200;
