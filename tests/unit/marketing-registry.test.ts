@@ -1,0 +1,198 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
+
+import {
+  buildConformanceStatusDocument,
+  loadConformanceScenarios,
+} from '../../scripts/conformance-scenario-registry.js';
+import { operationRegistrySchema } from '../../src/json-schemas.js';
+import { getOperationCapability } from '../../src/proxy/capabilities.js';
+
+const repoRoot = resolve(import.meta.dirname, '../..');
+
+const marketingQueryRoots = ['marketingActivities', 'marketingActivity', 'marketingEvent', 'marketingEvents'] as const;
+const marketingMutationRoots = [
+  'marketingActivityCreate',
+  'marketingActivityUpdate',
+  'marketingActivityCreateExternal',
+  'marketingActivityUpdateExternal',
+  'marketingActivityUpsertExternal',
+  'marketingActivityDeleteExternal',
+  'marketingActivitiesDeleteAllExternal',
+  'marketingEngagementCreate',
+  'marketingEngagementsDelete',
+] as const;
+
+const segmentQueryRoots = [
+  'segment',
+  'segments',
+  'segmentsCount',
+  'segmentFilters',
+  'segmentFilterSuggestions',
+  'segmentValueSuggestions',
+  'segmentMigrations',
+  'customerSegmentMembers',
+  'customerSegmentMembersQuery',
+  'customerSegmentMembership',
+] as const;
+const segmentMutationRoots = [
+  'customerSegmentMembersQueryCreate',
+  'segmentCreate',
+  'segmentUpdate',
+  'segmentDelete',
+] as const;
+
+const marketingRoots = [...marketingQueryRoots, ...marketingMutationRoots] as const;
+const segmentRoots = [...segmentQueryRoots, ...segmentMutationRoots] as const;
+const marketingAndSegmentRoots = [...marketingRoots, ...segmentRoots] as const;
+
+const rootOperationIntrospectionFixtureSchema = z.object({
+  introspection: z.object({
+    data: z.object({
+      queryRoot: z.object({
+        fields: z.array(z.strictObject({ name: z.string().min(1) })),
+      }),
+      mutationRoot: z.object({
+        fields: z.array(z.strictObject({ name: z.string().min(1) })),
+      }),
+    }),
+  }),
+});
+
+function readText(relativePath: string): string {
+  return readFileSync(resolve(repoRoot, relativePath), 'utf8');
+}
+
+function readRegistry() {
+  return operationRegistrySchema.parse(JSON.parse(readText('config/operation-registry.json')));
+}
+
+function readIntrospectionRoots() {
+  const fixture = rootOperationIntrospectionFixtureSchema.parse(
+    JSON.parse(
+      readText(
+        'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-graphql-root-operation-introspection.json',
+      ),
+    ),
+  );
+
+  return {
+    queryRoots: new Set(fixture.introspection.data.queryRoot.fields.map((field) => field.name)),
+    mutationRoots: new Set(fixture.introspection.data.mutationRoot.fields.map((field) => field.name)),
+  };
+}
+
+describe('Marketing and segment registry scaffold', () => {
+  it('tracks every HAR-211 root from Admin GraphQL introspection without enabling runtime support', () => {
+    const registry = readRegistry();
+    const entriesByName = new Map(registry.map((entry) => [entry.name, entry]));
+    const { queryRoots, mutationRoots } = readIntrospectionRoots();
+
+    for (const root of [...marketingQueryRoots, ...segmentQueryRoots]) {
+      expect(queryRoots.has(root), `${root} should exist in the checked-in query-root introspection`).toBe(true);
+    }
+
+    for (const root of [...marketingMutationRoots, ...segmentMutationRoots]) {
+      expect(mutationRoots.has(root), `${root} should exist in the checked-in mutation-root introspection`).toBe(true);
+    }
+
+    for (const root of marketingRoots) {
+      const entry = entriesByName.get(root);
+      expect(entry, `${root} should be declared in the operation registry`).toBeDefined();
+      expect(entry?.domain, `${root} should be grouped under Marketing`).toBe('marketing');
+    }
+
+    for (const root of segmentRoots) {
+      const entry = entriesByName.get(root);
+      expect(entry, `${root} should be declared in the operation registry`).toBeDefined();
+      expect(entry?.domain, `${root} should be grouped under Segments`).toBe('segments');
+    }
+
+    for (const root of marketingAndSegmentRoots) {
+      const entry = entriesByName.get(root);
+      expect(entry?.implemented, `${root} should remain scaffold-only`).toBe(false);
+      expect(entry?.runtimeTests, `${root} should not claim runtime coverage`).toEqual([]);
+      expect(entry?.supportNotes, `${root} should identify future capture/parity work`).toEqual(
+        expect.stringContaining('capture'),
+      );
+    }
+  });
+
+  it('records local-staging intent for known future mutations without registering passthrough support', () => {
+    const registry = readRegistry();
+    const entriesByName = new Map(registry.map((entry) => [entry.name, entry]));
+
+    for (const root of [...marketingQueryRoots, ...segmentQueryRoots]) {
+      expect(entriesByName.get(root)?.execution, `${root} should be a planned overlay read`).toBe('overlay-read');
+    }
+
+    for (const root of [...marketingMutationRoots, ...segmentMutationRoots]) {
+      expect(entriesByName.get(root)?.execution, `${root} should be planned for local staging before support`).toBe(
+        'stage-locally',
+      );
+    }
+
+    const rawRegistry = JSON.parse(readText('config/operation-registry.json')) as Array<{ execution?: string }>;
+    expect(rawRegistry.some((entry) => entry.execution === 'passthrough')).toBe(false);
+  });
+
+  it('keeps scaffold-only marketing and segment roots out of capability routing', () => {
+    expect(
+      getOperationCapability({ type: 'query', name: 'MarketingActivities', rootFields: ['marketingActivities'] }),
+    ).toEqual({
+      domain: 'unknown',
+      execution: 'passthrough',
+      operationName: 'MarketingActivities',
+      type: 'query',
+    });
+
+    expect(
+      getOperationCapability({
+        type: 'mutation',
+        name: 'CreateExternalActivity',
+        rootFields: ['marketingActivityCreateExternal'],
+      }),
+    ).toEqual({
+      domain: 'unknown',
+      execution: 'passthrough',
+      operationName: 'CreateExternalActivity',
+      type: 'mutation',
+    });
+
+    expect(getOperationCapability({ type: 'query', name: 'Segments', rootFields: ['segments'] })).toEqual({
+      domain: 'unknown',
+      execution: 'passthrough',
+      operationName: 'Segments',
+      type: 'query',
+    });
+
+    expect(
+      getOperationCapability({
+        type: 'mutation',
+        name: 'CreateSegmentMembersQuery',
+        rootFields: ['customerSegmentMembersQueryCreate'],
+      }),
+    ).toEqual({
+      domain: 'unknown',
+      execution: 'passthrough',
+      operationName: 'CreateSegmentMembersQuery',
+      type: 'mutation',
+    });
+  });
+
+  it('does not create planned-only parity scenarios for scaffold-only marketing and segment roots', () => {
+    const scenarios = loadConformanceScenarios(repoRoot);
+    const scenarioOperations = new Set(scenarios.flatMap((scenario) => scenario.operationNames));
+    const statusDocument = buildConformanceStatusDocument(repoRoot);
+
+    for (const root of marketingAndSegmentRoots) {
+      expect(scenarioOperations.has(root), `${root} should wait for captured evidence or executable comparison`).toBe(
+        false,
+      );
+      expect(statusDocument.implementedOperations.some((entry) => entry.name === root)).toBe(false);
+    }
+  });
+});

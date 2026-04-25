@@ -1,0 +1,63 @@
+query CustomerMergeDownstreamParity($one: ID!, $two: ID!, $emailOne: String!, $emailTwo: String!, $jobId: ID!) {
+  source: customer(id: $one) {
+    id
+    firstName
+    lastName
+    displayName
+    email
+    note
+    tags
+    defaultEmailAddress {
+      emailAddress
+    }
+    defaultPhoneNumber {
+      phoneNumber
+    }
+    createdAt
+    updatedAt
+  }
+  result: customer(id: $two) {
+    id
+    firstName
+    lastName
+    displayName
+    email
+    note
+    tags
+    defaultEmailAddress {
+      emailAddress
+    }
+    defaultPhoneNumber {
+      phoneNumber
+    }
+    createdAt
+    updatedAt
+  }
+  byEmailOne: customerByIdentifier(identifier: { emailAddress: $emailOne }) {
+    id
+    email
+    defaultEmailAddress {
+      emailAddress
+    }
+  }
+  byEmailTwo: customerByIdentifier(identifier: { emailAddress: $emailTwo }) {
+    id
+    email
+    defaultEmailAddress {
+      emailAddress
+    }
+  }
+  customersCount {
+    count
+    precision
+  }
+  mergeStatus: customerMergeJobStatus(jobId: $jobId) {
+    jobId
+    resultingCustomerId
+    status
+    customerMergeErrors {
+      errorFields
+      message
+    }
+  }
+}

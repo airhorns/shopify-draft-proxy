@@ -5,15 +5,23 @@ import { parseSearchQuery, type SearchQueryNode, type SearchQueryTerm } from '..
 import {
   getFieldResponseKey,
   getSelectedChildFields,
-  paginateConnectionItems,
   serializeConnectionPageInfo,
   serializeEmptyConnectionPageInfo,
 } from './graphql-helpers.js';
+import {
+  mergeMetafieldRecords,
+  normalizeOwnerMetafield,
+  readMetafieldInputObjects,
+  serializeMetafieldsConnection,
+  serializeMetafieldSelection,
+  upsertOwnerMetafields,
+} from './metafields.js';
 import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type {
   CustomerCatalogConnectionRecord,
   CustomerCatalogPageInfoRecord,
+  CustomerMergeRequestRecord,
   CustomerMetafieldRecord,
   CustomerRecord,
 } from '../state/types.js';
@@ -494,28 +502,6 @@ function normalizeCustomer(raw: unknown): CustomerRecord | null {
   };
 }
 
-function normalizeCustomerMetafield(customerId: string, raw: unknown): CustomerMetafieldRecord | null {
-  if (!isObject(raw)) {
-    return null;
-  }
-
-  const id = raw['id'];
-  const namespace = raw['namespace'];
-  const key = raw['key'];
-  if (typeof id !== 'string' || typeof namespace !== 'string' || typeof key !== 'string') {
-    return null;
-  }
-
-  return {
-    id,
-    customerId,
-    namespace,
-    key,
-    type: normalizeStringField(raw, 'type'),
-    value: normalizeStringField(raw, 'value'),
-  };
-}
-
 function serializeMoneySelection(
   field: FieldNode,
   value: CustomerRecord['amountSpent'],
@@ -674,95 +660,6 @@ function serializeEmptyConnectionSelection(field: FieldNode): Record<string, unk
 
   return result;
 }
-
-function serializeCustomerMetafieldSelection(
-  metafield: CustomerMetafieldRecord,
-  field: FieldNode,
-): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'id':
-        result[key] = metafield.id;
-        break;
-      case 'namespace':
-        result[key] = metafield.namespace;
-        break;
-      case 'key':
-        result[key] = metafield.key;
-        break;
-      case 'type':
-        result[key] = metafield.type;
-        break;
-      case 'value':
-        result[key] = metafield.value;
-        break;
-      default:
-        result[key] = null;
-        break;
-    }
-  }
-  return result;
-}
-
-function serializeCustomerMetafieldsConnection(
-  customerId: string,
-  field: FieldNode,
-  variables: Record<string, unknown>,
-): Record<string, unknown> {
-  const allMetafields = store.getEffectiveMetafieldsByCustomerId(customerId);
-  const {
-    items: metafields,
-    hasNextPage,
-    hasPreviousPage,
-  } = paginateConnectionItems(allMetafields, field, variables, (metafield) => metafield.id);
-  const result: Record<string, unknown> = {};
-
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = metafields.map((metafield) => serializeCustomerMetafieldSelection(metafield, selection));
-        break;
-      case 'edges':
-        result[key] = metafields.map((metafield) => {
-          const edge: Record<string, unknown> = {};
-          for (const edgeSelection of getSelectedChildFields(selection)) {
-            const edgeKey = getFieldResponseKey(edgeSelection);
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edge[edgeKey] = `cursor:${metafield.id}`;
-                break;
-              case 'node':
-                edge[edgeKey] = serializeCustomerMetafieldSelection(metafield, edgeSelection);
-                break;
-              default:
-                edge[edgeKey] = null;
-                break;
-            }
-          }
-          return edge;
-        });
-        break;
-      case 'pageInfo':
-        result[key] = serializeConnectionPageInfo(
-          selection,
-          metafields,
-          hasNextPage,
-          hasPreviousPage,
-          (metafield) => metafield.id,
-        );
-        break;
-      default:
-        result[key] = null;
-        break;
-    }
-  }
-
-  return result;
-}
-
 function serializeCustomerSelection(
   customer: CustomerRecord,
   field: FieldNode,
@@ -861,11 +758,15 @@ function serializeCustomerSelection(
                 .getEffectiveMetafieldsByCustomerId(customer.id)
                 .find((candidate) => candidate.namespace === namespace && candidate.key === metafieldKey)
             : null;
-        result[key] = metafield ? serializeCustomerMetafieldSelection(metafield, selection) : null;
+        result[key] = metafield ? serializeMetafieldSelection(metafield, selection) : null;
         break;
       }
       case 'metafields':
-        result[key] = serializeCustomerMetafieldsConnection(customer.id, selection, variables);
+        result[key] = serializeMetafieldsConnection(
+          store.getEffectiveMetafieldsByCustomerId(customer.id),
+          selection,
+          variables,
+        );
         break;
       case 'createdAt':
         result[key] = customer.createdAt;
@@ -1545,7 +1446,7 @@ function collectCustomerMetafieldsFromSelection(
   for (const selection of getSelectedChildFields(customerField)) {
     const responseKey = getFieldResponseKey(selection);
     if (selection.name.value === 'metafield') {
-      const metafield = normalizeCustomerMetafield(customerId, rawCustomer[responseKey]);
+      const metafield = normalizeOwnerMetafield('customerId', customerId, rawCustomer[responseKey]);
       if (metafield) {
         metafields.push(metafield);
       }
@@ -1564,7 +1465,7 @@ function collectCustomerMetafieldsFromSelection(
           .map((edge) => edge['node'])
       : [];
     for (const rawMetafield of [...nodes, ...edgeNodes]) {
-      const metafield = normalizeCustomerMetafield(customerId, rawMetafield);
+      const metafield = normalizeOwnerMetafield('customerId', customerId, rawMetafield);
       if (metafield) {
         metafields.push(metafield);
       }
@@ -1572,17 +1473,6 @@ function collectCustomerMetafieldsFromSelection(
   }
 
   return metafields;
-}
-
-function mergeCustomerMetafieldRecords(
-  existing: CustomerMetafieldRecord[],
-  next: CustomerMetafieldRecord[],
-): CustomerMetafieldRecord[] {
-  const byIdentity = new Map(existing.map((metafield) => [`${metafield.namespace}:${metafield.key}`, metafield]));
-  for (const metafield of next) {
-    byIdentity.set(`${metafield.namespace}:${metafield.key}`, metafield);
-  }
-  return Array.from(byIdentity.values());
 }
 
 function collectCustomerMetafields(
@@ -1596,10 +1486,7 @@ function collectCustomerMetafields(
       return;
     }
 
-    metafieldsByCustomerId[customerId] = mergeCustomerMetafieldRecords(
-      metafieldsByCustomerId[customerId] ?? [],
-      metafields,
-    );
+    metafieldsByCustomerId[customerId] = mergeMetafieldRecords(metafieldsByCustomerId[customerId] ?? [], metafields);
   };
 
   for (const field of getRootFields(document)) {
@@ -1727,6 +1614,11 @@ type CustomerMutationUserError = {
   code?: string | null;
 };
 
+type CustomerMergeError = {
+  errorFields: string[];
+  message: string;
+};
+
 function serializeCustomerMutationUserErrors(
   field: FieldNode,
   userErrors: CustomerMutationUserError[],
@@ -1752,6 +1644,81 @@ function serializeCustomerMutationUserErrors(
     }
     return result;
   });
+}
+
+function serializeCustomerMergeErrors(field: FieldNode, errors: CustomerMergeError[]): Array<Record<string, unknown>> {
+  return errors.map((error) => {
+    const result: Record<string, unknown> = {};
+    for (const selection of getSelectedChildFields(field)) {
+      const key = getFieldResponseKey(selection);
+      switch (selection.name.value) {
+        case 'errorFields':
+          result[key] = structuredClone(error.errorFields);
+          break;
+        case 'message':
+          result[key] = error.message;
+          break;
+        default:
+          result[key] = null;
+          break;
+      }
+    }
+    return result;
+  });
+}
+
+function serializeJobSelection(
+  field: FieldNode,
+  job: { id: string; done: boolean } | null,
+): Record<string, unknown> | null {
+  if (!job) {
+    return null;
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = job.id;
+        break;
+      case 'done':
+        result[key] = job.done;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeCustomerMergeRequestSelection(
+  request: CustomerMergeRequestRecord,
+  field: FieldNode,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'jobId':
+        result[key] = request.jobId;
+        break;
+      case 'resultingCustomerId':
+        result[key] = request.resultingCustomerId;
+        break;
+      case 'status':
+        result[key] = request.status;
+        break;
+      case 'customerMergeErrors':
+        result[key] = serializeCustomerMergeErrors(selection, request.customerMergeErrors);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
 }
 
 function serializeShopSelection(field: FieldNode): Record<string, unknown> {
@@ -1792,14 +1759,6 @@ function normalizeCustomerTaxExemptions(raw: unknown, fallback: string[]): strin
   return raw
     .filter((value): value is string => typeof value === 'string' && VALID_TAX_EXEMPTIONS.has(value))
     .sort((left, right) => left.localeCompare(right));
-}
-
-function readCustomerMetafieldInputs(raw: unknown): Record<string, unknown>[] {
-  if (!Array.isArray(raw)) {
-    return [];
-  }
-
-  return raw.filter((value): value is Record<string, unknown> => isObject(value));
 }
 
 function validateCustomerTaxExemptionInput(input: Record<string, unknown>): CustomerMutationUserError[] {
@@ -1864,45 +1823,10 @@ function validateCustomerMetafieldInputs(rawMetafields: unknown, customerId: str
 }
 
 function upsertMetafieldsForCustomer(customerId: string, inputs: Record<string, unknown>[]): CustomerMetafieldRecord[] {
-  const existingMetafields = store.getEffectiveMetafieldsByCustomerId(customerId);
-  const metafieldsById = new Map(existingMetafields.map((metafield) => [metafield.id, metafield]));
-  const metafieldsByIdentity = new Map(
-    existingMetafields.map((metafield) => [`${metafield.namespace}:${metafield.key}`, metafield]),
-  );
-
-  for (const input of inputs) {
-    const existingById = typeof input['id'] === 'string' ? (metafieldsById.get(input['id']) ?? null) : null;
-    const namespace =
-      typeof input['namespace'] === 'string' ? input['namespace'].trim() : (existingById?.namespace ?? '');
-    const key = typeof input['key'] === 'string' ? input['key'].trim() : (existingById?.key ?? '');
-    if (!existingById && (!namespace || !key)) {
-      continue;
-    }
-
-    const identityKey = `${namespace}:${key}`;
-    const existing = existingById ?? metafieldsByIdentity.get(identityKey);
-    const nextMetafield: CustomerMetafieldRecord = {
-      id: existing?.id ?? makeSyntheticGid('Metafield'),
-      customerId,
-      namespace,
-      key,
-      type: typeof input['type'] === 'string' ? input['type'].trim() : (existing?.type ?? null),
-      value: typeof input['value'] === 'string' ? input['value'] : (existing?.value ?? null),
-    };
-
-    if (existingById && (existingById.namespace !== namespace || existingById.key !== key)) {
-      metafieldsByIdentity.delete(`${existingById.namespace}:${existingById.key}`);
-    }
-    metafieldsById.set(nextMetafield.id, nextMetafield);
-    metafieldsByIdentity.set(identityKey, nextMetafield);
-  }
-
-  return Array.from(metafieldsByIdentity.values()).sort(
-    (left, right) =>
-      left.namespace.localeCompare(right.namespace) ||
-      left.key.localeCompare(right.key) ||
-      left.id.localeCompare(right.id),
-  );
+  return upsertOwnerMetafields('customerId', customerId, inputs, store.getEffectiveMetafieldsByCustomerId(customerId), {
+    allowIdLookup: true,
+    trimIdentity: true,
+  }).metafields;
 }
 
 function buildCreatedCustomer(input: Record<string, unknown>): CustomerRecord {
@@ -2028,6 +1952,136 @@ function buildUpdatedCustomer(existing: CustomerRecord, input: Record<string, un
   };
 }
 
+function readCustomerMergeOverrideFields(raw: unknown): Record<string, unknown> {
+  return isObject(raw) ? raw : {};
+}
+
+function readCustomerIdOverride(
+  overrideFields: Record<string, unknown>,
+  key: string,
+  customerOne: CustomerRecord,
+  customerTwo: CustomerRecord,
+): CustomerRecord | null {
+  const value = overrideFields[key];
+  if (value === customerOne.id) {
+    return customerOne;
+  }
+  if (value === customerTwo.id) {
+    return customerTwo;
+  }
+  return null;
+}
+
+function selectCustomerMergeField<T>(
+  overrideFields: Record<string, unknown>,
+  key: string,
+  customerOne: CustomerRecord,
+  customerTwo: CustomerRecord,
+  readValue: (customer: CustomerRecord) => T,
+): T {
+  const selectedCustomer = readCustomerIdOverride(overrideFields, key, customerOne, customerTwo);
+  return readValue(selectedCustomer ?? customerTwo);
+}
+
+function mergeCustomerNotes(
+  customerOne: CustomerRecord,
+  customerTwo: CustomerRecord,
+  overrideFields: Record<string, unknown>,
+): string | null {
+  if (typeof overrideFields['note'] === 'string') {
+    return overrideFields['note'];
+  }
+
+  const notes = [customerTwo.note, customerOne.note].filter((note): note is string => !!note?.trim());
+  return notes.length > 0 ? notes.join(' ') : null;
+}
+
+function mergeCustomerTags(
+  customerOne: CustomerRecord,
+  customerTwo: CustomerRecord,
+  overrideFields: Record<string, unknown>,
+): string[] {
+  if (Array.isArray(overrideFields['tags'])) {
+    return normalizeCustomerTags(overrideFields['tags'], []);
+  }
+
+  return [...new Set([...customerTwo.tags, ...customerOne.tags])].sort((left, right) => left.localeCompare(right));
+}
+
+function buildMergedCustomer(
+  customerOne: CustomerRecord,
+  customerTwo: CustomerRecord,
+  overrideFields: Record<string, unknown>,
+  options: { updateTimestamp?: boolean } = {},
+): CustomerRecord {
+  const firstName = selectCustomerMergeField(
+    overrideFields,
+    'customerIdOfFirstNameToKeep',
+    customerOne,
+    customerTwo,
+    (customer) => customer.firstName,
+  );
+  const lastName = selectCustomerMergeField(
+    overrideFields,
+    'customerIdOfLastNameToKeep',
+    customerOne,
+    customerTwo,
+    (customer) => customer.lastName,
+  );
+  const emailSource =
+    readCustomerIdOverride(overrideFields, 'customerIdOfEmailToKeep', customerOne, customerTwo) ?? customerTwo;
+  const phoneSource =
+    readCustomerIdOverride(overrideFields, 'customerIdOfPhoneNumberToKeep', customerOne, customerTwo) ?? customerTwo;
+  const defaultAddress = selectCustomerMergeField(
+    overrideFields,
+    'customerIdOfDefaultAddressToKeep',
+    customerOne,
+    customerTwo,
+    (customer) => customer.defaultAddress,
+  );
+
+  return {
+    ...customerTwo,
+    firstName,
+    lastName,
+    displayName: buildCustomerDisplayName(firstName, lastName, emailSource.email),
+    email: emailSource.email,
+    note: mergeCustomerNotes(customerOne, customerTwo, overrideFields),
+    tags: mergeCustomerTags(customerOne, customerTwo, overrideFields),
+    defaultEmailAddress: emailSource.defaultEmailAddress,
+    defaultPhoneNumber: phoneSource.defaultPhoneNumber,
+    emailMarketingConsent: emailSource.emailMarketingConsent,
+    smsMarketingConsent: phoneSource.smsMarketingConsent,
+    defaultAddress,
+    updatedAt: options.updateTimestamp === false ? customerTwo.updatedAt : makeSyntheticTimestamp(),
+  };
+}
+
+function buildCustomerMergeMissingArgumentError(field: FieldNode, missingArguments: string[]): Record<string, unknown> {
+  return {
+    message: `Field '${field.name.value}' is missing required arguments: ${missingArguments.join(', ')}`,
+    path: [getFieldResponseKey(field)],
+    extensions: {
+      code: 'missingRequiredArguments',
+      className: 'Field',
+      name: field.name.value,
+      arguments: missingArguments.join(', '),
+    },
+  };
+}
+
+function customerIdTail(customerId: string): string {
+  return customerId.split('/').at(-1) ?? customerId;
+}
+
+function buildCustomerMergeMissingCustomerError(field: string, customerId: string): CustomerMutationUserError {
+  return {
+    field: [field],
+    message: `Customer does not exist with ID ${customerIdTail(customerId)}`,
+    code: 'INVALID_CUSTOMER_ID',
+  };
+}
+
 function validateCustomerCreateInput(input: Record<string, unknown>): CustomerMutationUserError[] {
   const hasEmail = typeof input['email'] === 'string' && input['email'].trim().length > 0;
   const hasPhone = typeof input['phone'] === 'string' && input['phone'].trim().length > 0;
@@ -2148,6 +2202,8 @@ function serializeCustomerMutationPayload(
   payload: {
     customer?: CustomerRecord | null;
     deletedCustomerId?: string | null;
+    resultingCustomerId?: string | null;
+    job?: { id: string; done: boolean } | null;
     shop?: boolean;
     userErrors: CustomerMutationUserError[];
   },
@@ -2163,6 +2219,12 @@ function serializeCustomerMutationPayload(
       case 'deletedCustomerId':
         result[key] = payload.deletedCustomerId ?? null;
         break;
+      case 'resultingCustomerId':
+        result[key] = payload.resultingCustomerId ?? null;
+        break;
+      case 'job':
+        result[key] = serializeJobSelection(selection, payload.job ?? null);
+        break;
       case 'shop':
         result[key] = payload.shop ? serializeShopSelection(selection) : null;
         break;
@@ -2177,11 +2239,110 @@ function serializeCustomerMutationPayload(
   return result;
 }
 
+function serializeCustomerMergeFieldSet(
+  customer: CustomerRecord,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'firstName':
+        result[key] = customer.firstName;
+        break;
+      case 'lastName':
+        result[key] = customer.lastName;
+        break;
+      case 'displayName':
+        result[key] = customer.displayName;
+        break;
+      case 'email':
+        result[key] = serializeDefaultEmailSelection(selection, customer.defaultEmailAddress);
+        break;
+      case 'phoneNumber':
+        result[key] = serializeDefaultPhoneNumberSelection(selection, customer.defaultPhoneNumber);
+        break;
+      case 'defaultAddress':
+        result[key] = serializeDefaultAddressSelection(selection, customer.defaultAddress);
+        break;
+      case 'note':
+        result[key] = customer.note;
+        break;
+      case 'tags':
+        result[key] = structuredClone(customer.tags);
+        break;
+      case 'addresses':
+      case 'discountNodes':
+      case 'draftOrders':
+      case 'giftCards':
+      case 'orders':
+        result[key] = {
+          nodes: [],
+          edges: [],
+          pageInfo: { hasNextPage: false, hasPreviousPage: false, startCursor: null, endCursor: null },
+        };
+        break;
+      case 'discountNodeCount':
+      case 'draftOrderCount':
+      case 'giftCardCount':
+      case 'metafieldCount':
+      case 'orderCount':
+        result[key] = 0;
+        break;
+      default:
+        result[key] = serializeCustomerSelection(customer, selection, variables)[key] ?? null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeCustomerMergePreview(
+  field: FieldNode,
+  customerOne: CustomerRecord,
+  customerTwo: CustomerRecord,
+  overrideFields: Record<string, unknown>,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const defaultCustomer = buildMergedCustomer(customerOne, customerTwo, {}, { updateTimestamp: false });
+  const alternateCustomer = buildMergedCustomer(customerTwo, customerOne, {}, { updateTimestamp: false });
+  const resultingCustomer = buildMergedCustomer(customerOne, customerTwo, overrideFields, { updateTimestamp: false });
+  const result: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'resultingCustomerId':
+        result[key] = customerTwo.id;
+        break;
+      case 'defaultFields':
+        result[key] = serializeCustomerMergeFieldSet(defaultCustomer, selection, variables);
+        break;
+      case 'alternateFields':
+        result[key] = serializeCustomerMergeFieldSet(alternateCustomer, selection, variables);
+        break;
+      case 'blockingFields':
+        result[key] = null;
+        break;
+      case 'customerMergeErrors':
+        result[key] = null;
+        break;
+      default:
+        result[key] = serializeCustomerSelection(resultingCustomer, selection, variables)[key] ?? null;
+        break;
+    }
+  }
+
+  return result;
+}
+
 export function handleCustomerMutation(
   document: string,
   variables: Record<string, unknown> = {},
-): { data: Record<string, unknown> } {
+): { data?: Record<string, unknown>; errors?: Array<Record<string, unknown>> } {
   const data: Record<string, unknown> = {};
+  const errors: Array<Record<string, unknown>> = [];
 
   for (const field of getRootFields(document)) {
     const key = getFieldResponseKey(field);
@@ -2201,7 +2362,7 @@ export function handleCustomerMutation(
       }
 
       const customer = store.stageCreateCustomer(buildCreatedCustomer(input));
-      const metafieldInputs = readCustomerMetafieldInputs(input['metafields']);
+      const metafieldInputs = readMetafieldInputObjects(input['metafields']);
       if (metafieldInputs.length > 0) {
         store.replaceStagedMetafieldsForCustomer(
           customer.id,
@@ -2238,7 +2399,7 @@ export function handleCustomerMutation(
       }
 
       const customer = store.stageUpdateCustomer(buildUpdatedCustomer(existingCustomer, input));
-      const metafieldInputs = readCustomerMetafieldInputs(input['metafields']);
+      const metafieldInputs = readMetafieldInputObjects(input['metafields']);
       if (metafieldInputs.length > 0) {
         store.replaceStagedMetafieldsForCustomer(
           customer.id,
@@ -2344,9 +2505,98 @@ export function handleCustomerMutation(
         variables,
       );
     }
+
+    if (field.name.value === 'customerMerge') {
+      const missingArguments = ['customerOneId', 'customerTwoId'].filter((argument) => !hasOwnField(args, argument));
+      if (missingArguments.length > 0) {
+        errors.push(buildCustomerMergeMissingArgumentError(field, missingArguments));
+        continue;
+      }
+
+      const customerOneId = typeof args['customerOneId'] === 'string' ? args['customerOneId'] : null;
+      const customerTwoId = typeof args['customerTwoId'] === 'string' ? args['customerTwoId'] : null;
+      if (customerOneId && customerTwoId && customerOneId === customerTwoId) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            resultingCustomerId: null,
+            job: null,
+            userErrors: [
+              {
+                field: null,
+                message: 'Customers IDs should not match',
+                code: 'INVALID_CUSTOMER_ID',
+              },
+            ],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      const customerOne = customerOneId ? store.getEffectiveCustomerById(customerOneId) : null;
+      const customerTwo = customerTwoId ? store.getEffectiveCustomerById(customerTwoId) : null;
+      const userErrors = [
+        ...(customerOneId && !customerOne
+          ? [buildCustomerMergeMissingCustomerError('customerOneId', customerOneId)]
+          : []),
+        ...(customerTwoId && !customerTwo
+          ? [buildCustomerMergeMissingCustomerError('customerTwoId', customerTwoId)]
+          : []),
+      ];
+      if (!customerOneId) {
+        userErrors.push({
+          field: ['customerOneId'],
+          message: 'Customer does not exist with ID null',
+          code: 'INVALID_CUSTOMER_ID',
+        });
+      }
+      if (!customerTwoId) {
+        userErrors.push({
+          field: ['customerTwoId'],
+          message: 'Customer does not exist with ID null',
+          code: 'INVALID_CUSTOMER_ID',
+        });
+      }
+      if (userErrors.length > 0 || !customerOne || !customerTwo || !customerTwoId) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            resultingCustomerId: null,
+            job: null,
+            userErrors,
+          },
+          variables,
+        );
+        continue;
+      }
+
+      const overrideFields = readCustomerMergeOverrideFields(args['overrideFields']);
+      const mergedCustomer = buildMergedCustomer(customerOne, customerTwo, overrideFields);
+      const jobId = makeSyntheticGid('Job');
+      const customer = store.stageMergeCustomers(customerOne.id, mergedCustomer, {
+        jobId,
+        resultingCustomerId: customerTwoId,
+        status: 'COMPLETED',
+        customerMergeErrors: [],
+      });
+      data[key] = serializeCustomerMutationPayload(
+        field,
+        {
+          resultingCustomerId: customer.id,
+          job: { id: jobId, done: false },
+          userErrors: [],
+        },
+        variables,
+      );
+      continue;
+    }
   }
 
-  return { data };
+  return {
+    ...(Object.keys(data).length > 0 ? { data } : {}),
+    ...(errors.length > 0 ? { errors } : {}),
+  };
 }
 
 export function hydrateCustomersFromUpstreamResponse(
@@ -2429,6 +2679,57 @@ export function handleCustomerQuery(
 
       const customer = findCustomerByIdentifier(identifier);
       data[key] = customer ? serializeCustomerSelection(customer, field, variables) : null;
+      continue;
+    }
+
+    if (field.name.value === 'customerMergePreview') {
+      const args = getFieldArguments(field, variables);
+      const missingArguments = ['customerOneId', 'customerTwoId'].filter((argument) => !hasOwnField(args, argument));
+      if (missingArguments.length > 0) {
+        errors.push(buildCustomerMergeMissingArgumentError(field, missingArguments));
+        continue;
+      }
+
+      const customerOneId = typeof args['customerOneId'] === 'string' ? args['customerOneId'] : null;
+      const customerTwoId = typeof args['customerTwoId'] === 'string' ? args['customerTwoId'] : null;
+      if (customerOneId && customerTwoId && customerOneId === customerTwoId) {
+        data[key] = null;
+        errors.push({
+          message: 'Customers must be different.',
+          path: [key],
+          extensions: { code: 'BAD_REQUEST' },
+        });
+        continue;
+      }
+
+      const customerOne = customerOneId ? store.getEffectiveCustomerById(customerOneId) : null;
+      const customerTwo = customerTwoId ? store.getEffectiveCustomerById(customerTwoId) : null;
+      if (!customerOne || !customerTwo) {
+        data[key] = null;
+        const missingCustomerId = customerOne ? customerTwoId : customerOneId;
+        errors.push({
+          message: `Customer does not exist with ID ${customerIdTail(missingCustomerId ?? 'null')}`,
+          path: [key],
+          extensions: { code: 'BAD_REQUEST' },
+        });
+        continue;
+      }
+
+      data[key] = serializeCustomerMergePreview(
+        field,
+        customerOne,
+        customerTwo,
+        readCustomerMergeOverrideFields(args['overrideFields']),
+        variables,
+      );
+      continue;
+    }
+
+    if (field.name.value === 'customerMergeJobStatus') {
+      const args = getFieldArguments(field, variables);
+      const jobId = typeof args['jobId'] === 'string' ? args['jobId'] : null;
+      const request = jobId ? store.getCustomerMergeRequest(jobId) : null;
+      data[key] = request ? serializeCustomerMergeRequestSelection(request, field) : null;
       continue;
     }
 

@@ -234,6 +234,8 @@ Explicit scenario override config is only for unusual cases that cannot fit this
 
 Scenarios become `ready-for-comparison` only after they declare both a proxy request and a strict JSON comparison contract. Valid high-assurance scenarios must compare explicit targets and list every allowed difference as a path-scoped rule with a reason. Use matchers for legitimate nondeterminism such as Shopify IDs, timestamps, and throttle metadata. An `ignore: true` rule means the proxy has not reached parity for that path; it must also set `regrettable: true` and should only be used for hard temporary gaps that will be fixed later.
 
+When a scenario compares a resource selected by the proxy request, prefer a target at the whole selected resource object, such as `$.mutation.response.data.productCreate.product` or `$.downstreamRead.response.data.order.fulfillments[0]`, instead of allowlisting individual scalar fields. Add path-scoped exceptions for volatile fields such as generated IDs, cursors, and timestamps only when the comparator proves they differ. This keeps new selected fields covered by default and makes exceptions a denylist rather than an allowlist.
+
 ## Confidence Ladder
 
 Use the strongest feasible evidence:

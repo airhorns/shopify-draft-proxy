@@ -3,6 +3,13 @@ import type { ReadMode } from '../config.js';
 import { getFieldArguments, getRootField, getRootFieldArguments, getRootFields } from '../graphql/root-field.js';
 import { parseSearchQuery, type SearchQueryNode, type SearchQueryTerm } from '../search-query-parser.js';
 import { paginateConnectionItems, serializeConnectionPageInfo } from './graphql-helpers.js';
+import {
+  normalizeOwnerMetafield,
+  readMetafieldInputObjects,
+  serializeMetafieldsConnection as serializeOwnerMetafieldsConnection,
+  serializeMetafieldSelectionSet,
+  upsertOwnerMetafields,
+} from './metafields.js';
 import { makeProxySyntheticGid, makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type {
@@ -1227,6 +1234,8 @@ function makeCreatedMediaRecord(
     status: 'UPLOADED',
     productImageId: makeSyntheticProductImageId(mediaContentType),
     imageUrl: null,
+    imageWidth: null,
+    imageHeight: null,
     previewImageUrl: null,
     sourceUrl,
   };
@@ -1237,6 +1246,8 @@ function transitionMediaToProcessing(media: ProductMediaRecord): ProductMediaRec
     ...structuredClone(media),
     status: 'PROCESSING',
     imageUrl: null,
+    imageWidth: null,
+    imageHeight: null,
     previewImageUrl: null,
   };
 }
@@ -1267,6 +1278,8 @@ function updateMediaRecord(existing: ProductMediaRecord, input: Record<string, u
     alt: typeof rawAlt === 'string' ? rawAlt : existing.alt,
     status: 'READY',
     imageUrl: nextImageUrl,
+    imageWidth: existing.imageWidth ?? null,
+    imageHeight: existing.imageHeight ?? null,
     previewImageUrl: nextImageUrl,
     sourceUrl: existing.sourceUrl ?? nextImageUrl,
   };
@@ -2752,27 +2765,11 @@ function serializeMetafieldPayload(
   return metafields.map((metafield) => serializeMetafieldSelectionSet(metafield, field.selectionSet?.selections ?? []));
 }
 
-function readMetafieldsSetInput(raw: unknown): Record<string, unknown>[] {
-  if (!Array.isArray(raw)) {
-    return [];
-  }
-
-  return raw.filter((value): value is Record<string, unknown> => isObject(value));
-}
-
 type DeletedMetafieldIdentifierRecord = {
   ownerId: string;
   namespace: string;
   key: string;
 };
-
-function readMetafieldsDeleteInput(raw: unknown): Record<string, unknown>[] {
-  if (!Array.isArray(raw)) {
-    return [];
-  }
-
-  return raw.filter((value): value is Record<string, unknown> => isObject(value));
-}
 
 function serializeDeletedMetafieldIdentifiers(
   identifiers: DeletedMetafieldIdentifierRecord[],
@@ -2811,52 +2808,9 @@ function upsertMetafieldsForProduct(
   productId: string,
   inputs: Record<string, unknown>[],
 ): { metafields: ProductMetafieldRecord[]; createdOrUpdated: ProductMetafieldRecord[] } {
-  const existingMetafields = store.getEffectiveMetafieldsByProductId(productId);
-  const metafieldsByIdentity = new Map(
-    existingMetafields.map((metafield) => [`${metafield.namespace}:${metafield.key}`, metafield]),
-  );
-  const createdOrUpdated: ProductMetafieldRecord[] = [];
-
-  for (const input of inputs) {
-    const namespace = typeof input['namespace'] === 'string' ? input['namespace'] : '';
-    const key = typeof input['key'] === 'string' ? input['key'] : '';
-    const identityKey = `${namespace}:${key}`;
-    const existing = metafieldsByIdentity.get(identityKey);
-    const type = typeof input['type'] === 'string' ? input['type'] : (existing?.type ?? null);
-    const value = typeof input['value'] === 'string' ? input['value'] : (existing?.value ?? null);
-    const jsonValue = parseMetafieldJsonValue(type, value);
-    const createdAt = existing?.createdAt ?? makeSyntheticTimestamp();
-    const updatedAt = existing
-      ? value === existing.value && type === existing.type
-        ? existing.updatedAt
-        : makeSyntheticTimestamp()
-      : createdAt;
-    const nextMetafield: ProductMetafieldRecord = {
-      id: existing?.id ?? makeSyntheticGid('Metafield'),
-      productId,
-      namespace,
-      key,
-      type,
-      value,
-      jsonValue,
-      createdAt,
-      updatedAt,
-      ownerType: 'PRODUCT',
-    };
-    nextMetafield.compareDigest = makeMetafieldCompareDigest(nextMetafield);
-    metafieldsByIdentity.set(identityKey, nextMetafield);
-    createdOrUpdated.push(structuredClone(nextMetafield));
-  }
-
-  return {
-    metafields: Array.from(metafieldsByIdentity.values()).sort(
-      (left, right) =>
-        left.namespace.localeCompare(right.namespace) ||
-        left.key.localeCompare(right.key) ||
-        left.id.localeCompare(right.id),
-    ),
-    createdOrUpdated,
-  };
+  return upsertOwnerMetafields('productId', productId, inputs, store.getEffectiveMetafieldsByProductId(productId), {
+    ownerType: 'PRODUCT',
+  });
 }
 
 function findMetafieldById(metafieldId: string): ProductMetafieldRecord | null {
@@ -3319,6 +3273,8 @@ function normalizeUpstreamMedia(productId: string, value: unknown, position: num
   const rawPreviewImageUrl = isObject(rawPreviewImage) ? rawPreviewImage['url'] : null;
   const rawImage = value['image'];
   const rawImageUrl = isObject(rawImage) ? rawImage['url'] : null;
+  const rawImageWidth = isObject(rawImage) ? rawImage['width'] : null;
+  const rawImageHeight = isObject(rawImage) ? rawImage['height'] : null;
 
   const normalizedImageUrl =
     typeof rawImageUrl === 'string' ? rawImageUrl : typeof rawPreviewImageUrl === 'string' ? rawPreviewImageUrl : null;
@@ -3333,48 +3289,44 @@ function normalizeUpstreamMedia(productId: string, value: unknown, position: num
     status: typeof rawStatus === 'string' ? rawStatus : null,
     productImageId: null,
     imageUrl: normalizedImageUrl,
+    imageWidth: typeof rawImageWidth === 'number' ? rawImageWidth : null,
+    imageHeight: typeof rawImageHeight === 'number' ? rawImageHeight : null,
     previewImageUrl: typeof rawPreviewImageUrl === 'string' ? rawPreviewImageUrl : null,
     sourceUrl: normalizedImageUrl,
   };
 }
 
-function normalizeUpstreamMetafield(productId: string, value: unknown): ProductMetafieldRecord | null {
+function normalizeUpstreamProductImage(productId: string, value: unknown, position: number): ProductMediaRecord | null {
   if (!isObject(value)) {
     return null;
   }
 
   const rawId = value['id'];
-  const rawNamespace = value['namespace'];
-  const rawKey = value['key'];
-  const rawType = value['type'];
-  const rawValue = value['value'];
-  const rawCompareDigest = value['compareDigest'];
-  const rawCreatedAt = value['createdAt'];
-  const rawUpdatedAt = value['updatedAt'];
-  const rawOwnerType = value['ownerType'];
-  if (typeof rawId !== 'string' || typeof rawNamespace !== 'string' || typeof rawKey !== 'string') {
-    return null;
-  }
-
-  const type = typeof rawType === 'string' ? rawType : null;
-  const stringValue = typeof rawValue === 'string' ? rawValue : null;
-  const jsonValue: ProductMetafieldRecord['jsonValue'] = hasOwnField(value, 'jsonValue')
-    ? (value['jsonValue'] as ProductMetafieldRecord['jsonValue'])
-    : parseMetafieldJsonValue(type, stringValue);
+  const rawAltText = value['altText'];
+  const rawUrl = value['url'] ?? value['src'] ?? value['originalSrc'] ?? value['transformedSrc'];
+  const rawWidth = value['width'];
+  const rawHeight = value['height'];
+  const imageUrl = typeof rawUrl === 'string' ? rawUrl : null;
 
   return {
-    id: rawId,
+    key: `${productId}:media:${position}`,
     productId,
-    namespace: rawNamespace,
-    key: rawKey,
-    type,
-    value: stringValue,
-    compareDigest: typeof rawCompareDigest === 'string' ? rawCompareDigest : null,
-    jsonValue,
-    createdAt: typeof rawCreatedAt === 'string' ? rawCreatedAt : null,
-    updatedAt: typeof rawUpdatedAt === 'string' ? rawUpdatedAt : null,
-    ownerType: typeof rawOwnerType === 'string' ? rawOwnerType : 'PRODUCT',
+    position,
+    id: null,
+    mediaContentType: 'IMAGE',
+    alt: typeof rawAltText === 'string' ? rawAltText : null,
+    status: imageUrl ? 'READY' : null,
+    productImageId: typeof rawId === 'string' ? rawId : null,
+    imageUrl,
+    imageWidth: typeof rawWidth === 'number' ? rawWidth : null,
+    imageHeight: typeof rawHeight === 'number' ? rawHeight : null,
+    previewImageUrl: imageUrl,
+    sourceUrl: imageUrl,
   };
+}
+
+function normalizeUpstreamMetafield(productId: string, value: unknown): ProductMetafieldRecord | null {
+  return normalizeOwnerMetafield('productId', productId, value, { ownerType: 'PRODUCT' });
 }
 
 function readVariantNodes(value: unknown): unknown[] {
@@ -5225,51 +5177,58 @@ function serializeMediaConnection(
   return result;
 }
 
-function serializeMetafieldSelectionSet(
-  metafield: ProductMetafieldRecord,
+function productImageInlineFragmentApplies(typeName: string): boolean {
+  return typeName === 'Image';
+}
+
+function getProductImageUrl(media: ProductMediaRecord): string | null {
+  return media.imageUrl ?? media.previewImageUrl ?? media.sourceUrl ?? null;
+}
+
+function serializeProductImageSelectionSet(
+  media: ProductMediaRecord,
   selections: readonly SelectionNode[],
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
+  const imageUrl = getProductImageUrl(media);
 
   for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      const typeName = selection.typeCondition?.name.value;
+      if (!typeName || !productImageInlineFragmentApplies(typeName)) {
+        continue;
+      }
+
+      Object.assign(result, serializeProductImageSelectionSet(media, selection.selectionSet.selections));
+      continue;
+    }
+
     if (selection.kind !== Kind.FIELD) {
       continue;
     }
 
     const key = selection.alias?.value ?? selection.name.value;
     switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'Image';
+        break;
       case 'id':
-        result[key] = metafield.id;
+        result[key] = media.productImageId ?? media.id ?? null;
         break;
-      case 'namespace':
-        result[key] = metafield.namespace;
+      case 'altText':
+        result[key] = media.alt;
         break;
-      case 'key':
-        result[key] = metafield.key;
+      case 'url':
+      case 'src':
+      case 'originalSrc':
+      case 'transformedSrc':
+        result[key] = imageUrl;
         break;
-      case 'type':
-        result[key] = metafield.type;
+      case 'width':
+        result[key] = media.imageWidth ?? null;
         break;
-      case 'value':
-        result[key] = metafield.value;
-        break;
-      case 'compareDigest':
-        result[key] = metafield.compareDigest ?? makeMetafieldCompareDigest(metafield);
-        break;
-      case 'jsonValue':
-        result[key] = metafield.jsonValue ?? parseMetafieldJsonValue(metafield.type, metafield.value);
-        break;
-      case 'createdAt':
-        result[key] = metafield.createdAt ?? null;
-        break;
-      case 'updatedAt':
-        result[key] = metafield.updatedAt ?? metafield.createdAt ?? null;
-        break;
-      case 'ownerType':
-        result[key] = metafield.ownerType ?? 'PRODUCT';
-        break;
-      case 'definition':
-        result[key] = null;
+      case 'height':
+        result[key] = media.imageHeight ?? null;
         break;
       default:
         result[key] = null;
@@ -5279,17 +5238,18 @@ function serializeMetafieldSelectionSet(
   return result;
 }
 
-function serializeMetafieldsConnection(
+function serializeProductImagesConnection(
   productId: string,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const allMetafields = store.getEffectiveMetafieldsByProductId(productId);
+  const allMediaRecords = store.getEffectiveMediaByProductId(productId);
+  const allImageRecords = allMediaRecords.filter((mediaRecord) => mediaRecord.mediaContentType === 'IMAGE');
   const {
-    items: metafields,
+    items: imageRecords,
     hasNextPage,
     hasPreviousPage,
-  } = paginateConnectionItems(allMetafields, field, variables, (metafield) => metafield.id);
+  } = paginateConnectionItems(allImageRecords, field, variables, (mediaRecord) => mediaRecord.key);
   const result: Record<string, unknown> = {};
 
   for (const selection of field.selectionSet?.selections ?? []) {
@@ -5300,12 +5260,12 @@ function serializeMetafieldsConnection(
     const key = selection.alias?.value ?? selection.name.value;
     switch (selection.name.value) {
       case 'nodes':
-        result[key] = metafields.map((metafield) =>
-          serializeMetafieldSelectionSet(metafield, selection.selectionSet?.selections ?? []),
+        result[key] = imageRecords.map((mediaRecord) =>
+          serializeProductImageSelectionSet(mediaRecord, selection.selectionSet?.selections ?? []),
         );
         break;
       case 'edges':
-        result[key] = metafields.map((metafield) => {
+        result[key] = imageRecords.map((mediaRecord) => {
           const edgeResult: Record<string, unknown> = {};
           for (const edgeSelection of selection.selectionSet?.selections ?? []) {
             if (edgeSelection.kind !== Kind.FIELD) {
@@ -5315,11 +5275,11 @@ function serializeMetafieldsConnection(
             const edgeKey = edgeSelection.alias?.value ?? edgeSelection.name.value;
             switch (edgeSelection.name.value) {
               case 'cursor':
-                edgeResult[edgeKey] = `cursor:${metafield.id}`;
+                edgeResult[edgeKey] = `cursor:${mediaRecord.key}`;
                 break;
               case 'node':
-                edgeResult[edgeKey] = serializeMetafieldSelectionSet(
-                  metafield,
+                edgeResult[edgeKey] = serializeProductImageSelectionSet(
+                  mediaRecord,
                   edgeSelection.selectionSet?.selections ?? [],
                 );
                 break;
@@ -5333,10 +5293,10 @@ function serializeMetafieldsConnection(
       case 'pageInfo':
         result[key] = serializeConnectionPageInfo(
           selection,
-          metafields,
+          imageRecords,
           hasNextPage,
           hasPreviousPage,
-          (metafield) => metafield.id,
+          (mediaRecord) => mediaRecord.key,
         );
         break;
       default:
@@ -5344,9 +5304,9 @@ function serializeMetafieldsConnection(
     }
   }
 
+  promoteProcessingMediaAfterRead(productId, allMediaRecords);
   return result;
 }
-
 function serializeProductField(product: ProductRecord, field: FieldNode, variables: Record<string, unknown>): unknown {
   const visiblePublicationCount = product.status === 'ACTIVE' ? product.publicationIds.length : 0;
 
@@ -5455,6 +5415,8 @@ function serializeProductField(product: ProductRecord, field: FieldNode, variabl
       return serializeCollectionsConnection(product.id, field, variables);
     case 'media':
       return serializeMediaConnection(product.id, field, variables);
+    case 'images':
+      return serializeProductImagesConnection(product.id, field, variables);
     case 'metafield': {
       const args = getFieldArguments(field, variables);
       const namespace = typeof args['namespace'] === 'string' ? args['namespace'] : null;
@@ -5469,7 +5431,7 @@ function serializeProductField(product: ProductRecord, field: FieldNode, variabl
       return metafield ? serializeMetafieldSelectionSet(metafield, field.selectionSet?.selections ?? []) : null;
     }
     case 'metafields':
-      return serializeMetafieldsConnection(product.id, field, variables);
+      return serializeOwnerMetafieldsConnection(store.getEffectiveMetafieldsByProductId(product.id), field, variables);
     default:
       return null;
   }
@@ -6331,6 +6293,7 @@ function normalizeUpstreamProduct(value: unknown): {
   hasCollections: boolean;
   media: ProductMediaRecord[];
   hasMedia: boolean;
+  hasImages: boolean;
   metafields: ProductMetafieldRecord[];
   hasMetafields: boolean;
 } | null {
@@ -6368,6 +6331,7 @@ function normalizeUpstreamProduct(value: unknown): {
   const hasVariants = hasOwnField(value, 'variants');
   const hasCollections = hasOwnField(value, 'collections');
   const hasMedia = hasOwnField(value, 'media');
+  const hasImages = hasOwnField(value, 'images');
   const hasMetafields = hasOwnField(value, 'metafields') || hasOwnField(value, 'metafield');
   const options = Array.isArray(value['options'])
     ? value['options']
@@ -6382,6 +6346,9 @@ function normalizeUpstreamProduct(value: unknown): {
     .filter((collection): collection is ProductCollectionRecord => collection !== null);
   const media = readMediaNodes(value['media'])
     .map((mediaNode, index) => normalizeUpstreamMedia(rawId, mediaNode, index))
+    .filter((mediaRecord): mediaRecord is ProductMediaRecord => mediaRecord !== null);
+  const imageMedia = readConnectionNodeEntries(value['images'])
+    .map((entry) => normalizeUpstreamProductImage(rawId, entry.node, entry.position))
     .filter((mediaRecord): mediaRecord is ProductMediaRecord => mediaRecord !== null);
   const metafieldsById = new Map<string, ProductMetafieldRecord>();
   const singularMetafield = normalizeUpstreamMetafield(rawId, value['metafield']);
@@ -6445,8 +6412,9 @@ function normalizeUpstreamProduct(value: unknown): {
     hasVariants,
     collections,
     hasCollections,
-    media,
+    media: hasMedia ? media : imageMedia,
     hasMedia,
+    hasImages,
     metafields,
     hasMetafields,
   };
@@ -6488,7 +6456,7 @@ export function hydrateProductsFromUpstreamResponse(
     if (maybeProduct.hasCollections) {
       store.replaceBaseCollectionsForProduct(maybeProduct.product.id, maybeProduct.collections);
     }
-    if (maybeProduct.hasMedia) {
+    if (maybeProduct.hasMedia || maybeProduct.hasImages) {
       store.replaceBaseMediaForProduct(maybeProduct.product.id, maybeProduct.media);
     }
     if (maybeProduct.hasMetafields) {
@@ -6518,7 +6486,7 @@ export function hydrateProductsFromUpstreamResponse(
       if (normalizedProduct.hasVariants) {
         store.replaceBaseVariantsForProduct(normalizedProduct.product.id, normalizedProduct.variants);
       }
-      if (normalizedProduct.hasMedia) {
+      if (normalizedProduct.hasMedia || normalizedProduct.hasImages) {
         store.replaceBaseMediaForProduct(normalizedProduct.product.id, normalizedProduct.media);
       }
       if (normalizedProduct.hasMetafields) {
@@ -6577,6 +6545,7 @@ export function hydrateProductsFromUpstreamResponse(
           hasCollections: boolean;
           media: ProductMediaRecord[];
           hasMedia: boolean;
+          hasImages: boolean;
           metafields: ProductMetafieldRecord[];
           hasMetafields: boolean;
         } => product !== null,
@@ -6593,7 +6562,7 @@ export function hydrateProductsFromUpstreamResponse(
       if (entry.hasCollections) {
         store.replaceBaseCollectionsForProduct(entry.product.id, entry.collections);
       }
-      if (entry.hasMedia) {
+      if (entry.hasMedia || entry.hasImages) {
         store.replaceBaseMediaForProduct(entry.product.id, entry.media);
       }
       if (entry.hasMetafields) {
@@ -6628,6 +6597,7 @@ export function hydrateProductsFromUpstreamResponse(
           hasCollections: boolean;
           media: ProductMediaRecord[];
           hasMedia: boolean;
+          hasImages: boolean;
           metafields: ProductMetafieldRecord[];
           hasMetafields: boolean;
         } => product !== null,
@@ -6644,7 +6614,7 @@ export function hydrateProductsFromUpstreamResponse(
       if (entry.hasCollections) {
         store.replaceBaseCollectionsForProduct(entry.product.id, entry.collections);
       }
-      if (entry.hasMedia) {
+      if (entry.hasMedia || entry.hasImages) {
         store.replaceBaseMediaForProduct(entry.product.id, entry.media);
       }
       if (entry.hasMetafields) {
@@ -8342,7 +8312,7 @@ export function handleProductMutation(
       };
     }
     case 'metafieldsSet': {
-      const inputs = readMetafieldsSetInput(args['metafields']);
+      const inputs = readMetafieldInputObjects(args['metafields']);
       if (inputs.length === 0) {
         return {
           data: {
@@ -8423,7 +8393,7 @@ export function handleProductMutation(
       };
     }
     case 'metafieldsDelete': {
-      const deleteResult = deleteMetafieldsByIdentifiers(readMetafieldsDeleteInput(args['metafields']));
+      const deleteResult = deleteMetafieldsByIdentifiers(readMetafieldInputObjects(args['metafields']));
       return {
         data: {
           [responseKey]: {

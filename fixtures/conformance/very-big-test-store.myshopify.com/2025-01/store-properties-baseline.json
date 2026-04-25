@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-04-25T00:20:52.375Z",
+  "capturedAt": "2026-04-25T01:33:02.415Z",
   "storeDomain": "very-big-test-store.myshopify.com",
   "apiVersion": "2025-01",
   "schemaInventory": {
@@ -1638,7 +1638,7 @@
           "actualQueryCost": 1,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1949,
+            "currentlyAvailable": 1943,
             "restoreRate": 100
           }
         }
@@ -1677,7 +1677,7 @@
           "actualQueryCost": 4,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1954,
+            "currentlyAvailable": 1944,
             "restoreRate": 100
           }
         }
@@ -1685,18 +1685,614 @@
     },
     "location": {
       "data": {
+        "primary": {
+          "id": "gid://shopify/Location/68509171945",
+          "legacyResourceId": "68509171945",
+          "name": "103 ossington",
+          "activatable": true,
+          "addressVerified": true,
+          "createdAt": "2022-04-06T14:12:04Z",
+          "deactivatable": false,
+          "deactivatedAt": null,
+          "deletable": false,
+          "fulfillmentService": null,
+          "fulfillsOnlineOrders": true,
+          "hasActiveInventory": true,
+          "hasUnfulfilledOrders": true,
+          "isActive": true,
+          "isFulfillmentService": false,
+          "shipsInventory": true,
+          "updatedAt": "2022-04-06T14:12:04Z",
+          "address": {
+            "address1": "103 ossington",
+            "address2": null,
+            "city": "Ottawa",
+            "country": "Canada",
+            "countryCode": "CA",
+            "formatted": ["103 ossington", "Ottawa ON k1s3b7", "Canada"],
+            "latitude": 45.389817,
+            "longitude": -75.68692920000001,
+            "phone": "",
+            "province": "Ontario",
+            "provinceCode": "ON",
+            "zip": "k1s3b7"
+          },
+          "suggestedAddresses": [],
+          "metafield": null,
+          "metafields": {
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          },
+          "inventoryLevels": {
+            "nodes": [
+              {
+                "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=48886341271785",
+                "item": {
+                  "id": "gid://shopify/InventoryItem/48886341271785"
+                },
+                "location": {
+                  "id": "gid://shopify/Location/68509171945",
+                  "name": "103 ossington"
+                },
+                "quantities": [
+                  {
+                    "name": "available",
+                    "quantity": 6,
+                    "updatedAt": "2026-04-25T01:08:36Z"
+                  },
+                  {
+                    "name": "committed",
+                    "quantity": 0,
+                    "updatedAt": "2026-04-25T01:08:36Z"
+                  },
+                  {
+                    "name": "on_hand",
+                    "quantity": 6,
+                    "updatedAt": "2024-03-14T01:53:42Z"
+                  }
+                ]
+              },
+              {
+                "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=48886341304553",
+                "item": {
+                  "id": "gid://shopify/InventoryItem/48886341304553"
+                },
+                "location": {
+                  "id": "gid://shopify/Location/68509171945",
+                  "name": "103 ossington"
+                },
+                "quantities": [
+                  {
+                    "name": "available",
+                    "quantity": 8,
+                    "updatedAt": "2024-03-14T01:53:46Z"
+                  },
+                  {
+                    "name": "committed",
+                    "quantity": 0,
+                    "updatedAt": null
+                  },
+                  {
+                    "name": "on_hand",
+                    "quantity": 8,
+                    "updatedAt": "2024-03-14T01:53:42Z"
+                  }
+                ]
+              },
+              {
+                "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=48886341337321",
+                "item": {
+                  "id": "gid://shopify/InventoryItem/48886341337321"
+                },
+                "location": {
+                  "id": "gid://shopify/Location/68509171945",
+                  "name": "103 ossington"
+                },
+                "quantities": [
+                  {
+                    "name": "available",
+                    "quantity": 11,
+                    "updatedAt": "2024-03-14T01:53:47Z"
+                  },
+                  {
+                    "name": "committed",
+                    "quantity": 0,
+                    "updatedAt": null
+                  },
+                  {
+                    "name": "on_hand",
+                    "quantity": 11,
+                    "updatedAt": "2024-03-14T01:53:42Z"
+                  }
+                ]
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo1MTY0NTExMjMyMDIzMywibGFzdF92YWx1ZSI6IjUxNjQ1MTEyMzIwMjMzIn0=",
+              "endCursor": "eyJsYXN0X2lkIjo1MTY0NTExMjM4NTc2OSwibGFzdF92YWx1ZSI6IjUxNjQ1MTEyMzg1NzY5In0="
+            }
+          }
+        },
+        "byId": {
+          "id": "gid://shopify/Location/68509171945",
+          "legacyResourceId": "68509171945",
+          "name": "103 ossington",
+          "activatable": true,
+          "addressVerified": true,
+          "createdAt": "2022-04-06T14:12:04Z",
+          "deactivatable": false,
+          "deactivatedAt": null,
+          "deletable": false,
+          "fulfillmentService": null,
+          "fulfillsOnlineOrders": true,
+          "hasActiveInventory": true,
+          "hasUnfulfilledOrders": true,
+          "isActive": true,
+          "isFulfillmentService": false,
+          "shipsInventory": true,
+          "updatedAt": "2022-04-06T14:12:04Z",
+          "address": {
+            "address1": "103 ossington",
+            "address2": null,
+            "city": "Ottawa",
+            "country": "Canada",
+            "countryCode": "CA",
+            "formatted": ["103 ossington", "Ottawa ON k1s3b7", "Canada"],
+            "latitude": 45.389817,
+            "longitude": -75.68692920000001,
+            "phone": "",
+            "province": "Ontario",
+            "provinceCode": "ON",
+            "zip": "k1s3b7"
+          },
+          "suggestedAddresses": [],
+          "metafield": null,
+          "metafields": {
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          },
+          "inventoryLevels": {
+            "nodes": [
+              {
+                "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=48886341271785",
+                "item": {
+                  "id": "gid://shopify/InventoryItem/48886341271785"
+                },
+                "location": {
+                  "id": "gid://shopify/Location/68509171945",
+                  "name": "103 ossington"
+                },
+                "quantities": [
+                  {
+                    "name": "available",
+                    "quantity": 6,
+                    "updatedAt": "2026-04-25T01:08:36Z"
+                  },
+                  {
+                    "name": "committed",
+                    "quantity": 0,
+                    "updatedAt": "2026-04-25T01:08:36Z"
+                  },
+                  {
+                    "name": "on_hand",
+                    "quantity": 6,
+                    "updatedAt": "2024-03-14T01:53:42Z"
+                  }
+                ]
+              },
+              {
+                "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=48886341304553",
+                "item": {
+                  "id": "gid://shopify/InventoryItem/48886341304553"
+                },
+                "location": {
+                  "id": "gid://shopify/Location/68509171945",
+                  "name": "103 ossington"
+                },
+                "quantities": [
+                  {
+                    "name": "available",
+                    "quantity": 8,
+                    "updatedAt": "2024-03-14T01:53:46Z"
+                  },
+                  {
+                    "name": "committed",
+                    "quantity": 0,
+                    "updatedAt": null
+                  },
+                  {
+                    "name": "on_hand",
+                    "quantity": 8,
+                    "updatedAt": "2024-03-14T01:53:42Z"
+                  }
+                ]
+              },
+              {
+                "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=48886341337321",
+                "item": {
+                  "id": "gid://shopify/InventoryItem/48886341337321"
+                },
+                "location": {
+                  "id": "gid://shopify/Location/68509171945",
+                  "name": "103 ossington"
+                },
+                "quantities": [
+                  {
+                    "name": "available",
+                    "quantity": 11,
+                    "updatedAt": "2024-03-14T01:53:47Z"
+                  },
+                  {
+                    "name": "committed",
+                    "quantity": 0,
+                    "updatedAt": null
+                  },
+                  {
+                    "name": "on_hand",
+                    "quantity": 11,
+                    "updatedAt": "2024-03-14T01:53:42Z"
+                  }
+                ]
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo1MTY0NTExMjMyMDIzMywibGFzdF92YWx1ZSI6IjUxNjQ1MTEyMzIwMjMzIn0=",
+              "endCursor": "eyJsYXN0X2lkIjo1MTY0NTExMjM4NTc2OSwibGFzdF92YWx1ZSI6IjUxNjQ1MTEyMzg1NzY5In0="
+            }
+          }
+        },
+        "byIdentifier": {
+          "id": "gid://shopify/Location/68509171945",
+          "legacyResourceId": "68509171945",
+          "name": "103 ossington",
+          "activatable": true,
+          "addressVerified": true,
+          "createdAt": "2022-04-06T14:12:04Z",
+          "deactivatable": false,
+          "deactivatedAt": null,
+          "deletable": false,
+          "fulfillmentService": null,
+          "fulfillsOnlineOrders": true,
+          "hasActiveInventory": true,
+          "hasUnfulfilledOrders": true,
+          "isActive": true,
+          "isFulfillmentService": false,
+          "shipsInventory": true,
+          "updatedAt": "2022-04-06T14:12:04Z",
+          "address": {
+            "address1": "103 ossington",
+            "address2": null,
+            "city": "Ottawa",
+            "country": "Canada",
+            "countryCode": "CA",
+            "formatted": ["103 ossington", "Ottawa ON k1s3b7", "Canada"],
+            "latitude": 45.389817,
+            "longitude": -75.68692920000001,
+            "phone": "",
+            "province": "Ontario",
+            "provinceCode": "ON",
+            "zip": "k1s3b7"
+          },
+          "suggestedAddresses": [],
+          "metafield": null,
+          "metafields": {
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          },
+          "inventoryLevels": {
+            "nodes": [
+              {
+                "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=48886341271785",
+                "item": {
+                  "id": "gid://shopify/InventoryItem/48886341271785"
+                },
+                "location": {
+                  "id": "gid://shopify/Location/68509171945",
+                  "name": "103 ossington"
+                },
+                "quantities": [
+                  {
+                    "name": "available",
+                    "quantity": 6,
+                    "updatedAt": "2026-04-25T01:08:36Z"
+                  },
+                  {
+                    "name": "committed",
+                    "quantity": 0,
+                    "updatedAt": "2026-04-25T01:08:36Z"
+                  },
+                  {
+                    "name": "on_hand",
+                    "quantity": 6,
+                    "updatedAt": "2024-03-14T01:53:42Z"
+                  }
+                ]
+              },
+              {
+                "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=48886341304553",
+                "item": {
+                  "id": "gid://shopify/InventoryItem/48886341304553"
+                },
+                "location": {
+                  "id": "gid://shopify/Location/68509171945",
+                  "name": "103 ossington"
+                },
+                "quantities": [
+                  {
+                    "name": "available",
+                    "quantity": 8,
+                    "updatedAt": "2024-03-14T01:53:46Z"
+                  },
+                  {
+                    "name": "committed",
+                    "quantity": 0,
+                    "updatedAt": null
+                  },
+                  {
+                    "name": "on_hand",
+                    "quantity": 8,
+                    "updatedAt": "2024-03-14T01:53:42Z"
+                  }
+                ]
+              },
+              {
+                "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=48886341337321",
+                "item": {
+                  "id": "gid://shopify/InventoryItem/48886341337321"
+                },
+                "location": {
+                  "id": "gid://shopify/Location/68509171945",
+                  "name": "103 ossington"
+                },
+                "quantities": [
+                  {
+                    "name": "available",
+                    "quantity": 11,
+                    "updatedAt": "2024-03-14T01:53:47Z"
+                  },
+                  {
+                    "name": "committed",
+                    "quantity": 0,
+                    "updatedAt": null
+                  },
+                  {
+                    "name": "on_hand",
+                    "quantity": 11,
+                    "updatedAt": "2024-03-14T01:53:42Z"
+                  }
+                ]
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo1MTY0NTExMjMyMDIzMywibGFzdF92YWx1ZSI6IjUxNjQ1MTEyMzIwMjMzIn0=",
+              "endCursor": "eyJsYXN0X2lkIjo1MTY0NTExMjM4NTc2OSwibGFzdF92YWx1ZSI6IjUxNjQ1MTEyMzg1NzY5In0="
+            }
+          }
+        },
+        "unknownById": null,
+        "unknownByIdentifier": null
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 59,
+          "actualQueryCost": 59,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1895,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "locationInventoryLevel": {
+      "data": {
         "location": {
           "id": "gid://shopify/Location/68509171945",
-          "name": "103 ossington"
+          "inventoryLevel": {
+            "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=48886341271785",
+            "item": {
+              "id": "gid://shopify/InventoryItem/48886341271785"
+            },
+            "location": {
+              "id": "gid://shopify/Location/68509171945",
+              "name": "103 ossington"
+            },
+            "quantities": [
+              {
+                "name": "available",
+                "quantity": 6,
+                "updatedAt": "2026-04-25T01:08:36Z"
+              },
+              {
+                "name": "committed",
+                "quantity": 0,
+                "updatedAt": "2026-04-25T01:08:36Z"
+              },
+              {
+                "name": "on_hand",
+                "quantity": 6,
+                "updatedAt": "2024-03-14T01:53:42Z"
+              }
+            ]
+          }
         }
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 1,
-          "actualQueryCost": 1,
+          "requestedQueryCost": 5,
+          "actualQueryCost": 5,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1965,
+            "currentlyAvailable": 1918,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "locationInvalidIdentifier": {
+      "errors": [
+        {
+          "message": "OneOf Input Object 'LocationIdentifierInput' must specify exactly one key.",
+          "locations": [
+            {
+              "line": 3,
+              "column": 55
+            }
+          ],
+          "path": ["query StorePropertiesLocationInvalidIdentifier", "emptyIdentifier", "identifier"],
+          "extensions": {
+            "code": "invalidOneOfInputObject",
+            "inputObjectType": "LocationIdentifierInput"
+          }
+        }
+      ]
+    },
+    "businessEntitiesCatalog": {
+      "errors": [
+        {
+          "message": "Access denied for shopifyPaymentsAccount field. Required access: the `read_shopify_payments` or the `read_shopify_payments_accounts` access scope.",
+          "locations": [
+            {
+              "line": 17,
+              "column": 5
+            }
+          ],
+          "extensions": {
+            "code": "ACCESS_DENIED",
+            "documentation": "https://shopify.dev/api/usage/access-scopes",
+            "requiredAccess": "the `read_shopify_payments` or the `read_shopify_payments_accounts` access scope."
+          },
+          "path": ["businessEntities", 0, "shopifyPaymentsAccount"]
+        }
+      ],
+      "data": {
+        "businessEntities": [
+          {
+            "id": "gid://shopify/BusinessEntity/MTYzNzU1NDE5ODgx",
+            "displayName": "very-big-test-store Admin",
+            "companyName": null,
+            "primary": true,
+            "archived": false,
+            "address": {
+              "address1": "103 ossington",
+              "address2": null,
+              "city": "Ottawa",
+              "countryCode": "CA",
+              "province": "Ontario",
+              "zip": "k1s3b7"
+            },
+            "shopifyPaymentsAccount": null
+          }
+        ]
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1933,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "businessEntityFallbacks": {
+      "errors": [
+        {
+          "message": "Access denied for shopifyPaymentsAccount field. Required access: the `read_shopify_payments` or the `read_shopify_payments_accounts` access scope.",
+          "locations": [
+            {
+              "line": 17,
+              "column": 5
+            }
+          ],
+          "extensions": {
+            "code": "ACCESS_DENIED",
+            "documentation": "https://shopify.dev/api/usage/access-scopes",
+            "requiredAccess": "the `read_shopify_payments` or the `read_shopify_payments_accounts` access scope."
+          },
+          "path": ["primary", "shopifyPaymentsAccount"]
+        },
+        {
+          "message": "Access denied for shopifyPaymentsAccount field. Required access: the `read_shopify_payments` or the `read_shopify_payments_accounts` access scope.",
+          "locations": [
+            {
+              "line": 17,
+              "column": 5
+            }
+          ],
+          "extensions": {
+            "code": "ACCESS_DENIED",
+            "documentation": "https://shopify.dev/api/usage/access-scopes",
+            "requiredAccess": "the `read_shopify_payments` or the `read_shopify_payments_accounts` access scope."
+          },
+          "path": ["known", "shopifyPaymentsAccount"]
+        }
+      ],
+      "data": {
+        "primary": {
+          "id": "gid://shopify/BusinessEntity/MTYzNzU1NDE5ODgx",
+          "displayName": "very-big-test-store Admin",
+          "companyName": null,
+          "primary": true,
+          "archived": false,
+          "address": {
+            "address1": "103 ossington",
+            "address2": null,
+            "city": "Ottawa",
+            "countryCode": "CA",
+            "province": "Ontario",
+            "zip": "k1s3b7"
+          },
+          "shopifyPaymentsAccount": null
+        },
+        "known": {
+          "id": "gid://shopify/BusinessEntity/MTYzNzU1NDE5ODgx",
+          "displayName": "very-big-test-store Admin",
+          "companyName": null,
+          "primary": true,
+          "archived": false,
+          "address": {
+            "address1": "103 ossington",
+            "address2": null,
+            "city": "Ottawa",
+            "countryCode": "CA",
+            "province": "Ontario",
+            "zip": "k1s3b7"
+          },
+          "shopifyPaymentsAccount": null
+        },
+        "unknown": null
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 7,
+          "actualQueryCost": 7,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1937,
             "restoreRate": 100
           }
         }
