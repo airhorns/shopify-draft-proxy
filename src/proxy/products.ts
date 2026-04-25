@@ -179,6 +179,24 @@ function findEffectiveCollectionById(collectionId: string): CollectionRecord | n
   return store.getEffectiveCollectionById(collectionId);
 }
 
+function findEffectiveCollectionByHandle(handle: string): CollectionRecord | null {
+  return listEffectiveCollections().find((collection) => collection.handle === handle) ?? null;
+}
+
+function findEffectiveCollectionByIdentifier(identifier: Record<string, unknown>): CollectionRecord | null {
+  const rawId = identifier['id'];
+  if (typeof rawId === 'string') {
+    return findEffectiveCollectionById(rawId);
+  }
+
+  const rawHandle = identifier['handle'];
+  if (typeof rawHandle === 'string') {
+    return findEffectiveCollectionByHandle(rawHandle);
+  }
+
+  return null;
+}
+
 function listEffectiveCollections(): CollectionRecord[] {
   return store.listEffectiveCollections();
 }
@@ -6517,8 +6535,23 @@ export function hydrateProductsFromUpstreamResponse(
   };
 
   hydrateCollection(rawData['collection']);
+  hydrateCollection(rawData['collectionByIdentifier']);
+  hydrateCollection(rawData['collectionByHandle']);
   for (const collection of readCollectionNodes(rawData['collections'])) {
     hydrateCollection(collection);
+  }
+
+  for (const field of getRootFields(document)) {
+    if (
+      field.name.value !== 'collection' &&
+      field.name.value !== 'collectionByIdentifier' &&
+      field.name.value !== 'collectionByHandle'
+    ) {
+      continue;
+    }
+
+    const responseKey = field.alias?.value ?? field.name.value;
+    hydrateCollection(rawData[responseKey]);
   }
 
   const rawProducts = rawData['products'];
@@ -8872,6 +8905,23 @@ export function handleProductQuery(
         const rawId = args['id'];
         const id = typeof rawId === 'string' ? rawId : null;
         const collection = id ? findEffectiveCollectionById(id) : null;
+        data[responseKey] = collection
+          ? serializeCollectionObject(collection, field.selectionSet?.selections ?? [], variables)
+          : null;
+        break;
+      }
+      case 'collectionByIdentifier': {
+        const identifier = readProductInput(args['identifier']);
+        const collection = findEffectiveCollectionByIdentifier(identifier);
+        data[responseKey] = collection
+          ? serializeCollectionObject(collection, field.selectionSet?.selections ?? [], variables)
+          : null;
+        break;
+      }
+      case 'collectionByHandle': {
+        const rawHandle = args['handle'];
+        const handle = typeof rawHandle === 'string' ? rawHandle : null;
+        const collection = handle ? findEffectiveCollectionByHandle(handle) : null;
         data[responseKey] = collection
           ? serializeCollectionObject(collection, field.selectionSet?.selections ?? [], variables)
           : null;

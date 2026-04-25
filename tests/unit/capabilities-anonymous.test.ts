@@ -264,6 +264,20 @@ describe('getOperationCapability anonymous operations', () => {
       operationName: 'collections',
       type: 'query',
     });
+
+    expect(getOperationCapability({ type: 'query', name: null, rootFields: ['collectionByIdentifier'] })).toEqual({
+      domain: 'products',
+      execution: 'overlay-read',
+      operationName: 'collectionByIdentifier',
+      type: 'query',
+    });
+
+    expect(getOperationCapability({ type: 'query', name: null, rootFields: ['collectionByHandle'] })).toEqual({
+      domain: 'products',
+      execution: 'overlay-read',
+      operationName: 'collectionByHandle',
+      type: 'query',
+    });
   });
 
   it('classifies anonymous customer queries and customersCount by root field name', () => {

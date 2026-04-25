@@ -66,6 +66,32 @@
     ]
   },
   {
+    "name": "collectionByIdentifier",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["collectionByIdentifier", "CollectionByIdentifier"],
+    "runtimeTests": [
+      "tests/integration/collection-query-shapes.test.ts",
+      "tests/integration/collection-draft-flow.test.ts"
+    ],
+    "supportNotes": "Supports id and handle identifier branches against effective local collection state. customId currently returns null until collection unique-metafield evidence exists."
+  },
+  {
+    "name": "collectionByHandle",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["collectionByHandle", "CollectionByHandle"],
+    "runtimeTests": [
+      "tests/integration/collection-query-shapes.test.ts",
+      "tests/integration/collection-draft-flow.test.ts"
+    ],
+    "supportNotes": "Deprecated Shopify root supported as a handle lookup over effective local collection state."
+  },
+  {
     "name": "collections",
     "type": "query",
     "domain": "products",
