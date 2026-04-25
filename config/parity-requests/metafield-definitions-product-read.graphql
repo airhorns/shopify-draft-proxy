@@ -1,9 +1,4 @@
-query MetafieldDefinitionsProductRead(
-  $first: Int!
-  $namespace: String!
-  $key: String!
-  $missingNamespace: String!
-) {
+query MetafieldDefinitionsProductRead($first: Int!, $namespace: String!, $key: String!, $missingNamespace: String!) {
   byIdentifier: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: $key }) {
     id
     name

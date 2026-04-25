@@ -3,7 +3,9 @@
   "operationNames": ["metafieldDefinition", "metafieldDefinitions"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "selected-fields", "connection-shape"],
-  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafield-definitions-product-read.json"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafield-definitions-product-read.json"
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/metafield-definitions-product-read.graphql",
     "variablesPath": "config/parity-requests/metafield-definitions-product-read.variables.json",
