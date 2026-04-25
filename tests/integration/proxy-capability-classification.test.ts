@@ -56,7 +56,7 @@ describe('proxy capability classification', () => {
     });
   });
 
-  it('logs registry-only discounts mutations through the generic unsupported passthrough path', async () => {
+  it('logs unmodeled discount happy paths through the generic unsupported passthrough path', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -117,8 +117,15 @@ describe('proxy capability classification', () => {
           domain: 'unknown',
           execution: 'passthrough',
         },
+        registeredOperation: {
+          name: 'discountCodeBasicCreate',
+          domain: 'discounts',
+          execution: 'stage-locally',
+          implemented: false,
+        },
       },
-      notes: 'Mutation passthrough placeholder until supported local staging is implemented.',
+      notes:
+        'Unsupported discount mutation lifecycle branch would be proxied to Shopify. Captured validation failures are handled locally only; full local emulation is required before this root can be supported.',
     });
   });
 

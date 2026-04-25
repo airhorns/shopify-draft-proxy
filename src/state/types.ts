@@ -136,8 +136,27 @@ export const locationFulfillmentServiceRecordSchema = z.strictObject({
   id: nullableStringSchema,
   handle: nullableStringSchema,
   serviceName: nullableStringSchema,
+  callbackUrl: nullableStringSchema.optional(),
+  inventoryManagement: nullableBooleanSchema.optional(),
+  locationId: nullableStringSchema.optional(),
+  requiresShippingMethod: nullableBooleanSchema.optional(),
+  trackingSupport: nullableBooleanSchema.optional(),
+  type: nullableStringSchema.optional(),
 });
 export type LocationFulfillmentServiceRecord = z.infer<typeof locationFulfillmentServiceRecordSchema>;
+
+export const fulfillmentServiceRecordSchema = z.strictObject({
+  id: z.string(),
+  handle: z.string(),
+  serviceName: z.string(),
+  callbackUrl: nullableStringSchema,
+  inventoryManagement: z.boolean(),
+  locationId: nullableStringSchema,
+  requiresShippingMethod: z.boolean(),
+  trackingSupport: z.boolean(),
+  type: z.string(),
+});
+export type FulfillmentServiceRecord = z.infer<typeof fulfillmentServiceRecordSchema>;
 
 export const locationMetafieldRecordSchema = z.strictObject({
   id: z.string(),
@@ -1174,6 +1193,8 @@ export const stateSnapshotSchema = z.strictObject({
   productOptions: z.record(z.string(), productOptionRecordSchema),
   locations: z.record(z.string(), locationRecordSchema).default({}),
   locationOrder: z.array(z.string()).default([]),
+  fulfillmentServices: z.record(z.string(), fulfillmentServiceRecordSchema).default({}),
+  fulfillmentServiceOrder: z.array(z.string()).default([]),
   collections: z.record(z.string(), collectionRecordSchema),
   publications: z.record(z.string(), publicationRecordSchema).default({}),
   customers: z.record(z.string(), customerRecordSchema),
@@ -1202,6 +1223,8 @@ export const stateSnapshotSchema = z.strictObject({
   deletedProductIds: z.record(z.string(), z.literal(true)),
   deletedFileIds: z.record(z.string(), z.literal(true)).default({}),
   deletedCollectionIds: z.record(z.string(), z.literal(true)),
+  deletedLocationIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedFulfillmentServiceIds: z.record(z.string(), z.literal(true)).default({}),
   deletedCustomerIds: z.record(z.string(), z.literal(true)),
   deletedCustomerAddressIds: z.record(z.string(), z.literal(true)).default({}),
   deletedSegmentIds: z.record(z.string(), z.literal(true)).default({}),
