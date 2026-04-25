@@ -2699,30 +2699,30 @@
     "type": "query",
     "domain": "webhooks",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["webhookSubscription", "WebhookSubscription"],
-    "runtimeTests": [],
-    "supportNotes": "Conformance scaffold only. HAR-267 captured empty/null and create/update/delete lifecycle evidence for API-created webhook subscriptions, but local snapshot/live-hybrid reads are not modeled yet."
+    "runtimeTests": ["tests/integration/webhook-subscription-query-shapes.test.ts"],
+    "supportNotes": "Local snapshot/live-hybrid reads are modeled for API-created webhook subscription records in normalized state. Unknown IDs return null. Create/update/delete staging remains unsupported until a local mutation lifecycle model exists."
   },
   {
     "name": "webhookSubscriptions",
     "type": "query",
     "domain": "webhooks",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["webhookSubscriptions", "WebhookSubscriptions"],
-    "runtimeTests": [],
-    "supportNotes": "Conformance scaffold only. Catalog/count/detail behavior is captured for API-created subscriptions; app TOML webhooks and local connection modeling remain out of scope until runtime support is implemented."
+    "runtimeTests": ["tests/integration/webhook-subscription-query-shapes.test.ts"],
+    "supportNotes": "Local snapshot/live-hybrid catalog reads are modeled for API-created webhook subscriptions with normalized nodes, edges, pageInfo, stable synthetic cursors, ID sorting, reverse ordering, pagination, and simple captured query filtering. App TOML webhooks remain out of scope."
   },
   {
     "name": "webhookSubscriptionsCount",
     "type": "query",
     "domain": "webhooks",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["webhookSubscriptionsCount", "WebhookSubscriptionsCount"],
-    "runtimeTests": [],
-    "supportNotes": "Conformance scaffold only. Empty and filtered count behavior is captured, but the proxy does not yet synthesize webhook subscription counts locally."
+    "runtimeTests": ["tests/integration/webhook-subscription-query-shapes.test.ts"],
+    "supportNotes": "Local snapshot/live-hybrid count reads are synthesized from normalized API-created webhook subscription state with Shopify-like count/precision fields and limit-aware AT_LEAST precision."
   },
   {
     "name": "webhookSubscriptionCreate",

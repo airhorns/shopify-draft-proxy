@@ -38,6 +38,7 @@ import type {
   SegmentRecord,
   ShopRecord,
   StateSnapshot,
+  WebhookSubscriptionRecord,
   WebPresenceRecord,
 } from './types.js';
 import { compareShopifyResourceIds } from '../shopify/resource-ids.js';
@@ -71,6 +72,8 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   customerAddresses: {},
   customerPaymentMethods: {},
   segments: {},
+  webhookSubscriptions: {},
+  webhookSubscriptionOrder: [],
   marketingActivities: {},
   marketingActivityOrder: [],
   marketingEvents: {},
@@ -107,6 +110,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedCustomerIds: {},
   deletedCustomerAddressIds: {},
   deletedSegmentIds: {},
+  deletedWebhookSubscriptionIds: {},
   deletedDiscountIds: {},
   deletedPaymentCustomizationIds: {},
   deletedMarketIds: {},
@@ -525,6 +529,80 @@ export class InMemoryStore {
         (left, right) =>
           (left.creationDate ?? '').localeCompare(right.creationDate ?? '') || left.id.localeCompare(right.id),
       );
+  }
+
+  upsertBaseWebhookSubscriptions(webhookSubscriptions: WebhookSubscriptionRecord[]): void {
+    for (const webhookSubscription of webhookSubscriptions) {
+      delete this.baseState.deletedWebhookSubscriptionIds[webhookSubscription.id];
+      delete this.stagedState.deletedWebhookSubscriptionIds[webhookSubscription.id];
+      this.baseState.webhookSubscriptions[webhookSubscription.id] = structuredClone(webhookSubscription);
+      if (!this.baseState.webhookSubscriptionOrder.includes(webhookSubscription.id)) {
+        this.baseState.webhookSubscriptionOrder.push(webhookSubscription.id);
+      }
+    }
+  }
+
+  upsertStagedWebhookSubscription(webhookSubscription: WebhookSubscriptionRecord): void {
+    delete this.stagedState.deletedWebhookSubscriptionIds[webhookSubscription.id];
+    this.stagedState.webhookSubscriptions[webhookSubscription.id] = structuredClone(webhookSubscription);
+    if (
+      !this.baseState.webhookSubscriptionOrder.includes(webhookSubscription.id) &&
+      !this.stagedState.webhookSubscriptionOrder.includes(webhookSubscription.id)
+    ) {
+      this.stagedState.webhookSubscriptionOrder.push(webhookSubscription.id);
+    }
+  }
+
+  deleteStagedWebhookSubscription(webhookSubscriptionId: string): void {
+    delete this.stagedState.webhookSubscriptions[webhookSubscriptionId];
+    this.stagedState.deletedWebhookSubscriptionIds[webhookSubscriptionId] = true;
+  }
+
+  getEffectiveWebhookSubscriptionById(webhookSubscriptionId: string): WebhookSubscriptionRecord | null {
+    if (this.stagedState.deletedWebhookSubscriptionIds[webhookSubscriptionId]) {
+      return null;
+    }
+
+    const webhookSubscription =
+      this.stagedState.webhookSubscriptions[webhookSubscriptionId] ??
+      this.baseState.webhookSubscriptions[webhookSubscriptionId] ??
+      null;
+    return webhookSubscription ? structuredClone(webhookSubscription) : null;
+  }
+
+  listEffectiveWebhookSubscriptions(): WebhookSubscriptionRecord[] {
+    const orderedIds = new Set([
+      ...this.baseState.webhookSubscriptionOrder,
+      ...this.stagedState.webhookSubscriptionOrder,
+    ]);
+    const orderedWebhookSubscriptions = [...orderedIds]
+      .map((webhookSubscriptionId) => this.getEffectiveWebhookSubscriptionById(webhookSubscriptionId))
+      .filter((webhookSubscription): webhookSubscription is WebhookSubscriptionRecord => webhookSubscription !== null);
+    const unorderedWebhookSubscriptions = Object.values({
+      ...this.baseState.webhookSubscriptions,
+      ...this.stagedState.webhookSubscriptions,
+    })
+      .filter((webhookSubscription) => !orderedIds.has(webhookSubscription.id))
+      .filter((webhookSubscription) => !this.stagedState.deletedWebhookSubscriptionIds[webhookSubscription.id])
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id))
+      .map((webhookSubscription) => structuredClone(webhookSubscription));
+
+    return [...orderedWebhookSubscriptions, ...unorderedWebhookSubscriptions];
+  }
+
+  hasWebhookSubscriptions(): boolean {
+    return (
+      Object.keys(this.baseState.webhookSubscriptions).length > 0 ||
+      Object.keys(this.stagedState.webhookSubscriptions).length > 0 ||
+      Object.keys(this.stagedState.deletedWebhookSubscriptionIds).length > 0
+    );
+  }
+
+  hasStagedWebhookSubscriptions(): boolean {
+    return (
+      Object.keys(this.stagedState.webhookSubscriptions).length > 0 ||
+      Object.keys(this.stagedState.deletedWebhookSubscriptionIds).length > 0
+    );
   }
 
   private upsertBaseMarketingRecords(
