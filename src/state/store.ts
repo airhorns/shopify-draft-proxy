@@ -8,6 +8,7 @@ import type {
   CustomerRecord,
   DraftOrderRecord,
   FileRecord,
+  LocationRecord,
   MutationLogEntry,
   NormalizedStateSnapshotFile,
   OrderRecord,
@@ -39,6 +40,8 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   products: {},
   productVariants: {},
   productOptions: {},
+  locations: {},
+  locationOrder: [],
   collections: {},
   publications: {},
   customers: {},
@@ -364,6 +367,32 @@ export class InMemoryStore {
 
   upsertBaseShop(shop: ShopRecord): void {
     this.baseState.shop = structuredClone(shop);
+  }
+
+  upsertBaseLocations(locations: LocationRecord[]): void {
+    for (const location of locations) {
+      this.baseState.locations[location.id] = structuredClone(location);
+      if (!this.baseState.locationOrder.includes(location.id)) {
+        this.baseState.locationOrder.push(location.id);
+      }
+    }
+  }
+
+  listBaseLocations(): LocationRecord[] {
+    const orderedIds = new Set(this.baseState.locationOrder);
+    const orderedLocations = this.baseState.locationOrder
+      .map((id) => this.baseState.locations[id] ?? null)
+      .filter((location): location is LocationRecord => location !== null);
+    const unorderedLocations = Object.values(this.baseState.locations)
+      .filter((location) => !orderedIds.has(location.id))
+      .sort((left, right) => compareResourceIds(left.id, right.id));
+
+    return structuredClone([...orderedLocations, ...unorderedLocations]);
+  }
+
+  getBaseLocationById(locationId: string): LocationRecord | null {
+    const location = this.baseState.locations[locationId] ?? null;
+    return location ? structuredClone(location) : null;
   }
 
   stageShop(shop: ShopRecord): ShopRecord {

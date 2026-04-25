@@ -1850,7 +1850,8 @@ The first Store properties inventory for Admin GraphQL 2026-04 exposed several r
 
 Current scaffold decision:
 
-- `shop`, `location`, `locationByIdentifier`, `businessEntities`, `businessEntity`, and `cashManagementLocationSummary` are registry-tracked as planned overlay reads, but they are not implemented runtime capabilities yet
+- `shop` and `cashManagementLocationSummary` are registry-tracked as planned overlay reads, but they are not implemented runtime capabilities yet
+- `location`, `locationByIdentifier`, `businessEntities`, and `businessEntity` now have narrow Store properties overlay-read support backed by captured fixtures
 - `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, `locationDelete`, and `shopPolicyUpdate` are registry-tracked as planned local-staging mutations, but they remain unsupported at runtime
 - generic `publishablePublish` / `publishableUnpublish` now stage Product and Collection targets locally; `publishablePublishToCurrentChannel` / `publishableUnpublishToCurrentChannel` currently have product-scoped local staging only
 - the capture harness now records schema inventory plus safe read-only `shop` / `locations` / `location(id:)` baselines, while mutation validation probes are recorded as a plan instead of executed by default
@@ -1865,6 +1866,25 @@ Safety traps:
 Practical rule:
 
 - keep Store properties registry inventory separate from runtime support; do not flip these roots to implemented until there is captured fixture evidence plus local model behavior for the specific root family
+
+### 47b. `location` detail reads should reuse the effective inventory graph
+
+HAR-168 promoted the first Store properties location detail read slice from scaffold to runtime support.
+
+Live evidence refreshed on this host:
+
+- `location` accepts an optional `id`; omitting it returns the primary shop location
+- `locationByIdentifier(identifier: { id })` returns the same `Location` payload as `location(id:)` for a known location
+- unknown `location(id:)` and unknown `locationByIdentifier(identifier: { id })` return `null`
+- `locationByIdentifier(identifier: {})` fails before data resolution with `invalidOneOfInputObject`
+- the captured location detail shape includes address fields, activation/deactivation flags, fulfillment-service nullability, empty metafield/suggested-address structures, and nested `inventoryLevels` with `item`, `location`, and named quantities
+
+Practical rule for the proxy:
+
+- keep `location`, `locationByIdentifier`, and top-level `locations` aligned on the same effective inventory-level graph until there is a real local location mutation model
+- keep baseline location metadata narrow and read-only: it can preserve captured address and lifecycle scalars, but nested inventory-level connections should still come from the effective inventory graph so staged inventory activation/deactivation behavior does not drift
+- model unknown IDs as `null` and invalid identifier objects as GraphQL-style errors, not generic empty objects
+- preserve empty metafield/suggested-address shapes when the local snapshot has no location-owned metadata rather than inventing fake metafields or address suggestions
 
 ### 47a. Generic Publishable roots must not become permanent passthrough
 
