@@ -190,6 +190,71 @@ describe('proxy capability classification', () => {
     expect(store.getLog()[0]?.interpreted.safety?.reason).toContain('external Function logic');
   });
 
+  it('logs registered dataSaleOptOut as unsupported privacy passthrough without enabling staging', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            dataSaleOptOut: {
+              customerId: null,
+              userErrors: [],
+            },
+          },
+        }),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        },
+      ),
+    );
+
+    const app = createApp(config);
+
+    const response = await request(app.callback())
+      .post('/admin/api/2026-04/graphql.json')
+      .set('x-shopify-access-token', 'shpat_test')
+      .send({
+        query: `#graphql
+          mutation DataSaleOptOut($email: String!) {
+            dataSaleOptOut(email: $email) {
+              customerId
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+        variables: { email: 'privacy@example.com' },
+      });
+
+    expect(response.status).toBe(200);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(store.getLog()).toHaveLength(1);
+    expect(store.getLog()[0]).toMatchObject({
+      operationName: 'DataSaleOptOut',
+      status: 'proxied',
+      interpreted: {
+        operationType: 'mutation',
+        operationName: 'DataSaleOptOut',
+        rootFields: ['dataSaleOptOut'],
+        primaryRootField: 'dataSaleOptOut',
+        capability: {
+          operationName: 'DataSaleOptOut',
+          domain: 'unknown',
+          execution: 'passthrough',
+        },
+        registeredOperation: {
+          name: 'dataSaleOptOut',
+          domain: 'privacy',
+          execution: 'stage-locally',
+          implemented: false,
+        },
+      },
+      notes: 'Mutation passthrough placeholder until supported local staging is implemented.',
+    });
+  });
+
   it('logs generic publishable mutations as local Store properties staging', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('generic publishable product support should not proxy upstream');

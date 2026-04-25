@@ -714,6 +714,16 @@
     "supportNotes": "HAR-250 registry-only privacy mutation coverage. Keep unimplemented until live capture and a local privacy feature staging model exist; registry presence must not make this a supported passthrough."
   },
   {
+    "name": "dataSaleOptOut",
+    "type": "mutation",
+    "domain": "privacy",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["dataSaleOptOut", "DataSaleOptOut"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-255 registry-only privacy mutation coverage. Shopify documents this as a customer email data-sale opt-out with shop/customer privacy side effects; keep unimplemented until fixture-backed local staging defines downstream read effects and no runtime Shopify writes are needed."
+  },
+  {
     "name": "productOptionsCreate",
     "type": "mutation",
     "domain": "products",
