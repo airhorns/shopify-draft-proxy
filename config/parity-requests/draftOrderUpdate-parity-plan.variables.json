@@ -7,19 +7,10 @@
     "customAttributes": [{ "key": "source", "value": "har-118" }],
     "shippingLine": {
       "title": "Standard",
-      "code": "STD",
       "priceWithCurrency": {
         "amount": "5.00",
         "currencyCode": "CAD"
       }
-    },
-    "lineItems": [
-      {
-        "title": "Updated custom draft item",
-        "quantity": 2,
-        "originalUnitPrice": "12.50",
-        "sku": "HAR-118-UPDATE"
-      }
-    ]
+    }
   }
 }

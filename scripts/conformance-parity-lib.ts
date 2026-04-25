@@ -880,7 +880,7 @@ function readCapturedOrderLineItems(order: Record<string, unknown> | null): Orde
       title: readStringField(lineItem, 'title'),
       quantity: readNumberField(lineItem, 'quantity') ?? 0,
       currentQuantity: readNumberField(lineItem, 'currentQuantity') ?? undefined,
-      sku: readStringField(lineItem, 'sku'),
+      sku: typeof lineItem['sku'] === 'string' ? lineItem['sku'] : null,
       variantId: readStringField(readRecordField(lineItem, 'variant'), 'id'),
       variantTitle: readStringField(lineItem, 'variantTitle'),
       originalUnitPriceSet: readMoneySetField(lineItem, 'originalUnitPriceSet'),
@@ -958,6 +958,40 @@ function readCustomerDefaultAddress(
   };
 }
 
+function readCustomerDefaultEmailAddress(
+  customer: Record<string, unknown> | null | undefined,
+): CustomerRecord['defaultEmailAddress'] {
+  const email = readStringField(customer, 'email');
+  const defaultEmailAddress = readRecordField(customer, 'defaultEmailAddress');
+  if (!defaultEmailAddress && !email) {
+    return null;
+  }
+
+  return {
+    emailAddress: readStringField(defaultEmailAddress, 'emailAddress') ?? email,
+    marketingState: readStringField(defaultEmailAddress, 'marketingState'),
+    marketingOptInLevel: readStringField(defaultEmailAddress, 'marketingOptInLevel'),
+    marketingUpdatedAt: readStringField(defaultEmailAddress, 'marketingUpdatedAt'),
+  };
+}
+
+function readCustomerDefaultPhoneNumber(
+  customer: Record<string, unknown> | null | undefined,
+): CustomerRecord['defaultPhoneNumber'] {
+  const defaultPhoneNumber = readRecordField(customer, 'defaultPhoneNumber');
+  if (!defaultPhoneNumber) {
+    return null;
+  }
+
+  return {
+    phoneNumber: readStringField(defaultPhoneNumber, 'phoneNumber'),
+    marketingState: readStringField(defaultPhoneNumber, 'marketingState'),
+    marketingOptInLevel: readStringField(defaultPhoneNumber, 'marketingOptInLevel'),
+    marketingUpdatedAt: readStringField(defaultPhoneNumber, 'marketingUpdatedAt'),
+    marketingCollectedFrom: readStringField(defaultPhoneNumber, 'marketingCollectedFrom'),
+  };
+}
+
 function makeSeedCustomer(customerId: string, source: Record<string, unknown> | null = null): CustomerRecord {
   const email = readStringField(source, 'email');
   const firstName = readStringField(source, 'firstName');
@@ -965,7 +999,8 @@ function makeSeedCustomer(customerId: string, source: Record<string, unknown> | 
   const nameFromParts = [firstName, lastName]
     .filter((part): part is string => typeof part === 'string' && part.length > 0)
     .join(' ');
-  const defaultEmailAddress = readRecordField(source, 'defaultEmailAddress');
+  const defaultEmailAddress = readCustomerDefaultEmailAddress(source);
+  const defaultPhoneNumber = readCustomerDefaultPhoneNumber(source);
 
   return {
     id: customerId,
@@ -983,12 +1018,22 @@ function makeSeedCustomer(customerId: string, source: Record<string, unknown> | 
     tags: readArrayField(source, 'tags').filter((tag): tag is string => typeof tag === 'string'),
     numberOfOrders: readNumberField(source, 'numberOfOrders') ?? readStringField(source, 'numberOfOrders') ?? 0,
     amountSpent: readCustomerMoneyField(source, 'amountSpent'),
-    defaultEmailAddress:
-      defaultEmailAddress || email
-        ? { emailAddress: readStringField(defaultEmailAddress, 'emailAddress') ?? email }
-        : null,
-    defaultPhoneNumber: readRecordField(source, 'defaultPhoneNumber')
-      ? { phoneNumber: readStringField(readRecordField(source, 'defaultPhoneNumber'), 'phoneNumber') }
+    defaultEmailAddress,
+    defaultPhoneNumber,
+    emailMarketingConsent: defaultEmailAddress?.marketingState
+      ? {
+          marketingState: defaultEmailAddress.marketingState,
+          marketingOptInLevel: defaultEmailAddress.marketingOptInLevel ?? null,
+          consentUpdatedAt: defaultEmailAddress.marketingUpdatedAt ?? null,
+        }
+      : null,
+    smsMarketingConsent: defaultPhoneNumber?.marketingState
+      ? {
+          marketingState: defaultPhoneNumber.marketingState,
+          marketingOptInLevel: defaultPhoneNumber.marketingOptInLevel ?? null,
+          consentUpdatedAt: defaultPhoneNumber.marketingUpdatedAt ?? null,
+          consentCollectedFrom: defaultPhoneNumber.marketingCollectedFrom ?? null,
+        }
       : null,
     defaultAddress: readCustomerDefaultAddress(source),
     createdAt: readStringField(source, 'createdAt') ?? '2024-01-01T00:00:00.000Z',
@@ -1016,6 +1061,8 @@ function makePlaceholderCustomer(index: number): CustomerRecord {
     amountSpent: null,
     defaultEmailAddress: { emailAddress: `customer-baseline-${index}@example.invalid` },
     defaultPhoneNumber: null,
+    emailMarketingConsent: null,
+    smsMarketingConsent: null,
     defaultAddress: null,
     createdAt: '2024-01-01T00:00:00.000Z',
     updatedAt: '2024-01-01T00:00:00.000Z',
@@ -1028,22 +1075,32 @@ function seedCustomerMutationPreconditions(
   mutationName: string | null,
   payload: Record<string, unknown> | null,
 ): boolean {
-  if (mutationName !== 'customerCreate' && mutationName !== 'customerUpdate' && mutationName !== 'customerDelete') {
+  if (
+    mutationName !== 'customerCreate' &&
+    mutationName !== 'customerUpdate' &&
+    mutationName !== 'customerDelete' &&
+    mutationName !== 'customerEmailMarketingConsentUpdate' &&
+    mutationName !== 'customerSmsMarketingConsentUpdate'
+  ) {
     return false;
   }
 
   const input = readRecordField(variables, 'input');
   const customerPayload = readRecordField(payload, 'customer');
+  const preconditionPayload = firstObjectValue(readJsonPath(capture, '$.precondition.response.data'));
+  const preconditionCustomerPayload = readRecordField(preconditionPayload, 'customer');
   const downstreamData = readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data');
   const downstreamCount = readNumberField(readRecordField(downstreamData, 'customersCount'), 'count');
   const targetCustomerId =
     readStringField(input, 'id') ??
+    readStringField(input, 'customerId') ??
     readStringField(customerPayload, 'id') ??
+    readStringField(preconditionCustomerPayload, 'id') ??
     readStringField(payload, 'deletedCustomerId');
   const seedCustomers: CustomerRecord[] = [];
 
   if (targetCustomerId && mutationName !== 'customerCreate') {
-    seedCustomers.push(makeSeedCustomer(targetCustomerId, customerPayload));
+    seedCustomers.push(makeSeedCustomer(targetCustomerId, preconditionCustomerPayload ?? customerPayload));
   }
 
   if (downstreamCount !== null) {
@@ -1059,6 +1116,31 @@ function seedCustomerMutationPreconditions(
     store.upsertBaseCustomers(seedCustomers);
   }
 
+  return true;
+}
+
+function seedCustomerByIdentifierPreconditions(capture: unknown): boolean {
+  const positiveAndMissingData = readRecordField(
+    readRecordField(capture as Record<string, unknown>, 'positiveAndMissing'),
+    'data',
+  );
+  const customers = ['byId', 'byEmail', 'byPhone']
+    .map((key) => readRecordField(positiveAndMissingData, key))
+    .filter((customer): customer is Record<string, unknown> => customer !== null);
+  const seedCustomers = new Map<string, CustomerRecord>();
+
+  for (const customer of customers) {
+    const customerId = readStringField(customer, 'id');
+    if (customerId && !seedCustomers.has(customerId)) {
+      seedCustomers.set(customerId, makeSeedCustomer(customerId, customer));
+    }
+  }
+
+  if (seedCustomers.size === 0) {
+    return false;
+  }
+
+  store.upsertBaseCustomers([...seedCustomers.values()]);
   return true;
 }
 
@@ -1635,7 +1717,8 @@ function readCapturedDraftOrderLineItems(draftOrder: Record<string, unknown> | n
         name: readStringField(lineItem, 'name') ?? title,
         quantity: readNumberField(lineItem, 'quantity') ?? 0,
         sku: typeof lineItem['sku'] === 'string' ? lineItem['sku'] : null,
-        variantTitle: readStringField(lineItem, 'variantTitle'),
+        variantTitle:
+          readStringField(lineItem, 'variantTitle') ?? readStringField(readRecordField(lineItem, 'variant'), 'title'),
         variantId: readStringField(readRecordField(lineItem, 'variant'), 'id'),
         productId: null,
         custom: readBooleanField(lineItem, 'custom') ?? true,
@@ -1648,13 +1731,44 @@ function readCapturedDraftOrderLineItems(draftOrder: Record<string, unknown> | n
             value: readStringField(attribute, 'value'),
           }))
           .filter((attribute) => attribute.key.length > 0),
-        appliedDiscount: null,
+        appliedDiscount: readCapturedDraftOrderAppliedDiscount(lineItem),
         originalUnitPriceSet: readMoneySetField(lineItem, 'originalUnitPriceSet'),
         originalTotalSet: readMoneySetField(lineItem, 'originalTotalSet'),
         discountedTotalSet: readMoneySetField(lineItem, 'discountedTotalSet'),
         totalDiscountSet: readMoneySetField(lineItem, 'totalDiscountSet'),
       };
     });
+}
+
+function readCapturedDraftOrderAppliedDiscount(
+  source: Record<string, unknown> | null,
+): DraftOrderRecord['appliedDiscount'] {
+  const appliedDiscount = readRecordField(source, 'appliedDiscount');
+  if (!appliedDiscount) {
+    return null;
+  }
+
+  return {
+    title: readStringField(appliedDiscount, 'title'),
+    description: readStringField(appliedDiscount, 'description'),
+    value: readNumberField(appliedDiscount, 'value'),
+    valueType: readStringField(appliedDiscount, 'valueType'),
+    amountSet: readMoneySetField(appliedDiscount, 'amountSet'),
+  };
+}
+
+function readCapturedDraftOrderCustomer(source: Record<string, unknown> | null): DraftOrderRecord['customer'] {
+  const customer = readRecordField(source, 'customer');
+  const id = readStringField(customer, 'id');
+  if (!id) {
+    return null;
+  }
+
+  return {
+    id,
+    email: readStringField(customer, 'email'),
+    displayName: readStringField(customer, 'displayName'),
+  };
 }
 
 function readCapturedDraftOrderShippingLine(
@@ -1683,12 +1797,12 @@ function makeSeedDraftOrder(draftOrderId: string, source: Record<string, unknown
     email: readStringField(source, 'email'),
     note: readStringField(source, 'note'),
     tags: readArrayField(source, 'tags').filter((tag): tag is string => typeof tag === 'string'),
-    customer: null,
+    customer: readCapturedDraftOrderCustomer(source),
     taxExempt: readBooleanField(source, 'taxExempt') ?? false,
     taxesIncluded: readBooleanField(source, 'taxesIncluded') ?? false,
     reserveInventoryUntil: readStringField(source, 'reserveInventoryUntil'),
     paymentTerms: null,
-    appliedDiscount: null,
+    appliedDiscount: readCapturedDraftOrderAppliedDiscount(source),
     customAttributes: readArrayField(source, 'customAttributes')
       .filter(isPlainObject)
       .map((attribute) => ({
@@ -2767,6 +2881,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     return;
   }
 
+  if (seedCustomerByIdentifierPreconditions(capture)) {
+    return;
+  }
+
   if (seedShopPreconditions(capture)) {
     return;
   }
@@ -2936,6 +3054,81 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
         seedDraftOrder.note = readStringField(setupInput, 'note');
       }
       store.stageCreateDraftOrder(seedDraftOrder);
+    }
+    return;
+  }
+
+  if (
+    mutationName === 'draftOrderUpdate' ||
+    mutationName === 'draftOrderDuplicate' ||
+    mutationName === 'draftOrderDelete'
+  ) {
+    const draftOrderId = readStringField(variables, 'id') ?? readStringField(readRecordField(variables, 'input'), 'id');
+    if (draftOrderId) {
+      const setupDraftOrder = readRecordField(
+        readRecordField(
+          readRecordField(
+            readRecordField(
+              readRecordField(readRecordField(capture as Record<string, unknown>, 'setup'), 'draftOrderCreate'),
+              'mutation',
+            ),
+            'response',
+          ),
+          'data',
+        ),
+        'draftOrderCreate',
+      );
+      const setupSource = readRecordField(setupDraftOrder, 'draftOrder');
+      if (setupSource) {
+        store.stageCreateDraftOrder(makeSeedDraftOrder(draftOrderId, setupSource));
+      }
+    }
+    return;
+  }
+
+  if (mutationName === 'draftOrderCreateFromOrder') {
+    const orderId = readStringField(variables, 'orderId');
+    if (orderId) {
+      const setupDraftOrder = readRecordField(
+        readRecordField(
+          readRecordField(
+            readRecordField(
+              readRecordField(readRecordField(capture as Record<string, unknown>, 'setup'), 'draftOrderCreate'),
+              'mutation',
+            ),
+            'response',
+          ),
+          'data',
+        ),
+        'draftOrderCreate',
+      );
+      const setupDraftOrderSource = readRecordField(setupDraftOrder, 'draftOrder');
+      const completedDraftOrder = readRecordField(
+        readRecordField(
+          readRecordField(
+            readRecordField(
+              readRecordField(readRecordField(capture as Record<string, unknown>, 'setup'), 'draftOrderComplete'),
+              'mutation',
+            ),
+            'response',
+          ),
+          'data',
+        ),
+        'draftOrderComplete',
+      );
+      const orderSource =
+        setupDraftOrderSource ??
+        readRecordField(readRecordField(completedDraftOrder, 'draftOrder'), 'order') ??
+        readRecordField(
+          readRecordField(
+            readRecordField(readRecordField(capture as Record<string, unknown>, 'setup'), 'downstreamOrderRead'),
+            'response',
+          ),
+          'data',
+        )?.['order'];
+      if (isPlainObject(orderSource)) {
+        store.upsertBaseOrders([makeSeedOrder(orderId, orderSource)]);
+      }
     }
     return;
   }

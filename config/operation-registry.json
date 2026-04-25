@@ -66,6 +66,32 @@
     ]
   },
   {
+    "name": "collectionByIdentifier",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["collectionByIdentifier", "CollectionByIdentifier"],
+    "runtimeTests": [
+      "tests/integration/collection-query-shapes.test.ts",
+      "tests/integration/collection-draft-flow.test.ts"
+    ],
+    "supportNotes": "Supports id and handle identifier branches against effective local collection state. customId currently returns null until collection unique-metafield evidence exists."
+  },
+  {
+    "name": "collectionByHandle",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["collectionByHandle", "CollectionByHandle"],
+    "runtimeTests": [
+      "tests/integration/collection-query-shapes.test.ts",
+      "tests/integration/collection-draft-flow.test.ts"
+    ],
+    "supportNotes": "Deprecated Shopify root supported as a handle lookup over effective local collection state."
+  },
+  {
     "name": "collections",
     "type": "query",
     "domain": "products",
@@ -181,9 +207,9 @@
     "type": "query",
     "domain": "customers",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerByIdentifier", "CustomerByIdentifier"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/customer-query-shapes.test.ts", "tests/integration/customer-draft-flow.test.ts"]
   },
   {
     "name": "customerMergePreview",
@@ -262,18 +288,18 @@
     "type": "mutation",
     "domain": "customers",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerEmailMarketingConsentUpdate", "CustomerEmailMarketingConsentUpdate"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
   },
   {
     "name": "customerSmsMarketingConsentUpdate",
     "type": "mutation",
     "domain": "customers",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerSmsMarketingConsentUpdate", "CustomerSmsMarketingConsentUpdate"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
   },
   {
     "name": "customerAddTaxExemptions",
@@ -704,6 +730,96 @@
     "implemented": true,
     "matchNames": ["metafieldDelete", "MetafieldDelete"],
     "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
+  },
+  {
+    "name": "metafieldDefinition",
+    "type": "query",
+    "domain": "metafields",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["metafieldDefinition", "MetafieldDefinition"],
+    "runtimeTests": ["tests/integration/metafield-definition-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 definition read root. Registry-only declared gap until live capture, explicit comparison targets, and local metafield-definition modeling exist."
+  },
+  {
+    "name": "metafieldDefinitions",
+    "type": "query",
+    "domain": "metafields",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["metafieldDefinitions", "MetafieldDefinitions"],
+    "runtimeTests": ["tests/integration/metafield-definition-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 definition catalog root. Registry-only declared gap until owner-type-aware snapshot/live overlay semantics exist."
+  },
+  {
+    "name": "standardMetafieldDefinitionTemplates",
+    "type": "query",
+    "domain": "metafields",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["standardMetafieldDefinitionTemplates", "StandardMetafieldDefinitionTemplates"],
+    "runtimeTests": ["tests/integration/metafield-definition-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 standard template catalog root used before standardMetafieldDefinitionEnable. Registry-only declared gap until template catalog capture and modeling exist."
+  },
+  {
+    "name": "metafieldDefinitionCreate",
+    "type": "mutation",
+    "domain": "metafields",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["metafieldDefinitionCreate", "MetafieldDefinitionCreate"],
+    "runtimeTests": ["tests/integration/metafield-definition-draft-flow.test.ts"],
+    "supportNotes": "Registry-only declared gap for future local staging. Do not proxy as supported until metafield-definition state, validation, and affected value migration semantics are modeled."
+  },
+  {
+    "name": "metafieldDefinitionUpdate",
+    "type": "mutation",
+    "domain": "metafields",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["metafieldDefinitionUpdate", "MetafieldDefinitionUpdate"],
+    "runtimeTests": ["tests/integration/metafield-definition-draft-flow.test.ts"],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires immutable identity checks and validation job semantics before support."
+  },
+  {
+    "name": "metafieldDefinitionDelete",
+    "type": "mutation",
+    "domain": "metafields",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["metafieldDefinitionDelete", "MetafieldDefinitionDelete"],
+    "runtimeTests": ["tests/integration/metafield-definition-draft-flow.test.ts"],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires deleteAllAssociatedMetafields behavior and asynchronous associated-value deletion semantics before support."
+  },
+  {
+    "name": "metafieldDefinitionPin",
+    "type": "mutation",
+    "domain": "metafields",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["metafieldDefinitionPin", "MetafieldDefinitionPin"],
+    "runtimeTests": ["tests/integration/metafield-definition-draft-flow.test.ts"],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires pinned-position ordering semantics before support."
+  },
+  {
+    "name": "metafieldDefinitionUnpin",
+    "type": "mutation",
+    "domain": "metafields",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["metafieldDefinitionUnpin", "MetafieldDefinitionUnpin"],
+    "runtimeTests": ["tests/integration/metafield-definition-draft-flow.test.ts"],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires pinned-position ordering semantics before support."
+  },
+  {
+    "name": "standardMetafieldDefinitionEnable",
+    "type": "mutation",
+    "domain": "metafields",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["standardMetafieldDefinitionEnable", "StandardMetafieldDefinitionEnable"],
+    "runtimeTests": ["tests/integration/metafield-definition-draft-flow.test.ts"],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires standard template catalog modeling plus created-definition semantics before support."
   },
   {
     "name": "collectionCreate",
@@ -1360,6 +1476,15 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["fileCreate", "FileCreate"],
+    "runtimeTests": ["tests/integration/media-draft-flow.test.ts"]
+  },
+  {
+    "name": "fileUpdate",
+    "type": "mutation",
+    "domain": "media",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["fileUpdate", "FileUpdate"],
     "runtimeTests": ["tests/integration/media-draft-flow.test.ts"]
   },
   {

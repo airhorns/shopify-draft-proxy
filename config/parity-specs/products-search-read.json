@@ -8,14 +8,17 @@
     "documentPath": "config/parity-requests/products-search-read.graphql",
     "variablesPath": "config/parity-requests/products-search-read.variables.json"
   },
-  "comparisonMode": "capture-only",
-  "notes": "Live products search capture now has a concrete proxy request scaffold covering aliased filtered catalog reads plus the paired count slice used by the current overlay search implementation. Comparator wiring can reuse this request scaffold once proxy-vs-Shopify comparison is implemented.",
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity coverage for aliased products search reads: compares total count, vendor-filtered results, low-inventory results, selected fields, and pageInfo shape from the captured Shopify response.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "products-search-data",
+        "capturePath": "$.data",
+        "proxyPath": "$.data"
+      }
+    ]
   }
 }

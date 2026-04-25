@@ -14,14 +14,18 @@
     "documentPath": "config/parity-requests/products-or-precedence-read.graphql",
     "variablesPath": "config/parity-requests/products-or-precedence-read.variables.json"
   },
-  "comparisonMode": "capture-only",
-  "notes": "Live product OR-precedence capture records Shopify's current AND-before-OR behavior for unparenthesized search terms, preserving the merchant-facing products/productsCount slice plus UPDATED_AT-desc ordering and pagination metadata.",
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity coverage for Shopify product search OR precedence: compares count, matched products, UPDATED_AT-desc ordering, cursors, and pageInfo for the captured unparenthesized query.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "products-or-precedence-data",
+        "capturePath": "$.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.response"
+      }
+    ]
   }
 }

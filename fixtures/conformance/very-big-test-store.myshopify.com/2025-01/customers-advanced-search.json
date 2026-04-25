@@ -37,6 +37,30 @@
     "orMatches": {
       "edges": [
         {
+          "cursor": "eyJsYXN0X2lkIjo2MTU3NjU0NTU2OTA1LCJsYXN0X3ZhbHVlIjoxNzc3MDgwMjg4MDAwfQ==",
+          "node": {
+            "id": "gid://shopify/Customer/6157654556905",
+            "displayName": "Henry Short",
+            "email": "egnition_sample_29@egnition.com",
+            "legacyResourceId": "6157654556905",
+            "verifiedEmail": true,
+            "state": "DISABLED",
+            "tags": ["egnition-sample-data", "referral"],
+            "defaultPhoneNumber": {
+              "phoneNumber": "+2911120123"
+            },
+            "defaultAddress": {
+              "address1": "Ap #147-5705 Nonummy Street",
+              "city": "Maubeuge",
+              "province": null,
+              "country": "Eritrea",
+              "zip": "7759",
+              "formattedArea": "Maubeuge, Eritrea"
+            },
+            "updatedAt": "2026-04-25T01:24:48Z"
+          }
+        },
+        {
           "cursor": "eyJsYXN0X2lkIjo2MTU3NjU0NzIwNzQ1LCJsYXN0X3ZhbHVlIjoxNzEwMzgxNTgzMDAwfQ==",
           "node": {
             "id": "gid://shopify/Customer/6157654720745",
@@ -131,48 +155,69 @@
             },
             "updatedAt": "2024-03-14T01:59:25Z"
           }
-        },
-        {
-          "cursor": "eyJsYXN0X2lkIjo2MTU3NjY2MDI1NzA1LCJsYXN0X3ZhbHVlIjoxNzEwMzgxNTE5MDAwfQ==",
-          "node": {
-            "id": "gid://shopify/Customer/6157666025705",
-            "displayName": "Gary Conway",
-            "email": "egnition_sample_52@egnition.com",
-            "legacyResourceId": "6157666025705",
-            "verifiedEmail": true,
-            "state": "DISABLED",
-            "tags": ["egnition-sample-data", "VIP"],
-            "defaultPhoneNumber": {
-              "phoneNumber": "+85593123123"
-            },
-            "defaultAddress": {
-              "address1": "4543 Commodo Avenue",
-              "city": "Hanau",
-              "province": null,
-              "country": "Monaco",
-              "zip": "33428",
-              "formattedArea": "Hanau, Monaco"
-            },
-            "updatedAt": "2024-03-14T01:58:39Z"
-          }
         }
       ],
       "pageInfo": {
         "hasNextPage": true,
         "hasPreviousPage": false,
-        "startCursor": "eyJsYXN0X2lkIjo2MTU3NjU0NzIwNzQ1LCJsYXN0X3ZhbHVlIjoxNzEwMzgxNTgzMDAwfQ==",
-        "endCursor": "eyJsYXN0X2lkIjo2MTU3NjY2MDI1NzA1LCJsYXN0X3ZhbHVlIjoxNzEwMzgxNTE5MDAwfQ=="
+        "startCursor": "eyJsYXN0X2lkIjo2MTU3NjU0NTU2OTA1LCJsYXN0X3ZhbHVlIjoxNzc3MDgwMjg4MDAwfQ==",
+        "endCursor": "eyJsYXN0X2lkIjo2MTU3ODkwODQ2OTUzLCJsYXN0X3ZhbHVlIjoxNzEwMzgxNTY1MDAwfQ=="
       }
     },
     "groupedExclusion": {
       "edges": [
         {
-          "cursor": "eyJsYXN0X2lkIjo5MDc5NzAwNTIxMTkzLCJsYXN0X3ZhbHVlIjoxNzc2NTQ5ODc1MDAwfQ==",
+          "cursor": "eyJsYXN0X2lkIjo5MDk2ODE2MDY2NzkzLCJsYXN0X3ZhbHVlIjoxNzc2OTAwNTQ1MDAwfQ==",
           "node": {
-            "id": "gid://shopify/Customer/9079700521193",
+            "id": "gid://shopify/Customer/9096816066793",
+            "displayName": "HAR Customer",
+            "email": "har-120-rework-1776900542206@example.com",
+            "legacyResourceId": "9096816066793",
+            "verifiedEmail": true,
+            "state": "DISABLED",
+            "tags": [],
+            "defaultPhoneNumber": null,
+            "defaultAddress": null,
+            "updatedAt": "2026-04-22T23:29:05Z"
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo5MDk2ODE0Mjk3MzIxLCJsYXN0X3ZhbHVlIjoxNzc2OTAwNDYzMDAwfQ==",
+          "node": {
+            "id": "gid://shopify/Customer/9096814297321",
+            "displayName": "HAR Customer",
+            "email": "har-120-1776900460092@example.com",
+            "legacyResourceId": "9096814297321",
+            "verifiedEmail": true,
+            "state": "DISABLED",
+            "tags": [],
+            "defaultPhoneNumber": null,
+            "defaultAddress": null,
+            "updatedAt": "2026-04-22T23:27:43Z"
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo5MDk2ODE0MzMwMDg5LCJsYXN0X3ZhbHVlIjoxNzc2OTAwNDYwMDAwfQ==",
+          "node": {
+            "id": "gid://shopify/Customer/9096814330089",
+            "displayName": "har-120-invoice-1776900460748@example.com",
+            "email": "har-120-invoice-1776900460748@example.com",
+            "legacyResourceId": "9096814330089",
+            "verifiedEmail": true,
+            "state": "DISABLED",
+            "tags": [],
+            "defaultPhoneNumber": null,
+            "defaultAddress": null,
+            "updatedAt": "2026-04-22T23:27:40Z"
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo5MDk2NzkzODE3MzIxLCJsYXN0X3ZhbHVlIjoxNzc2ODk5NjI2MDAwfQ==",
+          "node": {
+            "id": "gid://shopify/Customer/9096793817321",
             "displayName": "Hermes Operator",
-            "email": "hermes-order-parity-manual-1776549874815@example.com",
-            "legacyResourceId": "9079700521193",
+            "email": "hermes-draft-order-probe-1776899624464@example.com",
+            "legacyResourceId": "9096793817321",
             "verifiedEmail": true,
             "state": "DISABLED",
             "tags": [],
@@ -185,16 +230,16 @@
               "zip": "M5H 2M9",
               "formattedArea": "Toronto ON, Canada"
             },
-            "updatedAt": "2026-04-18T22:04:35Z"
+            "updatedAt": "2026-04-22T23:13:46Z"
           }
         },
         {
-          "cursor": "eyJsYXN0X2lkIjo5MDc5NjgzNDQ5MDY1LCJsYXN0X3ZhbHVlIjoxNzc2NTQ5MTMyMDAwfQ==",
+          "cursor": "eyJsYXN0X2lkIjo5MDk2NzkzNzUxNzg1LCJsYXN0X3ZhbHVlIjoxNzc2ODk5NjI2MDAwfQ==",
           "node": {
-            "id": "gid://shopify/Customer/9079683449065",
+            "id": "gid://shopify/Customer/9096793751785",
             "displayName": "Hermes Operator",
-            "email": "hermes-order-probe-1776549129247@example.com",
-            "legacyResourceId": "9079683449065",
+            "email": "hermes-order-probe-1776899624464@example.com",
+            "legacyResourceId": "9096793751785",
             "verifiedEmail": true,
             "state": "DISABLED",
             "tags": [],
@@ -207,83 +252,15 @@
               "zip": "M5H 2M9",
               "formattedArea": "Toronto ON, Canada"
             },
-            "updatedAt": "2026-04-18T21:52:12Z"
-          }
-        },
-        {
-          "cursor": "eyJsYXN0X2lkIjo5MDc4ODExODg1ODAxLCJsYXN0X3ZhbHVlIjoxNzc2NTIwNTIyMDAwfQ==",
-          "node": {
-            "id": "gid://shopify/Customer/9078811885801",
-            "displayName": "Hermes Operator",
-            "email": "hermes-draft-order-parity-9cd2782dadf9@example.com",
-            "legacyResourceId": "9078811885801",
-            "verifiedEmail": true,
-            "state": "DISABLED",
-            "tags": [],
-            "defaultPhoneNumber": null,
-            "defaultAddress": {
-              "address1": "123 Queen St W",
-              "city": "Toronto",
-              "province": "Ontario",
-              "country": "Canada",
-              "zip": "M5H 2M9",
-              "formattedArea": "Toronto ON, Canada"
-            },
-            "updatedAt": "2026-04-18T13:55:22Z"
-          }
-        },
-        {
-          "cursor": "eyJsYXN0X2lkIjo5MDc4ODA2MzgwNzc3LCJsYXN0X3ZhbHVlIjoxNzc2NTIwMzUyMDAwfQ==",
-          "node": {
-            "id": "gid://shopify/Customer/9078806380777",
-            "displayName": "Hermes Operator",
-            "email": "hermes-draft-order-probe-1776520350289@example.com",
-            "legacyResourceId": "9078806380777",
-            "verifiedEmail": true,
-            "state": "DISABLED",
-            "tags": [],
-            "defaultPhoneNumber": null,
-            "defaultAddress": {
-              "address1": "123 Queen St W",
-              "city": "Toronto",
-              "province": "Ontario",
-              "country": "Canada",
-              "zip": "M5H 2M9",
-              "formattedArea": "Toronto ON, Canada"
-            },
-            "updatedAt": "2026-04-18T13:52:32Z"
-          }
-        },
-        {
-          "cursor": "eyJsYXN0X2lkIjo2MTU3NjY1OTYwMTY5LCJsYXN0X3ZhbHVlIjoxNzEwMzgxNTEzMDAwfQ==",
-          "node": {
-            "id": "gid://shopify/Customer/6157665960169",
-            "displayName": "Kasimir Richardson",
-            "email": "egnition_sample_13@egnition.com",
-            "legacyResourceId": "6157665960169",
-            "verifiedEmail": true,
-            "state": "DISABLED",
-            "tags": ["egnition-sample-data"],
-            "defaultPhoneNumber": {
-              "phoneNumber": "+249112345645"
-            },
-            "defaultAddress": {
-              "address1": "Ap #692-9945 Ligula Ave",
-              "city": "Gulfport",
-              "province": null,
-              "country": "South Sudan",
-              "zip": "33103",
-              "formattedArea": "Gulfport, South Sudan"
-            },
-            "updatedAt": "2024-03-14T01:58:33Z"
+            "updatedAt": "2026-04-22T23:13:46Z"
           }
         }
       ],
       "pageInfo": {
         "hasNextPage": true,
         "hasPreviousPage": false,
-        "startCursor": "eyJsYXN0X2lkIjo5MDc5NzAwNTIxMTkzLCJsYXN0X3ZhbHVlIjoxNzc2NTQ5ODc1MDAwfQ==",
-        "endCursor": "eyJsYXN0X2lkIjo2MTU3NjY1OTYwMTY5LCJsYXN0X3ZhbHVlIjoxNzEwMzgxNTEzMDAwfQ=="
+        "startCursor": "eyJsYXN0X2lkIjo5MDk2ODE2MDY2NzkzLCJsYXN0X3ZhbHVlIjoxNzc2OTAwNTQ1MDAwfQ==",
+        "endCursor": "eyJsYXN0X2lkIjo5MDk2NzkzNzUxNzg1LCJsYXN0X3ZhbHVlIjoxNzc2ODk5NjI2MDAwfQ=="
       }
     }
   },

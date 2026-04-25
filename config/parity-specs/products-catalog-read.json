@@ -8,14 +8,17 @@
     "documentPath": "config/parity-requests/products-catalog-read.graphql",
     "variablesPath": "config/parity-requests/products-catalog-read.variables.json"
   },
-  "comparisonMode": "capture-only",
-  "notes": "Live products catalog capture now has a concrete proxy request scaffold covering top-level `productsCount` plus the current catalog merchandising/pagination slice used by overlay reads. Comparator wiring can reuse this request scaffold once proxy-vs-Shopify comparison is implemented.",
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity coverage for the products catalog read scaffold: compares productsCount plus the captured UPDATED_AT-desc catalog page, selected product fields, cursors, and pageInfo shape.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "products-catalog-data",
+        "capturePath": "$.data",
+        "proxyPath": "$.data"
+      }
+    ]
   }
 }

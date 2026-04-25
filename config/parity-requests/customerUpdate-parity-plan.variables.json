@@ -5,6 +5,15 @@
     "lastName": "Updated",
     "note": "customer update parity probe",
     "tags": ["parity", "updated"],
-    "taxExempt": false
+    "taxExempt": false,
+    "taxExemptions": ["CA_BC_RESELLER_EXEMPTION"],
+    "metafields": [
+      {
+        "namespace": "custom",
+        "key": "loyalty",
+        "type": "single_line_text_field",
+        "value": "gold"
+      }
+    ]
   }
 }

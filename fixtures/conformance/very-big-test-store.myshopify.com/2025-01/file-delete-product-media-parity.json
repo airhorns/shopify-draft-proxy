@@ -3,7 +3,7 @@
     "productCreate": {
       "variables": {
         "product": {
-          "title": "Hermes fileDelete media reference 1777064718787",
+          "title": "Hermes fileDelete media reference 1777081543067",
           "status": "DRAFT"
         }
       },
@@ -11,8 +11,8 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/9264017572073",
-              "title": "Hermes fileDelete media reference 1777064718787"
+              "id": "gid://shopify/Product/9264121479401",
+              "title": "Hermes fileDelete media reference 1777081543067"
             },
             "userErrors": []
           }
@@ -32,7 +32,7 @@
     },
     "productCreateMedia": {
       "variables": {
-        "productId": "gid://shopify/Product/9264017572073",
+        "productId": "gid://shopify/Product/9264121479401",
         "media": [
           {
             "mediaContentType": "IMAGE",
@@ -46,7 +46,7 @@
           "productCreateMedia": {
             "media": [
               {
-                "id": "gid://shopify/MediaImage/39514533167337",
+                "id": "gid://shopify/MediaImage/39516006482153",
                 "alt": "File delete media reference",
                 "mediaContentType": "IMAGE",
                 "status": "UPLOADED",
@@ -58,11 +58,11 @@
             ],
             "mediaUserErrors": [],
             "product": {
-              "id": "gid://shopify/Product/9264017572073",
+              "id": "gid://shopify/Product/9264121479401",
               "media": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/MediaImage/39514533167337",
+                    "id": "gid://shopify/MediaImage/39516006482153",
                     "alt": "File delete media reference",
                     "mediaContentType": "IMAGE",
                     "status": "UPLOADED",
@@ -92,11 +92,11 @@
     "productReadBeforeDelete": {
       "data": {
         "product": {
-          "id": "gid://shopify/Product/9264017572073",
+          "id": "gid://shopify/Product/9264121479401",
           "media": {
             "nodes": [
               {
-                "id": "gid://shopify/MediaImage/39514533167337",
+                "id": "gid://shopify/MediaImage/39516006482153",
                 "alt": "File delete media reference",
                 "mediaContentType": "IMAGE",
                 "status": "PROCESSING",
@@ -124,12 +124,12 @@
   },
   "mutation": {
     "variables": {
-      "fileIds": ["gid://shopify/MediaImage/39514533167337"]
+      "fileIds": ["gid://shopify/MediaImage/39516006482153"]
     },
     "response": {
       "data": {
         "fileDelete": {
-          "deletedFileIds": ["gid://shopify/MediaImage/39514533167337"],
+          "deletedFileIds": ["gid://shopify/MediaImage/39516006482153"],
           "userErrors": []
         }
       },
@@ -149,7 +149,7 @@
   "downstreamRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/9264017572073",
+        "id": "gid://shopify/Product/9264121479401",
         "media": {
           "nodes": []
         }
