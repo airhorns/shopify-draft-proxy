@@ -101,6 +101,59 @@ describe('collection draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('overlays staged collection handle lookups in live-hybrid mode when Shopify has no match yet', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ data: { byHandle: null, byIdentifier: null } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
+
+    const createResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation CreateCollection($input: CollectionInput!) { collectionCreate(input: $input) { collection { id title handle } userErrors { field message } } }',
+        variables: {
+          input: {
+            title: 'Live Hybrid Hats',
+            handle: 'live-hybrid-hats',
+          },
+        },
+      });
+
+    expect(createResponse.status).toBe(200);
+    expect(createResponse.body.data.collectionCreate.userErrors).toEqual([]);
+    const createdCollection = createResponse.body.data.collectionCreate.collection as {
+      id: string;
+      title: string;
+      handle: string;
+    };
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query CollectionLookup($identifier: CollectionIdentifierInput!, $handle: String!) {
+          byIdentifier: collectionByIdentifier(identifier: $identifier) { id title handle }
+          byHandle: collectionByHandle(handle: $handle) { id title handle }
+        }`,
+        variables: {
+          identifier: { handle: 'live-hybrid-hats' },
+          handle: 'live-hybrid-hats',
+        },
+      });
+
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body).toEqual({
+      data: {
+        byIdentifier: createdCollection,
+        byHandle: createdCollection,
+      },
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('stages collection publication visibility and publishable publish/unpublish locally', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     const app = createApp(config).callback();
@@ -527,10 +580,11 @@ describe('collection draft flow', () => {
       .post('/admin/api/2025-01/graphql.json')
       .send({
         query:
-          'query UpdatedCollection($collectionId: ID!, $productId: ID!) { collection(id: $collectionId) { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } product(id: $productId) { id collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } }',
+          'query UpdatedCollection($collectionId: ID!, $productId: ID!, $handle: String!) { collection(id: $collectionId) { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } byIdentifier: collectionByIdentifier(identifier: { id: $collectionId }) { id title handle } byHandle: collectionByHandle(handle: $handle) { id title handle } product(id: $productId) { id collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } }',
         variables: {
           collectionId: 'gid://shopify/Collection/900',
           productId: 'gid://shopify/Product/10',
+          handle: 'hydrated-collection-draft',
         },
       });
 
@@ -554,6 +608,16 @@ describe('collection draft flow', () => {
               hasPreviousPage: false,
             },
           },
+        },
+        byIdentifier: {
+          id: 'gid://shopify/Collection/900',
+          title: 'Hydrated Collection Draft',
+          handle: 'hydrated-collection-draft',
+        },
+        byHandle: {
+          id: 'gid://shopify/Collection/900',
+          title: 'Hydrated Collection Draft',
+          handle: 'hydrated-collection-draft',
         },
         product: {
           id: 'gid://shopify/Product/10',

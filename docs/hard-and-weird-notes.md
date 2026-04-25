@@ -1889,6 +1889,18 @@ Collection-specific facts from the current capture:
 - `collections(query: "published_status:published")` and `published_status:unpublished` filter against the same aggregate collection state in local reads
 - full `resourcePublications` / `resourcePublicationsV2` edge parity remains pending collection-specific live capture because the current safe local model only proves the aggregate publication fields and search visibility path
 
+### 47a. `collectionByIdentifier` and `collectionByHandle` are effective collection lookups
+
+Shopify Admin GraphQL 2026-04 exposes `collectionByIdentifier(identifier:)` and still exposes deprecated `collectionByHandle(handle:)`.
+The safe local branches mirror the existing effective collection graph:
+
+- `identifier: { id }` resolves the same collection as `collection(id:)`
+- `identifier: { handle }` and `collectionByHandle(handle:)` resolve by the current effective collection handle
+- unknown ids and handles return `null` for the singular lookup
+- locally staged `collectionCreate` and `collectionUpdate` records must be visible through both handle-based roots without sending supported collection writes upstream
+
+`CollectionIdentifierInput.customId` is deliberately not modeled as a generic key/value lookup yet. Until a live collection unique-metafield fixture exists, local `customId` lookups return `null` and the proxy does not claim support for positive custom-id matches.
+
 ## 48. Manual collection ordering is not the default collection write path
 
 Live collection capture for `collectionReorderProducts` exposed two easy traps:

@@ -1,0 +1,61 @@
+query CollectionHandleRead($customCollectionHandle: String!, $productId: ID!) {
+  customCollection: collectionByHandle(handle: $customCollectionHandle) {
+    id
+    legacyResourceId
+    title
+    handle
+    updatedAt
+    description
+    descriptionHtml
+    image {
+      id
+      url
+      altText
+      width
+      height
+    }
+    productsCount {
+      count
+      precision
+    }
+    hasProduct(id: $productId)
+    sortOrder
+    templateSuffix
+    seo {
+      title
+      description
+    }
+    ruleSet {
+      appliedDisjunctively
+      rules {
+        column
+        relation
+        condition
+      }
+    }
+    products(first: 3) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          handle
+          vendor
+          productType
+          tags
+          totalInventory
+          tracksInventory
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+  missingCollection: collectionByHandle(handle: "missing-handle-for-parity") {
+    id
+  }
+}

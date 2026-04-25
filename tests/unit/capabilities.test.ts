@@ -34,6 +34,50 @@ describe('getOperationCapability', () => {
       operationName: 'Collections',
       type: 'query',
     });
+
+    expect(
+      getOperationCapability({
+        type: 'query',
+        name: 'CollectionByIdentifier',
+        rootFields: ['collectionByIdentifier'],
+      }),
+    ).toEqual({
+      domain: 'products',
+      execution: 'overlay-read',
+      operationName: 'CollectionByIdentifier',
+      type: 'query',
+    });
+
+    expect(
+      getOperationCapability({
+        type: 'query',
+        name: 'CollectionByHandle',
+        rootFields: ['collectionByHandle'],
+      }),
+    ).toEqual({
+      domain: 'products',
+      execution: 'overlay-read',
+      operationName: 'CollectionByHandle',
+      type: 'query',
+    });
+  });
+
+  it('classifies collection identifier roots by root field when the operation name is misleading', () => {
+    expect(
+      getOperationCapability({ type: 'query', name: 'Collection', rootFields: ['collectionByIdentifier'] }),
+    ).toEqual({
+      domain: 'products',
+      execution: 'overlay-read',
+      operationName: 'collectionByIdentifier',
+      type: 'query',
+    });
+
+    expect(getOperationCapability({ type: 'query', name: 'Collection', rootFields: ['collectionByHandle'] })).toEqual({
+      domain: 'products',
+      execution: 'overlay-read',
+      operationName: 'collectionByHandle',
+      type: 'query',
+    });
   });
 
   it('marks customer queries and customersCount as overlay-capable reads', () => {

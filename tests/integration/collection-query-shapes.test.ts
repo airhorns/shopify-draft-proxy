@@ -185,6 +185,122 @@ describe('collection query shapes', () => {
     });
   });
 
+  it('serves collectionByIdentifier and collectionByHandle aliases from snapshot state', async () => {
+    store.upsertBaseProducts([makeCatalogProduct('gid://shopify/Product/1561', 'Identifier Hat', 'identifier-hat')]);
+    store.upsertBaseCollections([
+      {
+        ...makeCatalogCollection(
+          'gid://shopify/Collection/156',
+          'Identifier Hats',
+          'identifier-hats',
+          '2026-04-25T00:00:00.000Z',
+        ),
+        seo: { title: 'Identifier SEO', description: 'Identifier SEO description' },
+      },
+    ]);
+    store.replaceBaseCollectionsForProduct('gid://shopify/Product/1561', [
+      {
+        id: 'gid://shopify/Collection/156',
+        productId: 'gid://shopify/Product/1561',
+        title: 'Identifier Hats',
+        handle: 'identifier-hats',
+      },
+    ]);
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('collection identifier snapshot lookup should not hit upstream fetch');
+    });
+
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query Collection(
+          $idIdentifier: CollectionIdentifierInput!
+          $handleIdentifier: CollectionIdentifierInput!
+          $handle: String!
+        ) {
+          byId: collectionByIdentifier(identifier: $idIdentifier) {
+            id
+            legacyResourceId
+            title
+            handle
+            descriptionHtml
+            seo { title description }
+          }
+          byIdentifierHandle: collectionByIdentifier(identifier: $handleIdentifier) {
+            id
+            title
+            handle
+            products(first: 5) {
+              nodes { id title handle }
+              pageInfo { hasNextPage hasPreviousPage }
+            }
+          }
+          byHandle: collectionByHandle(handle: $handle) {
+            id
+            title
+            handle
+            productsCount { count precision }
+          }
+          missingById: collectionByIdentifier(identifier: { id: "gid://shopify/Collection/404" }) { id }
+          missingByHandle: collectionByHandle(handle: "missing-handle") { id }
+          customId: collectionByIdentifier(
+            identifier: { customId: { namespace: "custom", key: "external_id", value: "missing" } }
+          ) { id }
+        }`,
+        variables: {
+          idIdentifier: { id: 'gid://shopify/Collection/156' },
+          handleIdentifier: { handle: 'identifier-hats' },
+          handle: 'identifier-hats',
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        byId: {
+          id: 'gid://shopify/Collection/156',
+          legacyResourceId: '156',
+          title: 'Identifier Hats',
+          handle: 'identifier-hats',
+          descriptionHtml: '<p>Identifier Hats description</p>',
+          seo: { title: 'Identifier SEO', description: 'Identifier SEO description' },
+        },
+        byIdentifierHandle: {
+          id: 'gid://shopify/Collection/156',
+          title: 'Identifier Hats',
+          handle: 'identifier-hats',
+          products: {
+            nodes: [
+              {
+                id: 'gid://shopify/Product/1561',
+                title: 'Identifier Hat',
+                handle: 'identifier-hat',
+              },
+            ],
+            pageInfo: {
+              hasNextPage: false,
+              hasPreviousPage: false,
+            },
+          },
+        },
+        byHandle: {
+          id: 'gid://shopify/Collection/156',
+          title: 'Identifier Hats',
+          handle: 'identifier-hats',
+          productsCount: {
+            count: 1,
+            precision: 'EXACT',
+          },
+        },
+        missingById: null,
+        missingByHandle: null,
+        customId: null,
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('overlays standalone rich collection fields onto nested product collection reads', async () => {
     store.upsertBaseProducts([
       {
