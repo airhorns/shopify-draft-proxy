@@ -143,6 +143,43 @@ async function createDraftOrder(app: ReturnType<typeof createApp>['callback'] ex
     });
 }
 
+async function createNoRecipientDraftOrder(
+  app: ReturnType<typeof createApp>['callback'] extends () => infer T ? T : never,
+  label: string,
+) {
+  return request(app)
+    .post('/admin/api/2026-04/graphql.json')
+    .send({
+      query: `mutation DraftOrderCreate($input: DraftOrderInput!) {
+        draftOrderCreate(input: $input) {
+          draftOrder {
+            id
+            status
+            email
+            invoiceUrl
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }`,
+      variables: {
+        input: {
+          note: `invoice safety ${label}`,
+          tags: ['invoice-safety', label],
+          lineItems: [
+            {
+              title: `Invoice safety item ${label}`,
+              quantity: 1,
+              originalUnitPrice: '1.00',
+            },
+          ],
+        },
+      },
+    });
+}
+
 describe('draft-order mutation family flow', () => {
   beforeEach(() => {
     store.reset();
@@ -353,6 +390,213 @@ describe('draft-order mutation family flow', () => {
         },
       ],
     });
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(logResponse.status).toBe(200);
+    const invoiceLogEntry = (
+      logResponse.body.entries as Array<{
+        interpreted?: { primaryRootField?: string };
+        requestBody?: { query?: string; variables?: unknown };
+        status?: string;
+        notes?: string;
+      }>
+    ).find((entry) => entry.interpreted?.primaryRootField === 'draftOrderInvoiceSend');
+    expect(invoiceLogEntry).toMatchObject({
+      requestBody: {
+        variables: { id: draftOrderId },
+      },
+      status: 'staged',
+      notes: 'Locally handled draftOrderInvoiceSend in live-hybrid mode without sending invoice email.',
+    });
+    expect(invoiceLogEntry?.requestBody?.query).toContain('draftOrderInvoiceSend');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('mirrors safe draftOrderInvoiceSend no-recipient and lifecycle validation branches locally', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('draftOrderInvoiceSend safe validation branches should not hit upstream');
+    });
+    const app = createApp(liveHybridConfig).callback();
+
+    const openCreateResponse = await createNoRecipientDraftOrder(app, 'open-no-recipient');
+    expect(openCreateResponse.status).toBe(200);
+    const openDraftOrderId = openCreateResponse.body.data.draftOrderCreate.draftOrder.id as string;
+
+    const openInvoiceResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation DraftOrderInvoiceSend($id: ID!) {
+          draftOrderInvoiceSend(id: $id) {
+            draftOrder {
+              id
+              status
+              email
+              invoiceUrl
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          id: openDraftOrderId,
+        },
+      });
+
+    expect(openInvoiceResponse.status).toBe(200);
+    expect(openInvoiceResponse.body.data.draftOrderInvoiceSend).toMatchObject({
+      draftOrder: {
+        id: openDraftOrderId,
+        status: 'OPEN',
+        email: null,
+      },
+      userErrors: [{ field: null, message: "To can't be blank" }],
+    });
+
+    const completedCreateResponse = await createNoRecipientDraftOrder(app, 'completed-no-recipient');
+    const completedDraftOrderId = completedCreateResponse.body.data.draftOrderCreate.draftOrder.id as string;
+    const completeResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation DraftOrderComplete($id: ID!) {
+          draftOrderComplete(id: $id, paymentPending: true) {
+            draftOrder {
+              id
+              status
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          id: completedDraftOrderId,
+        },
+      });
+    expect(completeResponse.status).toBe(200);
+    expect(completeResponse.body.data.draftOrderComplete.userErrors).toEqual([]);
+
+    const completedInvoiceResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation DraftOrderInvoiceSend($id: ID!) {
+          draftOrderInvoiceSend(id: $id) {
+            draftOrder {
+              id
+              status
+              email
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          id: completedDraftOrderId,
+        },
+      });
+
+    expect(completedInvoiceResponse.status).toBe(200);
+    expect(completedInvoiceResponse.body.data.draftOrderInvoiceSend).toEqual({
+      draftOrder: {
+        id: completedDraftOrderId,
+        status: 'COMPLETED',
+        email: null,
+      },
+      userErrors: [
+        { field: null, message: "To can't be blank" },
+        {
+          field: null,
+          message: "Draft order Invoice can't be sent. This draft order is already paid.",
+        },
+      ],
+    });
+
+    const deletedCreateResponse = await createNoRecipientDraftOrder(app, 'deleted');
+    const deletedDraftOrderId = deletedCreateResponse.body.data.draftOrderCreate.draftOrder.id as string;
+    const deleteResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation DraftOrderDelete($input: DraftOrderDeleteInput!) {
+          draftOrderDelete(input: $input) {
+            deletedId
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          input: {
+            id: deletedDraftOrderId,
+          },
+        },
+      });
+    expect(deleteResponse.status).toBe(200);
+    expect(deleteResponse.body.data.draftOrderDelete.userErrors).toEqual([]);
+
+    const deletedInvoiceResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation DraftOrderInvoiceSend($id: ID!) {
+          draftOrderInvoiceSend(id: $id) {
+            draftOrder {
+              id
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          id: deletedDraftOrderId,
+        },
+      });
+
+    expect(deletedInvoiceResponse.status).toBe(200);
+    expect(deletedInvoiceResponse.body.data.draftOrderInvoiceSend).toEqual({
+      draftOrder: null,
+      userErrors: [{ field: null, message: 'Draft order not found' }],
+    });
+
+    const unknownInvoiceResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation DraftOrderInvoiceSend($id: ID!) {
+          draftOrderInvoiceSend(id: $id) {
+            draftOrder {
+              id
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          id: 'gid://shopify/DraftOrder/999999999999999',
+        },
+      });
+
+    expect(unknownInvoiceResponse.status).toBe(200);
+    expect(unknownInvoiceResponse.body.data.draftOrderInvoiceSend).toEqual({
+      draftOrder: null,
+      userErrors: [{ field: null, message: 'Draft order not found' }],
+    });
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(logResponse.status).toBe(200);
+    expect(
+      (
+        logResponse.body.entries as Array<{
+          interpreted?: { primaryRootField?: string };
+        }>
+      ).filter((entry) => entry.interpreted?.primaryRootField === 'draftOrderInvoiceSend'),
+    ).toHaveLength(4);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

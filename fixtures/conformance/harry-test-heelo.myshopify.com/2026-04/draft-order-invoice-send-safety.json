@@ -1,0 +1,451 @@
+{
+  "safetyPolicy": "All captured invoice-send branches avoid sending customer-visible email: validation-only requests use missing/unknown IDs, and live draft-order resolver branches use draft orders without a recipient email.",
+  "validation": {
+    "missingVariable": {
+      "document": "#graphql\n  mutation DraftOrderInvoiceSendMissingVariable($id: ID!) {\n    draftOrderInvoiceSend(id: $id) {\n      draftOrder {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {},
+      "response": {
+        "errors": [
+          {
+            "message": "Variable $id of type ID! was provided invalid value",
+            "locations": [
+              {
+                "line": 2,
+                "column": 49
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": null,
+              "problems": [
+                {
+                  "path": [],
+                  "explanation": "Expected value to not be null"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "inlineMissingId": {
+      "document": "#graphql\n  mutation DraftOrderInvoiceSendInlineMissingId {\n    draftOrderInvoiceSend {\n      draftOrder {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {},
+      "response": {
+        "errors": [
+          {
+            "message": "Field 'draftOrderInvoiceSend' is missing required arguments: id",
+            "locations": [
+              {
+                "line": 3,
+                "column": 5
+              }
+            ],
+            "path": ["mutation DraftOrderInvoiceSendInlineMissingId", "draftOrderInvoiceSend"],
+            "extensions": {
+              "code": "missingRequiredArguments",
+              "className": "Field",
+              "name": "draftOrderInvoiceSend",
+              "arguments": "id"
+            }
+          }
+        ]
+      }
+    },
+    "inlineNullId": {
+      "document": "#graphql\n  mutation DraftOrderInvoiceSendInlineNullId {\n    draftOrderInvoiceSend(id: null) {\n      draftOrder {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {},
+      "response": {
+        "errors": [
+          {
+            "message": "Argument 'id' on Field 'draftOrderInvoiceSend' has an invalid value (null). Expected type 'ID!'.",
+            "locations": [
+              {
+                "line": 3,
+                "column": 5
+              }
+            ],
+            "path": ["mutation DraftOrderInvoiceSendInlineNullId", "draftOrderInvoiceSend", "id"],
+            "extensions": {
+              "code": "argumentLiteralsIncompatible",
+              "typeName": "Field",
+              "argumentName": "id"
+            }
+          }
+        ]
+      }
+    },
+    "unknownDraftOrder": {
+      "document": "#graphql\n  mutation DraftOrderInvoiceSendSafety($id: ID!, $email: EmailInput) {\n    draftOrderInvoiceSend(id: $id, email: $email) {\n      draftOrder {\n        id\n        status\n        email\n        invoiceUrl\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/999999999999999",
+        "email": {
+          "to": "draft-order-invoice-safety@example.com",
+          "subject": "HAR-275 unknown draft order safety probe",
+          "customMessage": "Unknown-id validation should not send an invoice email."
+        }
+      },
+      "response": {
+        "data": {
+          "draftOrderInvoiceSend": {
+            "draftOrder": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Draft order not found"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "recipient": {
+    "openNoRecipient": {
+      "setup": {
+        "draftOrderCreate": {
+          "variables": {
+            "input": {
+              "note": "HAR-275 draft order invoice safety open-no-recipient",
+              "tags": ["har-275", "invoice-safety", "open-no-recipient"],
+              "lineItems": [
+                {
+                  "title": "HAR-275 invoice safety item open-no-recipient",
+                  "quantity": 1,
+                  "originalUnitPrice": "1.00"
+                }
+              ]
+            }
+          },
+          "mutation": {
+            "response": {
+              "data": {
+                "draftOrderCreate": {
+                  "draftOrder": {
+                    "id": "gid://shopify/DraftOrder/1249077428530",
+                    "status": "OPEN",
+                    "email": null,
+                    "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/a7882204b4c74034be0f2c7ffa433a32"
+                  },
+                  "userErrors": []
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 10,
+                  "actualQueryCost": 10,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1990,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          },
+          "id": "gid://shopify/DraftOrder/1249077428530"
+        }
+      },
+      "document": "#graphql\n  mutation DraftOrderInvoiceSendSafety($id: ID!, $email: EmailInput) {\n    draftOrderInvoiceSend(id: $id, email: $email) {\n      draftOrder {\n        id\n        status\n        email\n        invoiceUrl\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/1249077428530"
+      },
+      "mutation": {
+        "response": {
+          "data": {
+            "draftOrderInvoiceSend": {
+              "draftOrder": {
+                "id": "gid://shopify/DraftOrder/1249077428530",
+                "status": "OPEN",
+                "email": null,
+                "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/a7882204b4c74034be0f2c7ffa433a32"
+              },
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "To can't be blank"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "cleanup": {
+        "variables": {
+          "input": {
+            "id": "gid://shopify/DraftOrder/1249077428530"
+          }
+        },
+        "mutation": {
+          "response": {
+            "data": {
+              "draftOrderDelete": {
+                "deletedId": "gid://shopify/DraftOrder/1249077428530",
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "lifecycle": {
+    "deletedDraftOrder": {
+      "setup": {
+        "draftOrderCreate": {
+          "variables": {
+            "input": {
+              "note": "HAR-275 draft order invoice safety deleted",
+              "tags": ["har-275", "invoice-safety", "deleted"],
+              "lineItems": [
+                {
+                  "title": "HAR-275 invoice safety item deleted",
+                  "quantity": 1,
+                  "originalUnitPrice": "1.00"
+                }
+              ]
+            }
+          },
+          "mutation": {
+            "response": {
+              "data": {
+                "draftOrderCreate": {
+                  "draftOrder": {
+                    "id": "gid://shopify/DraftOrder/1249077461298",
+                    "status": "OPEN",
+                    "email": null,
+                    "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/303e10be85232c9b4c02def808edb939"
+                  },
+                  "userErrors": []
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 10,
+                  "actualQueryCost": 10,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1990,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          },
+          "id": "gid://shopify/DraftOrder/1249077461298"
+        },
+        "draftOrderDelete": {
+          "variables": {
+            "input": {
+              "id": "gid://shopify/DraftOrder/1249077461298"
+            }
+          },
+          "mutation": {
+            "response": {
+              "data": {
+                "draftOrderDelete": {
+                  "deletedId": "gid://shopify/DraftOrder/1249077461298",
+                  "userErrors": []
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 10,
+                  "actualQueryCost": 10,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1990,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "document": "#graphql\n  mutation DraftOrderInvoiceSendSafety($id: ID!, $email: EmailInput) {\n    draftOrderInvoiceSend(id: $id, email: $email) {\n      draftOrder {\n        id\n        status\n        email\n        invoiceUrl\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/1249077461298"
+      },
+      "mutation": {
+        "response": {
+          "data": {
+            "draftOrderInvoiceSend": {
+              "draftOrder": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Draft order not found"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "completedNoRecipient": {
+      "setup": {
+        "draftOrderCreate": {
+          "variables": {
+            "input": {
+              "note": "HAR-275 draft order invoice safety completed-no-recipient",
+              "tags": ["har-275", "invoice-safety", "completed-no-recipient"],
+              "lineItems": [
+                {
+                  "title": "HAR-275 invoice safety item completed-no-recipient",
+                  "quantity": 1,
+                  "originalUnitPrice": "1.00"
+                }
+              ]
+            }
+          },
+          "mutation": {
+            "response": {
+              "data": {
+                "draftOrderCreate": {
+                  "draftOrder": {
+                    "id": "gid://shopify/DraftOrder/1249077494066",
+                    "status": "OPEN",
+                    "email": null,
+                    "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/551c16b1a446e8550aba8a73876e9c94"
+                  },
+                  "userErrors": []
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 10,
+                  "actualQueryCost": 10,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1990,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          },
+          "id": "gid://shopify/DraftOrder/1249077494066"
+        },
+        "draftOrderComplete": {
+          "variables": {
+            "id": "gid://shopify/DraftOrder/1249077494066"
+          },
+          "mutation": {
+            "response": {
+              "data": {
+                "draftOrderComplete": {
+                  "draftOrder": {
+                    "id": "gid://shopify/DraftOrder/1249077494066",
+                    "status": "COMPLETED",
+                    "email": null,
+                    "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/551c16b1a446e8550aba8a73876e9c94",
+                    "order": {
+                      "id": "gid://shopify/Order/8710692733234",
+                      "name": "#1020"
+                    }
+                  },
+                  "userErrors": []
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 11,
+                  "actualQueryCost": 11,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1989,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "document": "#graphql\n  mutation DraftOrderInvoiceSendSafety($id: ID!, $email: EmailInput) {\n    draftOrderInvoiceSend(id: $id, email: $email) {\n      draftOrder {\n        id\n        status\n        email\n        invoiceUrl\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/1249077494066"
+      },
+      "mutation": {
+        "response": {
+          "data": {
+            "draftOrderInvoiceSend": {
+              "draftOrder": {
+                "id": "gid://shopify/DraftOrder/1249077494066",
+                "status": "COMPLETED",
+                "email": null,
+                "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/551c16b1a446e8550aba8a73876e9c94"
+              },
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "To can't be blank"
+                },
+                {
+                  "field": null,
+                  "message": "Draft order Invoice can't be sent. This draft order is already paid."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
