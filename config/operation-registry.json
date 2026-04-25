@@ -1349,20 +1349,20 @@
     "type": "mutation",
     "domain": "payments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["orderCapture", "OrderCapture"],
-    "runtimeTests": [],
-    "supportNotes": "Order payment scaffold only. Future capture requires write_orders or write_marketplace_orders plus capture_payments_for_orders permission and must use an isolated authorized transaction because the happy path captures funds."
+    "runtimeTests": ["tests/integration/order-payment-transaction-flow.test.ts"],
+    "supportNotes": "Stages captured order authorizations locally into CAPTURE transactions, updates downstream financial/capturable fields, and avoids live capture side effects at runtime."
   },
   {
     "name": "orderCreateMandatePayment",
     "type": "mutation",
     "domain": "payments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["orderCreateMandatePayment", "OrderCreateMandatePayment"],
-    "runtimeTests": [],
-    "supportNotes": "Mandate payment scaffold only. Future capture requires write_payment_mandate, pay_orders_by_vaulted_card permission, a mandate-backed order schedule, idempotency-key handling, and Shopify Plus coverage for amount-specific branches."
+    "runtimeTests": ["tests/integration/order-payment-transaction-flow.test.ts"],
+    "supportNotes": "Stages mandate-payment jobs locally with session idempotency keys, synthetic paymentReferenceId values, and downstream order transaction/financial-status updates without contacting payment gateways."
   },
   {
     "name": "paymentCustomizationActivation",
@@ -1459,10 +1459,10 @@
     "type": "mutation",
     "domain": "payments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["transactionVoid", "TransactionVoid"],
-    "runtimeTests": [],
-    "supportNotes": "Order payment scaffold only. Future capture requires write_orders plus cancel-order permission and an isolated uncaptured authorization because the happy path voids payment authorization."
+    "runtimeTests": ["tests/integration/order-payment-transaction-flow.test.ts"],
+    "supportNotes": "Stages voids for uncaptured local authorization transactions and updates downstream capturable/financial fields without proxying the supported mutation upstream."
   },
   {
     "name": "orderCustomerSet",
