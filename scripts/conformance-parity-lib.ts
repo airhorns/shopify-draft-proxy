@@ -43,6 +43,7 @@ import {
   handleProductQuery,
   hydrateProductsFromUpstreamResponse,
 } from '../src/proxy/products.js';
+import { handleSegmentsQuery, hydrateSegmentsFromUpstreamResponse } from '../src/proxy/segments.js';
 import { handleStorePropertiesMutation, handleStorePropertiesQuery } from '../src/proxy/store-properties.js';
 import { makeSyntheticGid, makeSyntheticTimestamp, resetSyntheticIdentity } from '../src/state/synthetic-identity.js';
 import { store } from '../src/state/store.js';
@@ -802,6 +803,17 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleMarketsQuery(document, variables),
+    };
+  }
+
+  if (capability.execution === 'overlay-read' && capability.domain === 'segments') {
+    if (upstreamPayload !== undefined) {
+      hydrateSegmentsFromUpstreamResponse(document, variables, upstreamPayload);
+    }
+
+    return {
+      status: 200,
+      body: handleSegmentsQuery(document, variables),
     };
   }
 
