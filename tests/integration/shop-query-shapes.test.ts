@@ -131,6 +131,7 @@ function writeSnapshot(shop: ShopRecord | null): string {
       productMedia: {},
       files: {},
       productMetafields: {},
+      customerMetafields: {},
       deletedProductIds: {},
       deletedFileIds: {},
       deletedCollectionIds: {},

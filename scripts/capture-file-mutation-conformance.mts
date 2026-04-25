@@ -2,6 +2,7 @@
 import 'dotenv/config';
 
 import { mkdir, writeFile } from 'node:fs/promises';
+import { setTimeout as delay } from 'node:timers/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
@@ -27,6 +28,20 @@ type FileDeleteData = {
   fileDelete?: {
     deletedFileIds?: string[] | null;
     userErrors?: UserError[] | null;
+  } | null;
+};
+
+type FileUpdateData = {
+  fileUpdate?: {
+    files?: Array<{ id?: string | null; fileStatus?: string | null } | null> | null;
+    userErrors?: UserError[] | null;
+  } | null;
+};
+
+type FileReadData = {
+  node?: {
+    id?: string | null;
+    fileStatus?: string | null;
   } | null;
 };
 
@@ -119,6 +134,34 @@ const fileDeleteMutation = `#graphql
         field
         message
         code
+      }
+    }
+  }
+`;
+
+const fileUpdateMutation = `#graphql
+  mutation FileUpdateParity($files: [FileUpdateInput!]!) {
+    fileUpdate(files: $files) {
+      files {
+        id
+        alt
+        fileStatus
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+const fileReadQuery = `#graphql
+  query FileReadyPoll($id: ID!) {
+    node(id: $id) {
+      ... on MediaImage {
+        id
+        fileStatus
       }
     }
   }
@@ -237,6 +280,17 @@ function buildFileCreateVariables(runId: string): GraphqlVariables {
   };
 }
 
+function buildFileUpdateVariables(fileId: string): GraphqlVariables {
+  return {
+    files: [
+      {
+        id: fileId,
+        alt: 'Hermes Files API updated alt',
+      },
+    ],
+  };
+}
+
 function buildProductCreateVariables(runId: string): GraphqlVariables {
   return {
     product: {
@@ -259,6 +313,21 @@ function buildProductMediaVariables(productId: string): GraphqlVariables {
   };
 }
 
+async function waitForReadyFile(fileId: string): Promise<GraphqlPayload<FileReadData>> {
+  let lastPayload: GraphqlPayload<FileReadData> | null = null;
+
+  for (let attempt = 0; attempt < 15; attempt += 1) {
+    lastPayload = await runGraphql<FileReadData>(fileReadQuery, { id: fileId });
+    if (lastPayload.data?.node?.fileStatus === 'READY') {
+      return lastPayload;
+    }
+
+    await delay(2000);
+  }
+
+  throw new Error(`Timed out waiting for file ${fileId} to reach READY: ${JSON.stringify(lastPayload, null, 2)}`);
+}
+
 await mkdir(outputDir, { recursive: true });
 
 const runId = `${Date.now()}`;
@@ -271,6 +340,11 @@ try {
   const createResponse = await runGraphql<FileCreateData>(fileCreateMutation, createVariables);
   expectNoUserErrors('fileCreate', createResponse.data?.fileCreate?.userErrors);
   createdFileId = requireId('fileCreate.files[0]', createResponse.data?.fileCreate?.files?.[0]?.id);
+
+  const readyFileRead = await waitForReadyFile(createdFileId);
+  const updateVariables = buildFileUpdateVariables(createdFileId);
+  const updateResponse = await runGraphql<FileUpdateData>(fileUpdateMutation, updateVariables);
+  expectNoUserErrors('fileUpdate', updateResponse.data?.fileUpdate?.userErrors);
 
   const deleteCreatedVariables = { fileIds: [createdFileId] };
   const deleteCreatedResponse = await runGraphql<FileDeleteData>(fileDeleteMutation, deleteCreatedVariables);
@@ -316,6 +390,25 @@ try {
       deleteMutation: {
         variables: deleteCreatedVariables,
         response: deleteCreatedResponse,
+      },
+    },
+    'file-update-parity.json': {
+      setup: {
+        createMutation: {
+          variables: createVariables,
+          response: createResponse,
+        },
+        readyFileRead,
+      },
+      mutation: {
+        variables: updateVariables,
+        response: updateResponse,
+      },
+      cleanup: {
+        deleteMutation: {
+          variables: deleteCreatedVariables,
+          response: deleteCreatedResponse,
+        },
       },
     },
     'file-delete-product-media-parity.json': {

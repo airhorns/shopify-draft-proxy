@@ -1,25 +1,66 @@
 {
   "scenarioId": "draft-order-duplicate-live-parity",
   "operationNames": ["draftOrderDuplicate"],
-  "scenarioStatus": "planned",
+  "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
-  "liveCaptureFiles": [],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-duplicate-parity.json"
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/draftOrderDuplicate-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/draftOrderDuplicate-parity-plan.variables.json"
+    "variablesPath": "config/parity-requests/draftOrderDuplicate-parity-plan.variables.json",
+    "variablesCapturePath": "$.variables"
   },
-  "comparisonMode": "planned",
-  "blocker": {
-    "kind": "missing-live-draft-order-duplicate-capture",
-    "blockerPath": null,
-    "details": {
-      "requiredScopes": ["write_draft_orders"],
-      "probeRoots": ["draftOrderDuplicate"],
-      "blockedMutations": ["draftOrderDuplicate"],
-      "requiredPermissions": ["manage-draft-orders"],
-      "docsUrl": "https://shopify.dev/docs/api/admin-graphql/latest/mutations/draftOrderDuplicate",
-      "failingMessage": "Safe validation capture was attempted on this host, but the stored Shopify conformance access token is invalid and refresh failed: This request requires an active refresh_token."
-    }
-  },
-  "notes": "Planned draft order duplicate parity. The proxy request duplicates an existing draft order and expects a new draft-order ID/name/invoice URL plus copied customer, note, tags, attributes, totals, and line items. Local runtime support is limited to synthetic/staged draft orders until a live fixture settles broader Shopify behavior."
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live capture duplicates a dedicated draft order and records the new draft plus immediate downstream `draftOrder(id:)` visibility. Shopify-generated duplicate IDs, names, invoice URLs, and line-item IDs are expected differences.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.id",
+        "matcher": "shopify-gid:DraftOrder",
+        "reason": "The live duplicate and local duplicate allocate independent draft order IDs."
+      },
+      {
+        "path": "$.name",
+        "matcher": "non-empty-string",
+        "reason": "Shopify allocates draft order names from store state; local staging uses a deterministic synthetic sequence."
+      },
+      {
+        "path": "$.invoiceUrl",
+        "matcher": "non-empty-string",
+        "reason": "Invoice URLs are generated independently by Shopify and the local proxy."
+      },
+      {
+        "path": "$.lineItems.nodes[*].id",
+        "matcher": "shopify-gid:DraftOrderLineItem",
+        "reason": "The live duplicate and local duplicate allocate independent draft order line-item IDs."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-user-errors",
+        "capturePath": "$.mutation.response.data.draftOrderDuplicate.userErrors",
+        "proxyPath": "$.data.draftOrderDuplicate.userErrors"
+      },
+      {
+        "name": "mutation-draft-order",
+        "capturePath": "$.mutation.response.data.draftOrderDuplicate.draftOrder",
+        "proxyPath": "$.data.draftOrderDuplicate.draftOrder"
+      },
+      {
+        "name": "downstream-draft-order",
+        "capturePath": "$.downstreamRead.response.data.draftOrder",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/draftOrderCreate-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderDuplicate.draftOrder.id"
+            }
+          }
+        },
+        "proxyPath": "$.data.draftOrder"
+      }
+    ]
+  }
 }

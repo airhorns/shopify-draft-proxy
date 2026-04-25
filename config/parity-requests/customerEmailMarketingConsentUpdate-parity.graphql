@@ -1,0 +1,29 @@
+mutation CustomerEmailMarketingConsentUpdate($input: CustomerEmailMarketingConsentUpdateInput!) {
+  customerEmailMarketingConsentUpdate(input: $input) {
+    customer {
+      id
+      firstName
+      lastName
+      displayName
+      email
+      defaultEmailAddress {
+        emailAddress
+        marketingState
+        marketingOptInLevel
+        marketingUpdatedAt
+      }
+      defaultPhoneNumber {
+        phoneNumber
+        marketingState
+        marketingOptInLevel
+        marketingUpdatedAt
+        marketingCollectedFrom
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

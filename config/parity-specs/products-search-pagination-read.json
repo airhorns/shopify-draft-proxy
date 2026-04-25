@@ -16,14 +16,18 @@
     "documentPath": "config/parity-requests/products-search-pagination-read.graphql",
     "variablesPath": "config/parity-requests/products-search-pagination-read.variables.json"
   },
-  "comparisonMode": "capture-only",
-  "notes": "Live product search pagination capture preserves a concrete filtered UPDATED_AT-desc window plus forward and backward cursor traversal so overlay pagination parity can be compared against Shopify for the same query tuple.",
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity coverage for filtered products pagination: compares the captured count, first page, next page, previous page, opaque cursors, and pageInfo shape for the same query tuple.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "products-search-pagination-data",
+        "capturePath": "$.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.response"
+      }
+    ]
   }
 }

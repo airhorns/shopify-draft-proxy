@@ -53,6 +53,9 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
   reserve future coverage. Add checked-in parity specs only when they are backed
   by a captured interaction and can run as working evidence; otherwise keep the
   gap in Linear/workpad notes instead of repository scenario files.
+  Ticket-specific requests for scaffold files do not override this rule; for
+  coverage-map-only work, update the operation registry and the Linear/workpad
+  notes without adding parity spec or parity request placeholders.
 - Conformance parity scenarios are discovered by convention from `config/parity-specs/*.json` and executed by the single vitest suite at `tests/unit/conformance-parity-scenarios.test.ts` (also exposed as `pnpm conformance:parity`). Do not add per-scenario `it(...)` blocks that re-run one scenario — the iterator already covers it. Encode scenario-specific expectations in the parity spec.
 - Treat conformance `expectedDifferences` as a last resort after modeling or
   fixture seeding has been exhausted; do not add them merely to make parity

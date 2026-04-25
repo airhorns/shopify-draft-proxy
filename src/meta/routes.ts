@@ -10,8 +10,11 @@ interface CommitAttempt {
   logEntryId: string;
   operationName: string | null;
   path: string;
+  success: boolean;
   status: MutationLogEntry['status'];
   upstreamStatus: number | null;
+  upstreamBody: unknown;
+  upstreamError: { message: string } | null;
   responseBody: unknown;
 }
 
@@ -697,8 +700,11 @@ export function createMetaRouter(config: AppConfig): Router {
           logEntryId: entry.id,
           operationName: entry.operationName,
           path: entry.path,
+          success: !failed,
           status: nextStatus,
           upstreamStatus: response.status,
+          upstreamBody: responseBody,
+          upstreamError: null,
           responseBody,
         });
 
@@ -716,8 +722,11 @@ export function createMetaRouter(config: AppConfig): Router {
           logEntryId: entry.id,
           operationName: entry.operationName,
           path: entry.path,
+          success: false,
           status: 'failed',
           upstreamStatus: null,
+          upstreamBody: null,
+          upstreamError: { message },
           responseBody: { errors: [{ message }] },
         });
         stopIndex = index;

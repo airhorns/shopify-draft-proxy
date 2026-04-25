@@ -2,50 +2,84 @@
   "mutation": {
     "variables": {
       "input": {
-        "id": "gid://shopify/Customer/9079716675817",
+        "id": "gid://shopify/Customer/9102966915305",
         "firstName": "Hermes",
         "lastName": "Updated",
         "note": "customer update parity probe",
         "tags": ["parity", "updated"],
-        "taxExempt": false
+        "taxExempt": false,
+        "taxExemptions": ["CA_BC_RESELLER_EXEMPTION"],
+        "metafields": [
+          {
+            "namespace": "custom",
+            "key": "loyalty",
+            "type": "single_line_text_field",
+            "value": "gold-1777081266467"
+          }
+        ]
       }
     },
     "response": {
       "data": {
         "customerUpdate": {
           "customer": {
-            "id": "gid://shopify/Customer/9079716675817",
+            "id": "gid://shopify/Customer/9102966915305",
             "firstName": "Hermes",
             "lastName": "Updated",
             "displayName": "Hermes Updated",
-            "email": "hermes-customer-create-1776550630836@example.com",
+            "email": "hermes-customer-create-1777081266467@example.com",
             "locale": "en",
             "note": "customer update parity probe",
             "verifiedEmail": true,
             "taxExempt": false,
+            "taxExemptions": ["CA_BC_RESELLER_EXEMPTION"],
             "tags": ["parity", "updated"],
             "state": "DISABLED",
             "canDelete": true,
+            "loyalty": {
+              "id": "gid://shopify/Metafield/35326959976681",
+              "namespace": "custom",
+              "key": "loyalty",
+              "type": "single_line_text_field",
+              "value": "gold-1777081266467"
+            },
+            "metafields": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Metafield/35326959976681",
+                  "namespace": "custom",
+                  "key": "loyalty",
+                  "type": "single_line_text_field",
+                  "value": "gold-1777081266467"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjozNTMyNjk1OTk3NjY4MSwibGFzdF92YWx1ZSI6IjM1MzI2OTU5OTc2NjgxIn0=",
+                "endCursor": "eyJsYXN0X2lkIjozNTMyNjk1OTk3NjY4MSwibGFzdF92YWx1ZSI6IjM1MzI2OTU5OTc2NjgxIn0="
+              }
+            },
             "defaultEmailAddress": {
-              "emailAddress": "hermes-customer-create-1776550630836@example.com"
+              "emailAddress": "hermes-customer-create-1777081266467@example.com"
             },
             "defaultPhoneNumber": {
               "phoneNumber": "+14155550123"
             },
             "defaultAddress": null,
-            "createdAt": "2026-04-18T22:17:10Z",
-            "updatedAt": "2026-04-18T22:17:11Z"
+            "createdAt": "2026-04-25T01:41:06Z",
+            "updatedAt": "2026-04-25T01:41:06Z"
           },
           "userErrors": []
         }
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 12,
-          "actualQueryCost": 12,
+          "requestedQueryCost": 18,
+          "actualQueryCost": 17,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1983,
+            "currentlyAvailable": 1974,
             "restoreRate": 100
           }
         }
@@ -55,27 +89,52 @@
   "downstreamRead": {
     "data": {
       "customer": {
-        "id": "gid://shopify/Customer/9079716675817",
+        "id": "gid://shopify/Customer/9102966915305",
         "firstName": "Hermes",
         "lastName": "Updated",
         "displayName": "Hermes Updated",
-        "email": "hermes-customer-create-1776550630836@example.com",
+        "email": "hermes-customer-create-1777081266467@example.com",
         "locale": "en",
         "note": "customer update parity probe",
         "verifiedEmail": true,
         "taxExempt": false,
+        "taxExemptions": ["CA_BC_RESELLER_EXEMPTION"],
         "tags": ["parity", "updated"],
         "state": "DISABLED",
         "canDelete": true,
+        "loyalty": {
+          "id": "gid://shopify/Metafield/35326959976681",
+          "namespace": "custom",
+          "key": "loyalty",
+          "type": "single_line_text_field",
+          "value": "gold-1777081266467"
+        },
+        "metafields": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Metafield/35326959976681",
+              "namespace": "custom",
+              "key": "loyalty",
+              "type": "single_line_text_field",
+              "value": "gold-1777081266467"
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjozNTMyNjk1OTk3NjY4MSwibGFzdF92YWx1ZSI6IjM1MzI2OTU5OTc2NjgxIn0=",
+            "endCursor": "eyJsYXN0X2lkIjozNTMyNjk1OTk3NjY4MSwibGFzdF92YWx1ZSI6IjM1MzI2OTU5OTc2NjgxIn0="
+          }
+        },
         "defaultEmailAddress": {
-          "emailAddress": "hermes-customer-create-1776550630836@example.com"
+          "emailAddress": "hermes-customer-create-1777081266467@example.com"
         },
         "defaultPhoneNumber": {
           "phoneNumber": "+14155550123"
         },
         "defaultAddress": null,
-        "createdAt": "2026-04-18T22:17:10Z",
-        "updatedAt": "2026-04-18T22:17:11Z"
+        "createdAt": "2026-04-25T01:41:06Z",
+        "updatedAt": "2026-04-25T01:41:07Z"
       },
       "customers": {
         "nodes": [],
@@ -85,17 +144,17 @@
         }
       },
       "customersCount": {
-        "count": 73,
+        "count": 177,
         "precision": "EXACT"
       }
     },
     "extensions": {
       "cost": {
-        "requestedQueryCost": 24,
-        "actualQueryCost": 18,
+        "requestedQueryCost": 48,
+        "actualQueryCost": 23,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1981,
+          "currentlyAvailable": 1977,
           "restoreRate": 100
         }
       }
@@ -122,15 +181,88 @@
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 12,
+          "requestedQueryCost": 18,
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1984,
+            "currentlyAvailable": 1982,
             "restoreRate": 100
           }
         }
       }
+    }
+  },
+  "metafieldValidation": {
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Customer/9102966915305",
+        "metafields": [
+          {
+            "namespace": "custom",
+            "key": "bad_type",
+            "type": "not_a_type",
+            "value": "bad"
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "customerUpdate": {
+          "customer": null,
+          "userErrors": [
+            {
+              "field": ["metafields", "0", "type"],
+              "message": "Type must be one of the following: antenna_gain, area, battery_charge_capacity, battery_energy_capacity, boolean, capacitance, color, concentration, data_storage_capacity, data_transfer_rate, date_time, date, dimension, display_density, distance, duration, electric_current, electrical_resistance, energy, float, frequency, id, illuminance, inductance, integer, json_string, json, language, link, list.antenna_gain, list.area, list.battery_charge_capacity, list.battery_energy_capacity, list.boolean, list.capacitance, list.color, list.concentration, list.data_storage_capacity, list.data_transfer_rate, list.date_time, list.date, list.dimension, list.display_density, list.distance, list.duration, list.electric_current, list.electrical_resistance, list.energy, list.frequency, list.illuminance, list.inductance, list.link, list.luminous_flux, list.mass_flow_rate, list.multi_line_text_field, list.number_decimal, list.number_integer, list.power, list.pressure, list.rating, list.resolution, list.rotational_speed, list.single_line_text_field, list.sound_level, list.speed, list.temperature, list.thermal_power, list.url, list.voltage, list.volume, list.volumetric_flow_rate, list.weight, luminous_flux, mass_flow_rate, money, multi_line_text_field, number_decimal, number_integer, power, pressure, rating, resolution, rich_text_field, rotational_speed, single_line_text_field, sound_level, speed, string, temperature, thermal_power, url, voltage, volume, volumetric_flow_rate, weight, company_reference, list.company_reference, customer_reference, list.customer_reference, product_reference, list.product_reference, collection_reference, list.collection_reference, variant_reference, list.variant_reference, file_reference, list.file_reference, product_taxonomy_value_reference, list.product_taxonomy_value_reference, metaobject_reference, list.metaobject_reference, mixed_reference, list.mixed_reference, page_reference, list.page_reference, article_reference, list.article_reference, order_reference, list.order_reference."
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 18,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1981,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "taxExemptionValidation": {
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Customer/9102966915305",
+        "taxExemptions": ["NOT_A_TAX_EXEMPTION"]
+      }
+    },
+    "response": {
+      "errors": [
+        {
+          "message": "Variable $input of type CustomerInput! was provided invalid value for taxExemptions.0 (Expected \"NOT_A_TAX_EXEMPTION\" to be one of: CA_STATUS_CARD_EXEMPTION, CA_BC_RESELLER_EXEMPTION, CA_MB_RESELLER_EXEMPTION, CA_SK_RESELLER_EXEMPTION, CA_DIPLOMAT_EXEMPTION, CA_BC_COMMERCIAL_FISHERY_EXEMPTION, CA_MB_COMMERCIAL_FISHERY_EXEMPTION, CA_NS_COMMERCIAL_FISHERY_EXEMPTION, CA_PE_COMMERCIAL_FISHERY_EXEMPTION, CA_SK_COMMERCIAL_FISHERY_EXEMPTION, CA_BC_PRODUCTION_AND_MACHINERY_EXEMPTION, CA_SK_PRODUCTION_AND_MACHINERY_EXEMPTION, CA_BC_SUB_CONTRACTOR_EXEMPTION, CA_SK_SUB_CONTRACTOR_EXEMPTION, CA_BC_CONTRACTOR_EXEMPTION, CA_SK_CONTRACTOR_EXEMPTION, CA_ON_PURCHASE_EXEMPTION, CA_MB_FARMER_EXEMPTION, CA_NS_FARMER_EXEMPTION, CA_SK_FARMER_EXEMPTION, EU_REVERSE_CHARGE_EXEMPTION_RULE, US_AL_RESELLER_EXEMPTION, US_AK_RESELLER_EXEMPTION, US_AZ_RESELLER_EXEMPTION, US_AR_RESELLER_EXEMPTION, US_CA_RESELLER_EXEMPTION, US_CO_RESELLER_EXEMPTION, US_CT_RESELLER_EXEMPTION, US_DE_RESELLER_EXEMPTION, US_FL_RESELLER_EXEMPTION, US_GA_RESELLER_EXEMPTION, US_HI_RESELLER_EXEMPTION, US_ID_RESELLER_EXEMPTION, US_IL_RESELLER_EXEMPTION, US_IN_RESELLER_EXEMPTION, US_IA_RESELLER_EXEMPTION, US_KS_RESELLER_EXEMPTION, US_KY_RESELLER_EXEMPTION, US_LA_RESELLER_EXEMPTION, US_ME_RESELLER_EXEMPTION, US_MD_RESELLER_EXEMPTION, US_MA_RESELLER_EXEMPTION, US_MI_RESELLER_EXEMPTION, US_MN_RESELLER_EXEMPTION, US_MS_RESELLER_EXEMPTION, US_MO_RESELLER_EXEMPTION, US_MT_RESELLER_EXEMPTION, US_NE_RESELLER_EXEMPTION, US_NV_RESELLER_EXEMPTION, US_NH_RESELLER_EXEMPTION, US_NJ_RESELLER_EXEMPTION, US_NM_RESELLER_EXEMPTION, US_NY_RESELLER_EXEMPTION, US_NC_RESELLER_EXEMPTION, US_ND_RESELLER_EXEMPTION, US_OH_RESELLER_EXEMPTION, US_OK_RESELLER_EXEMPTION, US_OR_RESELLER_EXEMPTION, US_PA_RESELLER_EXEMPTION, US_RI_RESELLER_EXEMPTION, US_SC_RESELLER_EXEMPTION, US_SD_RESELLER_EXEMPTION, US_TN_RESELLER_EXEMPTION, US_TX_RESELLER_EXEMPTION, US_UT_RESELLER_EXEMPTION, US_VT_RESELLER_EXEMPTION, US_VA_RESELLER_EXEMPTION, US_WA_RESELLER_EXEMPTION, US_WV_RESELLER_EXEMPTION, US_WI_RESELLER_EXEMPTION, US_WY_RESELLER_EXEMPTION, US_DC_RESELLER_EXEMPTION)",
+          "locations": [
+            {
+              "line": 2,
+              "column": 38
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": {
+              "id": "gid://shopify/Customer/9102966915305",
+              "taxExemptions": ["NOT_A_TAX_EXEMPTION"]
+            },
+            "problems": [
+              {
+                "path": ["taxExemptions", 0],
+                "explanation": "Expected \"NOT_A_TAX_EXEMPTION\" to be one of: CA_STATUS_CARD_EXEMPTION, CA_BC_RESELLER_EXEMPTION, CA_MB_RESELLER_EXEMPTION, CA_SK_RESELLER_EXEMPTION, CA_DIPLOMAT_EXEMPTION, CA_BC_COMMERCIAL_FISHERY_EXEMPTION, CA_MB_COMMERCIAL_FISHERY_EXEMPTION, CA_NS_COMMERCIAL_FISHERY_EXEMPTION, CA_PE_COMMERCIAL_FISHERY_EXEMPTION, CA_SK_COMMERCIAL_FISHERY_EXEMPTION, CA_BC_PRODUCTION_AND_MACHINERY_EXEMPTION, CA_SK_PRODUCTION_AND_MACHINERY_EXEMPTION, CA_BC_SUB_CONTRACTOR_EXEMPTION, CA_SK_SUB_CONTRACTOR_EXEMPTION, CA_BC_CONTRACTOR_EXEMPTION, CA_SK_CONTRACTOR_EXEMPTION, CA_ON_PURCHASE_EXEMPTION, CA_MB_FARMER_EXEMPTION, CA_NS_FARMER_EXEMPTION, CA_SK_FARMER_EXEMPTION, EU_REVERSE_CHARGE_EXEMPTION_RULE, US_AL_RESELLER_EXEMPTION, US_AK_RESELLER_EXEMPTION, US_AZ_RESELLER_EXEMPTION, US_AR_RESELLER_EXEMPTION, US_CA_RESELLER_EXEMPTION, US_CO_RESELLER_EXEMPTION, US_CT_RESELLER_EXEMPTION, US_DE_RESELLER_EXEMPTION, US_FL_RESELLER_EXEMPTION, US_GA_RESELLER_EXEMPTION, US_HI_RESELLER_EXEMPTION, US_ID_RESELLER_EXEMPTION, US_IL_RESELLER_EXEMPTION, US_IN_RESELLER_EXEMPTION, US_IA_RESELLER_EXEMPTION, US_KS_RESELLER_EXEMPTION, US_KY_RESELLER_EXEMPTION, US_LA_RESELLER_EXEMPTION, US_ME_RESELLER_EXEMPTION, US_MD_RESELLER_EXEMPTION, US_MA_RESELLER_EXEMPTION, US_MI_RESELLER_EXEMPTION, US_MN_RESELLER_EXEMPTION, US_MS_RESELLER_EXEMPTION, US_MO_RESELLER_EXEMPTION, US_MT_RESELLER_EXEMPTION, US_NE_RESELLER_EXEMPTION, US_NV_RESELLER_EXEMPTION, US_NH_RESELLER_EXEMPTION, US_NJ_RESELLER_EXEMPTION, US_NM_RESELLER_EXEMPTION, US_NY_RESELLER_EXEMPTION, US_NC_RESELLER_EXEMPTION, US_ND_RESELLER_EXEMPTION, US_OH_RESELLER_EXEMPTION, US_OK_RESELLER_EXEMPTION, US_OR_RESELLER_EXEMPTION, US_PA_RESELLER_EXEMPTION, US_RI_RESELLER_EXEMPTION, US_SC_RESELLER_EXEMPTION, US_SD_RESELLER_EXEMPTION, US_TN_RESELLER_EXEMPTION, US_TX_RESELLER_EXEMPTION, US_UT_RESELLER_EXEMPTION, US_VT_RESELLER_EXEMPTION, US_VA_RESELLER_EXEMPTION, US_WA_RESELLER_EXEMPTION, US_WV_RESELLER_EXEMPTION, US_WI_RESELLER_EXEMPTION, US_WY_RESELLER_EXEMPTION, US_DC_RESELLER_EXEMPTION"
+              }
+            ]
+          }
+        }
+      ]
     }
   }
 }

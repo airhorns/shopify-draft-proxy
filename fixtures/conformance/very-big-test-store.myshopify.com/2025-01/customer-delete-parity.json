@@ -2,13 +2,13 @@
   "mutation": {
     "variables": {
       "input": {
-        "id": "gid://shopify/Customer/9079716675817"
+        "id": "gid://shopify/Customer/9102966915305"
       }
     },
     "response": {
       "data": {
         "customerDelete": {
-          "deletedCustomerId": "gid://shopify/Customer/9079716675817",
+          "deletedCustomerId": "gid://shopify/Customer/9102966915305",
           "shop": {
             "id": "gid://shopify/Shop/63755419881"
           },
@@ -21,7 +21,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1985,
+            "currentlyAvailable": 1990,
             "restoreRate": 100
           }
         }
@@ -39,13 +39,13 @@
         }
       },
       "customersCount": {
-        "count": 73,
+        "count": 177,
         "precision": "EXACT"
       }
     },
     "extensions": {
       "cost": {
-        "requestedQueryCost": 24,
+        "requestedQueryCost": 48,
         "actualQueryCost": 16,
         "throttleStatus": {
           "maximumAvailable": 2000,
@@ -82,7 +82,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1983,
+            "currentlyAvailable": 1987,
             "restoreRate": 100
           }
         }

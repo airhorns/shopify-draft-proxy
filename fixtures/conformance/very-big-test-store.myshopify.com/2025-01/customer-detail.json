@@ -14,9 +14,9 @@
       "taxExempt": false,
       "state": "DISABLED",
       "tags": ["egnition-sample-data", "referral"],
-      "numberOfOrders": "12",
+      "numberOfOrders": "18",
       "amountSpent": {
-        "amount": "1.6",
+        "amount": "231.1",
         "currencyCode": "CAD"
       },
       "defaultEmailAddress": {
@@ -34,7 +34,7 @@
         "formattedArea": "Maubeuge, Eritrea"
       },
       "createdAt": "2022-04-06T14:51:36Z",
-      "updatedAt": "2024-03-14T01:55:09Z"
+      "updatedAt": "2026-04-25T01:24:48Z"
     }
   },
   "extensions": {
