@@ -12,8 +12,8 @@
     "documentPath": "config/parity-requests/marketing-baseline-read.graphql",
     "variablesPath": "config/parity-requests/marketing-baseline-read.variables.json"
   },
-  "comparisonMode": "capture-only",
-  "notes": "HAR-212 marketing read capture reached Shopify but the configured dev-store credential lacks `read_marketing_events`; the baseline fixture records the access-denied response, the invalid-ID fixture records Shopify's INVALID_VARIABLE shape, and local snapshot behavior is covered by runtime tests without inventing marketing records.",
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-212 marketing read capture now has `read_marketing_events` access. The harry-test-heelo store had no marketing activities or events, so this fixture locks Shopify empty-connection and missing singular lookup behavior for the four read roots. Representative non-empty live rows were not captured because the store has no existing marketing rows and the conformance credential lacks `write_marketing_events` for temporary seeding; local snapshot tests cover fixture-backed non-empty serialization without inventing live conformance records.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -29,15 +29,5 @@
         "proxyPath": "$.errors"
       }
     ]
-  },
-  "blocker": {
-    "kind": "missing-shopify-access-scope",
-    "blockerPath": "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/marketing-baseline-read.json",
-    "details": {
-      "requiredScopes": ["read_marketing_events"],
-      "probeRoots": ["marketingActivities", "marketingActivity", "marketingEvents", "marketingEvent"],
-      "failingMessage": "Access denied for marketingActivities field.",
-      "docsUrl": "https://shopify.dev/docs/api/admin-graphql/latest/objects/MarketingActivity"
-    }
   }
 }

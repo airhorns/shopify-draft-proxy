@@ -26,7 +26,7 @@ HAR-212 captures the safe read model for:
 - selected `MarketingActivity` fields: identity, title, timestamps, status/status label, tactic, channel type, source/medium, external/main-workflow booleans, app identity, and nested marketing event identity/attribution fields
 - selected `MarketingEvent` fields: identity, type, remote ID, start/end timestamps, URLs, UTM fields, description, channel type, and source/medium
 
-The capture script also records an invalid-ID probe and schema inventory as evidence files. If a store lacks `read_marketing_events`, those files should show the Shopify access-scope errors rather than inventing local records.
+The capture script also records an invalid-ID probe and schema inventory as evidence files. The current HAR-212 capture has `read_marketing_events` access and records Shopify's empty/no-data behavior because the dev store has no marketing rows. A representative non-empty live read was not captured: temporary seeding requires `write_marketing_events`, and the current conformance credential is denied that scope. Local snapshot tests cover non-empty serializer behavior from explicit fixture-backed records rather than inventing live conformance rows.
 
 ## Local filtering and ordering
 
