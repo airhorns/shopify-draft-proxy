@@ -2376,10 +2376,7 @@ async function main() {
     parityMetadata.draftOrderComplete?.blocker?.details,
     draftOrderCompleteResult.payload?.errors?.[0],
   );
-  const orderEditBeginAccessSummary = formatRequiredAccessSummary(
-    undefined,
-    orderEditBeginResult.payload?.errors?.[0],
-  );
+  const orderEditBeginAccessSummary = formatRequiredAccessSummary(undefined, orderEditBeginResult.payload?.errors?.[0]);
   const orderEditAddVariantAccessSummary = formatRequiredAccessSummary(
     undefined,
     orderEditAddVariantResult.payload?.errors?.[0],
