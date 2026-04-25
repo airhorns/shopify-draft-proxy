@@ -65,6 +65,7 @@ import type {
   ProductRecord,
   ProductVariantRecord,
   ShopifyPaymentsAccountRecord,
+  ShopRecord,
 } from '../src/state/types.js';
 
 function interpretMutationLogEntry(
@@ -844,6 +845,15 @@ function readArrayField(value: Record<string, unknown> | null | undefined, key: 
   return Array.isArray(fieldValue) ? fieldValue : [];
 }
 
+function readNullableStringField(value: Record<string, unknown> | null | undefined, key: string): string | null {
+  const fieldValue = value?.[key];
+  return typeof fieldValue === 'string' ? fieldValue : null;
+}
+
+function readStringArrayField(value: Record<string, unknown> | null | undefined, key: string): string[] {
+  return readArrayField(value, key).filter((entry): entry is string => typeof entry === 'string');
+}
+
 function readMoneySetField(
   value: Record<string, unknown> | null | undefined,
   key: string,
@@ -1133,6 +1143,253 @@ function readBusinessEntityRecord(source: Record<string, unknown> | null): Busin
     },
     shopifyPaymentsAccount: readShopifyPaymentsAccountRecord(readRecordField(source, 'shopifyPaymentsAccount')),
   };
+}
+
+function readShopRecord(source: Record<string, unknown> | null): ShopRecord | null {
+  if (!source) {
+    return null;
+  }
+
+  const primaryDomain = readRecordField(source, 'primaryDomain');
+  const shopAddress = readRecordField(source, 'shopAddress');
+  const plan = readRecordField(source, 'plan');
+  const resourceLimits = readRecordField(source, 'resourceLimits');
+  const features = readRecordField(source, 'features');
+  const bundles = readRecordField(features, 'bundles');
+  const cartTransform = readRecordField(features, 'cartTransform');
+  const eligibleOperations = readRecordField(cartTransform, 'eligibleOperations');
+  const paymentSettings = readRecordField(source, 'paymentSettings');
+  const policies = readArrayField(source, 'shopPolicies')
+    .filter(isPlainObject)
+    .map((policy) => {
+      const id = readStringField(policy, 'id');
+      const title = readNullableStringField(policy, 'title');
+      const body = readNullableStringField(policy, 'body');
+      const type = readStringField(policy, 'type');
+      const url = readStringField(policy, 'url');
+      const createdAt = readStringField(policy, 'createdAt');
+      const updatedAt = readStringField(policy, 'updatedAt');
+
+      return id && title !== null && body !== null && type && url && createdAt && updatedAt
+        ? {
+            id,
+            title,
+            body,
+            type,
+            url,
+            createdAt,
+            updatedAt,
+          }
+        : null;
+    })
+    .filter((policy): policy is ShopRecord['shopPolicies'][number] => policy !== null);
+
+  const id = readStringField(source, 'id');
+  const name = readStringField(source, 'name');
+  const myshopifyDomain = readStringField(source, 'myshopifyDomain');
+  const url = readStringField(source, 'url');
+  const primaryDomainId = readStringField(primaryDomain, 'id');
+  const primaryDomainHost = readStringField(primaryDomain, 'host');
+  const primaryDomainUrl = readStringField(primaryDomain, 'url');
+  const primaryDomainSslEnabled = readBooleanField(primaryDomain, 'sslEnabled');
+  const contactEmail = readStringField(source, 'contactEmail');
+  const email = readStringField(source, 'email');
+  const currencyCode = readStringField(source, 'currencyCode');
+  const ianaTimezone = readStringField(source, 'ianaTimezone');
+  const timezoneAbbreviation = readStringField(source, 'timezoneAbbreviation');
+  const timezoneOffset = readStringField(source, 'timezoneOffset');
+  const timezoneOffsetMinutes = readNumberField(source, 'timezoneOffsetMinutes');
+  const taxesIncluded = readBooleanField(source, 'taxesIncluded');
+  const taxShipping = readBooleanField(source, 'taxShipping');
+  const unitSystem = readStringField(source, 'unitSystem');
+  const weightUnit = readStringField(source, 'weightUnit');
+  const shopAddressId = readStringField(shopAddress, 'id');
+  const coordinatesValidated = readBooleanField(shopAddress, 'coordinatesValidated');
+  const planPartnerDevelopment = readBooleanField(plan, 'partnerDevelopment');
+  const planPublicDisplayName = readStringField(plan, 'publicDisplayName');
+  const planShopifyPlus = readBooleanField(plan, 'shopifyPlus');
+  const locationLimit = readNumberField(resourceLimits, 'locationLimit');
+  const maxProductOptions = readNumberField(resourceLimits, 'maxProductOptions');
+  const maxProductVariants = readNumberField(resourceLimits, 'maxProductVariants');
+  const redirectLimitReached = readBooleanField(resourceLimits, 'redirectLimitReached');
+  const avalaraAvatax = readBooleanField(features, 'avalaraAvatax');
+  const branding = readStringField(features, 'branding');
+  const eligibleForBundles = readBooleanField(bundles, 'eligibleForBundles');
+  const sellsBundles = readBooleanField(bundles, 'sellsBundles');
+  const captcha = readBooleanField(features, 'captcha');
+  const expandOperation = readBooleanField(eligibleOperations, 'expandOperation');
+  const mergeOperation = readBooleanField(eligibleOperations, 'mergeOperation');
+  const updateOperation = readBooleanField(eligibleOperations, 'updateOperation');
+  const dynamicRemarketing = readBooleanField(features, 'dynamicRemarketing');
+  const eligibleForSubscriptionMigration = readBooleanField(features, 'eligibleForSubscriptionMigration');
+  const eligibleForSubscriptions = readBooleanField(features, 'eligibleForSubscriptions');
+  const giftCards = readBooleanField(features, 'giftCards');
+  const harmonizedSystemCode = readBooleanField(features, 'harmonizedSystemCode');
+  const legacySubscriptionGatewayEnabled = readBooleanField(features, 'legacySubscriptionGatewayEnabled');
+  const liveView = readBooleanField(features, 'liveView');
+  const paypalExpressSubscriptionGatewayStatus = readStringField(features, 'paypalExpressSubscriptionGatewayStatus');
+  const reports = readBooleanField(features, 'reports');
+  const sellsSubscriptions = readBooleanField(features, 'sellsSubscriptions');
+  const showMetrics = readBooleanField(features, 'showMetrics');
+  const storefront = readBooleanField(features, 'storefront');
+  const unifiedMarkets = readBooleanField(features, 'unifiedMarkets');
+
+  if (
+    !id ||
+    !name ||
+    !myshopifyDomain ||
+    !url ||
+    !primaryDomainId ||
+    !primaryDomainHost ||
+    !primaryDomainUrl ||
+    primaryDomainSslEnabled === null ||
+    !contactEmail ||
+    !email ||
+    !currencyCode ||
+    !ianaTimezone ||
+    !timezoneAbbreviation ||
+    !timezoneOffset ||
+    timezoneOffsetMinutes === null ||
+    taxesIncluded === null ||
+    taxShipping === null ||
+    !unitSystem ||
+    !weightUnit ||
+    !shopAddressId ||
+    coordinatesValidated === null ||
+    planPartnerDevelopment === null ||
+    !planPublicDisplayName ||
+    planShopifyPlus === null ||
+    locationLimit === null ||
+    maxProductOptions === null ||
+    maxProductVariants === null ||
+    redirectLimitReached === null ||
+    avalaraAvatax === null ||
+    !branding ||
+    eligibleForBundles === null ||
+    sellsBundles === null ||
+    captcha === null ||
+    expandOperation === null ||
+    mergeOperation === null ||
+    updateOperation === null ||
+    dynamicRemarketing === null ||
+    eligibleForSubscriptionMigration === null ||
+    eligibleForSubscriptions === null ||
+    giftCards === null ||
+    harmonizedSystemCode === null ||
+    legacySubscriptionGatewayEnabled === null ||
+    liveView === null ||
+    !paypalExpressSubscriptionGatewayStatus ||
+    reports === null ||
+    sellsSubscriptions === null ||
+    showMetrics === null ||
+    storefront === null ||
+    unifiedMarkets === null
+  ) {
+    return null;
+  }
+
+  return {
+    id,
+    name,
+    myshopifyDomain,
+    url,
+    primaryDomain: {
+      id: primaryDomainId,
+      host: primaryDomainHost,
+      url: primaryDomainUrl,
+      sslEnabled: primaryDomainSslEnabled,
+    },
+    contactEmail,
+    email,
+    currencyCode,
+    enabledPresentmentCurrencies: readStringArrayField(source, 'enabledPresentmentCurrencies'),
+    ianaTimezone,
+    timezoneAbbreviation,
+    timezoneOffset,
+    timezoneOffsetMinutes,
+    taxesIncluded,
+    taxShipping,
+    unitSystem,
+    weightUnit,
+    shopAddress: {
+      id: shopAddressId,
+      address1: readNullableStringField(shopAddress, 'address1'),
+      address2: readNullableStringField(shopAddress, 'address2'),
+      city: readNullableStringField(shopAddress, 'city'),
+      company: readNullableStringField(shopAddress, 'company'),
+      coordinatesValidated,
+      country: readNullableStringField(shopAddress, 'country'),
+      countryCodeV2: readNullableStringField(shopAddress, 'countryCodeV2'),
+      formatted: readStringArrayField(shopAddress, 'formatted'),
+      formattedArea: readNullableStringField(shopAddress, 'formattedArea'),
+      latitude: readNumberField(shopAddress, 'latitude'),
+      longitude: readNumberField(shopAddress, 'longitude'),
+      phone: readNullableStringField(shopAddress, 'phone'),
+      province: readNullableStringField(shopAddress, 'province'),
+      provinceCode: readNullableStringField(shopAddress, 'provinceCode'),
+      zip: readNullableStringField(shopAddress, 'zip'),
+    },
+    plan: {
+      partnerDevelopment: planPartnerDevelopment,
+      publicDisplayName: planPublicDisplayName,
+      shopifyPlus: planShopifyPlus,
+    },
+    resourceLimits: {
+      locationLimit,
+      maxProductOptions,
+      maxProductVariants,
+      redirectLimitReached,
+    },
+    features: {
+      avalaraAvatax,
+      branding,
+      bundles: {
+        eligibleForBundles,
+        ineligibilityReason: readNullableStringField(bundles, 'ineligibilityReason'),
+        sellsBundles,
+      },
+      captcha,
+      cartTransform: {
+        eligibleOperations: {
+          expandOperation,
+          mergeOperation,
+          updateOperation,
+        },
+      },
+      dynamicRemarketing,
+      eligibleForSubscriptionMigration,
+      eligibleForSubscriptions,
+      giftCards,
+      harmonizedSystemCode,
+      legacySubscriptionGatewayEnabled,
+      liveView,
+      paypalExpressSubscriptionGatewayStatus,
+      reports,
+      sellsSubscriptions,
+      showMetrics,
+      storefront,
+      unifiedMarkets,
+    },
+    paymentSettings: {
+      supportedDigitalWallets: readStringArrayField(paymentSettings, 'supportedDigitalWallets'),
+    },
+    shopPolicies: policies,
+  };
+}
+
+function seedShopPreconditions(capture: unknown): boolean {
+  const captureRoot = isPlainObject(capture) ? capture : {};
+  const directData = readRecordField(captureRoot, 'data');
+  const shopBaseline = readRecordField(readRecordField(captureRoot, 'readOnlyBaselines'), 'shop');
+  const baselineData = readRecordField(shopBaseline, 'data');
+  const shop = readShopRecord(readRecordField(directData ?? baselineData, 'shop'));
+
+  if (!shop) {
+    return false;
+  }
+
+  store.upsertBaseShop(shop);
+  return true;
 }
 
 function seedBusinessEntityPreconditions(capture: unknown): boolean {
@@ -2536,6 +2793,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   }
 
   if (seedCustomerByIdentifierPreconditions(capture)) {
+    return;
+  }
+
+  if (seedShopPreconditions(capture)) {
     return;
   }
 

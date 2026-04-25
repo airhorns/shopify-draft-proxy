@@ -91,9 +91,9 @@
     "type": "query",
     "domain": "store-properties",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["shop", "Shop"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/shop-query-shapes.test.ts"]
   },
   {
     "name": "location",
