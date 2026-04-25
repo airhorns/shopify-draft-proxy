@@ -176,6 +176,10 @@ function mergeLocationRecords(base: LocationRecord | null, staged: LocationRecor
     return null;
   }
 
+  if (staged?.deleted === true) {
+    return null;
+  }
+
   if (!base) {
     return staged ? structuredClone(staged) : null;
   }
@@ -629,6 +633,10 @@ export class InMemoryStore {
       this.baseState.locations[locationId] ?? null,
       this.stagedState.locations[locationId] ?? null,
     );
+  }
+
+  isLocationDeleted(locationId: string): boolean {
+    return this.stagedState.locations[locationId]?.deleted === true;
   }
 
   listEffectiveLocations(): LocationRecord[] {

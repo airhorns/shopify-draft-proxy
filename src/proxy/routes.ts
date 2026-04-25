@@ -428,7 +428,10 @@ export function createProxyRouter(config: AppConfig): Router {
       capability.domain === 'store-properties' &&
       (primaryRootField === 'shopPolicyUpdate' ||
         primaryRootField === 'locationAdd' ||
-        primaryRootField === 'locationEdit')
+        primaryRootField === 'locationEdit' ||
+        primaryRootField === 'locationActivate' ||
+        primaryRootField === 'locationDeactivate' ||
+        primaryRootField === 'locationDelete')
     ) {
       proxyLogger.debug(
         {
