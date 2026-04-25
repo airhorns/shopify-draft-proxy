@@ -1,0 +1,26 @@
+{
+  "scenarioId": "location-delete-active-location-validation",
+  "operationNames": ["locationDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/location-lifecycle-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/location-delete-active-location-validation.graphql",
+    "variablesCapturePath": "$.cases[2].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Safe live Shopify validation capture for Admin GraphQL 2026-04. Deleting an active stocked location returns userErrors and does not delete the location.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "active-location-delete-user-errors",
+        "capturePath": "$.cases[2].response.payload.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

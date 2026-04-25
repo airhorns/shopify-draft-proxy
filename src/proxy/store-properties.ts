@@ -1,12 +1,13 @@
-import { Kind, type FieldNode, type SelectionNode } from 'graphql';
+import { Kind, type FieldNode, type SelectionNode, type ValueNode } from 'graphql';
 
 import { logger } from '../logger.js';
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
-import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
+import { makeProxySyntheticGid, makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type {
   BusinessEntityAddressRecord,
   BusinessEntityRecord,
+  FulfillmentServiceRecord,
   InventoryLevelRecord,
   LocationAddressRecord,
   LocationFulfillmentServiceRecord,
@@ -26,7 +27,13 @@ import type {
   ShopRecord,
   ShopResourceLimitsRecord,
 } from '../state/types.js';
-import { paginateConnectionItems, serializeConnectionPageInfo } from './graphql-helpers.js';
+import { paginateConnectionItems, serializeConnection } from './graphql-helpers.js';
+import {
+  readMetafieldInputObjects,
+  serializeMetafieldSelection,
+  serializeMetafieldsConnection,
+  upsertOwnerMetafields,
+} from './metafields.js';
 
 interface GraphQLResponseError {
   message: string;
@@ -51,6 +58,17 @@ interface ShopPolicyUserErrorRecord {
   field: string[] | null;
   message: string;
   code: 'TOO_BIG' | null;
+}
+
+interface LocationUserErrorRecord {
+  field: string[] | null;
+  message: string;
+  code?: string | null;
+}
+
+interface FulfillmentServiceUserErrorRecord {
+  field: string[] | null;
+  message: string;
 }
 
 const storePropertiesLogger = logger.child({ component: 'proxy.store-properties' });
@@ -153,10 +171,10 @@ function getEffectiveInventoryLevels(variant: ProductVariantRecord): InventoryLe
   const hydratedLevels = variant.inventoryItem?.inventoryLevels;
   if (!hydratedLevels || hydratedLevels.length === 0) {
     const syntheticLevel = buildSyntheticInventoryLevel(variant);
-    return syntheticLevel ? [syntheticLevel] : [];
+    return syntheticLevel && !store.isLocationDeleted(syntheticLevel.location?.id ?? '') ? [syntheticLevel] : [];
   }
 
-  return structuredClone(hydratedLevels);
+  return structuredClone(hydratedLevels).filter((level) => !store.isLocationDeleted(level.location?.id ?? ''));
 }
 
 function listLocationInventoryLevels(): LocationInventoryLevelRecord[] {
@@ -188,7 +206,7 @@ function listEffectiveLocations(): LocationRecord[] {
   const locations: LocationRecord[] = [];
   const seenLocationIds = new Set<string>();
 
-  for (const location of store.listBaseLocations()) {
+  for (const location of store.listEffectiveLocations()) {
     locationsById.set(location.id, location);
     seenLocationIds.add(location.id);
     locations.push(location);
@@ -219,6 +237,10 @@ function listEffectiveLocations(): LocationRecord[] {
 }
 
 function findEffectiveLocationById(id: string): LocationRecord | null {
+  if (store.isLocationDeleted(id)) {
+    return null;
+  }
+
   return listEffectiveLocations().find((location) => location.id === id) ?? null;
 }
 
@@ -380,7 +402,15 @@ function serializeLocationSuggestedAddress(
 function serializeLocationFulfillmentService(
   service: LocationFulfillmentServiceRecord,
   selections: readonly SelectionNode[],
+  variables: Record<string, unknown>,
 ): Record<string, unknown> {
+  if (typeof service.id === 'string') {
+    const fullService = store.getEffectiveFulfillmentServiceById(service.id);
+    if (fullService) {
+      return serializeFulfillmentService(fullService, selections, variables);
+    }
+  }
+
   const result: Record<string, unknown> = {};
 
   for (const selection of selections) {
@@ -402,6 +432,31 @@ function serializeLocationFulfillmentService(
       case 'serviceName':
         result[key] = service.serviceName;
         break;
+      case 'callbackUrl':
+        result[key] = service.callbackUrl ?? null;
+        break;
+      case 'inventoryManagement':
+        result[key] = service.inventoryManagement ?? false;
+        break;
+      case 'location':
+        result[key] =
+          typeof service.locationId === 'string'
+            ? serializeFulfillmentServiceLocation(
+                service.locationId,
+                selection.selectionSet?.selections ?? [],
+                variables,
+              )
+            : null;
+        break;
+      case 'requiresShippingMethod':
+        result[key] = service.requiresShippingMethod ?? true;
+        break;
+      case 'trackingSupport':
+        result[key] = service.trackingSupport ?? false;
+        break;
+      case 'type':
+        result[key] = service.type ?? 'THIRD_PARTY';
+        break;
       default:
         result[key] = null;
     }
@@ -410,24 +465,68 @@ function serializeLocationFulfillmentService(
   return result;
 }
 
-function serializeEmptyMetafieldsConnection(field: FieldNode): Record<string, unknown> {
+function serializeFulfillmentServiceLocation(
+  locationId: string,
+  selections: readonly SelectionNode[],
+  variables: Record<string, unknown>,
+): Record<string, unknown> | null {
+  const location = findEffectiveLocationById(locationId);
+  return location ? serializeLocation(location, selections, variables) : null;
+}
+
+function serializeFulfillmentService(
+  service: FulfillmentServiceRecord,
+  selections: readonly SelectionNode[],
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
-  for (const selection of field.selectionSet?.selections ?? []) {
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'FulfillmentService') {
+        continue;
+      }
+      Object.assign(result, serializeFulfillmentService(service, selection.selectionSet.selections, variables));
+      continue;
+    }
+
     if (selection.kind !== Kind.FIELD) {
       continue;
     }
 
     const key = responseKey(selection);
     switch (selection.name.value) {
-      case 'nodes':
-        result[key] = [];
+      case '__typename':
+        result[key] = 'FulfillmentService';
         break;
-      case 'edges':
-        result[key] = [];
+      case 'id':
+        result[key] = service.id;
         break;
-      case 'pageInfo':
-        result[key] = serializeConnectionPageInfo(selection, [], false, false, () => '');
+      case 'handle':
+        result[key] = service.handle;
+        break;
+      case 'serviceName':
+        result[key] = service.serviceName;
+        break;
+      case 'callbackUrl':
+        result[key] = service.callbackUrl;
+        break;
+      case 'inventoryManagement':
+        result[key] = service.inventoryManagement;
+        break;
+      case 'location':
+        result[key] = service.locationId
+          ? serializeFulfillmentServiceLocation(service.locationId, selection.selectionSet?.selections ?? [], variables)
+          : null;
+        break;
+      case 'requiresShippingMethod':
+        result[key] = service.requiresShippingMethod;
+        break;
+      case 'trackingSupport':
+        result[key] = service.trackingSupport;
+        break;
+      case 'type':
+        result[key] = service.type;
         break;
       default:
         result[key] = null;
@@ -485,6 +584,7 @@ function serializeInventoryLevelLocation(
   selections: readonly SelectionNode[],
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
+  const effectiveLocation = findEffectiveLocationById(location.id);
 
   for (const selection of selections) {
     if (selection.kind === Kind.INLINE_FRAGMENT) {
@@ -508,7 +608,7 @@ function serializeInventoryLevelLocation(
         result[key] = location.id;
         break;
       case 'name':
-        result[key] = location.name;
+        result[key] = effectiveLocation?.name ?? location.name;
         break;
       default:
         result[key] = null;
@@ -627,65 +727,17 @@ function serializeLocationInventoryLevelsConnection(
     hasNextPage,
     hasPreviousPage,
   } = paginateConnectionItems(allLevels, field, variables, getInventoryLevelCursor);
-  const result: Record<string, unknown> = {};
-
-  for (const selection of field.selectionSet?.selections ?? []) {
-    if (selection.kind !== Kind.FIELD) {
-      continue;
-    }
-
-    const key = responseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = levels.map((level) =>
-          serializeInventoryLevel(level, selection.selectionSet?.selections ?? [], variables),
-        );
-        break;
-      case 'edges':
-        result[key] = levels.map((level) => {
-          const edgeResult: Record<string, unknown> = {};
-          for (const edgeSelection of selection.selectionSet?.selections ?? []) {
-            if (edgeSelection.kind !== Kind.FIELD) {
-              continue;
-            }
-
-            const edgeKey = responseKey(edgeSelection);
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edgeResult[edgeKey] = getInventoryLevelCursor(level);
-                break;
-              case 'node':
-                edgeResult[edgeKey] = serializeInventoryLevel(
-                  level,
-                  edgeSelection.selectionSet?.selections ?? [],
-                  variables,
-                );
-                break;
-              default:
-                edgeResult[edgeKey] = null;
-            }
-          }
-          return edgeResult;
-        });
-        break;
-      case 'pageInfo':
-        result[key] = serializeConnectionPageInfo(
-          selection,
-          levels,
-          hasNextPage,
-          hasPreviousPage,
-          getInventoryLevelCursor,
-          {
-            prefixCursors: false,
-          },
-        );
-        break;
-      default:
-        result[key] = null;
-    }
-  }
-
-  return result;
+  return serializeConnection(field, {
+    items: levels,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: getInventoryLevelCursor,
+    serializeNode: (level, selection) =>
+      serializeInventoryLevel(level, selection.selectionSet?.selections ?? [], variables),
+    pageInfoOptions: {
+      prefixCursors: false,
+    },
+  });
 }
 
 function findInventoryLevelForLocation(
@@ -696,6 +748,23 @@ function findInventoryLevelForLocation(
     listInventoryLevelsForLocation(locationId).find((entry) => entry.variant.inventoryItem?.id === inventoryItemId) ??
     null
   );
+}
+
+function serializeLocationMetafield(
+  location: LocationRecord,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> | null {
+  const args = getFieldArguments(field, variables);
+  const namespace = typeof args['namespace'] === 'string' ? args['namespace'] : null;
+  const key = typeof args['key'] === 'string' ? args['key'] : null;
+  if (!namespace || !key) {
+    return null;
+  }
+
+  const metafield =
+    (location.metafields ?? []).find((candidate) => candidate.namespace === namespace && candidate.key === key) ?? null;
+  return metafield ? serializeMetafieldSelection(metafield, field, { includeInlineFragments: true }) : null;
 }
 
 function serializeLocation(
@@ -755,7 +824,11 @@ function serializeLocation(
         break;
       case 'fulfillmentService':
         result[key] = location.fulfillmentService
-          ? serializeLocationFulfillmentService(location.fulfillmentService, selection.selectionSet?.selections ?? [])
+          ? serializeLocationFulfillmentService(
+              location.fulfillmentService,
+              selection.selectionSet?.selections ?? [],
+              variables,
+            )
           : null;
         break;
       case 'fulfillsOnlineOrders':
@@ -785,10 +858,12 @@ function serializeLocation(
         );
         break;
       case 'metafield':
-        result[key] = null;
+        result[key] = serializeLocationMetafield(location, selection, variables);
         break;
       case 'metafields':
-        result[key] = serializeEmptyMetafieldsConnection(selection);
+        result[key] = serializeMetafieldsConnection(location.metafields ?? [], selection, variables, {
+          includeInlineFragments: true,
+        });
         break;
       case 'inventoryLevel': {
         const args = getFieldArguments(selection, variables);
@@ -1441,6 +1516,11 @@ function serializeShop(shop: ShopRecord, selections: readonly SelectionNode[]): 
       case 'features':
         result[key] = serializeShopFeatures(shop.features, selection.selectionSet?.selections ?? []);
         break;
+      case 'fulfillmentServices':
+        result[key] = store
+          .listEffectiveFulfillmentServices()
+          .map((service) => serializeFulfillmentService(service, selection.selectionSet?.selections ?? [], {}));
+        break;
       case 'paymentSettings':
         result[key] = serializePaymentSettings(shop.paymentSettings, selection.selectionSet?.selections ?? []);
         break;
@@ -1457,13 +1537,10 @@ function serializeShop(shop: ShopRecord, selections: readonly SelectionNode[]): 
   return result;
 }
 
-function unsupportedShopifyPaymentsFieldError(
-  businessEntity: BusinessEntityRecord,
-  fieldName: string,
-): GraphQLResponseError {
+function unsupportedShopifyPaymentsFieldError(fieldName: string, path: Array<string | number>): GraphQLResponseError {
   return {
     message: `Field ShopifyPaymentsAccount.${fieldName} is not exposed by the local snapshot because it can contain account-specific payment data. Capture and model it explicitly before relying on it.`,
-    path: ['businessEntity', 'shopifyPaymentsAccount', fieldName],
+    path,
     extensions: {
       code: 'UNSUPPORTED_FIELD',
       reason: 'shopify-payments-account-sensitive-field',
@@ -1471,11 +1548,22 @@ function unsupportedShopifyPaymentsFieldError(
   };
 }
 
+function serializeEmptyShopifyPaymentsConnection(field: FieldNode): Record<string, unknown> {
+  return serializeConnection(field, {
+    items: [],
+    hasNextPage: false,
+    hasPreviousPage: false,
+    getCursorValue: () => '',
+    serializeNode: () => null,
+  });
+}
+
 function serializeShopifyPaymentsAccount(
   businessEntity: BusinessEntityRecord,
   account: ShopifyPaymentsAccountRecord,
   selections: readonly SelectionNode[],
   context: SerializationContext,
+  path: Array<string | number>,
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
@@ -1486,7 +1574,7 @@ function serializeShopifyPaymentsAccount(
       }
       Object.assign(
         result,
-        serializeShopifyPaymentsAccount(businessEntity, account, selection.selectionSet.selections, context),
+        serializeShopifyPaymentsAccount(businessEntity, account, selection.selectionSet.selections, context, path),
       );
       continue;
     }
@@ -1515,6 +1603,11 @@ function serializeShopifyPaymentsAccount(
       case 'onboardable':
         result[key] = account.onboardable;
         break;
+      case 'balanceTransactions':
+      case 'disputes':
+      case 'payouts':
+        result[key] = serializeEmptyShopifyPaymentsConnection(selection);
+        break;
       default: {
         if (!SAFE_SHOPIFY_PAYMENTS_ACCOUNT_FIELDS.has(selection.name.value)) {
           storePropertiesLogger.warn(
@@ -1524,7 +1617,7 @@ function serializeShopifyPaymentsAccount(
             },
             'unsupported Shopify Payments account field requested from snapshot business entity',
           );
-          context.errors.push(unsupportedShopifyPaymentsFieldError(businessEntity, selection.name.value));
+          context.errors.push(unsupportedShopifyPaymentsFieldError(selection.name.value, [...path, key]));
         }
         result[key] = null;
       }
@@ -1538,6 +1631,7 @@ function serializeBusinessEntity(
   businessEntity: BusinessEntityRecord,
   selections: readonly SelectionNode[],
   context: SerializationContext,
+  path: Array<string | number>,
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
@@ -1546,7 +1640,7 @@ function serializeBusinessEntity(
       if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'BusinessEntity') {
         continue;
       }
-      Object.assign(result, serializeBusinessEntity(businessEntity, selection.selectionSet.selections, context));
+      Object.assign(result, serializeBusinessEntity(businessEntity, selection.selectionSet.selections, context, path));
       continue;
     }
 
@@ -1584,6 +1678,7 @@ function serializeBusinessEntity(
               businessEntity.shopifyPaymentsAccount,
               selection.selectionSet?.selections ?? [],
               context,
+              [...path, key],
             )
           : null;
         break;
@@ -1593,6 +1688,30 @@ function serializeBusinessEntity(
   }
 
   return result;
+}
+
+function getShopifyPaymentsAccountOwner(): {
+  businessEntity: BusinessEntityRecord;
+  account: ShopifyPaymentsAccountRecord;
+} | null {
+  const primaryBusinessEntity = store.getPrimaryBusinessEntity();
+  if (primaryBusinessEntity?.shopifyPaymentsAccount) {
+    return {
+      businessEntity: primaryBusinessEntity,
+      account: primaryBusinessEntity.shopifyPaymentsAccount,
+    };
+  }
+
+  const firstAccountBusinessEntity =
+    store.listEffectiveBusinessEntities().find((businessEntity) => businessEntity.shopifyPaymentsAccount !== null) ??
+    null;
+
+  return firstAccountBusinessEntity?.shopifyPaymentsAccount
+    ? {
+        businessEntity: firstAccountBusinessEntity,
+        account: firstAccountBusinessEntity.shopifyPaymentsAccount,
+      }
+    : null;
 }
 
 function readShopPolicyInput(args: Record<string, unknown>): Record<string, unknown> {
@@ -1607,6 +1726,1029 @@ function readShopPolicyInput(args: Record<string, unknown>): Record<string, unkn
   }
 
   return {};
+}
+
+function readLocationInput(args: Record<string, unknown>): Record<string, unknown> {
+  const input = args['input'];
+  return input && typeof input === 'object' && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
+}
+
+function readLocationAddressInput(input: Record<string, unknown>): Record<string, unknown> | null {
+  const address = input['address'];
+  return address && typeof address === 'object' && !Array.isArray(address)
+    ? (address as Record<string, unknown>)
+    : null;
+}
+
+function hasInputField(input: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(input, key);
+}
+
+function readOptionalInputString(input: Record<string, unknown>, key: string): string | null {
+  const value = input[key];
+  return typeof value === 'string' ? value : null;
+}
+
+function resolveGraphQLValueNode(node: ValueNode, variables: Record<string, unknown>): unknown {
+  switch (node.kind) {
+    case Kind.NULL:
+      return null;
+    case Kind.STRING:
+    case Kind.ENUM:
+    case Kind.BOOLEAN:
+      return node.value;
+    case Kind.INT:
+      return Number.parseInt(node.value, 10);
+    case Kind.FLOAT:
+      return Number.parseFloat(node.value);
+    case Kind.LIST:
+      return node.values.map((value) => resolveGraphQLValueNode(value, variables));
+    case Kind.OBJECT:
+      return Object.fromEntries(
+        node.fields.map((field) => [field.name.value, resolveGraphQLValueNode(field.value, variables)]),
+      );
+    case Kind.VARIABLE:
+      return variables[node.name.value] ?? null;
+  }
+}
+
+function readIdempotencyKey(field: FieldNode, variables: Record<string, unknown>): string | null {
+  const directive = field.directives?.find((candidate) => candidate.name.value === 'idempotent') ?? null;
+  const keyArgument =
+    directive?.arguments?.find((argument) => argument.name.value === 'key') ??
+    directive?.arguments?.find((argument) => argument.name.value === 'idempotencyKey') ??
+    null;
+  if (!keyArgument) {
+    return null;
+  }
+
+  const key = resolveGraphQLValueNode(keyArgument.value, variables);
+  return typeof key === 'string' && key.trim().length > 0 ? key : null;
+}
+
+function buildMissingIdempotencyKeyError(field: FieldNode): GraphQLResponseError {
+  return {
+    message: 'The @idempotent directive is required for this mutation but was not provided.',
+    ...(field.loc
+      ? {
+          locations: [
+            {
+              line: field.loc.startToken.line,
+              column: field.loc.startToken.column,
+            },
+          ],
+        }
+      : {}),
+    path: [responseKey(field)],
+    extensions: {
+      code: 'BAD_REQUEST',
+    },
+  };
+}
+
+function buildLocationFormattedAddress(address: LocationAddressRecord): string[] {
+  const lines = [
+    address.address1,
+    address.address2,
+    [address.city, address.provinceCode ?? address.province, address.zip].filter(Boolean).join(' '),
+    address.countryCode ?? address.country,
+  ].filter((line): line is string => typeof line === 'string' && line.trim().length > 0);
+
+  return lines.length > 0 ? lines : [];
+}
+
+function buildLocationAddressRecord(
+  input: Record<string, unknown> | null,
+  base: LocationAddressRecord | null = null,
+): LocationAddressRecord | null {
+  if (!input && !base) {
+    return null;
+  }
+
+  const address: LocationAddressRecord = {
+    address1:
+      input && hasInputField(input, 'address1') ? readOptionalInputString(input, 'address1') : (base?.address1 ?? null),
+    address2:
+      input && hasInputField(input, 'address2') ? readOptionalInputString(input, 'address2') : (base?.address2 ?? null),
+    city: input && hasInputField(input, 'city') ? readOptionalInputString(input, 'city') : (base?.city ?? null),
+    country: base?.country ?? null,
+    countryCode:
+      input && hasInputField(input, 'countryCode')
+        ? readOptionalInputString(input, 'countryCode')
+        : (base?.countryCode ?? null),
+    formatted: [],
+    latitude: base?.latitude ?? null,
+    longitude: base?.longitude ?? null,
+    phone: input && hasInputField(input, 'phone') ? readOptionalInputString(input, 'phone') : (base?.phone ?? null),
+    province: base?.province ?? null,
+    provinceCode:
+      input && hasInputField(input, 'provinceCode')
+        ? readOptionalInputString(input, 'provinceCode')
+        : (base?.provinceCode ?? null),
+    zip: input && hasInputField(input, 'zip') ? readOptionalInputString(input, 'zip') : (base?.zip ?? null),
+  };
+
+  address.country = address.country ?? address.countryCode;
+  address.formatted = buildLocationFormattedAddress(address);
+  return address;
+}
+
+function serializeLocationUserErrors(
+  userErrors: LocationUserErrorRecord[],
+  typename: string,
+  selections: readonly SelectionNode[],
+): Array<Record<string, unknown>> {
+  return userErrors.map((userError) => {
+    const result: Record<string, unknown> = {};
+
+    for (const selection of selections) {
+      if (selection.kind === Kind.INLINE_FRAGMENT) {
+        Object.assign(
+          result,
+          serializeLocationUserErrors([userError], typename, selection.selectionSet.selections)[0] ?? {},
+        );
+        continue;
+      }
+
+      if (selection.kind !== Kind.FIELD) {
+        continue;
+      }
+
+      const key = responseKey(selection);
+      switch (selection.name.value) {
+        case '__typename':
+          result[key] = typename;
+          break;
+        case 'field':
+          result[key] = userError.field ? structuredClone(userError.field) : null;
+          break;
+        case 'message':
+          result[key] = userError.message;
+          break;
+        case 'code':
+          result[key] = userError.code ?? null;
+          break;
+        default:
+          result[key] = null;
+      }
+    }
+
+    return result;
+  });
+}
+
+function validateLocationInput(
+  input: Record<string, unknown>,
+  options: { requireCountry: boolean },
+): LocationUserErrorRecord[] {
+  const userErrors: LocationUserErrorRecord[] = [];
+  const rawName = input['name'];
+  const address = readLocationAddressInput(input);
+
+  if (typeof rawName === 'string' && rawName.trim().length === 0) {
+    userErrors.push({ field: ['input', 'name'], message: 'Add a location name' });
+  }
+
+  if (options.requireCountry) {
+    const countryCode = address ? readOptionalInputString(address, 'countryCode') : null;
+    if (!countryCode || countryCode.trim().length === 0) {
+      userErrors.push({ field: ['input', 'address', 'countryCode'], message: 'Country is required' });
+    }
+  }
+
+  return userErrors;
+}
+
+function stageLocationAdd(input: Record<string, unknown>): {
+  location: LocationRecord | null;
+  userErrors: LocationUserErrorRecord[];
+} {
+  const userErrors = validateLocationInput(input, { requireCountry: true });
+  const name = readOptionalInputString(input, 'name');
+  const address = buildLocationAddressRecord(readLocationAddressInput(input));
+  if (userErrors.length > 0 || !name || !address) {
+    return { location: null, userErrors };
+  }
+
+  const now = makeSyntheticTimestamp();
+  const location: LocationRecord = {
+    id: makeProxySyntheticGid('Location'),
+    name,
+    legacyResourceId: null,
+    activatable: false,
+    addressVerified: false,
+    createdAt: now,
+    deactivatable: true,
+    deactivatedAt: null,
+    deletable: true,
+    fulfillmentService: null,
+    fulfillsOnlineOrders: typeof input['fulfillsOnlineOrders'] === 'boolean' ? input['fulfillsOnlineOrders'] : true,
+    hasActiveInventory: false,
+    hasUnfulfilledOrders: false,
+    isActive: true,
+    isFulfillmentService: false,
+    shipsInventory: true,
+    updatedAt: now,
+    address,
+    suggestedAddresses: [],
+    metafields: [],
+  };
+
+  const metafieldInputs = readMetafieldInputObjects(input['metafields']);
+  if (metafieldInputs.length > 0) {
+    location.metafields = upsertOwnerMetafields('locationId', location.id, metafieldInputs, [], {
+      allowIdLookup: true,
+      ownerType: 'LOCATION',
+      trimIdentity: true,
+    }).metafields;
+  }
+
+  return { location: store.stageCreateLocation(location), userErrors: [] };
+}
+
+function stageLocationEdit(
+  id: string | null,
+  input: Record<string, unknown>,
+): { location: LocationRecord | null; userErrors: LocationUserErrorRecord[] } {
+  if (!id) {
+    return { location: null, userErrors: [{ field: ['id'], message: 'Location not found.' }] };
+  }
+
+  const existing = store.getEffectiveLocationById(id) ?? findEffectiveLocationById(id);
+  if (!existing) {
+    return { location: null, userErrors: [{ field: ['id'], message: 'Location not found.' }] };
+  }
+
+  if (existing.isFulfillmentService === true) {
+    return {
+      location: null,
+      userErrors: [
+        {
+          field: ['id'],
+          message: 'Only the app that created a fulfillment service can edit its associated location.',
+        },
+      ],
+    };
+  }
+
+  const userErrors = validateLocationInput(input, { requireCountry: false });
+  if (userErrors.length > 0) {
+    return { location: null, userErrors };
+  }
+
+  const addressInput = readLocationAddressInput(input);
+  const nextLocation: LocationRecord = {
+    ...existing,
+    name: hasInputField(input, 'name') ? readOptionalInputString(input, 'name') : existing.name,
+    fulfillsOnlineOrders:
+      typeof input['fulfillsOnlineOrders'] === 'boolean'
+        ? input['fulfillsOnlineOrders']
+        : existing.fulfillsOnlineOrders,
+    updatedAt: makeSyntheticTimestamp(),
+    address: addressInput ? buildLocationAddressRecord(addressInput, existing.address ?? null) : existing.address,
+  };
+
+  const metafieldInputs = readMetafieldInputObjects(input['metafields']);
+  if (metafieldInputs.length > 0) {
+    nextLocation.metafields = upsertOwnerMetafields(
+      'locationId',
+      nextLocation.id,
+      metafieldInputs,
+      nextLocation.metafields ?? [],
+      {
+        allowIdLookup: true,
+        ownerType: 'LOCATION',
+        trimIdentity: true,
+      },
+    ).metafields;
+  }
+
+  return { location: store.stageUpdateLocation(nextLocation), userErrors: [] };
+}
+
+type LocationLifecyclePayload = { location: LocationRecord | null; userErrors: LocationUserErrorRecord[] };
+type LocationDeletePayload = { deletedLocationId: string | null; userErrors: LocationUserErrorRecord[] };
+
+function locationNotFoundError(field: string): LocationUserErrorRecord {
+  return { field: [field], message: 'Location not found.', code: 'LOCATION_NOT_FOUND' };
+}
+
+function isLocationActive(location: LocationRecord): boolean {
+  return location.isActive ?? true;
+}
+
+function locationHasInventory(locationId: string): boolean {
+  return listInventoryLevelsForLocation(locationId).length > 0;
+}
+
+function mergeInventoryQuantities(
+  destination: InventoryLevelRecord['quantities'],
+  source: InventoryLevelRecord['quantities'],
+): InventoryLevelRecord['quantities'] {
+  const quantitiesByName = new Map(destination.map((quantity) => [quantity.name, structuredClone(quantity)]));
+
+  for (const sourceQuantity of source) {
+    const existing = quantitiesByName.get(sourceQuantity.name) ?? {
+      name: sourceQuantity.name,
+      quantity: 0,
+      updatedAt: null,
+    };
+    quantitiesByName.set(sourceQuantity.name, {
+      ...existing,
+      quantity: (existing.quantity ?? 0) + (sourceQuantity.quantity ?? 0),
+      updatedAt: sourceQuantity.updatedAt ?? existing.updatedAt,
+    });
+  }
+
+  return [...quantitiesByName.values()];
+}
+
+function transferLocationInventory(sourceLocationId: string, destinationLocation: LocationRecord): void {
+  for (const product of store.listEffectiveProducts()) {
+    const variants = store.getEffectiveVariantsByProductId(product.id);
+    let changed = false;
+    const nextVariants = variants.map((variant) => {
+      if (!variant.inventoryItem) {
+        return variant;
+      }
+
+      const levels = getEffectiveInventoryLevels(variant);
+      const sourceLevels = levels.filter((level) => level.location?.id === sourceLocationId);
+      if (sourceLevels.length === 0) {
+        return variant;
+      }
+
+      changed = true;
+      const nextLevels = levels.filter((level) => level.location?.id !== sourceLocationId);
+      let destinationIndex = nextLevels.findIndex((level) => level.location?.id === destinationLocation.id);
+      for (const sourceLevel of sourceLevels) {
+        if (destinationIndex === -1) {
+          const nextDestinationLevel: InventoryLevelRecord = {
+            ...structuredClone(sourceLevel),
+            id: buildStableSyntheticInventoryLevelId(variant.inventoryItem.id, destinationLocation.id),
+            cursor: null,
+            location: { id: destinationLocation.id, name: destinationLocation.name },
+          };
+          nextLevels.push(nextDestinationLevel);
+          destinationIndex = nextLevels.length - 1;
+          continue;
+        }
+
+        const destinationLevel = nextLevels[destinationIndex];
+        if (!destinationLevel) {
+          continue;
+        }
+
+        nextLevels[destinationIndex] = {
+          ...destinationLevel,
+          quantities: mergeInventoryQuantities(destinationLevel.quantities, sourceLevel.quantities),
+        };
+      }
+
+      return {
+        ...structuredClone(variant),
+        inventoryItem: {
+          ...structuredClone(variant.inventoryItem),
+          inventoryLevels: nextLevels,
+        },
+      };
+    });
+
+    if (changed) {
+      store.replaceStagedVariantsForProduct(product.id, nextVariants);
+    }
+  }
+}
+
+function stageLocationDeactivate(
+  locationId: string | null,
+  destinationLocationId: string | null,
+): LocationLifecyclePayload {
+  if (!locationId) {
+    return { location: null, userErrors: [locationNotFoundError('locationId')] };
+  }
+
+  const existing = store.getEffectiveLocationById(locationId) ?? findEffectiveLocationById(locationId);
+  if (!existing) {
+    return { location: null, userErrors: [locationNotFoundError('locationId')] };
+  }
+
+  if (!isLocationActive(existing)) {
+    return { location: existing, userErrors: [] };
+  }
+
+  if (existing.hasUnfulfilledOrders === true) {
+    return {
+      location: existing,
+      userErrors: [
+        {
+          field: ['locationId'],
+          message: 'Location could not be deactivated because it has pending orders.',
+          code: 'HAS_FULFILLMENT_ORDERS_ERROR',
+        },
+      ],
+    };
+  }
+
+  if (locationHasInventory(existing.id)) {
+    if (!destinationLocationId) {
+      return {
+        location: existing,
+        userErrors: [
+          {
+            field: ['locationId'],
+            message:
+              'Location could not be deactivated without specifying where to relocate inventory stocked at the location.',
+            code: 'HAS_ACTIVE_INVENTORY_ERROR',
+          },
+        ],
+      };
+    }
+
+    if (destinationLocationId === existing.id) {
+      return {
+        location: existing,
+        userErrors: [
+          {
+            field: ['destinationLocationId'],
+            message: 'Destination location must be different from the location being deactivated.',
+            code: 'GENERIC_ERROR',
+          },
+        ],
+      };
+    }
+
+    const destinationLocation =
+      store.getEffectiveLocationById(destinationLocationId) ?? findEffectiveLocationById(destinationLocationId);
+    if (!destinationLocation || !isLocationActive(destinationLocation)) {
+      return {
+        location: existing,
+        userErrors: [locationNotFoundError('destinationLocationId')],
+      };
+    }
+
+    transferLocationInventory(existing.id, destinationLocation);
+  }
+
+  const now = makeSyntheticTimestamp();
+  const nextLocation: LocationRecord = {
+    ...existing,
+    activatable: true,
+    deactivatable: false,
+    deactivatedAt: now,
+    deletable: true,
+    fulfillsOnlineOrders: false,
+    hasActiveInventory: false,
+    isActive: false,
+    shipsInventory: false,
+    updatedAt: now,
+  };
+
+  return { location: store.stageUpdateLocation(nextLocation), userErrors: [] };
+}
+
+function stageLocationActivate(locationId: string | null): LocationLifecyclePayload {
+  if (!locationId) {
+    return { location: null, userErrors: [locationNotFoundError('locationId')] };
+  }
+
+  const existing = store.getEffectiveLocationById(locationId) ?? findEffectiveLocationById(locationId);
+  if (!existing) {
+    return { location: null, userErrors: [locationNotFoundError('locationId')] };
+  }
+
+  if (isLocationActive(existing)) {
+    return { location: existing, userErrors: [] };
+  }
+
+  if (existing.activatable === false) {
+    return {
+      location: existing,
+      userErrors: [{ field: ['locationId'], message: 'Location cannot be activated.', code: 'GENERIC_ERROR' }],
+    };
+  }
+
+  const duplicateActiveName = listEffectiveLocations().some(
+    (location) => location.id !== existing.id && isLocationActive(location) && location.name === existing.name,
+  );
+  if (duplicateActiveName) {
+    return {
+      location: existing,
+      userErrors: [
+        {
+          field: ['locationId'],
+          message: 'A location with this name already exists.',
+          code: 'HAS_NON_UNIQUE_NAME',
+        },
+      ],
+    };
+  }
+
+  const now = makeSyntheticTimestamp();
+  const nextLocation: LocationRecord = {
+    ...existing,
+    activatable: false,
+    deactivatable: true,
+    deactivatedAt: null,
+    deletable: false,
+    fulfillsOnlineOrders: existing.fulfillsOnlineOrders ?? true,
+    isActive: true,
+    shipsInventory: true,
+    updatedAt: now,
+  };
+
+  return { location: store.stageUpdateLocation(nextLocation), userErrors: [] };
+}
+
+function stageLocationDelete(locationId: string | null): LocationDeletePayload {
+  if (!locationId) {
+    return { deletedLocationId: null, userErrors: [locationNotFoundError('locationId')] };
+  }
+
+  const existing = store.getEffectiveLocationById(locationId) ?? findEffectiveLocationById(locationId);
+  if (!existing) {
+    return { deletedLocationId: null, userErrors: [locationNotFoundError('locationId')] };
+  }
+
+  const userErrors: LocationUserErrorRecord[] = [];
+
+  if (isLocationActive(existing)) {
+    userErrors.push({
+      field: ['locationId'],
+      message: 'The location cannot be deleted while it is active.',
+      code: 'LOCATION_IS_ACTIVE',
+    });
+  }
+
+  if (locationHasInventory(existing.id)) {
+    userErrors.push({
+      field: ['locationId'],
+      message: 'The location cannot be deleted while it has inventory.',
+      code: 'LOCATION_HAS_INVENTORY',
+    });
+  }
+
+  if (existing.hasUnfulfilledOrders === true) {
+    userErrors.push({
+      field: ['locationId'],
+      message: 'The location cannot be deleted while it has pending orders.',
+      code: 'LOCATION_HAS_PENDING_ORDERS',
+    });
+  }
+
+  if (userErrors.length > 0) {
+    return { deletedLocationId: null, userErrors };
+  }
+
+  store.stageUpdateLocation({
+    ...existing,
+    deleted: true,
+    updatedAt: makeSyntheticTimestamp(),
+  });
+
+  return { deletedLocationId: existing.id, userErrors: [] };
+}
+
+function serializeLocationMutationPayload(
+  payload: { location: LocationRecord | null; userErrors: LocationUserErrorRecord[] },
+  payloadTypename: string,
+  userErrorTypename: string,
+  selections: readonly SelectionNode[],
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== payloadTypename) {
+        continue;
+      }
+      Object.assign(
+        result,
+        serializeLocationMutationPayload(
+          payload,
+          payloadTypename,
+          userErrorTypename,
+          selection.selectionSet.selections,
+          variables,
+        ),
+      );
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = payloadTypename;
+        break;
+      case 'location':
+        result[key] = payload.location
+          ? serializeLocation(payload.location, selection.selectionSet?.selections ?? [], variables)
+          : null;
+        break;
+      case 'userErrors':
+      case 'locationActivateUserErrors':
+      case 'locationDeactivateUserErrors':
+        result[key] = serializeLocationUserErrors(
+          payload.userErrors,
+          userErrorTypename,
+          selection.selectionSet?.selections ?? [],
+        );
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeLocationDeletePayload(
+  payload: LocationDeletePayload,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'LocationDeletePayload') {
+        continue;
+      }
+      Object.assign(result, serializeLocationDeletePayload(payload, selection.selectionSet.selections));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'LocationDeletePayload';
+        break;
+      case 'deletedLocationId':
+        result[key] = payload.deletedLocationId;
+        break;
+      case 'userErrors':
+      case 'locationDeleteUserErrors':
+        result[key] = serializeLocationUserErrors(
+          payload.userErrors,
+          'LocationDeleteUserError',
+          selection.selectionSet?.selections ?? [],
+        );
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function normalizeFulfillmentServiceHandle(name: string): string {
+  const handle = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/gu, '-')
+    .replace(/^-+|-+$/gu, '');
+  return handle.length > 0 ? handle : 'fulfillment-service';
+}
+
+function isAllowedFulfillmentServiceCallbackUrl(callbackUrl: string | null): boolean {
+  if (callbackUrl === null || callbackUrl.trim().length === 0) {
+    return true;
+  }
+
+  try {
+    const url = new URL(callbackUrl);
+    return url.protocol === 'https:' && url.hostname === 'mock.shop';
+  } catch {
+    return false;
+  }
+}
+
+function fulfillmentServiceLocationReference(service: FulfillmentServiceRecord): LocationFulfillmentServiceRecord {
+  return {
+    id: service.id,
+    handle: service.handle,
+    serviceName: service.serviceName,
+    callbackUrl: service.callbackUrl,
+    inventoryManagement: service.inventoryManagement,
+    locationId: service.locationId,
+    requiresShippingMethod: service.requiresShippingMethod,
+    trackingSupport: service.trackingSupport,
+    type: service.type,
+  };
+}
+
+function buildFulfillmentServiceLocation(
+  service: FulfillmentServiceRecord,
+  existing?: LocationRecord | null,
+): LocationRecord {
+  const now = makeSyntheticTimestamp();
+  return {
+    id: service.locationId ?? makeProxySyntheticGid('Location'),
+    name: service.serviceName,
+    legacyResourceId: existing?.legacyResourceId ?? null,
+    activatable: existing?.activatable ?? false,
+    addressVerified: existing?.addressVerified ?? false,
+    createdAt: existing?.createdAt ?? now,
+    deactivatable: existing?.deactivatable ?? false,
+    deactivatedAt: existing?.deactivatedAt ?? null,
+    deletable: existing?.deletable ?? false,
+    fulfillmentService: fulfillmentServiceLocationReference(service),
+    fulfillsOnlineOrders: true,
+    hasActiveInventory: existing?.hasActiveInventory ?? false,
+    hasUnfulfilledOrders: existing?.hasUnfulfilledOrders ?? false,
+    isActive: true,
+    isFulfillmentService: true,
+    shipsInventory: false,
+    updatedAt: now,
+    address: existing?.address ?? null,
+    suggestedAddresses: existing?.suggestedAddresses ?? [],
+    metafields: existing?.metafields ?? [],
+  };
+}
+
+function readFulfillmentServiceCallbackUrl(args: Record<string, unknown>): string | null {
+  const value = args['callbackUrl'];
+  return typeof value === 'string' && value.trim().length > 0 ? value : null;
+}
+
+function validateFulfillmentServiceName(name: string | null): FulfillmentServiceUserErrorRecord[] {
+  if (typeof name !== 'string' || name.trim().length === 0) {
+    return [{ field: ['name'], message: "Name can't be blank" }];
+  }
+
+  return [];
+}
+
+function validateFulfillmentServiceCallbackUrl(callbackUrl: string | null): FulfillmentServiceUserErrorRecord[] {
+  if (!isAllowedFulfillmentServiceCallbackUrl(callbackUrl)) {
+    return [{ field: ['callbackUrl'], message: 'Callback url is not allowed' }];
+  }
+
+  return [];
+}
+
+function stageFulfillmentServiceCreate(args: Record<string, unknown>): {
+  fulfillmentService: FulfillmentServiceRecord | null;
+  userErrors: FulfillmentServiceUserErrorRecord[];
+} {
+  const name = typeof args['name'] === 'string' ? args['name'].trim() : null;
+  const callbackUrl = readFulfillmentServiceCallbackUrl(args);
+  const userErrors = [...validateFulfillmentServiceName(name), ...validateFulfillmentServiceCallbackUrl(callbackUrl)];
+  if (userErrors.length > 0 || !name) {
+    return { fulfillmentService: null, userErrors };
+  }
+
+  const locationId = makeProxySyntheticGid('Location');
+  const service: FulfillmentServiceRecord = {
+    id: makeProxySyntheticGid('FulfillmentService'),
+    handle: normalizeFulfillmentServiceHandle(name),
+    serviceName: name,
+    callbackUrl,
+    inventoryManagement: typeof args['inventoryManagement'] === 'boolean' ? args['inventoryManagement'] : false,
+    locationId,
+    requiresShippingMethod: typeof args['requiresShippingMethod'] === 'boolean' ? args['requiresShippingMethod'] : true,
+    trackingSupport: typeof args['trackingSupport'] === 'boolean' ? args['trackingSupport'] : false,
+    type: 'THIRD_PARTY',
+  };
+
+  const stagedService = store.stageCreateFulfillmentService(service);
+  store.stageCreateLocation(buildFulfillmentServiceLocation(stagedService));
+  return { fulfillmentService: stagedService, userErrors: [] };
+}
+
+function stageFulfillmentServiceUpdate(args: Record<string, unknown>): {
+  fulfillmentService: FulfillmentServiceRecord | null;
+  userErrors: FulfillmentServiceUserErrorRecord[];
+} {
+  const id = typeof args['id'] === 'string' ? args['id'] : null;
+  const existing = id ? store.getEffectiveFulfillmentServiceById(id) : null;
+  if (!id || !existing) {
+    return {
+      fulfillmentService: null,
+      userErrors: [{ field: ['id'], message: 'Fulfillment service could not be found.' }],
+    };
+  }
+
+  const nextName = typeof args['name'] === 'string' ? args['name'].trim() : existing.serviceName;
+  const callbackUrl = Object.prototype.hasOwnProperty.call(args, 'callbackUrl')
+    ? readFulfillmentServiceCallbackUrl(args)
+    : existing.callbackUrl;
+  const userErrors = [
+    ...validateFulfillmentServiceName(nextName),
+    ...validateFulfillmentServiceCallbackUrl(callbackUrl),
+  ];
+  if (userErrors.length > 0) {
+    return { fulfillmentService: null, userErrors };
+  }
+
+  const service: FulfillmentServiceRecord = {
+    ...existing,
+    serviceName: nextName,
+    callbackUrl,
+    inventoryManagement:
+      typeof args['inventoryManagement'] === 'boolean' ? args['inventoryManagement'] : existing.inventoryManagement,
+    requiresShippingMethod:
+      typeof args['requiresShippingMethod'] === 'boolean'
+        ? args['requiresShippingMethod']
+        : existing.requiresShippingMethod,
+    trackingSupport: typeof args['trackingSupport'] === 'boolean' ? args['trackingSupport'] : existing.trackingSupport,
+  };
+
+  const stagedService = store.stageUpdateFulfillmentService(service);
+  if (stagedService.locationId) {
+    store.stageUpdateLocation(
+      buildFulfillmentServiceLocation(stagedService, store.getEffectiveLocationById(stagedService.locationId)),
+    );
+  }
+
+  return { fulfillmentService: stagedService, userErrors: [] };
+}
+
+function stripQueryFromGid(id: string): string {
+  return id.split('?')[0] ?? id;
+}
+
+function stageFulfillmentServiceDelete(args: Record<string, unknown>): {
+  deletedId: string | null;
+  userErrors: FulfillmentServiceUserErrorRecord[];
+} {
+  const id = typeof args['id'] === 'string' ? args['id'] : null;
+  const existing = id ? store.getEffectiveFulfillmentServiceById(id) : null;
+  if (!id || !existing) {
+    return {
+      deletedId: null,
+      userErrors: [{ field: ['id'], message: 'Fulfillment service could not be found.' }],
+    };
+  }
+
+  const inventoryAction = typeof args['inventoryAction'] === 'string' ? args['inventoryAction'] : 'DELETE';
+  if (inventoryAction === 'TRANSFER') {
+    const destinationLocationId =
+      typeof args['destinationLocationId'] === 'string' ? args['destinationLocationId'] : null;
+    if (!destinationLocationId || !findEffectiveLocationById(destinationLocationId)) {
+      return {
+        deletedId: null,
+        userErrors: [{ field: ['destinationLocationId'], message: 'Destination location could not be found.' }],
+      };
+    }
+  }
+
+  store.stageDeleteFulfillmentService(id);
+  if (existing.locationId) {
+    if (inventoryAction === 'KEEP') {
+      const location = findEffectiveLocationById(existing.locationId);
+      if (location) {
+        store.stageUpdateLocation({
+          ...location,
+          fulfillmentService: null,
+          isFulfillmentService: false,
+          shipsInventory: true,
+          updatedAt: makeSyntheticTimestamp(),
+        });
+      }
+    } else {
+      store.stageDeleteLocation(existing.locationId);
+    }
+  }
+
+  return { deletedId: stripQueryFromGid(id), userErrors: [] };
+}
+
+function serializeFulfillmentServiceUserErrors(
+  userErrors: FulfillmentServiceUserErrorRecord[],
+  selections: readonly SelectionNode[],
+): Array<Record<string, unknown>> {
+  return userErrors.map((userError) => {
+    const result: Record<string, unknown> = {};
+
+    for (const selection of selections) {
+      if (selection.kind === Kind.INLINE_FRAGMENT) {
+        Object.assign(result, serializeFulfillmentServiceUserErrors([userError], selection.selectionSet.selections)[0]);
+        continue;
+      }
+
+      if (selection.kind !== Kind.FIELD) {
+        continue;
+      }
+
+      const key = responseKey(selection);
+      switch (selection.name.value) {
+        case '__typename':
+          result[key] = 'UserError';
+          break;
+        case 'field':
+          result[key] = userError.field ? structuredClone(userError.field) : null;
+          break;
+        case 'message':
+          result[key] = userError.message;
+          break;
+        default:
+          result[key] = null;
+      }
+    }
+
+    return result;
+  });
+}
+
+function serializeFulfillmentServiceMutationPayload(
+  payload: { fulfillmentService: FulfillmentServiceRecord | null; userErrors: FulfillmentServiceUserErrorRecord[] },
+  payloadTypename: string,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== payloadTypename) {
+        continue;
+      }
+      Object.assign(
+        result,
+        serializeFulfillmentServiceMutationPayload(payload, payloadTypename, selection.selectionSet.selections),
+      );
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = payloadTypename;
+        break;
+      case 'fulfillmentService':
+        result[key] = payload.fulfillmentService
+          ? serializeFulfillmentService(payload.fulfillmentService, selection.selectionSet?.selections ?? [], {})
+          : null;
+        break;
+      case 'userErrors':
+        result[key] = serializeFulfillmentServiceUserErrors(
+          payload.userErrors,
+          selection.selectionSet?.selections ?? [],
+        );
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeFulfillmentServiceDeletePayload(
+  payload: { deletedId: string | null; userErrors: FulfillmentServiceUserErrorRecord[] },
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (
+        selection.typeCondition?.name.value &&
+        selection.typeCondition.name.value !== 'FulfillmentServiceDeletePayload'
+      ) {
+        continue;
+      }
+      Object.assign(result, serializeFulfillmentServiceDeletePayload(payload, selection.selectionSet.selections));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'FulfillmentServiceDeletePayload';
+        break;
+      case 'deletedId':
+        result[key] = payload.deletedId;
+        break;
+      case 'userErrors':
+        result[key] = serializeFulfillmentServiceUserErrors(
+          payload.userErrors,
+          selection.selectionSet?.selections ?? [],
+        );
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
 }
 
 function readNumericGidTail(id: string): string | null {
@@ -1776,6 +2918,98 @@ export function handleStorePropertiesMutation(
   for (const field of fields) {
     const key = responseKey(field);
     switch (field.name.value) {
+      case 'fulfillmentServiceCreate': {
+        const args = getFieldArguments(field, variables);
+        data[key] = serializeFulfillmentServiceMutationPayload(
+          stageFulfillmentServiceCreate(args),
+          'FulfillmentServiceCreatePayload',
+          field.selectionSet?.selections ?? [],
+        );
+        break;
+      }
+      case 'fulfillmentServiceUpdate': {
+        const args = getFieldArguments(field, variables);
+        data[key] = serializeFulfillmentServiceMutationPayload(
+          stageFulfillmentServiceUpdate(args),
+          'FulfillmentServiceUpdatePayload',
+          field.selectionSet?.selections ?? [],
+        );
+        break;
+      }
+      case 'fulfillmentServiceDelete': {
+        const args = getFieldArguments(field, variables);
+        data[key] = serializeFulfillmentServiceDeletePayload(
+          stageFulfillmentServiceDelete(args),
+          field.selectionSet?.selections ?? [],
+        );
+        break;
+      }
+      case 'locationAdd': {
+        const args = getFieldArguments(field, variables);
+        data[key] = serializeLocationMutationPayload(
+          stageLocationAdd(readLocationInput(args)),
+          'LocationAddPayload',
+          'LocationAddUserError',
+          field.selectionSet?.selections ?? [],
+          variables,
+        );
+        break;
+      }
+      case 'locationEdit': {
+        const args = getFieldArguments(field, variables);
+        const id = typeof args['id'] === 'string' ? args['id'] : null;
+        data[key] = serializeLocationMutationPayload(
+          stageLocationEdit(id, readLocationInput(args)),
+          'LocationEditPayload',
+          'LocationEditUserError',
+          field.selectionSet?.selections ?? [],
+          variables,
+        );
+        break;
+      }
+      case 'locationActivate': {
+        if (!readIdempotencyKey(field, variables)) {
+          return { errors: [buildMissingIdempotencyKeyError(field)], data: { [key]: null } };
+        }
+
+        const args = getFieldArguments(field, variables);
+        const locationId = typeof args['locationId'] === 'string' ? args['locationId'] : null;
+        data[key] = serializeLocationMutationPayload(
+          stageLocationActivate(locationId),
+          'LocationActivatePayload',
+          'LocationActivateUserError',
+          field.selectionSet?.selections ?? [],
+          variables,
+        );
+        break;
+      }
+      case 'locationDeactivate': {
+        if (!readIdempotencyKey(field, variables)) {
+          return { errors: [buildMissingIdempotencyKeyError(field)], data: { [key]: null } };
+        }
+
+        const args = getFieldArguments(field, variables);
+        const locationId = typeof args['locationId'] === 'string' ? args['locationId'] : null;
+        const destinationLocationId =
+          typeof args['destinationLocationId'] === 'string' ? args['destinationLocationId'] : null;
+        data[key] = serializeLocationMutationPayload(
+          stageLocationDeactivate(locationId, destinationLocationId),
+          'LocationDeactivatePayload',
+          'LocationDeactivateUserError',
+          field.selectionSet?.selections ?? [],
+          variables,
+        );
+        break;
+      }
+      case 'locationDelete': {
+        const args = getFieldArguments(field, variables);
+        const locationId = typeof args['locationId'] === 'string' ? args['locationId'] : null;
+        data[key] = serializeLocationDeletePayload(
+          stageLocationDelete(locationId),
+          field.selectionSet?.selections ?? [],
+        );
+        break;
+      }
       case 'shopPolicyUpdate': {
         const args = getFieldArguments(field, variables);
         data[key] = serializeShopPolicyUpdatePayload(
@@ -1863,8 +3097,8 @@ export function handleStorePropertiesQuery(
       case 'businessEntities':
         data[key] = store
           .listEffectiveBusinessEntities()
-          .map((businessEntity) =>
-            serializeBusinessEntity(businessEntity, field.selectionSet?.selections ?? [], context),
+          .map((businessEntity, index) =>
+            serializeBusinessEntity(businessEntity, field.selectionSet?.selections ?? [], context, [key, index]),
           );
         break;
       case 'businessEntity': {
@@ -1873,7 +3107,30 @@ export function handleStorePropertiesQuery(
         const id = typeof rawId === 'string' && rawId.length > 0 ? rawId : null;
         const businessEntity = id ? store.getBusinessEntityById(id) : store.getPrimaryBusinessEntity();
         data[key] = businessEntity
-          ? serializeBusinessEntity(businessEntity, field.selectionSet?.selections ?? [], context)
+          ? serializeBusinessEntity(businessEntity, field.selectionSet?.selections ?? [], context, [key])
+          : null;
+        break;
+      }
+      case 'shopifyPaymentsAccount': {
+        const owner = getShopifyPaymentsAccountOwner();
+        data[key] = owner
+          ? serializeShopifyPaymentsAccount(
+              owner.businessEntity,
+              owner.account,
+              field.selectionSet?.selections ?? [],
+              context,
+              [key],
+            )
+          : null;
+        break;
+      }
+      case 'fulfillmentService': {
+        const args = getFieldArguments(field, variables);
+        const rawId = args['id'];
+        const id = typeof rawId === 'string' && rawId.length > 0 ? rawId : null;
+        const service = id ? store.getEffectiveFulfillmentServiceById(id) : null;
+        data[key] = service
+          ? serializeFulfillmentService(service, field.selectionSet?.selections ?? [], variables)
           : null;
         break;
       }

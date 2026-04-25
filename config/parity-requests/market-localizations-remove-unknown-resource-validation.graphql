@@ -1,0 +1,28 @@
+#graphql
+mutation MarketLocalizationsRemoveUnknownResource(
+  $resourceId: ID!
+  $marketLocalizationKeys: [String!]!
+  $marketIds: [ID!]!
+) {
+  marketLocalizationsRemove(
+    resourceId: $resourceId
+    marketLocalizationKeys: $marketLocalizationKeys
+    marketIds: $marketIds
+  ) {
+    marketLocalizations {
+      key
+      value
+      updatedAt
+      outdated
+      market {
+        id
+        name
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

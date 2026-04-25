@@ -148,6 +148,13 @@ describe('getOperationCapability', () => {
       operationName: 'CustomerDelete',
       type: 'mutation',
     });
+
+    expect(getOperationCapability({ type: 'mutation', name: 'CustomerSet', rootFields: ['customerSet'] })).toEqual({
+      domain: 'customers',
+      execution: 'stage-locally',
+      operationName: 'CustomerSet',
+      type: 'mutation',
+    });
   });
 
   it('marks top-level product variant, inventory item, and inventory level queries as overlay-capable reads', () => {
@@ -543,11 +550,7 @@ describe('getOperationCapability', () => {
     });
 
     expect(
-      getOperationCapability({
-        type: 'mutation',
-        name: 'CreateDiscount',
-        rootFields: ['discountCodeBasicCreate'],
-      }),
+      getOperationCapability({ type: 'mutation', name: 'CreateDiscount', rootFields: ['discountCodeBasicCreate'] }),
     ).toEqual({
       domain: 'unknown',
       execution: 'passthrough',
@@ -616,6 +619,34 @@ describe('getOperationCapability', () => {
       domain: 'unknown',
       execution: 'passthrough',
       operationName: null,
+      type: 'query',
+    });
+  });
+
+  it('routes implemented metafield definition read roots through the local overlay', () => {
+    expect(
+      getOperationCapability({
+        type: 'query',
+        name: 'MetafieldDefinitions',
+        rootFields: ['metafieldDefinitions'],
+      }),
+    ).toEqual({
+      domain: 'metafields',
+      execution: 'overlay-read',
+      operationName: 'MetafieldDefinitions',
+      type: 'query',
+    });
+
+    expect(
+      getOperationCapability({
+        type: 'query',
+        name: 'MetafieldDefinition',
+        rootFields: ['metafieldDefinition'],
+      }),
+    ).toEqual({
+      domain: 'metafields',
+      execution: 'overlay-read',
+      operationName: 'MetafieldDefinition',
       type: 'query',
     });
   });

@@ -1,0 +1,46 @@
+mutation CustomerSetParity($input: CustomerSetInput!, $identifier: CustomerSetIdentifiers) {
+  customerSet(input: $input, identifier: $identifier) {
+    customer {
+      id
+      firstName
+      lastName
+      displayName
+      email
+      locale
+      note
+      verifiedEmail
+      taxExempt
+      taxExemptions
+      tags
+      state
+      canDelete
+      defaultEmailAddress {
+        emailAddress
+      }
+      defaultPhoneNumber {
+        phoneNumber
+      }
+      defaultAddress {
+        address1
+      }
+      addressesV2(first: 5) {
+        nodes {
+          id
+          address1
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+      createdAt
+      updatedAt
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

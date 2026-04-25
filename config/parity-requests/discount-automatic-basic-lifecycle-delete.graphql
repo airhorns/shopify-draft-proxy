@@ -1,0 +1,11 @@
+mutation DiscountAutomaticBasicLifecycleDelete($id: ID!) {
+  discountAutomaticDelete(id: $id) {
+    deletedAutomaticDiscountId
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

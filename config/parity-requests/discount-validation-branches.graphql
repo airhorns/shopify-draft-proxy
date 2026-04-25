@@ -1,0 +1,127 @@
+mutation DiscountValidationBranches(
+  $duplicate: DiscountCodeBasicInput!
+  $badRefs: DiscountCodeBasicInput!
+  $invalidAutomatic: DiscountAutomaticBasicInput!
+  $blankCodeBxgy: DiscountCodeBxgyInput!
+  $blankAutomaticBxgy: DiscountAutomaticBxgyInput!
+  $invalidCodeFreeShipping: DiscountCodeFreeShippingInput!
+  $invalidAutomaticFreeShipping: DiscountAutomaticFreeShippingInput!
+  $unknownUpdateId: ID!
+  $unknownUpdate: DiscountCodeBasicInput!
+  $codeBulkIds: [ID!]
+  $automaticBulkIds: [ID!]
+  $bulkSearch: String
+) {
+  duplicate: discountCodeBasicCreate(basicCodeDiscount: $duplicate) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  badRefs: discountCodeBasicCreate(basicCodeDiscount: $badRefs) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  invalidAutomatic: discountAutomaticBasicCreate(automaticBasicDiscount: $invalidAutomatic) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  blankCodeBxgy: discountCodeBxgyCreate(bxgyCodeDiscount: $blankCodeBxgy) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  blankAutomaticBxgy: discountAutomaticBxgyCreate(automaticBxgyDiscount: $blankAutomaticBxgy) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  invalidCodeFreeShipping: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $invalidCodeFreeShipping) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  invalidAutomaticFreeShipping: discountAutomaticFreeShippingCreate(
+    freeShippingAutomaticDiscount: $invalidAutomaticFreeShipping
+  ) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  unknownUpdate: discountCodeBasicUpdate(id: $unknownUpdateId, basicCodeDiscount: $unknownUpdate) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeBulk: discountCodeBulkDeactivate(ids: $codeBulkIds, search: $bulkSearch) {
+    job {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticBulk: discountAutomaticBulkDelete(ids: $automaticBulkIds, search: $bulkSearch) {
+    job {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

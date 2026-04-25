@@ -6,7 +6,7 @@ import {
   getFieldResponseKey,
   getSelectedChildFields,
   paginateConnectionItems,
-  serializeConnectionPageInfo,
+  serializeConnection,
 } from './graphql-helpers.js';
 
 export type MetafieldRecordCore = {
@@ -307,48 +307,12 @@ export function serializeMetafieldsConnection(
     hasNextPage,
     hasPreviousPage,
   } = paginateConnectionItems(metafields, field, variables, (metafield) => metafield.id);
-  const result: Record<string, unknown> = {};
-
-  for (const selection of getSelectedChildFields(field, options)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = pageMetafields.map((metafield) => serializeMetafieldSelection(metafield, selection, options));
-        break;
-      case 'edges':
-        result[key] = pageMetafields.map((metafield) => {
-          const edge: Record<string, unknown> = {};
-          for (const edgeSelection of getSelectedChildFields(selection, options)) {
-            const edgeKey = getFieldResponseKey(edgeSelection);
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edge[edgeKey] = `cursor:${metafield.id}`;
-                break;
-              case 'node':
-                edge[edgeKey] = serializeMetafieldSelection(metafield, edgeSelection, options);
-                break;
-              default:
-                edge[edgeKey] = null;
-                break;
-            }
-          }
-          return edge;
-        });
-        break;
-      case 'pageInfo':
-        result[key] = serializeConnectionPageInfo(
-          selection,
-          pageMetafields,
-          hasNextPage,
-          hasPreviousPage,
-          (metafield) => metafield.id,
-        );
-        break;
-      default:
-        result[key] = null;
-        break;
-    }
-  }
-
-  return result;
+  return serializeConnection(field, {
+    items: pageMetafields,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (metafield) => metafield.id,
+    serializeNode: (metafield, selection) => serializeMetafieldSelection(metafield, selection, options),
+    selectedFieldOptions: options,
+  });
 }

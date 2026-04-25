@@ -556,6 +556,24 @@ Practical rule:
 - once order creation/editing scaffolding exists, do not leave those broader fulfillment roots as free-text notes only; add them to `config/operation-registry.json`, captured validation fixtures, and explicit parity-request/spec files so convention-discovered conformance reports show both the landed validation progress and the remaining blockers honestly
 - keep the fulfillment lifecycle blocker machine-readable in parity-spec blocker details and HAR-187, including the split between `fulfillmentTrackingInfoUpdate`'s scope+permission gate and `fulfillmentCancel`'s still-generic `ACCESS_DENIED` payload on this host after the pre-access validation branches are exhausted
 
+### 9a. Fulfillment services couple tightly to locations, but their handles do not follow renames
+
+HAR-236 live probes against Admin GraphQL 2026-04 on `harry-test-heelo.myshopify.com` settled several service-specific traps:
+
+- the top-level current-schema roots are `fulfillmentService`, `fulfillmentServiceCreate`, `fulfillmentServiceUpdate`, and `fulfillmentServiceDelete`; the catalog/list surface is nested at `shop.fulfillmentServices`, not a top-level query root
+- `fulfillmentService(id:)` returns `null` for an unknown ID
+- `fulfillmentServiceCreate` with `callbackUrl: "https://example.com/..."` returned `userErrors[{ field: ["callbackUrl"], message: "Callback url is not allowed" }]` under the current app credential; omitting `callbackUrl` succeeded
+- a blank create name returned `userErrors[{ field: ["name"], message: "Name can't be blank" }]`
+- creation automatically created an associated `Location` with `isFulfillmentService: true`, `fulfillsOnlineOrders: true`, and `shipsInventory: false`
+- `fulfillmentServiceUpdate(name:)` changed `serviceName` and the associated location name, but kept the original handle stable
+- `fulfillmentServiceDelete(inventoryAction: DELETE)` returned `deletedId` without the `?id=true` query suffix even when the service `id` contained that suffix, and downstream `fulfillmentService(id:)` plus `location(id:)` both returned `null`
+
+Practical rule:
+
+- model fulfillment-service writes as service-plus-location state changes, not as a service scalar patch
+- preserve the original service handle on update unless a broader capture proves a handle-changing input exists
+- do not invoke callback, stock fetch, tracking fetch, or fulfillment-order notification endpoints while staging locally; capture only enough metadata to make downstream reads coherent
+
 ## 10. Pagination and sorting are going to get gnarly fast
 
 Current `products(first: N)` support no longer stops at the default `createdAt desc` order. Overlay reads now also cover an explicit sort-key slice including:
@@ -1089,6 +1107,18 @@ The promoted product owner read slice now also preserves the high-value read fie
 The read fixture proves `definition: null` for the captured product-owned metafields. Keep definition object serialization out of the local product metafield model until a product-owned fixture actually returns definition data; definition lifecycle support is tracked separately.
 
 This is another case where the serializer layer needs field-specific handling rather than one generic nested-object rule.
+
+## 19a. Product metafield definitions are schema records, but counts come from owner metafields
+
+HAR-144 captured product-owner `metafieldDefinition` and `metafieldDefinitions` reads against the 2025-01 conformance store while checking the 2026-04 docs for the latest field surface. The useful fidelity points were:
+
+- absent `metafieldDefinition(identifier:)` returns `null`
+- an unmatched `metafieldDefinitions(ownerType: PRODUCT, namespace: ...)` filter returns a non-null empty connection
+- `sortKey: PINNED_POSITION` returned pinned position `2` before pinned position `1` in the live capture
+- definition records carry schema fields (`type`, `validations`, `access`, `capabilities`, `constraints`, `pinnedPosition`, `validationStatus`) separately from actual metafield rows
+- `metafieldsCount` and the definition `metafields` connection should be derived from effective product-owned metafields matching the definition namespace/key, so staged product metafield writes become visible through existing definitions
+
+Keep definition lifecycle mutations out of this read slice; create/update/delete/pin/unpin need their own mutation evidence and local staging semantics.
 
 ## 18a. Staged metafield writes need product-scoped replacement semantics, not id-wise merge
 
@@ -1842,7 +1872,8 @@ Observed docs surface:
 - read-overlay candidates: `customerByIdentifier` and `customerMergePreview`
 - customer/address staging candidates: `customerAddressCreate`, `customerAddressUpdate`, `customerAddressDelete`, and `customerUpdateDefaultAddress`
 - consent/tax/customer upsert staging candidates: `customerEmailMarketingConsentUpdate`, `customerSmsMarketingConsentUpdate`, `customerAddTaxExemptions`, `customerRemoveTaxExemptions`, `customerReplaceTaxExemptions`, and `customerSet`
-- side-effect-sensitive email roots: `customerSendAccountInviteEmail` and `customerPaymentMethodSendUpdateEmail`
+- sensitive customer-facing URL roots: `customerGenerateAccountActivationUrl` and `customerPaymentMethodGetUpdateUrl`
+- side-effect email roots: `customerSendAccountInviteEmail` and `customerPaymentMethodSendUpdateEmail`
 - destructive/asynchronous merge root: `customerMerge`
 
 Practical rule for the proxy:
@@ -1850,7 +1881,9 @@ Practical rule for the proxy:
 - do not treat registry presence as support; unimplemented customer roots are still classified as `implemented: false`
 - read roots should become overlay reads only after captured no-data and found-record behavior exists
 - local customer/address/consent/tax roots should stage locally before being marked implemented, because supported mutations must not hit Shopify during normal runtime
-- side-effect email roots and customer merge should stay explicit passthrough/deferred until a product decision says whether to block, simulate, or proxy them with stronger observability
+- sensitive URL roots need local synthetic URL handling before support; `customerGenerateAccountActivationUrl` now returns a non-deliverable activation URL while `customerPaymentMethodGetUpdateUrl` remains deferred until payment-method ownership is modeled
+- side-effect email roots may be implemented when runtime support validates/buffers locally and retains the original raw mutation for commit replay; payment-method email support requires a local payment-method ownership edge before claiming success, and must otherwise return Shopify-like not-found userErrors
+- customer merge needed separate permission-gated/job-backed fidelity work before support; see the later customer-merge note for the implemented local slice
 - the protected-customer-data denial mode remains a real fallback path in `scripts/capture-customer-conformance.mts`, but current successful fixtures should not be overwritten by stale blocker notes unless the capture script reproduces the denial again
 
 ### 46a. `customerByIdentifier` is an effective-customer lookup, with custom-id caveats
@@ -1875,7 +1908,7 @@ The first Store properties inventory for Admin GraphQL 2026-04 exposed several r
 Current scaffold decision:
 
 - `shop`, `location`, `locationByIdentifier`, `businessEntities`, and `businessEntity` now have narrow Store properties overlay-read support backed by captured fixtures; `cashManagementLocationSummary` remains a registry-tracked planned overlay read
-- `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, and `locationDelete` are registry-tracked as planned local-staging mutations, but they remain unsupported at runtime
+- `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, and `locationDelete` stage locally at runtime; the lifecycle roots are backed by safe 2026-04 validation captures for missing `@idempotent` and active stocked delete rejection, while happy-path lifecycle captures still require a disposable location setup
 - `shopPolicyUpdate` now stages locally by `ShopPolicyType` when a shop baseline is available; captured 2026-04 evidence shows oversized policy bodies return `field: ["shopPolicy", "body"]`, message `Body is too big (maximum is 512 KB)`, and code `TOO_BIG`
 - generic `publishablePublish` / `publishableUnpublish` now stage Product and Collection targets locally; `publishablePublishToCurrentChannel` / `publishableUnpublishToCurrentChannel` currently have product-scoped local staging only
 - the capture harness now records schema inventory plus safe read-only `shop` / `locations` / `location(id:)` baselines, while mutation validation probes are recorded as a plan instead of executed by default
@@ -1890,6 +1923,22 @@ Safety traps:
 Practical rule:
 
 - keep Store properties registry inventory separate from runtime support; do not flip these roots to implemented until there is captured fixture evidence plus local model behavior for the specific root family
+
+### 47c. Location lifecycle mutation support is local-first and validation-backed
+
+HAR-170 enabled local staging for `locationActivate`, `locationDeactivate`, and `locationDelete`.
+
+Live evidence refreshed on this host:
+
+- Admin GraphQL 2026-04 returns a top-level `BAD_REQUEST` error when `locationActivate` or `locationDeactivate` omits the required `@idempotent` directive, with `data.<root>: null`
+- deleting an active stocked location returns both `LOCATION_IS_ACTIVE` and `LOCATION_HAS_INVENTORY` userErrors without mutating the location
+
+Practical rule for the proxy:
+
+- keep lifecycle success paths local and never proxy them upstream at runtime
+- require `@idempotent(key: "...")` before activate/deactivate staging
+- require a valid active destination location before locally deactivating a stocked location, then move effective inventory levels to that destination
+- tombstone successful `locationDelete` results so downstream location and inventory-level reads stop exposing the deleted location while meta/log state retains the staged mutation evidence
 
 ### 47b. `location` detail reads should reuse the effective inventory graph
 
@@ -1967,7 +2016,9 @@ Captured shape for the first local slice:
 Practical rule:
 
 - local business entity snapshots can fixture safe account scalars only when they were explicitly captured
-- do not synthesize balances, payouts, bank accounts, statement descriptors, disputes, or account opener details from Store properties reads
+- direct `shopifyPaymentsAccount` snapshot reads share the same normalized safe account fixture as `BusinessEntity.shopifyPaymentsAccount`; if no account fixture is present, the root returns `null` rather than inventing account data
+- `payouts`, `disputes`, and `balanceTransactions` are modeled only as empty no-data connections until non-empty Shopify Payments account activity is captured with account-level scopes
+- do not synthesize balances, bank accounts, statement descriptors, payout schedules, or account opener details from Store properties reads
 - order and market attribution should treat `BusinessEntity` as an identity link for now; do not model Markets assignment or order attribution rules until there is separate captured evidence for those domains
 
 ## 50. Shop baseline reads are broad, and some feature fields are access-gated
@@ -2063,7 +2114,14 @@ Access-scope trap:
 Safety rule:
 
 - do not run successful live writes for market lifecycle, web presence, localization, backup-region, or currency-setting roots on the shared conformance store without a disposable market setup and cleanup story
-- current local Markets support is read-only snapshot replay for captured safe roots; mutation registry entries are local-staging scaffolds with `implemented: false` and must not be read as runtime support
+- pre-HAR-182 local Markets support started as read-only snapshot replay for captured safe roots plus lifecycle local staging; registry mutation entries with `implemented: false` must not be read as runtime support
+
+HAR-182 market localization follow-up:
+
+- Admin GraphQL 2026-04 reports `MarketLocalizableResourceType` enum values `METAFIELD` and `METAOBJECT` only; direct `PRODUCT` / `COLLECTION` resource filtering is not present in the current schema
+- safe live reads on `harry-test-heelo.myshopify.com` with `read_translations` returned Shopify empty/no-data behavior for unknown metafield resources and an empty `marketLocalizableResources(resourceType: METAFIELD)` connection
+- safe no-side-effect writes with `write_translations` showed both `marketLocalizationsRegister` and `marketLocalizationsRemove` return `TranslationUserError` with `field: ["resourceId"]`, `code: "RESOURCE_NOT_FOUND"`, and `marketLocalizations: null` for an unknown metafield resource before checking market IDs or digests
+- the local proxy now supports the product-adjacent product metafield slice for market-localizable reads and local register/remove staging; successful live localization writes are still deferred until a disposable localized-resource setup/cleanup path exists
 
 ## 55. Customer merge is permission-gated and job-backed, but downstream reads settle quickly
 
@@ -2146,7 +2204,36 @@ Credential and fixture limitation:
 - capture app-discount read fixtures only when a safe existing app discount or disposable Function-backed setup is available, and document the exact `appDiscountType` shape captured
 - supporting app-discount writes later must stage locally without invoking external Shopify Function logic during normal proxy runtime
 
-## 59. Payment-area roots are mostly sensitive scaffolds, not runtime support
+## 59. Discount validation splits between GraphQL errors and `DiscountUserError`
+
+HAR-198 captured representative discount mutation validation branches against Admin GraphQL 2026-04.
+
+Captured GraphQL-validation branches:
+
+- omitting required `$input` for `discountCodeBasicCreate` returns a top-level `INVALID_VARIABLE` error before resolver execution
+- inline `discountCodeBasicCreate(basicCodeDiscount: null)` returns top-level `argumentLiteralsIncompatible`, not mutation-scoped `userErrors`
+
+Captured mutation-scoped `DiscountUserError` branches:
+
+- duplicate native code discounts return `field: ['basicCodeDiscount', 'code']`, `code: 'TAKEN'`, and message `Code must be unique. Please try a different code.`
+- invalid automatic basic date ranges return `field: ['automaticBasicDiscount', 'endsAt']` and message `Ends at needs to be after starts_at`
+- combining collection entitlements with product/product-variant entitlements returns a `CONFLICT` error on `['basicCodeDiscount', 'customerGets', 'items', 'collections', 'add']`, while invalid product and variant GIDs also return separate `INVALID` entries
+- BXGY roots reject all-items customer-get/customer-buy payloads and blank titles with root-specific field prefixes (`bxgyCodeDiscount` vs `automaticBxgyDiscount`)
+- free-shipping roots reject all discount-class combinesWith flags; code free shipping also reported blank title, while the captured automatic free-shipping branch only reported invalid combinesWith for the same blank-title payload
+- unknown `discountCodeBasicUpdate` IDs return `field: ['id']`, message `Discount does not exist`, and `code: null`
+- code and automatic bulk roots use different wording for mutually exclusive selector errors even though both use `code: 'TOO_MANY_ARGUMENTS'`
+
+Access-scope note:
+
+- the live capture includes a `currentAppInstallation.accessScopes` probe with both `read_discounts` and `write_discounts`; a no-discount-scope token was not available in-session, so no `ACCESS_DENIED` discount fixture was captured
+- do not treat that as permission to fake successful discount staging for access failures; future no-scope captures should be preserved as top-level failures and documented here
+
+Practical rule:
+
+- locally short-circuit only the captured validation branches until full discount lifecycle staging exists
+- do not proxy obviously captured invalid discount requests upstream, and do not invent happy-path discount mutation success for broader unmodeled inputs
+
+## 60. Payment-area roots are mostly sensitive scaffolds, not runtime support
 
 HAR-219 refreshed the payment-area root inventory against the checked-in 2025-01 Admin root introspection fixture and the 2026-04 `latest` Admin docs. The registry now declares the roots as coverage scaffolds without registering permanent passthrough support or adding planned-only parity specs.
 
@@ -2164,6 +2251,7 @@ Observed current-version surface:
 - the current store returned an empty `paymentCustomizations` connection, an empty `tenderTransactions` connection, an empty Shop Pay receipt connection, and the standard payment-terms template catalog
 - `shopifyPaymentsAccount` still returns field-level `ACCESS_DENIED`; Shopify requires `read_shopify_payments` or `read_shopify_payments_accounts`, and the refreshed app scopes only include dispute/payout sub-scopes
 - `customerPaymentMethod(id:)` still returns field-level `ACCESS_DENIED`; Shopify requires `read_customers` plus `read_customer_payment_methods`, and the refreshed app scopes still lack `read_customer_payment_methods`
+- HAR-220 re-ran the direct `shopifyPaymentsAccount` probe with the configured `harry-test-heelo.myshopify.com` 2025-01 credential on 2026-04-25. It still returned `shopifyPaymentsAccount: null` with `ACCESS_DENIED`, so the checked-in parity scenario compares only the null data branch while targeted runtime tests cover fixture-backed safe scalar and empty connection behavior.
 
 Capture prerequisites and safety constraints:
 
@@ -2198,3 +2286,61 @@ Practical rule:
 
 - model catalog and price-list reads from captured normalized records, but keep quantity rules and price-list write surfaces unsupported until captures prove the non-empty shape.
 - when testing price filters, use numeric Shopify legacy IDs in search strings even though the returned nodes use GIDs.
+
+## 61. `metafieldsSet` CAS and validation semantics are a mix of GraphQL and resolver errors
+
+HAR-142 expanded product-owned `metafieldsSet` coverage beyond happy-path upserts. Captured fixtures from `corepack pnpm conformance:capture-product-metafield-mutations` now cover compare-and-set success, stale digest failure, `compareDigest: null` creation, duplicate inputs, missing input fields, and over-limit input count.
+
+Important captured behavior:
+
+- `compareDigest` is an opaque CAS token on Shopify. Local staged metafields use deterministic draft digests instead, and parity treats the digest strings as opaque non-empty values for staged writes.
+- A stale `compareDigest` returns `userErrors[{ field: ['metafields', '0'], code: 'STALE_OBJECT', elementIndex: null }]`, leaves `metafields: []`, and does not mutate downstream product metafields.
+- `compareDigest: null` creates the metafield only when it is absent from the effective owner-scoped set.
+- More than 25 inputs returns `metafields: null` plus a resolver-level userError at `['metafields']`.
+- Missing `type` for a new metafield is a resolver-level userError (`Type can't be blank`) and is atomic.
+- Missing `ownerId`, `key`, or `value` in variables fails earlier as a top-level GraphQL `INVALID_VARIABLE` error.
+- Missing `namespace` is not an error in the captured branch. Shopify stores the metafield under the installed app namespace (`app--347082227713` on the current conformance app).
+- Duplicate `(ownerId, namespace, key)` inputs are accepted sequentially. The mutation payload includes one result per input, and the downstream product read reflects the last submitted value.
+
+Practical rule:
+
+- validate the full `metafieldsSet` input batch before replacing the staged product metafield set when any resolver-level error is present
+- keep required-input GraphQL validation branches separate from resolver `userErrors`
+- do not broaden owner support from this evidence; these fixtures remain product-owned metafield coverage
+
+## 62. Admin customer address roots use MailingAddress payloads and split validation styles
+
+HAR-152 captured customer address lifecycle evidence on Admin GraphQL 2025-01 with `corepack pnpm conformance:capture-customer-addresses`.
+
+Captured facts:
+
+- `customerAddressCreate(customerId:, address:, setAsDefault:)` and `customerAddressUpdate(customerId:, addressId:, address:, setAsDefault:)` return payload field `address`, not `customerAddress`, and that object is a `MailingAddress`
+- `customerAddressDelete(customerId:, addressId:)` returns `deletedAddressId`
+- `customerUpdateDefaultAddress(customerId:, addressId:)` returns a `customer` payload with `defaultAddress` and `addressesV2`
+- `MailingAddressInput` accepts `countryCode` and `provinceCode`; the response expands those to full `country` / `province` strings plus `countryCodeV2` / `provinceCode`
+- unknown customer ids on address create return payload `userErrors` with `field: ["customerId"]` and message `Customer does not exist`
+- unknown address ids on update, delete, and default-address selection return top-level GraphQL errors with message `invalid id`, extension code `RESOURCE_NOT_FOUND`, and `data.<root>: null`
+
+Practical rule:
+
+- locally stage address lifecycle roots against a normalized customer-owned address graph and keep `Customer.defaultAddress` synchronized from the selected address row
+- use fixture-backed top-level errors for unknown address ids instead of turning those branches into payload `userErrors`
+- keep broader address validation, normalization, and territory-specific postal validation out of local support until new fixtures capture those branches
+
+## 63. `customerSet` uses its own identifier input and replaces address lists
+
+HAR-155 captured a first `customerSet` slice on Admin GraphQL 2026-04.
+
+Captured facts:
+
+- the mutation arguments are `customerSet(input: CustomerSetInput!, identifier: CustomerSetIdentifiers)`, not `CustomerIdentifierInput`
+- `CustomerSetIdentifiers` uses `email` and `phone`, while `customerByIdentifier` uses `emailAddress` and `phoneNumber`
+- no-identifier `customerSet` creates a customer when the input has a name, phone, or email
+- `identifier.email` upserts: a missing email identifier creates a customer, and a later call with the same identifier updates that customer
+- unknown `identifier.id` returns payload `userErrors` with `field: ["input"]` and message `Resource matching the identifier was not found.`
+- `identifier.customId` without an id-typed unique metafield definition returns `data.customerSet: null` plus a top-level `NOT_FOUND` error
+- `input.addresses` behaves as a replacement list for an existing customer; an empty list clears the default address and downstream `addressesV2`
+
+Practical rule:
+
+- keep the local `customerSet` support boundary narrower than `customerUpdate`: support fixture-backed scalar replacement, tag/tax exemption replacement, id/email/phone resolution, synthetic create/upsert, and existing-customer address-list replacement; reject unmodeled fields locally instead of letting a now-supported root proxy upstream

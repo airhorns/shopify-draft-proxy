@@ -1,0 +1,26 @@
+{
+  "scenarioId": "market-localizations-register-unknown-resource-validation",
+  "operationNames": ["marketLocalizationsRegister"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "access-scope-evidence"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/market-localization-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/market-localizations-register-unknown-resource-validation.graphql",
+    "variablesCapturePath": "$.cases[0].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Safe no-side-effect Admin GraphQL 2026-04 validation capture using write_translations access. Unknown resource returns TranslationUserError RESOURCE_NOT_FOUND on resourceId before market or digest validation.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "market-localizations-register-unknown-resource-data",
+        "capturePath": "$.cases[0].response.payload.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

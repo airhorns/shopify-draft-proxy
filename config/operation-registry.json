@@ -241,10 +241,10 @@
     "type": "query",
     "domain": "payments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["shopifyPaymentsAccount", "ShopifyPaymentsAccount"],
-    "runtimeTests": [],
-    "supportNotes": "Shopify Payments account scaffold only. The 2026-04-25 harry-test-heelo probe still returned ACCESS_DENIED without read_shopify_payments/read_shopify_payments_accounts; future top-level capture must not synthesize balances, payouts, disputes, bank accounts, or descriptors without fixture evidence."
+    "runtimeTests": ["tests/integration/business-entity-query-shapes.test.ts"],
+    "supportNotes": "Snapshot overlay supports the direct root from normalized Shopify Payments account fixtures shared with BusinessEntity.shopifyPaymentsAccount. Safe scalar fields are exposed when captured; payouts, disputes, and balanceTransactions serialize as empty no-data connections until non-empty account activity fixtures exist. Balance, bank account, statement descriptor, payout schedule, and other payment-account-sensitive fields remain explicit unsupported diagnostics. The 2026-04-25 harry-test-heelo capture still returned ACCESS_DENIED without read_shopify_payments/read_shopify_payments_accounts."
   },
   {
     "name": "tenderTransactions",
@@ -351,36 +351,36 @@
     "type": "mutation",
     "domain": "customers",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerAddressCreate", "CustomerAddressCreate"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
   },
   {
     "name": "customerAddressUpdate",
     "type": "mutation",
     "domain": "customers",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerAddressUpdate", "CustomerAddressUpdate"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
   },
   {
     "name": "customerAddressDelete",
     "type": "mutation",
     "domain": "customers",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerAddressDelete", "CustomerAddressDelete"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
   },
   {
     "name": "customerUpdateDefaultAddress",
     "type": "mutation",
     "domain": "customers",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerUpdateDefaultAddress", "CustomerUpdateDefaultAddress"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
   },
   {
     "name": "customerEmailMarketingConsentUpdate",
@@ -432,28 +432,39 @@
     "type": "mutation",
     "domain": "customers",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerSet", "CustomerSet"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
+  },
+  {
+    "name": "customerGenerateAccountActivationUrl",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["customerGenerateAccountActivationUrl", "CustomerGenerateAccountActivationUrl"],
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"],
+    "supportNotes": "Staged locally with a synthetic non-deliverable activation URL. The original raw mutation is retained in the mutation log for commit replay; runtime support does not request a live Shopify activation URL."
   },
   {
     "name": "customerSendAccountInviteEmail",
     "type": "mutation",
     "domain": "customers",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerSendAccountInviteEmail", "CustomerSendAccountInviteEmail"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"],
+    "supportNotes": "Buffered locally as a staged outbound invite intent. Runtime support validates the customer, updates local account state to invited when applicable, and keeps the original raw mutation for commit-time email delivery."
   },
   {
     "name": "customerPaymentMethodSendUpdateEmail",
     "type": "mutation",
-    "domain": "payments",
+    "domain": "customers",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerPaymentMethodSendUpdateEmail", "CustomerPaymentMethodSendUpdateEmail"],
-    "runtimeTests": [],
-    "supportNotes": "Customer payment method email scaffold only. This is customer-visible side effect work; future capture requires write_customers plus write_customer_payment_methods and a no-recipient or otherwise safe email plan before local staging support."
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"],
+    "supportNotes": "Buffered locally as a staged payment-method update-email intent. Runtime support validates that the payment method is present in the local customer-payment graph, preserves the original raw mutation for commit-time delivery, and mirrors Shopify's not-found userError for unknown payment methods."
   },
   {
     "name": "customerMerge",
@@ -562,45 +573,45 @@
     "type": "mutation",
     "domain": "store-properties",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["locationAdd", "LocationAdd"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/location-query-shapes.test.ts"]
   },
   {
     "name": "locationEdit",
     "type": "mutation",
     "domain": "store-properties",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["locationEdit", "LocationEdit"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/location-query-shapes.test.ts"]
   },
   {
     "name": "locationActivate",
     "type": "mutation",
     "domain": "store-properties",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["locationActivate", "LocationActivate"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/location-query-shapes.test.ts"]
   },
   {
     "name": "locationDeactivate",
     "type": "mutation",
     "domain": "store-properties",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["locationDeactivate", "LocationDeactivate"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/location-query-shapes.test.ts"]
   },
   {
     "name": "locationDelete",
     "type": "mutation",
     "domain": "store-properties",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["locationDelete", "LocationDelete"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/location-query-shapes.test.ts"]
   },
   {
     "name": "publishablePublish",
@@ -651,6 +662,56 @@
     "matchNames": ["shopPolicyUpdate", "ShopPolicyUpdate"],
     "runtimeTests": ["tests/integration/shop-policy-update-flow.test.ts"],
     "supportNotes": "HAR-173: stages legal policy updates locally by ShopPolicyType, preserves raw mutation requests for commit replay, and overlays downstream shop.shopPolicies reads without proxying supported requests upstream."
+  },
+  {
+    "name": "privacySettings",
+    "type": "query",
+    "domain": "privacy",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["privacySettings", "PrivacySettings"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-250 registry-only privacy read coverage. Keep unimplemented until captured privacySettings evidence and a local privacy settings overlay model exist."
+  },
+  {
+    "name": "consentPolicy",
+    "type": "query",
+    "domain": "privacy",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["consentPolicy", "ConsentPolicy"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-250 registry-only privacy read coverage. Keep unimplemented until captured consentPolicy evidence and a local consent policy overlay model exist."
+  },
+  {
+    "name": "consentPolicyRegions",
+    "type": "query",
+    "domain": "privacy",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["consentPolicyRegions", "ConsentPolicyRegions"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-250 registry-only privacy read coverage. Keep unimplemented until captured consentPolicyRegions evidence and a local consent policy region model exist."
+  },
+  {
+    "name": "consentPolicyUpdate",
+    "type": "mutation",
+    "domain": "privacy",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["consentPolicyUpdate", "ConsentPolicyUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-250 registry-only privacy mutation coverage. Keep unimplemented until live capture and a local consent policy staging model exist; registry presence must not make this a supported passthrough."
+  },
+  {
+    "name": "privacyFeaturesDisable",
+    "type": "mutation",
+    "domain": "privacy",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["privacyFeaturesDisable", "PrivacyFeaturesDisable"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-250 registry-only privacy mutation coverage. Keep unimplemented until live capture and a local privacy feature staging model exist; registry presence must not make this a supported passthrough."
   },
   {
     "name": "productOptionsCreate",
@@ -837,20 +898,20 @@
     "type": "query",
     "domain": "metafields",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metafieldDefinition", "MetafieldDefinition"],
     "runtimeTests": ["tests/integration/metafield-definition-query-shapes.test.ts"],
-    "supportNotes": "Admin GraphQL 2026-04 definition read root. Registry-only declared gap until live capture, explicit comparison targets, and local metafield-definition modeling exist."
+    "supportNotes": "Product-owner definition detail reads are modeled locally from normalized metafield definition state and product-owned metafields."
   },
   {
     "name": "metafieldDefinitions",
     "type": "query",
     "domain": "metafields",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metafieldDefinitions", "MetafieldDefinitions"],
     "runtimeTests": ["tests/integration/metafield-definition-query-shapes.test.ts"],
-    "supportNotes": "Admin GraphQL 2026-04 definition catalog root. Registry-only declared gap until owner-type-aware snapshot/live overlay semantics exist."
+    "supportNotes": "Product-owner definition catalogs are modeled locally with owner type, namespace, key, pinned, constraint, query, sort, and pagination filters."
   },
   {
     "name": "standardMetafieldDefinitionTemplates",
@@ -1299,20 +1360,20 @@
     "type": "mutation",
     "domain": "payments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["orderCapture", "OrderCapture"],
-    "runtimeTests": [],
-    "supportNotes": "Order payment scaffold only. Future capture requires write_orders or write_marketplace_orders plus capture_payments_for_orders permission and must use an isolated authorized transaction because the happy path captures funds."
+    "runtimeTests": ["tests/integration/order-payment-transaction-flow.test.ts"],
+    "supportNotes": "Stages captured order authorizations locally into CAPTURE transactions, updates downstream financial/capturable fields, and avoids live capture side effects at runtime."
   },
   {
     "name": "orderCreateMandatePayment",
     "type": "mutation",
     "domain": "payments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["orderCreateMandatePayment", "OrderCreateMandatePayment"],
-    "runtimeTests": [],
-    "supportNotes": "Mandate payment scaffold only. Future capture requires write_payment_mandate, pay_orders_by_vaulted_card permission, a mandate-backed order schedule, idempotency-key handling, and Shopify Plus coverage for amount-specific branches."
+    "runtimeTests": ["tests/integration/order-payment-transaction-flow.test.ts"],
+    "supportNotes": "Stages mandate-payment jobs locally with session idempotency keys, synthetic paymentReferenceId values, and downstream order transaction/financial-status updates without contacting payment gateways."
   },
   {
     "name": "paymentCustomizationActivation",
@@ -1409,10 +1470,10 @@
     "type": "mutation",
     "domain": "payments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["transactionVoid", "TransactionVoid"],
-    "runtimeTests": [],
-    "supportNotes": "Order payment scaffold only. Future capture requires write_orders plus cancel-order permission and an isolated uncaptured authorization because the happy path voids payment authorization."
+    "runtimeTests": ["tests/integration/order-payment-transaction-flow.test.ts"],
+    "supportNotes": "Stages voids for uncaptured local authorization transactions and updates downstream capturable/financial fields without proxying the supported mutation upstream."
   },
   {
     "name": "orderCustomerSet",
@@ -1741,40 +1802,40 @@
     "type": "query",
     "domain": "shipping-fulfillments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentService", "FulfillmentService"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 FulfillmentService ID lookup root. Registry-only declared gap until fulfillment-service location linkage, callback URL fields, inventory/tracking flags, and missing-service nullability are captured."
+    "runtimeTests": ["tests/integration/fulfillment-service-flow.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 FulfillmentService ID lookup root. Snapshot reads resolve from the local fulfillment-service graph and return null for missing IDs; `Shop.fulfillmentServices` remains a nested shop field rather than a top-level list root."
   },
   {
     "name": "fulfillmentServiceCreate",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentServiceCreate", "FulfillmentServiceCreate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires service/location creation coupling, callback endpoint validation, inventory/tracking flags, and downstream shop.fulfillmentServices visibility before support."
+    "runtimeTests": ["tests/integration/fulfillment-service-flow.test.ts"],
+    "supportNotes": "Locally stages third-party fulfillment-service creation with associated fulfillment-service location visibility, callback URL persistence, inventory/tracking flags, and raw mutation log retention. External callback, inventory, tracking, and fulfillment-order notification endpoints are not invoked."
   },
   {
     "name": "fulfillmentServiceDelete",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentServiceDelete", "FulfillmentServiceDelete"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires inventoryAction behavior, destination location transfer/keep/delete semantics, and downstream service/location visibility before support."
+    "runtimeTests": ["tests/integration/fulfillment-service-flow.test.ts"],
+    "supportNotes": "Locally stages fulfillment-service deletion, including missing-id userErrors and associated location side effects for DELETE/TRANSFER versus KEEP inventory actions. Inventory movement itself remains in-memory only and no external endpoints are invoked."
   },
   {
     "name": "fulfillmentServiceUpdate",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentServiceUpdate", "FulfillmentServiceUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires service field validation plus LocationEdit handoff boundaries for service-managed location changes before support."
+    "runtimeTests": ["tests/integration/fulfillment-service-flow.test.ts"],
+    "supportNotes": "Locally stages name, callback URL, tracking, inventory-management, and requires-shipping-method updates. The service handle remains stable while the associated fulfillment-service location name follows the service name."
   },
   {
     "name": "availableCarrierServices",
@@ -2132,9 +2193,9 @@
     "type": "query",
     "domain": "discounts",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["automaticDiscountNodes", "AutomaticDiscountNodes"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts"]
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/discount-automatic-basic-flow.test.ts"]
   },
   {
     "name": "automaticDiscountNode",
@@ -2152,7 +2213,8 @@
     "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeBasicCreate", "DiscountCodeBasicCreate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
+    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
   },
   {
     "name": "discountCodeBasicUpdate",
@@ -2161,7 +2223,8 @@
     "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeBasicUpdate", "DiscountCodeBasicUpdate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
+    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
   },
   {
     "name": "discountCodeBxgyCreate",
@@ -2170,7 +2233,8 @@
     "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeBxgyCreate", "DiscountCodeBxgyCreate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
+    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
   },
   {
     "name": "discountCodeBxgyUpdate",
@@ -2188,7 +2252,8 @@
     "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeFreeShippingCreate", "DiscountCodeFreeShippingCreate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
+    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
   },
   {
     "name": "discountCodeFreeShippingUpdate",
@@ -2242,7 +2307,8 @@
     "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeBulkDeactivate", "DiscountCodeBulkDeactivate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
+    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
   },
   {
     "name": "discountCodeBulkDelete",
@@ -2276,18 +2342,21 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticBasicCreate", "DiscountAutomaticBasicCreate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": [
+      "tests/integration/discount-mutation-validation.test.ts",
+      "tests/integration/discount-automatic-basic-flow.test.ts"
+    ]
   },
   {
     "name": "discountAutomaticBasicUpdate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticBasicUpdate", "DiscountAutomaticBasicUpdate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/discount-automatic-basic-flow.test.ts"]
   },
   {
     "name": "discountAutomaticBxgyCreate",
@@ -2296,7 +2365,8 @@
     "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountAutomaticBxgyCreate", "DiscountAutomaticBxgyCreate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
+    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
   },
   {
     "name": "discountAutomaticBxgyUpdate",
@@ -2314,7 +2384,8 @@
     "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountAutomaticFreeShippingCreate", "DiscountAutomaticFreeShippingCreate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
+    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
   },
   {
     "name": "discountAutomaticFreeShippingUpdate",
@@ -2330,27 +2401,27 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticActivate", "DiscountAutomaticActivate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/discount-automatic-basic-flow.test.ts"]
   },
   {
     "name": "discountAutomaticDeactivate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticDeactivate", "DiscountAutomaticDeactivate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/discount-automatic-basic-flow.test.ts"]
   },
   {
     "name": "discountAutomaticDelete",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticDelete", "DiscountAutomaticDelete"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/discount-automatic-basic-flow.test.ts"]
   },
   {
     "name": "discountAutomaticBulkDelete",
@@ -2359,7 +2430,8 @@
     "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountAutomaticBulkDelete", "DiscountAutomaticBulkDelete"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
+    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
   },
   {
     "name": "discountCodeAppCreate",
@@ -2646,30 +2718,30 @@
     "type": "mutation",
     "domain": "segments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["segmentCreate", "SegmentCreate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_customers and protected-customer-data captures for ShopifyQL validation, unique names, and downstream segment catalog reads."
+    "runtimeTests": ["tests/integration/segment-lifecycle-flow.test.ts"],
+    "supportNotes": "HAR-216 stages segment creation locally with synthetic IDs/timestamps, captured blank/invalid-query validation, Shopify-like duplicate-name suffixing, and downstream segment catalog/count/detail reads."
   },
   {
     "name": "segmentUpdate",
     "type": "mutation",
     "domain": "segments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["segmentUpdate", "SegmentUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_customers and protected-customer-data captures for ShopifyQL validation, rename behavior, and downstream member recalculation."
+    "runtimeTests": ["tests/integration/segment-lifecycle-flow.test.ts"],
+    "supportNotes": "HAR-216 stages segment updates locally with captured unknown-ID/validation userErrors, query/name replacement, duplicate-name suffixing, and read-after-write visibility."
   },
   {
     "name": "segmentDelete",
     "type": "mutation",
     "domain": "segments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["segmentDelete", "SegmentDelete"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_customers and protected-customer-data captures for deletion payloads, unknown IDs, and downstream absence behavior."
+    "runtimeTests": ["tests/integration/segment-lifecycle-flow.test.ts"],
+    "supportNotes": "HAR-216 stages segment deletion locally, returns captured unknown-ID userErrors, and removes deleted segments from downstream detail/catalog/count reads."
   },
   {
     "name": "market",
@@ -2780,6 +2852,45 @@
     ]
   },
   {
+    "name": "marketLocalizableResource",
+    "type": "query",
+    "domain": "markets",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["marketLocalizableResource", "MarketLocalizableResource"],
+    "runtimeTests": [
+      "tests/integration/markets-localization-flow.test.ts",
+      "tests/unit/conformance-parity-scenarios.test.ts"
+    ],
+    "supportNotes": "Supports product metafield-backed MarketLocalizableResource reads for the current 2026-04 METAFIELD resource type."
+  },
+  {
+    "name": "marketLocalizableResources",
+    "type": "query",
+    "domain": "markets",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["marketLocalizableResources", "MarketLocalizableResources"],
+    "runtimeTests": [
+      "tests/integration/markets-localization-flow.test.ts",
+      "tests/unit/conformance-parity-scenarios.test.ts"
+    ],
+    "supportNotes": "Supports resourceType: METAFIELD over product metafields; METAOBJECT returns the Shopify-like empty local slice until metaobject state exists."
+  },
+  {
+    "name": "marketLocalizableResourcesByIds",
+    "type": "query",
+    "domain": "markets",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["marketLocalizableResourcesByIds", "MarketLocalizableResourcesByIds"],
+    "runtimeTests": [
+      "tests/integration/markets-localization-flow.test.ts",
+      "tests/unit/conformance-parity-scenarios.test.ts"
+    ],
+    "supportNotes": "Supports product metafield resource IDs and ignores unknown IDs with Shopify-like empty connection behavior."
+  },
+  {
     "name": "marketCreate",
     "type": "mutation",
     "domain": "markets",
@@ -2807,22 +2918,58 @@
     "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
   },
   {
+    "name": "catalogCreate",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["catalogCreate", "CatalogCreate"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
+  },
+  {
+    "name": "catalogUpdate",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["catalogUpdate", "CatalogUpdate"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
+  },
+  {
+    "name": "catalogContextUpdate",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["catalogContextUpdate", "CatalogContextUpdate"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
+  },
+  {
+    "name": "catalogDelete",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["catalogDelete", "CatalogDelete"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
+  },
+  {
     "name": "webPresenceCreate",
     "type": "mutation",
     "domain": "markets",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["webPresenceCreate", "WebPresenceCreate"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
   },
   {
     "name": "webPresenceUpdate",
     "type": "mutation",
     "domain": "markets",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["webPresenceUpdate", "WebPresenceUpdate"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
   },
   {
     "name": "webPresenceDelete",
@@ -2838,18 +2985,20 @@
     "type": "mutation",
     "domain": "markets",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketLocalizationsRegister", "MarketLocalizationsRegister"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/markets-localization-flow.test.ts"],
+    "supportNotes": "Stages market-specific values for product metafield resources only; validates market ID, key, digest, blank value, and missing input without upstream writes."
   },
   {
     "name": "marketLocalizationsRemove",
     "type": "mutation",
     "domain": "markets",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketLocalizationsRemove", "MarketLocalizationsRemove"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/markets-localization-flow.test.ts"],
+    "supportNotes": "Removes staged market-specific product metafield values locally and returns removed localization payloads."
   },
   {
     "name": "fileCreate",

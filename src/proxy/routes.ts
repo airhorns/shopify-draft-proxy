@@ -12,11 +12,12 @@ import { findOperationRegistryEntry } from './operation-registry.js';
 import { handleMediaMutation } from './media.js';
 import { handleMarketingQuery, hydrateMarketingFromUpstreamResponse } from './marketing.js';
 import { handleCustomerMutation, handleCustomerQuery, hydrateCustomersFromUpstreamResponse } from './customers.js';
-import { handleDiscountQuery } from './discounts.js';
+import { handleDiscountMutation, handleDiscountQuery } from './discounts.js';
 import { handleMarketMutation, handleMarketsQuery, hydrateMarketsFromUpstreamResponse } from './markets.js';
 import { handleOrderMutation, handleOrderQuery, shouldServeDraftOrderCatalogLocally } from './orders.js';
 import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamResponse } from './products.js';
-import { handleSegmentsQuery, hydrateSegmentsFromUpstreamResponse } from './segments.js';
+import { handleMetafieldDefinitionQuery } from './metafield-definitions.js';
+import { handleSegmentMutation, handleSegmentsQuery, hydrateSegmentsFromUpstreamResponse } from './segments.js';
 import { handleStorePropertiesMutation, handleStorePropertiesQuery } from './store-properties.js';
 
 interface GraphQLBody {
@@ -31,6 +32,14 @@ const APP_DISCOUNT_MUTATION_ROOTS = new Set([
   'discountCodeAppUpdate',
   'discountAutomaticAppCreate',
   'discountAutomaticAppUpdate',
+]);
+
+const ORDER_PAYMENT_MUTATION_ROOTS = new Set(['orderCapture', 'transactionVoid', 'orderCreateMandatePayment']);
+
+const FULFILLMENT_SERVICE_MUTATION_ROOTS = new Set([
+  'fulfillmentServiceCreate',
+  'fulfillmentServiceUpdate',
+  'fulfillmentServiceDelete',
 ]);
 
 function readVariables(raw: unknown): Record<string, unknown> {
@@ -140,6 +149,11 @@ function unsupportedMutationNotes(parsed: ParsedOperation): string {
     return 'Unsupported app-managed discount mutation would be proxied to Shopify. Shopify Functions app-discount roots require conformance-backed local staging before they can be supported without executing external Function logic.';
   }
 
+  const registryEntry = findOperationRegistryEntry(parsed.type, [...parsed.rootFields, parsed.name]);
+  if (registryEntry?.domain === 'discounts') {
+    return 'Unsupported discount mutation lifecycle branch would be proxied to Shopify. Captured validation failures are handled locally only; full local emulation is required before this root can be supported.';
+  }
+
   return 'Mutation passthrough placeholder until supported local staging is implemented.';
 }
 
@@ -170,6 +184,42 @@ export function createProxyRouter(config: AppConfig): Router {
     const parsed = parseOperation(body.query);
     const capability = getOperationCapability(parsed);
     const primaryRootField = parsed.rootFields[0] ?? capability.operationName;
+
+    if (parsed.type === 'mutation') {
+      const discountMutation = handleDiscountMutation(body.query, variables);
+      if (discountMutation) {
+        proxyLogger.debug(
+          {
+            operationName: capability.operationName,
+            operationType: parsed.type,
+            rootFields: parsed.rootFields,
+          },
+          discountMutation.staged
+            ? 'staging supported discount mutation locally'
+            : 'returning captured discount validation response locally',
+        );
+
+        if (discountMutation.staged) {
+          store.appendLog({
+            id: makeSyntheticGid('MutationLogEntry'),
+            receivedAt: makeSyntheticTimestamp(),
+            operationName: capability.operationName,
+            path: ctx.path,
+            query: body.query,
+            variables,
+            requestBody,
+            stagedResourceIds: discountMutation.stagedResourceIds,
+            status: 'staged',
+            interpreted: interpretMutationLogEntry(parsed, capability),
+            ...(discountMutation.notes ? { notes: discountMutation.notes } : {}),
+          });
+        }
+
+        ctx.status = 200;
+        ctx.body = discountMutation.response;
+        return;
+      }
+    }
 
     if (isProductLocalMutationCapability(capability)) {
       proxyLogger.debug(
@@ -241,7 +291,24 @@ export function createProxyRouter(config: AppConfig): Router {
       return;
     }
 
-    if (capability.execution === 'stage-locally' && capability.domain === 'customers') {
+    if (
+      capability.execution === 'stage-locally' &&
+      capability.domain === 'shipping-fulfillments' &&
+      primaryRootField &&
+      FULFILLMENT_SERVICE_MUTATION_ROOTS.has(primaryRootField)
+    ) {
+      proxyLogger.debug(
+        {
+          execution: capability.execution,
+          operationName: capability.operationName,
+          operationType: parsed.type,
+          rootFields: parsed.rootFields,
+        },
+        'staging supported fulfillment service mutation locally',
+      );
+
+      const responseBody = handleStorePropertiesMutation(body.query, variables);
+
       store.appendLog({
         id: makeSyntheticGid('MutationLogEntry'),
         receivedAt: makeSyntheticTimestamp(),
@@ -250,13 +317,38 @@ export function createProxyRouter(config: AppConfig): Router {
         query: body.query,
         variables,
         requestBody,
+        stagedResourceIds: collectProxySyntheticGids(responseBody),
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        notes:
+          'Staged locally in the in-memory fulfillment service draft store; callback, inventory, tracking, and fulfillment-order notification endpoints are not invoked.',
+      });
+
+      ctx.status = 200;
+      ctx.body = responseBody;
+      return;
+    }
+
+    if (capability.execution === 'stage-locally' && capability.domain === 'customers') {
+      const logEntryId = makeSyntheticGid('MutationLogEntry');
+      const receivedAt = makeSyntheticTimestamp();
+      const responseBody = handleCustomerMutation(body.query, variables);
+      store.appendLog({
+        id: logEntryId,
+        receivedAt,
+        operationName: capability.operationName,
+        path: ctx.path,
+        query: body.query,
+        variables,
+        requestBody,
+        stagedResourceIds: collectProxySyntheticGids(responseBody),
         status: 'staged',
         interpreted: interpretMutationLogEntry(parsed, capability),
         notes: 'Staged locally in the in-memory customer draft store.',
       });
 
       ctx.status = 200;
-      ctx.body = handleCustomerMutation(body.query, variables);
+      ctx.body = responseBody;
       return;
     }
 
@@ -277,6 +369,33 @@ export function createProxyRouter(config: AppConfig): Router {
       ctx.status = 200;
       ctx.body = handleMediaMutation(body.query, variables);
       return;
+    }
+
+    if (
+      capability.execution === 'stage-locally' &&
+      capability.domain === 'payments' &&
+      ORDER_PAYMENT_MUTATION_ROOTS.has(primaryRootField ?? '')
+    ) {
+      const responseBody = handleOrderMutation(body.query, variables, config.readMode, config.shopifyAdminOrigin);
+      if (responseBody) {
+        store.appendLog({
+          id: makeSyntheticGid('MutationLogEntry'),
+          receivedAt: makeSyntheticTimestamp(),
+          operationName: capability.operationName,
+          path: ctx.path,
+          query: body.query,
+          variables,
+          requestBody,
+          stagedResourceIds: collectProxySyntheticGids(responseBody),
+          status: 'staged',
+          interpreted: interpretMutationLogEntry(parsed, capability),
+          notes: 'Staged locally in the in-memory order payment draft store.',
+        });
+
+        ctx.status = 200;
+        ctx.body = responseBody;
+        return;
+      }
     }
 
     if (capability.execution === 'stage-locally' && capability.domain === 'markets') {
@@ -301,10 +420,37 @@ export function createProxyRouter(config: AppConfig): Router {
       return;
     }
 
+    if (capability.execution === 'stage-locally' && capability.domain === 'segments') {
+      const responseBody = handleSegmentMutation(body.query, variables);
+
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: ctx.path,
+        query: body.query,
+        variables,
+        requestBody,
+        stagedResourceIds: collectProxySyntheticGids(responseBody),
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        notes: 'Staged locally in the in-memory segment draft store.',
+      });
+
+      ctx.status = 200;
+      ctx.body = responseBody;
+      return;
+    }
+
     if (
       capability.execution === 'stage-locally' &&
       capability.domain === 'store-properties' &&
-      primaryRootField === 'shopPolicyUpdate'
+      (primaryRootField === 'shopPolicyUpdate' ||
+        primaryRootField === 'locationAdd' ||
+        primaryRootField === 'locationEdit' ||
+        primaryRootField === 'locationActivate' ||
+        primaryRootField === 'locationDeactivate' ||
+        primaryRootField === 'locationDelete')
     ) {
       proxyLogger.debug(
         {
@@ -313,7 +459,7 @@ export function createProxyRouter(config: AppConfig): Router {
           operationType: parsed.type,
           rootFields: parsed.rootFields,
         },
-        'staging supported shop policy mutation locally',
+        'staging supported store properties mutation locally',
       );
 
       const responseBody = handleStorePropertiesMutation(body.query, variables);
@@ -329,7 +475,10 @@ export function createProxyRouter(config: AppConfig): Router {
         stagedResourceIds: collectProxySyntheticGids(responseBody),
         status: 'staged',
         interpreted: interpretMutationLogEntry(parsed, capability),
-        notes: 'Staged locally in the in-memory Store properties legal policy draft store.',
+        notes:
+          primaryRootField === 'shopPolicyUpdate'
+            ? 'Staged locally in the in-memory Store properties legal policy draft store.'
+            : 'Staged locally in the in-memory Store properties location draft store.',
       });
 
       ctx.status = 200;
@@ -497,6 +646,52 @@ export function createProxyRouter(config: AppConfig): Router {
       }
     }
 
+    if (capability.execution === 'overlay-read' && capability.domain === 'shipping-fulfillments') {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleStorePropertiesQuery(body.query, variables);
+        return;
+      }
+
+      if (
+        config.readMode === 'live-hybrid' &&
+        primaryRootField === 'fulfillmentService' &&
+        typeof variables['id'] === 'string' &&
+        store.getEffectiveFulfillmentServiceById(variables['id']) !== null
+      ) {
+        ctx.status = 200;
+        ctx.body = handleStorePropertiesQuery(body.query, variables);
+        return;
+      }
+    }
+
+    if (
+      capability.execution === 'overlay-read' &&
+      capability.domain === 'payments' &&
+      primaryRootField === 'shopifyPaymentsAccount'
+    ) {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleStorePropertiesQuery(body.query, variables);
+        return;
+      }
+
+      if (config.readMode === 'live-hybrid') {
+        const primaryBusinessEntity = store.getPrimaryBusinessEntity();
+        const hasLocalShopifyPaymentsAccount =
+          Boolean(primaryBusinessEntity?.shopifyPaymentsAccount) ||
+          store
+            .listEffectiveBusinessEntities()
+            .some((businessEntity) => businessEntity.shopifyPaymentsAccount !== null);
+
+        if (hasLocalShopifyPaymentsAccount) {
+          ctx.status = 200;
+          ctx.body = handleStorePropertiesQuery(body.query, variables);
+          return;
+        }
+      }
+    }
+
     if (capability.execution === 'overlay-read' && capability.domain === 'markets') {
       if (config.readMode === 'snapshot') {
         ctx.status = 200;
@@ -526,6 +721,30 @@ export function createProxyRouter(config: AppConfig): Router {
       }
     }
 
+    if (capability.execution === 'overlay-read' && capability.domain === 'metafields') {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleMetafieldDefinitionQuery(body.query, variables);
+        return;
+      }
+
+      const response = await upstream.request({
+        path: ctx.path,
+        headers: {
+          'content-type': 'application/json',
+          'x-shopify-access-token': ctx.get('x-shopify-access-token'),
+        },
+        body: {
+          query: body.query,
+          variables,
+        },
+      });
+
+      ctx.status = response.status;
+      ctx.body = await response.json();
+      return;
+    }
+
     if (capability.execution === 'overlay-read' && capability.domain === 'segments') {
       if (config.readMode === 'snapshot') {
         ctx.status = 200;
@@ -550,7 +769,7 @@ export function createProxyRouter(config: AppConfig): Router {
         hydrateSegmentsFromUpstreamResponse(body.query, variables, upstreamBody);
 
         ctx.status = response.status;
-        ctx.body = upstreamBody;
+        ctx.body = store.hasStagedSegments() ? handleSegmentsQuery(body.query, variables) : upstreamBody;
         return;
       }
     }

@@ -5,8 +5,8 @@ import { parseSearchQuery, type SearchQueryNode, type SearchQueryTerm } from '..
 import {
   getFieldResponseKey,
   getSelectedChildFields,
-  serializeConnectionPageInfo,
-  serializeEmptyConnectionPageInfo,
+  paginateConnectionItems,
+  serializeConnection,
 } from './graphql-helpers.js';
 import {
   mergeMetafieldRecords,
@@ -19,6 +19,7 @@ import {
 import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type {
+  CustomerAddressRecord,
   CustomerCatalogConnectionRecord,
   CustomerCatalogPageInfoRecord,
   CustomerMergeRequestRecord,
@@ -185,6 +186,33 @@ const VALID_CUSTOMER_METAFIELD_TYPE_MESSAGE = `Type must be one of the following
   ...CUSTOMER_METAFIELD_LIST_TYPES,
 ].join(', ')}.`;
 
+const SUPPORTED_CUSTOMER_SET_INPUT_FIELDS = new Set([
+  'addresses',
+  'email',
+  'firstName',
+  'lastName',
+  'locale',
+  'note',
+  'phone',
+  'tags',
+  'taxExempt',
+  'taxExemptions',
+]);
+
+const SUPPORTED_CUSTOMER_SET_IDENTIFIER_FIELDS = new Set(['id', 'email', 'phone']);
+
+const COUNTRY_NAMES_BY_CODE: Record<string, string> = {
+  CA: 'Canada',
+  US: 'United States',
+};
+
+const PROVINCE_NAMES_BY_COUNTRY_CODE: Record<string, Record<string, string>> = {
+  CA: {
+    ON: 'Ontario',
+    QC: 'Quebec',
+  },
+};
+
 function isValidCustomerMetafieldType(type: string): boolean {
   return VALID_CUSTOMER_METAFIELD_TYPES.has(type) || CUSTOMER_METAFIELD_LIST_TYPES.includes(type);
 }
@@ -285,6 +313,27 @@ function buildCustomerDisplayName(
 
 function maskPhoneNumber(phone: string | null): string | null {
   return phone;
+}
+
+function resolveCountryName(countryCode: string | null, fallback: string | null): string | null {
+  return countryCode ? (COUNTRY_NAMES_BY_CODE[countryCode] ?? fallback ?? countryCode) : fallback;
+}
+
+function resolveProvinceName(
+  countryCode: string | null,
+  provinceCode: string | null,
+  fallback: string | null,
+): string | null {
+  if (!countryCode || !provinceCode) {
+    return fallback;
+  }
+
+  return PROVINCE_NAMES_BY_COUNTRY_CODE[countryCode]?.[provinceCode] ?? fallback ?? provinceCode;
+}
+
+function buildFormattedArea(city: string | null, provinceCode: string | null, country: string | null): string | null {
+  const cityRegion = [city, provinceCode].filter(Boolean).join(' ');
+  return [cityRegion || null, country].filter(Boolean).join(', ') || null;
 }
 
 function normalizeMoney(raw: unknown, fallback: CustomerRecord['amountSpent'] = null): CustomerRecord['amountSpent'] {
@@ -428,12 +477,104 @@ function normalizeDefaultAddress(
   }
 
   return {
+    id: normalizeStringField(raw, 'id'),
+    firstName: normalizeStringField(raw, 'firstName'),
+    lastName: normalizeStringField(raw, 'lastName'),
     address1: normalizeStringField(raw, 'address1'),
+    address2: normalizeStringField(raw, 'address2'),
     city: normalizeStringField(raw, 'city'),
+    company: normalizeStringField(raw, 'company'),
     province: normalizeStringField(raw, 'province'),
+    provinceCode: normalizeStringField(raw, 'provinceCode'),
     country: normalizeStringField(raw, 'country'),
+    countryCodeV2: normalizeStringField(raw, 'countryCodeV2'),
     zip: normalizeStringField(raw, 'zip'),
+    phone: normalizeStringField(raw, 'phone'),
+    name: normalizeStringField(raw, 'name'),
     formattedArea: normalizeStringField(raw, 'formattedArea'),
+  };
+}
+
+function normalizeCustomerAddress(
+  customerId: string,
+  raw: unknown,
+  options: { fallback?: CustomerAddressRecord | null; cursor?: string | null; position?: number } = {},
+): CustomerAddressRecord | null {
+  if (!isObject(raw)) {
+    return null;
+  }
+
+  const rawId = raw['id'];
+  const id = typeof rawId === 'string' && rawId ? rawId : (options.fallback?.id ?? makeSyntheticGid('CustomerAddress'));
+  const firstName = normalizeStringField(raw, 'firstName', options.fallback?.firstName ?? null);
+  const lastName = normalizeStringField(raw, 'lastName', options.fallback?.lastName ?? null);
+  const address1 = normalizeStringField(raw, 'address1', options.fallback?.address1 ?? null);
+  const address2 = normalizeStringField(raw, 'address2', options.fallback?.address2 ?? null);
+  const city = normalizeStringField(raw, 'city', options.fallback?.city ?? null);
+  const company = normalizeStringField(raw, 'company', options.fallback?.company ?? null);
+  const provinceCode = normalizeStringField(raw, 'provinceCode', options.fallback?.provinceCode ?? null);
+  const countryCodeV2 =
+    normalizeStringField(raw, 'countryCodeV2', options.fallback?.countryCodeV2 ?? null) ??
+    normalizeStringField(raw, 'countryCode', options.fallback?.countryCodeV2 ?? null);
+  const country = normalizeStringField(
+    raw,
+    'country',
+    resolveCountryName(countryCodeV2, options.fallback?.country ?? null),
+  );
+  const province = normalizeStringField(
+    raw,
+    'province',
+    resolveProvinceName(countryCodeV2, provinceCode, options.fallback?.province ?? null),
+  );
+  const zip = normalizeStringField(raw, 'zip', options.fallback?.zip ?? null);
+  const phone = normalizeStringField(raw, 'phone', options.fallback?.phone ?? null);
+  const rawName = normalizeStringField(raw, 'name', options.fallback?.name ?? null);
+  const fallbackName = [firstName, lastName].filter(Boolean).join(' ') || null;
+  const name = rawName ?? fallbackName;
+
+  return {
+    id,
+    customerId,
+    cursor: options.cursor ?? options.fallback?.cursor ?? null,
+    position: options.position ?? options.fallback?.position ?? 0,
+    firstName,
+    lastName,
+    address1,
+    address2,
+    city,
+    company,
+    province,
+    provinceCode,
+    country,
+    countryCodeV2,
+    zip,
+    phone,
+    name,
+    formattedArea: normalizeStringField(
+      raw,
+      'formattedArea',
+      options.fallback?.formattedArea ?? buildFormattedArea(city, provinceCode, country),
+    ),
+  };
+}
+
+function customerAddressToDefaultAddress(address: CustomerAddressRecord): CustomerRecord['defaultAddress'] {
+  return {
+    id: address.id,
+    firstName: address.firstName,
+    lastName: address.lastName,
+    address1: address.address1,
+    address2: address.address2,
+    city: address.city,
+    company: address.company,
+    province: address.province,
+    provinceCode: address.provinceCode,
+    country: address.country,
+    countryCodeV2: address.countryCodeV2,
+    zip: address.zip,
+    phone: address.phone,
+    name: address.name,
+    formattedArea: address.formattedArea,
   };
 }
 
@@ -613,23 +754,62 @@ function serializeDefaultAddressSelection(
   for (const selection of getSelectedChildFields(field)) {
     const key = getFieldResponseKey(selection);
     switch (selection.name.value) {
+      case 'id':
+        result[key] = value.id ?? null;
+        break;
+      case 'firstName':
+        result[key] = value.firstName ?? null;
+        break;
+      case 'lastName':
+        result[key] = value.lastName ?? null;
+        break;
       case 'address1':
         result[key] = value.address1;
+        break;
+      case 'address2':
+        result[key] = value.address2 ?? null;
         break;
       case 'city':
         result[key] = value.city;
         break;
+      case 'company':
+        result[key] = value.company ?? null;
+        break;
       case 'province':
         result[key] = value.province;
+        break;
+      case 'provinceCode':
+        result[key] = value.provinceCode ?? null;
         break;
       case 'country':
         result[key] = value.country;
         break;
+      case 'countryCodeV2':
+        result[key] = value.countryCodeV2 ?? null;
+        break;
       case 'zip':
         result[key] = value.zip;
         break;
+      case 'phone':
+        result[key] = value.phone ?? null;
+        break;
+      case 'name':
+        result[key] = value.name ?? null;
+        break;
       case 'formattedArea':
         result[key] = value.formattedArea;
+        break;
+      case 'formatted':
+        result[key] = [value.address1, value.city, value.province, value.zip, value.country].filter(Boolean);
+        break;
+      case 'coordinatesValidated':
+        result[key] = false;
+        break;
+      case 'latitude':
+      case 'longitude':
+      case 'timeZone':
+      case 'validationResultSummary':
+        result[key] = null;
         break;
       default:
         result[key] = null;
@@ -639,26 +819,109 @@ function serializeDefaultAddressSelection(
   return result;
 }
 
-function serializeEmptyConnectionSelection(field: FieldNode): Record<string, unknown> {
+function serializeCustomerAddressSelection(field: FieldNode, address: CustomerAddressRecord): Record<string, unknown> {
   const result: Record<string, unknown> = {};
-
   for (const selection of getSelectedChildFields(field)) {
     const key = getFieldResponseKey(selection);
     switch (selection.name.value) {
-      case 'nodes':
-      case 'edges':
-        result[key] = [];
+      case 'id':
+        result[key] = address.id;
         break;
-      case 'pageInfo':
-        result[key] = serializeEmptyConnectionPageInfo(selection);
+      case 'firstName':
+        result[key] = address.firstName;
+        break;
+      case 'lastName':
+        result[key] = address.lastName;
+        break;
+      case 'address1':
+        result[key] = address.address1;
+        break;
+      case 'address2':
+        result[key] = address.address2;
+        break;
+      case 'city':
+        result[key] = address.city;
+        break;
+      case 'company':
+        result[key] = address.company;
+        break;
+      case 'province':
+        result[key] = address.province;
+        break;
+      case 'provinceCode':
+        result[key] = address.provinceCode;
+        break;
+      case 'country':
+        result[key] = address.country;
+        break;
+      case 'countryCodeV2':
+        result[key] = address.countryCodeV2;
+        break;
+      case 'zip':
+        result[key] = address.zip;
+        break;
+      case 'phone':
+        result[key] = address.phone;
+        break;
+      case 'name':
+        result[key] = address.name;
+        break;
+      case 'formattedArea':
+        result[key] = address.formattedArea;
+        break;
+      case 'formatted':
+        result[key] = [address.address1, address.city, address.province, address.zip, address.country].filter(Boolean);
+        break;
+      case 'coordinatesValidated':
+        result[key] = false;
+        break;
+      case 'latitude':
+      case 'longitude':
+      case 'timeZone':
+      case 'validationResultSummary':
+        result[key] = null;
         break;
       default:
         result[key] = null;
         break;
     }
   }
-
   return result;
+}
+
+function serializeCustomerAddressesConnectionSelection(
+  customerId: string,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const addresses = store.listEffectiveCustomerAddresses(customerId);
+  const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
+    addresses,
+    field,
+    variables,
+    (address, index) => address.cursor ?? `customer-address-${customerId}-${index}`,
+  );
+
+  return serializeConnection(field, {
+    items,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (address, index) => address.cursor ?? `customer-address-${customerId}-${index}`,
+    serializeNode: (address, selection) => serializeCustomerAddressSelection(selection, address),
+    pageInfoOptions: {
+      prefixCursors: false,
+    },
+  });
+}
+
+function serializeEmptyConnectionSelection(field: FieldNode): Record<string, unknown> {
+  return serializeConnection(field, {
+    items: [],
+    hasNextPage: false,
+    hasPreviousPage: false,
+    getCursorValue: () => '',
+    serializeNode: () => null,
+  });
 }
 function serializeCustomerSelection(
   customer: CustomerRecord,
@@ -738,6 +1001,8 @@ function serializeCustomerSelection(
         result[key] = [];
         break;
       case 'addressesV2':
+        result[key] = serializeCustomerAddressesConnectionSelection(customer.id, selection, variables);
+        break;
       case 'events':
       case 'orders':
       case 'paymentMethods':
@@ -909,6 +1174,25 @@ function findCustomerByIdentifier(identifier: Record<string, unknown>): Customer
         .listEffectiveCustomers()
         .find((customer) => customer.defaultPhoneNumber?.phoneNumber?.trim() === phoneNumber) ?? null
     );
+  }
+
+  return null;
+}
+
+function findCustomerByCustomerSetIdentifier(identifier: Record<string, unknown>): CustomerRecord | null {
+  const id = normalizeCustomerIdentifierValue(identifier['id']);
+  if (id) {
+    return store.getEffectiveCustomerById(id);
+  }
+
+  const email = normalizeCustomerIdentifierValue(identifier['email']);
+  if (email) {
+    return findCustomerByIdentifier({ emailAddress: email });
+  }
+
+  const phone = normalizeCustomerIdentifierValue(identifier['phone']);
+  if (phone) {
+    return findCustomerByIdentifier({ phoneNumber: phone });
   }
 
   return null;
@@ -1264,36 +1548,11 @@ function serializeCustomersCount(_rawQuery: unknown, selections: readonly Select
   return result;
 }
 
-function buildCatalogPageInfo(
-  visibleCustomers: CustomerRecord[],
-  field: FieldNode,
-  hasNextPage: boolean,
-  hasPreviousPage: boolean,
-  catalogConnection: CustomerCatalogConnectionRecord | null,
-  options: { preserveBaselinePageInfo: boolean },
-): Record<string, boolean | string | null> {
-  return serializeConnectionPageInfo(
-    field,
-    visibleCustomers,
-    hasNextPage,
-    hasPreviousPage,
-    (customer) => resolveCatalogCustomerCursor(customer.id, catalogConnection),
-    {
-      prefixCursors: false,
-      fallbackStartCursor: options.preserveBaselinePageInfo ? (catalogConnection?.pageInfo.startCursor ?? null) : null,
-      fallbackEndCursor: options.preserveBaselinePageInfo ? (catalogConnection?.pageInfo.endCursor ?? null) : null,
-    },
-  ) as Record<string, boolean | string | null>;
-}
-
 function serializeCustomersConnection(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
-  const first =
-    typeof args['first'] === 'number' && Number.isFinite(args['first']) ? Math.max(0, Math.floor(args['first'])) : null;
+  const before = typeof args['before'] === 'string' ? args['before'] : null;
   const last =
     typeof args['last'] === 'number' && Number.isFinite(args['last']) ? Math.max(0, Math.floor(args['last'])) : null;
-  const after = typeof args['after'] === 'string' ? args['after'] : null;
-  const before = typeof args['before'] === 'string' ? args['before'] : null;
 
   const catalogConnection = store.getBaseCustomerCatalogConnection();
   const searchConnectionKey = buildCustomerSearchConnectionKey(args['query'], args['sortKey'], args['reverse']);
@@ -1309,75 +1568,36 @@ function serializeCustomersConnection(field: FieldNode, variables: Record<string
     args['sortKey'],
     args['reverse'],
   );
-  const afterIndex = after
-    ? allCustomers.findIndex((customer) => resolveCatalogCustomerCursor(customer.id, activeConnection) === after)
-    : -1;
-  const beforeIndex = before
-    ? allCustomers.findIndex((customer) => resolveCatalogCustomerCursor(customer.id, activeConnection) === before)
-    : -1;
-  const startIndex = afterIndex >= 0 ? afterIndex + 1 : 0;
-  const endIndex = beforeIndex >= 0 ? beforeIndex : allCustomers.length;
-  const cursorWindow = allCustomers.slice(startIndex, endIndex);
-  const firstWindow = first === null ? cursorWindow : cursorWindow.slice(0, first);
-  const visibleCustomers = last === null ? firstWindow : firstWindow.slice(Math.max(0, firstWindow.length - last));
-  const visibleStartIndex =
-    last === null ? startIndex : Math.max(startIndex, startIndex + firstWindow.length - visibleCustomers.length);
-  const visibleEndIndex = visibleStartIndex + visibleCustomers.length;
-  const calculatedHasPreviousPage = visibleStartIndex > 0;
-  const calculatedHasNextPage = visibleEndIndex < allCustomers.length;
+  const {
+    items: visibleCustomers,
+    hasNextPage: calculatedHasNextPage,
+    hasPreviousPage: calculatedHasPreviousPage,
+  } = paginateConnectionItems(
+    allCustomers,
+    field,
+    variables,
+    (customer) => resolveCatalogCustomerCursor(customer.id, activeConnection),
+    {
+      parseCursor: (raw) => raw,
+    },
+  );
   const hasPreviousPage =
     calculatedHasPreviousPage || (preserveBaselinePageInfo && (activeConnection?.pageInfo.hasPreviousPage ?? false));
   const hasNextPage =
     calculatedHasNextPage || (preserveBaselinePageInfo && (activeConnection?.pageInfo.hasNextPage ?? false));
 
-  const connection: Record<string, unknown> = {};
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-        connection[key] = visibleCustomers.map((customer) =>
-          serializeCustomerSelection(customer, selection, variables),
-        );
-        break;
-      case 'edges':
-        connection[key] = visibleCustomers.map((customer) => {
-          const edge: Record<string, unknown> = {};
-          for (const edgeSelection of getSelectedChildFields(selection)) {
-            const edgeKey = getFieldResponseKey(edgeSelection);
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edge[edgeKey] = resolveCatalogCustomerCursor(customer.id, activeConnection);
-                break;
-              case 'node':
-                edge[edgeKey] = serializeCustomerSelection(customer, edgeSelection, variables);
-                break;
-              default:
-                edge[edgeKey] = null;
-                break;
-            }
-          }
-          return edge;
-        });
-        break;
-      case 'pageInfo':
-        connection[key] = buildCatalogPageInfo(
-          visibleCustomers,
-          selection,
-          hasNextPage,
-          hasPreviousPage,
-          activeConnection,
-          {
-            preserveBaselinePageInfo,
-          },
-        );
-        break;
-      default:
-        connection[key] = null;
-        break;
-    }
-  }
-
-  return connection;
+  return serializeConnection(field, {
+    items: visibleCustomers,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (customer) => resolveCatalogCustomerCursor(customer.id, activeConnection),
+    serializeNode: (customer, selection) => serializeCustomerSelection(customer, selection, variables),
+    pageInfoOptions: {
+      prefixCursors: false,
+      fallbackStartCursor: preserveBaselinePageInfo ? (activeConnection?.pageInfo.startCursor ?? null) : null,
+      fallbackEndCursor: preserveBaselinePageInfo ? (activeConnection?.pageInfo.endCursor ?? null) : null,
+    },
+  });
 }
 
 function normalizeCustomerCatalogPageInfo(raw: unknown): CustomerCatalogPageInfoRecord {
@@ -1434,6 +1654,75 @@ function collectHydratableCustomers(document: string, raw: unknown): CustomerRec
   }
 
   return customers;
+}
+
+function collectCustomerAddressesFromRawCustomer(rawCustomer: unknown): CustomerAddressRecord[] {
+  if (!isObject(rawCustomer) || typeof rawCustomer['id'] !== 'string') {
+    return [];
+  }
+
+  const customerId = rawCustomer['id'];
+  const addressesV2 = rawCustomer['addressesV2'];
+  if (!isObject(addressesV2)) {
+    return [];
+  }
+
+  const addresses: CustomerAddressRecord[] = [];
+  const seenAddressIds = new Set<string>();
+  const addAddress = (rawAddress: unknown, cursor: string | null, position: number): void => {
+    const address = normalizeCustomerAddress(customerId, rawAddress, { cursor, position });
+    if (!address || seenAddressIds.has(address.id)) {
+      return;
+    }
+    seenAddressIds.add(address.id);
+    addresses.push(address);
+  };
+
+  if (Array.isArray(addressesV2['nodes'])) {
+    addressesV2['nodes'].forEach((node, index) => addAddress(node, null, index));
+  }
+
+  if (Array.isArray(addressesV2['edges'])) {
+    addressesV2['edges'].forEach((edge, index) => {
+      if (!isObject(edge)) {
+        return;
+      }
+      addAddress(edge['node'], typeof edge['cursor'] === 'string' ? edge['cursor'] : null, index);
+    });
+  }
+
+  return addresses;
+}
+
+function collectCustomerAddresses(document: string, raw: unknown): CustomerAddressRecord[] {
+  if (!isObject(raw)) {
+    return [];
+  }
+
+  const addresses: CustomerAddressRecord[] = [];
+  for (const field of getRootFields(document)) {
+    const responseKey = getFieldResponseKey(field);
+    if (field.name.value === 'customer' || field.name.value === 'customerByIdentifier') {
+      addresses.push(...collectCustomerAddressesFromRawCustomer(raw[responseKey]));
+    }
+
+    if (field.name.value === 'customers') {
+      const customersConnection = raw[responseKey];
+      if (!isObject(customersConnection)) {
+        continue;
+      }
+      for (const customer of Array.isArray(customersConnection['nodes']) ? customersConnection['nodes'] : []) {
+        addresses.push(...collectCustomerAddressesFromRawCustomer(customer));
+      }
+      for (const edge of Array.isArray(customersConnection['edges']) ? customersConnection['edges'] : []) {
+        if (isObject(edge)) {
+          addresses.push(...collectCustomerAddressesFromRawCustomer(edge['node']));
+        }
+      }
+    }
+  }
+
+  return addresses;
 }
 
 function collectCustomerMetafieldsFromSelection(
@@ -1741,6 +2030,10 @@ function readCustomerInput(raw: unknown): Record<string, unknown> {
   return isObject(raw) ? raw : {};
 }
 
+function readCustomerSetIdentifier(raw: unknown): Record<string, unknown> {
+  return isObject(raw) ? raw : {};
+}
+
 function normalizeCustomerTags(raw: unknown, fallback: string[]): string[] {
   if (!Array.isArray(raw)) {
     return structuredClone(fallback);
@@ -1827,6 +2120,71 @@ function upsertMetafieldsForCustomer(customerId: string, inputs: Record<string, 
     allowIdLookup: true,
     trimIdentity: true,
   }).metafields;
+}
+
+function readCustomerAddressInput(raw: unknown): Record<string, unknown> {
+  return isObject(raw) ? raw : {};
+}
+
+function readCustomerAddressInputs(raw: unknown): Record<string, unknown>[] {
+  return Array.isArray(raw) ? raw.map(readCustomerAddressInput) : [];
+}
+
+function buildCreatedCustomerAddress(customerId: string, input: Record<string, unknown>): CustomerAddressRecord {
+  const position = store.listEffectiveCustomerAddresses(customerId).length;
+  return normalizeCustomerAddress(customerId, input, {
+    position,
+    cursor: `customer-address-${customerId}-${position}`,
+  })!;
+}
+
+function buildUpdatedCustomerAddress(
+  existing: CustomerAddressRecord,
+  input: Record<string, unknown>,
+): CustomerAddressRecord {
+  return normalizeCustomerAddress(existing.customerId, input, {
+    fallback: existing,
+    cursor: existing.cursor ?? `customer-address-${existing.customerId}-${existing.position}`,
+    position: existing.position,
+  })!;
+}
+
+function buildCustomerWithDefaultAddress(
+  customer: CustomerRecord,
+  defaultAddress: CustomerAddressRecord | null,
+): CustomerRecord {
+  return {
+    ...customer,
+    defaultAddress: defaultAddress ? customerAddressToDefaultAddress(defaultAddress) : null,
+    updatedAt: makeSyntheticTimestamp(),
+  };
+}
+
+function replaceCustomerSetAddresses(customer: CustomerRecord, rawAddresses: unknown): CustomerRecord {
+  for (const address of store.listEffectiveCustomerAddresses(customer.id)) {
+    store.stageDeleteCustomerAddress(address.id);
+  }
+
+  const addresses = readCustomerAddressInputs(rawAddresses).map((addressInput) =>
+    store.stageUpsertCustomerAddress(buildCreatedCustomerAddress(customer.id, addressInput)),
+  );
+
+  return store.stageUpdateCustomer(buildCustomerWithDefaultAddress(customer, addresses[0] ?? null));
+}
+
+function buildMissingCustomerAddressCustomerError(fieldPath: string[]): CustomerMutationUserError {
+  return {
+    field: fieldPath,
+    message: 'Customer does not exist',
+  };
+}
+
+function buildCustomerAddressResourceNotFoundError(field: FieldNode): Record<string, unknown> {
+  return {
+    message: 'invalid id',
+    path: [getFieldResponseKey(field)],
+    extensions: { code: 'RESOURCE_NOT_FOUND' },
+  };
 }
 
 function buildCreatedCustomer(input: Record<string, unknown>): CustomerRecord {
@@ -2094,6 +2452,109 @@ function validateCustomerCreateInput(input: Record<string, unknown>): CustomerMu
   return [{ field: null, message: 'A name, phone number, or email address must be present' }];
 }
 
+function validateCustomerSetCreateInput(input: Record<string, unknown>): CustomerMutationUserError[] {
+  const hasEmail = typeof input['email'] === 'string' && input['email'].trim().length > 0;
+  const hasPhone = typeof input['phone'] === 'string' && input['phone'].trim().length > 0;
+  const hasFirstName = typeof input['firstName'] === 'string' && input['firstName'].trim().length > 0;
+  const hasLastName = typeof input['lastName'] === 'string' && input['lastName'].trim().length > 0;
+  if (hasEmail || hasPhone || hasFirstName || hasLastName) {
+    return [];
+  }
+
+  return [{ field: ['input'], message: 'A name, phone number, or email address must be present' }];
+}
+
+function validateSupportedCustomerSetInput(input: Record<string, unknown>): CustomerMutationUserError[] {
+  const unsupportedFields = Object.keys(input).filter((field) => !SUPPORTED_CUSTOMER_SET_INPUT_FIELDS.has(field));
+  const unsupportedErrors = unsupportedFields.map((field): CustomerMutationUserError => {
+    return {
+      field: ['input', field],
+      message: `customerSet input field '${field}' is not supported by local staging yet`,
+    };
+  });
+
+  const addressErrors: CustomerMutationUserError[] =
+    hasOwnField(input, 'addresses') && !Array.isArray(input['addresses'])
+      ? [{ field: ['input', 'addresses'], message: 'Addresses must be an array' }]
+      : [];
+
+  return [...unsupportedErrors, ...addressErrors, ...validateCustomerTaxExemptionInput(input)];
+}
+
+function providedCustomerSetIdentifierFields(identifier: Record<string, unknown>): string[] {
+  return ['id', 'email', 'phone', 'customId'].filter((field) => identifier[field] !== undefined);
+}
+
+function validateCustomerSetIdentifier(identifier: Record<string, unknown>): CustomerMutationUserError[] {
+  const unsupportedFields = Object.keys(identifier).filter(
+    (field) => field !== 'customId' && !SUPPORTED_CUSTOMER_SET_IDENTIFIER_FIELDS.has(field),
+  );
+  const unsupportedErrors = unsupportedFields.map((field): CustomerMutationUserError => {
+    return {
+      field: ['identifier', field],
+      message: `customerSet identifier field '${field}' is not supported by local staging yet`,
+    };
+  });
+
+  const providedFields = providedCustomerSetIdentifierFields(identifier);
+  if (providedFields.length <= 1) {
+    return unsupportedErrors;
+  }
+
+  return [
+    ...unsupportedErrors,
+    {
+      field: ['identifier'],
+      message: 'Customer set identifier must provide exactly one identifier',
+    },
+  ];
+}
+
+function validateCustomerSetIdentifierInputAlignment(
+  input: Record<string, unknown>,
+  identifier: Record<string, unknown>,
+): CustomerMutationUserError[] {
+  const email = normalizeCustomerIdentifierValue(identifier['email']);
+  const inputEmail = normalizeCustomerIdentifierValue(input['email']);
+  if (email && !inputEmail) {
+    return [
+      {
+        field: ['input'],
+        message: 'The input field corresponding to the identifier is required.',
+      },
+    ];
+  }
+  if (email && inputEmail && email.toLowerCase() !== inputEmail.toLowerCase()) {
+    return [
+      {
+        field: ['input', 'email'],
+        message: 'customerSet local staging requires input.email to match identifier.email',
+      },
+    ];
+  }
+
+  const phone = normalizeCustomerIdentifierValue(identifier['phone']);
+  const inputPhone = normalizeCustomerIdentifierValue(input['phone']);
+  if (phone && !inputPhone) {
+    return [
+      {
+        field: ['input'],
+        message: 'The input field corresponding to the identifier is required.',
+      },
+    ];
+  }
+  if (phone && inputPhone && phone !== inputPhone) {
+    return [
+      {
+        field: ['input', 'phone'],
+        message: 'customerSet local staging requires input.phone to match identifier.phone',
+      },
+    ];
+  }
+
+  return [];
+}
+
 function readConsentPayload(input: Record<string, unknown>, key: string): Record<string, unknown> {
   const value = input[key];
   return isObject(value) ? value : {};
@@ -2197,11 +2658,32 @@ function buildSmsMarketingConsentUpdatedCustomer(
   };
 }
 
+function buildAccountInviteBufferedCustomer(existing: CustomerRecord): CustomerRecord {
+  return {
+    ...existing,
+    state: existing.state === 'ENABLED' ? existing.state : 'INVITED',
+    updatedAt: makeSyntheticTimestamp(),
+  };
+}
+
+function buildSyntheticAccountActivationUrl(customerId: string): string {
+  const customerKey = customerId.split('/').pop() ?? 'customer';
+  const token = makeSyntheticGid('CustomerAccountActivationToken').split('/').pop() ?? 'token';
+  return `https://shopify-draft-proxy.local/customer-activation/${encodeURIComponent(customerKey)}?token=${encodeURIComponent(token)}`;
+}
+
+function isCustomerPaymentMethodGid(value: string): boolean {
+  return value.startsWith('gid://shopify/CustomerPaymentMethod/');
+}
+
 function serializeCustomerMutationPayload(
   field: FieldNode,
   payload: {
     customer?: CustomerRecord | null;
+    customerAddress?: CustomerAddressRecord | null;
+    accountActivationUrl?: string | null;
     deletedCustomerId?: string | null;
+    deletedCustomerAddressId?: string | null;
     resultingCustomerId?: string | null;
     job?: { id: string; done: boolean } | null;
     shop?: boolean;
@@ -2216,8 +2698,21 @@ function serializeCustomerMutationPayload(
       case 'customer':
         result[key] = payload.customer ? serializeCustomerSelection(payload.customer, selection, variables) : null;
         break;
+      case 'accountActivationUrl':
+        result[key] = payload.accountActivationUrl ?? null;
+        break;
+      case 'customerAddress':
+      case 'address':
+        result[key] = payload.customerAddress
+          ? serializeCustomerAddressSelection(selection, payload.customerAddress)
+          : null;
+        break;
       case 'deletedCustomerId':
         result[key] = payload.deletedCustomerId ?? null;
+        break;
+      case 'deletedCustomerAddressId':
+      case 'deletedAddressId':
+        result[key] = payload.deletedCustomerAddressId ?? null;
         break;
       case 'resultingCustomerId':
         result[key] = payload.resultingCustomerId ?? null;
@@ -2410,6 +2905,131 @@ export function handleCustomerMutation(
       continue;
     }
 
+    if (field.name.value === 'customerGenerateAccountActivationUrl') {
+      const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
+      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      if (!customerId || !existingCustomer) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            accountActivationUrl: null,
+            userErrors: [{ field: ['customerId'], message: "The customer can't be found." }],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      data[key] = serializeCustomerMutationPayload(
+        field,
+        {
+          accountActivationUrl: buildSyntheticAccountActivationUrl(customerId),
+          userErrors: [],
+        },
+        variables,
+      );
+      continue;
+    }
+
+    if (field.name.value === 'customerSendAccountInviteEmail') {
+      const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
+      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      if (!customerId || !existingCustomer) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customer: null,
+            userErrors: [{ field: ['customerId'], message: "Customer can't be found" }],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      const customer = store.stageUpdateCustomer(buildAccountInviteBufferedCustomer(existingCustomer));
+      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
+      continue;
+    }
+
+    if (field.name.value === 'customerPaymentMethodSendUpdateEmail') {
+      const customerPaymentMethodId =
+        typeof args['customerPaymentMethodId'] === 'string' ? args['customerPaymentMethodId'] : null;
+      const paymentMethod =
+        customerPaymentMethodId && isCustomerPaymentMethodGid(customerPaymentMethodId)
+          ? store.getEffectiveCustomerPaymentMethodById(customerPaymentMethodId)
+          : null;
+      if (!customerPaymentMethodId || !paymentMethod) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customer: null,
+            userErrors: [{ field: ['customerPaymentMethodId'], message: 'Customer payment method does not exist' }],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      const customer = paymentMethod.customerId ? store.getEffectiveCustomerById(paymentMethod.customerId) : null;
+      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
+      continue;
+    }
+
+    if (field.name.value === 'customerSet') {
+      const input = readCustomerInput(args['input']);
+      const identifier = readCustomerSetIdentifier(args['identifier']);
+      if (hasOwnField(identifier, 'customId')) {
+        data[key] = null;
+        errors.push(buildCustomerCustomIdentifierError(field));
+        continue;
+      }
+
+      const existingCustomer = findCustomerByCustomerSetIdentifier(identifier);
+      const effectiveInput = input;
+      const userErrors = [
+        ...validateSupportedCustomerSetInput(effectiveInput),
+        ...validateCustomerSetIdentifier(identifier),
+        ...validateCustomerSetIdentifierInputAlignment(effectiveInput, identifier),
+      ];
+      if (hasOwnField(effectiveInput, 'addresses') && !existingCustomer) {
+        userErrors.push({
+          field: ['input', 'addresses'],
+          message: 'customerSet local staging supports addresses only when updating an existing customer',
+        });
+      }
+
+      const idIdentifier = normalizeCustomerIdentifierValue(identifier['id']);
+      if (idIdentifier && !existingCustomer) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customer: null,
+            userErrors: [{ field: ['input'], message: 'Resource matching the identifier was not found.' }],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      if (!existingCustomer) {
+        userErrors.push(...validateCustomerSetCreateInput(effectiveInput));
+      }
+
+      if (userErrors.length > 0) {
+        data[key] = serializeCustomerMutationPayload(field, { customer: null, userErrors }, variables);
+        continue;
+      }
+
+      const stagedCustomer = existingCustomer
+        ? store.stageUpdateCustomer(buildUpdatedCustomer(existingCustomer, effectiveInput))
+        : store.stageCreateCustomer(buildCreatedCustomer(effectiveInput));
+      const customer = hasOwnField(effectiveInput, 'addresses')
+        ? replaceCustomerSetAddresses(stagedCustomer, effectiveInput['addresses'])
+        : stagedCustomer;
+      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
+      continue;
+    }
+
     if (field.name.value === 'customerEmailMarketingConsentUpdate') {
       const input = readCustomerInput(args['input']);
       const customerId = typeof input['customerId'] === 'string' ? input['customerId'] : null;
@@ -2473,6 +3093,130 @@ export function handleCustomerMutation(
       }
 
       const customer = store.stageUpdateCustomer(buildSmsMarketingConsentUpdatedCustomer(existingCustomer, input));
+      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
+      continue;
+    }
+
+    if (field.name.value === 'customerAddressCreate') {
+      const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
+      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      if (!customerId || !existingCustomer) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customerAddress: null,
+            userErrors: [buildMissingCustomerAddressCustomerError(['customerId'])],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      const address = store.stageUpsertCustomerAddress(
+        buildCreatedCustomerAddress(customerId, readCustomerAddressInput(args['address'])),
+      );
+      if (!existingCustomer.defaultAddress || args['setAsDefault'] === true) {
+        store.stageUpdateCustomer(buildCustomerWithDefaultAddress(existingCustomer, address));
+      }
+      data[key] = serializeCustomerMutationPayload(field, { customerAddress: address, userErrors: [] }, variables);
+      continue;
+    }
+
+    if (field.name.value === 'customerAddressUpdate') {
+      const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
+      const addressId =
+        typeof args['id'] === 'string' ? args['id'] : typeof args['addressId'] === 'string' ? args['addressId'] : null;
+      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      const existingAddress = addressId ? store.getEffectiveCustomerAddressById(addressId) : null;
+      if (!customerId || !existingCustomer) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customerAddress: null,
+            userErrors: [buildMissingCustomerAddressCustomerError(['customerId'])],
+          },
+          variables,
+        );
+        continue;
+      }
+      if (!existingAddress || existingAddress.customerId !== customerId) {
+        data[key] = null;
+        errors.push(buildCustomerAddressResourceNotFoundError(field));
+        continue;
+      }
+
+      const address = store.stageUpsertCustomerAddress(
+        buildUpdatedCustomerAddress(existingAddress, readCustomerAddressInput(args['address'])),
+      );
+      if (existingCustomer.defaultAddress?.id === address.id || args['setAsDefault'] === true) {
+        store.stageUpdateCustomer(buildCustomerWithDefaultAddress(existingCustomer, address));
+      }
+      data[key] = serializeCustomerMutationPayload(field, { customerAddress: address, userErrors: [] }, variables);
+      continue;
+    }
+
+    if (field.name.value === 'customerAddressDelete') {
+      const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
+      const addressId =
+        typeof args['id'] === 'string' ? args['id'] : typeof args['addressId'] === 'string' ? args['addressId'] : null;
+      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      const existingAddress = addressId ? store.getEffectiveCustomerAddressById(addressId) : null;
+      if (!customerId || !existingCustomer) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            deletedCustomerAddressId: null,
+            userErrors: [buildMissingCustomerAddressCustomerError(['customerId'])],
+          },
+          variables,
+        );
+        continue;
+      }
+      if (!addressId || !existingAddress || existingAddress.customerId !== customerId) {
+        data[key] = null;
+        errors.push(buildCustomerAddressResourceNotFoundError(field));
+        continue;
+      }
+
+      store.stageDeleteCustomerAddress(addressId);
+      if (existingCustomer.defaultAddress?.id === addressId) {
+        const nextDefaultAddress = store.listEffectiveCustomerAddresses(customerId)[0] ?? null;
+        store.stageUpdateCustomer(buildCustomerWithDefaultAddress(existingCustomer, nextDefaultAddress));
+      }
+      data[key] = serializeCustomerMutationPayload(
+        field,
+        {
+          deletedCustomerAddressId: addressId,
+          userErrors: [],
+        },
+        variables,
+      );
+      continue;
+    }
+
+    if (field.name.value === 'customerUpdateDefaultAddress') {
+      const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
+      const addressId = typeof args['addressId'] === 'string' ? args['addressId'] : null;
+      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      const existingAddress = addressId ? store.getEffectiveCustomerAddressById(addressId) : null;
+      if (!customerId || !existingCustomer) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customer: null,
+            userErrors: [buildMissingCustomerAddressCustomerError(['customerId'])],
+          },
+          variables,
+        );
+        continue;
+      }
+      if (!existingAddress || existingAddress.customerId !== customerId) {
+        data[key] = null;
+        errors.push(buildCustomerAddressResourceNotFoundError(field));
+        continue;
+      }
+
+      const customer = store.stageUpdateCustomer(buildCustomerWithDefaultAddress(existingCustomer, existingAddress));
       data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
       continue;
     }
@@ -2611,6 +3355,11 @@ export function hydrateCustomersFromUpstreamResponse(
   const customers = collectHydratableCustomers(document, upstreamBody['data']);
   if (customers.length > 0) {
     store.upsertBaseCustomers(customers);
+  }
+
+  const customerAddresses = collectCustomerAddresses(document, upstreamBody['data']);
+  if (customerAddresses.length > 0) {
+    store.upsertBaseCustomerAddresses(customerAddresses);
   }
 
   const customerMetafields = collectCustomerMetafields(document, upstreamBody['data']);

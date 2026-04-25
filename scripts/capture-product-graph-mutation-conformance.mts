@@ -232,30 +232,6 @@ const productCreateMediaMutation = `#graphql
   }
 `;
 
-const productMediaPollQuery = `#graphql
-  query ProductGraphMediaPoll($id: ID!) {
-    product(id: $id) {
-      id
-      media(first: 10) {
-        nodes {
-          ... on MediaImage {
-            id
-            status
-            image {
-              url
-            }
-            preview {
-              image {
-                url
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-`;
-
 const productDeleteMutation = `#graphql
   mutation ProductGraphDeleteProduct($input: ProductDeleteInput!) {
     productDelete(input: $input) {

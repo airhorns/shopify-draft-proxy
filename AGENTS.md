@@ -25,6 +25,13 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
      registered operation is a commitment to model it locally before it is
      considered supported; passthrough is only the unknown/unsupported escape
      hatch, not an intended execution posture for a known operation.
+   - Do not mark branch-only, validation-only, or otherwise partial mutation
+     handling as implemented operation support. Half support is not enough:
+     a mutation root reaches supported status only when the local model can
+     emulate the operation's supported lifecycle behavior and downstream
+     read-after-write effects without runtime Shopify writes. Captured
+     validation guardrails are useful evidence, but they must be documented as
+     guardrails rather than presented as full local emulation.
 
 4. **Keep original raw mutations for commit**
    - Commit should replay original mutations in original order.
@@ -78,6 +85,12 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
   for `.mts`, `.cjs` for `.cts`). Do not import local modules with source
   extensions such as `.ts`, `.mts`, or `.cts`; `pnpm lint` enforces this with
   oxlint's `import/extensions` rule.
+- Connection implementations must use the shared helpers in
+  `src/proxy/graphql-helpers.ts` for cursor windowing, `nodes`/`edges`
+  serialization, and selected `pageInfo` fields. Keep resource-specific sorting,
+  filtering, cursor derivation, and node projection in the owning resource
+  module, then pass those decisions into `paginateConnectionItems(...)` and
+  `serializeConnection(...)` instead of rebuilding connection loops locally.
 
 ## GitHub repository
 
