@@ -19,7 +19,7 @@ const { runGraphqlRequest: runGraphql } = createAdminGraphqlClient({
 });
 
 const orderCreationBlockerNotePath = path.join('pending', 'order-creation-conformance-scope-blocker.md');
-const orderEditingBlockerNotePath = path.join('pending', 'order-editing-conformance-scope-blocker.md');
+const orderEditingEvidenceNotePath = path.join('pending', 'order-editing-conformance-evidence.md');
 const draftOrderReadBlockerNotePath = path.join('pending', 'draft-order-read-conformance-scope-blocker.md');
 const fulfillmentLifecycleBlockerNotePath = path.join('pending', 'fulfillment-lifecycle-conformance-scope-blocker.md');
 const manualStoreAuthTokenPath = '.manual-store-auth-token.json';
@@ -188,10 +188,6 @@ async function readOrderCreationParityMetadata(credential, manualStoreAuthSummar
     draftOrderCompleteSpec,
     draftOrdersSpec,
     draftOrdersCountSpec,
-    orderEditBeginSpec,
-    orderEditAddVariantSpec,
-    orderEditSetQuantitySpec,
-    orderEditCommitSpec,
     fulfillmentTrackingInfoUpdateSpec,
     fulfillmentCancelSpec,
   ] = await Promise.all([
@@ -213,26 +209,6 @@ async function readOrderCreationParityMetadata(credential, manualStoreAuthSummar
       manualStoreAuthSummary,
     ),
     refreshOrderDomainBlockerSpec(
-      path.join('config', 'parity-specs', 'orderEditBegin-parity-plan.json'),
-      credential,
-      manualStoreAuthSummary,
-    ),
-    refreshOrderDomainBlockerSpec(
-      path.join('config', 'parity-specs', 'orderEditAddVariant-parity-plan.json'),
-      credential,
-      manualStoreAuthSummary,
-    ),
-    refreshOrderDomainBlockerSpec(
-      path.join('config', 'parity-specs', 'orderEditSetQuantity-parity-plan.json'),
-      credential,
-      manualStoreAuthSummary,
-    ),
-    refreshOrderDomainBlockerSpec(
-      path.join('config', 'parity-specs', 'orderEditCommit-parity-plan.json'),
-      credential,
-      manualStoreAuthSummary,
-    ),
-    refreshOrderDomainBlockerSpec(
       path.join('config', 'parity-specs', 'fulfillmentTrackingInfoUpdate-parity-plan.json'),
       credential,
       manualStoreAuthSummary,
@@ -250,10 +226,6 @@ async function readOrderCreationParityMetadata(credential, manualStoreAuthSummar
     draftOrderComplete: draftOrderCompleteSpec,
     draftOrders: draftOrdersSpec,
     draftOrdersCount: draftOrdersCountSpec,
-    orderEditBegin: orderEditBeginSpec,
-    orderEditAddVariant: orderEditAddVariantSpec,
-    orderEditSetQuantity: orderEditSetQuantitySpec,
-    orderEditCommit: orderEditCommitSpec,
     fulfillmentTrackingInfoUpdate: fulfillmentTrackingInfoUpdateSpec,
     fulfillmentCancel: fulfillmentCancelSpec,
   };
@@ -2405,19 +2377,19 @@ async function main() {
     draftOrderCompleteResult.payload?.errors?.[0],
   );
   const orderEditBeginAccessSummary = formatRequiredAccessSummary(
-    parityMetadata.orderEditBegin?.blocker?.details,
+    undefined,
     orderEditBeginResult.payload?.errors?.[0],
   );
   const orderEditAddVariantAccessSummary = formatRequiredAccessSummary(
-    parityMetadata.orderEditAddVariant?.blocker?.details,
+    undefined,
     orderEditAddVariantResult.payload?.errors?.[0],
   );
   const orderEditSetQuantityAccessSummary = formatRequiredAccessSummary(
-    parityMetadata.orderEditSetQuantity?.blocker?.details,
+    undefined,
     orderEditSetQuantityResult.payload?.errors?.[0],
   );
   const orderEditCommitAccessSummary = formatRequiredAccessSummary(
-    parityMetadata.orderEditCommit?.blocker?.details,
+    undefined,
     orderEditCommitResult.payload?.errors?.[0],
   );
   const fulfillmentTrackingInfoUpdateAccessSummary = formatRequiredAccessSummary(
@@ -2539,11 +2511,11 @@ Refresh this note with \`corepack pnpm conformance:capture-orders\` after any cr
   await mkdir(path.dirname(orderCreationBlockerNotePath), { recursive: true });
   await writeFile(orderCreationBlockerNotePath, `${creationNote}\n`);
 
-  const orderEditingNote = `# Order editing conformance blocker
+  const orderEditingNote = `# Order editing conformance evidence
 
 ## What this run checked
 
-Refreshed the first order-editing mutation probes on \`${storeDomain}\` using the current repo conformance credential.
+Refreshed the order-editing mutation probes on \`${storeDomain}\` using the current repo conformance credential.
 
 - \`orderEditBegin\` — the session-start root for Shopify's order-edit flow
 - \`orderEditAddVariant\` — the first merchant-realistic edit step for adding sellable items to a calculated order
@@ -2559,51 +2531,49 @@ Refreshed the first order-editing mutation probes on \`${storeDomain}\` using th
 
 ${renderManualStoreAuthSection(manualStoreAuthSummary)}
 
-## Live blocker evidence for the order-edit family
+## Live probe result for the single-root access checks
 
 ### \`orderEditBegin\`
 
-- exact message: ${orderEditBeginResult.payload?.errors?.[0]?.message ?? parityMetadata.orderEditBegin?.blocker?.details?.failingMessage ?? 'missing error payload'}
+- exact message: ${orderEditBeginResult.payload?.errors?.[0]?.message ?? 'missing error payload'}
 - required access summary: ${orderEditBeginAccessSummary}
 
 ### \`orderEditAddVariant\`
 
-- exact message: ${orderEditAddVariantResult.payload?.errors?.[0]?.message ?? parityMetadata.orderEditAddVariant?.blocker?.details?.failingMessage ?? 'missing error payload'}
+- exact message: ${orderEditAddVariantResult.payload?.errors?.[0]?.message ?? 'missing error payload'}
 - required access summary: ${orderEditAddVariantAccessSummary}
 
 ### \`orderEditSetQuantity\`
 
-- exact message: ${orderEditSetQuantityResult.payload?.errors?.[0]?.message ?? parityMetadata.orderEditSetQuantity?.blocker?.details?.failingMessage ?? 'missing error payload'}
+- exact message: ${orderEditSetQuantityResult.payload?.errors?.[0]?.message ?? 'missing error payload'}
 - required access summary: ${orderEditSetQuantityAccessSummary}
 
 ### \`orderEditCommit\`
 
-- exact message: ${orderEditCommitResult.payload?.errors?.[0]?.message ?? parityMetadata.orderEditCommit?.blocker?.details?.failingMessage ?? 'missing error payload'}
+- exact message: ${orderEditCommitResult.payload?.errors?.[0]?.message ?? 'missing error payload'}
 - required access summary: ${orderEditCommitAccessSummary}
 
 ## Practical interpretation
 
 - the proxy already supports a first local calculated-order edit flow for synthetic/local orders in snapshot mode and live-hybrid mode
 - safe missing-\`$id\` GraphQL validation coverage is now captured for \`orderEditBegin\`, \`orderEditAddVariant\`, \`orderEditSetQuantity\`, and \`orderEditCommit\`
-- the remaining gap is live Shopify parity for non-local orders; happy-path Shopify probes for all four initial roots still hit \`write_order_edits\` on this host before the resolver reveals broader session-shape semantics
+- captured existing-order workflow specs now cover begin/add/set/commit behavior, validation branches, and downstream \`order(id:)\` read-after-write effects
+- the old single-root parity-plan specs for \`orderEditBegin\`, \`orderEditAddVariant\`, \`orderEditSetQuantity\`, and \`orderEditCommit\` were intentionally removed from scenario discovery because they duplicated the captured workflow evidence as stale pending blockers
 
 ## Practical next step for order-edit parity
 
-1. keep the checked-in first local calculated-order edit flow for synthetic/local orders as-is
-2. provision a credential/install with \`write_order_edits\`
-3. rerun:
+1. keep the checked-in calculated-order edit flow and captured workflow specs as the source of truth:
+   - \`config/parity-specs/orderEditExistingOrder-happy-path.json\`
+   - \`config/parity-specs/orderEditExistingOrder-validation.json\`
+   - \`config/parity-specs/orderEditExistingOrder-zero-removal.json\`
+2. rerun:
    - \`corepack pnpm conformance:probe\`
    - \`corepack pnpm conformance:capture-orders\`
-4. once the roots are writable, capture the smallest safe sequence in order:
-   - \`orderEditBegin\`
-   - \`orderEditAddVariant\`
-   - \`orderEditSetQuantity\`
-   - \`orderEditCommit\`
-5. only after live evidence exists for non-local orders should the proxy broaden the calculated-order runtime beyond the current synthetic/local slice
+3. if future Shopify/store behavior changes, update the workflow specs or add executable captured scenarios rather than adding planned-only single-root placeholders
 `;
 
-  await mkdir(path.dirname(orderEditingBlockerNotePath), { recursive: true });
-  await writeFile(orderEditingBlockerNotePath, `${orderEditingNote}\n`);
+  await mkdir(path.dirname(orderEditingEvidenceNotePath), { recursive: true });
+  await writeFile(orderEditingEvidenceNotePath, `${orderEditingNote}\n`);
 
   if (authRegressed) {
     const draftOrdersCatalogLastVerified =
@@ -2767,7 +2737,7 @@ Practical next step for fulfillment lifecycle parity:
         draftOrdersCountFixturePath,
         draftOrdersInvalidEmailQueryFixturePath,
         orderCreationBlockerNotePath,
-        orderEditingBlockerNotePath,
+        orderEditingEvidenceNotePath,
         draftOrderReadBlockerNotePath: authRegressed ? draftOrderReadBlockerNotePath : null,
         fulfillmentLifecycleCaptured,
         fulfillmentTrackingInfoUpdateParityFixturePath: fulfillmentLifecycleCaptured

@@ -112,4 +112,30 @@ describe('conformance scenario discovery', () => {
     expect(status.capturedScenarioIds).toContain('product-duplicate-live-parity');
     expect(status.implementedOperations.every((entry) => entry.scenarioIds.length > 0)).toBe(true);
   });
+
+  it('treats captured order-edit workflows as the conformance source instead of stale single-root plans', () => {
+    const status = buildConformanceStatusDocument(repoRoot);
+
+    expect(status.plannedScenarioIds).not.toEqual(
+      expect.arrayContaining([
+        'order-edit-begin-live-parity',
+        'order-edit-add-variant-live-parity',
+        'order-edit-set-quantity-live-parity',
+        'order-edit-commit-live-parity',
+      ]),
+    );
+    expect(status.capturedScenarioIds).toEqual(
+      expect.arrayContaining([
+        'order-edit-existing-order-happy-path',
+        'order-edit-existing-order-validation',
+        'order-edit-existing-order-zero-removal',
+      ]),
+    );
+
+    const orderEditEntries = status.implementedOperations.filter((entry) =>
+      ['orderEditBegin', 'orderEditAddVariant', 'orderEditSetQuantity', 'orderEditCommit'].includes(entry.name),
+    );
+    expect(orderEditEntries).toHaveLength(4);
+    expect(orderEditEntries.every((entry) => entry.conformanceStatus === 'covered')).toBe(true);
+  });
 });
