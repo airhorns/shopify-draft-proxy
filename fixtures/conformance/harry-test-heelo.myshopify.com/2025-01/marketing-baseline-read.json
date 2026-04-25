@@ -12,9 +12,7 @@
         "code": "ACCESS_DENIED",
         "documentation": "https://shopify.dev/api/usage/access-scopes"
       },
-      "path": [
-        "marketingActivities"
-      ]
+      "path": ["marketingActivities"]
     }
   ],
   "data": null,
