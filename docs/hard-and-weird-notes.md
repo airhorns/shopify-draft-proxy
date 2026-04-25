@@ -2381,8 +2381,10 @@ Captured no-side-effect branches:
 - unknown namespace/key returns `field: null`, `code: TEMPLATE_NOT_FOUND`, and message `A standard definition wasn't found for the specified owner type, namespace, and key.`
 - using template ID `1` with owner type `CUSTOMER` also returns the invalid-template-ID branch, because the sampled template is product/product-variant scoped
 
+Local support now uses the captured template slice as a bounded local catalog. Successful proxy calls stage a normalized `MetafieldDefinition` record, honor the selected owner type/access/capability/pin inputs that are represented in the local model, and make downstream definition reads observe the staged record without a live Shopify write.
+
 Practical rule:
 
-- keep `standardMetafieldDefinitionEnable` `implemented: false` until standard template catalog reads and created definition lifecycle effects are modeled locally
-- validation-only captures are guardrails, not operation support
-- runtime passthrough for this known unsupported root must stay loud in mutation-log safety metadata because it can write Shopify schema state
+- keep support constrained to captured standard template IDs/namespaces until broader template catalog reads are modeled
+- validation-only live captures remain guardrails for error shapes; local success coverage comes from runtime tests because live success would create real Shopify schema state
+- do not broaden create/update/delete/pin/unpin definition lifecycle support from this enablement slice

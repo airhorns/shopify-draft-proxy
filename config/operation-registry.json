@@ -978,10 +978,10 @@
     "type": "mutation",
     "domain": "metafields",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["standardMetafieldDefinitionEnable", "StandardMetafieldDefinitionEnable"],
-    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
-    "supportNotes": "Explicit unsupported schema-mutation gap. HAR-257 captured no-side-effect validation branches in fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/standard-metafield-definition-enable-validation.json; successful enablement can create real metafield definitions and must remain unimplemented until standard template catalog plus created-definition lifecycle semantics are modeled locally."
+    "runtimeTests": ["tests/integration/metafield-definition-query-shapes.test.ts"],
+    "supportNotes": "Local staging support for fixture-backed standard template IDs/namespaces captured by HAR-257. Successful calls create normalized metafield definition records locally and downstream definition reads observe them without runtime Shopify writes."
   },
   {
     "name": "metaobject",

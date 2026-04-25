@@ -15,7 +15,7 @@ import { handleDiscountMutation, handleDiscountQuery } from './discounts.js';
 import { handleMarketMutation, handleMarketsQuery, hydrateMarketsFromUpstreamResponse } from './markets.js';
 import { handleOrderMutation, handleOrderQuery, shouldServeDraftOrderCatalogLocally } from './orders.js';
 import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamResponse } from './products.js';
-import { handleMetafieldDefinitionQuery } from './metafield-definitions.js';
+import { handleMetafieldDefinitionMutation, handleMetafieldDefinitionQuery } from './metafield-definitions.js';
 import { handlePaymentMutation, handlePaymentQuery } from './payments.js';
 import { handleSegmentMutation, handleSegmentsQuery, hydrateSegmentsFromUpstreamResponse } from './segments.js';
 import { handleStorePropertiesMutation, handleStorePropertiesQuery } from './store-properties.js';
@@ -32,14 +32,6 @@ const APP_DISCOUNT_MUTATION_ROOTS = new Set([
   'discountCodeAppUpdate',
   'discountAutomaticAppCreate',
   'discountAutomaticAppUpdate',
-]);
-const METAFIELD_DEFINITION_SCHEMA_MUTATION_ROOTS = new Set([
-  'metafieldDefinitionCreate',
-  'metafieldDefinitionUpdate',
-  'metafieldDefinitionDelete',
-  'metafieldDefinitionPin',
-  'metafieldDefinitionUnpin',
-  'standardMetafieldDefinitionEnable',
 ]);
 
 const ORDER_PAYMENT_MUTATION_ROOTS = new Set(['orderCapture', 'transactionVoid', 'orderCreateMandatePayment']);
@@ -155,18 +147,6 @@ function buildUnsupportedMutationObservability(parsed: ParsedOperation): Partial
     };
   }
 
-  if (METAFIELD_DEFINITION_SCHEMA_MUTATION_ROOTS.has(primaryRootField)) {
-    return {
-      registeredOperation,
-      safety: {
-        classification: 'unsupported-metafield-definition-schema-mutation',
-        wouldProxyToShopify: true,
-        reason:
-          'Metafield definition lifecycle mutations can create or change Shopify schema records. They require template catalog and definition lifecycle modeling before local support can be claimed without runtime Shopify writes.',
-      },
-    };
-  }
-
   return { registeredOperation };
 }
 
@@ -179,11 +159,6 @@ function unsupportedMutationNotes(parsed: ParsedOperation): string {
   const registryEntry = findOperationRegistryEntry(parsed.type, [...parsed.rootFields, parsed.name]);
   if (registryEntry?.domain === 'discounts') {
     return 'Unsupported discount mutation lifecycle branch would be proxied to Shopify. Captured validation failures are handled locally only; full local emulation is required before this root can be supported.';
-  }
-  if (registryEntry?.domain === 'metafields' && primaryRootField) {
-    if (METAFIELD_DEFINITION_SCHEMA_MUTATION_ROOTS.has(primaryRootField)) {
-      return 'Unsupported metafield definition schema mutation would be proxied to Shopify. Standard definition enablement and definition lifecycle roots can create or change schema records, so local support requires conformance-backed template catalog and definition lifecycle modeling first.';
-    }
   }
 
   return 'Mutation passthrough placeholder until supported local staging is implemented.';
@@ -400,6 +375,28 @@ export function createProxyRouter(config: AppConfig): Router {
 
       ctx.status = 200;
       ctx.body = handleMediaMutation(body.query, variables);
+      return;
+    }
+
+    if (capability.execution === 'stage-locally' && capability.domain === 'metafields') {
+      const responseBody = handleMetafieldDefinitionMutation(body.query, variables);
+
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: ctx.path,
+        query: body.query,
+        variables,
+        requestBody,
+        stagedResourceIds: collectProxySyntheticGids(responseBody),
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        notes: 'Staged locally in the in-memory metafield definition draft store.',
+      });
+
+      ctx.status = 200;
+      ctx.body = responseBody;
       return;
     }
 

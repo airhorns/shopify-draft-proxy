@@ -278,7 +278,6 @@ exports[`GraphQL operation coverage > snapshots introspected Admin GraphQL mutat
   "shopLocaleUpdate",
   "shopResourceFeedbackCreate",
   "stagedUploadsCreate",
-  "standardMetafieldDefinitionEnable",
   "standardMetaobjectDefinitionEnable",
   "storeCreditAccountCredit",
   "storeCreditAccountDebit",
