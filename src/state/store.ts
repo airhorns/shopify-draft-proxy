@@ -10,6 +10,7 @@ import type {
   DraftOrderRecord,
   FileRecord,
   LocationRecord,
+  MarketLocalizationRecord,
   MarketRecord,
   MutationLogEntry,
   NormalizedStateSnapshotFile,
@@ -55,6 +56,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   businessEntityOrder: [],
   markets: {},
   marketOrder: [],
+  marketLocalizations: {},
   productCollections: {},
   productMedia: {},
   files: {},
@@ -113,6 +115,12 @@ function ensureUpdatedAtAfterBase(baseUpdatedAt: string, stagedUpdatedAt: string
 
 function buildCollectionStorageKey(collection: ProductCollectionRecord): string {
   return `${collection.productId}::${collection.id}`;
+}
+
+function marketLocalizationStorageKey(
+  localization: Pick<MarketLocalizationRecord, 'resourceId' | 'marketId' | 'key'>,
+): string {
+  return `${localization.resourceId}::${localization.marketId}::${localization.key}`;
 }
 
 function readCollectionPosition(collection: ProductCollectionRecord): number | null {
@@ -575,7 +583,38 @@ export class InMemoryStore {
 
   hasStagedMarkets(): boolean {
     return (
-      Object.keys(this.stagedState.markets).length > 0 || Object.keys(this.stagedState.deletedMarketIds).length > 0
+      Object.keys(this.stagedState.markets).length > 0 ||
+      Object.keys(this.stagedState.deletedMarketIds).length > 0 ||
+      Object.keys(this.stagedState.marketLocalizations).length > 0
+    );
+  }
+
+  stageMarketLocalization(localization: MarketLocalizationRecord): MarketLocalizationRecord {
+    this.stagedState.marketLocalizations[marketLocalizationStorageKey(localization)] = structuredClone(localization);
+    return structuredClone(localization);
+  }
+
+  removeMarketLocalization(resourceId: string, marketId: string, key: string): MarketLocalizationRecord | null {
+    const storageKey = marketLocalizationStorageKey({ resourceId, marketId, key });
+    const existing = this.stagedState.marketLocalizations[storageKey] ?? this.baseState.marketLocalizations[storageKey];
+    delete this.stagedState.marketLocalizations[storageKey];
+    return existing ? structuredClone(existing) : null;
+  }
+
+  listEffectiveMarketLocalizations(resourceId: string, marketId: string): MarketLocalizationRecord[] {
+    const merged = new Map<string, MarketLocalizationRecord>();
+    for (const localization of Object.values(this.baseState.marketLocalizations)) {
+      if (localization.resourceId === resourceId && localization.marketId === marketId) {
+        merged.set(marketLocalizationStorageKey(localization), structuredClone(localization));
+      }
+    }
+    for (const localization of Object.values(this.stagedState.marketLocalizations)) {
+      if (localization.resourceId === resourceId && localization.marketId === marketId) {
+        merged.set(marketLocalizationStorageKey(localization), structuredClone(localization));
+      }
+    }
+    return Array.from(merged.values()).sort(
+      (left, right) => left.key.localeCompare(right.key) || left.updatedAt.localeCompare(right.updatedAt),
     );
   }
 

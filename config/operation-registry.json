@@ -1810,6 +1810,45 @@
     ]
   },
   {
+    "name": "marketLocalizableResource",
+    "type": "query",
+    "domain": "markets",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["marketLocalizableResource", "MarketLocalizableResource"],
+    "runtimeTests": [
+      "tests/integration/markets-localization-flow.test.ts",
+      "tests/unit/conformance-parity-scenarios.test.ts"
+    ],
+    "supportNotes": "Supports product metafield-backed MarketLocalizableResource reads for the current 2026-04 METAFIELD resource type."
+  },
+  {
+    "name": "marketLocalizableResources",
+    "type": "query",
+    "domain": "markets",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["marketLocalizableResources", "MarketLocalizableResources"],
+    "runtimeTests": [
+      "tests/integration/markets-localization-flow.test.ts",
+      "tests/unit/conformance-parity-scenarios.test.ts"
+    ],
+    "supportNotes": "Supports resourceType: METAFIELD over product metafields; METAOBJECT returns the Shopify-like empty local slice until metaobject state exists."
+  },
+  {
+    "name": "marketLocalizableResourcesByIds",
+    "type": "query",
+    "domain": "markets",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["marketLocalizableResourcesByIds", "MarketLocalizableResourcesByIds"],
+    "runtimeTests": [
+      "tests/integration/markets-localization-flow.test.ts",
+      "tests/unit/conformance-parity-scenarios.test.ts"
+    ],
+    "supportNotes": "Supports product metafield resource IDs and ignores unknown IDs with Shopify-like empty connection behavior."
+  },
+  {
     "name": "marketCreate",
     "type": "mutation",
     "domain": "markets",
@@ -1868,18 +1907,20 @@
     "type": "mutation",
     "domain": "markets",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketLocalizationsRegister", "MarketLocalizationsRegister"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/markets-localization-flow.test.ts"],
+    "supportNotes": "Stages market-specific values for product metafield resources only; validates market ID, key, digest, blank value, and missing input without upstream writes."
   },
   {
     "name": "marketLocalizationsRemove",
     "type": "mutation",
     "domain": "markets",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketLocalizationsRemove", "MarketLocalizationsRemove"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/markets-localization-flow.test.ts"],
+    "supportNotes": "Removes staged market-specific product metafield values locally and returns removed localization payloads."
   },
   {
     "name": "fileCreate",

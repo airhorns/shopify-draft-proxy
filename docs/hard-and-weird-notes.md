@@ -2063,7 +2063,14 @@ Access-scope trap:
 Safety rule:
 
 - do not run successful live writes for market lifecycle, web presence, localization, backup-region, or currency-setting roots on the shared conformance store without a disposable market setup and cleanup story
-- current local Markets support is read-only snapshot replay for captured safe roots; mutation registry entries are local-staging scaffolds with `implemented: false` and must not be read as runtime support
+- pre-HAR-182 local Markets support started as read-only snapshot replay for captured safe roots plus lifecycle local staging; registry mutation entries with `implemented: false` must not be read as runtime support
+
+HAR-182 market localization follow-up:
+
+- Admin GraphQL 2026-04 reports `MarketLocalizableResourceType` enum values `METAFIELD` and `METAOBJECT` only; direct `PRODUCT` / `COLLECTION` resource filtering is not present in the current schema
+- safe live reads on `harry-test-heelo.myshopify.com` with `read_translations` returned Shopify empty/no-data behavior for unknown metafield resources and an empty `marketLocalizableResources(resourceType: METAFIELD)` connection
+- safe no-side-effect writes with `write_translations` showed both `marketLocalizationsRegister` and `marketLocalizationsRemove` return `TranslationUserError` with `field: ["resourceId"]`, `code: "RESOURCE_NOT_FOUND"`, and `marketLocalizations: null` for an unknown metafield resource before checking market IDs or digests
+- the local proxy now supports the product-adjacent product metafield slice for market-localizable reads and local register/remove staging; successful live localization writes are still deferred until a disposable localized-resource setup/cleanup path exists
 
 ## 55. Customer merge is permission-gated and job-backed, but downstream reads settle quickly
 

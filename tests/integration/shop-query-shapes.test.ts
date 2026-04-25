@@ -133,6 +133,7 @@ function writeSnapshot(shop: ShopRecord | null): string {
       businessEntityOrder: [],
       markets: {},
       marketOrder: [],
+      marketLocalizations: {},
       productCollections: {},
       productMedia: {},
       files: {},

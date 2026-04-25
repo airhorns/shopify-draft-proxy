@@ -1000,6 +1000,16 @@ export const marketRecordSchema = z.strictObject({
 });
 export type MarketRecord = z.infer<typeof marketRecordSchema>;
 
+export const marketLocalizationRecordSchema = z.strictObject({
+  resourceId: z.string(),
+  marketId: z.string(),
+  key: z.string(),
+  value: z.string(),
+  updatedAt: z.string(),
+  outdated: z.boolean(),
+});
+export type MarketLocalizationRecord = z.infer<typeof marketLocalizationRecordSchema>;
+
 export const calculatedOrderRecordSchema = orderRecordSchema.extend({
   originalOrderId: z.string(),
 });
@@ -1021,6 +1031,7 @@ export const stateSnapshotSchema = z.strictObject({
   businessEntityOrder: z.array(z.string()).default([]),
   markets: z.record(z.string(), marketRecordSchema).default({}),
   marketOrder: z.array(z.string()).default([]),
+  marketLocalizations: z.record(z.string(), marketLocalizationRecordSchema).default({}),
   productCollections: z.record(z.string(), productCollectionRecordSchema),
   productMedia: z.record(z.string(), productMediaRecordSchema),
   files: z.record(z.string(), fileRecordSchema).default({}),
