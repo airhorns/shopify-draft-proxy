@@ -3665,6 +3665,77 @@ describe('product query shapes', () => {
     });
   });
 
+  it('serializes selection-aware inventory fields on product-scoped variant connection reads', async () => {
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const createResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Scoped Inventory Hat" }) { product { id title } userErrors { field message } } }',
+    });
+
+    const productId = createResponse.body.data.productCreate.product.id as string;
+
+    const productResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: 'query ($id: ID!) { product(id: $id) { id variants(first: 10) { nodes { id } } } }',
+        variables: { id: productId },
+      });
+
+    const variantId = productResponse.body.data.product.variants.nodes[0].id as string;
+
+    await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation UpdateVariant($input: ProductVariantInput!) { productVariantUpdate(input: $input) { productVariant { id inventoryQuantity inventoryItem { id tracked requiresShipping } } userErrors { field message } } }',
+        variables: {
+          input: {
+            id: variantId,
+            inventoryQuantity: 4,
+            inventoryItem: {
+              tracked: false,
+              requiresShipping: true,
+            },
+          },
+        },
+      });
+
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query ($id: ID!) { product(id: $id) { id variants(first: 10) { edges { cursor node { id inventoryQuantity inventoryItem { id tracked inventoryLevels(first: 5) { nodes { id quantities(names: ["available"]) { name quantity updatedAt } } } } } } } } }',
+        variables: { id: productId },
+      });
+
+    expect(response.status).toBe(200);
+    const node = response.body.data.product.variants.edges[0].node;
+    expect(node).toEqual({
+      id: variantId,
+      inventoryQuantity: 4,
+      inventoryItem: {
+        id: expect.stringMatching(/^gid:\/\/shopify\/InventoryItem\//),
+        tracked: false,
+        inventoryLevels: {
+          nodes: [
+            {
+              id: expect.stringMatching(/^gid:\/\/shopify\/InventoryLevel\//),
+              quantities: [
+                {
+                  name: 'available',
+                  quantity: 4,
+                  updatedAt: expect.any(String),
+                },
+              ],
+            },
+          ],
+        },
+      },
+    });
+    expect(Object.keys(node.inventoryItem)).toEqual(['id', 'tracked', 'inventoryLevels']);
+  });
+
   it('serves top-level inventoryLevel reads from product-backed inventory items in snapshot mode', async () => {
     const app = createApp({ ...config, readMode: 'snapshot' }).callback();
 
