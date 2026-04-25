@@ -161,6 +161,15 @@ Current customer-domain state deliberately stays narrower than the product model
 - customer-owned metafields live in a customer-scoped `customerMetafields` bucket instead of reusing product metafield storage or broadening `metafieldsSet` owner support without separate evidence
 - staged `customerUpdate(input.metafields)` computes against the effective customer metafield set and replaces the staged customer-owned set, so downstream `customer.metafield(...)` and `customer.metafields(...)` reads stay consistent
 
+Current discount-domain read support is intentionally catalog-first:
+
+- `discountNodes` and `discountNodesCount` are served locally in snapshot mode from normalized `DiscountRecord` state
+- supported local catalog behavior includes `first` / `last`, `before` / `after`, `reverse`, `sortKey`, count `limit`, and captured query filters such as `status`, `combines_with`, `discount_class`, `type` / `discount_type`, date fields, `times_used`, and `app_id`
+- local connection cursors use the proxy's synthetic `cursor:<gid>` form; parity specs document Shopify's opaque cursor values as non-contractual
+- `codeDiscountNodes` and `automaticDiscountNodes` remain known registry entries but are not promoted to locally implemented support until their node-specific shapes have captured fixtures
+- deprecated `automaticDiscounts` remains unsupported rather than mapped to `automaticDiscountNodes`; unknown/unsupported reads continue through the existing passthrough path outside snapshot-only parity execution
+- discount mutation lifecycle support is not implemented yet, but the store exposes staged discount records so later locally staged discount mutations can appear in catalog/count reads without upstream writes
+
 ## Mutation handling strategy
 
 Mutation handling should eventually have four steps:

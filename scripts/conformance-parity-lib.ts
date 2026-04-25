@@ -29,6 +29,7 @@ import {
   handleCustomerQuery,
   hydrateCustomersFromUpstreamResponse,
 } from '../src/proxy/customers.js';
+import { handleDiscountQuery } from '../src/proxy/discounts.js';
 import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
 import { handleMediaMutation } from '../src/proxy/media.js';
 import { handleOrderMutation, handleOrderQuery } from '../src/proxy/orders.js';
@@ -753,6 +754,13 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'overlay-read' && capability.domain === 'discounts') {
+    return {
+      status: 200,
+      body: handleDiscountQuery(document, variables),
+    };
+  }
+
   if (capability.execution === 'overlay-read' && capability.domain === 'store-properties') {
     return {
       status: 200,
@@ -772,6 +780,7 @@ function hasStagedState(): boolean {
     Object.keys(stagedState.productVariants).length > 0 ||
     Object.keys(stagedState.productOptions).length > 0 ||
     Object.keys(stagedState.collections).length > 0 ||
+    Object.keys(stagedState.discounts).length > 0 ||
     Object.keys(stagedState.productCollections).length > 0 ||
     Object.keys(stagedState.productMedia).length > 0 ||
     Object.keys(stagedState.files).length > 0 ||
@@ -781,6 +790,7 @@ function hasStagedState(): boolean {
     Object.keys(stagedState.deletedCollectionIds).length > 0 ||
     Object.keys(stagedState.customers).length > 0 ||
     Object.keys(stagedState.deletedCustomerIds).length > 0 ||
+    Object.keys(stagedState.deletedDiscountIds).length > 0 ||
     Object.keys(stagedState.orders).length > 0 ||
     Object.keys(stagedState.draftOrders).length > 0 ||
     Object.keys(stagedState.calculatedOrders).length > 0

@@ -1,0 +1,19 @@
+{
+  "data": {
+    "discountNodesCount": {
+      "count": 0,
+      "precision": "EXACT"
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 10,
+      "actualQueryCost": 10,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1990,
+        "restoreRate": 100
+      }
+    }
+  }
+}

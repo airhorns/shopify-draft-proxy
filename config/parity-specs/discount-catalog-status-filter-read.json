@@ -1,0 +1,23 @@
+{
+  "scenarioId": "discount-catalog-status-filter-read",
+  "operationNames": ["discountNodes", "discountNodesCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "pagination-shape", "search-sort-contract"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/discount-catalog-status-filter-read.json"
+  ],
+  "comparisonMode": "capture-only",
+  "notes": "Live 2026-04 capture showing `status:active` finds the temporary DiscountCodeBasic fixture through discountNodes and discountNodesCount.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "blocker": {
+    "kind": "captured-live-discount-status-filter-not-seeded",
+    "blockerPath": null,
+    "details": {
+      "blockedFields": ["discountNodes(query: status:active)", "discountNodesCount(query: status:active)"],
+      "requiredApproval": "Seed captured discount catalog records into the parity harness before strict non-empty status-filter comparison."
+    }
+  }
+}

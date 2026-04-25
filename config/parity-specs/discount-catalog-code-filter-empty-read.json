@@ -1,0 +1,23 @@
+{
+  "scenarioId": "discount-catalog-code-filter-empty-read",
+  "operationNames": ["discountNodes", "discountNodesCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "null-empty-behavior", "search-sort-contract"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/discount-catalog-code-filter-empty-read.json"
+  ],
+  "comparisonMode": "capture-only",
+  "notes": "Live 2026-04 capture showing `discountNodes(query: \"code:<native-code>\")` returned empty for a native DiscountCodeBasic that was visible through codeDiscountNodes and unfiltered/status-filtered discountNodes after indexing.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "blocker": {
+    "kind": "captured-live-discount-code-filter-empty-behavior",
+    "blockerPath": null,
+    "details": {
+      "blockedFields": ["discountNodes(query: code:<native-code>)", "discountNodesCount(query: code:<native-code>)"],
+      "requiredApproval": "Promote to strict comparison once discount fixture seeding can include the captured native-code filter behavior explicitly."
+    }
+  }
+}

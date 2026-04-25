@@ -10,6 +10,7 @@ import { createUpstreamGraphQLClient } from '../shopify/upstream-client.js';
 import { getOperationCapability, type OperationCapability } from './capabilities.js';
 import { handleMediaMutation } from './media.js';
 import { handleCustomerMutation, handleCustomerQuery, hydrateCustomersFromUpstreamResponse } from './customers.js';
+import { handleDiscountQuery } from './discounts.js';
 import { handleOrderMutation, handleOrderQuery, shouldServeDraftOrderCatalogLocally } from './orders.js';
 import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamResponse } from './products.js';
 import { handleStorePropertiesQuery } from './store-properties.js';
@@ -338,6 +339,20 @@ export function createProxyRouter(config: AppConfig): Router {
 
         ctx.status = response.status;
         ctx.body = await response.json();
+        return;
+      }
+    }
+
+    if (capability.execution === 'overlay-read' && capability.domain === 'discounts') {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleDiscountQuery(body.query, variables);
+        return;
+      }
+
+      if (config.readMode === 'live-hybrid' && store.hasDiscounts()) {
+        ctx.status = 200;
+        ctx.body = handleDiscountQuery(body.query, variables);
         return;
       }
     }

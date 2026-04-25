@@ -1,0 +1,29 @@
+query DiscountCatalogEmptyRead(
+  $query: String
+  $first: Int!
+  $sortKey: DiscountSortKeys
+  $reverse: Boolean
+  $countLimit: Int
+) {
+  discountNodes(first: $first, query: $query, sortKey: $sortKey, reverse: $reverse) {
+    nodes {
+      id
+    }
+    edges {
+      cursor
+      node {
+        id
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  discountNodesCount(query: $query, limit: $countLimit) {
+    count
+    precision
+  }
+}

@@ -5,6 +5,7 @@ import type {
   CustomerCatalogConnectionRecord,
   CustomerMetafieldRecord,
   CustomerRecord,
+  DiscountRecord,
   DraftOrderRecord,
   FileRecord,
   MutationLogEntry,
@@ -41,6 +42,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   collections: {},
   publications: {},
   customers: {},
+  discounts: {},
   businessEntities: {},
   businessEntityOrder: [],
   productCollections: {},
@@ -52,6 +54,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedFileIds: {},
   deletedCollectionIds: {},
   deletedCustomerIds: {},
+  deletedDiscountIds: {},
 };
 
 function cloneSnapshot(snapshot: StateSnapshot): StateSnapshot {
@@ -344,6 +347,14 @@ export class InMemoryStore {
     }
   }
 
+  upsertBaseDiscounts(discounts: DiscountRecord[]): void {
+    for (const discount of discounts) {
+      delete this.baseState.deletedDiscountIds[discount.id];
+      delete this.stagedState.deletedDiscountIds[discount.id];
+      this.baseState.discounts[discount.id] = structuredClone(discount);
+    }
+  }
+
   upsertBaseBusinessEntities(businessEntities: BusinessEntityRecord[]): void {
     for (const businessEntity of businessEntities) {
       this.baseState.businessEntities[businessEntity.id] = structuredClone(businessEntity);
@@ -403,6 +414,17 @@ export class InMemoryStore {
   stageDeleteCustomer(customerId: string): void {
     delete this.stagedState.customers[customerId];
     this.stagedState.deletedCustomerIds[customerId] = true;
+  }
+
+  stageCreateDiscount(discount: DiscountRecord): DiscountRecord {
+    delete this.stagedState.deletedDiscountIds[discount.id];
+    this.stagedState.discounts[discount.id] = structuredClone(discount);
+    return structuredClone(discount);
+  }
+
+  stageDeleteDiscount(discountId: string): void {
+    delete this.stagedState.discounts[discountId];
+    this.stagedState.deletedDiscountIds[discountId] = true;
   }
 
   upsertBaseOrders(orders: OrderRecord[]): void {
@@ -936,6 +958,24 @@ export class InMemoryStore {
     return merged.sort(compareCustomersNewestFirst);
   }
 
+  listEffectiveDiscounts(): DiscountRecord[] {
+    const discountIds = new Set([...Object.keys(this.baseState.discounts), ...Object.keys(this.stagedState.discounts)]);
+    const merged: DiscountRecord[] = [];
+
+    for (const discountId of Array.from(discountIds)) {
+      if (this.stagedState.deletedDiscountIds[discountId]) {
+        continue;
+      }
+
+      const discount = this.stagedState.discounts[discountId] ?? this.baseState.discounts[discountId];
+      if (discount) {
+        merged.push(structuredClone(discount));
+      }
+    }
+
+    return merged;
+  }
+
   hasBaseCustomers(): boolean {
     return Object.keys(this.baseState.customers).length > 0;
   }
@@ -945,6 +985,14 @@ export class InMemoryStore {
       Object.keys(this.stagedState.customers).length > 0 ||
       Object.keys(this.stagedState.customerMetafields).length > 0 ||
       Object.keys(this.stagedState.deletedCustomerIds).length > 0
+    );
+  }
+
+  hasDiscounts(): boolean {
+    return (
+      Object.keys(this.baseState.discounts).length > 0 ||
+      Object.keys(this.stagedState.discounts).length > 0 ||
+      Object.keys(this.stagedState.deletedDiscountIds).length > 0
     );
   }
 

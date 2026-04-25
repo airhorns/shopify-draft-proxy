@@ -125,6 +125,7 @@ function writeSnapshot(shop: ShopRecord | null): string {
       collections: {},
       publications: {},
       customers: {},
+      discounts: {},
       businessEntities: {},
       businessEntityOrder: [],
       productCollections: {},
@@ -136,6 +137,7 @@ function writeSnapshot(shop: ShopRecord | null): string {
       deletedFileIds: {},
       deletedCollectionIds: {},
       deletedCustomerIds: {},
+      deletedDiscountIds: {},
     },
   };
   const snapshotPath = join(mkdtempSync(join(tmpdir(), 'shopify-draft-proxy-shop-')), 'snapshot.json');

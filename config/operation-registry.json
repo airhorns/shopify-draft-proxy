@@ -1168,18 +1168,18 @@
     "type": "query",
     "domain": "discounts",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountNodes", "DiscountNodes"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts"]
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/discount-query-shapes.test.ts"]
   },
   {
     "name": "discountNodesCount",
     "type": "query",
     "domain": "discounts",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountNodesCount", "DiscountNodesCount"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts"]
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/discount-query-shapes.test.ts"]
   },
   {
     "name": "discountNode",

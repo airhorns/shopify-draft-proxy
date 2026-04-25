@@ -1,0 +1,23 @@
+{
+  "scenarioId": "discount-catalog-non-empty-read",
+  "operationNames": ["discountNodes", "discountNodesCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "pagination-shape", "search-sort-contract"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/discount-catalog-non-empty-read.json"
+  ],
+  "comparisonMode": "capture-only",
+  "notes": "Live 2026-04 capture for a non-empty discountNodes/discountNodesCount catalog after creating a temporary DiscountCodeBasic fixture. Kept capture-only because the parity harness does not yet seed discount read fixtures into base state by scenario file.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "blocker": {
+    "kind": "captured-live-discount-catalog-baseline-not-seeded",
+    "blockerPath": null,
+    "details": {
+      "blockedFields": ["discountNodes", "discountNodesCount"],
+      "requiredApproval": "Seed captured discount catalog records into the parity harness before strict non-empty captured-vs-proxy comparison."
+    }
+  }
+}

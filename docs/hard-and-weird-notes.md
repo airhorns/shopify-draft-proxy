@@ -1973,3 +1973,19 @@ Practical rule:
 
 - model the 2026-04 nested default contact fields as the conformance-backed read shape, and keep direct `emailMarketingConsent` / `smsMarketingConsent` serialization only as a compatibility branch for callers that still request the older field names
 - do not route either supported consent update mutation upstream during normal runtime; the local stage must update the normalized customer contact consent state and preserve the original raw mutation in the meta log for commit replay
+
+## 53. discountNodes code filter does not mirror codeDiscountNodes for native code discounts
+
+HAR-191 captured discount catalog reads against Admin GraphQL 2026-04 with a temporary native `DiscountCodeBasic`.
+
+Captured facts:
+
+- the created native code discount was visible through `codeDiscountNodes` immediately
+- `discountNodes` did not return it until the catalog index caught up a few seconds later
+- after indexing, unfiltered `discountNodes` and `discountNodes(query: "status:active")` returned the discount
+- `discountNodes(query: "code:<native-code>")` still returned an empty connection and `discountNodesCount(query: "code:<native-code>")` returned `0` / `EXACT`
+
+Practical rule:
+
+- keep `discountNodes` code-filter behavior modeled from capture evidence; do not assume it matches `codeDiscountNodes`
+- keep `codeDiscountNodes` as a separate compatibility root until its node-specific connection and filtering behavior are captured and modeled directly
