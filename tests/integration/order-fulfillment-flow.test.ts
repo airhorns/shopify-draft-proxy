@@ -5,6 +5,7 @@ import { createApp } from '../../src/app.js';
 import type { AppConfig } from '../../src/config.js';
 import { store } from '../../src/state/store.js';
 import { resetSyntheticIdentity } from '../../src/state/synthetic-identity.js';
+import type { OrderRecord } from '../../src/state/types.js';
 
 const snapshotConfig: AppConfig = {
   port: 3000,
@@ -343,6 +344,170 @@ describe('order fulfillment flow', () => {
           },
         },
       ],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('stages fulfillment tracking updates and cancellation in snapshot mode without hitting upstream', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('fulfillment lifecycle happy path should not hit upstream in snapshot mode');
+    });
+    const order: OrderRecord = {
+      id: 'gid://shopify/Order/fulfillment-lifecycle',
+      name: '#FULFILL',
+      createdAt: '2026-04-24T00:00:00.000Z',
+      updatedAt: '2026-04-24T00:00:00.000Z',
+      displayFinancialStatus: 'PAID',
+      displayFulfillmentStatus: 'FULFILLED',
+      note: null,
+      tags: [],
+      customAttributes: [],
+      billingAddress: null,
+      shippingAddress: null,
+      subtotalPriceSet: { shopMoney: { amount: '10.0', currencyCode: 'CAD' } },
+      currentTotalPriceSet: { shopMoney: { amount: '10.0', currencyCode: 'CAD' } },
+      totalPriceSet: { shopMoney: { amount: '10.0', currencyCode: 'CAD' } },
+      totalRefundedSet: { shopMoney: { amount: '0.0', currencyCode: 'CAD' } },
+      customer: null,
+      shippingLines: [],
+      lineItems: [
+        {
+          id: 'gid://shopify/LineItem/fulfillment-lifecycle',
+          title: 'Fulfillment lifecycle item',
+          quantity: 1,
+          sku: null,
+          variantTitle: null,
+          originalUnitPriceSet: null,
+        },
+      ],
+      fulfillments: [
+        {
+          id: 'gid://shopify/Fulfillment/fulfillment-lifecycle',
+          status: 'SUCCESS',
+          displayStatus: 'FULFILLED',
+          createdAt: '2026-04-24T00:00:00.000Z',
+          updatedAt: '2026-04-24T00:00:00.000Z',
+          trackingInfo: [
+            {
+              number: 'HERMES-CREATE',
+              url: 'https://example.com/track/HERMES-CREATE',
+              company: 'Hermes',
+            },
+          ],
+          fulfillmentLineItems: [
+            {
+              id: 'gid://shopify/FulfillmentLineItem/fulfillment-lifecycle',
+              lineItemId: 'gid://shopify/LineItem/fulfillment-lifecycle',
+              title: 'Fulfillment lifecycle item',
+              quantity: 1,
+            },
+          ],
+        },
+      ],
+      fulfillmentOrders: [],
+      transactions: [],
+      refunds: [],
+      returns: [],
+    };
+    store.upsertBaseOrders([order]);
+
+    const app = createApp(snapshotConfig).callback();
+    const trackingResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation FulfillmentTrackingInfoUpdateParityPlan($fulfillmentId: ID!, $trackingInfoInput: FulfillmentTrackingInput!, $notifyCustomer: Boolean) {
+          fulfillmentTrackingInfoUpdate(fulfillmentId: $fulfillmentId, trackingInfoInput: $trackingInfoInput, notifyCustomer: $notifyCustomer) {
+            fulfillment {
+              id
+              status
+              trackingInfo {
+                number
+                url
+                company
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          fulfillmentId: 'gid://shopify/Fulfillment/fulfillment-lifecycle',
+          notifyCustomer: false,
+          trackingInfoInput: {
+            number: 'HERMES-UPDATE',
+            url: 'https://example.com/track/HERMES-UPDATE',
+            company: 'Hermes',
+          },
+        },
+      });
+
+    expect(trackingResponse.status).toBe(200);
+    expect(trackingResponse.body).toEqual({
+      data: {
+        fulfillmentTrackingInfoUpdate: {
+          fulfillment: {
+            id: 'gid://shopify/Fulfillment/fulfillment-lifecycle',
+            status: 'SUCCESS',
+            trackingInfo: [
+              {
+                number: 'HERMES-UPDATE',
+                url: 'https://example.com/track/HERMES-UPDATE',
+                company: 'Hermes',
+              },
+            ],
+          },
+          userErrors: [],
+        },
+      },
+    });
+
+    const cancelResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation FulfillmentCancelParityPlan($id: ID!) {
+          fulfillmentCancel(id: $id) {
+            fulfillment {
+              id
+              status
+              displayStatus
+              trackingInfo {
+                number
+                url
+                company
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          id: 'gid://shopify/Fulfillment/fulfillment-lifecycle',
+        },
+      });
+
+    expect(cancelResponse.status).toBe(200);
+    expect(cancelResponse.body).toEqual({
+      data: {
+        fulfillmentCancel: {
+          fulfillment: {
+            id: 'gid://shopify/Fulfillment/fulfillment-lifecycle',
+            status: 'CANCELLED',
+            displayStatus: 'CANCELED',
+            trackingInfo: [
+              {
+                number: 'HERMES-UPDATE',
+                url: 'https://example.com/track/HERMES-UPDATE',
+                company: 'Hermes',
+              },
+            ],
+          },
+          userErrors: [],
+        },
+      },
     });
     expect(fetchSpy).not.toHaveBeenCalled();
   });

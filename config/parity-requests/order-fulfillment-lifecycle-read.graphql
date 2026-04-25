@@ -1,0 +1,48 @@
+query OrderFulfillmentLifecycleRead($id: ID!) {
+  order(id: $id) {
+    id
+    name
+    updatedAt
+    displayFulfillmentStatus
+    fulfillments(first: 5) {
+      id
+      status
+      displayStatus
+      createdAt
+      updatedAt
+      trackingInfo {
+        number
+        url
+        company
+      }
+      fulfillmentLineItems(first: 5) {
+        nodes {
+          id
+          quantity
+          lineItem {
+            id
+            title
+          }
+        }
+      }
+    }
+    fulfillmentOrders(first: 5) {
+      nodes {
+        id
+        status
+        requestStatus
+        lineItems(first: 5) {
+          nodes {
+            id
+            totalQuantity
+            remainingQuantity
+            lineItem {
+              id
+              title
+            }
+          }
+        }
+      }
+    }
+  }
+}

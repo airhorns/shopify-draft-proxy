@@ -161,6 +161,8 @@ Initial normalized entities should include at least:
 
 The architecture should be open to later domains without making products special in the core engine.
 
+Current product-owned metafields are normalized as product-scoped records. Besides the core identity/value fields (`id`, `namespace`, `key`, `type`, `value`), hydrated and staged product metafields carry the read fields needed for owner-scoped parity: `compareDigest`, `jsonValue`, `createdAt`, `updatedAt`, and `ownerType`. Product metafield `definition` currently serializes as `null` unless future fixture evidence justifies modeling definition linkage.
+
 Current customer-domain state deliberately stays narrower than the product model, but it is still normalized:
 
 - `CustomerRecord` carries scalar/detail fields plus `taxExemptions` as a separate list from the boolean `taxExempt`
@@ -192,6 +194,16 @@ This allows:
 - commit replay from original raw mutation documents
 - future conformance instrumentation per command type
 
+Current implementation note:
+
+- order fulfillment mutations include local snapshot-mode staging for
+  `fulfillmentCreate` validation slices plus happy-path
+  `fulfillmentTrackingInfoUpdate` and `fulfillmentCancel`; the tracking/cancel
+  flows update seeded fulfillment records locally, return Shopify-shaped
+  `userErrors`, and expose the staged state through immediate downstream order
+  fulfillment reads without sending those supported mutations to Shopify at
+  runtime
+
 ## Response overlay strategy
 
 In live-hybrid mode:
@@ -217,6 +229,7 @@ Current implementation note:
 - `createApp()` now reads `config.snapshotPath` eagerly when it is set
 - the current supported on-disk format is a normalized snapshot JSON file containing `baseState` plus optional product search connection baselines and customer catalog/search connection baselines
 - `baseState` includes a nullable normalized `shop` slice for Store properties reads; snapshot mode returns `shop: null` when no shop slice is present rather than inventing store identity, while live-hybrid can serve a locally staged shop overlay when one exists
+- `shopPolicyUpdate` stages legal policy writes into that same shop slice by `ShopPolicyType`; downstream `shop.shopPolicies` reads in snapshot and live-hybrid modes observe the staged body, identity, URL, title, timestamps, and empty translations shape without sending supported policy mutations upstream at runtime
 - normalized snapshot JSON is parsed through Zod schemas at the file boundary; the same schemas derive the runtime snapshot TypeScript types
 - loading that file seeds the in-memory base state before the server handles requests
 - `POST /__meta/reset` restores that startup snapshot baseline, including captured connection cursor/pageInfo baselines, rather than wiping snapshot mode back to an empty store

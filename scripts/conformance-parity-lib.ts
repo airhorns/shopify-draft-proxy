@@ -43,7 +43,7 @@ import {
   handleProductQuery,
   hydrateProductsFromUpstreamResponse,
 } from '../src/proxy/products.js';
-import { handleStorePropertiesQuery } from '../src/proxy/store-properties.js';
+import { handleStorePropertiesMutation, handleStorePropertiesQuery } from '../src/proxy/store-properties.js';
 import { makeSyntheticGid, makeSyntheticTimestamp, resetSyntheticIdentity } from '../src/state/synthetic-identity.js';
 import { store } from '../src/state/store.js';
 import type {
@@ -703,6 +703,25 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleCustomerMutation(document, variables),
+    };
+  }
+
+  if (capability.execution === 'stage-locally' && capability.domain === 'store-properties') {
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2025-01/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: handleStorePropertiesMutation(document, variables),
     };
   }
 
@@ -1890,6 +1909,61 @@ function readCapturedOrderFulfillments(order: Record<string, unknown> | null): O
     }));
 }
 
+function readFulfillmentPayloadFromSetup(capture: unknown, pathName: string): Record<string, unknown> | null {
+  return readRecordField(
+    readRecordField(
+      readRecordField(
+        readRecordField(
+          readRecordField(readRecordField(capture as Record<string, unknown>, 'setup'), pathName),
+          'response',
+        ),
+        'data',
+      ),
+      pathName,
+    ),
+    'fulfillment',
+  );
+}
+
+function seedFulfillmentLifecyclePreconditions(capture: unknown, mutationName: string | null): boolean {
+  if (mutationName !== 'fulfillmentTrackingInfoUpdate' && mutationName !== 'fulfillmentCancel') {
+    return false;
+  }
+
+  const setup = readRecordField(capture as Record<string, unknown>, 'setup');
+  const candidate = readRecordField(setup, 'candidate');
+  const orderSource = readRecordField(candidate, 'order');
+  const orderId = readStringField(orderSource, 'id');
+  if (!orderId) {
+    return false;
+  }
+
+  const createFulfillment = readFulfillmentPayloadFromSetup(capture, 'fulfillmentCreate');
+  const updateFulfillment = readFulfillmentPayloadFromSetup(capture, 'fulfillmentTrackingInfoUpdate');
+  const seedFulfillmentSource =
+    mutationName === 'fulfillmentCancel' && updateFulfillment
+      ? {
+          ...createFulfillment,
+          ...updateFulfillment,
+          fulfillmentLineItems:
+            readRecordField(updateFulfillment, 'fulfillmentLineItems') ??
+            readRecordField(createFulfillment, 'fulfillmentLineItems'),
+        }
+      : createFulfillment;
+  const seedFulfillment = readCapturedOrderFulfillments({ fulfillments: [seedFulfillmentSource] })[0];
+  if (!seedFulfillment) {
+    return false;
+  }
+
+  const order = makeSeedOrder(orderId, orderSource);
+  order.fulfillments = [
+    seedFulfillment,
+    ...(order.fulfillments ?? []).filter((fulfillment) => fulfillment.id !== seedFulfillment.id),
+  ];
+  store.upsertBaseOrders([order]);
+  return true;
+}
+
 function readCapturedFulfillmentOrderLineItems(
   source: Record<string, unknown> | null,
 ): OrderFulfillmentOrderLineItemRecord[] {
@@ -3010,6 +3084,26 @@ function seedMetafieldsSetOwnerProducts(capture: unknown, variables: Record<stri
   }
 }
 
+function seedProductMetafieldsReadPreconditions(capture: unknown): boolean {
+  const responseProduct = readRecordField(
+    readRecordField(readRecordField(capture as Record<string, unknown>, 'response'), 'data'),
+    'product',
+  );
+  const legacyConnectionProduct = readRecordField(
+    readRecordField(readRecordField(capture as Record<string, unknown>, 'connection'), 'data'),
+    'product',
+  );
+  const product = responseProduct ?? legacyConnectionProduct;
+  const productId = readStringField(product, 'id');
+  if (!product || !productId?.startsWith('gid://shopify/Product/')) {
+    return false;
+  }
+
+  store.upsertBaseProducts([makeSeedProduct(productId, product)]);
+  store.replaceBaseMetafieldsForProduct(productId, readCapturedProductMetafields(productId, product));
+  return true;
+}
+
 function seedMetafieldsDeleteOwnerProducts(capture: unknown, variables: Record<string, unknown>): boolean {
   if (mutationNameFromCapture(capture) !== 'metafieldsDelete') {
     return false;
@@ -3053,6 +3147,11 @@ function seedMetafieldsDeleteOwnerProducts(capture: unknown, variables: Record<s
         key,
         type: 'single_line_text_field',
         value: null,
+        compareDigest: null,
+        jsonValue: null,
+        createdAt: null,
+        updatedAt: null,
+        ownerType: 'PRODUCT',
       };
     })
     .filter((metafield): metafield is ProductMetafieldRecord => metafield !== null);
@@ -3132,6 +3231,13 @@ function readCapturedProductMetafields(productId: string, product: Record<string
       key,
       type: readStringField(candidate, 'type'),
       value: readStringField(candidate, 'value'),
+      compareDigest: readStringField(candidate, 'compareDigest'),
+      jsonValue: Object.prototype.hasOwnProperty.call(candidate, 'jsonValue')
+        ? (candidate['jsonValue'] as ProductMetafieldRecord['jsonValue'])
+        : undefined,
+      createdAt: readStringField(candidate, 'createdAt'),
+      updatedAt: readStringField(candidate, 'updatedAt'),
+      ownerType: readStringField(candidate, 'ownerType') ?? 'PRODUCT',
     });
   };
 
@@ -3139,12 +3245,14 @@ function readCapturedProductMetafields(productId: string, product: Record<string
     addMetafield(value);
   }
 
-  const metafieldsConnection = readRecordField(product, 'metafields');
-  for (const node of readArrayField(metafieldsConnection, 'nodes')) {
-    addMetafield(node);
-  }
-  for (const edge of readArrayField(metafieldsConnection, 'edges').filter(isPlainObject)) {
-    addMetafield(readRecordField(edge, 'node'));
+  for (const value of Object.values(product)) {
+    const connection = isPlainObject(value) ? value : null;
+    for (const node of readArrayField(connection, 'nodes')) {
+      addMetafield(node);
+    }
+    for (const edge of readArrayField(connection, 'edges').filter(isPlainObject)) {
+      addMetafield(readRecordField(edge, 'node'));
+    }
   }
 
   return Array.from(byIdentity.values()).sort(
@@ -3191,6 +3299,7 @@ function readCapturedProductMedia(
 }
 
 function seedPreconditionsFromCapture(capture: unknown, variables: Record<string, unknown>): void {
+  seedProductMetafieldsReadPreconditions(capture);
   if (seedInventoryLinkagePreconditions(capture)) {
     return;
   }
@@ -3209,6 +3318,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
 
   const payload = mutationPayloadFromCapture(capture);
   const mutationName = mutationNameFromCapture(capture);
+  if (seedFulfillmentLifecyclePreconditions(capture, mutationName)) {
+    return;
+  }
+
   if (seedCustomerMergePreconditions(capture, variables, mutationName)) {
     return;
   }

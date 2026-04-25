@@ -320,7 +320,6 @@ exports[`GraphQL operation coverage > snapshots introspected Admin GraphQL mutat
   "shopLocaleDisable",
   "shopLocaleEnable",
   "shopLocaleUpdate",
-  "shopPolicyUpdate",
   "shopResourceFeedbackCreate",
   "stagedUploadsCreate",
   "standardMetafieldDefinitionEnable",

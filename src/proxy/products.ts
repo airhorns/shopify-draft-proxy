@@ -3,6 +3,13 @@ import type { ReadMode } from '../config.js';
 import { getFieldArguments, getRootField, getRootFieldArguments, getRootFields } from '../graphql/root-field.js';
 import { parseSearchQuery, type SearchQueryNode, type SearchQueryTerm } from '../search-query-parser.js';
 import { paginateConnectionItems, serializeConnectionPageInfo } from './graphql-helpers.js';
+import {
+  normalizeOwnerMetafield,
+  readMetafieldInputObjects,
+  serializeMetafieldsConnection as serializeOwnerMetafieldsConnection,
+  serializeMetafieldSelectionSet,
+  upsertOwnerMetafields,
+} from './metafields.js';
 import { makeProxySyntheticGid, makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type {
@@ -26,6 +33,56 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function hasOwnField(value: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function parseMetafieldJsonValue(type: string | null, value: string | null): ProductMetafieldRecord['jsonValue'] {
+  if (value === null) {
+    return null;
+  }
+
+  if (type === 'json' || type?.startsWith('list.')) {
+    try {
+      return JSON.parse(value) as ProductMetafieldRecord['jsonValue'];
+    } catch {
+      return value;
+    }
+  }
+
+  if (type === 'number_integer') {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : value;
+  }
+
+  if (type === 'number_decimal') {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : value;
+  }
+
+  if (type === 'boolean') {
+    return value === 'true';
+  }
+
+  return value;
+}
+
+function makeMetafieldCompareDigest(metafield: {
+  namespace: string;
+  key: string;
+  type: string | null;
+  value: string | null;
+  jsonValue?: unknown;
+  updatedAt?: string | null | undefined;
+}): string {
+  return `draft:${Buffer.from(
+    JSON.stringify([
+      metafield.namespace,
+      metafield.key,
+      metafield.type,
+      metafield.value,
+      metafield.jsonValue ?? null,
+      metafield.updatedAt ?? null,
+    ]),
+  ).toString('base64url')}`;
 }
 
 type GraphqlErrorLocation = { line: number; column: number };
@@ -1129,13 +1186,23 @@ function makeSyntheticProductImageId(mediaContentType: string | null | undefined
 }
 
 function duplicateMetafieldRecord(metafield: ProductMetafieldRecord, productId: string): ProductMetafieldRecord {
-  return {
+  const timestamp = makeSyntheticTimestamp();
+  const duplicated: ProductMetafieldRecord = {
     id: makeSyntheticGid('Metafield'),
     productId,
     namespace: metafield.namespace,
     key: metafield.key,
     type: metafield.type,
     value: metafield.value,
+    jsonValue: metafield.jsonValue ?? parseMetafieldJsonValue(metafield.type, metafield.value),
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    ownerType: 'PRODUCT',
+  };
+
+  return {
+    ...duplicated,
+    compareDigest: makeMetafieldCompareDigest(duplicated),
   };
 }
 
@@ -2698,27 +2765,11 @@ function serializeMetafieldPayload(
   return metafields.map((metafield) => serializeMetafieldSelectionSet(metafield, field.selectionSet?.selections ?? []));
 }
 
-function readMetafieldsSetInput(raw: unknown): Record<string, unknown>[] {
-  if (!Array.isArray(raw)) {
-    return [];
-  }
-
-  return raw.filter((value): value is Record<string, unknown> => isObject(value));
-}
-
 type DeletedMetafieldIdentifierRecord = {
   ownerId: string;
   namespace: string;
   key: string;
 };
-
-function readMetafieldsDeleteInput(raw: unknown): Record<string, unknown>[] {
-  if (!Array.isArray(raw)) {
-    return [];
-  }
-
-  return raw.filter((value): value is Record<string, unknown> => isObject(value));
-}
 
 function serializeDeletedMetafieldIdentifiers(
   identifiers: DeletedMetafieldIdentifierRecord[],
@@ -2757,38 +2808,9 @@ function upsertMetafieldsForProduct(
   productId: string,
   inputs: Record<string, unknown>[],
 ): { metafields: ProductMetafieldRecord[]; createdOrUpdated: ProductMetafieldRecord[] } {
-  const existingMetafields = store.getEffectiveMetafieldsByProductId(productId);
-  const metafieldsByIdentity = new Map(
-    existingMetafields.map((metafield) => [`${metafield.namespace}:${metafield.key}`, metafield]),
-  );
-  const createdOrUpdated: ProductMetafieldRecord[] = [];
-
-  for (const input of inputs) {
-    const namespace = typeof input['namespace'] === 'string' ? input['namespace'] : '';
-    const key = typeof input['key'] === 'string' ? input['key'] : '';
-    const identityKey = `${namespace}:${key}`;
-    const existing = metafieldsByIdentity.get(identityKey);
-    const nextMetafield: ProductMetafieldRecord = {
-      id: existing?.id ?? makeSyntheticGid('Metafield'),
-      productId,
-      namespace,
-      key,
-      type: typeof input['type'] === 'string' ? input['type'] : (existing?.type ?? null),
-      value: typeof input['value'] === 'string' ? input['value'] : (existing?.value ?? null),
-    };
-    metafieldsByIdentity.set(identityKey, nextMetafield);
-    createdOrUpdated.push(structuredClone(nextMetafield));
-  }
-
-  return {
-    metafields: Array.from(metafieldsByIdentity.values()).sort(
-      (left, right) =>
-        left.namespace.localeCompare(right.namespace) ||
-        left.key.localeCompare(right.key) ||
-        left.id.localeCompare(right.id),
-    ),
-    createdOrUpdated,
-  };
+  return upsertOwnerMetafields('productId', productId, inputs, store.getEffectiveMetafieldsByProductId(productId), {
+    ownerType: 'PRODUCT',
+  });
 }
 
 function findMetafieldById(metafieldId: string): ProductMetafieldRecord | null {
@@ -2899,13 +2921,29 @@ function buildProductSetMetafieldRecords(productId: string, rawMetafields: unkno
 
   return inputs.map((input) => {
     const existing = findMetafieldById(typeof input['id'] === 'string' ? input['id'] : '');
-    return {
+    const type = typeof input['type'] === 'string' ? input['type'] : (existing?.type ?? null);
+    const value = typeof input['value'] === 'string' ? input['value'] : (existing?.value ?? null);
+    const createdAt = existing?.createdAt ?? makeSyntheticTimestamp();
+    const updatedAt = existing
+      ? value === existing.value && type === existing.type
+        ? (existing.updatedAt ?? createdAt)
+        : makeSyntheticTimestamp()
+      : createdAt;
+    const metafield: ProductMetafieldRecord = {
       id: existing?.productId === productId ? existing.id : makeSyntheticGid('Metafield'),
       productId,
       namespace: typeof input['namespace'] === 'string' ? input['namespace'] : (existing?.namespace ?? ''),
       key: typeof input['key'] === 'string' ? input['key'] : (existing?.key ?? ''),
-      type: typeof input['type'] === 'string' ? input['type'] : (existing?.type ?? null),
-      value: typeof input['value'] === 'string' ? input['value'] : (existing?.value ?? null),
+      type,
+      value,
+      jsonValue: parseMetafieldJsonValue(type, value),
+      createdAt,
+      updatedAt,
+      ownerType: 'PRODUCT',
+    };
+    return {
+      ...metafield,
+      compareDigest: makeMetafieldCompareDigest(metafield),
     };
   });
 }
@@ -3288,27 +3326,7 @@ function normalizeUpstreamProductImage(productId: string, value: unknown, positi
 }
 
 function normalizeUpstreamMetafield(productId: string, value: unknown): ProductMetafieldRecord | null {
-  if (!isObject(value)) {
-    return null;
-  }
-
-  const rawId = value['id'];
-  const rawNamespace = value['namespace'];
-  const rawKey = value['key'];
-  const rawType = value['type'];
-  const rawValue = value['value'];
-  if (typeof rawId !== 'string' || typeof rawNamespace !== 'string' || typeof rawKey !== 'string') {
-    return null;
-  }
-
-  return {
-    id: rawId,
-    productId,
-    namespace: rawNamespace,
-    key: rawKey,
-    type: typeof rawType === 'string' ? rawType : null,
-    value: typeof rawValue === 'string' ? rawValue : null,
-  };
+  return normalizeOwnerMetafield('productId', productId, value, { ownerType: 'PRODUCT' });
 }
 
 function readVariantNodes(value: unknown): unknown[] {
@@ -5289,111 +5307,6 @@ function serializeProductImagesConnection(
   promoteProcessingMediaAfterRead(productId, allMediaRecords);
   return result;
 }
-
-function serializeMetafieldSelectionSet(
-  metafield: ProductMetafieldRecord,
-  selections: readonly SelectionNode[],
-): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-
-  for (const selection of selections) {
-    if (selection.kind !== Kind.FIELD) {
-      continue;
-    }
-
-    const key = selection.alias?.value ?? selection.name.value;
-    switch (selection.name.value) {
-      case 'id':
-        result[key] = metafield.id;
-        break;
-      case 'namespace':
-        result[key] = metafield.namespace;
-        break;
-      case 'key':
-        result[key] = metafield.key;
-        break;
-      case 'type':
-        result[key] = metafield.type;
-        break;
-      case 'value':
-        result[key] = metafield.value;
-        break;
-      default:
-        result[key] = null;
-    }
-  }
-
-  return result;
-}
-
-function serializeMetafieldsConnection(
-  productId: string,
-  field: FieldNode,
-  variables: Record<string, unknown>,
-): Record<string, unknown> {
-  const allMetafields = store.getEffectiveMetafieldsByProductId(productId);
-  const {
-    items: metafields,
-    hasNextPage,
-    hasPreviousPage,
-  } = paginateConnectionItems(allMetafields, field, variables, (metafield) => metafield.id);
-  const result: Record<string, unknown> = {};
-
-  for (const selection of field.selectionSet?.selections ?? []) {
-    if (selection.kind !== Kind.FIELD) {
-      continue;
-    }
-
-    const key = selection.alias?.value ?? selection.name.value;
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = metafields.map((metafield) =>
-          serializeMetafieldSelectionSet(metafield, selection.selectionSet?.selections ?? []),
-        );
-        break;
-      case 'edges':
-        result[key] = metafields.map((metafield) => {
-          const edgeResult: Record<string, unknown> = {};
-          for (const edgeSelection of selection.selectionSet?.selections ?? []) {
-            if (edgeSelection.kind !== Kind.FIELD) {
-              continue;
-            }
-
-            const edgeKey = edgeSelection.alias?.value ?? edgeSelection.name.value;
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edgeResult[edgeKey] = `cursor:${metafield.id}`;
-                break;
-              case 'node':
-                edgeResult[edgeKey] = serializeMetafieldSelectionSet(
-                  metafield,
-                  edgeSelection.selectionSet?.selections ?? [],
-                );
-                break;
-              default:
-                edgeResult[edgeKey] = null;
-            }
-          }
-          return edgeResult;
-        });
-        break;
-      case 'pageInfo':
-        result[key] = serializeConnectionPageInfo(
-          selection,
-          metafields,
-          hasNextPage,
-          hasPreviousPage,
-          (metafield) => metafield.id,
-        );
-        break;
-      default:
-        result[key] = null;
-    }
-  }
-
-  return result;
-}
-
 function serializeProductField(product: ProductRecord, field: FieldNode, variables: Record<string, unknown>): unknown {
   const visiblePublicationCount = product.status === 'ACTIVE' ? product.publicationIds.length : 0;
 
@@ -5518,7 +5431,7 @@ function serializeProductField(product: ProductRecord, field: FieldNode, variabl
       return metafield ? serializeMetafieldSelectionSet(metafield, field.selectionSet?.selections ?? []) : null;
     }
     case 'metafields':
-      return serializeMetafieldsConnection(product.id, field, variables);
+      return serializeOwnerMetafieldsConnection(store.getEffectiveMetafieldsByProductId(product.id), field, variables);
     default:
       return null;
   }
@@ -8399,7 +8312,7 @@ export function handleProductMutation(
       };
     }
     case 'metafieldsSet': {
-      const inputs = readMetafieldsSetInput(args['metafields']);
+      const inputs = readMetafieldInputObjects(args['metafields']);
       if (inputs.length === 0) {
         return {
           data: {
@@ -8480,7 +8393,7 @@ export function handleProductMutation(
       };
     }
     case 'metafieldsDelete': {
-      const deleteResult = deleteMetafieldsByIdentifiers(readMetafieldsDeleteInput(args['metafields']));
+      const deleteResult = deleteMetafieldsByIdentifiers(readMetafieldInputObjects(args['metafields']));
       return {
         data: {
           [responseKey]: {
