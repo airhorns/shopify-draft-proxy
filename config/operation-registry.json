@@ -1908,20 +1908,20 @@
     "type": "query",
     "domain": "shipping-fulfillments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["deliveryProfile", "DeliveryProfile"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 DeliveryProfile ID lookup root. Registry-only declared gap until nested location groups, zones, method definitions, product variant assignments, and missing-profile nullability are captured."
+    "runtimeTests": ["tests/integration/delivery-profile-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 DeliveryProfile ID lookup root is fixture-backed in snapshot mode for captured scalar fields, nested location groups, zones, method definitions, product/variant assignments, unassigned locations, and missing-profile nullability. Delivery-profile writes remain unsupported until local staging models asynchronous removal jobs and nested validation behavior."
   },
   {
     "name": "deliveryProfiles",
     "type": "query",
     "domain": "shipping-fulfillments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["deliveryProfiles", "DeliveryProfiles"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 DeliveryProfile catalog root. Registry-only declared gap until merchantOwnedOnly, pagination, default profile behavior, legacy mode, and empty/permission behavior are captured."
+    "runtimeTests": ["tests/integration/delivery-profile-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 DeliveryProfile catalog root is fixture-backed in snapshot mode for first/last cursor windows, reverse ordering, merchantOwnedOnly filtering, and empty/no-data connection behavior. The local model does not invent delivery profiles when normalized fixtures are absent."
   },
   {
     "name": "locationsAvailableForDeliveryProfilesConnection",

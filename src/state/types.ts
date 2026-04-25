@@ -1227,6 +1227,110 @@ export const priceListRecordSchema = z.strictObject({
 });
 export type PriceListRecord = z.infer<typeof priceListRecordSchema>;
 
+export const deliveryProfileCountRecordSchema = z.strictObject({
+  count: z.number(),
+  precision: nullableStringSchema.optional(),
+});
+export type DeliveryProfileCountRecord = z.infer<typeof deliveryProfileCountRecordSchema>;
+
+export const deliveryProfileItemRecordSchema = z.strictObject({
+  productId: z.string(),
+  variantIds: z.array(z.string()),
+  cursor: nullableStringSchema.optional(),
+  variantCursors: z.record(z.string(), z.string()).optional(),
+});
+export type DeliveryProfileItemRecord = z.infer<typeof deliveryProfileItemRecordSchema>;
+
+export const deliveryProfileProvinceRecordSchema = z.strictObject({
+  id: z.string(),
+  name: z.string(),
+  code: z.string(),
+});
+export type DeliveryProfileProvinceRecord = z.infer<typeof deliveryProfileProvinceRecordSchema>;
+
+export const deliveryProfileCountryCodeRecordSchema = z.strictObject({
+  countryCode: nullableStringSchema,
+  restOfWorld: z.boolean(),
+});
+export type DeliveryProfileCountryCodeRecord = z.infer<typeof deliveryProfileCountryCodeRecordSchema>;
+
+export const deliveryProfileCountryRecordSchema = z.strictObject({
+  id: z.string(),
+  name: z.string(),
+  translatedName: nullableStringSchema.optional(),
+  code: deliveryProfileCountryCodeRecordSchema,
+  provinces: z.array(deliveryProfileProvinceRecordSchema),
+});
+export type DeliveryProfileCountryRecord = z.infer<typeof deliveryProfileCountryRecordSchema>;
+
+export const deliveryProfileCountryAndZoneRecordSchema = z.strictObject({
+  zone: z.string(),
+  country: deliveryProfileCountryRecordSchema,
+});
+export type DeliveryProfileCountryAndZoneRecord = z.infer<typeof deliveryProfileCountryAndZoneRecordSchema>;
+
+export const deliveryProfileZoneRecordSchema = z.strictObject({
+  id: z.string(),
+  name: z.string(),
+  countries: z.array(deliveryProfileCountryRecordSchema),
+});
+export type DeliveryProfileZoneRecord = z.infer<typeof deliveryProfileZoneRecordSchema>;
+
+export const deliveryProfileMethodConditionRecordSchema = z.strictObject({
+  id: z.string(),
+  field: z.string(),
+  operator: z.string(),
+  conditionCriteria: z.record(z.string(), jsonValueSchema),
+});
+export type DeliveryProfileMethodConditionRecord = z.infer<typeof deliveryProfileMethodConditionRecordSchema>;
+
+export const deliveryProfileMethodDefinitionRecordSchema = z.strictObject({
+  id: z.string(),
+  name: z.string(),
+  active: z.boolean(),
+  description: nullableStringSchema,
+  rateProvider: z.record(z.string(), jsonValueSchema),
+  methodConditions: z.array(deliveryProfileMethodConditionRecordSchema),
+  cursor: nullableStringSchema.optional(),
+});
+export type DeliveryProfileMethodDefinitionRecord = z.infer<typeof deliveryProfileMethodDefinitionRecordSchema>;
+
+export const deliveryProfileLocationGroupZoneRecordSchema = z.strictObject({
+  zone: deliveryProfileZoneRecordSchema,
+  methodDefinitions: z.array(deliveryProfileMethodDefinitionRecordSchema),
+  cursor: nullableStringSchema.optional(),
+});
+export type DeliveryProfileLocationGroupZoneRecord = z.infer<typeof deliveryProfileLocationGroupZoneRecordSchema>;
+
+export const deliveryProfileLocationGroupRecordSchema = z.strictObject({
+  id: z.string(),
+  locationIds: z.array(z.string()),
+  locationCursors: z.record(z.string(), z.string()).optional(),
+  countriesInAnyZone: z.array(deliveryProfileCountryAndZoneRecordSchema).default([]),
+  locationGroupZones: z.array(deliveryProfileLocationGroupZoneRecordSchema),
+});
+export type DeliveryProfileLocationGroupRecord = z.infer<typeof deliveryProfileLocationGroupRecordSchema>;
+
+export const deliveryProfileRecordSchema = z.strictObject({
+  id: z.string(),
+  cursor: nullableStringSchema.optional(),
+  name: z.string(),
+  default: z.boolean(),
+  merchantOwned: z.boolean(),
+  version: z.number(),
+  activeMethodDefinitionsCount: z.number(),
+  locationsWithoutRatesCount: z.number(),
+  originLocationCount: z.number(),
+  zoneCountryCount: z.number(),
+  productVariantsCount: deliveryProfileCountRecordSchema.nullable(),
+  profileItems: z.array(deliveryProfileItemRecordSchema),
+  profileLocationGroups: z.array(deliveryProfileLocationGroupRecordSchema),
+  unassignedLocationIds: z.array(z.string()).default([]),
+  unassignedLocationCursors: z.record(z.string(), z.string()).optional(),
+  sellingPlanGroups: z.array(z.record(z.string(), jsonValueSchema)).default([]),
+});
+export type DeliveryProfileRecord = z.infer<typeof deliveryProfileRecordSchema>;
+
 export const calculatedOrderRecordSchema = orderRecordSchema.extend({
   originalOrderId: z.string(),
 });
@@ -1266,6 +1370,8 @@ export const stateSnapshotSchema = z.strictObject({
   catalogOrder: z.array(z.string()).default([]),
   priceLists: z.record(z.string(), priceListRecordSchema).default({}),
   priceListOrder: z.array(z.string()).default([]),
+  deliveryProfiles: z.record(z.string(), deliveryProfileRecordSchema).default({}),
+  deliveryProfileOrder: z.array(z.string()).default([]),
   productCollections: z.record(z.string(), productCollectionRecordSchema),
   productMedia: z.record(z.string(), productMediaRecordSchema),
   files: z.record(z.string(), fileRecordSchema).default({}),

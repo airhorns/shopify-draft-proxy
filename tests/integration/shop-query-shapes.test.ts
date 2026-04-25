@@ -152,6 +152,8 @@ function writeSnapshot(shop: ShopRecord | null): string {
       catalogOrder: [],
       priceLists: {},
       priceListOrder: [],
+      deliveryProfiles: {},
+      deliveryProfileOrder: [],
       productCollections: {},
       productMedia: {},
       files: {},
