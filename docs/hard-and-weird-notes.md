@@ -1759,6 +1759,23 @@ Live evidence refreshed on this host:
 - both captured custom and smart collections currently return `sortOrder: BEST_SELLING`; the custom collection's blank description comes back as empty strings for both `description` and `descriptionHtml`, not `null`
 - the catalog fixture now selects the same rich metadata fields so `collections` parity covers the captured null/empty shapes alongside nested product connection shape
 
+### 45a. Collection catalog filters should run over the effective collection graph
+
+The catalog search/sort increment for `collections` exposed a familiar ordering trap: filtering has to happen against the merged standalone-collection plus product-membership view before cursor pagination.
+
+Current local rule:
+
+- top-level `collections` and nested `product.collections` apply supported `query`, `sortKey`, `reverse`, `first`/`after`/`last`/`before` in one pipeline: effective graph -> filters -> sort -> cursor window
+- supported local filters are default text, `title`, `handle`, `id`, `collection_type:custom|smart`, `product_id`, and `updated_at` ranges
+- publication-status filters run through the collection publication model when that state is present; `savedSearchId` is still not modeled because the proxy has no saved-search state yet
+- `sortKey: RELEVANCE` without a query falls back to deterministic ID order; with a query, local replay preserves the filtered order rather than inventing a fake relevance scorer
+- empty unmatched collection searches return a non-null connection with empty `edges`/`nodes`, false page booleans, and null cursors
+
+Live evidence refreshed on this host:
+
+- `collections-catalog.json` now captures title wildcard search, `collection_type:custom`, `collection_type:smart`, `UPDATED_AT` reverse sorting, `product_id` filtering, and an unmatched empty query
+- local parity replays those captured branches from the seeded snapshot graph; expected differences are limited to Shopify's opaque collection cursors versus local synthetic cursors
+
 ## 46. Customer-area registry coverage needs to separate likely local staging from side-effect roots
 
 An audit against the current Shopify Admin GraphQL customer docs showed that the first implemented slice (`customer`, `customers`, `customersCount`, `customerCreate`, `customerUpdate`, `customerDelete`) is only the beginning of the customer area. The registry now deliberately accounts for the missing roots future issues are likely to depend on without claiming runtime support.
