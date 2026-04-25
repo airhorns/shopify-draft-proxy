@@ -111,6 +111,11 @@ describe('customer draft flow', () => {
             count
             precision
           }
+          byIdentifier: customerByIdentifier(identifier: { emailAddress: "draft-customer@example.com" }) {
+            id
+            email
+            defaultPhoneNumber { phoneNumber }
+          }
         }`,
         variables: { id: customerId },
       });
@@ -138,9 +143,71 @@ describe('customer draft flow', () => {
           count: 1,
           precision: 'EXACT',
         },
+        byIdentifier: {
+          id: customerId,
+          email: 'draft-customer@example.com',
+          defaultPhoneNumber: { phoneNumber: '+14155550123' },
+        },
       },
     });
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('overlays staged customerByIdentifier lookups in live-hybrid mode when Shopify has no match yet', async () => {
+    const app = createApp({ ...snapshotConfig, readMode: 'live-hybrid' }).callback();
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ data: { customerByIdentifier: null } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+
+    const createResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CustomerCreate($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id email defaultPhoneNumber { phoneNumber } }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            email: 'live-hybrid-draft@example.com',
+            firstName: 'Live',
+            lastName: 'Hybrid',
+            phone: '+14155550999',
+          },
+        },
+      });
+
+    expect(createResponse.status).toBe(200);
+    const customerId = createResponse.body.data.customerCreate.customer.id;
+
+    const identifierResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query CustomerByIdentifier($identifier: CustomerIdentifierInput!) {
+          customerByIdentifier(identifier: $identifier) {
+            id
+            email
+            defaultPhoneNumber { phoneNumber }
+          }
+        }`,
+        variables: { identifier: { emailAddress: 'live-hybrid-draft@example.com' } },
+      });
+
+    expect(identifierResponse.status).toBe(200);
+    expect(identifierResponse.body).toEqual({
+      data: {
+        customerByIdentifier: {
+          id: customerId,
+          email: 'live-hybrid-draft@example.com',
+          defaultPhoneNumber: { phoneNumber: '+14155550999' },
+        },
+      },
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
   it('stages customerUpdate locally and keeps later customer and customers replays aligned', async () => {
@@ -201,6 +268,7 @@ describe('customer draft flow', () => {
             id: 'gid://shopify/Customer/401',
             firstName: 'Ada',
             lastName: 'Byron',
+            email: 'ada-updated@example.com',
             note: 'after update',
             tags: ['vip', 'newsletter'],
             taxExempt: true,
@@ -215,12 +283,12 @@ describe('customer draft flow', () => {
       firstName: 'Ada',
       lastName: 'Byron',
       displayName: 'Ada Byron',
-      email: 'ada@example.com',
+      email: 'ada-updated@example.com',
       note: 'after update',
       locale: 'en',
       taxExempt: true,
       tags: ['newsletter', 'vip'],
-      defaultEmailAddress: { emailAddress: 'ada@example.com' },
+      defaultEmailAddress: { emailAddress: 'ada-updated@example.com' },
     });
     expect(updateResponse.body.data.customerUpdate.customer.updatedAt).not.toBe(createdAt);
 
@@ -241,6 +309,11 @@ describe('customer draft flow', () => {
               displayName
               tags
             }
+          }
+          byIdentifier: customerByIdentifier(identifier: { emailAddress: "ada-updated@example.com" }) {
+            id
+            displayName
+            email
           }
         }`,
         variables: { id: 'gid://shopify/Customer/401' },
@@ -264,6 +337,11 @@ describe('customer draft flow', () => {
               tags: ['newsletter', 'vip'],
             },
           ],
+        },
+        byIdentifier: {
+          id: 'gid://shopify/Customer/401',
+          displayName: 'Ada Byron',
+          email: 'ada-updated@example.com',
         },
       },
     });

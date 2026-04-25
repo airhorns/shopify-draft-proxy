@@ -279,7 +279,10 @@ export function createProxyRouter(config: AppConfig): Router {
         hydrateCustomersFromUpstreamResponse(body.query, variables, upstreamBody);
 
         ctx.status = response.status;
-        ctx.body = store.hasBaseCustomers() ? handleCustomerQuery(body.query, variables) : upstreamBody;
+        ctx.body =
+          store.hasBaseCustomers() || store.hasStagedCustomers()
+            ? handleCustomerQuery(body.query, variables)
+            : upstreamBody;
         return;
       }
     }
