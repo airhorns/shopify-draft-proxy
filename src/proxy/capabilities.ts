@@ -1,6 +1,5 @@
 import type { ParsedOperation } from '../graphql/parse-operation.js';
 import {
-  listOperationRegistryEntries,
   listImplementedOperationRegistryEntries,
   type CapabilityDomain,
   type CapabilityExecution,
@@ -14,11 +13,8 @@ export interface OperationCapability {
 }
 
 const implementedEntries = listImplementedOperationRegistryEntries();
-const passthroughEntries = listOperationRegistryEntries().filter((entry) => entry.execution === 'passthrough');
 const CAPABILITY_ENTRY_BY_MATCH_NAME = new Map(
-  [...implementedEntries, ...passthroughEntries].flatMap((entry) =>
-    entry.matchNames.map((matchName) => [matchName, entry] as const),
-  ),
+  implementedEntries.flatMap((entry) => entry.matchNames.map((matchName) => [matchName, entry] as const)),
 );
 
 function getCandidateOperationNames(operation: ParsedOperation): string[] {

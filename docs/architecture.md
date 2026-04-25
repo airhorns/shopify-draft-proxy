@@ -245,6 +245,8 @@ For supported operations, the proxy should aim to preserve:
 
 Unsupported mutations proxy through by explicit product decision. This is dangerous in tests because it can create real side effects. The system should therefore expose clear indicators that a mutation was proxied instead of staged.
 
+Operation registry entries must not encode permanent passthrough as an intended posture. A registered mutation should either be locally staged once supported or remain unimplemented until a local model exists; upstream passthrough is the unknown/unsupported escape hatch, not a target state for known write roots.
+
 ## Conformance framework design
 
 The conformance suite should include:

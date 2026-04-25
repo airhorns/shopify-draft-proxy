@@ -34,6 +34,22 @@ const storePropertiesMutationRoots = [
   'shopPolicyUpdate',
 ] as const;
 
+const storePropertiesLocalStagingMutationRoots = [
+  'locationAdd',
+  'locationEdit',
+  'locationActivate',
+  'locationDeactivate',
+  'locationDelete',
+  'shopPolicyUpdate',
+] as const;
+
+const genericPublishableMutationRoots = [
+  'publishablePublish',
+  'publishablePublishToCurrentChannel',
+  'publishableUnpublish',
+  'publishableUnpublishToCurrentChannel',
+] as const;
+
 const storePropertiesRoots = [
   ...storePropertiesQueryRoots,
   ...implementedStorePropertiesQueryRoots,
@@ -49,7 +65,7 @@ function readRegistry() {
 }
 
 describe('Store properties registry scaffold', () => {
-  it('tracks Store properties roots without enabling runtime support prematurely', () => {
+  it('tracks Store properties roots without enabling broad runtime support prematurely', () => {
     const registry = readRegistry();
     const entriesByName = new Map(registry.map((entry) => [entry.name, entry]));
 
@@ -59,7 +75,7 @@ describe('Store properties registry scaffold', () => {
       expect(entry?.domain, `${root} should be grouped under Store properties`).toBe('store-properties');
     }
 
-    for (const root of [...storePropertiesQueryRoots, ...storePropertiesMutationRoots]) {
+    for (const root of [...storePropertiesQueryRoots, ...storePropertiesLocalStagingMutationRoots]) {
       const entry = entriesByName.get(root);
       expect(entry?.implemented, `${root} should remain scaffold-only`).toBe(false);
       expect(entry?.runtimeTests, `${root} should not claim runtime coverage`).toEqual([]);
@@ -75,20 +91,42 @@ describe('Store properties registry scaffold', () => {
 
     for (const root of storePropertiesQueryRoots) {
       expect(entriesByName.get(root)?.execution, `${root} should be a planned overlay read`).toBe('overlay-read');
+      expect(entriesByName.get(root)?.implemented, `${root} should remain scaffold-only`).toBe(false);
+      expect(entriesByName.get(root)?.runtimeTests, `${root} should not claim runtime coverage`).toEqual([]);
+    }
+
+    for (const root of storePropertiesLocalStagingMutationRoots) {
+      expect(entriesByName.get(root)?.execution, `${root} should be planned for local staging before support`).toBe(
+        'stage-locally',
+      );
+      expect(entriesByName.get(root)?.implemented, `${root} should remain scaffold-only`).toBe(false);
+      expect(entriesByName.get(root)?.runtimeTests, `${root} should not claim runtime coverage`).toEqual([]);
     }
 
     for (const root of implementedStorePropertiesQueryRoots) {
       expect(entriesByName.get(root)?.execution, `${root} should be a supported overlay read`).toBe('overlay-read');
     }
 
-    for (const root of storePropertiesMutationRoots) {
-      expect(entriesByName.get(root)?.execution, `${root} should be planned for local staging before support`).toBe(
+    for (const root of genericPublishableMutationRoots) {
+      expect(entriesByName.get(root)?.execution, `${root} should stage locally for product targets`).toBe(
         'stage-locally',
+      );
+      expect(entriesByName.get(root)?.implemented, `${root} should expose the product-scoped slice`).toBe(true);
+      expect(entriesByName.get(root)?.runtimeTests, `${root} should declare runtime coverage`).toContain(
+        'tests/integration/product-draft-flow.test.ts',
+      );
+      expect(entriesByName.get(root)?.supportNotes, `${root} should explain the product-scoped support`).toEqual(
+        expect.stringContaining('Product'),
       );
     }
   });
 
-  it('keeps scaffolded roots out of capability routing until they are implemented', () => {
+  it('does not register permanent passthrough capabilities', () => {
+    const registry = JSON.parse(readText('config/operation-registry.json')) as Array<{ execution?: string }>;
+    expect(registry.some((entry) => entry.execution === 'passthrough')).toBe(false);
+  });
+
+  it('keeps planned local-staging scaffolds out of capability routing until they are implemented', () => {
     expect(getOperationCapability({ type: 'query', name: 'Shop', rootFields: ['shop'] })).toEqual({
       domain: 'unknown',
       execution: 'passthrough',
@@ -115,6 +153,17 @@ describe('Store properties registry scaffold', () => {
     });
   });
 
+  it('routes generic publishable roots as Store properties local staging', () => {
+    for (const root of genericPublishableMutationRoots) {
+      expect(getOperationCapability({ type: 'mutation', name: root, rootFields: [root] })).toEqual({
+        domain: 'store-properties',
+        execution: 'stage-locally',
+        operationName: root,
+        type: 'mutation',
+      });
+    }
+  });
+
   it('routes implemented business entity reads through the Store properties overlay', () => {
     expect(
       getOperationCapability({ type: 'query', name: 'BusinessEntities', rootFields: ['businessEntities'] }),
@@ -138,7 +187,7 @@ describe('Store properties registry scaffold', () => {
     const scenarioOperations = new Set(scenarios.flatMap((scenario) => scenario.operationNames));
     const statusDocument = buildConformanceStatusDocument(repoRoot);
 
-    for (const root of [...storePropertiesQueryRoots, ...storePropertiesMutationRoots]) {
+    for (const root of [...storePropertiesQueryRoots, ...storePropertiesLocalStagingMutationRoots]) {
       expect(scenarioOperations.has(root), `${root} should wait for captured evidence or executable comparison`).toBe(
         false,
       );
@@ -147,6 +196,11 @@ describe('Store properties registry scaffold', () => {
 
     for (const root of implementedStorePropertiesQueryRoots) {
       expect(scenarioOperations.has(root), `${root} should now have captured business entity evidence`).toBe(true);
+      expect(statusDocument.implementedOperations.some((entry) => entry.name === root)).toBe(true);
+    }
+
+    for (const root of genericPublishableMutationRoots) {
+      expect(scenarioOperations.has(root), `${root} should now have product-scoped publication evidence`).toBe(true);
       expect(statusDocument.implementedOperations.some((entry) => entry.name === root)).toBe(true);
     }
   });
