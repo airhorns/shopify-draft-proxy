@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-04-25T12:19:53.370Z",
+  "capturedAt": "2026-04-25T12:22:26.443Z",
   "storeDomain": "very-big-test-store.myshopify.com",
   "apiVersion": "2026-04",
   "operation": "cashManagementLocationSummary",
@@ -183,7 +183,7 @@
             "actualQueryCost": 3,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1991,
               "restoreRate": 100
             }
           }
@@ -225,7 +225,7 @@
             "actualQueryCost": 1,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1997,
+              "currentlyAvailable": 1999,
               "restoreRate": 100
             }
           }
