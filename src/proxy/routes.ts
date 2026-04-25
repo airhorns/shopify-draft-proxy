@@ -666,6 +666,20 @@ export function createProxyRouter(config: AppConfig): Router {
       return;
     }
 
+    if (parsed.type === 'query' && parsed.rootFields.includes('customerPaymentMethod')) {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleCustomerQuery(body.query, variables);
+        return;
+      }
+
+      if (config.readMode === 'live-hybrid' && store.hasCustomerPaymentMethods()) {
+        ctx.status = 200;
+        ctx.body = handleCustomerQuery(body.query, variables);
+        return;
+      }
+    }
+
     if (capability.execution === 'overlay-read' && capability.domain === 'products') {
       if (config.readMode === 'snapshot') {
         ctx.status = 200;
