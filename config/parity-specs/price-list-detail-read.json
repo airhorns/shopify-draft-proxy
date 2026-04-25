@@ -1,0 +1,25 @@
+{
+  "scenarioId": "price-list-detail-read",
+  "operationNames": ["priceList"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "price-list-prices", "product-variant-contextual-pricing"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/price-list-detail.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/price-list-detail-read.graphql",
+    "variablesPath": "config/parity-requests/price-list-detail-read.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live `priceList(id:)` capture for Admin GraphQL 2026-04. The selected slice covers parent adjustment, catalog back-reference, fixedPricesCount, and the first relative PriceList.prices records connected to product variants.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "price-list-detail-data",
+        "capturePath": "$.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}

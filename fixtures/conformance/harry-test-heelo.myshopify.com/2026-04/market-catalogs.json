@@ -1,0 +1,68 @@
+{
+  "data": {
+    "catalogs": {
+      "edges": [
+        {
+          "cursor": "eyJsYXN0X2lkIjoxMjg4OTM0NTI1OTQsImxhc3RfdmFsdWUiOiIxMjg4OTM0NTI1OTQifQ==",
+          "node": {
+            "__typename": "MarketCatalog",
+            "id": "gid://shopify/MarketCatalog/128893452594",
+            "title": "Mexico",
+            "status": "ACTIVE",
+            "priceList": {
+              "id": "gid://shopify/PriceList/31575408946",
+              "name": "Mexico Buyers",
+              "currency": "MXN"
+            },
+            "publication": {
+              "id": "gid://shopify/Publication/268039618866",
+              "autoPublish": true
+            },
+            "operations": [],
+            "marketsCount": {
+              "count": 1,
+              "precision": "EXACT"
+            },
+            "markets": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5MjI3NjgxODIyNiwibGFzdF92YWx1ZSI6Ik1leGljbyJ9",
+                  "node": {
+                    "id": "gid://shopify/Market/92276818226",
+                    "name": "Mexico",
+                    "handle": "mexico",
+                    "status": "ACTIVE",
+                    "type": "REGION"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5MjI3NjgxODIyNiwibGFzdF92YWx1ZSI6Ik1leGljbyJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5MjI3NjgxODIyNiwibGFzdF92YWx1ZSI6Ik1leGljbyJ9"
+              }
+            }
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": "eyJsYXN0X2lkIjoxMjg4OTM0NTI1OTQsImxhc3RfdmFsdWUiOiIxMjg4OTM0NTI1OTQifQ==",
+        "endCursor": "eyJsYXN0X2lkIjoxMjg4OTM0NTI1OTQsImxhc3RfdmFsdWUiOiIxMjg4OTM0NTI1OTQifQ=="
+      }
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 40,
+      "actualQueryCost": 18,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1908,
+        "restoreRate": 100
+      }
+    }
+  }
+}

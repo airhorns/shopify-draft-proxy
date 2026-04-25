@@ -2064,7 +2064,14 @@ Access-scope trap:
 Safety rule:
 
 - do not run successful live writes for market lifecycle, web presence, localization, backup-region, or currency-setting roots on the shared conformance store without a disposable market setup and cleanup story
-- current local Markets support is read-only snapshot replay for captured safe roots; mutation registry entries are local-staging scaffolds with `implemented: false` and must not be read as runtime support
+- pre-HAR-182 local Markets support started as read-only snapshot replay for captured safe roots plus lifecycle local staging; registry mutation entries with `implemented: false` must not be read as runtime support
+
+HAR-182 market localization follow-up:
+
+- Admin GraphQL 2026-04 reports `MarketLocalizableResourceType` enum values `METAFIELD` and `METAOBJECT` only; direct `PRODUCT` / `COLLECTION` resource filtering is not present in the current schema
+- safe live reads on `harry-test-heelo.myshopify.com` with `read_translations` returned Shopify empty/no-data behavior for unknown metafield resources and an empty `marketLocalizableResources(resourceType: METAFIELD)` connection
+- safe no-side-effect writes with `write_translations` showed both `marketLocalizationsRegister` and `marketLocalizationsRemove` return `TranslationUserError` with `field: ["resourceId"]`, `code: "RESOURCE_NOT_FOUND"`, and `marketLocalizations: null` for an unknown metafield resource before checking market IDs or digests
+- the local proxy now supports the product-adjacent product metafield slice for market-localizable reads and local register/remove staging; successful live localization writes are still deferred until a disposable localized-resource setup/cleanup path exists
 
 ## 55. Customer merge is permission-gated and job-backed, but downstream reads settle quickly
 
@@ -2111,3 +2118,112 @@ Practical rule:
 
 - keep `discountNodes` code-filter behavior modeled from capture evidence; do not assume it matches `codeDiscountNodes`
 - keep `codeDiscountNodes` as a separate compatibility root until its node-specific connection and filtering behavior are captured and modeled directly
+
+## 57. Singular discount roots reject IDs from the wrong discount family
+
+HAR-192 detail capture against Admin GraphQL 2026-04 showed that singular discount roots are family-specific even though `discountNode(id:)` spans both code and automatic discounts.
+
+Captured fact:
+
+- passing a `gid://shopify/DiscountCodeNode/...` ID to `automaticDiscountNode(id:)` returned a top-level `RESOURCE_NOT_FOUND` GraphQL error with `automaticDiscountNode: null`, rather than a quiet null-only response
+
+Practical rule:
+
+- use `discountNode(id:)` for family-agnostic detail reads
+- keep parity scenarios for `codeDiscountNode(id:)` and `automaticDiscountNode(id:)` on matching ID families; do not use mismatched-family calls as ordinary null-read evidence
+
+## 58. Shopify Functions app discounts are read-preserve, write-unsafe
+
+HAR-199 settled the first local safety stance for app-managed discount roots. `DiscountCodeApp` and `DiscountAutomaticApp` are backed by Shopify Functions and external Function IDs, so local write support cannot be guessed from the native discount model.
+
+Observed documentation facts from Admin GraphQL 2026-04/latest docs:
+
+- `discountCodeAppCreate`, `discountCodeAppUpdate`, `discountAutomaticAppCreate`, and `discountAutomaticAppUpdate` require `write_discounts` and operate on app-managed discounts backed by Shopify Functions
+- `DiscountCodeApp.appDiscountType` and `DiscountAutomaticApp.appDiscountType` expose app extension metadata, including app/client identity and `functionId`
+- mutation examples select `appDiscountType { appKey functionId }`, which means downstream reads and mutation payloads can expose stable Function identity without executing the Function itself
+
+Current local rule:
+
+- app-discount create/update roots are registry-only local-staging gaps with `implemented: false`; do not mark them as supported until captured fixtures and a local staging model exist
+- runtime requests for those roots still use the unsupported mutation escape hatch and would hit Shopify, but the proxy log/meta mutation log now include `registeredOperation` and `unsupported-app-discount-function-mutation` safety metadata
+- app-discount read serializers should preserve captured fields such as `title`, `status`, `combinesWith`, `discountId`, and selected `appDiscountType` fields including `functionId`; if app Function metadata is absent from normalized state, return `null` plus `UNSUPPORTED_APP_DISCOUNT_FIELD` instead of inventing it
+
+Credential and fixture limitation:
+
+- the existing discount capture flow creates temporary native basic discounts only; it does not safely create Shopify Functions app discounts
+- capture app-discount read fixtures only when a safe existing app discount or disposable Function-backed setup is available, and document the exact `appDiscountType` shape captured
+- supporting app-discount writes later must stage locally without invoking external Shopify Function logic during normal proxy runtime
+
+## 59. Payment-area roots are mostly sensitive scaffolds, not runtime support
+
+HAR-219 refreshed the payment-area root inventory against the checked-in 2025-01 Admin root introspection fixture and the 2026-04 `latest` Admin docs. The registry now declares the roots as coverage scaffolds without registering permanent passthrough support or adding planned-only parity specs.
+
+Observed current-version surface:
+
+- read roots: `customerPaymentMethod`, `orderPaymentStatus`, `paymentCustomization`, `paymentCustomizations`, `paymentTermsTemplates`, `shopPayPaymentRequestReceipt`, `shopPayPaymentRequestReceipts`, `shopifyPaymentsAccount`, and `tenderTransactions`
+- scaffold-only mutation roots: customer payment method create/update/revoke/update-url/duplication roots, `orderCapture`, `orderCreateMandatePayment`, payment customization create/update/delete/activation, `paymentReminderSend`, payment terms create/update/delete, `shopifyPaymentsPayoutAlternateCurrencyCreate`, and `transactionVoid`
+- already implemented payment-adjacent slice: `orderCreateManualPayment` remains the captured access-denied local staging branch covered by `tests/integration/order-lifecycle-payment-customer-flow.test.ts`
+
+2026-04-25 live probe on `harry-test-heelo.myshopify.com`:
+
+- the stale workspace `.env` copy still pointed at `very-big-test-store.myshopify.com`; linking `.env` to the canonical repo env restored `corepack pnpm conformance:probe`
+- root introspection confirmed all read and mutation roots above are present on Admin GraphQL 2025-01 for the refreshed store/app
+- safe read probes can now capture `paymentTermsTemplates`, `paymentCustomizations(first: 1)`, `paymentCustomization(id:)` null behavior, `tenderTransactions(first: 1)`, `shopPayPaymentRequestReceipts(first: 1)`, `shopPayPaymentRequestReceipt(token:)` null behavior, and `orderPaymentStatus` unknown-id null behavior
+- the current store returned an empty `paymentCustomizations` connection, an empty `tenderTransactions` connection, an empty Shop Pay receipt connection, and the standard payment-terms template catalog
+- `shopifyPaymentsAccount` still returns field-level `ACCESS_DENIED`; Shopify requires `read_shopify_payments` or `read_shopify_payments_accounts`, and the refreshed app scopes only include dispute/payout sub-scopes
+- `customerPaymentMethod(id:)` still returns field-level `ACCESS_DENIED`; Shopify requires `read_customers` plus `read_customer_payment_methods`, and the refreshed app scopes still lack `read_customer_payment_methods`
+
+Capture prerequisites and safety constraints:
+
+- Shopify Payments account and payout roots require Shopify Payments account-level access such as `read_shopify_payments` / `read_shopify_payments_accounts`; the current credential does not have that top-level access, so do not synthesize balances, payout history, bank accounts, disputes, statement descriptors, or money movement from adjacent Store properties reads
+- payment customization reads are currently capture-ready for empty/null behavior with `read_payment_customizations`; writes have `write_payment_customizations` on the app manifest but still require a disposable Shopify Function/payment customization setup and cleanup because they can change checkout payment behavior
+- customer payment method reads remain blocked on `read_customer_payment_methods` even though `read_customers` is present; writes require `write_customers` plus `write_customer_payment_methods` and must use isolated test customers/payment methods because card sessions, duplication data, update URLs, revocation, and remote gateway identifiers are sensitive
+- order payment captures and voids require order write scopes plus merchant permissions (`capture_payments_for_orders` for capture and cancel-order permission for void) and an isolated authorized transaction because successful paths capture or void real payment authorization
+- mandate payment requires `write_payment_mandate`, `pay_orders_by_vaulted_card` permission, mandate-backed schedule data, idempotency-key coverage, and Shopify Plus coverage for amount-specific branches
+- payment terms template reads are currently capture-ready; payment terms writes have `write_payment_terms` on the app manifest but still require order or draft-order access and an isolated order/payment schedule because they change due dates and payment status
+- payment reminders require `write_orders` and a no-recipient or otherwise safe email plan because the happy path sends customer-visible mail
+- Shop Pay payment request receipt reads and tender transaction reads are currently capture-ready for empty/null behavior, but capture should avoid creating customer-visible payment requests just to produce receipt data
+
+Practical rule:
+
+- keep scaffold-only payment roots out of capability routing until captured evidence and local modeling exist for each family
+- do not add parity specs or parity request placeholders for payment roots until there is captured interaction evidence that can run as working conformance coverage
+- future runtime support must stage supported payment mutations locally and preserve raw mutation order for commit; unknown unsupported operations can still fall through the generic passthrough escape hatch with observability
+
+## 60. MarketCatalog and PriceList reads connect catalogs, publications, and contextual prices
+
+HAR-178 expanded Markets read parity with Admin GraphQL 2026-04 captures from `harry-test-heelo.myshopify.com`. The useful detail is not just the root availability; the captured graph links a `MarketCatalog` to a `Publication`, a `PriceList`, associated `Market` rows, and `PriceList.prices` rows that point back to product variants.
+
+Captured facts:
+
+- `catalog(id:)` on a MarketCatalog can return `operations: []`, `marketsCount`, `markets`, `publication`, and `priceList` in one read.
+- `catalogsCount(type: MARKET)` returns a `Count` object with `count` and `precision`.
+- `priceList(id:)` returns `fixedPricesCount`, `parent.adjustment`, nullable `catalog`, and `prices`.
+- The captured Mexico price list had `fixedPricesCount: 0` but still returned `PriceList.prices` rows with `originType: RELATIVE`, variant IDs, product IDs, and product titles.
+- Shopify's `PriceList.prices(query:)` expects numeric IDs for `variant_id` and `product_id`; a GID-shaped `variant_id:` query produced search warnings and no rows.
+
+Practical rule:
+
+- model catalog and price-list reads from captured normalized records, but keep quantity rules and price-list write surfaces unsupported until captures prove the non-empty shape.
+- when testing price filters, use numeric Shopify legacy IDs in search strings even though the returned nodes use GIDs.
+
+## 61. `metafieldsSet` CAS and validation semantics are a mix of GraphQL and resolver errors
+
+HAR-142 expanded product-owned `metafieldsSet` coverage beyond happy-path upserts. Captured fixtures from `corepack pnpm conformance:capture-product-metafield-mutations` now cover compare-and-set success, stale digest failure, `compareDigest: null` creation, duplicate inputs, missing input fields, and over-limit input count.
+
+Important captured behavior:
+
+- `compareDigest` is an opaque CAS token on Shopify. Local staged metafields use deterministic draft digests instead, and parity treats the digest strings as opaque non-empty values for staged writes.
+- A stale `compareDigest` returns `userErrors[{ field: ['metafields', '0'], code: 'STALE_OBJECT', elementIndex: null }]`, leaves `metafields: []`, and does not mutate downstream product metafields.
+- `compareDigest: null` creates the metafield only when it is absent from the effective owner-scoped set.
+- More than 25 inputs returns `metafields: null` plus a resolver-level userError at `['metafields']`.
+- Missing `type` for a new metafield is a resolver-level userError (`Type can't be blank`) and is atomic.
+- Missing `ownerId`, `key`, or `value` in variables fails earlier as a top-level GraphQL `INVALID_VARIABLE` error.
+- Missing `namespace` is not an error in the captured branch. Shopify stores the metafield under the installed app namespace (`app--347082227713` on the current conformance app).
+- Duplicate `(ownerId, namespace, key)` inputs are accepted sequentially. The mutation payload includes one result per input, and the downstream product read reflects the last submitted value.
+
+Practical rule:
+
+- validate the full `metafieldsSet` input batch before replacing the staged product metafield set when any resolver-level error is present
+- keep required-input GraphQL validation branches separate from resolver `userErrors`
+- do not broaden owner support from this evidence; these fixtures remain product-owned metafield coverage
