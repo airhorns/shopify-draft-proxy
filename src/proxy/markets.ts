@@ -9,6 +9,8 @@ import {
   serializeConnectionPageInfo,
 } from './graphql-helpers.js';
 import { store } from '../state/store.js';
+import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
+import type { JsonValue } from '../json-schemas.js';
 import type { MarketRecord } from '../state/types.js';
 
 function responseKey(selection: FieldNode): string {
@@ -20,6 +22,43 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 type FragmentMap = Map<string, FragmentDefinitionNode>;
+type MarketUserError = {
+  field: string[];
+  message: string;
+  code: string;
+};
+
+const CURRENCY_NAMES: Record<string, string> = {
+  AUD: 'Australian Dollar',
+  CAD: 'Canadian Dollar',
+  EUR: 'Euro',
+  GBP: 'British Pound',
+  JPY: 'Japanese Yen',
+  NZD: 'New Zealand Dollar',
+  USD: 'US Dollar',
+};
+
+const COUNTRY_NAMES: Record<string, string> = {
+  AU: 'Australia',
+  CA: 'Canada',
+  DE: 'Germany',
+  FR: 'France',
+  GB: 'United Kingdom',
+  JP: 'Japan',
+  NZ: 'New Zealand',
+  US: 'United States',
+};
+
+const COUNTRY_CURRENCIES: Record<string, string> = {
+  AU: 'AUD',
+  CA: 'CAD',
+  DE: 'EUR',
+  FR: 'EUR',
+  GB: 'GBP',
+  JP: 'JPY',
+  NZ: 'NZD',
+  US: 'USD',
+};
 
 function emptyConnection(): Record<string, unknown> {
   return {
@@ -30,6 +69,26 @@ function emptyConnection(): Record<string, unknown> {
       hasPreviousPage: false,
       startCursor: null,
       endCursor: null,
+    },
+  };
+}
+
+function connectionFromNodes(nodes: unknown[]): Record<string, unknown> {
+  const edges = nodes.map((node) => {
+    const id = isPlainObject(node) && typeof node['id'] === 'string' ? node['id'] : makeSyntheticGid('Cursor');
+    return {
+      cursor: id,
+      node,
+    };
+  });
+
+  return {
+    edges,
+    pageInfo: {
+      hasNextPage: false,
+      hasPreviousPage: false,
+      startCursor: edges[0]?.cursor ?? null,
+      endCursor: edges.at(-1)?.cursor ?? null,
     },
   };
 }
@@ -490,9 +549,549 @@ function compareMarketsBySortKey(left: MarketRecord, right: MarketRecord, rawSor
   }
 }
 
+function normalizeHandleParts(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function marketError(field: string[], message: string, code: string): MarketUserError {
+  return { field, message, code };
+}
+
+function readInput(raw: unknown): Record<string, unknown> {
+  return isPlainObject(raw) ? raw : {};
+}
+
+function marketHandleInUse(handle: string, excludedMarketId?: string): boolean {
+  return store
+    .listEffectiveMarkets()
+    .some((market) => market.data['handle'] === handle && market.id !== excludedMarketId);
+}
+
+function normalizeMarketHandle(
+  input: Record<string, unknown>,
+  excludedMarketId?: string,
+): { handle: string; errors: MarketUserError[] } {
+  const rawHandle = input['handle'];
+  const fallbackName = typeof input['name'] === 'string' ? input['name'] : 'market';
+  const handle = typeof rawHandle === 'string' ? rawHandle.trim() : normalizeHandleParts(fallbackName);
+  const normalizedHandle = normalizeHandleParts(handle) || 'market';
+  const errors: MarketUserError[] = [];
+
+  if (typeof rawHandle === 'string' && rawHandle.trim() && rawHandle.trim() !== normalizedHandle) {
+    errors.push(marketError(['input', 'handle'], 'Handle is invalid', 'INVALID'));
+  }
+
+  if (marketHandleInUse(normalizedHandle, excludedMarketId)) {
+    errors.push(marketError(['input', 'handle'], `Handle '${normalizedHandle}' has already been taken`, 'TAKEN'));
+  }
+
+  return { handle: normalizedHandle, errors };
+}
+
+function readStatusAndEnabled(
+  input: Record<string, unknown>,
+  existing?: Record<string, unknown>,
+): { status: string; enabled: boolean; errors: MarketUserError[] } {
+  const rawStatus = input['status'];
+  const rawEnabled = input['enabled'];
+  const existingStatus = typeof existing?.['status'] === 'string' ? existing['status'] : 'ACTIVE';
+  let status = rawStatus === 'ACTIVE' || rawStatus === 'DRAFT' ? rawStatus : existingStatus;
+
+  if (typeof rawEnabled === 'boolean' && rawStatus !== 'ACTIVE' && rawStatus !== 'DRAFT') {
+    status = rawEnabled ? 'ACTIVE' : 'DRAFT';
+  }
+
+  const enabled = status === 'ACTIVE';
+  const errors: MarketUserError[] = [];
+  if (typeof rawStatus === 'string' && rawStatus !== 'ACTIVE' && rawStatus !== 'DRAFT') {
+    errors.push(marketError(['input', 'status'], "Status isn't included in the list", 'INCLUSION'));
+  }
+
+  if (typeof rawEnabled === 'boolean' && rawEnabled !== enabled) {
+    errors.push(
+      marketError(
+        ['input', 'enabled'],
+        'Invalid combination of status and enabled',
+        'INVALID_STATUS_AND_ENABLED_COMBINATION',
+      ),
+    );
+  }
+
+  return { status, enabled, errors };
+}
+
+function currencySetting(currencyCode: string): Record<string, unknown> {
+  return {
+    currencyCode,
+    currencyName: CURRENCY_NAMES[currencyCode] ?? currencyCode,
+    enabled: true,
+  };
+}
+
+function readStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
+}
+
+function buildRegionsCondition(
+  input: Record<string, unknown>,
+  errors: MarketUserError[],
+): Record<string, unknown> | null {
+  const applicationLevel =
+    typeof input['applicationLevel'] === 'string'
+      ? input['applicationLevel']
+      : input['regionIds']
+        ? 'SPECIFIED'
+        : 'SPECIFIED';
+  const rawRegions = Array.isArray(input['regions']) ? input['regions'] : [];
+  const regionIds = readStringArray(input['regionIds']);
+
+  if (applicationLevel === 'SPECIFIED' && rawRegions.length === 0 && regionIds.length === 0) {
+    errors.push(
+      marketError(
+        ['input', 'conditions', 'regionsCondition', 'regions'],
+        'Specified conditions cannot be empty',
+        'SPECIFIED_CONDITIONS_CANNOT_BE_EMPTY',
+      ),
+    );
+  }
+
+  const regionNodes = rawRegions.flatMap((region): Record<string, unknown>[] => {
+    if (!isPlainObject(region) || typeof region['countryCode'] !== 'string' || !region['countryCode']) {
+      errors.push(
+        marketError(
+          ['input', 'conditions', 'regionsCondition', 'regions', 'countryCode'],
+          'The country code is missing',
+          'MISSING_COUNTRY_CODE',
+        ),
+      );
+      return [];
+    }
+
+    const countryCode = region['countryCode'].toUpperCase();
+    const currencyCode = COUNTRY_CURRENCIES[countryCode] ?? 'USD';
+    return [
+      {
+        __typename: 'MarketRegionCountry',
+        id: makeSyntheticGid('MarketRegionCountry'),
+        name: COUNTRY_NAMES[countryCode] ?? countryCode,
+        code: countryCode,
+        currency: currencySetting(currencyCode),
+      },
+    ];
+  });
+
+  for (const id of regionIds) {
+    regionNodes.push({
+      __typename: 'MarketRegionCountry',
+      id,
+      name: id.split('/').at(-1) ?? id,
+    });
+  }
+
+  return {
+    applicationLevel,
+    regions: connectionFromNodes(regionNodes),
+  };
+}
+
+function buildIdCondition(
+  input: Record<string, unknown>,
+  idField: 'companyLocationIds' | 'locationIds',
+  nodeType: 'CompanyLocation' | 'Location',
+): Record<string, unknown> {
+  const applicationLevel = typeof input['applicationLevel'] === 'string' ? input['applicationLevel'] : 'SPECIFIED';
+  const nodes = readStringArray(input[idField]).map((id) => ({
+    __typename: nodeType,
+    id,
+  }));
+
+  return {
+    applicationLevel,
+    [nodeType === 'CompanyLocation' ? 'companyLocations' : 'locations']: connectionFromNodes(nodes),
+  };
+}
+
+function buildConditions(
+  rawConditions: unknown,
+  existing: Record<string, unknown> | null,
+  errors: MarketUserError[],
+): Record<string, unknown> {
+  const existingConditions = isPlainObject(existing?.['conditions'])
+    ? structuredClone(existing['conditions'] as Record<string, unknown>)
+    : {};
+  const conditionsInput = readInput(rawConditions);
+  const updateInput =
+    isPlainObject(conditionsInput['conditionsToAdd']) || isPlainObject(conditionsInput['conditionsToDelete']);
+  const directInput = updateInput ? readInput(conditionsInput['conditionsToAdd']) : conditionsInput;
+  const deleteInput = updateInput ? readInput(conditionsInput['conditionsToDelete']) : {};
+  const result: Record<string, unknown> = {
+    conditionTypes: Array.isArray(existingConditions['conditionTypes'])
+      ? structuredClone(existingConditions['conditionTypes'])
+      : [],
+  };
+
+  for (const key of ['regionsCondition', 'companyLocationsCondition', 'locationsCondition']) {
+    if (existingConditions[key] !== undefined) {
+      result[key] = structuredClone(existingConditions[key]);
+    }
+  }
+
+  if (isPlainObject(directInput['regionsCondition'])) {
+    result['regionsCondition'] = buildRegionsCondition(directInput['regionsCondition'], errors);
+  }
+  if (isPlainObject(directInput['companyLocationsCondition'])) {
+    result['companyLocationsCondition'] = buildIdCondition(
+      directInput['companyLocationsCondition'],
+      'companyLocationIds',
+      'CompanyLocation',
+    );
+  }
+  if (isPlainObject(directInput['locationsCondition'])) {
+    result['locationsCondition'] = buildIdCondition(directInput['locationsCondition'], 'locationIds', 'Location');
+  }
+
+  if (isPlainObject(deleteInput['regionsCondition'])) {
+    delete result['regionsCondition'];
+  }
+  if (isPlainObject(deleteInput['companyLocationsCondition'])) {
+    delete result['companyLocationsCondition'];
+  }
+  if (isPlainObject(deleteInput['locationsCondition'])) {
+    delete result['locationsCondition'];
+  }
+
+  const possibleConditionEntries: Array<[string, string]> = [
+    ['regionsCondition', 'REGION'],
+    ['companyLocationsCondition', 'COMPANY_LOCATION'],
+    ['locationsCondition', 'LOCATION'],
+  ];
+  const conditionEntries = possibleConditionEntries.filter(([key]) => result[key] !== undefined);
+
+  if (conditionEntries.length > 1) {
+    errors.push(
+      marketError(
+        ['input', 'conditions'],
+        'The specified conditions are not compatible with each other',
+        'INCOMPATIBLE_CONDITIONS',
+      ),
+    );
+  }
+
+  result['conditionTypes'] = conditionEntries.map(([, type]) => type);
+  return result;
+}
+
+function marketTypeFromConditions(conditions: Record<string, unknown>): string {
+  const conditionTypes = Array.isArray(conditions['conditionTypes']) ? conditions['conditionTypes'] : [];
+  const [firstType] = conditionTypes;
+  return typeof firstType === 'string' ? firstType : 'NONE';
+}
+
+function buildCurrencySettings(
+  input: Record<string, unknown>,
+  existing: Record<string, unknown> | null,
+  conditions: Record<string, unknown>,
+  errors: MarketUserError[],
+): Record<string, unknown> | null {
+  if (input['removeCurrencySettings'] === true) {
+    return null;
+  }
+
+  const rawCurrencySettings = readInput(input['currencySettings']);
+  const existingCurrencySettings = isPlainObject(existing?.['currencySettings'])
+    ? (existing['currencySettings'] as Record<string, unknown>)
+    : {};
+  const regionsCondition = isPlainObject(conditions['regionsCondition'])
+    ? (conditions['regionsCondition'] as Record<string, unknown>)
+    : null;
+  const regionEdges =
+    regionsCondition &&
+    isPlainObject(regionsCondition['regions']) &&
+    Array.isArray(regionsCondition['regions']['edges'])
+      ? regionsCondition['regions']['edges']
+      : [];
+  const firstRegionCurrency =
+    isPlainObject(regionEdges[0]) &&
+    isPlainObject(regionEdges[0]['node']) &&
+    isPlainObject(regionEdges[0]['node']['currency']) &&
+    typeof regionEdges[0]['node']['currency']['currencyCode'] === 'string'
+      ? regionEdges[0]['node']['currency']['currencyCode']
+      : null;
+  const previousBaseCurrency =
+    isPlainObject(existingCurrencySettings['baseCurrency']) &&
+    typeof existingCurrencySettings['baseCurrency']['currencyCode'] === 'string'
+      ? existingCurrencySettings['baseCurrency']['currencyCode']
+      : null;
+  const requestedCurrency =
+    typeof rawCurrencySettings['baseCurrency'] === 'string'
+      ? rawCurrencySettings['baseCurrency'].toUpperCase()
+      : (previousBaseCurrency ?? firstRegionCurrency ?? 'USD');
+
+  if (!CURRENCY_NAMES[requestedCurrency]) {
+    errors.push(
+      marketError(
+        ['input', 'currencySettings', 'baseCurrency'],
+        'The specified currency is not supported',
+        'UNSUPPORTED_CURRENCY',
+      ),
+    );
+  }
+
+  return {
+    baseCurrency: currencySetting(requestedCurrency),
+    localCurrencies:
+      typeof rawCurrencySettings['localCurrencies'] === 'boolean'
+        ? rawCurrencySettings['localCurrencies']
+        : typeof existingCurrencySettings['localCurrencies'] === 'boolean'
+          ? existingCurrencySettings['localCurrencies']
+          : false,
+    roundingEnabled:
+      typeof rawCurrencySettings['roundingEnabled'] === 'boolean'
+        ? rawCurrencySettings['roundingEnabled']
+        : typeof existingCurrencySettings['roundingEnabled'] === 'boolean'
+          ? existingCurrencySettings['roundingEnabled']
+          : true,
+  };
+}
+
+function buildPriceInclusions(input: Record<string, unknown>, existing: Record<string, unknown> | null): unknown {
+  if (input['removePriceInclusions'] === true) {
+    return null;
+  }
+
+  if (!isPlainObject(input['priceInclusions'])) {
+    return existing?.['priceInclusions'] ?? null;
+  }
+
+  const priceInclusions = input['priceInclusions'];
+  return {
+    inclusiveDutiesPricingStrategy:
+      typeof priceInclusions['dutiesPricingStrategy'] === 'string'
+        ? priceInclusions['dutiesPricingStrategy']
+        : 'ADD_DUTIES_AT_CHECKOUT',
+    inclusiveTaxPricingStrategy:
+      typeof priceInclusions['taxPricingStrategy'] === 'string'
+        ? priceInclusions['taxPricingStrategy']
+        : 'ADD_TAXES_AT_CHECKOUT',
+  };
+}
+
+function addIdsToConnection(existing: unknown, ids: string[], typeName: string): Record<string, unknown> {
+  const edges = readConnectionEdges(existing);
+  const knownIds = new Set(
+    edges.flatMap((edge) => (isPlainObject(edge.node) && typeof edge.node['id'] === 'string' ? [edge.node['id']] : [])),
+  );
+  const nodes = edges.map((edge) => edge.node);
+  for (const id of ids) {
+    if (knownIds.has(id)) {
+      continue;
+    }
+    nodes.push({ __typename: typeName, id });
+  }
+  return connectionFromNodes(nodes);
+}
+
+function removeIdsFromConnection(existing: unknown, ids: string[]): Record<string, unknown> {
+  const deletedIds = new Set(ids);
+  const nodes = readConnectionEdges(existing)
+    .map((edge) => edge.node)
+    .filter((node) => !(isPlainObject(node) && typeof node['id'] === 'string' && deletedIds.has(node['id'])));
+  return connectionFromNodes(nodes);
+}
+
+function buildMarketRecord(
+  id: string,
+  input: Record<string, unknown>,
+  existingMarket: MarketRecord | null,
+  errors: MarketUserError[],
+): MarketRecord {
+  const existing = existingMarket?.data ?? null;
+  const handleResolution = normalizeMarketHandle(
+    { name: existing?.['name'] ?? input['name'], ...input },
+    existingMarket?.id,
+  );
+  errors.push(...handleResolution.errors);
+
+  const statusResolution = readStatusAndEnabled(input, existing ?? undefined);
+  errors.push(...statusResolution.errors);
+
+  const now = makeSyntheticTimestamp();
+  const conditions =
+    input['conditions'] !== undefined
+      ? buildConditions(input['conditions'], existing, errors)
+      : isPlainObject(existing?.['conditions'])
+        ? structuredClone(existing['conditions'] as Record<string, unknown>)
+        : buildConditions({}, null, errors);
+  const data: Record<string, unknown> = {
+    ...(existing ? structuredClone(existing) : {}),
+    id,
+    name:
+      typeof input['name'] === 'string'
+        ? input['name']
+        : typeof existing?.['name'] === 'string'
+          ? existing['name']
+          : '',
+    handle: handleResolution.handle,
+    status: statusResolution.status,
+    enabled: statusResolution.enabled,
+    type: marketTypeFromConditions(conditions),
+    conditions,
+    currencySettings: buildCurrencySettings(input, existing, conditions, errors),
+    priceInclusions: buildPriceInclusions(input, existing),
+    catalogs:
+      input['catalogsToDelete'] !== undefined
+        ? removeIdsFromConnection(existing?.['catalogs'], readStringArray(input['catalogsToDelete']))
+        : addIdsToConnection(
+            existing?.['catalogs'],
+            readStringArray(input['catalogs'] ?? input['catalogsToAdd']),
+            'MarketCatalog',
+          ),
+    webPresences:
+      input['webPresencesToDelete'] !== undefined
+        ? removeIdsFromConnection(existing?.['webPresences'], readStringArray(input['webPresencesToDelete']))
+        : addIdsToConnection(
+            existing?.['webPresences'],
+            readStringArray(input['webPresences'] ?? input['webPresencesToAdd']),
+            'MarketWebPresence',
+          ),
+    createdAt: typeof existing?.['createdAt'] === 'string' ? existing['createdAt'] : now,
+    updatedAt: now,
+  };
+
+  return {
+    id,
+    cursor: existingMarket?.cursor ?? id,
+    data: data as Record<string, JsonValue>,
+  };
+}
+
+function selectedMarketPayload(market: MarketRecord | null): unknown {
+  return market ? market.data : null;
+}
+
+function projectMutationPayload(
+  payload: Record<string, unknown>,
+  field: FieldNode,
+  fragments: FragmentMap,
+  variables: Record<string, unknown>,
+): unknown {
+  return field.selectionSet ? projectValue(payload, field.selectionSet.selections, fragments, variables) : payload;
+}
+
+function handleMarketCreate(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+  const args = getFieldArguments(field, variables);
+  const input = readInput(args['input']);
+  const errors: MarketUserError[] = [];
+
+  if (typeof input['name'] !== 'string' || input['name'].trim() === '') {
+    errors.push(marketError(['input', 'name'], "Name can't be blank", 'BLANK'));
+    errors.push(marketError(['input', 'name'], 'Name is too short (minimum is 2 characters)', 'TOO_SHORT'));
+  } else if (input['name'].trim().length < 2) {
+    errors.push(marketError(['input', 'name'], 'Name is too short (minimum is 2 characters)', 'TOO_SHORT'));
+  }
+
+  const market = buildMarketRecord(makeSyntheticGid('Market'), input, null, errors);
+  if (errors.length === 0) {
+    store.stageCreateMarket(market);
+  }
+
+  return projectMutationPayload(
+    {
+      market: errors.length === 0 ? selectedMarketPayload(market) : null,
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function handleMarketUpdate(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+  const args = getFieldArguments(field, variables);
+  const id = typeof args['id'] === 'string' ? args['id'] : null;
+  const input = readInput(args['input']);
+  const errors: MarketUserError[] = [];
+
+  if (!id) {
+    errors.push(marketError(['id'], 'Market does not exist', 'MARKET_NOT_FOUND'));
+  }
+
+  const existingMarket = id ? store.getEffectiveMarketRecordById(id) : null;
+  if (id && !existingMarket) {
+    errors.push(marketError(['id'], 'Market does not exist', 'MARKET_NOT_FOUND'));
+  }
+
+  const market = id && existingMarket ? buildMarketRecord(id, input, existingMarket, errors) : null;
+  if (errors.length === 0 && market) {
+    store.stageUpdateMarket(market);
+  }
+
+  return projectMutationPayload(
+    {
+      market: errors.length === 0 ? selectedMarketPayload(market) : null,
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function countActiveRegionMarkets(excludedMarketId?: string): number {
+  return store
+    .listEffectiveMarkets()
+    .filter(
+      (market) =>
+        market.id !== excludedMarketId && market.data['type'] === 'REGION' && market.data['status'] === 'ACTIVE',
+    ).length;
+}
+
+function handleMarketDelete(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+  const args = getFieldArguments(field, variables);
+  const id = typeof args['id'] === 'string' ? args['id'] : null;
+  const errors: MarketUserError[] = [];
+  const existingMarket = id ? store.getEffectiveMarketRecordById(id) : null;
+
+  if (!id || !existingMarket) {
+    errors.push(marketError(['id'], 'Market does not exist', 'MARKET_NOT_FOUND'));
+  } else if (existingMarket.data['primary'] === true) {
+    errors.push(marketError(['id'], "Can't delete the primary market", 'CANNOT_DELETE_PRIMARY_MARKET'));
+  } else if (
+    existingMarket.data['type'] === 'REGION' &&
+    existingMarket.data['status'] === 'ACTIVE' &&
+    countActiveRegionMarkets(id) === 0
+  ) {
+    errors.push(
+      marketError(
+        ['id'],
+        "Can't delete, disable, or change the type of the last region market",
+        'MUST_HAVE_AT_LEAST_ONE_ACTIVE_REGION_MARKET',
+      ),
+    );
+  }
+
+  if (errors.length === 0 && id) {
+    store.stageDeleteMarket(id);
+  }
+
+  return projectMutationPayload(
+    {
+      deletedId: errors.length === 0 ? id : null,
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
 function listMarketsForConnection(field: FieldNode, variables: Record<string, unknown>): MarketRecord[] {
   const args = getFieldArguments(field, variables);
-  const filteredMarkets = applyMarketsQuery(applyRootMarketFilters(store.listBaseMarkets(), args), args['query']);
+  const filteredMarkets = applyMarketsQuery(applyRootMarketFilters(store.listEffectiveMarkets(), args), args['query']);
   const sortedMarkets = [...filteredMarkets].sort((left, right) =>
     compareMarketsBySortKey(left, right, args['sortKey']),
   );
@@ -549,7 +1148,7 @@ function rootPayloadForField(field: FieldNode, variables: Record<string, unknown
     case 'market': {
       const args = getFieldArguments(field, variables);
       const id = typeof args['id'] === 'string' ? args['id'] : null;
-      return id ? store.getBaseMarketById(id) : null;
+      return id ? store.getEffectiveMarketById(id) : null;
     }
     case 'markets':
       return serializeMarketsConnection(field, variables, fragments);
@@ -576,6 +1175,31 @@ export function handleMarketsQuery(document: string, variables: Record<string, u
         : field.selectionSet
           ? projectValue(rootPayload, field.selectionSet.selections, fragments, variables)
           : rootPayload;
+  }
+
+  return { data };
+}
+
+export function handleMarketMutation(document: string, variables: Record<string, unknown>): Record<string, unknown> {
+  const data: Record<string, unknown> = {};
+  const fragments = getFragments(document);
+
+  for (const field of getRootFields(document)) {
+    const key = responseKey(field);
+    switch (field.name.value) {
+      case 'marketCreate':
+        data[key] = handleMarketCreate(field, variables, fragments);
+        break;
+      case 'marketUpdate':
+        data[key] = handleMarketUpdate(field, variables, fragments);
+        break;
+      case 'marketDelete':
+        data[key] = handleMarketDelete(field, variables, fragments);
+        break;
+      default:
+        data[key] = null;
+        break;
+    }
   }
 
   return { data };

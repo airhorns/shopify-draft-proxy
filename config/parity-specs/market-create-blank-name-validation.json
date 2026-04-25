@@ -1,0 +1,24 @@
+{
+  "scenarioId": "market-create-blank-name-validation",
+  "operationNames": ["marketCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/market-lifecycle-validation.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/market-create-blank-name-validation.graphql",
+    "variablesCapturePath": "$.cases[0].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Safe live Shopify Markets validation capture for Admin GraphQL 2026-04. Blank marketCreate input returns userErrors without mutating market state.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "blank-name-market-create-data",
+        "capturePath": "$.cases[0].response.payload.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

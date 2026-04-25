@@ -32,6 +32,7 @@ import {
 import { handleDiscountQuery } from '../src/proxy/discounts.js';
 import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
 import {
+  handleMarketMutation,
   handleMarketsQuery,
   hydrateMarketsFromUpstreamResponse,
   seedMarketsFromCapture,
@@ -704,6 +705,25 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleCustomerMutation(document, variables),
+    };
+  }
+
+  if (capability.execution === 'stage-locally' && capability.domain === 'markets') {
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2026-04/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: handleMarketMutation(document, variables),
     };
   }
 
