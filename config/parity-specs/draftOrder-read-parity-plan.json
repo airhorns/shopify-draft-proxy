@@ -3,153 +3,23 @@
   "operationNames": ["draftOrder"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "selected-fields", "downstream-read-parity"],
-  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-detail.json"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/draft-order-detail.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/draftOrder-read-parity-plan.graphql",
     "variablesPath": "config/parity-requests/draftOrder-read-parity-plan.variables.json",
     "variablesCapturePath": "$.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "The standalone draft-order detail read is promoted for the captured fields already supported by the local draft-order serializer. The broader request still selects phone/timestamp/subtotal/variant-title/unit-price fields for future coverage, but those unselected live-capture fields stay outside this strict contract until recaptured or modeled.",
+  "notes": "The standalone draft-order detail read is recaptured with the remaining detail fields selected and compared as one strict object. Shopify does not expose `note` on the captured DraftOrder read surface, so note parity remains covered by local mutation payload/downstream tests rather than this live detail contract.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "draft-order-id",
-        "capturePath": "$.response.data.draftOrder.id",
-        "proxyPath": "$.data.draftOrder.id",
+        "name": "draft-order-detail",
+        "capturePath": "$.response.data.draftOrder",
+        "proxyPath": "$.data.draftOrder",
         "upstreamCapturePath": "$.response.data"
-      },
-      {
-        "name": "draft-order-name",
-        "capturePath": "$.response.data.draftOrder.name",
-        "proxyPath": "$.data.draftOrder.name"
-      },
-      {
-        "name": "draft-order-invoice-url",
-        "capturePath": "$.response.data.draftOrder.invoiceUrl",
-        "proxyPath": "$.data.draftOrder.invoiceUrl"
-      },
-      {
-        "name": "draft-order-status",
-        "capturePath": "$.response.data.draftOrder.status",
-        "proxyPath": "$.data.draftOrder.status"
-      },
-      {
-        "name": "draft-order-email",
-        "capturePath": "$.response.data.draftOrder.email",
-        "proxyPath": "$.data.draftOrder.email"
-      },
-      {
-        "name": "draft-order-tags",
-        "capturePath": "$.response.data.draftOrder.tags",
-        "proxyPath": "$.data.draftOrder.tags"
-      },
-      {
-        "name": "draft-order-custom-attributes",
-        "capturePath": "$.response.data.draftOrder.customAttributes",
-        "proxyPath": "$.data.draftOrder.customAttributes"
-      },
-      {
-        "name": "draft-order-shipping-line",
-        "capturePath": "$.response.data.draftOrder.shippingLine",
-        "proxyPath": "$.data.draftOrder.shippingLine"
-      },
-      {
-        "name": "draft-order-total-price",
-        "capturePath": "$.response.data.draftOrder.totalPriceSet",
-        "proxyPath": "$.data.draftOrder.totalPriceSet"
-      },
-      {
-        "name": "draft-order-line-item-id",
-        "capturePath": "$.response.data.draftOrder.lineItems.nodes[0].id",
-        "proxyPath": "$.data.draftOrder.lineItems.nodes[0].id"
-      },
-      {
-        "name": "draft-order-line-item-title",
-        "capturePath": "$.response.data.draftOrder.lineItems.nodes[0].title",
-        "proxyPath": "$.data.draftOrder.lineItems.nodes[0].title"
-      },
-      {
-        "name": "draft-order-line-item-quantity",
-        "capturePath": "$.response.data.draftOrder.lineItems.nodes[0].quantity",
-        "proxyPath": "$.data.draftOrder.lineItems.nodes[0].quantity"
-      },
-      {
-        "name": "draft-order-line-item-sku",
-        "capturePath": "$.response.data.draftOrder.lineItems.nodes[0].sku",
-        "proxyPath": "$.data.draftOrder.lineItems.nodes[0].sku"
-      },
-      {
-        "name": "draft-order-billingAddress-firstName",
-        "capturePath": "$.response.data.draftOrder.billingAddress.firstName",
-        "proxyPath": "$.data.draftOrder.billingAddress.firstName"
-      },
-      {
-        "name": "draft-order-billingAddress-lastName",
-        "capturePath": "$.response.data.draftOrder.billingAddress.lastName",
-        "proxyPath": "$.data.draftOrder.billingAddress.lastName"
-      },
-      {
-        "name": "draft-order-billingAddress-address1",
-        "capturePath": "$.response.data.draftOrder.billingAddress.address1",
-        "proxyPath": "$.data.draftOrder.billingAddress.address1"
-      },
-      {
-        "name": "draft-order-billingAddress-city",
-        "capturePath": "$.response.data.draftOrder.billingAddress.city",
-        "proxyPath": "$.data.draftOrder.billingAddress.city"
-      },
-      {
-        "name": "draft-order-billingAddress-provinceCode",
-        "capturePath": "$.response.data.draftOrder.billingAddress.provinceCode",
-        "proxyPath": "$.data.draftOrder.billingAddress.provinceCode"
-      },
-      {
-        "name": "draft-order-billingAddress-countryCodeV2",
-        "capturePath": "$.response.data.draftOrder.billingAddress.countryCodeV2",
-        "proxyPath": "$.data.draftOrder.billingAddress.countryCodeV2"
-      },
-      {
-        "name": "draft-order-billingAddress-zip",
-        "capturePath": "$.response.data.draftOrder.billingAddress.zip",
-        "proxyPath": "$.data.draftOrder.billingAddress.zip"
-      },
-      {
-        "name": "draft-order-shippingAddress-firstName",
-        "capturePath": "$.response.data.draftOrder.shippingAddress.firstName",
-        "proxyPath": "$.data.draftOrder.shippingAddress.firstName"
-      },
-      {
-        "name": "draft-order-shippingAddress-lastName",
-        "capturePath": "$.response.data.draftOrder.shippingAddress.lastName",
-        "proxyPath": "$.data.draftOrder.shippingAddress.lastName"
-      },
-      {
-        "name": "draft-order-shippingAddress-address1",
-        "capturePath": "$.response.data.draftOrder.shippingAddress.address1",
-        "proxyPath": "$.data.draftOrder.shippingAddress.address1"
-      },
-      {
-        "name": "draft-order-shippingAddress-city",
-        "capturePath": "$.response.data.draftOrder.shippingAddress.city",
-        "proxyPath": "$.data.draftOrder.shippingAddress.city"
-      },
-      {
-        "name": "draft-order-shippingAddress-provinceCode",
-        "capturePath": "$.response.data.draftOrder.shippingAddress.provinceCode",
-        "proxyPath": "$.data.draftOrder.shippingAddress.provinceCode"
-      },
-      {
-        "name": "draft-order-shippingAddress-countryCodeV2",
-        "capturePath": "$.response.data.draftOrder.shippingAddress.countryCodeV2",
-        "proxyPath": "$.data.draftOrder.shippingAddress.countryCodeV2"
-      },
-      {
-        "name": "draft-order-shippingAddress-zip",
-        "capturePath": "$.response.data.draftOrder.shippingAddress.zip",
-        "proxyPath": "$.data.draftOrder.shippingAddress.zip"
       }
     ]
   }
