@@ -18,9 +18,14 @@ import { handleMarketMutation, handleMarketsQuery, hydrateMarketsFromUpstreamRes
 import { handleOrderMutation, handleOrderQuery, shouldServeDraftOrderCatalogLocally } from './orders.js';
 import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamResponse } from './products.js';
 import { handleMetafieldDefinitionMutation, handleMetafieldDefinitionQuery } from './metafield-definitions.js';
+import {
+  handleMetaobjectDefinitionQuery,
+  hydrateMetaobjectDefinitionsFromUpstreamResponse,
+} from './metaobject-definitions.js';
 import { handlePaymentMutation, handlePaymentQuery } from './payments.js';
 import { handleSegmentMutation, handleSegmentsQuery, hydrateSegmentsFromUpstreamResponse } from './segments.js';
 import { handleStorePropertiesMutation, handleStorePropertiesQuery } from './store-properties.js';
+import { handleWebhookSubscriptionQuery, hydrateWebhookSubscriptionsFromUpstreamResponse } from './webhooks.js';
 
 interface GraphQLBody {
   query?: unknown;
@@ -973,6 +978,39 @@ export function createProxyRouter(config: AppConfig): Router {
       return;
     }
 
+    if (capability.execution === 'overlay-read' && capability.domain === 'metaobjects') {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleMetaobjectDefinitionQuery(body.query, variables);
+        return;
+      }
+
+      if (config.readMode === 'live-hybrid') {
+        const hadLocalDefinitions = store.hasEffectiveMetaobjectDefinitions();
+        const response = await upstream.request({
+          path: ctx.path,
+          headers: {
+            'content-type': 'application/json',
+            'x-shopify-access-token': ctx.get('x-shopify-access-token'),
+          },
+          body: {
+            query: body.query,
+            variables,
+          },
+        });
+
+        const upstreamBody = await response.json();
+        hydrateMetaobjectDefinitionsFromUpstreamResponse(body.query, variables, upstreamBody);
+
+        ctx.status = response.status;
+        ctx.body =
+          store.hasEffectiveMetaobjectDefinitions() && (hadLocalDefinitions || store.hasStagedMetaobjectDefinitions())
+            ? handleMetaobjectDefinitionQuery(body.query, variables)
+            : upstreamBody;
+        return;
+      }
+    }
+
     if (capability.execution === 'overlay-read' && capability.domain === 'payments') {
       if (config.readMode === 'snapshot') {
         ctx.status = 200;
@@ -1012,6 +1050,38 @@ export function createProxyRouter(config: AppConfig): Router {
 
         ctx.status = response.status;
         ctx.body = store.hasStagedSegments() ? handleSegmentsQuery(body.query, variables) : upstreamBody;
+        return;
+      }
+    }
+
+    if (capability.execution === 'overlay-read' && capability.domain === 'webhooks') {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleWebhookSubscriptionQuery(body.query, variables);
+        return;
+      }
+
+      if (config.readMode === 'live-hybrid') {
+        const response = await upstream.request({
+          path: ctx.path,
+          headers: {
+            'content-type': 'application/json',
+            'x-shopify-access-token': ctx.get('x-shopify-access-token'),
+          },
+          body: {
+            query: body.query,
+            variables,
+          },
+        });
+
+        const upstreamBody = await response.json();
+        hydrateWebhookSubscriptionsFromUpstreamResponse(body.query, variables, upstreamBody);
+
+        ctx.status = response.status;
+        ctx.body =
+          store.hasWebhookSubscriptions() || store.hasStagedWebhookSubscriptions()
+            ? handleWebhookSubscriptionQuery(body.query, variables)
+            : upstreamBody;
         return;
       }
     }

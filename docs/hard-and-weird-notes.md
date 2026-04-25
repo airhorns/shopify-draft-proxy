@@ -2100,10 +2100,21 @@ Captured facts:
 - an invalid tax exemption string never reaches `userErrors`; Shopify rejects the GraphQL variable with `INVALID_VARIABLE` before mutation execution
 - an invalid customer metafield type returns `customer: null` with a `userErrors` entry at `['metafields', '0', 'type']`
 
+HAR-281 later captured dedicated Admin GraphQL 2025-01 tax exemption roots against a disposable customer:
+
+- `customerAddTaxExemptions`, `customerRemoveTaxExemptions`, and `customerReplaceTaxExemptions` all return `{ customer, userErrors }` and successful mutations expose the updated `Customer.taxExemptions` list
+- the boolean `Customer.taxExempt` remains independent; adding an exemption did not flip it from `false` to `true`
+- add appends new unique exemptions after existing exemptions and treats an empty list or already-present duplicate input as a successful no-op
+- remove deletes listed exemptions that are present and treats an empty list or a missing exemption as a successful no-op
+- replace replaces the list, de-duplicates duplicate inputs, and clears the list for an empty input
+- unknown customer ids return payload `userErrors: [{ field: ["customerId"], message: "Customer does not exist." }]`
+- invalid tax exemption strings never reach payload `userErrors`; Shopify rejects the GraphQL variable with top-level `INVALID_VARIABLE` errors before mutation execution
+
 Practical rule:
 
 - model customer-owned metafields as a customer-scoped sub-model for `customerUpdate` before broadening shared `metafieldsSet` beyond the currently captured product owner slice
-- do not infer support for `customerAddTaxExemptions`, `customerRemoveTaxExemptions`, or `customerReplaceTaxExemptions` from this fixture; those roots still need their own local staging and conformance evidence
+- dedicated `customerAddTaxExemptions`, `customerRemoveTaxExemptions`, and `customerReplaceTaxExemptions` support must be backed by their own root-specific evidence rather than inferred from `customerUpdate(input.taxExemptions)`
+- model those dedicated roots as local customer-list mutations on normalized `CustomerRecord.taxExemptions`, preserve the original raw mutation in the meta log, and keep downstream `customer`, `customerByIdentifier`, `customers`, and `customersCount` reads consistent with the effective staged customer graph
 
 ## 52. Customer marketing consent moved under default contact methods
 
