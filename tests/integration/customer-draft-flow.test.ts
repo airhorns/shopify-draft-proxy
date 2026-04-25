@@ -2541,6 +2541,9 @@ describe('customer draft flow', () => {
       {
         id: 'gid://shopify/CustomerPaymentMethod/local-payment-method',
         customerId: 'gid://shopify/Customer/404',
+        instrument: null,
+        revokedAt: null,
+        subscriptionContracts: [],
       },
     ]);
 
