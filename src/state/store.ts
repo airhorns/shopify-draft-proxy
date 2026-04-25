@@ -10,6 +10,7 @@ import type {
   CustomerPaymentMethodRecord,
   CustomerRecord,
   DiscountRecord,
+  DiscountBulkOperationRecord,
   DraftOrderRecord,
   FileRecord,
   FulfillmentServiceRecord,
@@ -65,6 +66,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   customerPaymentMethods: {},
   segments: {},
   discounts: {},
+  discountBulkOperations: {},
   businessEntities: {},
   businessEntityOrder: [],
   markets: {},
@@ -1240,6 +1242,11 @@ export class InMemoryStore {
     delete this.stagedState.deletedDiscountIds[discount.id];
     this.stagedState.discounts[discount.id] = structuredClone(discount);
     return structuredClone(discount);
+  }
+
+  stageDiscountBulkOperation(operation: DiscountBulkOperationRecord): DiscountBulkOperationRecord {
+    this.stagedState.discountBulkOperations[operation.id] = structuredClone(operation);
+    return structuredClone(operation);
   }
 
   stageDeleteDiscount(discountId: string): void {

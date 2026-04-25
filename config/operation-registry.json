@@ -2304,7 +2304,8 @@
     "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeBulkActivate", "DiscountCodeBulkActivate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-redeem-code-bulk-flow.test.ts"],
+    "supportNotes": "HAR-197 keeps the broad code-bulk status root unimplemented. Blank/all-discount destructive selectors are refused locally; other unsupported selectors remain visible through unsupported mutation passthrough observability until full bulk lifecycle staging exists."
   },
   {
     "name": "discountCodeBulkDeactivate",
@@ -2313,8 +2314,11 @@
     "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeBulkDeactivate", "DiscountCodeBulkDeactivate"],
-    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
-    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
+    "runtimeTests": [
+      "tests/integration/discount-mutation-validation.test.ts",
+      "tests/integration/discount-redeem-code-bulk-flow.test.ts"
+    ],
+    "supportNotes": "HAR-198 captures selector-conflict validation guardrails only. HAR-197 additionally refuses blank/all-discount destructive selectors locally. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
   },
   {
     "name": "discountCodeBulkDelete",
@@ -2323,7 +2327,8 @@
     "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeBulkDelete", "DiscountCodeBulkDelete"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-redeem-code-bulk-flow.test.ts"],
+    "supportNotes": "HAR-197 keeps the broad code-bulk delete root unimplemented. Blank/all-discount destructive selectors are refused locally; other unsupported selectors remain visible through unsupported mutation passthrough observability until full bulk lifecycle staging exists."
   },
   {
     "name": "discountRedeemCodeBulkAdd",
@@ -2332,16 +2337,23 @@
     "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountRedeemCodeBulkAdd", "DiscountRedeemCodeBulkAdd"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-redeem-code-bulk-flow.test.ts"],
+    "supportNotes": "HAR-197 locally stages safe explicit-code add branches and records completed bulk-creation state, but keeps the root unimplemented until full async job lifecycle and conformance-backed failure semantics are modeled."
   },
   {
-    "name": "discountRedeemCodeBulkDelete",
+    "name": "discountCodeRedeemCodeBulkDelete",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
     "implemented": false,
-    "matchNames": ["discountRedeemCodeBulkDelete", "DiscountRedeemCodeBulkDelete"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "matchNames": [
+      "discountCodeRedeemCodeBulkDelete",
+      "DiscountCodeRedeemCodeBulkDelete",
+      "discountRedeemCodeBulkDelete",
+      "DiscountRedeemCodeBulkDelete"
+    ],
+    "runtimeTests": ["tests/integration/discount-redeem-code-bulk-flow.test.ts"],
+    "supportNotes": "HAR-197 locally stages safe id-scoped delete branches and records completed job state, but keeps the root unimplemented until search/saved-search selectors, async lifecycle, and conformance-backed failure semantics are modeled."
   },
   {
     "name": "discountAutomaticBasicCreate",
@@ -2436,8 +2448,11 @@
     "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountAutomaticBulkDelete", "DiscountAutomaticBulkDelete"],
-    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
-    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
+    "runtimeTests": [
+      "tests/integration/discount-mutation-validation.test.ts",
+      "tests/integration/discount-redeem-code-bulk-flow.test.ts"
+    ],
+    "supportNotes": "HAR-198 captures selector-conflict validation guardrails only. HAR-197 additionally refuses blank/all-discount destructive selectors locally. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
   },
   {
     "name": "discountCodeAppCreate",

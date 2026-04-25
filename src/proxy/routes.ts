@@ -112,6 +112,47 @@ function interpretMutationLogEntry(
   };
 }
 
+function registeredOperationMetadata(
+  registryEntry: NonNullable<ReturnType<typeof findOperationRegistryEntry>>,
+): NonNullable<MutationLogInterpretedMetadata['registeredOperation']> {
+  return {
+    name: registryEntry.name,
+    domain: registryEntry.domain,
+    execution: registryEntry.execution,
+    implemented: registryEntry.implemented,
+    ...(registryEntry.supportNotes ? { supportNotes: registryEntry.supportNotes } : {}),
+  };
+}
+
+function buildLocalDiscountMutationLogMetadata(
+  parsed: ParsedOperation,
+  fallbackCapability: OperationCapability,
+): { operationName: string | null; interpreted: MutationLogInterpretedMetadata } {
+  const registryEntry = findOperationRegistryEntry(parsed.type, [...parsed.rootFields, parsed.name]);
+  if (!registryEntry || registryEntry.domain !== 'discounts') {
+    return {
+      operationName: fallbackCapability.operationName,
+      interpreted: interpretMutationLogEntry(parsed, fallbackCapability),
+    };
+  }
+
+  const operationName =
+    parsed.rootFields.find((rootField) => registryEntry.matchNames.includes(rootField)) ?? registryEntry.name;
+  const effectiveCapability: OperationCapability = {
+    type: parsed.type,
+    operationName,
+    domain: registryEntry.domain,
+    execution: registryEntry.execution,
+  };
+  const interpreted = interpretMutationLogEntry(parsed, effectiveCapability);
+
+  if (!registryEntry.implemented) {
+    interpreted.registeredOperation = registeredOperationMetadata(registryEntry);
+  }
+
+  return { operationName, interpreted };
+}
+
 function buildUnsupportedMutationObservability(parsed: ParsedOperation): Partial<MutationLogInterpretedMetadata> {
   const registryEntry = findOperationRegistryEntry(parsed.type, [...parsed.rootFields, parsed.name]);
   if (!registryEntry || registryEntry.implemented) {
@@ -119,13 +160,7 @@ function buildUnsupportedMutationObservability(parsed: ParsedOperation): Partial
   }
 
   const primaryRootField = parsed.rootFields[0] ?? registryEntry.name;
-  const registeredOperation = {
-    name: registryEntry.name,
-    domain: registryEntry.domain,
-    execution: registryEntry.execution,
-    implemented: registryEntry.implemented,
-    ...(registryEntry.supportNotes ? { supportNotes: registryEntry.supportNotes } : {}),
-  };
+  const registeredOperation = registeredOperationMetadata(registryEntry);
 
   if (APP_DISCOUNT_MUTATION_ROOTS.has(primaryRootField)) {
     return {
@@ -199,17 +234,18 @@ export function createProxyRouter(config: AppConfig): Router {
         );
 
         if (discountMutation.staged) {
+          const discountLogMetadata = buildLocalDiscountMutationLogMetadata(parsed, capability);
           store.appendLog({
             id: makeSyntheticGid('MutationLogEntry'),
             receivedAt: makeSyntheticTimestamp(),
-            operationName: capability.operationName,
+            operationName: discountLogMetadata.operationName,
             path: ctx.path,
             query: body.query,
             variables,
             requestBody,
             stagedResourceIds: discountMutation.stagedResourceIds,
             status: 'staged',
-            interpreted: interpretMutationLogEntry(parsed, capability),
+            interpreted: discountLogMetadata.interpreted,
             ...(discountMutation.notes ? { notes: discountMutation.notes } : {}),
           });
         }
