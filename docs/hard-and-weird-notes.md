@@ -1798,3 +1798,12 @@ Safety traps:
 Practical rule:
 
 - keep Store properties registry inventory separate from runtime support; do not flip these roots to implemented until there is captured fixture evidence plus local model behavior for the specific root family
+
+## 48. Manual collection ordering is not the default collection write path
+
+Live collection capture for `collectionReorderProducts` exposed two easy traps:
+
+- a freshly-created collection is not reorderable unless it is explicitly created with `sortOrder: MANUAL`
+- `collectionAddProducts` on a manual collection preserves the request `productIds` order in the immediate collection product connection
+
+`collectionReorderProducts` itself returns an async `Job` payload with `done: false` on success, and downstream `collection.products(sortKey: COLLECTION_DEFAULT)` plus `sortKey: MANUAL` both reflected the reordered manual order in the captured two-product slice. Reorder parity should therefore seed a manual collection baseline before staging moves, and should treat only the opaque job id as nondeterministic.

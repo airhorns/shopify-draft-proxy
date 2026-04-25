@@ -1,0 +1,9 @@
+{
+  "id": "gid://shopify/Collection/1",
+  "moves": [
+    {
+      "id": "gid://shopify/Product/1",
+      "newPosition": "0"
+    }
+  ]
+}

@@ -747,6 +747,15 @@
     "runtimeTests": ["tests/integration/collection-draft-flow.test.ts"]
   },
   {
+    "name": "collectionReorderProducts",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["collectionReorderProducts", "CollectionReorderProducts"],
+    "runtimeTests": ["tests/integration/collection-draft-flow.test.ts"]
+  },
+  {
     "name": "order",
     "type": "query",
     "domain": "orders",

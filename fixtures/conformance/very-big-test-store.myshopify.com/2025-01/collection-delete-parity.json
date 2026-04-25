@@ -7,22 +7,22 @@
       "status": "ACTIVE"
     },
     {
-      "id": "gid://shopify/Product/9257219916009",
-      "title": "Hermes Product Set Normalization 1776550889941",
-      "handle": "another-weird-handle-300",
-      "status": "DRAFT"
+      "id": "gid://shopify/Product/8397257572585",
+      "title": "ADIDAS | CLASSIC BACKPACK | LEGEND INK MULTICOLOUR",
+      "handle": "adidas-classic-backpack-legend-ink-multicolour",
+      "status": "ACTIVE"
     }
   ],
   "mutation": {
     "variables": {
       "input": {
-        "id": "gid://shopify/Collection/468776780009"
+        "id": "gid://shopify/Collection/468786544873"
       }
     },
     "response": {
       "data": {
         "collectionDelete": {
-          "deletedCollectionId": "gid://shopify/Collection/468776780009",
+          "deletedCollectionId": "gid://shopify/Collection/468786544873",
           "userErrors": []
         }
       },
@@ -32,7 +32,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1974,
+            "currentlyAvailable": 1975,
             "restoreRate": 100
           }
         }
@@ -44,29 +44,6 @@
       "collection": null,
       "collections": {
         "nodes": [
-          {
-            "id": "gid://shopify/Collection/468031340777",
-            "title": "Hermes Graph Collection 1776313707276",
-            "handle": "hermes-graph-collection-1776313707276",
-            "products": {
-              "nodes": [
-                {
-                  "id": "gid://shopify/Product/9255378059497",
-                  "title": "Dup 1776313707276",
-                  "handle": "dup-1776313707276"
-                },
-                {
-                  "id": "gid://shopify/Product/9255377961193",
-                  "title": "Hermes Graph Source 1776313707276",
-                  "handle": "hermes-graph-source-1776313707276"
-                }
-              ],
-              "pageInfo": {
-                "hasNextPage": false,
-                "hasPreviousPage": false
-              }
-            }
-          },
           {
             "id": "gid://shopify/Collection/429826638057",
             "title": "SALE",
@@ -208,13 +185,37 @@
                 "hasPreviousPage": false
               }
             }
+          },
+          {
+            "id": "gid://shopify/Collection/429826506985",
+            "title": "FLEX FIT",
+            "handle": "flex-fit",
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/8397257277673",
+                  "title": "FLEX FIT | MINI OTTOMAN BLACK",
+                  "handle": "flex-fit-mini-ottoman-black"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
           }
         ]
       },
       "product": {
-        "id": "gid://shopify/Product/9257219916009",
+        "id": "gid://shopify/Product/8397257572585",
         "collections": {
-          "nodes": [],
+          "nodes": [
+            {
+              "id": "gid://shopify/Collection/429826179305",
+              "title": "ADIDAS",
+              "handle": "adidas"
+            }
+          ],
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": false
@@ -225,10 +226,10 @@
     "extensions": {
       "cost": {
         "requestedQueryCost": 31,
-        "actualQueryCost": 25,
+        "actualQueryCost": 22,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1968,
+          "currentlyAvailable": 1971,
           "restoreRate": 100
         }
       }
