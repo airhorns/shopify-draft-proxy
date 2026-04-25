@@ -195,6 +195,15 @@ Current live findings on this host:
   - non-null `sourceName` is normalized to the captured installed app/channel identifier (`347082227713`) on the staged order instead of echoing the requested input string
   - non-null `paymentGatewayId` returns the captured `Invalid payment gateway` userError because the proxy has no local payment-gateway catalog yet
 - practical consequence: the repo still should not jump straight from "order roots exist in introspection" to speculative full draft-to-order staging code; keep the local completion slice limited to staged synthetic drafts until live Shopify happy-path evidence exists
+- refreshed draft-order family capture on this host settled four previously planned write scenarios:
+  - `draftOrderUpdate` accepts scalar/tag/custom-attribute/shipping-line updates on a live draft and returns the updated draft plus immediate downstream `draftOrder(id:)` visibility
+  - `draftOrderDuplicate` creates a new open, ready draft, allocates a new name/invoice URL/line-item IDs, copies customer/email/tags/custom attributes/addresses, but clears reserve inventory, shipping line, tax exemption, and discounts; totals recalculate from the undiscounted copied line items
+  - `draftOrderDelete` returns the deleted draft ID and downstream `draftOrder(id:)` returns `null`
+  - `draftOrderCreateFromOrder` can use an order produced by a setup `draftOrderComplete` flow and mirrors the duplicate-like clearing behavior for discounts/shipping while preserving the merchant-facing draft/order customer context
+- easy schema/request traps from promoting those scenarios:
+  - `DraftOrder.note` is not selectable on the current Admin GraphQL schema for these payloads, even though draft-order inputs can carry note-like data through local state
+  - `DraftOrderInput.shippingLine` does not accept a `code` field; live updates accepted title and price fields, and Shopify returned `code: "custom"` on the resulting `shippingLine`
+  - empty variant SKUs can stay as empty strings on draft-order line items while the completed regular order path normalizes empty SKUs to `null`
 
 Practical rule:
 
