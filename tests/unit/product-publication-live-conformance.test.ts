@@ -6,27 +6,6 @@ import { describe, expect, it } from 'vitest';
 import { parseAccessDeniedErrors } from '../../scripts/product-mutation-conformance-lib.mjs';
 
 describe('product publication live conformance harness', () => {
-  it('removes a stale publication scope blocker note once capture can succeed', async () => {
-    const repoRoot = resolve(import.meta.dirname, '../..');
-    const tempRoot = resolve(repoRoot, '.tmp-test-publication-blocker');
-    const fs = await import('node:fs/promises');
-
-    await fs.mkdir(tempRoot, { recursive: true });
-    const blockerPath = resolve(tempRoot, 'product-publication-conformance-scope-blocker.md');
-    await fs.writeFile(blockerPath, 'stale blocker\n', 'utf8');
-
-    try {
-      const { clearPublicationScopeBlocker } = await import('../../scripts/product-publication-conformance-lib.mjs');
-      await clearPublicationScopeBlocker(blockerPath);
-      expect(existsSync(blockerPath)).toBe(false);
-
-      await clearPublicationScopeBlocker(blockerPath);
-      expect(existsSync(blockerPath)).toBe(false);
-    } finally {
-      await fs.rm(tempRoot, { recursive: true, force: true });
-    }
-  });
-
   it('extracts multiple publication access blockers from a single GraphQL error payload', () => {
     const blockers = parseAccessDeniedErrors({
       payload: {
@@ -69,7 +48,7 @@ describe('product publication live conformance harness', () => {
     ]);
   });
 
-  it('keeps a dedicated publication capture script before the family can be promoted', () => {
+  it('keeps a dedicated publication capture script for aggregate parity refreshes', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
     const scriptPath = resolve(repoRoot, 'scripts/capture-product-publication-conformance.mts');
 
@@ -94,8 +73,6 @@ describe('product publication live conformance harness', () => {
     expect(script).toContain('publishMutationScopeProbe');
     expect(script).toContain('unpublishMutationScopeProbe');
     expect(script).toContain("publicationMutationScopeProbePublicationId = 'gid://shopify/Publication/1'");
-    expect(script).toContain('product-publication-conformance-scope-blocker.md');
-    expect(script).toContain('clearPublicationScopeBlocker(blockerPath)');
     expect(script).toContain('getDefaultShopifyCliConfigPath');
     expect(script).toContain('tryShopifyCliPublicationFallback');
     expect(script).toContain('probeShopifyAppCliAuth');

@@ -1,11 +1,7 @@
 // @ts-nocheck
 import os from 'node:os';
 import path from 'node:path';
-import { readdir, readFile, rm, writeFile } from 'node:fs/promises';
-
-export async function clearPublicationScopeBlocker(blockerPath) {
-  await rm(blockerPath, { force: true });
-}
+import { readdir, readFile, writeFile } from 'node:fs/promises';
 
 export function getDefaultShopifyCliConfigPath() {
   return path.join(os.homedir(), '.config', 'shopify-cli-kit-nodejs', 'config.json');

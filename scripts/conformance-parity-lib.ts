@@ -2576,7 +2576,13 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       return;
     }
 
-    const seedSource = mutationName === 'tagsAdd' ? null : (productPayload ?? productInput);
+    const captureSeedProduct = readRecordField(capture as Record<string, unknown>, 'seedProduct');
+    const seedSource =
+      mutationName === 'tagsAdd'
+        ? null
+        : readStringField(captureSeedProduct, 'id') === productId
+          ? captureSeedProduct
+          : (productPayload ?? productInput);
     store.upsertBaseProducts([makeSeedProduct(productId, seedSource)]);
     if (
       mutationName === 'productVariantsBulkCreate' ||

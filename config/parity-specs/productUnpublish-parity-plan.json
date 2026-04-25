@@ -9,7 +9,7 @@
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Minimal live `productUnpublish` mutation payload capture now succeeds against a real publication id on this host, so this parity spec executes the ready-for-comparison minimal live payload slice (`userErrors` + successful mutation execution) separately from the still-blocked aggregate publication fields.",
+  "notes": "Minimal live `productUnpublish` mutation payload capture now succeeds against a real publication id on this host, so this parity spec executes the ready-for-comparison minimal live payload slice (`userErrors` + successful mutation execution). Aggregate publication fields are covered by `productUnpublish-aggregate-parity`.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
