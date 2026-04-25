@@ -351,36 +351,36 @@
     "type": "mutation",
     "domain": "customers",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerAddressCreate", "CustomerAddressCreate"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
   },
   {
     "name": "customerAddressUpdate",
     "type": "mutation",
     "domain": "customers",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerAddressUpdate", "CustomerAddressUpdate"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
   },
   {
     "name": "customerAddressDelete",
     "type": "mutation",
     "domain": "customers",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerAddressDelete", "CustomerAddressDelete"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
   },
   {
     "name": "customerUpdateDefaultAddress",
     "type": "mutation",
     "domain": "customers",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerUpdateDefaultAddress", "CustomerUpdateDefaultAddress"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
   },
   {
     "name": "customerEmailMarketingConsentUpdate",
@@ -887,20 +887,20 @@
     "type": "query",
     "domain": "metafields",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metafieldDefinition", "MetafieldDefinition"],
     "runtimeTests": ["tests/integration/metafield-definition-query-shapes.test.ts"],
-    "supportNotes": "Admin GraphQL 2026-04 definition read root. Registry-only declared gap until live capture, explicit comparison targets, and local metafield-definition modeling exist."
+    "supportNotes": "Product-owner definition detail reads are modeled locally from normalized metafield definition state and product-owned metafields."
   },
   {
     "name": "metafieldDefinitions",
     "type": "query",
     "domain": "metafields",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metafieldDefinitions", "MetafieldDefinitions"],
     "runtimeTests": ["tests/integration/metafield-definition-query-shapes.test.ts"],
-    "supportNotes": "Admin GraphQL 2026-04 definition catalog root. Registry-only declared gap until owner-type-aware snapshot/live overlay semantics exist."
+    "supportNotes": "Product-owner definition catalogs are modeled locally with owner type, namespace, key, pinned, constraint, query, sort, and pagination filters."
   },
   {
     "name": "standardMetafieldDefinitionTemplates",
@@ -2936,18 +2936,18 @@
     "type": "mutation",
     "domain": "markets",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["webPresenceCreate", "WebPresenceCreate"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
   },
   {
     "name": "webPresenceUpdate",
     "type": "mutation",
     "domain": "markets",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["webPresenceUpdate", "WebPresenceUpdate"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
   },
   {
     "name": "webPresenceDelete",

@@ -62,9 +62,6 @@ exports[`GraphQL operation coverage > snapshots introspected Admin GraphQL mutat
   "companyRevokeMainContact",
   "companyUpdate",
   "consentPolicyUpdate",
-  "customerAddressCreate",
-  "customerAddressDelete",
-  "customerAddressUpdate",
   "customerAddTaxExemptions",
   "customerCancelDataErasure",
   "customerGenerateAccountActivationUrl",
@@ -84,7 +81,6 @@ exports[`GraphQL operation coverage > snapshots introspected Admin GraphQL mutat
   "customerSegmentMembersQueryCreate",
   "customerSendAccountInviteEmail",
   "customerSet",
-  "customerUpdateDefaultAddress",
   "dataSaleOptOut",
   "delegateAccessTokenCreate",
   "delegateAccessTokenDestroy",
@@ -376,8 +372,6 @@ exports[`GraphQL operation coverage > snapshots introspected Admin GraphQL mutat
   "webPixelCreate",
   "webPixelDelete",
   "webPixelUpdate",
-  "webPresenceCreate",
   "webPresenceDelete",
-  "webPresenceUpdate",
 ]
 `;

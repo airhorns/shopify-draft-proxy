@@ -15,6 +15,7 @@ import { handleDiscountQuery } from './discounts.js';
 import { handleMarketMutation, handleMarketsQuery, hydrateMarketsFromUpstreamResponse } from './markets.js';
 import { handleOrderMutation, handleOrderQuery, shouldServeDraftOrderCatalogLocally } from './orders.js';
 import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamResponse } from './products.js';
+import { handleMetafieldDefinitionQuery } from './metafield-definitions.js';
 import { handleSegmentMutation, handleSegmentsQuery, hydrateSegmentsFromUpstreamResponse } from './segments.js';
 import { handleStorePropertiesMutation, handleStorePropertiesQuery } from './store-properties.js';
 
@@ -241,21 +242,25 @@ export function createProxyRouter(config: AppConfig): Router {
     }
 
     if (capability.execution === 'stage-locally' && capability.domain === 'customers') {
+      const logEntryId = makeSyntheticGid('MutationLogEntry');
+      const receivedAt = makeSyntheticTimestamp();
+      const responseBody = handleCustomerMutation(body.query, variables);
       store.appendLog({
-        id: makeSyntheticGid('MutationLogEntry'),
-        receivedAt: makeSyntheticTimestamp(),
+        id: logEntryId,
+        receivedAt,
         operationName: capability.operationName,
         path: ctx.path,
         query: body.query,
         variables,
         requestBody,
+        stagedResourceIds: collectProxySyntheticGids(responseBody),
         status: 'staged',
         interpreted: interpretMutationLogEntry(parsed, capability),
         notes: 'Staged locally in the in-memory customer draft store.',
       });
 
       ctx.status = 200;
-      ctx.body = handleCustomerMutation(body.query, variables);
+      ctx.body = responseBody;
       return;
     }
 
@@ -550,6 +555,30 @@ export function createProxyRouter(config: AppConfig): Router {
         ctx.body = store.hasStagedMarkets() ? handleMarketsQuery(body.query, variables) : upstreamBody;
         return;
       }
+    }
+
+    if (capability.execution === 'overlay-read' && capability.domain === 'metafields') {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleMetafieldDefinitionQuery(body.query, variables);
+        return;
+      }
+
+      const response = await upstream.request({
+        path: ctx.path,
+        headers: {
+          'content-type': 'application/json',
+          'x-shopify-access-token': ctx.get('x-shopify-access-token'),
+        },
+        body: {
+          query: body.query,
+          variables,
+        },
+      });
+
+      ctx.status = response.status;
+      ctx.body = await response.json();
+      return;
     }
 
     if (capability.execution === 'overlay-read' && capability.domain === 'segments') {

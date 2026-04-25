@@ -619,4 +619,32 @@ describe('getOperationCapability', () => {
       type: 'query',
     });
   });
+
+  it('routes implemented metafield definition read roots through the local overlay', () => {
+    expect(
+      getOperationCapability({
+        type: 'query',
+        name: 'MetafieldDefinitions',
+        rootFields: ['metafieldDefinitions'],
+      }),
+    ).toEqual({
+      domain: 'metafields',
+      execution: 'overlay-read',
+      operationName: 'MetafieldDefinitions',
+      type: 'query',
+    });
+
+    expect(
+      getOperationCapability({
+        type: 'query',
+        name: 'MetafieldDefinition',
+        rootFields: ['metafieldDefinition'],
+      }),
+    ).toEqual({
+      domain: 'metafields',
+      execution: 'overlay-read',
+      operationName: 'MetafieldDefinition',
+      type: 'query',
+    });
+  });
 });

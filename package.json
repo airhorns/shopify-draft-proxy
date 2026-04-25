@@ -22,6 +22,7 @@
     "conformance:capture-products": "tsx ./scripts/capture-product-conformance.mts",
     "conformance:capture-customers": "tsx ./scripts/capture-customer-conformance.mts",
     "conformance:capture-customer-mutations": "tsx ./scripts/capture-customer-mutation-conformance.mts",
+    "conformance:capture-customer-addresses": "tsx ./scripts/capture-customer-address-conformance.mts",
     "conformance:capture-customer-merge": "tsx ./scripts/capture-customer-merge-conformance.mts",
     "conformance:capture-customer-consent": "tsx ./scripts/capture-customer-consent-conformance.ts",
     "conformance:capture-product-mutations": "tsx ./scripts/capture-product-mutation-conformance.mts",

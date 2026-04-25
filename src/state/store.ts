@@ -3,6 +3,7 @@ import type {
   CalculatedOrderRecord,
   CatalogRecord,
   CollectionRecord,
+  CustomerAddressRecord,
   CustomerCatalogConnectionRecord,
   CustomerMergeRequestRecord,
   CustomerMetafieldRecord,
@@ -13,6 +14,7 @@ import type {
   LocationRecord,
   MarketLocalizationRecord,
   MarketRecord,
+  MetafieldDefinitionRecord,
   MutationLogEntry,
   NormalizedStateSnapshotFile,
   OrderRecord,
@@ -28,6 +30,7 @@ import type {
   SegmentRecord,
   ShopRecord,
   StateSnapshot,
+  WebPresenceRecord,
 } from './types.js';
 import { compareShopifyResourceIds } from '../shopify/resource-ids.js';
 
@@ -52,12 +55,15 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   collections: {},
   publications: {},
   customers: {},
+  customerAddresses: {},
   segments: {},
   discounts: {},
   businessEntities: {},
   businessEntityOrder: [],
   markets: {},
   marketOrder: [],
+  webPresences: {},
+  webPresenceOrder: [],
   marketLocalizations: {},
   catalogs: {},
   catalogOrder: [],
@@ -67,15 +73,18 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   productMedia: {},
   files: {},
   productMetafields: {},
+  metafieldDefinitions: {},
   customerMetafields: {},
   deletedProductIds: {},
   deletedFileIds: {},
   deletedCollectionIds: {},
   deletedCustomerIds: {},
+  deletedCustomerAddressIds: {},
   deletedSegmentIds: {},
   deletedDiscountIds: {},
   deletedMarketIds: {},
   deletedCatalogIds: {},
+  deletedWebPresenceIds: {},
   mergedCustomerIds: {},
   customerMergeRequests: {},
 };
@@ -296,6 +305,10 @@ function mergeCustomerRecords(base: CustomerRecord | null, staged: CustomerRecor
   };
 }
 
+function compareCustomerAddresses(left: CustomerAddressRecord, right: CustomerAddressRecord): number {
+  return left.position - right.position || left.id.localeCompare(right.id);
+}
+
 export class InMemoryStore {
   private initialBaseState: StateSnapshot = cloneSnapshot(EMPTY_SNAPSHOT);
   private initialProductSearchConnections: Record<string, ProductCatalogConnectionRecord> = {};
@@ -416,6 +429,14 @@ export class InMemoryStore {
       delete this.baseState.mergedCustomerIds[customer.id];
       delete this.stagedState.mergedCustomerIds[customer.id];
       this.baseState.customers[customer.id] = structuredClone(customer);
+    }
+  }
+
+  upsertBaseCustomerAddresses(addresses: CustomerAddressRecord[]): void {
+    for (const address of addresses) {
+      delete this.baseState.deletedCustomerAddressIds[address.id];
+      delete this.stagedState.deletedCustomerAddressIds[address.id];
+      this.baseState.customerAddresses[address.id] = structuredClone(address);
     }
   }
 
@@ -858,6 +879,102 @@ export class InMemoryStore {
     this.stagedState.deletedMarketIds[marketId] = true;
   }
 
+  upsertBaseWebPresences(
+    webPresences: Array<WebPresenceRecord | { webPresence: unknown; cursor?: string | null } | unknown>,
+  ): void {
+    for (const candidate of webPresences) {
+      if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+        continue;
+      }
+
+      const entry = candidate as Record<string, unknown>;
+      const rawWebPresence = 'webPresence' in entry ? entry['webPresence'] : candidate;
+      const rawCursor = 'cursor' in entry ? entry['cursor'] : null;
+      if (!rawWebPresence || typeof rawWebPresence !== 'object' || Array.isArray(rawWebPresence)) {
+        continue;
+      }
+
+      const webPresence = rawWebPresence as Record<string, unknown>;
+      const id = webPresence['id'];
+      if (typeof id === 'string' && id.length > 0) {
+        delete this.baseState.deletedWebPresenceIds[id];
+        delete this.stagedState.deletedWebPresenceIds[id];
+        const previous = this.baseState.webPresences[id];
+        const cursor = typeof rawCursor === 'string' && rawCursor.length > 0 ? rawCursor : (previous?.cursor ?? null);
+        this.baseState.webPresences[id] = {
+          id,
+          cursor,
+          data: previous
+            ? ({ ...structuredClone(previous.data), ...structuredClone(webPresence) } as WebPresenceRecord['data'])
+            : (structuredClone(webPresence) as WebPresenceRecord['data']),
+        };
+
+        if (!this.baseState.webPresenceOrder.includes(id)) {
+          this.baseState.webPresenceOrder.push(id);
+        }
+      }
+    }
+  }
+
+  stageCreateWebPresence(webPresence: WebPresenceRecord): WebPresenceRecord {
+    delete this.stagedState.deletedWebPresenceIds[webPresence.id];
+    this.stagedState.webPresences[webPresence.id] = structuredClone(webPresence);
+    if (!this.stagedState.webPresenceOrder.includes(webPresence.id)) {
+      this.stagedState.webPresenceOrder.push(webPresence.id);
+    }
+    return structuredClone(webPresence);
+  }
+
+  stageUpdateWebPresence(webPresence: WebPresenceRecord): WebPresenceRecord {
+    delete this.stagedState.deletedWebPresenceIds[webPresence.id];
+    this.stagedState.webPresences[webPresence.id] = structuredClone(webPresence);
+    if (
+      !this.baseState.webPresenceOrder.includes(webPresence.id) &&
+      !this.stagedState.webPresenceOrder.includes(webPresence.id)
+    ) {
+      this.stagedState.webPresenceOrder.push(webPresence.id);
+    }
+    return structuredClone(webPresence);
+  }
+
+  getEffectiveWebPresenceRecordById(webPresenceId: string): WebPresenceRecord | null {
+    if (this.stagedState.deletedWebPresenceIds[webPresenceId]) {
+      return null;
+    }
+
+    const webPresence =
+      this.stagedState.webPresences[webPresenceId] ?? this.baseState.webPresences[webPresenceId] ?? null;
+    return webPresence ? structuredClone(webPresence) : null;
+  }
+
+  getEffectiveWebPresenceById(webPresenceId: string): unknown | null {
+    return this.getEffectiveWebPresenceRecordById(webPresenceId)?.data ?? null;
+  }
+
+  listEffectiveWebPresences(): WebPresenceRecord[] {
+    const mergedWebPresences = new Map<string, WebPresenceRecord>();
+    const orderedIds = [...this.baseState.webPresenceOrder, ...this.stagedState.webPresenceOrder];
+
+    for (const id of orderedIds) {
+      const webPresence = this.getEffectiveWebPresenceRecordById(id);
+      if (webPresence) {
+        mergedWebPresences.set(id, webPresence);
+      }
+    }
+
+    for (const webPresence of [
+      ...Object.values(this.baseState.webPresences),
+      ...Object.values(this.stagedState.webPresences),
+    ]) {
+      if (mergedWebPresences.has(webPresence.id) || this.stagedState.deletedWebPresenceIds[webPresence.id]) {
+        continue;
+      }
+      mergedWebPresences.set(webPresence.id, structuredClone(webPresence));
+    }
+
+    return Array.from(mergedWebPresences.values());
+  }
+
   getEffectiveMarketRecordById(marketId: string): MarketRecord | null {
     if (this.stagedState.deletedMarketIds[marketId]) {
       return null;
@@ -896,6 +1013,10 @@ export class InMemoryStore {
     return (
       Object.keys(this.stagedState.markets).length > 0 ||
       Object.keys(this.stagedState.deletedMarketIds).length > 0 ||
+      Object.keys(this.stagedState.catalogs).length > 0 ||
+      Object.keys(this.stagedState.deletedCatalogIds).length > 0 ||
+      Object.keys(this.stagedState.webPresences).length > 0 ||
+      Object.keys(this.stagedState.deletedWebPresenceIds).length > 0 ||
       Object.keys(this.stagedState.marketLocalizations).length > 0
     );
   }
@@ -952,9 +1073,30 @@ export class InMemoryStore {
     return structuredClone(customer);
   }
 
+  stageUpsertCustomerAddress(address: CustomerAddressRecord): CustomerAddressRecord {
+    delete this.stagedState.deletedCustomerAddressIds[address.id];
+    this.stagedState.customerAddresses[address.id] = structuredClone(address);
+    return structuredClone(address);
+  }
+
+  stageDeleteCustomerAddress(addressId: string): void {
+    delete this.stagedState.customerAddresses[addressId];
+    this.stagedState.deletedCustomerAddressIds[addressId] = true;
+  }
+
   stageDeleteCustomer(customerId: string): void {
     delete this.stagedState.customers[customerId];
     delete this.stagedState.mergedCustomerIds[customerId];
+    for (const address of Object.values(this.stagedState.customerAddresses)) {
+      if (address.customerId === customerId) {
+        delete this.stagedState.customerAddresses[address.id];
+      }
+    }
+    for (const address of Object.values(this.baseState.customerAddresses)) {
+      if (address.customerId === customerId) {
+        this.stagedState.deletedCustomerAddressIds[address.id] = true;
+      }
+    }
     this.stagedState.deletedCustomerIds[customerId] = true;
   }
 
@@ -1348,6 +1490,18 @@ export class InMemoryStore {
     }
   }
 
+  upsertBaseMetafieldDefinitions(definitions: MetafieldDefinitionRecord[]): void {
+    for (const definition of definitions) {
+      this.baseState.metafieldDefinitions[definition.id] = structuredClone(definition);
+    }
+  }
+
+  upsertStagedMetafieldDefinitions(definitions: MetafieldDefinitionRecord[]): void {
+    for (const definition of definitions) {
+      this.stagedState.metafieldDefinitions[definition.id] = structuredClone(definition);
+    }
+  }
+
   replaceBaseMetafieldsForProduct(productId: string, metafields: ProductMetafieldRecord[]): void {
     this.replaceBaseMetafieldsForOwner(productId, metafields);
   }
@@ -1516,6 +1670,41 @@ export class InMemoryStore {
     );
   }
 
+  getEffectiveCustomerAddressById(addressId: string): CustomerAddressRecord | null {
+    if (this.stagedState.deletedCustomerAddressIds[addressId]) {
+      return null;
+    }
+
+    const address =
+      this.stagedState.customerAddresses[addressId] ?? this.baseState.customerAddresses[addressId] ?? null;
+    return address ? structuredClone(address) : null;
+  }
+
+  listEffectiveCustomerAddresses(customerId: string): CustomerAddressRecord[] {
+    if (this.stagedState.deletedCustomerIds[customerId]) {
+      return [];
+    }
+
+    const addressIds = new Set([
+      ...Object.keys(this.baseState.customerAddresses),
+      ...Object.keys(this.stagedState.customerAddresses),
+    ]);
+    const addresses: CustomerAddressRecord[] = [];
+
+    for (const addressId of Array.from(addressIds)) {
+      if (this.stagedState.deletedCustomerAddressIds[addressId]) {
+        continue;
+      }
+
+      const address = this.stagedState.customerAddresses[addressId] ?? this.baseState.customerAddresses[addressId];
+      if (address?.customerId === customerId) {
+        addresses.push(structuredClone(address));
+      }
+    }
+
+    return addresses.sort(compareCustomerAddresses);
+  }
+
   listEffectiveCustomers(): CustomerRecord[] {
     const customerIds = new Set([...Object.keys(this.baseState.customers), ...Object.keys(this.stagedState.customers)]);
     const merged: CustomerRecord[] = [];
@@ -1562,8 +1751,10 @@ export class InMemoryStore {
   hasStagedCustomers(): boolean {
     return (
       Object.keys(this.stagedState.customers).length > 0 ||
+      Object.keys(this.stagedState.customerAddresses).length > 0 ||
       Object.keys(this.stagedState.customerMetafields).length > 0 ||
       Object.keys(this.stagedState.deletedCustomerIds).length > 0 ||
+      Object.keys(this.stagedState.deletedCustomerAddressIds).length > 0 ||
       Object.keys(this.stagedState.mergedCustomerIds).length > 0 ||
       Object.keys(this.stagedState.customerMergeRequests).length > 0
     );
@@ -1842,6 +2033,47 @@ export class InMemoryStore {
     });
   }
 
+  listEffectiveMetafieldDefinitions(): MetafieldDefinitionRecord[] {
+    const definitionsById = new Map<string, MetafieldDefinitionRecord>();
+
+    for (const definition of Object.values(this.baseState.metafieldDefinitions)) {
+      definitionsById.set(definition.id, structuredClone(definition));
+    }
+
+    for (const definition of Object.values(this.stagedState.metafieldDefinitions)) {
+      definitionsById.set(definition.id, structuredClone(definition));
+    }
+
+    return [...definitionsById.values()].sort(
+      (left, right) =>
+        left.ownerType.localeCompare(right.ownerType) ||
+        left.namespace.localeCompare(right.namespace) ||
+        left.key.localeCompare(right.key) ||
+        compareShopifyResourceIds(left.id, right.id),
+    );
+  }
+
+  getEffectiveMetafieldDefinitionById(definitionId: string): MetafieldDefinitionRecord | null {
+    const definition =
+      this.stagedState.metafieldDefinitions[definitionId] ?? this.baseState.metafieldDefinitions[definitionId];
+    return definition ? structuredClone(definition) : null;
+  }
+
+  findEffectiveMetafieldDefinition(identifier: {
+    ownerType: string;
+    namespace: string;
+    key: string;
+  }): MetafieldDefinitionRecord | null {
+    const definition =
+      this.listEffectiveMetafieldDefinitions().find(
+        (candidate) =>
+          candidate.ownerType === identifier.ownerType &&
+          candidate.namespace === identifier.namespace &&
+          candidate.key === identifier.key,
+      ) ?? null;
+    return definition ? structuredClone(definition) : null;
+  }
+
   getEffectiveMetafieldsByProductId(productId: string): ProductMetafieldRecord[] {
     return this.getEffectiveMetafieldsByOwnerId(productId);
   }
@@ -1881,6 +2113,7 @@ export class InMemoryStore {
       Object.keys(this.stagedState.productMedia).length > 0 ||
       this.stagedMediaFamilies.size > 0 ||
       Object.keys(this.stagedState.productMetafields).length > 0 ||
+      Object.keys(this.stagedState.metafieldDefinitions).length > 0 ||
       Object.keys(this.stagedState.deletedProductIds).length > 0 ||
       Object.keys(this.stagedState.deletedCollectionIds).length > 0
     );
