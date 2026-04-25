@@ -1,0 +1,122 @@
+{
+  "setup": {
+    "createMutation": {
+      "variables": {
+        "files": [
+          {
+            "contentType": "IMAGE",
+            "originalSource": "https://placehold.co/600x400/png",
+            "alt": "Hermes Files API conformance 1777081543067"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileCreate": {
+            "files": [
+              {
+                "id": "gid://shopify/MediaImage/39516006121705",
+                "alt": "Hermes Files API conformance 1777081543067",
+                "createdAt": "2026-04-25T01:45:43Z",
+                "fileStatus": "UPLOADED",
+                "image": null
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 21,
+            "actualQueryCost": 21,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1979,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "readyFileRead": {
+      "data": {
+        "node": {
+          "id": "gid://shopify/MediaImage/39516006121705",
+          "fileStatus": "READY"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 1,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1999,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "mutation": {
+    "variables": {
+      "files": [
+        {
+          "id": "gid://shopify/MediaImage/39516006121705",
+          "alt": "Hermes Files API updated alt"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "fileUpdate": {
+          "files": [
+            {
+              "id": "gid://shopify/MediaImage/39516006121705",
+              "alt": "Hermes Files API updated alt",
+              "fileStatus": "READY"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "deleteMutation": {
+      "variables": {
+        "fileIds": ["gid://shopify/MediaImage/39516006121705"]
+      },
+      "response": {
+        "data": {
+          "fileDelete": {
+            "deletedFileIds": ["gid://shopify/MediaImage/39516006121705"],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  }
+}

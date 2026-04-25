@@ -138,6 +138,251 @@ describe('media draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('stages fileUpdate locally for Files API records without proxying upstream', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('fileUpdate should not hit upstream fetch');
+    });
+    const app = createApp(config).callback();
+
+    const createResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation FileCreate($files: [FileCreateInput!]!) { fileCreate(files: $files) { files { id alt filename fileStatus ... on MediaImage { image { url } } } userErrors { field message code } } }',
+        variables: {
+          files: [
+            {
+              alt: 'Original alt',
+              contentType: 'IMAGE',
+              filename: 'original.jpg',
+              originalSource: 'https://cdn.example.com/original.jpg',
+            },
+          ],
+        },
+      });
+
+    const fileId = createResponse.body.data.fileCreate.files[0].id as string;
+    const updateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation FileUpdate($files: [FileUpdateInput!]!) { fileUpdate(files: $files) { files { id alt filename fileStatus ... on MediaImage { image { url } } } userErrors { field message code } } }',
+        variables: {
+          files: [
+            {
+              id: fileId,
+              alt: 'Updated alt',
+              filename: 'updated.jpg',
+              originalSource: 'https://cdn.example.com/updated.jpg',
+            },
+          ],
+        },
+      });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body.data.fileUpdate).toEqual({
+      files: [
+        {
+          id: fileId,
+          alt: 'Updated alt',
+          filename: 'updated.jpg',
+          fileStatus: 'READY',
+          image: {
+            url: 'https://cdn.example.com/updated.jpg',
+          },
+        },
+      ],
+      userErrors: [],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(store.getState().stagedState.files[fileId]).toMatchObject({
+      alt: 'Updated alt',
+      filename: 'updated.jpg',
+      originalSource: 'https://cdn.example.com/updated.jpg',
+      imageUrl: 'https://cdn.example.com/updated.jpg',
+    });
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(logResponse.body.entries.at(-1)).toMatchObject({
+      operationName: 'FileUpdate',
+      query: expect.stringContaining('mutation FileUpdate'),
+      variables: {
+        files: [
+          {
+            id: fileId,
+            alt: 'Updated alt',
+            filename: 'updated.jpg',
+            originalSource: 'https://cdn.example.com/updated.jpg',
+          },
+        ],
+      },
+      status: 'staged',
+      interpreted: {
+        primaryRootField: 'fileUpdate',
+        capability: {
+          domain: 'media',
+          execution: 'stage-locally',
+        },
+      },
+    });
+  });
+
+  it('updates product media through fileUpdate references while preserving downstream reads', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('fileUpdate product references should not hit upstream fetch');
+    });
+    const app = createApp(config).callback();
+
+    const sourceProductResponse = await request(app).post('/admin/api/2026-04/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Source media owner" }) { product { id } userErrors { field message } } }',
+    });
+    const targetProductResponse = await request(app).post('/admin/api/2026-04/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Target media owner" }) { product { id } userErrors { field message } } }',
+    });
+    const sourceProductId = sourceProductResponse.body.data.productCreate.product.id as string;
+    const targetProductId = targetProductResponse.body.data.productCreate.product.id as string;
+
+    const createMediaResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation ProductCreateMedia($productId: ID!, $media: [CreateMediaInput!]!) { productCreateMedia(productId: $productId, media: $media) { media { id alt mediaContentType status } mediaUserErrors { field message } } }',
+        variables: {
+          productId: sourceProductId,
+          media: [
+            {
+              alt: 'Original product media',
+              mediaContentType: 'IMAGE',
+              originalSource: 'https://cdn.example.com/product-media.jpg',
+            },
+          ],
+        },
+      });
+
+    const mediaId = createMediaResponse.body.data.productCreateMedia.media[0].id as string;
+    await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: 'query PromoteProcessing($id: ID!) { product(id: $id) { id media(first: 10) { nodes { id status } } } }',
+        variables: { id: sourceProductId },
+      });
+    await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: 'query PromoteReady($id: ID!) { product(id: $id) { id media(first: 10) { nodes { id status } } } }',
+        variables: { id: sourceProductId },
+      });
+
+    const updateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation FileUpdate($files: [FileUpdateInput!]!) { fileUpdate(files: $files) { files { id alt fileStatus ... on MediaImage { image { url } } } userErrors { field message code } } }',
+        variables: {
+          files: [
+            {
+              id: mediaId,
+              alt: 'Updated shared media',
+              referencesToAdd: [targetProductId],
+            },
+          ],
+        },
+      });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body.data.fileUpdate).toEqual({
+      files: [
+        {
+          id: mediaId,
+          alt: 'Updated shared media',
+          fileStatus: 'READY',
+          image: {
+            url: 'https://cdn.example.com/product-media.jpg',
+          },
+        },
+      ],
+      userErrors: [],
+    });
+
+    const sourceReadResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'query SourceMedia($id: ID!) { product(id: $id) { id media(first: 10) { nodes { id alt mediaContentType status preview { image { url } } } } } }',
+        variables: { id: sourceProductId },
+      });
+    const targetReadResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'query TargetMedia($id: ID!) { product(id: $id) { id media(first: 10) { nodes { id alt mediaContentType status preview { image { url } } } } } }',
+        variables: { id: targetProductId },
+      });
+
+    expect(sourceReadResponse.body.data.product.media.nodes).toEqual([
+      {
+        id: mediaId,
+        alt: 'Updated shared media',
+        mediaContentType: 'IMAGE',
+        status: 'READY',
+        preview: {
+          image: {
+            url: 'https://cdn.example.com/product-media.jpg',
+          },
+        },
+      },
+    ]);
+    expect(targetReadResponse.body.data.product.media.nodes).toEqual(sourceReadResponse.body.data.product.media.nodes);
+
+    const removeReferenceResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation FileUpdate($files: [FileUpdateInput!]!) { fileUpdate(files: $files) { files { id alt fileStatus } userErrors { field message code } } }',
+        variables: {
+          files: [
+            {
+              id: mediaId,
+              referencesToRemove: [sourceProductId],
+            },
+          ],
+        },
+      });
+    const sourceAfterRemoveResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'query SourceAfterRemove($id: ID!) { product(id: $id) { id media(first: 10) { nodes { id alt } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }',
+        variables: { id: sourceProductId },
+      });
+    const targetAfterRemoveResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: 'query TargetAfterRemove($id: ID!) { product(id: $id) { id media(first: 10) { nodes { id alt } } } }',
+        variables: { id: targetProductId },
+      });
+
+    expect(removeReferenceResponse.body.data.fileUpdate.userErrors).toEqual([]);
+    expect(sourceAfterRemoveResponse.body.data.product.media).toEqual({
+      nodes: [],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: null,
+        endCursor: null,
+      },
+    });
+    expect(targetAfterRemoveResponse.body.data.product.media.nodes).toEqual([
+      {
+        id: mediaId,
+        alt: 'Updated shared media',
+      },
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('stages fileDelete locally for Files API records without proxying upstream', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('fileDelete should not hit upstream fetch');
