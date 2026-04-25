@@ -1,0 +1,612 @@
+{
+  "accessScopes": {
+    "data": {
+      "currentAppInstallation": {
+        "accessScopes": [
+          {
+            "handle": "read_assigned_fulfillment_orders"
+          },
+          {
+            "handle": "read_content"
+          },
+          {
+            "handle": "read_customer_merge"
+          },
+          {
+            "handle": "read_customers"
+          },
+          {
+            "handle": "read_discounts"
+          },
+          {
+            "handle": "read_draft_orders"
+          },
+          {
+            "handle": "read_files"
+          },
+          {
+            "handle": "read_fulfillments"
+          },
+          {
+            "handle": "read_inventory"
+          },
+          {
+            "handle": "read_legal_policies"
+          },
+          {
+            "handle": "read_locales"
+          },
+          {
+            "handle": "read_locations"
+          },
+          {
+            "handle": "read_markets"
+          },
+          {
+            "handle": "read_merchant_managed_fulfillment_orders"
+          },
+          {
+            "handle": "read_metaobject_definitions"
+          },
+          {
+            "handle": "read_metaobjects"
+          },
+          {
+            "handle": "read_order_edits"
+          },
+          {
+            "handle": "read_orders"
+          },
+          {
+            "handle": "read_payment_customizations"
+          },
+          {
+            "handle": "read_payment_terms"
+          },
+          {
+            "handle": "read_product_listings"
+          },
+          {
+            "handle": "read_products"
+          },
+          {
+            "handle": "read_publications"
+          },
+          {
+            "handle": "read_returns"
+          },
+          {
+            "handle": "read_shipping"
+          },
+          {
+            "handle": "read_shopify_payments_disputes"
+          },
+          {
+            "handle": "read_shopify_payments_payouts"
+          },
+          {
+            "handle": "read_themes"
+          },
+          {
+            "handle": "read_third_party_fulfillment_orders"
+          },
+          {
+            "handle": "read_translations"
+          },
+          {
+            "handle": "write_assigned_fulfillment_orders"
+          },
+          {
+            "handle": "write_content"
+          },
+          {
+            "handle": "write_customer_merge"
+          },
+          {
+            "handle": "write_customers"
+          },
+          {
+            "handle": "write_discounts"
+          },
+          {
+            "handle": "write_draft_orders"
+          },
+          {
+            "handle": "write_files"
+          },
+          {
+            "handle": "write_fulfillments"
+          },
+          {
+            "handle": "write_inventory"
+          },
+          {
+            "handle": "write_legal_policies"
+          },
+          {
+            "handle": "write_locales"
+          },
+          {
+            "handle": "write_locations"
+          },
+          {
+            "handle": "write_markets"
+          },
+          {
+            "handle": "write_merchant_managed_fulfillment_orders"
+          },
+          {
+            "handle": "write_metaobject_definitions"
+          },
+          {
+            "handle": "write_metaobjects"
+          },
+          {
+            "handle": "write_order_edits"
+          },
+          {
+            "handle": "write_orders"
+          },
+          {
+            "handle": "write_payment_customizations"
+          },
+          {
+            "handle": "write_payment_terms"
+          },
+          {
+            "handle": "write_products"
+          },
+          {
+            "handle": "write_publications"
+          },
+          {
+            "handle": "write_returns"
+          },
+          {
+            "handle": "write_shipping"
+          },
+          {
+            "handle": "write_third_party_fulfillment_orders"
+          },
+          {
+            "handle": "write_translations"
+          }
+        ]
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 2,
+        "actualQueryCost": 2,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1998,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "precondition": {
+    "createOne": {
+      "variables": {
+        "input": {
+          "email": "hermes-merge-one-1777118048355@example.com",
+          "firstName": "Merge",
+          "lastName": "One",
+          "note": "merge-one-note",
+          "tags": ["merge-one", "merge-1777118048355"]
+        }
+      },
+      "response": {
+        "data": {
+          "customerCreate": {
+            "customer": {
+              "id": "gid://shopify/Customer/9103693185257",
+              "firstName": "Merge",
+              "lastName": "One",
+              "displayName": "Merge One",
+              "email": "hermes-merge-one-1777118048355@example.com",
+              "note": "merge-one-note",
+              "tags": ["merge-1777118048355", "merge-one"],
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-merge-one-1777118048355@example.com"
+              },
+              "defaultPhoneNumber": null,
+              "createdAt": "2026-04-25T11:54:08Z",
+              "updatedAt": "2026-04-25T11:54:08Z"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "createTwo": {
+      "variables": {
+        "input": {
+          "email": "hermes-merge-two-1777118048355@example.com",
+          "firstName": "Merge",
+          "lastName": "Two",
+          "note": "merge-two-note",
+          "tags": ["merge-two", "merge-1777118048355"]
+        }
+      },
+      "response": {
+        "data": {
+          "customerCreate": {
+            "customer": {
+              "id": "gid://shopify/Customer/9103693218025",
+              "firstName": "Merge",
+              "lastName": "Two",
+              "displayName": "Merge Two",
+              "email": "hermes-merge-two-1777118048355@example.com",
+              "note": "merge-two-note",
+              "tags": ["merge-1777118048355", "merge-two"],
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-merge-two-1777118048355@example.com"
+              },
+              "defaultPhoneNumber": null,
+              "createdAt": "2026-04-25T11:54:08Z",
+              "updatedAt": "2026-04-25T11:54:08Z"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "preview": {
+    "variables": {
+      "one": "gid://shopify/Customer/9103693185257",
+      "two": "gid://shopify/Customer/9103693218025",
+      "override": {
+        "customerIdOfEmailToKeep": "gid://shopify/Customer/9103693218025",
+        "customerIdOfFirstNameToKeep": "gid://shopify/Customer/9103693185257",
+        "customerIdOfLastNameToKeep": "gid://shopify/Customer/9103693218025",
+        "note": "merged note",
+        "tags": ["merged", "merge-1777118048355"]
+      }
+    },
+    "response": {
+      "data": {
+        "customerMergePreview": {
+          "resultingCustomerId": "gid://shopify/Customer/9103693218025",
+          "defaultFields": {
+            "firstName": "Merge",
+            "lastName": "Two",
+            "displayName": "Merge Two",
+            "email": {
+              "emailAddress": "hermes-merge-two-1777118048355@example.com"
+            },
+            "phoneNumber": null,
+            "note": "merge-two-note merge-one-note",
+            "tags": ["merge-1777118048355", "merge-two", "merge-one"]
+          },
+          "alternateFields": {
+            "firstName": "Merge",
+            "lastName": "One",
+            "email": {
+              "emailAddress": "hermes-merge-one-1777118048355@example.com"
+            },
+            "phoneNumber": null
+          },
+          "blockingFields": null,
+          "customerMergeErrors": null
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 9,
+          "actualQueryCost": 9,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "mutation": {
+    "variables": {
+      "one": "gid://shopify/Customer/9103693185257",
+      "two": "gid://shopify/Customer/9103693218025",
+      "override": {
+        "customerIdOfEmailToKeep": "gid://shopify/Customer/9103693218025",
+        "customerIdOfFirstNameToKeep": "gid://shopify/Customer/9103693185257",
+        "customerIdOfLastNameToKeep": "gid://shopify/Customer/9103693218025",
+        "note": "merged note",
+        "tags": ["merged", "merge-1777118048355"]
+      }
+    },
+    "response": {
+      "data": {
+        "customerMerge": {
+          "resultingCustomerId": "gid://shopify/Customer/9103693218025",
+          "job": {
+            "id": "gid://shopify/Job/29a0fe8e-6b9b-4782-9b5c-ac9640c3c415",
+            "done": false
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "status": {
+    "variables": {
+      "jobId": "gid://shopify/Job/29a0fe8e-6b9b-4782-9b5c-ac9640c3c415"
+    },
+    "response": {
+      "data": {
+        "customerMergeJobStatus": {
+          "jobId": "gid://shopify/Job/29a0fe8e-6b9b-4782-9b5c-ac9640c3c415",
+          "resultingCustomerId": "gid://shopify/Customer/9103693218025",
+          "status": "IN_PROGRESS",
+          "customerMergeErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 2,
+          "actualQueryCost": 2,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1998,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "variables": {
+      "one": "gid://shopify/Customer/9103693185257",
+      "two": "gid://shopify/Customer/9103693218025",
+      "emailOne": "hermes-merge-one-1777118048355@example.com",
+      "emailTwo": "hermes-merge-two-1777118048355@example.com",
+      "jobId": "gid://shopify/Job/29a0fe8e-6b9b-4782-9b5c-ac9640c3c415"
+    },
+    "proxyVariables": {
+      "one": "gid://shopify/Customer/9103693185257",
+      "two": "gid://shopify/Customer/9103693218025",
+      "emailOne": "hermes-merge-one-1777118048355@example.com",
+      "emailTwo": "hermes-merge-two-1777118048355@example.com",
+      "jobId": {
+        "fromPrimaryProxyPath": "$.data.customerMerge.job.id"
+      }
+    },
+    "response": {
+      "data": {
+        "source": null,
+        "result": {
+          "id": "gid://shopify/Customer/9103693218025",
+          "firstName": "Merge",
+          "lastName": "Two",
+          "displayName": "Merge Two",
+          "email": "hermes-merge-two-1777118048355@example.com",
+          "note": "merged note",
+          "tags": ["merge-1777118048355", "merged"],
+          "defaultEmailAddress": {
+            "emailAddress": "hermes-merge-two-1777118048355@example.com"
+          },
+          "defaultPhoneNumber": null,
+          "createdAt": "2026-04-25T11:54:08Z",
+          "updatedAt": "2026-04-25T11:54:09Z"
+        },
+        "byEmailOne": null,
+        "byEmailTwo": {
+          "id": "gid://shopify/Customer/9103693218025",
+          "email": "hermes-merge-two-1777118048355@example.com",
+          "defaultEmailAddress": {
+            "emailAddress": "hermes-merge-two-1777118048355@example.com"
+          }
+        },
+        "customersCount": {
+          "count": 178,
+          "precision": "EXACT"
+        },
+        "mergeStatus": {
+          "jobId": "gid://shopify/Job/29a0fe8e-6b9b-4782-9b5c-ac9640c3c415",
+          "resultingCustomerId": "gid://shopify/Customer/9103693218025",
+          "status": "COMPLETED",
+          "customerMergeErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 22,
+          "actualQueryCost": 19,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1981,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "validation": {
+    "missingArgument": {
+      "variables": {
+        "one": "gid://shopify/Customer/9103693185257"
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Field 'customerMerge' is missing required arguments: customerTwoId",
+            "locations": [
+              {
+                "line": 3,
+                "column": 5
+              }
+            ],
+            "path": ["mutation CustomerMergeMissingArgument", "customerMerge"],
+            "extensions": {
+              "code": "missingRequiredArguments",
+              "className": "Field",
+              "name": "customerMerge",
+              "arguments": "customerTwoId"
+            }
+          }
+        ]
+      }
+    },
+    "selfPreview": {
+      "variables": {
+        "one": "gid://shopify/Customer/9103693185257",
+        "two": "gid://shopify/Customer/9103693185257"
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Customers must be different.",
+            "locations": [
+              {
+                "line": 3,
+                "column": 5
+              }
+            ],
+            "extensions": {
+              "code": "BAD_REQUEST"
+            },
+            "path": ["customerMergePreview"]
+          }
+        ],
+        "data": null,
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 9,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "selfMerge": {
+      "variables": {
+        "one": "gid://shopify/Customer/9103693185257",
+        "two": "gid://shopify/Customer/9103693185257"
+      },
+      "response": {
+        "data": {
+          "customerMerge": {
+            "resultingCustomerId": null,
+            "job": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Customers IDs should not match",
+                "code": "INVALID_CUSTOMER_ID"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "unknownCustomer": {
+      "variables": {
+        "one": "gid://shopify/Customer/9103693185257",
+        "two": "gid://shopify/Customer/999999999999999"
+      },
+      "response": {
+        "data": {
+          "customerMerge": {
+            "resultingCustomerId": null,
+            "job": null,
+            "userErrors": [
+              {
+                "field": ["customerTwoId"],
+                "message": "Customer does not exist with ID 999999999999999",
+                "code": "INVALID_CUSTOMER_ID"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Customer/9103693218025"
+      }
+    },
+    "response": {
+      "data": {
+        "customerDelete": {
+          "deletedCustomerId": "gid://shopify/Customer/9103693218025",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1983,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

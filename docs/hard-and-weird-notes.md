@@ -1973,3 +1973,80 @@ Practical rule:
 
 - model the 2026-04 nested default contact fields as the conformance-backed read shape, and keep direct `emailMarketingConsent` / `smsMarketingConsent` serialization only as a compatibility branch for callers that still request the older field names
 - do not route either supported consent update mutation upstream during normal runtime; the local stage must update the normalized customer contact consent state and preserve the original raw mutation in the meta log for commit replay
+
+## 53. Customer sub-resource reads need a split between safe empty state and live hydration
+
+HAR-160 expanded the `customer(id:)` detail surface beyond scalar/card fields. The Admin GraphQL customer object exposes several directly related nested fields, but they do not all have the same safe local treatment.
+
+Captured evidence:
+
+- `corepack pnpm conformance:capture-customers` writes `customer-nested-subresources.json`
+- the current credential can capture `addresses`, `addressesV2`, `companyContactProfiles`, `orders`, `events`, singular `metafield`, `metafields`, and `lastOrder`
+- the sampled customer has non-empty `addresses`, `addressesV2`, `orders`, `events`, and `lastOrder`, while `companyContactProfiles`, singular `metafield(namespace: "custom", key: "tier")`, and `metafields(first: 2)` were empty/null
+- the same credential returned field-level `ACCESS_DENIED` for `storeCreditAccounts`, `paymentMethods`, and `subscriptionContracts`, so those remain documented deferrals for live capture/hydration until a credential with the required scopes is available
+
+Current local classification:
+
+- empty/no-data only: `addresses`, `addressesV2`, `companyContactProfiles`, `events`, `orders`, `lastOrder`, `paymentMethods`, `storeCreditAccounts`, and `subscriptionContracts`
+- customer-metafield local replay: singular `metafield(namespace:, key:)` and the `metafields` connection are backed by the customer-owned metafield model added for `customerUpdate`
+- hydrate-and-replay candidate: captured nested `addresses` / `addressesV2`, `orders` / `lastOrder`, `events`, and non-empty metafield shapes, but broad non-empty replay still requires normalized state for each sub-resource family
+- staged-overlay capable later: customer-owned addresses once their mutation roots are staged locally
+- deferred: store credit accounts, payment methods, subscription contracts, customer statistics, mergeability, and product subscriber status until captured fixture evidence settles access, empty-state, and non-empty shapes
+
+Practical rule for the proxy:
+
+- snapshot and staged customer reads should return Shopify-like empty structures for absent directly related records rather than `null` for non-null connection/list fields
+- do not fabricate order, event, store credit, payment method, subscription, company-contact, address, or unrelated metafield records after staged customer CRUD
+- keep customer-order overlap narrow: local customer reads may expose empty `orders` / `lastOrder` when the customer graph has no modeled order relationship, while real order lifecycle behavior remains in the order-domain notes and tests
+- any future non-empty nested customer replay must first add normalized state for that sub-resource and compare against captured fixtures instead of reusing the HAR-160 empty/no-data serializer branch
+
+## 54. Markets reads are safe to capture, but writes are not harmless
+
+The first Shopify Markets inventory was captured against Admin GraphQL 2026-04 with `corepack pnpm conformance:capture-markets`.
+
+Observed current-version surface:
+
+- schema inventory confirms read roots for `market`, `markets`, `catalogs`, `webPresences`, and `marketsResolvedValues`
+- schema inventory confirms current mutation roots for `marketCreate`, `marketUpdate`, `marketDelete`, `webPresenceCreate`, `webPresenceUpdate`, `webPresenceDelete`, `marketLocalizationsRegister`, and `marketLocalizationsRemove`
+- `marketsResolvedValues(buyerSignal: { countryCode: US })` is present in 2026-04 and returned resolved currency/price-inclusivity data on this store, but an empty resolved catalog connection for the captured buyer signal
+- top-level `webPresences` can be captured safely with `id`, `subfolderSuffix`, `domain`, `rootUrls`, linked `markets`, `defaultLocale`, and `alternateLocales`
+
+Access-scope trap:
+
+- selecting `MarketWebPresence.defaultLocale` or `MarketWebPresence.alternateLocales` requires `read_locales` or `read_markets_home`; earlier credentials failed with `ACCESS_DENIED`, while the refreshed credential captures both fields successfully
+- keep locale fields in Markets parity requests only while the capture credential retains one of those scopes; the successful scope probe is preserved in `fixtures/conformance/very-big-test-store.myshopify.com/2026-04/markets-baseline.json`
+
+Safety rule:
+
+- do not run successful live writes for market lifecycle, web presence, localization, backup-region, or currency-setting roots on the shared conformance store without a disposable market setup and cleanup story
+- current local Markets support is read-only snapshot replay for captured safe roots; mutation registry entries are local-staging scaffolds with `implemented: false` and must not be read as runtime support
+
+## 55. Customer merge is permission-gated and job-backed, but downstream reads settle quickly
+
+HAR-159 live capture on the conformance store became possible only after the app token included both `read_customer_merge` and `write_customer_merge`. The merge roots are distinct from generic customer update behavior:
+
+- `customerMergePreview(customerOneId:, customerTwoId:, overrideFields:)` requires read merge scope and returns a non-null preview object on safe inputs
+- `customerMerge(customerOneId:, customerTwoId:, overrideFields:)` requires write merge scope and returns `resultingCustomerId`, a `Job`, and `userErrors`
+- `customerMergeJobStatus(jobId:)` returns a `CustomerMergeRequest` with `jobId`, `resultingCustomerId`, `status`, and `customerMergeErrors`
+
+Captured validation behavior:
+
+- self-merge preview returns a top-level `BAD_REQUEST` error with message `Customers must be different.`
+- self-merge mutation returns payload `userErrors` with `field: null`, message `Customers IDs should not match`, and code `INVALID_CUSTOMER_ID`
+- an unknown second customer id returns payload `userErrors` at `['customerTwoId']` with code `INVALID_CUSTOMER_ID`
+- omitting the required second id returns a top-level `missingRequiredArguments` GraphQL error before mutation execution
+
+Captured safe happy path for two synthetic customers:
+
+- Shopify selected `customerTwoId` as the resulting customer id
+- the mutation returned a job with `done: false`
+- after polling, `customerMergeJobStatus` reached `COMPLETED`
+- downstream `customer(id: customerOneId)` and `customerByIdentifier(emailAddress: customer one email)` returned `null`
+- downstream `customer(id: customerTwoId)` and `customerByIdentifier(emailAddress: customer two email)` returned the merged customer
+- override `note` and `tags` replaced the default combined note/tag values; selected name/email fields followed the requested customer id override fields
+
+Practical rule:
+
+- stage supported `customerMerge` locally for customers already present in the normalized graph, mark the source customer deleted, record the source-to-result id redirect for state inspection, and expose a local merge request for `customerMergeJobStatus`
+- do not fetch or mutate Shopify during normal runtime to discover missing merge customers; unknown ids should return captured `CustomerMergeUserError` payloads instead
+- do not model transfer of orders, draft orders, gift cards, discounts, addresses, or other attached resources until a fixture captures those non-empty merge fields

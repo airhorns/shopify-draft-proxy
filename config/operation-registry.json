@@ -216,9 +216,18 @@
     "type": "query",
     "domain": "customers",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerMergePreview", "CustomerMergePreview"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
+  },
+  {
+    "name": "customerMergeJobStatus",
+    "type": "query",
+    "domain": "customers",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["customerMergeJobStatus", "CustomerMergeJobStatus"],
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
   },
   {
     "name": "customerCreate",
@@ -360,9 +369,9 @@
     "type": "mutation",
     "domain": "customers",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerMerge", "CustomerMerge"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
   },
   {
     "name": "tagsAdd",
@@ -1468,6 +1477,138 @@
     "implemented": false,
     "matchNames": ["discountAutomaticAppUpdate", "DiscountAutomaticAppUpdate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+  },
+  {
+    "name": "market",
+    "type": "query",
+    "domain": "markets",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["market", "Market"],
+    "runtimeTests": [
+      "tests/integration/markets-query-shapes.test.ts",
+      "tests/unit/conformance-parity-scenarios.test.ts"
+    ]
+  },
+  {
+    "name": "markets",
+    "type": "query",
+    "domain": "markets",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["markets", "Markets"],
+    "runtimeTests": [
+      "tests/integration/markets-query-shapes.test.ts",
+      "tests/unit/conformance-parity-scenarios.test.ts"
+    ]
+  },
+  {
+    "name": "catalogs",
+    "type": "query",
+    "domain": "markets",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["catalogs", "Catalogs"],
+    "runtimeTests": [
+      "tests/integration/markets-query-shapes.test.ts",
+      "tests/unit/conformance-parity-scenarios.test.ts"
+    ]
+  },
+  {
+    "name": "webPresences",
+    "type": "query",
+    "domain": "markets",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["webPresences", "WebPresences"],
+    "runtimeTests": [
+      "tests/integration/markets-query-shapes.test.ts",
+      "tests/unit/conformance-parity-scenarios.test.ts"
+    ]
+  },
+  {
+    "name": "marketsResolvedValues",
+    "type": "query",
+    "domain": "markets",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["marketsResolvedValues", "MarketsResolvedValues"],
+    "runtimeTests": [
+      "tests/integration/markets-query-shapes.test.ts",
+      "tests/unit/conformance-parity-scenarios.test.ts"
+    ]
+  },
+  {
+    "name": "marketCreate",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["marketCreate", "MarketCreate"],
+    "runtimeTests": []
+  },
+  {
+    "name": "marketUpdate",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["marketUpdate", "MarketUpdate"],
+    "runtimeTests": []
+  },
+  {
+    "name": "marketDelete",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["marketDelete", "MarketDelete"],
+    "runtimeTests": []
+  },
+  {
+    "name": "webPresenceCreate",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["webPresenceCreate", "WebPresenceCreate"],
+    "runtimeTests": []
+  },
+  {
+    "name": "webPresenceUpdate",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["webPresenceUpdate", "WebPresenceUpdate"],
+    "runtimeTests": []
+  },
+  {
+    "name": "webPresenceDelete",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["webPresenceDelete", "WebPresenceDelete"],
+    "runtimeTests": []
+  },
+  {
+    "name": "marketLocalizationsRegister",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["marketLocalizationsRegister", "MarketLocalizationsRegister"],
+    "runtimeTests": []
+  },
+  {
+    "name": "marketLocalizationsRemove",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["marketLocalizationsRemove", "MarketLocalizationsRemove"],
+    "runtimeTests": []
   },
   {
     "name": "fileCreate",

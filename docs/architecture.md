@@ -166,6 +166,7 @@ Current customer-domain state deliberately stays narrower than the product model
 - `CustomerRecord` carries scalar/detail fields plus `taxExemptions` as a separate list from the boolean `taxExempt`
 - customer-owned metafields live in a customer-scoped `customerMetafields` bucket instead of reusing product metafield storage or broadening `metafieldsSet` owner support without separate evidence
 - staged `customerUpdate(input.metafields)` computes against the effective customer metafield set and replaces the staged customer-owned set, so downstream `customer.metafield(...)` and `customer.metafields(...)` reads stay consistent
+- staged `customerMerge` updates the normalized resulting customer row, marks the source customer deleted, records the source-to-result customer id redirect in `mergedCustomerIds`, and records the observed merge job/result shape in `customerMergeRequests`
 
 ## Mutation handling strategy
 
@@ -211,6 +212,7 @@ Current implementation note:
 - loading that file seeds the in-memory base state before the server handles requests
 - `POST /__meta/reset` restores that startup snapshot baseline, including captured connection cursor/pageInfo baselines, rather than wiping snapshot mode back to an empty store
 - customer identifier reads resolve `customerByIdentifier(identifier:)` from the same effective normalized customer graph as `customer(id:)` and `customers`, including staged customer creates/updates and hydrated live-hybrid customers
+- customer merge reads resolve `customerMergePreview` and `customerMergeJobStatus` from normalized customer/merge-request state; the first local merge slice supports customers already present in staged state or hydrated base state and does not fetch unknown customer ids during the supported mutation path
 
 Snapshot misses should return the same kind of empty/null structure Shopify returns when the backing store has no matching data.
 

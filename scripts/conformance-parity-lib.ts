@@ -30,6 +30,11 @@ import {
   hydrateCustomersFromUpstreamResponse,
 } from '../src/proxy/customers.js';
 import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
+import {
+  handleMarketsQuery,
+  hydrateMarketsFromUpstreamResponse,
+  seedMarketsFromCapture,
+} from '../src/proxy/markets.js';
 import { handleMediaMutation } from '../src/proxy/media.js';
 import { handleOrderMutation, handleOrderQuery } from '../src/proxy/orders.js';
 import {
@@ -760,6 +765,17 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'overlay-read' && capability.domain === 'markets') {
+    if (upstreamPayload !== undefined) {
+      hydrateMarketsFromUpstreamResponse(document, variables, upstreamPayload);
+    }
+
+    return {
+      status: 200,
+      body: handleMarketsQuery(document, variables),
+    };
+  }
+
   throw new Error(
     `Parity execution does not allow live Shopify requests or unsupported operations: ${capability.operationName}`,
   );
@@ -1116,6 +1132,57 @@ function seedCustomerMutationPreconditions(
     store.upsertBaseCustomers(seedCustomers);
   }
 
+  return true;
+}
+
+function readCustomerCreatePayloadFromCapture(
+  capture: Record<string, unknown>,
+  key: string,
+): Record<string, unknown> | null {
+  return readRecordField(
+    readRecordField(
+      readRecordField(readRecordField(readRecordField(capture, 'precondition'), key), 'response'),
+      'data',
+    ),
+    'customerCreate',
+  );
+}
+
+function seedCustomerMergePreconditions(
+  capture: unknown,
+  _variables: Record<string, unknown>,
+  mutationName: string | null,
+): boolean {
+  if (mutationName !== 'customerMerge' || !isPlainObject(capture)) {
+    return false;
+  }
+
+  const seedCustomers: CustomerRecord[] = [];
+  for (const key of ['createOne', 'createTwo']) {
+    const customerPayload = readRecordField(readCustomerCreatePayloadFromCapture(capture, key), 'customer');
+    const customerId = readStringField(customerPayload, 'id');
+    if (customerId) {
+      seedCustomers.push(makeSeedCustomer(customerId, customerPayload));
+    }
+  }
+
+  const downstreamData = readRecordField(
+    readRecordField(readRecordField(capture, 'downstreamRead'), 'response'),
+    'data',
+  );
+  const downstreamCount = readNumberField(readRecordField(downstreamData, 'customersCount'), 'count');
+  if (downstreamCount !== null) {
+    const placeholderCount = Math.max(0, downstreamCount - 1);
+    for (let index = 0; index < placeholderCount; index += 1) {
+      seedCustomers.push(makePlaceholderCustomer(index));
+    }
+  }
+
+  if (seedCustomers.length === 0) {
+    return false;
+  }
+
+  store.upsertBaseCustomers(seedCustomers);
   return true;
 }
 
@@ -2877,6 +2944,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
 
   const payload = mutationPayloadFromCapture(capture);
   const mutationName = mutationNameFromCapture(capture);
+  if (seedCustomerMergePreconditions(capture, variables, mutationName)) {
+    return;
+  }
+
   if (seedCustomerMutationPreconditions(capture, variables, mutationName, payload)) {
     return;
   }
@@ -2890,6 +2961,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   }
 
   if (seedBusinessEntityPreconditions(capture)) {
+    return;
+  }
+
+  if (seedMarketsFromCapture(capture)) {
     return;
   }
 

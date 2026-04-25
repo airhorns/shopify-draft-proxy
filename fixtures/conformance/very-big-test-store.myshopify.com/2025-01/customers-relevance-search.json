@@ -3,66 +3,66 @@
     "customers": {
       "edges": [
         {
-          "cursor": "eyJsYXN0X2lkIjo3MjU0NDU2MzM2NjE3LCJsYXN0X3ZhbHVlIjoxLjB9",
+          "cursor": "eyJsYXN0X2lkIjo2MTU3NjU0NTU2OTA1LCJsYXN0X3ZhbHVlIjoxLjB9",
           "node": {
-            "id": "gid://shopify/Customer/7254456336617",
-            "displayName": "Ira Kirk",
-            "email": "egnition_sample_104@egnition.com",
-            "legacyResourceId": "7254456336617",
-            "tags": ["egnition-sample-data", "VIP"],
-            "updatedAt": "2024-03-14T01:55:02Z"
-          }
-        },
-        {
-          "cursor": "eyJsYXN0X2lkIjo3MjU0NDU2MzAzODQ5LCJsYXN0X3ZhbHVlIjoxLjB9",
-          "node": {
-            "id": "gid://shopify/Customer/7254456303849",
-            "displayName": "Conan Daniels",
-            "email": "egnition_sample_41@egnition.com",
-            "legacyResourceId": "7254456303849",
+            "id": "gid://shopify/Customer/6157654556905",
+            "displayName": "Henry Short",
+            "email": "egnition_sample_29@egnition.com",
+            "legacyResourceId": "6157654556905",
             "tags": ["egnition-sample-data", "referral"],
-            "updatedAt": "2024-03-14T01:55:01Z"
+            "updatedAt": "2026-04-25T01:24:48Z"
           }
         },
         {
-          "cursor": "eyJsYXN0X2lkIjo3MjU0NDU2MjcxMDgxLCJsYXN0X3ZhbHVlIjoxLjB9",
+          "cursor": "eyJsYXN0X2lkIjo2MTU3NjU0NTg5NjczLCJsYXN0X3ZhbHVlIjoxLjB9",
           "node": {
-            "id": "gid://shopify/Customer/7254456271081",
-            "displayName": "Colt Marquez",
-            "email": "egnition_sample_103@egnition.com",
-            "legacyResourceId": "7254456271081",
-            "tags": ["egnition-sample-data", "referral"],
-            "updatedAt": "2024-03-14T01:55:00Z"
-          }
-        },
-        {
-          "cursor": "eyJsYXN0X2lkIjo3MjU0NDU2MjM4MzEzLCJsYXN0X3ZhbHVlIjoxLjB9",
-          "node": {
-            "id": "gid://shopify/Customer/7254456238313",
-            "displayName": "Barry Anderson",
-            "email": "egnition_sample_78@egnition.com",
-            "legacyResourceId": "7254456238313",
-            "tags": ["egnition-sample-data", "referral"],
-            "updatedAt": "2024-03-14T01:55:00Z"
-          }
-        },
-        {
-          "cursor": "eyJsYXN0X2lkIjo3MjU0NDU2MTcyNzc3LCJsYXN0X3ZhbHVlIjoxLjB9",
-          "node": {
-            "id": "gid://shopify/Customer/7254456172777",
-            "displayName": "Dane Buck",
-            "email": "egnition_sample_76@egnition.com",
-            "legacyResourceId": "7254456172777",
+            "id": "gid://shopify/Customer/6157654589673",
+            "displayName": "Xander Holloway",
+            "email": "egnition_sample_92@egnition.com",
+            "legacyResourceId": "6157654589673",
             "tags": ["egnition-sample-data"],
-            "updatedAt": "2024-03-14T01:54:59Z"
+            "updatedAt": "2022-04-11T22:24:05Z"
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo2MTU3NjU0NjIyNDQxLCJsYXN0X3ZhbHVlIjoxLjB9",
+          "node": {
+            "id": "gid://shopify/Customer/6157654622441",
+            "displayName": "Isaiah Marquez",
+            "email": "egnition_sample_99@egnition.com",
+            "legacyResourceId": "6157654622441",
+            "tags": ["egnition-sample-data", "VIP"],
+            "updatedAt": "2022-04-06T21:24:10Z"
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo2MTU3NjU0Njg3OTc3LCJsYXN0X3ZhbHVlIjoxLjB9",
+          "node": {
+            "id": "gid://shopify/Customer/6157654687977",
+            "displayName": "Len Stark",
+            "email": "egnition_sample_12@egnition.com",
+            "legacyResourceId": "6157654687977",
+            "tags": ["egnition-sample-data"],
+            "updatedAt": "2022-04-09T13:42:53Z"
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo2MTU3NjU0NzIwNzQ1LCJsYXN0X3ZhbHVlIjoxLjB9",
+          "node": {
+            "id": "gid://shopify/Customer/6157654720745",
+            "displayName": "Howard Hahn",
+            "email": "egnition_sample_49@egnition.com",
+            "legacyResourceId": "6157654720745",
+            "tags": ["egnition-sample-data", "VIP"],
+            "updatedAt": "2024-03-14T01:59:43Z"
           }
         }
       ],
       "pageInfo": {
         "hasNextPage": true,
         "hasPreviousPage": false,
-        "startCursor": "eyJsYXN0X2lkIjo3MjU0NDU2MzM2NjE3LCJsYXN0X3ZhbHVlIjoxLjB9",
-        "endCursor": "eyJsYXN0X2lkIjo3MjU0NDU2MTcyNzc3LCJsYXN0X3ZhbHVlIjoxLjB9"
+        "startCursor": "eyJsYXN0X2lkIjo2MTU3NjU0NTU2OTA1LCJsYXN0X3ZhbHVlIjoxLjB9",
+        "endCursor": "eyJsYXN0X2lkIjo2MTU3NjU0NzIwNzQ1LCJsYXN0X3ZhbHVlIjoxLjB9"
       }
     }
   },

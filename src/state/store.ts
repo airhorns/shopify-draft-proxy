@@ -3,6 +3,7 @@ import type {
   CalculatedOrderRecord,
   CollectionRecord,
   CustomerCatalogConnectionRecord,
+  CustomerMergeRequestRecord,
   CustomerMetafieldRecord,
   CustomerRecord,
   DraftOrderRecord,
@@ -52,6 +53,8 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedFileIds: {},
   deletedCollectionIds: {},
   deletedCustomerIds: {},
+  mergedCustomerIds: {},
+  customerMergeRequests: {},
 };
 
 function cloneSnapshot(snapshot: StateSnapshot): StateSnapshot {
@@ -245,6 +248,8 @@ export class InMemoryStore {
   private baseCustomerCatalogConnection: CustomerCatalogConnectionRecord | null = null;
   private baseCustomerSearchConnections: Record<string, CustomerCatalogConnectionRecord> = {};
   private baseOrders: Record<string, OrderRecord> = {};
+  private baseMarketsById: Record<string, unknown> = {};
+  private baseMarketsRootPayloads: Record<string, unknown> = {};
   private stagedOrders: Record<string, OrderRecord> = {};
   private calculatedOrders: Record<string, CalculatedOrderRecord> = {};
   private stagedDraftOrders: Record<string, DraftOrderRecord> = {};
@@ -274,6 +279,8 @@ export class InMemoryStore {
       : null;
     this.baseCustomerSearchConnections = structuredClone(this.initialCustomerSearchConnections);
     this.baseOrders = structuredClone(this.initialBaseOrders);
+    this.baseMarketsById = {};
+    this.baseMarketsRootPayloads = {};
     this.stagedOrders = {};
     this.calculatedOrders = {};
     this.stagedDraftOrders = structuredClone(this.initialDraftOrders);
@@ -340,6 +347,8 @@ export class InMemoryStore {
     for (const customer of customers) {
       delete this.baseState.deletedCustomerIds[customer.id];
       delete this.stagedState.deletedCustomerIds[customer.id];
+      delete this.baseState.mergedCustomerIds[customer.id];
+      delete this.stagedState.mergedCustomerIds[customer.id];
       this.baseState.customers[customer.id] = structuredClone(customer);
     }
   }
@@ -388,21 +397,71 @@ export class InMemoryStore {
     return businessEntity ? structuredClone(businessEntity) : null;
   }
 
+  upsertBaseMarkets(markets: unknown[]): void {
+    for (const market of markets) {
+      if (!market || typeof market !== 'object' || Array.isArray(market)) {
+        continue;
+      }
+
+      const id = (market as Record<string, unknown>)['id'];
+      if (typeof id === 'string' && id.length > 0) {
+        const previous = this.baseMarketsById[id];
+        this.baseMarketsById[id] =
+          previous && typeof previous === 'object' && !Array.isArray(previous)
+            ? { ...(structuredClone(previous) as Record<string, unknown>), ...(structuredClone(market) as object) }
+            : structuredClone(market);
+      }
+    }
+  }
+
+  setBaseMarketsRootPayload(rootField: string, payload: unknown): void {
+    this.baseMarketsRootPayloads[rootField] = structuredClone(payload);
+  }
+
+  getBaseMarketById(marketId: string): unknown | null {
+    const market = this.baseMarketsById[marketId];
+    return market === undefined ? null : structuredClone(market);
+  }
+
+  getBaseMarketsRootPayload(rootField: string): unknown | null {
+    const payload = this.baseMarketsRootPayloads[rootField];
+    return payload === undefined ? null : structuredClone(payload);
+  }
+
   stageCreateCustomer(customer: CustomerRecord): CustomerRecord {
     delete this.stagedState.deletedCustomerIds[customer.id];
+    delete this.stagedState.mergedCustomerIds[customer.id];
     this.stagedState.customers[customer.id] = structuredClone(customer);
     return structuredClone(customer);
   }
 
   stageUpdateCustomer(customer: CustomerRecord): CustomerRecord {
     delete this.stagedState.deletedCustomerIds[customer.id];
+    delete this.stagedState.mergedCustomerIds[customer.id];
     this.stagedState.customers[customer.id] = structuredClone(customer);
     return structuredClone(customer);
   }
 
   stageDeleteCustomer(customerId: string): void {
     delete this.stagedState.customers[customerId];
+    delete this.stagedState.mergedCustomerIds[customerId];
     this.stagedState.deletedCustomerIds[customerId] = true;
+  }
+
+  stageMergeCustomers(
+    sourceCustomerId: string,
+    resultingCustomer: CustomerRecord,
+    mergeRequest: CustomerMergeRequestRecord,
+  ): CustomerRecord {
+    this.stageDeleteCustomer(sourceCustomerId);
+    this.stagedState.mergedCustomerIds[sourceCustomerId] = resultingCustomer.id;
+    this.stagedState.customerMergeRequests[mergeRequest.jobId] = structuredClone(mergeRequest);
+    return this.stageUpdateCustomer(resultingCustomer);
+  }
+
+  getCustomerMergeRequest(jobId: string): CustomerMergeRequestRecord | null {
+    const request = this.stagedState.customerMergeRequests[jobId] ?? this.baseState.customerMergeRequests[jobId];
+    return request ? structuredClone(request) : null;
   }
 
   upsertBaseOrders(orders: OrderRecord[]): void {
@@ -944,7 +1003,9 @@ export class InMemoryStore {
     return (
       Object.keys(this.stagedState.customers).length > 0 ||
       Object.keys(this.stagedState.customerMetafields).length > 0 ||
-      Object.keys(this.stagedState.deletedCustomerIds).length > 0
+      Object.keys(this.stagedState.deletedCustomerIds).length > 0 ||
+      Object.keys(this.stagedState.mergedCustomerIds).length > 0 ||
+      Object.keys(this.stagedState.customerMergeRequests).length > 0
     );
   }
 
