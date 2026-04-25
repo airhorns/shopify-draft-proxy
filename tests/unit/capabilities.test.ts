@@ -392,6 +392,13 @@ describe('getOperationCapability', () => {
       type: 'mutation',
     });
 
+    expect(getOperationCapability({ type: 'mutation', name: 'FileUpdate', rootFields: ['fileUpdate'] })).toEqual({
+      domain: 'media',
+      execution: 'stage-locally',
+      operationName: 'FileUpdate',
+      type: 'mutation',
+    });
+
     expect(getOperationCapability({ type: 'mutation', name: 'FileDelete', rootFields: ['fileDelete'] })).toEqual({
       domain: 'media',
       execution: 'stage-locally',

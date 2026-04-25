@@ -1577,6 +1577,25 @@ Important distinction:
   family while preserving the original raw `fileDelete` mutation for commit
   replay
 
+The generic media update worklist item maps to `fileUpdate`, not
+`productUpdateMedia`.
+
+Important distinction:
+
+- `productUpdateMedia(productId, media)` updates media records already attached
+  to one product's `product.media` connection
+- `fileUpdate(files)` updates store-level Files API records and can add/remove
+  product references through `referencesToAdd` / `referencesToRemove`
+- current `FileUpdateInput` references currently accept product IDs, so adding
+  a reference should make the same file visible in the target product's
+  downstream `product.media` connection while preserving the source product
+  reference unless it is explicitly removed
+- updating a referenced MediaImage's alt/source through `fileUpdate` should
+  refresh all locally known product media references for that file ID
+- this first local slice models file metadata plus product-reference visibility;
+  richer Files API reads and ready-state locking still need dedicated capture
+  evidence before they should become stricter
+
 Practical rule:
 
 1. model `inventoryItemUpdate` as a product-backed staged mutation over the effective variant inventory-item record, not as a separate detached inventory-item table

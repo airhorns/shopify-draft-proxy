@@ -206,6 +206,13 @@ describe('getOperationCapability anonymous operations', () => {
       type: 'mutation',
     });
 
+    expect(getOperationCapability({ type: 'mutation', name: null, rootFields: ['fileUpdate'] })).toEqual({
+      domain: 'media',
+      execution: 'stage-locally',
+      operationName: 'fileUpdate',
+      type: 'mutation',
+    });
+
     expect(getOperationCapability({ type: 'mutation', name: null, rootFields: ['fileDelete'] })).toEqual({
       domain: 'media',
       execution: 'stage-locally',
