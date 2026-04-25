@@ -1010,6 +1010,20 @@ export const webPresenceRecordSchema = z.strictObject({
 });
 export type WebPresenceRecord = z.infer<typeof webPresenceRecordSchema>;
 
+export const catalogRecordSchema = z.strictObject({
+  id: z.string(),
+  cursor: nullableStringSchema.optional(),
+  data: z.record(z.string(), jsonValueSchema),
+});
+export type CatalogRecord = z.infer<typeof catalogRecordSchema>;
+
+export const priceListRecordSchema = z.strictObject({
+  id: z.string(),
+  cursor: nullableStringSchema.optional(),
+  data: z.record(z.string(), jsonValueSchema),
+});
+export type PriceListRecord = z.infer<typeof priceListRecordSchema>;
+
 export const calculatedOrderRecordSchema = orderRecordSchema.extend({
   originalOrderId: z.string(),
 });
@@ -1033,6 +1047,10 @@ export const stateSnapshotSchema = z.strictObject({
   marketOrder: z.array(z.string()).default([]),
   webPresences: z.record(z.string(), webPresenceRecordSchema).default({}),
   webPresenceOrder: z.array(z.string()).default([]),
+  catalogs: z.record(z.string(), catalogRecordSchema).default({}),
+  catalogOrder: z.array(z.string()).default([]),
+  priceLists: z.record(z.string(), priceListRecordSchema).default({}),
+  priceListOrder: z.array(z.string()).default([]),
   productCollections: z.record(z.string(), productCollectionRecordSchema),
   productMedia: z.record(z.string(), productMediaRecordSchema),
   files: z.record(z.string(), fileRecordSchema).default({}),

@@ -61,6 +61,7 @@ Local staged mutations:
 ## Behavior notes
 
 - Product-owned metafields are normalized as product-scoped records. Besides `id`, `namespace`, `key`, `type`, and `value`, hydrated and staged product metafields carry `compareDigest`, `jsonValue`, `createdAt`, `updatedAt`, and `ownerType` for owner-scoped parity. Product metafield `definition` serializes as `null` until fixture evidence justifies modeling definition linkage.
+- Local `metafieldsSet` support is product-owned only. It validates the full input batch before replacing the staged product metafield set, supports compare-and-set through `compareDigest`, treats `compareDigest: null` as a create-only guard, and preserves Shopify-like atomic no-write behavior when any modeled resolver error is returned.
 - Product search uses the shared Shopify-style search parser. Endpoint-specific product behavior includes boolean grouping, quoted values, field comparators, simple term-list searches, variant search terms, sort keys, and captured connection cursor/pageInfo baselines.
 - Collection records carry aggregate publication target ids alongside product publication ids. A staged `collectionCreate` starts unpublished; collection publication counts and `publishedOnPublication(publicationId:)` remain unpublished until a local publish mutation adds a target.
 - `publishedOnCurrentPublication` is not inferred from aggregate collection publication count. Captured Online Store publishable writes leave it false when the app current publication is not the target.

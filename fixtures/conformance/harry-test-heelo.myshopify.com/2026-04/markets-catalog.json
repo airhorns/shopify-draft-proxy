@@ -1,0 +1,382 @@
+{
+  "data": {
+    "markets": {
+      "edges": [
+        {
+          "cursor": "eyJsYXN0X2lkIjo5MjI3NjcxOTkyMiwibGFzdF92YWx1ZSI6IkNhbmFkYSJ9",
+          "node": {
+            "id": "gid://shopify/Market/92276719922",
+            "name": "Canada",
+            "handle": "ca",
+            "status": "ACTIVE",
+            "type": "REGION",
+            "conditions": {
+              "conditionTypes": ["REGION"],
+              "regionsCondition": {
+                "applicationLevel": "SPECIFIED",
+                "regions": {
+                  "edges": [
+                    {
+                      "cursor": "eyJsYXN0X2lkIjoxODQ1OTM5NjY3MjUwLCJsYXN0X3ZhbHVlIjoiMTg0NTkzOTY2NzI1MCJ9",
+                      "node": {
+                        "__typename": "MarketRegionCountry",
+                        "id": "gid://shopify/MarketRegionCountry/4062110417202",
+                        "name": "Canada",
+                        "code": "CA",
+                        "currency": {
+                          "currencyCode": "CAD",
+                          "currencyName": "Canadian Dollar",
+                          "enabled": true
+                        }
+                      }
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "eyJsYXN0X2lkIjoxODQ1OTM5NjY3MjUwLCJsYXN0X3ZhbHVlIjoiMTg0NTkzOTY2NzI1MCJ9",
+                    "endCursor": "eyJsYXN0X2lkIjoxODQ1OTM5NjY3MjUwLCJsYXN0X3ZhbHVlIjoiMTg0NTkzOTY2NzI1MCJ9"
+                  }
+                }
+              }
+            },
+            "currencySettings": {
+              "baseCurrency": {
+                "currencyCode": "CAD",
+                "currencyName": "Canadian Dollar",
+                "enabled": true
+              },
+              "localCurrencies": false,
+              "roundingEnabled": true
+            },
+            "priceInclusions": {
+              "inclusiveDutiesPricingStrategy": "ADD_DUTIES_AT_CHECKOUT",
+              "inclusiveTaxPricingStrategy": "INCLUDES_TAXES_IN_PRICE_BASED_ON_COUNTRY"
+            },
+            "catalogs": {
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
+            "webPresences": {
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo5MjI3Njc4NTQ1OCwibGFzdF92YWx1ZSI6IkludGVybmF0aW9uYWwifQ==",
+          "node": {
+            "id": "gid://shopify/Market/92276785458",
+            "name": "International",
+            "handle": "international",
+            "status": "ACTIVE",
+            "type": "REGION",
+            "conditions": {
+              "conditionTypes": ["REGION"],
+              "regionsCondition": {
+                "applicationLevel": "SPECIFIED",
+                "regions": {
+                  "edges": [
+                    {
+                      "cursor": "eyJsYXN0X2lkIjoxODQ1OTM5Nzk4MzIyLCJsYXN0X3ZhbHVlIjoiMTg0NTkzOTc5ODMyMiJ9",
+                      "node": {
+                        "__typename": "MarketRegionCountry",
+                        "id": "gid://shopify/MarketRegionCountry/4062110482738",
+                        "name": "United Arab Emirates",
+                        "code": "AE",
+                        "currency": {
+                          "currencyCode": "CAD",
+                          "currencyName": "Canadian Dollar",
+                          "enabled": true
+                        }
+                      }
+                    },
+                    {
+                      "cursor": "eyJsYXN0X2lkIjoxODQ1OTM5ODMxMDkwLCJsYXN0X3ZhbHVlIjoiMTg0NTkzOTgzMTA5MCJ9",
+                      "node": {
+                        "__typename": "MarketRegionCountry",
+                        "id": "gid://shopify/MarketRegionCountry/4062110515506",
+                        "name": "Austria",
+                        "code": "AT",
+                        "currency": {
+                          "currencyCode": "CAD",
+                          "currencyName": "Canadian Dollar",
+                          "enabled": true
+                        }
+                      }
+                    },
+                    {
+                      "cursor": "eyJsYXN0X2lkIjoxODQ1OTM5ODYzODU4LCJsYXN0X3ZhbHVlIjoiMTg0NTkzOTg2Mzg1OCJ9",
+                      "node": {
+                        "__typename": "MarketRegionCountry",
+                        "id": "gid://shopify/MarketRegionCountry/4062110548274",
+                        "name": "Australia",
+                        "code": "AU",
+                        "currency": {
+                          "currencyCode": "CAD",
+                          "currencyName": "Canadian Dollar",
+                          "enabled": true
+                        }
+                      }
+                    },
+                    {
+                      "cursor": "eyJsYXN0X2lkIjoxODQ1OTM5ODk2NjI2LCJsYXN0X3ZhbHVlIjoiMTg0NTkzOTg5NjYyNiJ9",
+                      "node": {
+                        "__typename": "MarketRegionCountry",
+                        "id": "gid://shopify/MarketRegionCountry/4062110581042",
+                        "name": "Belgium",
+                        "code": "BE",
+                        "currency": {
+                          "currencyCode": "CAD",
+                          "currencyName": "Canadian Dollar",
+                          "enabled": true
+                        }
+                      }
+                    },
+                    {
+                      "cursor": "eyJsYXN0X2lkIjoxODQ1OTM5OTI5Mzk0LCJsYXN0X3ZhbHVlIjoiMTg0NTkzOTkyOTM5NCJ9",
+                      "node": {
+                        "__typename": "MarketRegionCountry",
+                        "id": "gid://shopify/MarketRegionCountry/4062110613810",
+                        "name": "Switzerland",
+                        "code": "CH",
+                        "currency": {
+                          "currencyCode": "CAD",
+                          "currencyName": "Canadian Dollar",
+                          "enabled": true
+                        }
+                      }
+                    },
+                    {
+                      "cursor": "eyJsYXN0X2lkIjoxODQ1OTM5OTYyMTYyLCJsYXN0X3ZhbHVlIjoiMTg0NTkzOTk2MjE2MiJ9",
+                      "node": {
+                        "__typename": "MarketRegionCountry",
+                        "id": "gid://shopify/MarketRegionCountry/4062110646578",
+                        "name": "Czechia",
+                        "code": "CZ",
+                        "currency": {
+                          "currencyCode": "CAD",
+                          "currencyName": "Canadian Dollar",
+                          "enabled": true
+                        }
+                      }
+                    },
+                    {
+                      "cursor": "eyJsYXN0X2lkIjoxODQ1OTM5OTk0OTMwLCJsYXN0X3ZhbHVlIjoiMTg0NTkzOTk5NDkzMCJ9",
+                      "node": {
+                        "__typename": "MarketRegionCountry",
+                        "id": "gid://shopify/MarketRegionCountry/4062110679346",
+                        "name": "Germany",
+                        "code": "DE",
+                        "currency": {
+                          "currencyCode": "CAD",
+                          "currencyName": "Canadian Dollar",
+                          "enabled": true
+                        }
+                      }
+                    },
+                    {
+                      "cursor": "eyJsYXN0X2lkIjoxODQ1OTQwMDI3Njk4LCJsYXN0X3ZhbHVlIjoiMTg0NTk0MDAyNzY5OCJ9",
+                      "node": {
+                        "__typename": "MarketRegionCountry",
+                        "id": "gid://shopify/MarketRegionCountry/4062110712114",
+                        "name": "Denmark",
+                        "code": "DK",
+                        "currency": {
+                          "currencyCode": "CAD",
+                          "currencyName": "Canadian Dollar",
+                          "enabled": true
+                        }
+                      }
+                    },
+                    {
+                      "cursor": "eyJsYXN0X2lkIjoxODQ1OTQwMDYwNDY2LCJsYXN0X3ZhbHVlIjoiMTg0NTk0MDA2MDQ2NiJ9",
+                      "node": {
+                        "__typename": "MarketRegionCountry",
+                        "id": "gid://shopify/MarketRegionCountry/4062110744882",
+                        "name": "Spain",
+                        "code": "ES",
+                        "currency": {
+                          "currencyCode": "CAD",
+                          "currencyName": "Canadian Dollar",
+                          "enabled": true
+                        }
+                      }
+                    },
+                    {
+                      "cursor": "eyJsYXN0X2lkIjoxODQ1OTQwMDkzMjM0LCJsYXN0X3ZhbHVlIjoiMTg0NTk0MDA5MzIzNCJ9",
+                      "node": {
+                        "__typename": "MarketRegionCountry",
+                        "id": "gid://shopify/MarketRegionCountry/4062110777650",
+                        "name": "Finland",
+                        "code": "FI",
+                        "currency": {
+                          "currencyCode": "CAD",
+                          "currencyName": "Canadian Dollar",
+                          "enabled": true
+                        }
+                      }
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": true,
+                    "hasPreviousPage": false,
+                    "startCursor": "eyJsYXN0X2lkIjoxODQ1OTM5Nzk4MzIyLCJsYXN0X3ZhbHVlIjoiMTg0NTkzOTc5ODMyMiJ9",
+                    "endCursor": "eyJsYXN0X2lkIjoxODQ1OTQwMDkzMjM0LCJsYXN0X3ZhbHVlIjoiMTg0NTk0MDA5MzIzNCJ9"
+                  }
+                }
+              }
+            },
+            "currencySettings": {
+              "baseCurrency": {
+                "currencyCode": "CAD",
+                "currencyName": "Canadian Dollar",
+                "enabled": true
+              },
+              "localCurrencies": false,
+              "roundingEnabled": true
+            },
+            "priceInclusions": {
+              "inclusiveDutiesPricingStrategy": "ADD_DUTIES_AT_CHECKOUT",
+              "inclusiveTaxPricingStrategy": "INCLUDES_TAXES_IN_PRICE_BASED_ON_COUNTRY"
+            },
+            "catalogs": {
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
+            "webPresences": {
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo5MjI3NjgxODIyNiwibGFzdF92YWx1ZSI6Ik1leGljbyJ9",
+          "node": {
+            "id": "gid://shopify/Market/92276818226",
+            "name": "Mexico",
+            "handle": "mexico",
+            "status": "ACTIVE",
+            "type": "REGION",
+            "conditions": {
+              "conditionTypes": ["REGION"],
+              "regionsCondition": {
+                "applicationLevel": "SPECIFIED",
+                "regions": {
+                  "edges": [
+                    {
+                      "cursor": "eyJsYXN0X2lkIjoxODQ1OTQxNTY3Nzk0LCJsYXN0X3ZhbHVlIjoiMTg0NTk0MTU2Nzc5NCJ9",
+                      "node": {
+                        "__typename": "MarketRegionCountry",
+                        "id": "gid://shopify/MarketRegionCountry/4062111334706",
+                        "name": "Mexico",
+                        "code": "MX",
+                        "currency": {
+                          "currencyCode": "MXN",
+                          "currencyName": "Mexican Peso",
+                          "enabled": true
+                        }
+                      }
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "eyJsYXN0X2lkIjoxODQ1OTQxNTY3Nzk0LCJsYXN0X3ZhbHVlIjoiMTg0NTk0MTU2Nzc5NCJ9",
+                    "endCursor": "eyJsYXN0X2lkIjoxODQ1OTQxNTY3Nzk0LCJsYXN0X3ZhbHVlIjoiMTg0NTk0MTU2Nzc5NCJ9"
+                  }
+                }
+              }
+            },
+            "currencySettings": {
+              "baseCurrency": {
+                "currencyCode": "MXN",
+                "currencyName": "Mexican Peso",
+                "enabled": true
+              },
+              "localCurrencies": false,
+              "roundingEnabled": true
+            },
+            "priceInclusions": {
+              "inclusiveDutiesPricingStrategy": "ADD_DUTIES_AT_CHECKOUT",
+              "inclusiveTaxPricingStrategy": "INCLUDES_TAXES_IN_PRICE_BASED_ON_COUNTRY"
+            },
+            "catalogs": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMjg4OTM0NTI1OTQsImxhc3RfdmFsdWUiOjEyODg5MzQ1MjU5NH0=",
+                  "node": {
+                    "id": "gid://shopify/MarketCatalog/128893452594",
+                    "title": "Mexico",
+                    "status": "ACTIVE",
+                    "publication": {
+                      "id": "gid://shopify/Publication/268039618866",
+                      "autoPublish": true
+                    },
+                    "priceList": {
+                      "id": "gid://shopify/PriceList/31575408946",
+                      "name": "Mexico Buyers",
+                      "currency": "MXN"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMjg4OTM0NTI1OTQsImxhc3RfdmFsdWUiOjEyODg5MzQ1MjU5NH0=",
+                "endCursor": "eyJsYXN0X2lkIjoxMjg4OTM0NTI1OTQsImxhc3RfdmFsdWUiOjEyODg5MzQ1MjU5NH0="
+              }
+            },
+            "webPresences": {
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": "eyJsYXN0X2lkIjo5MjI3NjcxOTkyMiwibGFzdF92YWx1ZSI6IkNhbmFkYSJ9",
+        "endCursor": "eyJsYXN0X2lkIjo5MjI3NjgxODIyNiwibGFzdF92YWx1ZSI6Ik1leGljbyJ9"
+      }
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 90,
+      "actualQueryCost": 42,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1897,
+        "restoreRate": 100
+      }
+    }
+  }
+}
