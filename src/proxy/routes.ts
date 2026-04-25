@@ -25,7 +25,11 @@ import {
 import { handlePaymentMutation, handlePaymentQuery } from './payments.js';
 import { handleSegmentMutation, handleSegmentsQuery, hydrateSegmentsFromUpstreamResponse } from './segments.js';
 import { handleStorePropertiesMutation, handleStorePropertiesQuery } from './store-properties.js';
-import { handleWebhookSubscriptionQuery, hydrateWebhookSubscriptionsFromUpstreamResponse } from './webhooks.js';
+import {
+  handleWebhookSubscriptionMutation,
+  handleWebhookSubscriptionQuery,
+  hydrateWebhookSubscriptionsFromUpstreamResponse,
+} from './webhooks.js';
 
 interface GraphQLBody {
   query?: unknown;
@@ -594,6 +598,35 @@ export function createProxyRouter(config: AppConfig): Router {
       ctx.status = 200;
       ctx.body = responseBody;
       return;
+    }
+
+    if (
+      capability.execution === 'stage-locally' &&
+      capability.domain === 'webhooks' &&
+      (primaryRootField === 'webhookSubscriptionCreate' || primaryRootField === 'webhookSubscriptionUpdate')
+    ) {
+      const webhookSubscriptionMutation = handleWebhookSubscriptionMutation(body.query, variables);
+      if (webhookSubscriptionMutation) {
+        if (webhookSubscriptionMutation.staged) {
+          store.appendLog({
+            id: makeSyntheticGid('MutationLogEntry'),
+            receivedAt: makeSyntheticTimestamp(),
+            operationName: capability.operationName,
+            path: ctx.path,
+            query: body.query,
+            variables,
+            requestBody,
+            stagedResourceIds: webhookSubscriptionMutation.stagedResourceIds,
+            status: 'staged',
+            interpreted: interpretMutationLogEntry(parsed, capability),
+            notes: webhookSubscriptionMutation.notes,
+          });
+        }
+
+        ctx.status = 200;
+        ctx.body = webhookSubscriptionMutation.response;
+        return;
+      }
     }
 
     if (
