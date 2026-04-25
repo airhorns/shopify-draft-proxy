@@ -6,19 +6,59 @@
   "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-metafields.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/product-metafields-read.graphql",
-    "variablesPath": "config/parity-requests/product-metafields-read.variables.json"
+    "variablesPath": "config/parity-requests/product-metafields-read.variables.json",
+    "variablesCapturePath": "$.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executable parity coverage for the product metafields connection slice backed by the captured owner-scoped Shopify response; the singular metafield probe remains documented in the fixture until a combined live response is captured.",
+  "notes": "Executable strict snapshot parity for product-owned metafield reads backed by a live captured owner-scoped response. The selected read slice covers singular lookup, nodes, edges, pageInfo, first/after cursor windows, compareDigest, jsonValue, timestamps, ownerType, and null definition linkage for the captured metafields.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [],
+    "expectedDifferences": [
+      {
+        "path": "$.edges[*].cursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify connection cursors are opaque while the local snapshot serializer uses stable synthetic metafield cursors."
+      },
+      {
+        "path": "$.pageInfo.startCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify connection cursors are opaque while the local snapshot serializer uses stable synthetic metafield cursors."
+      },
+      {
+        "path": "$.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify connection cursors are opaque while the local snapshot serializer uses stable synthetic metafield cursors."
+      }
+    ],
     "targets": [
       {
-        "name": "product-metafields-connection-data",
-        "capturePath": "$.connection.data",
-        "proxyPath": "$.data",
-        "upstreamCapturePath": "$.connection"
+        "name": "product-metafields-singular-data",
+        "capturePath": "$.response.data.product.primarySpec",
+        "proxyPath": "$.data.product.primarySpec",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "product-metafields-first-page-connection",
+        "capturePath": "$.response.data.product.metafields",
+        "proxyPath": "$.data.product.metafields",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "product-metafields-after-page-connection",
+        "capturePath": "$.response.data.product.nextMetafields",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/product-metafields-read-next.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.product.id"
+            },
+            "after": {
+              "fromPrimaryProxyPath": "$.data.product.metafields.pageInfo.endCursor"
+            }
+          }
+        },
+        "proxyPath": "$.data.product.metafields",
+        "upstreamCapturePath": null
       }
     ]
   }

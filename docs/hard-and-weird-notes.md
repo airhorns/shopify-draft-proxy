@@ -1069,13 +1069,24 @@ The first metafields increment surfaced another field-family distinction under `
 - `product.metafields(first: ...)` is a connection and should still return a non-null empty connection object for staged products with no metafields
 - hybrid reads may hydrate both fields in one upstream payload, so normalization should deduplicate them into one stored metafield set instead of treating the singular lookup and connection as separate sources of truth
 
-For the initial merchant-useful slice, preserving these fields has been enough:
+For the initial merchant-useful slice, preserving these fields was enough:
 
 - `id`
 - `namespace`
 - `key`
 - `type`
 - `value`
+
+The promoted product owner read slice now also preserves the high-value read fields captured from Shopify:
+
+- `compareDigest`
+- `jsonValue`
+- `createdAt`
+- `updatedAt`
+- `ownerType`
+- nullable `definition`
+
+The read fixture proves `definition: null` for the captured product-owned metafields. Keep definition object serialization out of the local product metafield model until a product-owned fixture actually returns definition data; definition lifecycle support is tracked separately.
 
 This is another case where the serializer layer needs field-specific handling rather than one generic nested-object rule.
 

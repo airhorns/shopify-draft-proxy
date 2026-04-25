@@ -1,24 +1,6 @@
-query ProductMetafieldsRead($id: ID!, $namespace: String!, $key: String!) {
+query ProductMetafieldsReadNext($id: ID!, $after: String!) {
   product(id: $id) {
-    id
-    title
-    primarySpec: metafield(namespace: $namespace, key: $key) {
-      id
-      namespace
-      key
-      type
-      value
-      compareDigest
-      jsonValue
-      createdAt
-      updatedAt
-      ownerType
-      definition {
-        id
-        name
-      }
-    }
-    metafields(first: 1) {
+    metafields(first: 1, after: $after) {
       nodes {
         id
         namespace

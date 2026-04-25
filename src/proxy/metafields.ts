@@ -1,6 +1,7 @@
 import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
-import { makeSyntheticGid } from '../state/synthetic-identity.js';
+import type { JsonValue } from '../json-schemas.js';
+import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import {
   getFieldResponseKey,
   getSelectedChildFields,
@@ -14,9 +15,19 @@ export type MetafieldRecordCore = {
   key: string;
   type: string | null;
   value: string | null;
+  compareDigest?: string | null | undefined;
+  jsonValue?: JsonValue | undefined;
+  createdAt?: string | null | undefined;
+  updatedAt?: string | null | undefined;
+  ownerType?: string | null | undefined;
 };
 
 type OwnerScopedMetafieldRecord<OwnerKey extends string> = MetafieldRecordCore & Record<OwnerKey, string>;
+type OwnerMetafieldOptions = {
+  allowIdLookup?: boolean;
+  trimIdentity?: boolean;
+  ownerType?: string;
+};
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -24,6 +35,53 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function readOptionalString(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
+}
+
+function hasOwnField(value: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function parseMetafieldJsonValue(type: string | null, value: string | null): JsonValue {
+  if (value === null) {
+    return null;
+  }
+
+  if (type === 'json' || type?.startsWith('list.')) {
+    try {
+      return JSON.parse(value) as JsonValue;
+    } catch {
+      return value;
+    }
+  }
+
+  if (type === 'number_integer') {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : value;
+  }
+
+  if (type === 'number_decimal') {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : value;
+  }
+
+  if (type === 'boolean') {
+    return value === 'true';
+  }
+
+  return value;
+}
+
+function makeMetafieldCompareDigest(metafield: MetafieldRecordCore): string {
+  return `draft:${Buffer.from(
+    JSON.stringify([
+      metafield.namespace,
+      metafield.key,
+      metafield.type,
+      metafield.value,
+      metafield.jsonValue ?? null,
+      metafield.updatedAt ?? null,
+    ]),
+  ).toString('base64url')}`;
 }
 
 function buildOwnerScopedMetafield<OwnerKey extends string>(
@@ -49,6 +107,7 @@ export function normalizeOwnerMetafield<OwnerKey extends string>(
   ownerKey: OwnerKey,
   ownerId: string,
   raw: unknown,
+  options: Pick<OwnerMetafieldOptions, 'ownerType'> = {},
 ): OwnerScopedMetafieldRecord<OwnerKey> | null {
   if (!isObject(raw)) {
     return null;
@@ -61,13 +120,27 @@ export function normalizeOwnerMetafield<OwnerKey extends string>(
     return null;
   }
 
-  return buildOwnerScopedMetafield(ownerKey, ownerId, {
+  const type = readOptionalString(raw['type']);
+  const value = readOptionalString(raw['value']);
+  const metafield: MetafieldRecordCore = {
     id,
     namespace,
     key,
-    type: readOptionalString(raw['type']),
-    value: readOptionalString(raw['value']),
-  });
+    type,
+    value,
+  };
+
+  if (options.ownerType) {
+    metafield.compareDigest = readOptionalString(raw['compareDigest']);
+    metafield.jsonValue = hasOwnField(raw, 'jsonValue')
+      ? (raw['jsonValue'] as JsonValue)
+      : parseMetafieldJsonValue(type, value);
+    metafield.createdAt = readOptionalString(raw['createdAt']);
+    metafield.updatedAt = readOptionalString(raw['updatedAt']);
+    metafield.ownerType = readOptionalString(raw['ownerType']) ?? options.ownerType;
+  }
+
+  return buildOwnerScopedMetafield(ownerKey, ownerId, metafield);
 }
 
 export function mergeMetafieldRecords<T extends MetafieldRecordCore>(existing: T[], next: T[]): T[] {
@@ -84,7 +157,7 @@ export function upsertOwnerMetafields<OwnerKey extends string>(
   ownerId: string,
   inputs: Record<string, unknown>[],
   existingMetafields: OwnerScopedMetafieldRecord<OwnerKey>[],
-  options: { allowIdLookup?: boolean; trimIdentity?: boolean } = {},
+  options: OwnerMetafieldOptions = {},
 ): {
   metafields: Array<OwnerScopedMetafieldRecord<OwnerKey>>;
   createdOrUpdated: Array<OwnerScopedMetafieldRecord<OwnerKey>>;
@@ -114,13 +187,32 @@ export function upsertOwnerMetafields<OwnerKey extends string>(
 
     const identityKey = `${namespace}:${key}`;
     const existing = existingById ?? metafieldsByIdentity.get(identityKey);
-    const nextMetafield = buildOwnerScopedMetafield(ownerKey, ownerId, {
+    const type = (options.trimIdentity ? rawType?.trim() : rawType) ?? existing?.type ?? null;
+    const value = readOptionalString(input['value']) ?? existing?.value ?? null;
+    const nextCore: MetafieldRecordCore = {
       id: existing?.id ?? makeSyntheticGid('Metafield'),
       namespace,
       key,
-      type: (options.trimIdentity ? rawType?.trim() : rawType) ?? existing?.type ?? null,
-      value: readOptionalString(input['value']) ?? existing?.value ?? null,
-    });
+      type,
+      value,
+    };
+
+    if (options.ownerType) {
+      const createdAt = existing?.createdAt ?? makeSyntheticTimestamp();
+      const updatedAt = existing
+        ? value === existing.value && type === existing.type
+          ? (existing.updatedAt ?? createdAt)
+          : makeSyntheticTimestamp()
+        : createdAt;
+
+      nextCore.jsonValue = parseMetafieldJsonValue(type, value);
+      nextCore.createdAt = createdAt;
+      nextCore.updatedAt = updatedAt;
+      nextCore.ownerType = options.ownerType;
+      nextCore.compareDigest = makeMetafieldCompareDigest(nextCore);
+    }
+
+    const nextMetafield = buildOwnerScopedMetafield(ownerKey, ownerId, nextCore);
 
     if (existingById && (existingById.namespace !== namespace || existingById.key !== key)) {
       metafieldsByIdentity.delete(`${existingById.namespace}:${existingById.key}`);
@@ -168,6 +260,24 @@ export function serializeMetafieldSelectionSet(
         break;
       case 'value':
         result[key] = metafield.value;
+        break;
+      case 'compareDigest':
+        result[key] = metafield.compareDigest ?? makeMetafieldCompareDigest(metafield);
+        break;
+      case 'jsonValue':
+        result[key] = metafield.jsonValue ?? parseMetafieldJsonValue(metafield.type, metafield.value);
+        break;
+      case 'createdAt':
+        result[key] = metafield.createdAt ?? null;
+        break;
+      case 'updatedAt':
+        result[key] = metafield.updatedAt ?? metafield.createdAt ?? null;
+        break;
+      case 'ownerType':
+        result[key] = metafield.ownerType ?? null;
+        break;
+      case 'definition':
+        result[key] = null;
         break;
       default:
         result[key] = null;

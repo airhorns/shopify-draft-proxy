@@ -35,6 +35,56 @@ function hasOwnField(value: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(value, key);
 }
 
+function parseMetafieldJsonValue(type: string | null, value: string | null): ProductMetafieldRecord['jsonValue'] {
+  if (value === null) {
+    return null;
+  }
+
+  if (type === 'json' || type?.startsWith('list.')) {
+    try {
+      return JSON.parse(value) as ProductMetafieldRecord['jsonValue'];
+    } catch {
+      return value;
+    }
+  }
+
+  if (type === 'number_integer') {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : value;
+  }
+
+  if (type === 'number_decimal') {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : value;
+  }
+
+  if (type === 'boolean') {
+    return value === 'true';
+  }
+
+  return value;
+}
+
+function makeMetafieldCompareDigest(metafield: {
+  namespace: string;
+  key: string;
+  type: string | null;
+  value: string | null;
+  jsonValue?: unknown;
+  updatedAt?: string | null | undefined;
+}): string {
+  return `draft:${Buffer.from(
+    JSON.stringify([
+      metafield.namespace,
+      metafield.key,
+      metafield.type,
+      metafield.value,
+      metafield.jsonValue ?? null,
+      metafield.updatedAt ?? null,
+    ]),
+  ).toString('base64url')}`;
+}
+
 type GraphqlErrorLocation = { line: number; column: number };
 
 function getNodeLocation(node: ASTNode): GraphqlErrorLocation[] {
@@ -1136,13 +1186,23 @@ function makeSyntheticProductImageId(mediaContentType: string | null | undefined
 }
 
 function duplicateMetafieldRecord(metafield: ProductMetafieldRecord, productId: string): ProductMetafieldRecord {
-  return {
+  const timestamp = makeSyntheticTimestamp();
+  const duplicated: ProductMetafieldRecord = {
     id: makeSyntheticGid('Metafield'),
     productId,
     namespace: metafield.namespace,
     key: metafield.key,
     type: metafield.type,
     value: metafield.value,
+    jsonValue: metafield.jsonValue ?? parseMetafieldJsonValue(metafield.type, metafield.value),
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    ownerType: 'PRODUCT',
+  };
+
+  return {
+    ...duplicated,
+    compareDigest: makeMetafieldCompareDigest(duplicated),
   };
 }
 
@@ -2748,7 +2808,9 @@ function upsertMetafieldsForProduct(
   productId: string,
   inputs: Record<string, unknown>[],
 ): { metafields: ProductMetafieldRecord[]; createdOrUpdated: ProductMetafieldRecord[] } {
-  return upsertOwnerMetafields('productId', productId, inputs, store.getEffectiveMetafieldsByProductId(productId));
+  return upsertOwnerMetafields('productId', productId, inputs, store.getEffectiveMetafieldsByProductId(productId), {
+    ownerType: 'PRODUCT',
+  });
 }
 
 function findMetafieldById(metafieldId: string): ProductMetafieldRecord | null {
@@ -2859,13 +2921,29 @@ function buildProductSetMetafieldRecords(productId: string, rawMetafields: unkno
 
   return inputs.map((input) => {
     const existing = findMetafieldById(typeof input['id'] === 'string' ? input['id'] : '');
-    return {
+    const type = typeof input['type'] === 'string' ? input['type'] : (existing?.type ?? null);
+    const value = typeof input['value'] === 'string' ? input['value'] : (existing?.value ?? null);
+    const createdAt = existing?.createdAt ?? makeSyntheticTimestamp();
+    const updatedAt = existing
+      ? value === existing.value && type === existing.type
+        ? (existing.updatedAt ?? createdAt)
+        : makeSyntheticTimestamp()
+      : createdAt;
+    const metafield: ProductMetafieldRecord = {
       id: existing?.productId === productId ? existing.id : makeSyntheticGid('Metafield'),
       productId,
       namespace: typeof input['namespace'] === 'string' ? input['namespace'] : (existing?.namespace ?? ''),
       key: typeof input['key'] === 'string' ? input['key'] : (existing?.key ?? ''),
-      type: typeof input['type'] === 'string' ? input['type'] : (existing?.type ?? null),
-      value: typeof input['value'] === 'string' ? input['value'] : (existing?.value ?? null),
+      type,
+      value,
+      jsonValue: parseMetafieldJsonValue(type, value),
+      createdAt,
+      updatedAt,
+      ownerType: 'PRODUCT',
+    };
+    return {
+      ...metafield,
+      compareDigest: makeMetafieldCompareDigest(metafield),
     };
   });
 }
@@ -3248,7 +3326,7 @@ function normalizeUpstreamProductImage(productId: string, value: unknown, positi
 }
 
 function normalizeUpstreamMetafield(productId: string, value: unknown): ProductMetafieldRecord | null {
-  return normalizeOwnerMetafield('productId', productId, value);
+  return normalizeOwnerMetafield('productId', productId, value, { ownerType: 'PRODUCT' });
 }
 
 function readVariantNodes(value: unknown): unknown[] {
