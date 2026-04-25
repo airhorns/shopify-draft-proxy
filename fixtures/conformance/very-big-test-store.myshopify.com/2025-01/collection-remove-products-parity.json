@@ -15,14 +15,14 @@
   ],
   "mutation": {
     "variables": {
-      "id": "gid://shopify/Collection/468787560681",
+      "id": "gid://shopify/Collection/468787822825",
       "productIds": ["gid://shopify/Product/8971842846953"]
     },
     "response": {
       "data": {
         "collectionRemoveProducts": {
           "job": {
-            "id": "gid://shopify/Job/35596631-0eb3-4a96-8d4d-a6cdbcbe060e",
+            "id": "gid://shopify/Job/345cd4bb-b44a-4374-96a5-23c99749a865",
             "done": false
           },
           "userErrors": []
@@ -44,9 +44,9 @@
   "downstreamRead": {
     "data": {
       "collection": {
-        "id": "gid://shopify/Collection/468787560681",
-        "title": "Hermes Collection Conformance 1777077614031 Updated",
-        "handle": "hermes-collection-conformance-1777077614031-updated",
+        "id": "gid://shopify/Collection/468787822825",
+        "title": "Hermes Collection Conformance 1777078305206 Updated",
+        "handle": "hermes-collection-conformance-1777078305206-updated",
         "products": {
           "nodes": [
             {
@@ -81,9 +81,9 @@
               "handle": "adidas"
             },
             {
-              "id": "gid://shopify/Collection/468787560681",
-              "title": "Hermes Collection Conformance 1777077614031 Updated",
-              "handle": "hermes-collection-conformance-1777077614031-updated"
+              "id": "gid://shopify/Collection/468787822825",
+              "title": "Hermes Collection Conformance 1777078305206 Updated",
+              "handle": "hermes-collection-conformance-1777078305206-updated"
             }
           ],
           "pageInfo": {
