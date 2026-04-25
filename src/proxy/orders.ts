@@ -12,6 +12,12 @@ import {
   serializeConnectionPageInfo,
   serializeEmptyConnectionPageInfo as serializePageInfo,
 } from './graphql-helpers.js';
+import {
+  readMetafieldInputObjects,
+  serializeMetafieldsConnection,
+  serializeMetafieldSelection,
+  upsertOwnerMetafields,
+} from './metafields.js';
 import { store } from '../state/store.js';
 import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import type {
@@ -313,44 +319,9 @@ function normalizeOrderMetafields(
   raw: unknown,
   existing: OrderMetafieldRecord[] = [],
 ): OrderMetafieldRecord[] {
-  if (!Array.isArray(raw)) {
-    return existing.map((metafield) => structuredClone(metafield));
-  }
-
-  const metafieldsByIdentity = new Map(
-    existing.map((metafield) => [`${metafield.namespace}:${metafield.key}`, structuredClone(metafield)]),
-  );
-
-  for (const value of raw) {
-    if (typeof value !== 'object' || value === null) {
-      continue;
-    }
-
-    const input = value as Record<string, unknown>;
-    const namespace = typeof input['namespace'] === 'string' ? input['namespace'] : '';
-    const key = typeof input['key'] === 'string' ? input['key'] : '';
-    if (!namespace || !key) {
-      continue;
-    }
-
-    const identityKey = `${namespace}:${key}`;
-    const existingMetafield = metafieldsByIdentity.get(identityKey);
-    metafieldsByIdentity.set(identityKey, {
-      id: existingMetafield?.id ?? makeSyntheticGid('Metafield'),
-      orderId,
-      namespace,
-      key,
-      type: typeof input['type'] === 'string' ? input['type'] : (existingMetafield?.type ?? null),
-      value: typeof input['value'] === 'string' ? input['value'] : (existingMetafield?.value ?? null),
-    });
-  }
-
-  return Array.from(metafieldsByIdentity.values()).sort(
-    (left, right) =>
-      left.namespace.localeCompare(right.namespace) ||
-      left.key.localeCompare(right.key) ||
-      left.id.localeCompare(right.id),
-  );
+  return Array.isArray(raw)
+    ? upsertOwnerMetafields('orderId', orderId, readMetafieldInputObjects(raw), existing).metafields
+    : existing.map((metafield) => structuredClone(metafield));
 }
 
 function normalizeDraftOrderLineItems(raw: unknown, currencyCode: string): DraftOrderLineItemRecord[] {
@@ -3431,99 +3402,6 @@ function serializeOrderShippingLinesConnection(
   return result;
 }
 
-function serializeOrderMetafieldSelectionSet(
-  metafield: OrderMetafieldRecord,
-  selections: readonly FieldNode[],
-): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const selection of selections) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'id':
-        result[key] = metafield.id;
-        break;
-      case 'namespace':
-        result[key] = metafield.namespace;
-        break;
-      case 'key':
-        result[key] = metafield.key;
-        break;
-      case 'type':
-        result[key] = metafield.type;
-        break;
-      case 'value':
-        result[key] = metafield.value;
-        break;
-      default:
-        result[key] = null;
-        break;
-    }
-  }
-  return result;
-}
-
-function serializeOrderMetafieldsConnection(
-  field: FieldNode,
-  metafields: OrderMetafieldRecord[],
-): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = metafields.map((metafield) =>
-          serializeOrderMetafieldSelectionSet(metafield, getSelectedChildFields(selection)),
-        );
-        break;
-      case 'edges':
-        result[key] = metafields.map((metafield) => {
-          const edgeResult: Record<string, unknown> = {};
-          for (const edgeSelection of getSelectedChildFields(selection)) {
-            const edgeKey = getFieldResponseKey(edgeSelection);
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edgeResult[edgeKey] = `cursor:${metafield.id}`;
-                break;
-              case 'node':
-                edgeResult[edgeKey] = serializeOrderMetafieldSelectionSet(
-                  metafield,
-                  getSelectedChildFields(edgeSelection),
-                );
-                break;
-              default:
-                edgeResult[edgeKey] = null;
-                break;
-            }
-          }
-          return edgeResult;
-        });
-        break;
-      case 'pageInfo':
-        result[key] = Object.fromEntries(
-          getSelectedChildFields(selection).map((pageInfoSelection) => {
-            const pageInfoKey = getFieldResponseKey(pageInfoSelection);
-            switch (pageInfoSelection.name.value) {
-              case 'hasNextPage':
-              case 'hasPreviousPage':
-                return [pageInfoKey, false];
-              case 'startCursor':
-                return [pageInfoKey, metafields[0] ? `cursor:${metafields[0].id}` : null];
-              case 'endCursor':
-                return [pageInfoKey, metafields.length > 0 ? `cursor:${metafields[metafields.length - 1]!.id}` : null];
-              default:
-                return [pageInfoKey, null];
-            }
-          }),
-        );
-        break;
-      default:
-        result[key] = null;
-        break;
-    }
-  }
-  return result;
-}
-
 function deriveOrderTotalShippingPriceSet(order: OrderRecord): { shopMoney: MoneyV2Record } {
   const currencyCode = readOrderCurrencyCode(order);
   const amount = order.shippingLines.reduce(
@@ -3632,12 +3510,17 @@ function serializeOrderNode(field: FieldNode, order: OrderRecord): Record<string
               )
             : null;
         result[key] = metafield
-          ? serializeOrderMetafieldSelectionSet(metafield, getSelectedChildFields(selection))
+          ? serializeMetafieldSelection(metafield, selection, { includeInlineFragments: true })
           : null;
         break;
       }
       case 'metafields':
-        result[key] = serializeOrderMetafieldsConnection(selection, order.metafields ?? []);
+        result[key] = serializeMetafieldsConnection(
+          order.metafields ?? [],
+          selection,
+          {},
+          { includeInlineFragments: true },
+        );
         break;
       case 'billingAddress':
         result[key] = serializeDraftOrderAddress(selection, order.billingAddress);
@@ -4645,8 +4528,74 @@ function readFulfillmentTrackingInfoUpdateId(variables: Record<string, unknown>)
   return typeof variables['fulfillmentId'] === 'string' ? variables['fulfillmentId'] : null;
 }
 
+function readFulfillmentTrackingInfoInput(
+  variables: Record<string, unknown>,
+): NonNullable<OrderFulfillmentRecord['trackingInfo']>[number] | null {
+  const trackingInfoInput = variables['trackingInfoInput'];
+  if (typeof trackingInfoInput !== 'object' || trackingInfoInput === null) {
+    return null;
+  }
+
+  const input = trackingInfoInput as Record<string, unknown>;
+  return {
+    number: typeof input['number'] === 'string' ? input['number'] : null,
+    url: typeof input['url'] === 'string' ? input['url'] : null,
+    company: typeof input['company'] === 'string' ? input['company'] : null,
+  };
+}
+
 function readFulfillmentCancelId(variables: Record<string, unknown>): string | null {
   return typeof variables['id'] === 'string' ? variables['id'] : null;
+}
+
+function findOrderWithFulfillment(
+  fulfillmentId: string,
+): { order: OrderRecord; fulfillment: OrderFulfillmentRecord } | null {
+  for (const order of store.getOrders()) {
+    const fulfillment = (order.fulfillments ?? []).find((candidate) => candidate.id === fulfillmentId);
+    if (fulfillment) {
+      return { order, fulfillment };
+    }
+  }
+
+  return null;
+}
+
+function serializeFulfillmentMutationPayload(
+  field: FieldNode,
+  fulfillment: OrderFulfillmentRecord | null,
+  userErrors: Array<{ field: string[]; message: string }>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const selectionKey = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'fulfillment':
+        payload[selectionKey] = fulfillment ? serializeOrderFulfillment(selection, fulfillment) : null;
+        break;
+      case 'userErrors':
+        payload[selectionKey] = userErrors.map((userError) =>
+          Object.fromEntries(
+            getSelectedChildFields(selection).map((userErrorSelection) => {
+              const userErrorKey = getFieldResponseKey(userErrorSelection);
+              switch (userErrorSelection.name.value) {
+                case 'field':
+                  return [userErrorKey, userError.field];
+                case 'message':
+                  return [userErrorKey, userError.message];
+                default:
+                  return [userErrorKey, null];
+              }
+            }),
+          ),
+        );
+        break;
+      default:
+        payload[selectionKey] = null;
+        break;
+    }
+  }
+  return payload;
 }
 
 function serializeSelectedOrderMutationPayload(field: FieldNode): Record<string, unknown> {
@@ -5555,6 +5504,32 @@ export function handleOrderMutation(
       const fulfillmentId = readFulfillmentTrackingInfoUpdateId(variables);
       if (inlineIdArgument.value.kind === Kind.VARIABLE && fulfillmentId === null) {
         errors.push(buildFulfillmentTrackingInfoUpdateMissingIdError());
+        continue;
+      }
+
+      if (fulfillmentId) {
+        const trackingInfo = readFulfillmentTrackingInfoInput(variables);
+        const match = findOrderWithFulfillment(fulfillmentId);
+        if (!match || !trackingInfo) {
+          data[key] = serializeFulfillmentMutationPayload(field, null, [
+            { field: ['fulfillmentId'], message: 'Fulfillment does not exist.' },
+          ]);
+          continue;
+        }
+
+        const updatedFulfillment: OrderFulfillmentRecord = {
+          ...match.fulfillment,
+          updatedAt: makeSyntheticTimestamp(),
+          trackingInfo: [trackingInfo],
+        };
+        store.updateOrder({
+          ...match.order,
+          updatedAt: makeSyntheticTimestamp(),
+          fulfillments: (match.order.fulfillments ?? []).map((fulfillment) =>
+            fulfillment.id === fulfillmentId ? updatedFulfillment : fulfillment,
+          ),
+        });
+        data[key] = serializeFulfillmentMutationPayload(field, updatedFulfillment, []);
       }
       continue;
     }
@@ -5576,6 +5551,32 @@ export function handleOrderMutation(
       const fulfillmentId = readFulfillmentCancelId(variables);
       if (inlineIdArgument.value.kind === Kind.VARIABLE && fulfillmentId === null) {
         errors.push(buildFulfillmentCancelMissingIdError());
+        continue;
+      }
+
+      if (fulfillmentId) {
+        const match = findOrderWithFulfillment(fulfillmentId);
+        if (!match) {
+          data[key] = serializeFulfillmentMutationPayload(field, null, [
+            { field: ['id'], message: 'Fulfillment not found.' },
+          ]);
+          continue;
+        }
+
+        const cancelledFulfillment: OrderFulfillmentRecord = {
+          ...match.fulfillment,
+          status: 'CANCELLED',
+          displayStatus: 'CANCELED',
+          updatedAt: makeSyntheticTimestamp(),
+        };
+        store.updateOrder({
+          ...match.order,
+          updatedAt: makeSyntheticTimestamp(),
+          fulfillments: (match.order.fulfillments ?? []).map((fulfillment) =>
+            fulfillment.id === fulfillmentId ? cancelledFulfillment : fulfillment,
+          ),
+        });
+        data[key] = serializeFulfillmentMutationPayload(field, cancelledFulfillment, []);
       }
       continue;
     }
