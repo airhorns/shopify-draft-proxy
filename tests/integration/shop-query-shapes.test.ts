@@ -122,6 +122,8 @@ function writeSnapshot(shop: ShopRecord | null): string {
       products: {},
       productVariants: {},
       productOptions: {},
+      locations: {},
+      locationOrder: [],
       collections: {},
       publications: {},
       customers: {},

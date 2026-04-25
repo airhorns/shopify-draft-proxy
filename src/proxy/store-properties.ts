@@ -2,11 +2,18 @@ import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { logger } from '../logger.js';
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
+import { makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type {
   BusinessEntityAddressRecord,
   BusinessEntityRecord,
+  InventoryLevelRecord,
+  LocationAddressRecord,
+  LocationFulfillmentServiceRecord,
+  LocationRecord,
+  LocationSuggestedAddressRecord,
   PaymentSettingsRecord,
+  ProductVariantRecord,
   ShopifyPaymentsAccountRecord,
   ShopAddressRecord,
   ShopBundlesFeatureRecord,
@@ -19,26 +26,172 @@ import type {
   ShopRecord,
   ShopResourceLimitsRecord,
 } from '../state/types.js';
+import { paginateConnectionItems, serializeConnectionPageInfo } from './graphql-helpers.js';
 
 interface GraphQLResponseError {
   message: string;
-  path: string[];
+  locations?: Array<{
+    line: number;
+    column: number;
+  }>;
+  path?: Array<string | number>;
   extensions: {
-    code: 'UNSUPPORTED_FIELD';
-    reason: string;
+    code: string;
+    reason?: string;
+    inputObjectType?: string;
   };
 }
 
 interface SerializationContext {
   errors: GraphQLResponseError[];
+  fatalErrors: GraphQLResponseError[];
 }
 
 const storePropertiesLogger = logger.child({ component: 'proxy.store-properties' });
 
 const SAFE_SHOPIFY_PAYMENTS_ACCOUNT_FIELDS = new Set(['id', 'activated', 'country', 'defaultCurrency', 'onboardable']);
+const DEFAULT_INVENTORY_LEVEL_LOCATION_ID = 'gid://shopify/Location/1';
 
 function responseKey(selection: FieldNode): string {
   return selection.alias?.value ?? selection.name.value;
+}
+
+interface LocationInventoryLevelRecord {
+  variant: ProductVariantRecord;
+  level: InventoryLevelRecord;
+}
+
+function readLegacyResourceIdFromGid(id: string): string | null {
+  const tail = id.split('/').at(-1);
+  return tail && /^\d+$/u.test(tail) ? tail : null;
+}
+
+function buildStableSyntheticInventoryLevelId(inventoryItemId: string, locationId: string): string {
+  const inventoryItemTail = inventoryItemId.split('/').at(-1) ?? encodeURIComponent(inventoryItemId);
+  const locationTail = locationId.split('/').at(-1) ?? encodeURIComponent(locationId);
+
+  return `gid://shopify/InventoryLevel/${inventoryItemTail}-${locationTail}?inventory_item_id=${encodeURIComponent(
+    inventoryItemId,
+  )}`;
+}
+
+function buildSyntheticInventoryLevel(variant: ProductVariantRecord): InventoryLevelRecord | null {
+  if (!variant.inventoryItem) {
+    return null;
+  }
+
+  const availableQuantity = variant.inventoryQuantity ?? 0;
+  const availableUpdatedAt = makeSyntheticTimestamp();
+
+  return {
+    id: buildStableSyntheticInventoryLevelId(variant.inventoryItem.id, DEFAULT_INVENTORY_LEVEL_LOCATION_ID),
+    cursor: null,
+    location: { id: DEFAULT_INVENTORY_LEVEL_LOCATION_ID, name: null },
+    quantities: [
+      {
+        name: 'available',
+        quantity: availableQuantity,
+        updatedAt: availableUpdatedAt,
+      },
+      {
+        name: 'on_hand',
+        quantity: availableQuantity,
+        updatedAt: null,
+      },
+      {
+        name: 'incoming',
+        quantity: 0,
+        updatedAt: null,
+      },
+      {
+        name: 'committed',
+        quantity: 0,
+        updatedAt: null,
+      },
+      {
+        name: 'reserved',
+        quantity: 0,
+        updatedAt: null,
+      },
+    ],
+  };
+}
+
+function getEffectiveInventoryLevels(variant: ProductVariantRecord): InventoryLevelRecord[] {
+  const hydratedLevels = variant.inventoryItem?.inventoryLevels;
+  if (!hydratedLevels || hydratedLevels.length === 0) {
+    const syntheticLevel = buildSyntheticInventoryLevel(variant);
+    return syntheticLevel ? [syntheticLevel] : [];
+  }
+
+  return structuredClone(hydratedLevels);
+}
+
+function listLocationInventoryLevels(): LocationInventoryLevelRecord[] {
+  return store
+    .listEffectiveProducts()
+    .flatMap((product) =>
+      store
+        .getEffectiveVariantsByProductId(product.id)
+        .flatMap((variant) => getEffectiveInventoryLevels(variant).map((level) => ({ variant, level }))),
+    );
+}
+
+function locationRecordFromInventoryLocation(location: NonNullable<InventoryLevelRecord['location']>): LocationRecord {
+  return {
+    id: location.id,
+    name: location.name,
+  };
+}
+
+function mergeLocationRecord(base: LocationRecord, inventoryLocation: LocationRecord | null): LocationRecord {
+  return {
+    ...base,
+    name: base.name ?? inventoryLocation?.name ?? null,
+  };
+}
+
+function listEffectiveLocations(): LocationRecord[] {
+  const locationsById = new Map<string, LocationRecord>();
+  const locations: LocationRecord[] = [];
+  const seenLocationIds = new Set<string>();
+
+  for (const location of store.listBaseLocations()) {
+    locationsById.set(location.id, location);
+    seenLocationIds.add(location.id);
+    locations.push(location);
+  }
+
+  for (const { level } of listLocationInventoryLevels()) {
+    if (!level.location) {
+      continue;
+    }
+
+    const location = locationRecordFromInventoryLocation(level.location);
+    const existing = locationsById.get(location.id);
+    if (existing) {
+      locationsById.set(location.id, mergeLocationRecord(existing, location));
+      continue;
+    }
+
+    if (seenLocationIds.has(location.id)) {
+      continue;
+    }
+
+    seenLocationIds.add(location.id);
+    locationsById.set(location.id, location);
+    locations.push(location);
+  }
+
+  return locations.map((location) => locationsById.get(location.id) ?? location);
+}
+
+function findEffectiveLocationById(id: string): LocationRecord | null {
+  return listEffectiveLocations().find((location) => location.id === id) ?? null;
+}
+
+function getPrimaryLocation(): LocationRecord | null {
+  return listEffectiveLocations()[0] ?? null;
 }
 
 function serializeAddress(
@@ -82,6 +235,540 @@ function serializeAddress(
         break;
       case 'zip':
         result[key] = address.zip;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeLocationAddress(
+  address: LocationAddressRecord | null,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'LocationAddress') {
+        continue;
+      }
+      Object.assign(result, serializeLocationAddress(address, selection.selectionSet.selections));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'LocationAddress';
+        break;
+      case 'formatted':
+        result[key] = address?.formatted ? structuredClone(address.formatted) : [];
+        break;
+      case 'address1':
+        result[key] = address?.address1 ?? null;
+        break;
+      case 'address2':
+        result[key] = address?.address2 ?? null;
+        break;
+      case 'city':
+        result[key] = address?.city ?? null;
+        break;
+      case 'country':
+        result[key] = address?.country ?? null;
+        break;
+      case 'countryCode':
+        result[key] = address?.countryCode ?? null;
+        break;
+      case 'latitude':
+        result[key] = address?.latitude ?? null;
+        break;
+      case 'longitude':
+        result[key] = address?.longitude ?? null;
+        break;
+      case 'phone':
+        result[key] = address?.phone ?? null;
+        break;
+      case 'province':
+        result[key] = address?.province ?? null;
+        break;
+      case 'provinceCode':
+        result[key] = address?.provinceCode ?? null;
+        break;
+      case 'zip':
+        result[key] = address?.zip ?? null;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeLocationSuggestedAddress(
+  address: LocationSuggestedAddressRecord,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'LocationSuggestedAddress';
+        break;
+      case 'address1':
+        result[key] = address.address1;
+        break;
+      case 'countryCode':
+        result[key] = address.countryCode;
+        break;
+      case 'formatted':
+        result[key] = structuredClone(address.formatted);
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeLocationFulfillmentService(
+  service: LocationFulfillmentServiceRecord,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'FulfillmentService';
+        break;
+      case 'id':
+        result[key] = service.id;
+        break;
+      case 'handle':
+        result[key] = service.handle;
+        break;
+      case 'serviceName':
+        result[key] = service.serviceName;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeEmptyMetafieldsConnection(field: FieldNode): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of field.selectionSet?.selections ?? []) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case 'nodes':
+        result[key] = [];
+        break;
+      case 'edges':
+        result[key] = [];
+        break;
+      case 'pageInfo':
+        result[key] = serializeConnectionPageInfo(selection, [], false, false, () => '');
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeInventoryLevelQuantities(
+  level: InventoryLevelRecord,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Array<Record<string, unknown>> {
+  const args = getFieldArguments(field, variables);
+  const requestedNames = Array.isArray(args['names'])
+    ? args['names'].filter((value): value is string => typeof value === 'string')
+    : [];
+  const visibleQuantities =
+    requestedNames.length > 0
+      ? requestedNames.map(
+          (name) =>
+            level.quantities.find((quantity) => quantity.name === name) ?? { name, quantity: 0, updatedAt: null },
+        )
+      : level.quantities;
+
+  return visibleQuantities.map((quantity) => {
+    const result: Record<string, unknown> = {};
+    for (const selection of field.selectionSet?.selections ?? []) {
+      if (selection.kind !== Kind.FIELD) {
+        continue;
+      }
+
+      const key = responseKey(selection);
+      switch (selection.name.value) {
+        case 'name':
+          result[key] = quantity.name;
+          break;
+        case 'quantity':
+          result[key] = quantity.quantity;
+          break;
+        case 'updatedAt':
+          result[key] = quantity.updatedAt;
+          break;
+        default:
+          result[key] = null;
+      }
+    }
+    return result;
+  });
+}
+
+function serializeInventoryLevelLocation(
+  location: NonNullable<InventoryLevelRecord['location']>,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'Location') {
+        continue;
+      }
+      Object.assign(result, serializeInventoryLevelLocation(location, selection.selectionSet.selections));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'Location';
+        break;
+      case 'id':
+        result[key] = location.id;
+        break;
+      case 'name':
+        result[key] = location.name;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeInventoryItem(
+  variant: ProductVariantRecord,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> | null {
+  if (!variant.inventoryItem) {
+    return null;
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const selection of selections) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'InventoryItem';
+        break;
+      case 'id':
+        result[key] = variant.inventoryItem.id;
+        break;
+      case 'sku':
+        result[key] = variant.sku;
+        break;
+      case 'tracked':
+        result[key] = variant.inventoryItem.tracked;
+        break;
+      case 'requiresShipping':
+        result[key] = variant.inventoryItem.requiresShipping;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeInventoryLevel(
+  entry: LocationInventoryLevelRecord,
+  selections: readonly SelectionNode[],
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'InventoryLevel') {
+        continue;
+      }
+      Object.assign(result, serializeInventoryLevel(entry, selection.selectionSet.selections, variables));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'InventoryLevel';
+        break;
+      case 'id':
+        result[key] = entry.level.id;
+        break;
+      case 'item':
+        result[key] = serializeInventoryItem(entry.variant, selection.selectionSet?.selections ?? []);
+        break;
+      case 'location':
+        result[key] = entry.level.location
+          ? serializeInventoryLevelLocation(entry.level.location, selection.selectionSet?.selections ?? [])
+          : null;
+        break;
+      case 'quantities':
+        result[key] = serializeInventoryLevelQuantities(entry.level, selection, variables);
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function getInventoryLevelCursor(entry: LocationInventoryLevelRecord): string {
+  return entry.level.cursor ?? entry.level.id;
+}
+
+function listInventoryLevelsForLocation(locationId: string): LocationInventoryLevelRecord[] {
+  return listLocationInventoryLevels().filter((entry) => entry.level.location?.id === locationId);
+}
+
+function serializeLocationInventoryLevelsConnection(
+  location: LocationRecord,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const allLevels = listInventoryLevelsForLocation(location.id);
+  if (args['reverse'] === true) {
+    allLevels.reverse();
+  }
+  const {
+    items: levels,
+    hasNextPage,
+    hasPreviousPage,
+  } = paginateConnectionItems(allLevels, field, variables, getInventoryLevelCursor);
+  const result: Record<string, unknown> = {};
+
+  for (const selection of field.selectionSet?.selections ?? []) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case 'nodes':
+        result[key] = levels.map((level) =>
+          serializeInventoryLevel(level, selection.selectionSet?.selections ?? [], variables),
+        );
+        break;
+      case 'edges':
+        result[key] = levels.map((level) => {
+          const edgeResult: Record<string, unknown> = {};
+          for (const edgeSelection of selection.selectionSet?.selections ?? []) {
+            if (edgeSelection.kind !== Kind.FIELD) {
+              continue;
+            }
+
+            const edgeKey = responseKey(edgeSelection);
+            switch (edgeSelection.name.value) {
+              case 'cursor':
+                edgeResult[edgeKey] = getInventoryLevelCursor(level);
+                break;
+              case 'node':
+                edgeResult[edgeKey] = serializeInventoryLevel(
+                  level,
+                  edgeSelection.selectionSet?.selections ?? [],
+                  variables,
+                );
+                break;
+              default:
+                edgeResult[edgeKey] = null;
+            }
+          }
+          return edgeResult;
+        });
+        break;
+      case 'pageInfo':
+        result[key] = serializeConnectionPageInfo(
+          selection,
+          levels,
+          hasNextPage,
+          hasPreviousPage,
+          getInventoryLevelCursor,
+          {
+            prefixCursors: false,
+          },
+        );
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function findInventoryLevelForLocation(
+  locationId: string,
+  inventoryItemId: string,
+): LocationInventoryLevelRecord | null {
+  return (
+    listInventoryLevelsForLocation(locationId).find((entry) => entry.variant.inventoryItem?.id === inventoryItemId) ??
+    null
+  );
+}
+
+function serializeLocation(
+  location: LocationRecord,
+  selections: readonly SelectionNode[],
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'Location') {
+        continue;
+      }
+      Object.assign(result, serializeLocation(location, selection.selectionSet.selections, variables));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'Location';
+        break;
+      case 'id':
+        result[key] = location.id;
+        break;
+      case 'legacyResourceId':
+        result[key] = location.legacyResourceId ?? readLegacyResourceIdFromGid(location.id);
+        break;
+      case 'name':
+        result[key] = location.name;
+        break;
+      case 'activatable':
+        result[key] = location.activatable ?? true;
+        break;
+      case 'addressVerified':
+        result[key] = location.addressVerified ?? false;
+        break;
+      case 'createdAt':
+        result[key] = location.createdAt ?? null;
+        break;
+      case 'updatedAt':
+        result[key] = location.updatedAt ?? null;
+        break;
+      case 'deactivatable':
+        result[key] = location.deactivatable ?? false;
+        break;
+      case 'deactivatedAt':
+        result[key] = location.deactivatedAt ?? null;
+        break;
+      case 'deletable':
+        result[key] = location.deletable ?? false;
+        break;
+      case 'fulfillmentService':
+        result[key] = location.fulfillmentService
+          ? serializeLocationFulfillmentService(location.fulfillmentService, selection.selectionSet?.selections ?? [])
+          : null;
+        break;
+      case 'fulfillsOnlineOrders':
+        result[key] = location.fulfillsOnlineOrders ?? true;
+        break;
+      case 'hasActiveInventory':
+        result[key] = location.hasActiveInventory ?? true;
+        break;
+      case 'isActive':
+        result[key] = location.isActive ?? true;
+        break;
+      case 'shipsInventory':
+        result[key] = location.shipsInventory ?? true;
+        break;
+      case 'hasUnfulfilledOrders':
+        result[key] = location.hasUnfulfilledOrders ?? false;
+        break;
+      case 'isFulfillmentService':
+        result[key] = location.isFulfillmentService ?? false;
+        break;
+      case 'address':
+        result[key] = serializeLocationAddress(location.address ?? null, selection.selectionSet?.selections ?? []);
+        break;
+      case 'suggestedAddresses':
+        result[key] = (location.suggestedAddresses ?? []).map((address) =>
+          serializeLocationSuggestedAddress(address, selection.selectionSet?.selections ?? []),
+        );
+        break;
+      case 'metafield':
+        result[key] = null;
+        break;
+      case 'metafields':
+        result[key] = serializeEmptyMetafieldsConnection(selection);
+        break;
+      case 'inventoryLevel': {
+        const args = getFieldArguments(selection, variables);
+        const inventoryItemId = typeof args['inventoryItemId'] === 'string' ? args['inventoryItemId'] : null;
+        const level = inventoryItemId ? findInventoryLevelForLocation(location.id, inventoryItemId) : null;
+        result[key] = level
+          ? serializeInventoryLevel(level, selection.selectionSet?.selections ?? [], variables)
+          : null;
+        break;
+      }
+      case 'inventoryLevels':
+        result[key] = serializeLocationInventoryLevelsConnection(location, selection, variables);
         break;
       default:
         result[key] = null;
@@ -832,17 +1519,69 @@ function serializeBusinessEntity(
   return result;
 }
 
+function invalidLocationIdentifierError(field: FieldNode): GraphQLResponseError {
+  return {
+    message: "OneOf Input Object 'LocationIdentifierInput' must specify exactly one key.",
+    path: [field.name.value, 'identifier'],
+    extensions: {
+      code: 'invalidOneOfInputObject',
+      inputObjectType: 'LocationIdentifierInput',
+    },
+  };
+}
+
+function resolveLocationIdentifier(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  context: SerializationContext,
+): LocationRecord | null {
+  const args = getFieldArguments(field, variables);
+  const identifier = args['identifier'];
+  if (!identifier || typeof identifier !== 'object' || Array.isArray(identifier)) {
+    context.fatalErrors.push(invalidLocationIdentifierError(field));
+    return null;
+  }
+
+  const identifierRecord = identifier as Record<string, unknown>;
+  const populatedKeys = ['id', 'customId'].filter(
+    (key) => identifierRecord[key] !== undefined && identifierRecord[key] !== null,
+  );
+  if (populatedKeys.length !== 1) {
+    context.fatalErrors.push(invalidLocationIdentifierError(field));
+    return null;
+  }
+
+  if (typeof identifierRecord['id'] === 'string' && identifierRecord['id'].length > 0) {
+    return findEffectiveLocationById(identifierRecord['id']);
+  }
+
+  return null;
+}
+
 export function handleStorePropertiesQuery(
   document: string,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const fields = getRootFields(document);
-  const context: SerializationContext = { errors: [] };
+  const context: SerializationContext = { errors: [], fatalErrors: [] };
   const data: Record<string, unknown> = {};
 
   for (const field of fields) {
     const key = responseKey(field);
     switch (field.name.value) {
+      case 'location': {
+        const args = getFieldArguments(field, variables);
+        const rawId = args['id'];
+        const location =
+          typeof rawId === 'string' && rawId.length > 0 ? findEffectiveLocationById(rawId) : getPrimaryLocation();
+        data[key] = location ? serializeLocation(location, field.selectionSet?.selections ?? [], variables) : null;
+        break;
+      }
+      case 'locationByIdentifier': {
+        const location = resolveLocationIdentifier(field, variables, context);
+        data[key] = location ? serializeLocation(location, field.selectionSet?.selections ?? [], variables) : null;
+        break;
+      }
       case 'shop': {
         const shop = store.getEffectiveShop();
         data[key] = shop ? serializeShop(shop, field.selectionSet?.selections ?? []) : null;
@@ -868,6 +1607,10 @@ export function handleStorePropertiesQuery(
       default:
         data[key] = null;
     }
+  }
+
+  if (context.fatalErrors.length > 0) {
+    return { errors: context.fatalErrors };
   }
 
   return context.errors.length > 0 ? { data, errors: context.errors } : { data };

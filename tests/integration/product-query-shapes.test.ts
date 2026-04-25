@@ -891,6 +891,209 @@ describe('product query shapes', () => {
     });
   });
 
+  it('returns an empty product images connection for staged products without images', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ data: { product: null } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+
+    const app = createApp(config).callback();
+
+    const createResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Imageless Hat" }) { product { id } userErrors { field message } } }',
+    });
+
+    const createdId = createResponse.body.data.productCreate.product.id as string;
+
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query ($id: ID!) { product(id: $id) { id images(first: 5) { nodes { id altText url width height } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }',
+        variables: { id: createdId },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.product.images).toEqual({
+      nodes: [],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: null,
+        endCursor: null,
+      },
+    });
+  });
+
+  it('hydrates upstream product images into compatibility image reads after local overlays', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            product: {
+              id: 'gid://shopify/Product/8397256720617',
+              title: 'Converse Shoe',
+              handle: 'converse-shoe',
+              status: 'ACTIVE',
+              createdAt: '2024-01-02T00:00:00.000Z',
+              updatedAt: '2024-01-03T00:00:00.000Z',
+              images: {
+                edges: [
+                  {
+                    node: {
+                      id: 'gid://shopify/ProductImage/111',
+                      altText: 'Front angle',
+                      url: 'https://cdn.shopify.com/product-image-1.jpg',
+                      width: 1200,
+                      height: 900,
+                    },
+                  },
+                  {
+                    node: {
+                      id: 'gid://shopify/ProductImage/112',
+                      altText: null,
+                      originalSrc: 'https://cdn.shopify.com/product-image-2.jpg',
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+
+    const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
+
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productUpdate(product: { id: "gid://shopify/Product/8397256720617", title: "Converse Shoe Renamed" }) { product { id title } userErrors { field message } } }',
+    });
+
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query ($id: ID!) { product(id: $id) { id title images(first: 10) { edges { cursor node { __typename id altText url originalSrc transformedSrc width height } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }',
+        variables: { id: 'gid://shopify/Product/8397256720617' },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.product.title).toBe('Converse Shoe Renamed');
+    expect(response.body.data.product.images).toEqual({
+      edges: [
+        {
+          cursor: 'cursor:gid://shopify/Product/8397256720617:media:0',
+          node: {
+            __typename: 'Image',
+            id: 'gid://shopify/ProductImage/111',
+            altText: 'Front angle',
+            url: 'https://cdn.shopify.com/product-image-1.jpg',
+            originalSrc: 'https://cdn.shopify.com/product-image-1.jpg',
+            transformedSrc: 'https://cdn.shopify.com/product-image-1.jpg',
+            width: 1200,
+            height: 900,
+          },
+        },
+        {
+          cursor: 'cursor:gid://shopify/Product/8397256720617:media:1',
+          node: {
+            __typename: 'Image',
+            id: 'gid://shopify/ProductImage/112',
+            altText: null,
+            url: 'https://cdn.shopify.com/product-image-2.jpg',
+            originalSrc: 'https://cdn.shopify.com/product-image-2.jpg',
+            transformedSrc: 'https://cdn.shopify.com/product-image-2.jpg',
+            width: null,
+            height: null,
+          },
+        },
+      ],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: 'cursor:gid://shopify/Product/8397256720617:media:0',
+        endCursor: 'cursor:gid://shopify/Product/8397256720617:media:1',
+      },
+    });
+  });
+
+  it('serializes ready staged product image media through the older images connection', async () => {
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const createResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Image Hat" }) { product { id } userErrors { field message } } }',
+    });
+
+    const productId = createResponse.body.data.productCreate.product.id as string;
+
+    const createMediaResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateMedia($productId: ID!, $media: [CreateMediaInput!]!) { productCreateMedia(productId: $productId, media: $media) { media { id } mediaUserErrors { field message } } }',
+        variables: {
+          productId,
+          media: [
+            {
+              mediaContentType: 'IMAGE',
+              originalSource: 'https://cdn.example.com/staged-hat-front.jpg',
+              alt: 'Front',
+            },
+          ],
+        },
+      });
+
+    expect(createMediaResponse.body.data.productCreateMedia.mediaUserErrors).toEqual([]);
+
+    await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query PromoteProcessing($id: ID!) { product(id: $id) { id media(first: 10) { nodes { status preview { image { url } } } } } }',
+        variables: { id: productId },
+      });
+
+    await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query PromoteReady($id: ID!) { product(id: $id) { id media(first: 10) { nodes { status preview { image { url } } } } } }',
+        variables: { id: productId },
+      });
+
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query ProductImages($id: ID!) { product(id: $id) { id images(first: 10) { nodes { __typename id altText url } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }',
+        variables: { id: productId },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.product.images).toEqual({
+      nodes: [
+        {
+          __typename: 'Image',
+          id: expect.stringMatching(/^gid:\/\/shopify\/ProductImage\//),
+          altText: 'Front',
+          url: 'https://cdn.example.com/staged-hat-front.jpg',
+        },
+      ],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: `cursor:${productId}:media:0`,
+        endCursor: `cursor:${productId}:media:0`,
+      },
+    });
+  });
+
   it('paginates product media connections with first/after', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(

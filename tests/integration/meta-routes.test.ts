@@ -16,6 +16,8 @@ const emptySnapshot = {
   products: {},
   productVariants: {},
   productOptions: {},
+  locations: {},
+  locationOrder: [],
   collections: {},
   publications: {},
   customers: {},
