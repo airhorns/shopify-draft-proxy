@@ -12,6 +12,7 @@ Overlay reads:
 - `customerByIdentifier`
 - `customerMergePreview`
 - `customerMergeJobStatus`
+- `customerPaymentMethod` from seeded/snapshot or locally hydrated state only; formal live conformance support remains blocked on `read_customer_payment_methods`
 
 Local staged mutations:
 
@@ -47,6 +48,9 @@ Local staged mutations:
 - Customer-owned addresses live in normalized `customerAddresses` state. Staged `customerAddressCreate`, `customerAddressUpdate`, `customerAddressDelete`, and `customerUpdateDefaultAddress` mutate that address graph locally and keep `Customer.defaultAddress` synchronized with the selected default row.
 - `Customer.addressesV2` serializes from the effective normalized address graph, preserving hydrated connection cursors where captured and returning Shopify-like empty connections when no address records exist.
 - Captured Admin GraphQL 2025-01 evidence for customer address lifecycle uses `MailingAddressInput`, payload field `address`, and delete payload field `deletedAddressId`. Unknown customers return payload `userErrors` with `field: ["customerId"]`; unknown address IDs on update/delete/default roots return top-level `RESOURCE_NOT_FOUND` GraphQL errors with `data.<root>: null`.
+- Customer payment method reads are modeled from normalized `customerPaymentMethods` state only. The local serializer supports `customerPaymentMethod(id:, showRevoked:)` and `Customer.paymentMethods(showRevoked:)`; revoked rows are hidden unless `showRevoked: true` is selected.
+- `CustomerPaymentMethod.instrument` is stored as a selected union payload keyed by `__typename`, so seeded fixtures can serialize credit-card and PayPal billing-agreement fragments without local vaulting. `subscriptionContracts` on the payment method is serialized as a normal connection from seeded link rows; the customer-level `subscriptionContracts` field remains empty/no-data until separately modeled.
+- Customer payment method writes remain unsupported scaffolds except for `customerPaymentMethodSendUpdateEmail`, which is buffered locally and retained for commit replay rather than delivered at runtime. Credit-card, PayPal billing-agreement, remote-create, duplication-data, update-url, and revoke roots require `write_customers` plus `write_customer_payment_methods` and are sensitive because they can involve vaulted instruments, expiring payment links, destructive revocation, asynchronous gateway polling, or customer-visible flows.
 - Captured Admin GraphQL 2026-04 evidence for `customerSet` supports a narrow local slice: create without `identifier`, update by `identifier.id`, and upsert/update by `identifier.email` or `identifier.phone`. The staged input slice is `email`, `firstName`, `lastName`, `locale`, `note`, `phone`, `tags`, `taxExempt`, `taxExemptions`, and address-list replacement when the identifier resolves an existing customer.
 - `customerSet(input.addresses)` is treated as a replacement list for an existing customer: current normalized addresses are removed, input mailing addresses are staged, and `Customer.defaultAddress` follows the first replacement address or `null` for an empty list. Local replay uses stable synthetic address cursors; live Shopify cursors are opaque and are only parity-comparable as expected differences.
 - `customerSet(identifier.customId)` remains unsupported without modeled unique metafield definitions. The local response mirrors the captured top-level `NOT_FOUND` error instead of proxying the supported root upstream.

@@ -4525,6 +4525,37 @@ function readDraftOrderInvoiceSendId(variables: Record<string, unknown>): string
   return typeof variables['id'] === 'string' ? variables['id'] : null;
 }
 
+function buildDraftOrderInvoiceSendUserErrors(
+  draftOrder: DraftOrderRecord | null,
+): Array<{ field: string[] | null; message: string }> {
+  if (!draftOrder) {
+    return [{ field: null, message: 'Draft order not found' }];
+  }
+
+  const userErrors: Array<{ field: string[] | null; message: string }> = [];
+  if (!draftOrder.email) {
+    userErrors.push({ field: null, message: "To can't be blank" });
+  }
+
+  if (draftOrder.status === 'COMPLETED') {
+    userErrors.push({
+      field: null,
+      message: "Draft order Invoice can't be sent. This draft order is already paid.",
+    });
+  }
+
+  if (userErrors.length > 0) {
+    return userErrors;
+  }
+
+  return [
+    {
+      field: ['id'],
+      message: 'draftOrderInvoiceSend is intentionally not executed by the local proxy because it sends email.',
+    },
+  ];
+}
+
 function readDraftOrderCreateFromOrderId(variables: Record<string, unknown>): string | null {
   return typeof variables['orderId'] === 'string' ? variables['orderId'] : null;
 }
@@ -6201,12 +6232,11 @@ export function handleOrderMutation(
       }
 
       const draftOrder = id ? store.getDraftOrderById(id) : null;
-      data[key] = serializeDraftOrderMutationPayload(field, draftOrder, [
-        {
-          field: ['id'],
-          message: 'draftOrderInvoiceSend is intentionally not executed by the local proxy because it sends email.',
-        },
-      ]);
+      data[key] = serializeDraftOrderMutationPayload(
+        field,
+        draftOrder,
+        buildDraftOrderInvoiceSendUserErrors(draftOrder),
+      );
       continue;
     }
 
