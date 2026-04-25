@@ -975,6 +975,85 @@ describe('product query shapes', () => {
     });
   });
 
+  it('serializes product media typenames, edge cursors, and MediaImage fragments', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            product: {
+              id: 'gid://shopify/Product/8397256720617',
+              title: 'Converse Shoe',
+              handle: 'converse-shoe',
+              status: 'ACTIVE',
+              createdAt: '2024-01-02T00:00:00.000Z',
+              updatedAt: '2024-01-03T00:00:00.000Z',
+              media: {
+                edges: [
+                  {
+                    node: {
+                      id: 'gid://shopify/MediaImage/111',
+                      mediaContentType: 'IMAGE',
+                      alt: 'Front angle',
+                      status: 'READY',
+                      preview: { image: { url: 'https://cdn.shopify.com/media-1.jpg' } },
+                      image: { url: 'https://cdn.shopify.com/media-1-large.jpg' },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+
+    const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
+
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productUpdate(product: { id: "gid://shopify/Product/8397256720617", title: "Converse Shoe Renamed" }) { product { id title } userErrors { field message } } }',
+    });
+
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query ($id: ID!) { product(id: $id) { id media(first: 1) { edges { cursor node { __typename id mediaContentType alt status preview { image { url } } ... on MediaImage { image { url } } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }',
+        variables: { id: 'gid://shopify/Product/8397256720617' },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.product.media).toEqual({
+      edges: [
+        {
+          cursor: 'cursor:gid://shopify/Product/8397256720617:media:0',
+          node: {
+            __typename: 'MediaImage',
+            id: 'gid://shopify/MediaImage/111',
+            mediaContentType: 'IMAGE',
+            alt: 'Front angle',
+            status: 'READY',
+            preview: {
+              image: {
+                url: 'https://cdn.shopify.com/media-1.jpg',
+              },
+            },
+            image: {
+              url: 'https://cdn.shopify.com/media-1-large.jpg',
+            },
+          },
+        },
+      ],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: 'cursor:gid://shopify/Product/8397256720617:media:0',
+        endCursor: 'cursor:gid://shopify/Product/8397256720617:media:0',
+      },
+    });
+  });
+
   it('hydrates upstream product metafield reads into staged product queries', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(

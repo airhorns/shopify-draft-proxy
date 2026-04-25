@@ -1037,6 +1037,7 @@ The first staged media-write increment surfaced a few durable modeling constrain
 - the real root fields are `productCreateMedia`, `productUpdateMedia`, and `productDeleteMedia`
 - mutation payloads commonly ask for media node fields that the earlier read slice did not expose yet, especially `id`, `status`, and `... on MediaImage { image { url } }`
 - inline fragments on media nodes matter immediately because Shopify examples routinely request image URLs through `MediaImage.image.url`, not only through `preview.image.url`
+- product media reads should preserve polymorphic identity when selected; for the current image-backed slice that means returning `__typename: "MediaImage"` and applying `MediaImage` fragments, while broader non-image media subtypes need their own conformance evidence before deeper field modeling
 - newly created image media does **not** immediately expose those image urls in the mutation payload; live Shopify returned `status: UPLOADED` with both `preview.image` and `MediaImage.image` still `null`
 - the immediate downstream `product.media` read can already move that same asset into a null-url `PROCESSING` state before it later becomes `READY`
 - `productUpdateMedia` is not always immediately writable after create; Shopify returned `mediaUserErrors` (`Non-ready media cannot be updated.`) until the asset reached `READY`
