@@ -2494,3 +2494,20 @@ Practical rule:
 
 - do not mark broad discount bulk roots implemented until local staging covers the full selected lifecycle and downstream read effects without runtime Shopify writes
 - preserve raw bulk mutation bodies in the staged log so `__meta/commit` replays the original add/delete order exactly once
+
+## 66. `productSet` inventory quantities are location rows, but product totals lag
+
+HAR-286 refreshed `productSet` live parity on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com` with two active locations.
+
+Captured facts:
+
+- live `ProductSetInput.variants[].inventoryQuantities[]` entries require `locationId`, `name`, and `quantity`; the captured writable name is `available`
+- a single productSet-created variant can carry multiple location rows, and each row is exposed immediately through nested `inventoryItem.inventoryLevels`
+- `available` rows are mirrored into `on_hand` rows with the same quantity, while `incoming` remained `0`
+- `productVariant.inventoryQuantity` is the aggregate available quantity across the variant's captured inventory levels
+- product-level `totalInventory` did not simply sum every variant: on create it counted the tracked variant and excluded the untracked variant, and after a follow-up `productSet` inventory update it stayed at the prior product aggregate even though the variant and inventory-item quantities changed immediately
+
+Practical rule:
+
+- model `productSet` inventory inputs as inventory item location-level rows, then derive variant `inventoryQuantity` from those rows
+- do not use the generic eager product inventory-summary recomputation path for `productSet`; preserve the captured create/update product total behavior until fresher evidence shows Shopify has changed it

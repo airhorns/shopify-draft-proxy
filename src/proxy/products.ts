@@ -629,25 +629,56 @@ function serializeJobSelectionSet(
   return result;
 }
 
-function readProductSetInventoryQuantity(raw: unknown): number | null {
+interface ProductSetInventoryQuantityInput {
+  locationId: string | null;
+  name: string;
+  quantity: number;
+}
+
+function readProductSetInventoryQuantityInputs(raw: unknown): ProductSetInventoryQuantityInput[] {
   if (typeof raw === 'number' && Number.isFinite(raw)) {
-    return Math.floor(raw);
+    return [
+      {
+        locationId: null,
+        name: 'available',
+        quantity: Math.floor(raw),
+      },
+    ];
   }
 
   if (!Array.isArray(raw)) {
-    return null;
+    return [];
   }
 
-  const quantities = raw
+  return raw
     .filter((value): value is Record<string, unknown> => isObject(value))
-    .map((value) => value['quantity'])
-    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+    .map((value) => {
+      const rawQuantity = value['quantity'];
+      if (typeof rawQuantity !== 'number' || !Number.isFinite(rawQuantity)) {
+        return null;
+      }
+
+      const rawName = value['name'];
+      const rawLocationId = value['locationId'];
+      return {
+        locationId: typeof rawLocationId === 'string' && rawLocationId.trim() ? rawLocationId : null,
+        name: typeof rawName === 'string' && rawName.trim() ? rawName : 'available',
+        quantity: Math.floor(rawQuantity),
+      };
+    })
+    .filter((value): value is ProductSetInventoryQuantityInput => value !== null);
+}
+
+function readProductSetInventoryQuantity(raw: unknown): number | null {
+  const quantities = readProductSetInventoryQuantityInputs(raw)
+    .filter((value) => value.name === 'available')
+    .map((value) => value.quantity);
 
   if (quantities.length === 0) {
     return null;
   }
 
-  return quantities.reduce((total, quantity) => total + Math.floor(quantity), 0);
+  return quantities.reduce((total, quantity) => total + quantity, 0);
 }
 
 function readProductSetSelectedOptions(raw: unknown): ProductVariantRecord['selectedOptions'] {
@@ -1836,6 +1867,146 @@ function readInventoryItemInput(
   };
 }
 
+function makeInventoryItemForInventoryQuantities(
+  existing: ProductVariantRecord['inventoryItem'],
+): NonNullable<ProductVariantRecord['inventoryItem']> {
+  return existing
+    ? structuredClone(existing)
+    : {
+        id: makeSyntheticGid('InventoryItem'),
+        tracked: null,
+        requiresShipping: null,
+        measurement: null,
+        countryCodeOfOrigin: null,
+        provinceCodeOfOrigin: null,
+        harmonizedSystemCode: null,
+        inventoryLevels: null,
+      };
+}
+
+function upsertInventoryLevelQuantity(
+  quantities: InventoryLevelRecord['quantities'],
+  name: string,
+  quantity: number,
+  updatedAt: string | null = makeSyntheticTimestamp(),
+): InventoryLevelRecord['quantities'] {
+  const nextQuantities = quantities.map((candidate) => structuredClone(candidate));
+  const existingIndex = nextQuantities.findIndex((candidate) => candidate.name === name);
+  const nextQuantity = {
+    name,
+    quantity,
+    updatedAt,
+  };
+
+  if (existingIndex >= 0) {
+    nextQuantities[existingIndex] = {
+      ...nextQuantities[existingIndex]!,
+      ...nextQuantity,
+    };
+  } else {
+    nextQuantities.push(nextQuantity);
+  }
+
+  return nextQuantities;
+}
+
+function ensureInventoryLevelQuantity(
+  quantities: InventoryLevelRecord['quantities'],
+  name: string,
+  quantity: number,
+): InventoryLevelRecord['quantities'] {
+  if (quantities.some((candidate) => candidate.name === name)) {
+    return quantities;
+  }
+
+  return [
+    ...quantities,
+    {
+      name,
+      quantity,
+      updatedAt: null,
+    },
+  ];
+}
+
+function buildProductSetInventoryLevels(
+  variant: ProductVariantRecord,
+  rawInventoryQuantities: unknown,
+  inventoryItem: NonNullable<ProductVariantRecord['inventoryItem']>,
+): InventoryLevelRecord[] | null {
+  const quantityInputs = readProductSetInventoryQuantityInputs(rawInventoryQuantities);
+  if (quantityInputs.length === 0) {
+    return inventoryItem.inventoryLevels ?? null;
+  }
+
+  const inputsByLocationId = new Map<string, ProductSetInventoryQuantityInput[]>();
+  for (const quantityInput of quantityInputs) {
+    const locationId = quantityInput.locationId ?? DEFAULT_INVENTORY_LEVEL_LOCATION_ID;
+    inputsByLocationId.set(locationId, [...(inputsByLocationId.get(locationId) ?? []), quantityInput]);
+  }
+
+  const existingLevelsByLocationId = new Map(
+    (inventoryItem.inventoryLevels ?? buildSyntheticInventoryLevels({ ...variant, inventoryItem })).map((level) => [
+      level.location?.id ?? DEFAULT_INVENTORY_LEVEL_LOCATION_ID,
+      level,
+    ]),
+  );
+
+  return [...inputsByLocationId.entries()].map(([locationId, quantityInputsForLocation]) => {
+    const existingLevel = existingLevelsByLocationId.get(locationId) ?? null;
+    const effectiveLocation = store.getEffectiveLocationById(locationId);
+    let quantities = existingLevel?.quantities.map((quantity) => structuredClone(quantity)) ?? [];
+
+    for (const quantityInput of quantityInputsForLocation) {
+      quantities = upsertInventoryLevelQuantity(quantities, quantityInput.name, quantityInput.quantity);
+      if (quantityInput.name === 'available') {
+        quantities = upsertInventoryLevelQuantity(quantities, 'on_hand', quantityInput.quantity, null);
+      }
+    }
+
+    quantities = ensureInventoryLevelQuantity(quantities, 'available', 0);
+    quantities = ensureInventoryLevelQuantity(quantities, 'on_hand', 0);
+    quantities = ensureInventoryLevelQuantity(quantities, 'incoming', 0);
+
+    return {
+      id: existingLevel?.id ?? buildStableSyntheticInventoryLevelId(inventoryItem.id, locationId),
+      cursor: existingLevel?.cursor ?? null,
+      location: {
+        id: locationId,
+        name: effectiveLocation?.name ?? existingLevel?.location?.name ?? null,
+      },
+      quantities,
+    };
+  });
+}
+
+function applyProductSetInventoryQuantitiesToVariant(
+  variant: ProductVariantRecord,
+  input: Record<string, unknown>,
+): ProductVariantRecord {
+  if (!hasOwnField(input, 'inventoryQuantities')) {
+    return variant;
+  }
+
+  const quantityInputs = readProductSetInventoryQuantityInputs(input['inventoryQuantities']);
+  if (quantityInputs.length === 0) {
+    return variant;
+  }
+
+  const inventoryItem = makeInventoryItemForInventoryQuantities(variant.inventoryItem);
+  const inventoryLevels = buildProductSetInventoryLevels(variant, input['inventoryQuantities'], inventoryItem);
+  const availableQuantity = readProductSetInventoryQuantity(input['inventoryQuantities']);
+
+  return {
+    ...variant,
+    inventoryQuantity: availableQuantity ?? variant.inventoryQuantity,
+    inventoryItem: {
+      ...inventoryItem,
+      inventoryLevels,
+    },
+  };
+}
+
 function deriveVariantTitle(
   rawTitle: unknown,
   selectedOptions: ProductVariantRecord['selectedOptions'],
@@ -1879,17 +2050,27 @@ function makeCreatedVariantRecord(
 function makeCreatedProductSetVariantRecord(productId: string, input: Record<string, unknown>): ProductVariantRecord {
   const variant = makeCreatedVariantRecord(productId, input);
 
-  return {
-    ...variant,
-    taxable: variant.taxable ?? true,
-    inventoryPolicy: variant.inventoryPolicy ?? 'DENY',
-    inventoryItem: variant.inventoryItem
-      ? {
-          ...variant.inventoryItem,
-          measurement: variant.inventoryItem.measurement ?? makeDefaultInventoryItemMeasurement(),
-        }
-      : null,
-  };
+  return applyProductSetInventoryQuantitiesToVariant(
+    {
+      ...variant,
+      taxable: variant.taxable ?? true,
+      inventoryPolicy: variant.inventoryPolicy ?? 'DENY',
+      inventoryItem: variant.inventoryItem
+        ? {
+            ...variant.inventoryItem,
+            measurement: variant.inventoryItem.measurement ?? makeDefaultInventoryItemMeasurement(),
+          }
+        : null,
+    },
+    input,
+  );
+}
+
+function updateProductSetVariantRecord(
+  existing: ProductVariantRecord,
+  input: Record<string, unknown>,
+): ProductVariantRecord {
+  return applyProductSetInventoryQuantitiesToVariant(updateVariantRecord(existing, input), input);
 }
 
 function updateVariantRecord(existing: ProductVariantRecord, input: Record<string, unknown>): ProductVariantRecord {
@@ -2004,6 +2185,40 @@ function syncProductInventorySummary(productId: string): ProductRecord | null {
     ...structuredClone(existingProduct),
     updatedAt: makeSyntheticTimestamp(),
     totalInventory: sumVariantInventory(effectiveVariants),
+    tracksInventory: deriveTracksInventory(effectiveVariants),
+  };
+
+  store.stageUpdateProduct(nextProduct);
+  return store.getEffectiveProductById(productId);
+}
+
+function sumProductSetCreateInventory(variants: ProductVariantRecord[]): number | null {
+  const quantities = variants
+    .filter((variant) => variant.inventoryItem?.tracked !== false)
+    .map((variant) => variant.inventoryQuantity)
+    .filter((inventoryQuantity): inventoryQuantity is number => typeof inventoryQuantity === 'number');
+
+  if (quantities.length === 0) {
+    return null;
+  }
+
+  return quantities.reduce((total, quantity) => total + quantity, 0);
+}
+
+function syncProductSetInventorySummary(
+  productId: string,
+  previousProduct: ProductRecord | null,
+): ProductRecord | null {
+  const existingProduct = store.getEffectiveProductById(productId);
+  if (!existingProduct) {
+    return null;
+  }
+
+  const effectiveVariants = store.getEffectiveVariantsByProductId(productId);
+  const nextProduct: ProductRecord = {
+    ...structuredClone(existingProduct),
+    updatedAt: makeSyntheticTimestamp(),
+    totalInventory: previousProduct ? previousProduct.totalInventory : sumProductSetCreateInventory(effectiveVariants),
     tracksInventory: deriveTracksInventory(effectiveVariants),
   };
 
@@ -3318,7 +3533,7 @@ function buildProductSetVariantRecords(productId: string, rawVariants: unknown):
       const rawId = normalized['id'];
       const existing = typeof rawId === 'string' ? (existingVariantsById.get(rawId) ?? null) : null;
       return existing
-        ? updateVariantRecord(existing, normalized)
+        ? updateProductSetVariantRecord(existing, normalized)
         : makeCreatedProductSetVariantRecord(productId, normalized);
     });
 }
@@ -7065,7 +7280,7 @@ export function handleProductMutation(
         );
       }
 
-      const product = syncProductInventorySummary(productId) ?? store.getEffectiveProductById(productId);
+      const product = syncProductSetInventorySummary(productId, existing) ?? store.getEffectiveProductById(productId);
       return {
         data: {
           [responseKey]: {

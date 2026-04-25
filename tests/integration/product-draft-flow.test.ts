@@ -5197,7 +5197,7 @@ describe('product draft flow', () => {
       .post('/admin/api/2025-01/graphql.json')
       .send({
         query:
-          'mutation CreateViaProductSet($input: ProductSetInput!) { productSet(input: $input) { product { id title handle status vendor productType tags options { id name position values optionValues { id name hasVariants } } variants(first: 10) { nodes { id title sku price inventoryQuantity selectedOptions { name value } inventoryItem { tracked requiresShipping } } } metafields(first: 10) { nodes { id namespace key type value } } } productSetOperation { id status } userErrors { field message } } }',
+          'mutation CreateViaProductSet($input: ProductSetInput!) { productSet(input: $input) { product { id title handle status vendor productType tags totalInventory options { id name position values optionValues { id name hasVariants } } variants(first: 10) { nodes { id title sku price inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping inventoryLevels(first: 10) { nodes { location { id name } quantities(names: ["available", "on_hand", "incoming"]) { name quantity updatedAt } } } } } } metafields(first: 10) { nodes { id namespace key type value } } } productSetOperation { id status } userErrors { field message } } }',
         variables: {
           input: {
             title: 'Set Snowboard',
@@ -5217,14 +5217,17 @@ describe('product draft flow', () => {
                 optionValues: [{ optionName: 'Color', name: 'Blue' }],
                 sku: 'SNOW-SET-BLUE',
                 price: '79.99',
-                inventoryQuantities: [{ quantity: 7 }],
+                inventoryQuantities: [
+                  { locationId: 'gid://shopify/Location/101', name: 'available', quantity: 2 },
+                  { locationId: 'gid://shopify/Location/202', name: 'available', quantity: 5 },
+                ],
                 inventoryItem: { tracked: true, requiresShipping: true },
               },
               {
                 optionValues: [{ optionName: 'Color', name: 'Black' }],
                 sku: 'SNOW-SET-BLACK',
                 price: '69.99',
-                inventoryQuantities: [{ quantity: 3 }],
+                inventoryQuantities: [{ locationId: 'gid://shopify/Location/101', name: 'available', quantity: 3 }],
                 inventoryItem: { tracked: false, requiresShipping: true },
               },
             ],
@@ -5243,6 +5246,7 @@ describe('product draft flow', () => {
       vendor: 'BURTON',
       productType: 'SNOWBOARD',
       tags: ['featured', 'winter'],
+      totalInventory: 7,
     });
     expect(setResponse.body.data.productSet.product.options).toEqual([
       {
@@ -5272,7 +5276,31 @@ describe('product draft flow', () => {
         price: '79.99',
         inventoryQuantity: 7,
         selectedOptions: [{ name: 'Color', value: 'Blue' }],
-        inventoryItem: { tracked: true, requiresShipping: true },
+        inventoryItem: {
+          id: expect.stringMatching(/^gid:\/\/shopify\/InventoryItem\//),
+          tracked: true,
+          requiresShipping: true,
+          inventoryLevels: {
+            nodes: [
+              {
+                location: { id: 'gid://shopify/Location/101', name: null },
+                quantities: [
+                  { name: 'available', quantity: 2, updatedAt: expect.any(String) },
+                  { name: 'on_hand', quantity: 2, updatedAt: null },
+                  { name: 'incoming', quantity: 0, updatedAt: null },
+                ],
+              },
+              {
+                location: { id: 'gid://shopify/Location/202', name: null },
+                quantities: [
+                  { name: 'available', quantity: 5, updatedAt: expect.any(String) },
+                  { name: 'on_hand', quantity: 5, updatedAt: null },
+                  { name: 'incoming', quantity: 0, updatedAt: null },
+                ],
+              },
+            ],
+          },
+        },
       },
       {
         id: expect.stringMatching(/^gid:\/\/shopify\/ProductVariant\//),
@@ -5281,7 +5309,23 @@ describe('product draft flow', () => {
         price: '69.99',
         inventoryQuantity: 3,
         selectedOptions: [{ name: 'Color', value: 'Black' }],
-        inventoryItem: { tracked: false, requiresShipping: true },
+        inventoryItem: {
+          id: expect.stringMatching(/^gid:\/\/shopify\/InventoryItem\//),
+          tracked: false,
+          requiresShipping: true,
+          inventoryLevels: {
+            nodes: [
+              {
+                location: { id: 'gid://shopify/Location/101', name: null },
+                quantities: [
+                  { name: 'available', quantity: 3, updatedAt: expect.any(String) },
+                  { name: 'on_hand', quantity: 3, updatedAt: null },
+                  { name: 'incoming', quantity: 0, updatedAt: null },
+                ],
+              },
+            ],
+          },
+        },
       },
     ]);
     expect(setResponse.body.data.productSet.product.metafields.nodes).toEqual([
@@ -5295,12 +5339,15 @@ describe('product draft flow', () => {
     ]);
 
     const productId = setResponse.body.data.productSet.product.id as string;
+    const blueVariant = setResponse.body.data.productSet.product.variants.nodes[0];
+    const blueVariantId = blueVariant.id as string;
+    const blueInventoryItemId = blueVariant.inventoryItem.id as string;
     const queryResponse = await request(app)
       .post('/admin/api/2025-01/graphql.json')
       .send({
         query:
-          'query ProductSetReadback($id: ID!) { product(id: $id) { id title descriptionHtml onlineStorePreviewUrl options { name values } variants(first: 10) { nodes { sku taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { measurement { weight { unit value } } } } } metafield(namespace: "custom", key: "season") { value } } total: productsCount(query: "sku:SNOW-SET-BLUE") { count precision } }',
-        variables: { id: productId },
+          'query ProductSetReadback($id: ID!, $variantId: ID!, $inventoryItemId: ID!) { product(id: $id) { id title descriptionHtml onlineStorePreviewUrl totalInventory options { name values } variants(first: 10) { nodes { sku taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { measurement { weight { unit value } } inventoryLevels(first: 10) { nodes { location { id name } quantities(names: ["available", "on_hand", "incoming"]) { name quantity updatedAt } } } } } } metafield(namespace: "custom", key: "season") { value } } variant: productVariant(id: $variantId) { id inventoryQuantity inventoryItem { id inventoryLevels(first: 10) { nodes { location { id name } quantities(names: ["available", "on_hand", "incoming"]) { name quantity updatedAt } } } } product { id totalInventory } } stock: inventoryItem(id: $inventoryItemId) { id inventoryLevels(first: 10) { nodes { location { id name } quantities(names: ["available", "on_hand", "incoming"]) { name quantity updatedAt } } } variant { id inventoryQuantity product { id totalInventory } } } total: productsCount(query: "sku:SNOW-SET-BLUE") { count precision } }',
+        variables: { id: productId, variantId: blueVariantId, inventoryItemId: blueInventoryItemId },
       });
 
     expect(queryResponse.status).toBe(200);
@@ -5311,6 +5358,7 @@ describe('product draft flow', () => {
           title: 'Set Snowboard',
           descriptionHtml: '',
           onlineStorePreviewUrl: expect.stringContaining('https://shopify-draft-proxy.local/products_preview?'),
+          totalInventory: 7,
           options: [{ name: 'Color', values: ['Blue', 'Black'] }],
           variants: {
             nodes: [
@@ -5320,7 +5368,29 @@ describe('product draft flow', () => {
                 inventoryPolicy: 'DENY',
                 inventoryQuantity: 7,
                 selectedOptions: [{ name: 'Color', value: 'Blue' }],
-                inventoryItem: { measurement: { weight: { unit: 'KILOGRAMS', value: 0 } } },
+                inventoryItem: {
+                  measurement: { weight: { unit: 'KILOGRAMS', value: 0 } },
+                  inventoryLevels: {
+                    nodes: [
+                      {
+                        location: { id: 'gid://shopify/Location/101', name: null },
+                        quantities: [
+                          { name: 'available', quantity: 2, updatedAt: expect.any(String) },
+                          { name: 'on_hand', quantity: 2, updatedAt: null },
+                          { name: 'incoming', quantity: 0, updatedAt: null },
+                        ],
+                      },
+                      {
+                        location: { id: 'gid://shopify/Location/202', name: null },
+                        quantities: [
+                          { name: 'available', quantity: 5, updatedAt: expect.any(String) },
+                          { name: 'on_hand', quantity: 5, updatedAt: null },
+                          { name: 'incoming', quantity: 0, updatedAt: null },
+                        ],
+                      },
+                    ],
+                  },
+                },
               },
               {
                 sku: 'SNOW-SET-BLACK',
@@ -5328,11 +5398,81 @@ describe('product draft flow', () => {
                 inventoryPolicy: 'DENY',
                 inventoryQuantity: 3,
                 selectedOptions: [{ name: 'Color', value: 'Black' }],
-                inventoryItem: { measurement: { weight: { unit: 'KILOGRAMS', value: 0 } } },
+                inventoryItem: {
+                  measurement: { weight: { unit: 'KILOGRAMS', value: 0 } },
+                  inventoryLevels: {
+                    nodes: [
+                      {
+                        location: { id: 'gid://shopify/Location/101', name: null },
+                        quantities: [
+                          { name: 'available', quantity: 3, updatedAt: expect.any(String) },
+                          { name: 'on_hand', quantity: 3, updatedAt: null },
+                          { name: 'incoming', quantity: 0, updatedAt: null },
+                        ],
+                      },
+                    ],
+                  },
+                },
               },
             ],
           },
           metafield: { value: 'winter' },
+        },
+        variant: {
+          id: blueVariantId,
+          inventoryQuantity: 7,
+          inventoryItem: {
+            id: blueInventoryItemId,
+            inventoryLevels: {
+              nodes: [
+                {
+                  location: { id: 'gid://shopify/Location/101', name: null },
+                  quantities: [
+                    { name: 'available', quantity: 2, updatedAt: expect.any(String) },
+                    { name: 'on_hand', quantity: 2, updatedAt: null },
+                    { name: 'incoming', quantity: 0, updatedAt: null },
+                  ],
+                },
+                {
+                  location: { id: 'gid://shopify/Location/202', name: null },
+                  quantities: [
+                    { name: 'available', quantity: 5, updatedAt: expect.any(String) },
+                    { name: 'on_hand', quantity: 5, updatedAt: null },
+                    { name: 'incoming', quantity: 0, updatedAt: null },
+                  ],
+                },
+              ],
+            },
+          },
+          product: { id: productId, totalInventory: 7 },
+        },
+        stock: {
+          id: blueInventoryItemId,
+          inventoryLevels: {
+            nodes: [
+              {
+                location: { id: 'gid://shopify/Location/101', name: null },
+                quantities: [
+                  { name: 'available', quantity: 2, updatedAt: expect.any(String) },
+                  { name: 'on_hand', quantity: 2, updatedAt: null },
+                  { name: 'incoming', quantity: 0, updatedAt: null },
+                ],
+              },
+              {
+                location: { id: 'gid://shopify/Location/202', name: null },
+                quantities: [
+                  { name: 'available', quantity: 5, updatedAt: expect.any(String) },
+                  { name: 'on_hand', quantity: 5, updatedAt: null },
+                  { name: 'incoming', quantity: 0, updatedAt: null },
+                ],
+              },
+            ],
+          },
+          variant: {
+            id: blueVariantId,
+            inventoryQuantity: 7,
+            product: { id: productId, totalInventory: 7 },
+          },
         },
         total: {
           count: 1,
@@ -5634,7 +5774,7 @@ describe('product draft flow', () => {
                 optionValues: [{ optionName: 'Color', name: 'Blue' }],
                 sku: 'HYBRID-BLUE-2',
                 price: '60.00',
-                inventoryQuantities: [{ quantity: 9 }],
+                inventoryQuantities: [{ locationId: 'gid://shopify/Location/202', name: 'available', quantity: 9 }],
               },
             ],
             metafields: [{ namespace: 'custom', key: 'season', type: 'single_line_text_field', value: 'new' }],
@@ -5655,7 +5795,7 @@ describe('product draft flow', () => {
       .post('/admin/api/2025-01/graphql.json')
       .send({
         query:
-          'query ProductSetAsyncReadback($id: ID!) { product(id: $id) { id title tags collections(first: 10) { nodes { id title handle } } options { name values optionValues { name hasVariants } } variants(first: 10) { nodes { id sku price inventoryQuantity selectedOptions { name value } } } metafields(first: 10) { nodes { namespace key value } } } blueCount: productsCount(query: "sku:HYBRID-BLUE-2") { count precision } redCount: productsCount(query: "sku:HYBRID-RED") { count precision } }',
+          'query ProductSetAsyncReadback($id: ID!) { product(id: $id) { id title tags totalInventory collections(first: 10) { nodes { id title handle } } options { name values optionValues { name hasVariants } } variants(first: 10) { nodes { id sku price inventoryQuantity selectedOptions { name value } inventoryItem { id inventoryLevels(first: 10) { nodes { location { id name } quantities(names: ["available", "on_hand", "incoming"]) { name quantity updatedAt } } } } } } metafields(first: 10) { nodes { namespace key value } } } blueCount: productsCount(query: "sku:HYBRID-BLUE-2") { count precision } redCount: productsCount(query: "sku:HYBRID-RED") { count precision } }',
         variables: { id: 'gid://shopify/Product/700' },
       });
 
@@ -5666,6 +5806,7 @@ describe('product draft flow', () => {
           id: 'gid://shopify/Product/700',
           title: 'Hybrid Board 2',
           tags: ['fresh-tag'],
+          totalInventory: 12,
           collections: {
             nodes: [{ id: 'gid://shopify/Collection/2', title: 'Sale', handle: 'sale' }],
           },
@@ -5687,6 +5828,21 @@ describe('product draft flow', () => {
                 price: '60.00',
                 inventoryQuantity: 9,
                 selectedOptions: [{ name: 'Color', value: 'Blue' }],
+                inventoryItem: {
+                  id: 'gid://shopify/InventoryItem/70001',
+                  inventoryLevels: {
+                    nodes: [
+                      {
+                        location: { id: 'gid://shopify/Location/202', name: null },
+                        quantities: [
+                          { name: 'available', quantity: 9, updatedAt: expect.any(String) },
+                          { name: 'on_hand', quantity: 9, updatedAt: null },
+                          { name: 'incoming', quantity: 0, updatedAt: null },
+                        ],
+                      },
+                    ],
+                  },
+                },
               },
             ],
           },
