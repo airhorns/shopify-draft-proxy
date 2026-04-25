@@ -1,0 +1,22 @@
+api_version = "2026-04"
+
+[[extensions]]
+name = "t:name"
+handle = "conformance-payment-customization"
+type = "function"
+uid = "8c404464-ffb4-05e2-93ec-cb6a6806fd2f4c8aa8c1"
+description = "t:description"
+
+[[extensions.targeting]]
+target = "cart.payment-methods.transform.run"
+input_query = "src/cart_payment_methods_transform_run.graphql"
+export = "cart_payment_methods_transform_run"
+
+[extensions.build]
+command = "cargo build --target=wasm32-unknown-unknown --release"
+path = "target/wasm32-unknown-unknown/release/conformance-payment-customization.wasm"
+watch = ["src/**/*.rs"]
+
+[extensions.ui.paths]
+create = "/"
+details = "/"
