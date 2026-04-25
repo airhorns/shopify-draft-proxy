@@ -454,6 +454,8 @@ function isUnknownPublicationId(publicationId: string): boolean {
   return publicationId.startsWith('__unknown_publication__');
 }
 
+const currentPublicationPlaceholderId = '__current_publication__';
+
 function readPublicationIds(raw: unknown, fallback: string[] = []): string[] {
   if (!Array.isArray(raw)) {
     return structuredClone(fallback);
@@ -550,6 +552,10 @@ function removePublicationTargets(existing: string[], removals: string[]): strin
   }
 
   return next;
+}
+
+function getPublishableProductId(rawId: unknown): string | null {
+  return typeof rawId === 'string' && rawId.startsWith('gid://shopify/Product/') ? rawId : null;
 }
 
 function serializeCountValue(field: FieldNode, count: number): Record<string, unknown> {
@@ -3233,6 +3239,28 @@ function serializeProductMutationPayload(
   const productField = getChildField(field, 'product');
   if (productField) {
     result[getResponseKey(productField)] = serializeProduct(payload.product, productField, variables);
+  }
+
+  const userErrorsField = getChildField(field, 'userErrors');
+  if (userErrorsField) {
+    result[getResponseKey(userErrorsField)] = payload.userErrors;
+  }
+
+  return result;
+}
+
+function serializePublishableMutationPayload(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  payload: {
+    publishable: ProductRecord | null;
+    userErrors: Array<{ field: string[]; message: string }>;
+  },
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  const publishableField = getChildField(field, 'publishable');
+  if (publishableField) {
+    result[getResponseKey(publishableField)] = serializeProduct(payload.publishable, publishableField, variables);
   }
 
   const userErrorsField = getChildField(field, 'userErrors');
@@ -6722,6 +6750,116 @@ export function handleProductMutation(
         data: {
           [responseKey]: serializeProductMutationPayload(field, variables, {
             product,
+            userErrors: [],
+          }),
+        },
+      };
+    }
+    case 'publishablePublish':
+    case 'publishablePublishToCurrentChannel': {
+      const rawPublishableId = args['id'];
+      const productId = getPublishableProductId(rawPublishableId);
+      if (!productId) {
+        return {
+          data: {
+            [responseKey]: serializePublishableMutationPayload(field, variables, {
+              publishable: null,
+              userErrors: [{ field: ['id'], message: 'Only Product publishable IDs are supported locally' }],
+            }),
+          },
+        };
+      }
+
+      const existing = store.getEffectiveProductById(productId);
+      if (!existing) {
+        return {
+          data: {
+            [responseKey]: serializePublishableMutationPayload(field, variables, {
+              publishable: null,
+              userErrors: [{ field: ['id'], message: 'Product not found' }],
+            }),
+          },
+        };
+      }
+
+      const publicationTargets =
+        field.name.value === 'publishablePublishToCurrentChannel'
+          ? [currentPublicationPlaceholderId]
+          : readPublicationTargets(args['input']);
+      if (publicationTargets.length === 0) {
+        return {
+          data: {
+            [responseKey]: serializePublishableMutationPayload(field, variables, {
+              publishable: existing,
+              userErrors: [{ field: ['input'], message: 'Publication target is required' }],
+            }),
+          },
+        };
+      }
+
+      const nextPublicationIds = mergePublicationTargets(existing.publicationIds, publicationTargets);
+      store.stageUpdateProduct(makeProductRecord({ id: productId, publicationIds: nextPublicationIds }, existing));
+      const product = store.getEffectiveProductById(productId);
+
+      return {
+        data: {
+          [responseKey]: serializePublishableMutationPayload(field, variables, {
+            publishable: product,
+            userErrors: [],
+          }),
+        },
+      };
+    }
+    case 'publishableUnpublish':
+    case 'publishableUnpublishToCurrentChannel': {
+      const rawPublishableId = args['id'];
+      const productId = getPublishableProductId(rawPublishableId);
+      if (!productId) {
+        return {
+          data: {
+            [responseKey]: serializePublishableMutationPayload(field, variables, {
+              publishable: null,
+              userErrors: [{ field: ['id'], message: 'Only Product publishable IDs are supported locally' }],
+            }),
+          },
+        };
+      }
+
+      const existing = store.getEffectiveProductById(productId);
+      if (!existing) {
+        return {
+          data: {
+            [responseKey]: serializePublishableMutationPayload(field, variables, {
+              publishable: null,
+              userErrors: [{ field: ['id'], message: 'Product not found' }],
+            }),
+          },
+        };
+      }
+
+      const publicationTargets =
+        field.name.value === 'publishableUnpublishToCurrentChannel'
+          ? [currentPublicationPlaceholderId]
+          : readPublicationTargets(args['input']);
+      if (publicationTargets.length === 0) {
+        return {
+          data: {
+            [responseKey]: serializePublishableMutationPayload(field, variables, {
+              publishable: existing,
+              userErrors: [{ field: ['input'], message: 'Publication target is required' }],
+            }),
+          },
+        };
+      }
+
+      const nextPublicationIds = removePublicationTargets(existing.publicationIds, publicationTargets);
+      store.stageUpdateProduct(makeProductRecord({ id: productId, publicationIds: nextPublicationIds }, existing));
+      const product = store.getEffectiveProductById(productId);
+
+      return {
+        data: {
+          [responseKey]: serializePublishableMutationPayload(field, variables, {
+            publishable: product,
             userErrors: [],
           }),
         },

@@ -1785,7 +1785,8 @@ The first Store properties inventory for Admin GraphQL 2026-04 exposed several r
 Current scaffold decision:
 
 - `shop`, `location`, `locationByIdentifier`, `businessEntities`, `businessEntity`, and `cashManagementLocationSummary` are registry-tracked as planned overlay reads, but they are not implemented runtime capabilities yet
-- `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, `locationDelete`, generic `publishable*` mutations, and `shopPolicyUpdate` are registry-tracked as planned local-staging mutations, but they remain unsupported at runtime
+- `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, `locationDelete`, and `shopPolicyUpdate` are registry-tracked as planned local-staging mutations, but they remain unsupported at runtime
+- generic `publishable*` mutations now have a first product-scoped local staging slice; collection and other future `Publishable` targets still need their own evidence and model behavior
 - the capture harness now records schema inventory plus safe read-only `shop` / `locations` / `location(id:)` baselines, while mutation validation probes are recorded as a plan instead of executed by default
 
 Safety traps:
@@ -1798,6 +1799,19 @@ Safety traps:
 Practical rule:
 
 - keep Store properties registry inventory separate from runtime support; do not flip these roots to implemented until there is captured fixture evidence plus local model behavior for the specific root family
+
+### 47a. Generic Publishable roots must not become permanent passthrough
+
+The generic Store properties publication roots (`publishablePublish`, `publishablePublishToCurrentChannel`, `publishableUnpublish`, and `publishableUnpublishToCurrentChannel`) should not be collapsed into the existing product-specific publication handlers just because `Product` implements `Publishable`.
+
+Current HAR-177 decision:
+
+- keep `productPublish` / `productUnpublish` as the product-domain staged write path with their own captured parity fixtures
+- add a product-scoped local staging slice for the generic `publishable*` roots so known publication mutations do not escape to the real store
+- do not add collection or other `Publishable` support until that resource family has captured evidence and local model behavior
+- treat product and collection targets separately because the Shopify `Publishable` interface currently covers both resource families, and collection publication behavior should not inherit product assumptions without evidence
+
+This keeps generic product publication mutations isolated from upstream Shopify while preventing duplicate or contradictory publication behavior from pretending that product evidence also settles collection publication semantics.
 
 ## 48. Business entity Store properties reads expose payments-adjacent data
 

@@ -1,0 +1,29 @@
+{
+  "scenarioId": "publishablePublishToCurrentChannel-product-parity",
+  "operationNames": ["publishablePublishToCurrentChannel"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-publish-parity.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/publishablePublishToCurrentChannel-product-parity.graphql",
+    "variablesPath": "config/parity-requests/publishablePublishToCurrentChannel-product-parity.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Product-scoped current-publication generic publish support uses the same captured DRAFT product aggregate publication expectations as the product publication fixture; the local model records a current-publication placeholder without exposing upstream writes.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "publishable product aggregate payload",
+        "capturePath": "$.aggregateSelection.response.payload.data.productPublish.product",
+        "proxyPath": "$.data.publishablePublishToCurrentChannel.publishable"
+      },
+      {
+        "name": "user errors",
+        "capturePath": "$.aggregateSelection.response.payload.data.productPublish.userErrors",
+        "proxyPath": "$.data.publishablePublishToCurrentChannel.userErrors"
+      }
+    ]
+  }
+}

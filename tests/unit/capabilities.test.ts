@@ -413,9 +413,9 @@ describe('getOperationCapability', () => {
     });
   });
 
-  it('tracks discounts roots as explicit passthrough until local staging exists', () => {
+  it('keeps registry-only discounts roots out of capability routing until implemented', () => {
     expect(getOperationCapability({ type: 'query', name: 'DiscountNodes', rootFields: ['discountNodes'] })).toEqual({
-      domain: 'discounts',
+      domain: 'unknown',
       execution: 'passthrough',
       operationName: 'DiscountNodes',
       type: 'query',
@@ -428,7 +428,7 @@ describe('getOperationCapability', () => {
         rootFields: ['codeDiscountNodeByCode'],
       }),
     ).toEqual({
-      domain: 'discounts',
+      domain: 'unknown',
       execution: 'passthrough',
       operationName: 'CodeDiscountNodeByCode',
       type: 'query',
@@ -441,9 +441,9 @@ describe('getOperationCapability', () => {
         rootFields: ['discountCodeBasicCreate'],
       }),
     ).toEqual({
-      domain: 'discounts',
+      domain: 'unknown',
       execution: 'passthrough',
-      operationName: 'discountCodeBasicCreate',
+      operationName: 'CreateDiscount',
       type: 'mutation',
     });
 
@@ -454,9 +454,9 @@ describe('getOperationCapability', () => {
         rootFields: ['discountAutomaticBulkDelete'],
       }),
     ).toEqual({
-      domain: 'discounts',
+      domain: 'unknown',
       execution: 'passthrough',
-      operationName: 'discountAutomaticBulkDelete',
+      operationName: 'DeleteAutomaticDiscounts',
       type: 'mutation',
     });
   });
