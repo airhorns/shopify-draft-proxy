@@ -1774,12 +1774,60 @@
     ]
   },
   {
+    "name": "catalog",
+    "type": "query",
+    "domain": "markets",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["catalog", "Catalog"],
+    "runtimeTests": [
+      "tests/integration/markets-query-shapes.test.ts",
+      "tests/unit/conformance-parity-scenarios.test.ts"
+    ]
+  },
+  {
     "name": "catalogs",
     "type": "query",
     "domain": "markets",
     "execution": "overlay-read",
     "implemented": true,
     "matchNames": ["catalogs", "Catalogs"],
+    "runtimeTests": [
+      "tests/integration/markets-query-shapes.test.ts",
+      "tests/unit/conformance-parity-scenarios.test.ts"
+    ]
+  },
+  {
+    "name": "catalogsCount",
+    "type": "query",
+    "domain": "markets",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["catalogsCount", "CatalogsCount"],
+    "runtimeTests": [
+      "tests/integration/markets-query-shapes.test.ts",
+      "tests/unit/conformance-parity-scenarios.test.ts"
+    ]
+  },
+  {
+    "name": "priceList",
+    "type": "query",
+    "domain": "markets",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["priceList", "PriceList"],
+    "runtimeTests": [
+      "tests/integration/markets-query-shapes.test.ts",
+      "tests/unit/conformance-parity-scenarios.test.ts"
+    ]
+  },
+  {
+    "name": "priceLists",
+    "type": "query",
+    "domain": "markets",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["priceLists", "PriceLists"],
     "runtimeTests": [
       "tests/integration/markets-query-shapes.test.ts",
       "tests/unit/conformance-parity-scenarios.test.ts"

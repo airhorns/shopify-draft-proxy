@@ -12,6 +12,7 @@ import { store } from '../../src/state/store.js';
 
 const repoRoot = process.cwd();
 const fixtureRoot = 'fixtures/conformance/very-big-test-store.myshopify.com/2026-04';
+const marketPriceListFixtureRoot = 'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04';
 
 const config: AppConfig = {
   port: 3000,
@@ -31,6 +32,66 @@ type MarketsCatalogFixture = {
   data: {
     markets: {
       edges: CapturedMarketEdge[];
+    };
+  };
+};
+
+type MarketCatalogsFixture = {
+  data: {
+    catalogs: {
+      edges: Array<{
+        cursor: string;
+        node: {
+          id: string;
+          title: string;
+          status: string;
+          priceList: {
+            id: string;
+            name: string;
+            currency: string;
+          } | null;
+          publication: {
+            id: string;
+            autoPublish: boolean;
+          } | null;
+          markets: {
+            edges: Array<{
+              cursor: string;
+              node: {
+                id: string;
+                name: string;
+                handle: string;
+                status: string;
+                type: string;
+              };
+            }>;
+          };
+        };
+      }>;
+    };
+  };
+};
+
+type PriceListFixture = {
+  data: {
+    priceList: {
+      id: string;
+      prices: {
+        edges: Array<{
+          cursor: string;
+          node: {
+            originType: string;
+            variant: {
+              id: string;
+              sku: string | null;
+              product: {
+                id: string;
+                title: string;
+              };
+            };
+          };
+        }>;
+      };
     };
   };
 };
@@ -100,6 +161,50 @@ describe('Markets query shapes', () => {
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
+  it.each([
+    {
+      name: 'market catalog detail and count',
+      documentPath: 'config/parity-requests/market-catalog-detail-read.graphql',
+      variablesPath: 'config/parity-requests/market-catalog-detail-read.variables.json',
+      fixturePath: `${marketPriceListFixtureRoot}/market-catalog-detail.json`,
+    },
+    {
+      name: 'price list detail',
+      documentPath: 'config/parity-requests/price-list-detail-read.graphql',
+      variablesPath: 'config/parity-requests/price-list-detail-read.variables.json',
+      fixturePath: `${marketPriceListFixtureRoot}/price-list-detail.json`,
+    },
+    {
+      name: 'filtered price list prices',
+      documentPath: 'config/parity-requests/price-list-prices-filtered-read.graphql',
+      variablesPath: 'config/parity-requests/price-list-prices-filtered-read.variables.json',
+      fixturePath: `${marketPriceListFixtureRoot}/price-list-prices-filtered.json`,
+    },
+    {
+      name: 'price lists catalog',
+      documentPath: 'config/parity-requests/price-lists-read.graphql',
+      variablesPath: 'config/parity-requests/price-lists-read.variables.json',
+      fixturePath: `${marketPriceListFixtureRoot}/price-lists.json`,
+    },
+  ])('serves captured $name roots from local snapshot state', async ({ documentPath, variablesPath, fixturePath }) => {
+    const document = readText(documentPath);
+    const variables = readJson<Record<string, unknown>>(variablesPath);
+    const fixture = readJson<{ data: Record<string, unknown> }>(fixturePath);
+    hydrateMarketsFromUpstreamResponse(document, variables, fixture);
+
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('snapshot catalog and price-list reads must not fetch'));
+    const app = createApp(config);
+
+    const response = await request(app.callback()).post('/admin/api/2026-04/graphql.json').send({
+      query: document,
+      variables,
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ data: fixture.data });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
   it('returns Shopify-like null and empty connections for absent Markets snapshot data', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('snapshot Markets reads must not fetch upstream'));
     const app = createApp(config);
@@ -137,10 +242,50 @@ describe('Markets query shapes', () => {
                 endCursor
               }
             }
+            catalog(id: $catalogId) {
+              id
+            }
+            catalogs(first: 3) {
+              nodes {
+                id
+              }
+              edges {
+                cursor
+              }
+              pageInfo {
+                hasNextPage
+                hasPreviousPage
+                startCursor
+                endCursor
+              }
+            }
+            catalogsCount(type: MARKET, limit: 10) {
+              count
+              precision
+            }
+            priceList(id: $priceListId) {
+              id
+            }
+            priceLists(first: 3) {
+              nodes {
+                id
+              }
+              edges {
+                cursor
+              }
+              pageInfo {
+                hasNextPage
+                hasPreviousPage
+                startCursor
+                endCursor
+              }
+            }
           }
         `,
         variables: {
           id: 'gid://shopify/Market/0',
+          catalogId: 'gid://shopify/MarketCatalog/0',
+          priceListId: 'gid://shopify/PriceList/0',
         },
       });
 
@@ -159,6 +304,32 @@ describe('Markets query shapes', () => {
           },
         },
         webPresences: {
+          edges: [],
+          pageInfo: {
+            hasNextPage: false,
+            hasPreviousPage: false,
+            startCursor: null,
+            endCursor: null,
+          },
+        },
+        catalog: null,
+        catalogs: {
+          nodes: [],
+          edges: [],
+          pageInfo: {
+            hasNextPage: false,
+            hasPreviousPage: false,
+            startCursor: null,
+            endCursor: null,
+          },
+        },
+        catalogsCount: {
+          count: 0,
+          precision: 'EXACT',
+        },
+        priceList: null,
+        priceLists: {
+          nodes: [],
           edges: [],
           pageInfo: {
             hasNextPage: false,
@@ -396,6 +567,274 @@ describe('Markets query shapes', () => {
       },
       defaultText: {
         nodes: [{ id: usEdge?.node.id, name: 'Conformance US' }],
+      },
+    });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('applies catalog pagination, search filters, counts, and MarketCatalog nested market fields from normalized state', async () => {
+    const document = readText('config/parity-requests/market-catalogs-read.graphql');
+    const variables = readJson<Record<string, unknown>>('config/parity-requests/market-catalogs-read.variables.json');
+    const fixture = readJson<MarketCatalogsFixture>(`${marketPriceListFixtureRoot}/market-catalogs.json`);
+    hydrateMarketsFromUpstreamResponse(document, variables, fixture);
+
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('snapshot Catalog reads must not fetch upstream'));
+    const app = createApp(config);
+    const [catalogEdge] = fixture.data.catalogs.edges;
+    const catalog = catalogEdge!.node;
+    const [marketEdge] = catalog.markets.edges;
+
+    const response = await request(app.callback())
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          query CatalogWindows($catalogId: ID!, $after: String, $marketQuery: String!) {
+            catalog(id: $catalogId) {
+              __typename
+              id
+              title
+              status
+              operations {
+                __typename
+              }
+              marketsCount {
+                count
+                precision
+              }
+              markets(first: 1) {
+                edges {
+                  cursor
+                  node {
+                    id
+                    name
+                    handle
+                    status
+                    type
+                  }
+                }
+              }
+              priceList {
+                id
+                name
+                currency
+              }
+              publication {
+                id
+                autoPublish
+              }
+            }
+            firstPage: catalogs(first: 1, type: MARKET, sortKey: TITLE) {
+              edges {
+                cursor
+                node {
+                  id
+                  title
+                }
+              }
+              pageInfo {
+                hasNextPage
+                hasPreviousPage
+                startCursor
+                endCursor
+              }
+            }
+            afterPage: catalogs(first: 1, after: $after, type: MARKET) {
+              edges {
+                node {
+                  id
+                }
+              }
+            }
+            activeCount: catalogsCount(type: MARKET, query: "status:ACTIVE", limit: 1) {
+              count
+              precision
+            }
+            byMarket: catalogs(first: 5, query: $marketQuery) {
+              nodes {
+                id
+                title
+              }
+            }
+          }
+        `,
+        variables: {
+          catalogId: catalog.id,
+          after: catalogEdge!.cursor,
+          marketQuery: `market_id:${marketEdge!.node.id}`,
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual({
+      catalog: {
+        __typename: 'MarketCatalog',
+        id: catalog.id,
+        title: catalog.title,
+        status: catalog.status,
+        operations: [],
+        marketsCount: {
+          count: 1,
+          precision: 'EXACT',
+        },
+        markets: {
+          edges: [
+            {
+              cursor: marketEdge!.cursor,
+              node: marketEdge!.node,
+            },
+          ],
+        },
+        priceList: catalog.priceList,
+        publication: catalog.publication,
+      },
+      firstPage: {
+        edges: [{ cursor: catalogEdge!.cursor, node: { id: catalog.id, title: catalog.title } }],
+        pageInfo: {
+          hasNextPage: false,
+          hasPreviousPage: false,
+          startCursor: catalogEdge!.cursor,
+          endCursor: catalogEdge!.cursor,
+        },
+      },
+      afterPage: {
+        edges: [],
+      },
+      activeCount: {
+        count: 1,
+        precision: 'EXACT',
+      },
+      byMarket: {
+        nodes: [{ id: catalog.id, title: catalog.title }],
+      },
+    });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('applies price-list pagination and price filters while preserving product variant price relationships', async () => {
+    const detailDocument = readText('config/parity-requests/price-list-detail-read.graphql');
+    const detailVariables = readJson<Record<string, unknown>>(
+      'config/parity-requests/price-list-detail-read.variables.json',
+    );
+    const detailFixture = readJson<PriceListFixture>(`${marketPriceListFixtureRoot}/price-list-detail.json`);
+    hydrateMarketsFromUpstreamResponse(detailDocument, detailVariables, detailFixture);
+
+    const listDocument = readText('config/parity-requests/price-lists-read.graphql');
+    const listVariables = readJson<Record<string, unknown>>('config/parity-requests/price-lists-read.variables.json');
+    const listFixture = readJson<{ data: Record<string, unknown> }>(`${marketPriceListFixtureRoot}/price-lists.json`);
+    hydrateMarketsFromUpstreamResponse(listDocument, listVariables, listFixture);
+
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('snapshot PriceList reads must not fetch upstream'));
+    const app = createApp(config);
+    const [priceEdge] = detailFixture.data.priceList.prices.edges;
+    const variantNumericId = priceEdge!.node.variant.id.split('/').at(-1);
+
+    const response = await request(app.callback())
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          query PriceListWindows($priceListId: ID!, $priceQuery: String!) {
+            priceList(id: $priceListId) {
+              id
+              name
+              currency
+              fixedPricesCount
+              parent {
+                adjustment {
+                  type
+                  value
+                }
+              }
+              catalog {
+                id
+                title
+                status
+              }
+              prices(first: 5, query: $priceQuery) {
+                edges {
+                  cursor
+                  node {
+                    originType
+                    variant {
+                      id
+                      sku
+                      product {
+                        id
+                        title
+                      }
+                    }
+                  }
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+            }
+            priceLists(first: 1, reverse: true) {
+              edges {
+                cursor
+                node {
+                  id
+                  name
+                  currency
+                }
+              }
+              pageInfo {
+                hasNextPage
+                hasPreviousPage
+                startCursor
+                endCursor
+              }
+            }
+          }
+        `,
+        variables: {
+          priceListId: detailFixture.data.priceList.id,
+          priceQuery: `variant_id:${variantNumericId}`,
+        },
+      });
+
+    const allPriceListEdges = (
+      listFixture.data['priceLists'] as {
+        edges: Array<{ cursor: string; node: Record<string, unknown> }>;
+      }
+    ).edges;
+    const reversedFirst = allPriceListEdges.at(-1)!;
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.priceList.prices.edges).toEqual([
+      {
+        cursor: priceEdge!.cursor,
+        node: {
+          originType: priceEdge!.node.originType,
+          variant: priceEdge!.node.variant,
+        },
+      },
+    ]);
+    expect(response.body.data.priceList.prices.pageInfo).toEqual({
+      hasNextPage: false,
+      hasPreviousPage: false,
+      startCursor: priceEdge!.cursor,
+      endCursor: priceEdge!.cursor,
+    });
+    expect(response.body.data.priceLists).toEqual({
+      edges: [
+        {
+          cursor: reversedFirst.cursor,
+          node: {
+            id: reversedFirst.node['id'],
+            name: reversedFirst.node['name'],
+            currency: reversedFirst.node['currency'],
+          },
+        },
+      ],
+      pageInfo: {
+        hasNextPage: true,
+        hasPreviousPage: false,
+        startCursor: reversedFirst.cursor,
+        endCursor: reversedFirst.cursor,
       },
     });
     expect(globalThis.fetch).not.toHaveBeenCalled();
