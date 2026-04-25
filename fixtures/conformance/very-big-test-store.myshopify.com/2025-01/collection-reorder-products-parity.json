@@ -16,9 +16,9 @@
   "initialCollectionRead": {
     "data": {
       "collection": {
-        "id": "gid://shopify/Collection/468787429609",
-        "title": "Hermes Collection Conformance 1777077130063",
-        "handle": "hermes-collection-conformance-1777077130063",
+        "id": "gid://shopify/Collection/468787560681",
+        "title": "Hermes Collection Conformance 1777077614031",
+        "handle": "hermes-collection-conformance-1777077614031",
         "products": {
           "nodes": [
             {
@@ -43,9 +43,9 @@
         "collections": {
           "nodes": [
             {
-              "id": "gid://shopify/Collection/468787429609",
-              "title": "Hermes Collection Conformance 1777077130063",
-              "handle": "hermes-collection-conformance-1777077130063"
+              "id": "gid://shopify/Collection/468787560681",
+              "title": "Hermes Collection Conformance 1777077614031",
+              "handle": "hermes-collection-conformance-1777077614031"
             }
           ],
           "pageInfo": {
@@ -64,9 +64,9 @@
               "handle": "adidas"
             },
             {
-              "id": "gid://shopify/Collection/468787429609",
-              "title": "Hermes Collection Conformance 1777077130063",
-              "handle": "hermes-collection-conformance-1777077130063"
+              "id": "gid://shopify/Collection/468787560681",
+              "title": "Hermes Collection Conformance 1777077614031",
+              "handle": "hermes-collection-conformance-1777077614031"
             }
           ],
           "pageInfo": {
@@ -82,7 +82,7 @@
         "actualQueryCost": 14,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1981,
+          "currentlyAvailable": 1978,
           "restoreRate": 100
         }
       }
@@ -90,7 +90,7 @@
   },
   "mutation": {
     "variables": {
-      "id": "gid://shopify/Collection/468787429609",
+      "id": "gid://shopify/Collection/468787560681",
       "moves": [
         {
           "id": "gid://shopify/Product/8397257572585",
@@ -102,7 +102,7 @@
       "data": {
         "collectionReorderProducts": {
           "job": {
-            "id": "gid://shopify/Job/0b68b534-a841-4674-b4e8-d06e0d3181be",
+            "id": "gid://shopify/Job/b4cfaa75-d19a-4948-b946-ceae5a30fc94",
             "done": false
           },
           "userErrors": []
@@ -114,7 +114,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1984,
+            "currentlyAvailable": 1981,
             "restoreRate": 100
           }
         }
@@ -122,16 +122,16 @@
     }
   },
   "downstreamReadVariables": {
-    "collectionId": "gid://shopify/Collection/468787429609",
+    "collectionId": "gid://shopify/Collection/468787560681",
     "firstProductId": "gid://shopify/Product/8971842846953",
     "secondProductId": "gid://shopify/Product/8397257572585"
   },
   "downstreamRead": {
     "data": {
       "collection": {
-        "id": "gid://shopify/Collection/468787429609",
-        "title": "Hermes Collection Conformance 1777077130063",
-        "handle": "hermes-collection-conformance-1777077130063",
+        "id": "gid://shopify/Collection/468787560681",
+        "title": "Hermes Collection Conformance 1777077614031",
+        "handle": "hermes-collection-conformance-1777077614031",
         "defaultProducts": {
           "nodes": [
             {
@@ -174,9 +174,9 @@
         "collections": {
           "nodes": [
             {
-              "id": "gid://shopify/Collection/468787429609",
-              "title": "Hermes Collection Conformance 1777077130063",
-              "handle": "hermes-collection-conformance-1777077130063"
+              "id": "gid://shopify/Collection/468787560681",
+              "title": "Hermes Collection Conformance 1777077614031",
+              "handle": "hermes-collection-conformance-1777077614031"
             }
           ],
           "pageInfo": {
@@ -195,9 +195,9 @@
               "handle": "adidas"
             },
             {
-              "id": "gid://shopify/Collection/468787429609",
-              "title": "Hermes Collection Conformance 1777077130063",
-              "handle": "hermes-collection-conformance-1777077130063"
+              "id": "gid://shopify/Collection/468787560681",
+              "title": "Hermes Collection Conformance 1777077614031",
+              "handle": "hermes-collection-conformance-1777077614031"
             }
           ],
           "pageInfo": {
@@ -213,7 +213,7 @@
         "actualQueryCost": 18,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1976,
+          "currentlyAvailable": 1973,
           "restoreRate": 100
         }
       }

@@ -1,32 +1,66 @@
 {
   "scenarioId": "draft-order-complete-live-parity",
   "operationNames": ["draftOrderComplete"],
-  "scenarioStatus": "planned",
-  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
-  "liveCaptureFiles": [],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-complete-parity.json"
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/draftOrderComplete-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/draftOrderComplete-parity-plan.variables.json"
+    "variablesPath": "config/parity-requests/draftOrderComplete-parity-plan.variables.json",
+    "variablesCapturePath": "$.variables"
   },
-  "comparisonMode": "planned",
-  "blocker": {
-    "kind": "missing-live-draft-order-complete-access",
-    "blockerPath": null,
-    "details": {
-      "linearIssue": "HAR-186",
-      "requiredScopes": ["write_draft_orders"],
-      "probeRoots": ["draftOrderComplete"],
-      "blockedMutations": ["draftOrderComplete"],
-      "requiredPermissions": ["mark-as-paid", "set-payment-terms"],
-      "failingMessage": "Access denied for draftOrderComplete field. Required access: `write_draft_orders` access scope. Also: The user must have access to mark as paid, or set payment terms.",
-      "activeCredentialTokenFamily": "shpca",
-      "activeCredentialHeaderMode": "raw-x-shopify-access-token",
-      "activeCredentialSummary": "the active conformance credential is a Shopify user access token (`shpca_...`) sent as raw `X-Shopify-Access-Token` on this host",
-      "manualStoreAuthStatus": "missing",
-      "manualStoreAuthTokenPath": ".manual-store-auth-token.json",
-      "manualStoreAuthCachedScopes": [],
-      "manualStoreAuthAssociatedUserScopes": []
-    }
-  },
-  "notes": "Merchant-realistic draft-to-order completion scaffold. The checked-in proxy request captures draft status/ready state, invoice URL, completed timestamp, total price, line items, and the nested `DraftOrder.order` link plus key regular-order fields while still avoiding the stale non-schema top-level `DraftOrderCompletePayload.order` selection that Shopify rejects on this host. Live capture remains blocked until the conformance install can complete draft orders."
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "The live capture completes a draft created earlier in the same conformance run, verifies an empty `userErrors` response, and records immediate downstream `draftOrder(id:)` visibility with the linked regular order. The strict comparison seeds the captured draft before replaying local completion; expected differences are limited to Shopify-generated completion/order identity values.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.completedAt",
+        "matcher": "iso-timestamp",
+        "reason": "Live Shopify and the local draft proxy complete the draft at independent execution times."
+      },
+      {
+        "path": "$.order.id",
+        "matcher": "shopify-gid:Order",
+        "reason": "Live Shopify and the local draft proxy necessarily allocate different order ids when completing the draft."
+      },
+      {
+        "path": "$.order.name",
+        "matcher": "non-empty-string",
+        "reason": "Live Shopify and the local draft proxy allocate independent merchant-facing order names."
+      },
+      {
+        "path": "$.order.lineItems.nodes[*].id",
+        "matcher": "shopify-gid:LineItem",
+        "reason": "Live Shopify and the local draft proxy necessarily allocate different line item ids on the completed order."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-user-errors",
+        "capturePath": "$.mutation.response.data.draftOrderComplete.userErrors",
+        "proxyPath": "$.data.draftOrderComplete.userErrors"
+      },
+      {
+        "name": "mutation-draft-order",
+        "capturePath": "$.mutation.response.data.draftOrderComplete.draftOrder",
+        "proxyPath": "$.data.draftOrderComplete.draftOrder"
+      },
+      {
+        "name": "downstream-completed-draft-order",
+        "capturePath": "$.downstreamRead.response.data.draftOrder",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/draftOrderComplete-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderComplete.draftOrder.id"
+            }
+          }
+        },
+        "proxyPath": "$.data.draftOrder"
+      }
+    ]
+  }
 }

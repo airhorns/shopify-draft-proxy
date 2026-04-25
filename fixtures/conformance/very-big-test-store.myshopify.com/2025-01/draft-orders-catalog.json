@@ -7,15 +7,15 @@
       "draftOrders": {
         "edges": [
           {
-            "cursor": "eyJsYXN0X2lkIjoxMzA3ODA5MTg2MDI1LCJsYXN0X3ZhbHVlIjoiMTMwNzgwOTE4NjAyNSJ9",
+            "cursor": "eyJsYXN0X2lkIjoxMzA3ODI3MjQxMTkzLCJsYXN0X3ZhbHVlIjoiMTMwNzgyNzI0MTE5MyJ9",
             "node": {
-              "id": "gid://shopify/DraftOrder/1307809186025",
-              "name": "#D47",
-              "status": "OPEN",
-              "email": "hermes-draft-order-probe-1777070054514@example.com",
+              "id": "gid://shopify/DraftOrder/1307827241193",
+              "name": "#D53",
+              "status": "COMPLETED",
+              "email": "hermes-draft-order-probe-1777076856718@example.com",
               "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
-              "createdAt": "2026-04-24T22:34:17Z",
-              "updatedAt": "2026-04-24T22:34:17Z",
+              "createdAt": "2026-04-25T00:27:39Z",
+              "updatedAt": "2026-04-25T00:27:41Z",
               "totalPriceSet": {
                 "shopMoney": {
                   "amount": "38.25",
@@ -25,15 +25,15 @@
             }
           },
           {
-            "cursor": "eyJsYXN0X2lkIjoxMzA3Nzg0NTQ0NDg5LCJsYXN0X3ZhbHVlIjoiMTMwNzc4NDU0NDQ4OSJ9",
+            "cursor": "eyJsYXN0X2lkIjoxMzA3ODI0MDYyNjk3LCJsYXN0X3ZhbHVlIjoiMTMwNzgyNDA2MjY5NyJ9",
             "node": {
-              "id": "gid://shopify/DraftOrder/1307784544489",
-              "name": "#D46",
+              "id": "gid://shopify/DraftOrder/1307824062697",
+              "name": "#D52",
               "status": "OPEN",
-              "email": "hermes-draft-order-probe-1777061778914@example.com",
+              "email": "hermes-draft-order-probe-1777075589191@example.com",
               "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
-              "createdAt": "2026-04-24T20:16:21Z",
-              "updatedAt": "2026-04-24T20:16:21Z",
+              "createdAt": "2026-04-25T00:06:34Z",
+              "updatedAt": "2026-04-25T00:06:34Z",
               "totalPriceSet": {
                 "shopMoney": {
                   "amount": "38.25",
@@ -43,15 +43,15 @@
             }
           },
           {
-            "cursor": "eyJsYXN0X2lkIjoxMzA3NzUzOTM5MTc3LCJsYXN0X3ZhbHVlIjoiMTMwNzc1MzkzOTE3NyJ9",
+            "cursor": "eyJsYXN0X2lkIjoxMzA3ODIyNTU1MzY5LCJsYXN0X3ZhbHVlIjoiMTMwNzgyMjU1NTM2OSJ9",
             "node": {
-              "id": "gid://shopify/DraftOrder/1307753939177",
-              "name": "#D45",
+              "id": "gid://shopify/DraftOrder/1307822555369",
+              "name": "#D51",
               "status": "OPEN",
-              "email": "hermes-draft-order-probe-1777055832326@example.com",
+              "email": "hermes-draft-order-probe-1777075062863@example.com",
               "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
-              "createdAt": "2026-04-24T18:37:14Z",
-              "updatedAt": "2026-04-24T18:37:14Z",
+              "createdAt": "2026-04-24T23:57:47Z",
+              "updatedAt": "2026-04-24T23:57:47Z",
               "totalPriceSet": {
                 "shopMoney": {
                   "amount": "38.25",
@@ -61,15 +61,15 @@
             }
           },
           {
-            "cursor": "eyJsYXN0X2lkIjoxMzA3NzUzMzE2NTg1LCJsYXN0X3ZhbHVlIjoiMTMwNzc1MzMxNjU4NSJ9",
+            "cursor": "eyJsYXN0X2lkIjoxMzA3ODIxNzM2MTY5LCJsYXN0X3ZhbHVlIjoiMTMwNzgyMTczNjE2OSJ9",
             "node": {
-              "id": "gid://shopify/DraftOrder/1307753316585",
-              "name": "#D44",
+              "id": "gid://shopify/DraftOrder/1307821736169",
+              "name": "#D50",
               "status": "OPEN",
-              "email": "hermes-draft-order-debug-1777055708745@example.com",
+              "email": "hermes-draft-order-probe-1777074806796@example.com",
               "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
-              "createdAt": "2026-04-24T18:35:09Z",
-              "updatedAt": "2026-04-24T18:35:09Z",
+              "createdAt": "2026-04-24T23:53:29Z",
+              "updatedAt": "2026-04-24T23:53:29Z",
               "totalPriceSet": {
                 "shopMoney": {
                   "amount": "38.25",
@@ -79,18 +79,18 @@
             }
           },
           {
-            "cursor": "eyJsYXN0X2lkIjoxMzA2ODYzMjcyMTY5LCJsYXN0X3ZhbHVlIjoiMTMwNjg2MzI3MjE2OSJ9",
+            "cursor": "eyJsYXN0X2lkIjoxMzA3ODIxMzEwMTg1LCJsYXN0X3ZhbHVlIjoiMTMwNzgyMTMxMDE4NSJ9",
             "node": {
-              "id": "gid://shopify/DraftOrder/1306863272169",
-              "name": "#D43",
-              "status": "OPEN",
-              "email": "hermes-draft-order-probe-1776899624464@example.com",
-              "tags": ["draft-order-create", "parity-probe"],
-              "createdAt": "2026-04-22T23:13:47Z",
-              "updatedAt": "2026-04-22T23:13:47Z",
+              "id": "gid://shopify/DraftOrder/1307821310185",
+              "name": "#D49",
+              "status": "COMPLETED",
+              "email": "hermes-draft-order-probe-1777074686016@example.com",
+              "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
+              "createdAt": "2026-04-24T23:51:28Z",
+              "updatedAt": "2026-04-24T23:51:30Z",
               "totalPriceSet": {
                 "shopMoney": {
-                  "amount": "10.0",
+                  "amount": "38.25",
                   "currencyCode": "CAD"
                 }
               }
@@ -100,8 +100,8 @@
         "pageInfo": {
           "hasNextPage": true,
           "hasPreviousPage": false,
-          "startCursor": "eyJsYXN0X2lkIjoxMzA3ODA5MTg2MDI1LCJsYXN0X3ZhbHVlIjoiMTMwNzgwOTE4NjAyNSJ9",
-          "endCursor": "eyJsYXN0X2lkIjoxMzA2ODYzMjcyMTY5LCJsYXN0X3ZhbHVlIjoiMTMwNjg2MzI3MjE2OSJ9"
+          "startCursor": "eyJsYXN0X2lkIjoxMzA3ODI3MjQxMTkzLCJsYXN0X3ZhbHVlIjoiMTMwNzgyNzI0MTE5MyJ9",
+          "endCursor": "eyJsYXN0X2lkIjoxMzA3ODIxMzEwMTg1LCJsYXN0X3ZhbHVlIjoiMTMwNzgyMTMxMDE4NSJ9"
         }
       }
     },

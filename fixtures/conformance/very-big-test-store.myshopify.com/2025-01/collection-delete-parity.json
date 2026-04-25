@@ -16,13 +16,13 @@
   "mutation": {
     "variables": {
       "input": {
-        "id": "gid://shopify/Collection/468787429609"
+        "id": "gid://shopify/Collection/468787560681"
       }
     },
     "response": {
       "data": {
         "collectionDelete": {
-          "deletedCollectionId": "gid://shopify/Collection/468787429609",
+          "deletedCollectionId": "gid://shopify/Collection/468787560681",
           "userErrors": []
         }
       },
@@ -32,7 +32,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1969,
+            "currentlyAvailable": 1963,
             "restoreRate": 100
           }
         }
@@ -229,7 +229,7 @@
         "actualQueryCost": 22,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1968,
+          "currentlyAvailable": 1960,
           "restoreRate": 100
         }
       }
