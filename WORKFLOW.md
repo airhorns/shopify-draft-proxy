@@ -188,9 +188,8 @@ The agent should be able to talk to Linear, either via a configured Linear MCP s
 - `Todo` -> queued; immediately transition to `In Progress` before active work.
   - Special case: if a PR is already attached, treat as feedback/rework loop (run full PR feedback sweep, address or explicitly push back, revalidate, return to `Human Review`).
 - `In Progress` -> implementation actively underway.
-- `Human Review` -> either a PR is attached and validated for human approval,
-  or a required non-GitHub auth/tool blocker is documented in the workpad for
-  human unblocking without a PR.
+- `Blocked on Human` -> the agent is blocked on an external human action it cannot resolve itself (for example missing scopes, credentials, permissions, or tool access). Leave a concise blocker comment on the Linear issue, move the issue here, then stop until a human replies or moves the issue to a different state.
+- `Human Review` -> PR is attached and validated for human approval.
 - `Merging` -> approved by human; execute the `land` skill flow (do not call `gh pr merge` directly).
 - `Rework` -> reviewer requested changes; planning + implementation required.
 - `Done` -> terminal state; no further action required.
@@ -204,6 +203,7 @@ The agent should be able to talk to Linear, either via a configured Linear MCP s
    - `Todo` -> immediately move to `In Progress`, then ensure bootstrap workpad comment exists (create if missing), then start execution flow.
      - If PR is already attached, start by reviewing all open PR comments and deciding required changes vs explicit pushback responses.
    - `In Progress` -> continue execution flow from current scratchpad comment.
+   - `Blocked on Human` -> do nothing; wait for a human reply or for the issue to be moved into a different state before re-engaging.
    - `Human Review` -> wait and poll for decision/review updates.
    - `Merging` -> on entry, open and follow `.agents/skills/land/SKILL.md`; do not call `gh pr merge` directly.
    - `Rework` -> run rework flow.
@@ -276,18 +276,18 @@ Use this only when completion is blocked by missing required tools or missing au
 
 - GitHub is **not** a valid blocker by default. Always try fallback strategies first (alternate remote/auth mode, then continue publish/review flow).
 - Do not move to `Human Review` for GitHub access/auth until all fallback strategies have been attempted and documented in the workpad.
-- Required conformance recording/re-recording is a special non-GitHub auth
-  blocker: if the required live Shopify probe/capture cannot proceed after the
-  documented credential repair paths have been tried, do not continue with
-  guessed code, stale fixtures, a commit, or a PR. Update the single workpad with
-  the failing command/error, why local/snapshot/existing fixtures cannot satisfy
-  the ticket, and the exact credential action needed, then move the issue to
-  `Human Review`.
-- If a non-GitHub required tool is missing, or required non-GitHub auth is unavailable, move the ticket to `Human Review` with a short blocker brief in the workpad that includes:
-  - what is missing,
-  - why it blocks required acceptance/validation,
-  - exact human action needed to unblock.
-- Keep the brief concise and action-oriented; do not add extra top-level comments outside the workpad.
+- Required conformance recording/re-recording is a special non-GitHub auth blocker. If the required live Shopify probe/capture cannot proceed after the documented credential repair paths have been tried, treat it as a human blocker.
+- If a required non-GitHub tool, auth scope, permission, secret, or external access remains unavailable after exhausting documented fallbacks, treat that as a human blocker.
+- When invoking this escape hatch:
+  - update the workpad with the blocker evidence,
+  - leave a concise top-level Linear comment that includes:
+    - what is missing,
+    - why it blocks required acceptance/validation,
+    - the exact human action needed to unblock,
+    - and the most relevant failing command/error when applicable,
+  - move the issue to `Blocked on Human`,
+  - then stop work and leave the issue alone until a human replies or moves it into a different state.
+- Keep both the workpad update and the Linear blocker comment concise and action-oriented.
 
 ## Step 2: Execution phase (Todo -> In Progress -> Human Review)
 
