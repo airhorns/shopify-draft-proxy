@@ -8,14 +8,18 @@
     "documentPath": "config/parity-requests/products-sort-keys-read.graphql",
     "variablesPath": "config/parity-requests/products-sort-keys-read.variables.json"
   },
-  "comparisonMode": "capture-only",
-  "notes": "Live product sort-key capture covers deterministic Shopify ordering for the currently schema-backed product sort keys TITLE, VENDOR, PRODUCT_TYPE, and ID on the merchant-facing catalog slice already supported by the overlay serializer.",
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity coverage for product sort keys: compares captured TITLE, VENDOR, PRODUCT_TYPE, PUBLISHED_AT, and ID ordering slices with selected fields, cursors, and pageInfo shape.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "products-sort-keys-data",
+        "capturePath": "$.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.response"
+      }
+    ]
   }
 }

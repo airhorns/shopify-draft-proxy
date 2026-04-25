@@ -2,10 +2,20 @@ import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import { parseSearchQuery, type SearchQueryNode, type SearchQueryTerm } from '../search-query-parser.js';
-import { getFieldResponseKey, getSelectedChildFields, serializeConnectionPageInfo } from './graphql-helpers.js';
+import {
+  getFieldResponseKey,
+  getSelectedChildFields,
+  paginateConnectionItems,
+  serializeConnectionPageInfo,
+} from './graphql-helpers.js';
 import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
-import type { CustomerCatalogConnectionRecord, CustomerCatalogPageInfoRecord, CustomerRecord } from '../state/types.js';
+import type {
+  CustomerCatalogConnectionRecord,
+  CustomerCatalogPageInfoRecord,
+  CustomerMetafieldRecord,
+  CustomerRecord,
+} from '../state/types.js';
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -13,6 +23,161 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function hasOwnField(value: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+const VALID_TAX_EXEMPTIONS = new Set([
+  'CA_BC_COMMERCIAL_FISHERY_EXEMPTION',
+  'CA_BC_CONTRACTOR_EXEMPTION',
+  'CA_BC_PRODUCTION_AND_MACHINERY_EXEMPTION',
+  'CA_BC_RESELLER_EXEMPTION',
+  'CA_BC_SUB_CONTRACTOR_EXEMPTION',
+  'CA_DIPLOMAT_EXEMPTION',
+  'CA_MB_COMMERCIAL_FISHERY_EXEMPTION',
+  'CA_MB_FARMER_EXEMPTION',
+  'CA_MB_RESELLER_EXEMPTION',
+  'CA_NS_COMMERCIAL_FISHERY_EXEMPTION',
+  'CA_NS_FARMER_EXEMPTION',
+  'CA_ON_PURCHASE_EXEMPTION',
+  'CA_PE_COMMERCIAL_FISHERY_EXEMPTION',
+  'CA_SK_COMMERCIAL_FISHERY_EXEMPTION',
+  'CA_SK_CONTRACTOR_EXEMPTION',
+  'CA_SK_FARMER_EXEMPTION',
+  'CA_SK_PRODUCTION_AND_MACHINERY_EXEMPTION',
+  'CA_SK_RESELLER_EXEMPTION',
+  'CA_SK_SUB_CONTRACTOR_EXEMPTION',
+  'CA_STATUS_CARD_EXEMPTION',
+  'EU_REVERSE_CHARGE_EXEMPTION_RULE',
+  'US_AK_RESELLER_EXEMPTION',
+  'US_AL_RESELLER_EXEMPTION',
+  'US_AR_RESELLER_EXEMPTION',
+  'US_AZ_RESELLER_EXEMPTION',
+  'US_CA_RESELLER_EXEMPTION',
+  'US_CO_RESELLER_EXEMPTION',
+  'US_CT_RESELLER_EXEMPTION',
+  'US_DC_RESELLER_EXEMPTION',
+  'US_DE_RESELLER_EXEMPTION',
+  'US_FL_RESELLER_EXEMPTION',
+  'US_GA_RESELLER_EXEMPTION',
+  'US_HI_RESELLER_EXEMPTION',
+  'US_IA_RESELLER_EXEMPTION',
+  'US_ID_RESELLER_EXEMPTION',
+  'US_IL_RESELLER_EXEMPTION',
+  'US_IN_RESELLER_EXEMPTION',
+  'US_KS_RESELLER_EXEMPTION',
+  'US_KY_RESELLER_EXEMPTION',
+  'US_LA_RESELLER_EXEMPTION',
+  'US_MA_RESELLER_EXEMPTION',
+  'US_MD_RESELLER_EXEMPTION',
+  'US_ME_RESELLER_EXEMPTION',
+  'US_MI_RESELLER_EXEMPTION',
+  'US_MN_RESELLER_EXEMPTION',
+  'US_MO_RESELLER_EXEMPTION',
+  'US_MS_RESELLER_EXEMPTION',
+  'US_MT_RESELLER_EXEMPTION',
+  'US_NC_RESELLER_EXEMPTION',
+  'US_ND_RESELLER_EXEMPTION',
+  'US_NE_RESELLER_EXEMPTION',
+  'US_NH_RESELLER_EXEMPTION',
+  'US_NJ_RESELLER_EXEMPTION',
+  'US_NM_RESELLER_EXEMPTION',
+  'US_NV_RESELLER_EXEMPTION',
+  'US_NY_RESELLER_EXEMPTION',
+  'US_OH_RESELLER_EXEMPTION',
+  'US_OK_RESELLER_EXEMPTION',
+  'US_OR_RESELLER_EXEMPTION',
+  'US_PA_RESELLER_EXEMPTION',
+  'US_RI_RESELLER_EXEMPTION',
+  'US_SC_RESELLER_EXEMPTION',
+  'US_SD_RESELLER_EXEMPTION',
+  'US_TN_RESELLER_EXEMPTION',
+  'US_TX_RESELLER_EXEMPTION',
+  'US_UT_RESELLER_EXEMPTION',
+  'US_VA_RESELLER_EXEMPTION',
+  'US_VT_RESELLER_EXEMPTION',
+  'US_WA_RESELLER_EXEMPTION',
+  'US_WI_RESELLER_EXEMPTION',
+  'US_WV_RESELLER_EXEMPTION',
+  'US_WY_RESELLER_EXEMPTION',
+]);
+
+const VALID_CUSTOMER_METAFIELD_TYPES = new Set([
+  'antenna_gain',
+  'area',
+  'battery_charge_capacity',
+  'battery_energy_capacity',
+  'boolean',
+  'capacitance',
+  'color',
+  'concentration',
+  'data_storage_capacity',
+  'data_transfer_rate',
+  'date_time',
+  'date',
+  'dimension',
+  'display_density',
+  'distance',
+  'duration',
+  'electric_current',
+  'electrical_resistance',
+  'energy',
+  'float',
+  'frequency',
+  'id',
+  'illuminance',
+  'inductance',
+  'integer',
+  'json_string',
+  'json',
+  'language',
+  'link',
+  'luminous_flux',
+  'mass_flow_rate',
+  'money',
+  'multi_line_text_field',
+  'number_decimal',
+  'number_integer',
+  'power',
+  'pressure',
+  'rating',
+  'resolution',
+  'rich_text_field',
+  'rotational_speed',
+  'single_line_text_field',
+  'sound_level',
+  'speed',
+  'string',
+  'temperature',
+  'thermal_power',
+  'url',
+  'voltage',
+  'volume',
+  'volumetric_flow_rate',
+  'weight',
+  'company_reference',
+  'customer_reference',
+  'product_reference',
+  'collection_reference',
+  'variant_reference',
+  'file_reference',
+  'product_taxonomy_value_reference',
+  'metaobject_reference',
+  'mixed_reference',
+  'page_reference',
+  'article_reference',
+  'order_reference',
+]);
+
+const CUSTOMER_METAFIELD_LIST_TYPES = Array.from(VALID_CUSTOMER_METAFIELD_TYPES)
+  .filter((type) => type !== 'money' && type !== 'rich_text_field' && type !== 'json_string')
+  .map((type) => `list.${type}`);
+
+const VALID_CUSTOMER_METAFIELD_TYPE_MESSAGE = `Type must be one of the following: ${[
+  ...VALID_CUSTOMER_METAFIELD_TYPES,
+  ...CUSTOMER_METAFIELD_LIST_TYPES,
+].join(', ')}.`;
+
+function isValidCustomerMetafieldType(type: string): boolean {
+  return VALID_CUSTOMER_METAFIELD_TYPES.has(type) || CUSTOMER_METAFIELD_LIST_TYPES.includes(type);
 }
 
 function normalizeStringField(
@@ -91,6 +256,11 @@ function normalizeStringArrayField(raw: Record<string, unknown>, key: string, fa
   return value.filter((entry): entry is string => typeof entry === 'string');
 }
 
+function normalizeTaxExemptionsField(raw: Record<string, unknown>, fallback: string[] = []): string[] {
+  const values = normalizeStringArrayField(raw, 'taxExemptions', fallback);
+  return values.filter((value) => VALID_TAX_EXEMPTIONS.has(value));
+}
+
 function buildCustomerDisplayName(
   firstName: string | null,
   lastName: string | null,
@@ -137,6 +307,9 @@ function normalizeDefaultEmailAddress(
 
   return {
     emailAddress: normalizeStringField(raw, 'emailAddress'),
+    marketingState: normalizeStringField(raw, 'marketingState', fallback?.marketingState ?? null),
+    marketingOptInLevel: normalizeStringField(raw, 'marketingOptInLevel', fallback?.marketingOptInLevel ?? null),
+    marketingUpdatedAt: normalizeStringField(raw, 'marketingUpdatedAt', fallback?.marketingUpdatedAt ?? null),
   };
 }
 
@@ -154,6 +327,82 @@ function normalizeDefaultPhoneNumber(
 
   return {
     phoneNumber: normalizeStringField(raw, 'phoneNumber'),
+    marketingState: normalizeStringField(raw, 'marketingState', fallback?.marketingState ?? null),
+    marketingOptInLevel: normalizeStringField(raw, 'marketingOptInLevel', fallback?.marketingOptInLevel ?? null),
+    marketingUpdatedAt: normalizeStringField(raw, 'marketingUpdatedAt', fallback?.marketingUpdatedAt ?? null),
+    marketingCollectedFrom: normalizeStringField(
+      raw,
+      'marketingCollectedFrom',
+      fallback?.marketingCollectedFrom ?? null,
+    ),
+  };
+}
+
+function normalizeEmailMarketingConsent(
+  raw: unknown,
+  fallback: CustomerRecord['emailMarketingConsent'] = null,
+): CustomerRecord['emailMarketingConsent'] {
+  if (raw === undefined) {
+    return fallback ?? null;
+  }
+
+  if (!isObject(raw)) {
+    return null;
+  }
+
+  return {
+    marketingState: normalizeStringField(raw, 'marketingState', fallback?.marketingState ?? null),
+    marketingOptInLevel: normalizeStringField(raw, 'marketingOptInLevel', fallback?.marketingOptInLevel ?? null),
+    consentUpdatedAt: normalizeStringField(raw, 'consentUpdatedAt', fallback?.consentUpdatedAt ?? null),
+  };
+}
+
+function normalizeSmsMarketingConsent(
+  raw: unknown,
+  fallback: CustomerRecord['smsMarketingConsent'] = null,
+): CustomerRecord['smsMarketingConsent'] {
+  if (raw === undefined) {
+    return fallback ?? null;
+  }
+
+  if (!isObject(raw)) {
+    return null;
+  }
+
+  return {
+    marketingState: normalizeStringField(raw, 'marketingState', fallback?.marketingState ?? null),
+    marketingOptInLevel: normalizeStringField(raw, 'marketingOptInLevel', fallback?.marketingOptInLevel ?? null),
+    consentUpdatedAt: normalizeStringField(raw, 'consentUpdatedAt', fallback?.consentUpdatedAt ?? null),
+    consentCollectedFrom: normalizeStringField(raw, 'consentCollectedFrom', fallback?.consentCollectedFrom ?? null),
+  };
+}
+
+function emailConsentFromDefaultAddress(
+  defaultEmailAddress: CustomerRecord['defaultEmailAddress'],
+): CustomerRecord['emailMarketingConsent'] {
+  if (!defaultEmailAddress?.marketingState) {
+    return null;
+  }
+
+  return {
+    marketingState: defaultEmailAddress.marketingState,
+    marketingOptInLevel: defaultEmailAddress.marketingOptInLevel ?? null,
+    consentUpdatedAt: defaultEmailAddress.marketingUpdatedAt ?? null,
+  };
+}
+
+function smsConsentFromDefaultPhoneNumber(
+  defaultPhoneNumber: CustomerRecord['defaultPhoneNumber'],
+): CustomerRecord['smsMarketingConsent'] {
+  if (!defaultPhoneNumber?.marketingState) {
+    return null;
+  }
+
+  return {
+    marketingState: defaultPhoneNumber.marketingState,
+    marketingOptInLevel: defaultPhoneNumber.marketingOptInLevel ?? null,
+    consentUpdatedAt: defaultPhoneNumber.marketingUpdatedAt ?? null,
+    consentCollectedFrom: defaultPhoneNumber.marketingCollectedFrom ?? null,
   };
 }
 
@@ -190,6 +439,26 @@ function normalizeCustomer(raw: unknown): CustomerRecord | null {
   }
 
   const existing = store.getEffectiveCustomerById(id);
+  const defaultEmailAddress = normalizeDefaultEmailAddress(
+    hasOwnField(raw, 'defaultEmailAddress') ? raw['defaultEmailAddress'] : undefined,
+    existing?.defaultEmailAddress ?? null,
+  );
+  const defaultPhoneNumber = normalizeDefaultPhoneNumber(
+    hasOwnField(raw, 'defaultPhoneNumber') ? raw['defaultPhoneNumber'] : undefined,
+    existing?.defaultPhoneNumber ?? null,
+  );
+  const emailMarketingConsent = normalizeEmailMarketingConsent(
+    hasOwnField(raw, 'emailMarketingConsent') ? raw['emailMarketingConsent'] : undefined,
+    hasOwnField(raw, 'defaultEmailAddress')
+      ? emailConsentFromDefaultAddress(defaultEmailAddress)
+      : (existing?.emailMarketingConsent ?? emailConsentFromDefaultAddress(defaultEmailAddress)),
+  );
+  const smsMarketingConsent = normalizeSmsMarketingConsent(
+    hasOwnField(raw, 'smsMarketingConsent') ? raw['smsMarketingConsent'] : undefined,
+    hasOwnField(raw, 'defaultPhoneNumber')
+      ? smsConsentFromDefaultPhoneNumber(defaultPhoneNumber)
+      : (existing?.smsMarketingConsent ?? smsConsentFromDefaultPhoneNumber(defaultPhoneNumber)),
+  );
 
   return {
     id,
@@ -203,6 +472,7 @@ function normalizeCustomer(raw: unknown): CustomerRecord | null {
     canDelete: normalizeBooleanField(raw, 'canDelete', existing?.canDelete ?? null),
     verifiedEmail: normalizeBooleanField(raw, 'verifiedEmail', existing?.verifiedEmail ?? null),
     taxExempt: normalizeBooleanField(raw, 'taxExempt', existing?.taxExempt ?? null),
+    taxExemptions: normalizeTaxExemptionsField(raw, existing?.taxExemptions ?? []),
     state: normalizeStringField(raw, 'state', existing?.state ?? null),
     tags: normalizeStringArrayField(raw, 'tags', existing?.tags ?? []),
     numberOfOrders: normalizeCountField(raw, 'numberOfOrders', existing?.numberOfOrders ?? null),
@@ -210,20 +480,38 @@ function normalizeCustomer(raw: unknown): CustomerRecord | null {
       hasOwnField(raw, 'amountSpent') ? raw['amountSpent'] : undefined,
       existing?.amountSpent ?? null,
     ),
-    defaultEmailAddress: normalizeDefaultEmailAddress(
-      hasOwnField(raw, 'defaultEmailAddress') ? raw['defaultEmailAddress'] : undefined,
-      existing?.defaultEmailAddress ?? null,
-    ),
-    defaultPhoneNumber: normalizeDefaultPhoneNumber(
-      hasOwnField(raw, 'defaultPhoneNumber') ? raw['defaultPhoneNumber'] : undefined,
-      existing?.defaultPhoneNumber ?? null,
-    ),
+    defaultEmailAddress,
+    defaultPhoneNumber,
+    emailMarketingConsent,
+    smsMarketingConsent,
     defaultAddress: normalizeDefaultAddress(
       hasOwnField(raw, 'defaultAddress') ? raw['defaultAddress'] : undefined,
       existing?.defaultAddress ?? null,
     ),
     createdAt: normalizeStringField(raw, 'createdAt', existing?.createdAt ?? null),
     updatedAt: normalizeStringField(raw, 'updatedAt', existing?.updatedAt ?? null),
+  };
+}
+
+function normalizeCustomerMetafield(customerId: string, raw: unknown): CustomerMetafieldRecord | null {
+  if (!isObject(raw)) {
+    return null;
+  }
+
+  const id = raw['id'];
+  const namespace = raw['namespace'];
+  const key = raw['key'];
+  if (typeof id !== 'string' || typeof namespace !== 'string' || typeof key !== 'string') {
+    return null;
+  }
+
+  return {
+    id,
+    customerId,
+    namespace,
+    key,
+    type: normalizeStringField(raw, 'type'),
+    value: normalizeStringField(raw, 'value'),
   };
 }
 
@@ -268,6 +556,18 @@ function serializeDefaultEmailSelection(
       case 'emailAddress':
         result[key] = value.emailAddress;
         break;
+      case 'marketingState':
+        result[key] = value.marketingState ?? null;
+        break;
+      case 'marketingOptInLevel':
+        result[key] = value.marketingOptInLevel ?? null;
+        break;
+      case 'marketingUpdatedAt':
+        result[key] = value.marketingUpdatedAt ?? null;
+        break;
+      case 'sourceLocation':
+        result[key] = null;
+        break;
       default:
         result[key] = null;
         break;
@@ -290,6 +590,21 @@ function serializeDefaultPhoneNumberSelection(
     switch (selection.name.value) {
       case 'phoneNumber':
         result[key] = value.phoneNumber;
+        break;
+      case 'marketingState':
+        result[key] = value.marketingState ?? null;
+        break;
+      case 'marketingOptInLevel':
+        result[key] = value.marketingOptInLevel ?? null;
+        break;
+      case 'marketingUpdatedAt':
+        result[key] = value.marketingUpdatedAt ?? null;
+        break;
+      case 'marketingCollectedFrom':
+        result[key] = value.marketingCollectedFrom ?? null;
+        break;
+      case 'sourceLocation':
+        result[key] = null;
         break;
       default:
         result[key] = null;
@@ -337,7 +652,99 @@ function serializeDefaultAddressSelection(
   return result;
 }
 
-function serializeCustomerSelection(customer: CustomerRecord, field: FieldNode): Record<string, unknown> {
+function serializeCustomerMetafieldSelection(
+  metafield: CustomerMetafieldRecord,
+  field: FieldNode,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = metafield.id;
+        break;
+      case 'namespace':
+        result[key] = metafield.namespace;
+        break;
+      case 'key':
+        result[key] = metafield.key;
+        break;
+      case 'type':
+        result[key] = metafield.type;
+        break;
+      case 'value':
+        result[key] = metafield.value;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeCustomerMetafieldsConnection(
+  customerId: string,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const allMetafields = store.getEffectiveMetafieldsByCustomerId(customerId);
+  const {
+    items: metafields,
+    hasNextPage,
+    hasPreviousPage,
+  } = paginateConnectionItems(allMetafields, field, variables, (metafield) => metafield.id);
+  const result: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'nodes':
+        result[key] = metafields.map((metafield) => serializeCustomerMetafieldSelection(metafield, selection));
+        break;
+      case 'edges':
+        result[key] = metafields.map((metafield) => {
+          const edge: Record<string, unknown> = {};
+          for (const edgeSelection of getSelectedChildFields(selection)) {
+            const edgeKey = getFieldResponseKey(edgeSelection);
+            switch (edgeSelection.name.value) {
+              case 'cursor':
+                edge[edgeKey] = `cursor:${metafield.id}`;
+                break;
+              case 'node':
+                edge[edgeKey] = serializeCustomerMetafieldSelection(metafield, edgeSelection);
+                break;
+              default:
+                edge[edgeKey] = null;
+                break;
+            }
+          }
+          return edge;
+        });
+        break;
+      case 'pageInfo':
+        result[key] = serializeConnectionPageInfo(
+          selection,
+          metafields,
+          hasNextPage,
+          hasPreviousPage,
+          (metafield) => metafield.id,
+        );
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+
+  return result;
+}
+
+function serializeCustomerSelection(
+  customer: CustomerRecord,
+  field: FieldNode,
+  variables: Record<string, unknown> = {},
+): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
   for (const selection of getSelectedChildFields(field)) {
@@ -376,6 +783,9 @@ function serializeCustomerSelection(customer: CustomerRecord, field: FieldNode):
       case 'taxExempt':
         result[key] = customer.taxExempt;
         break;
+      case 'taxExemptions':
+        result[key] = structuredClone(customer.taxExemptions ?? []);
+        break;
       case 'state':
         result[key] = customer.state;
         break;
@@ -394,8 +804,30 @@ function serializeCustomerSelection(customer: CustomerRecord, field: FieldNode):
       case 'defaultPhoneNumber':
         result[key] = serializeDefaultPhoneNumberSelection(selection, customer.defaultPhoneNumber);
         break;
+      case 'emailMarketingConsent':
+        result[key] = serializeEmailMarketingConsentSelection(selection, customer.emailMarketingConsent ?? null);
+        break;
+      case 'smsMarketingConsent':
+        result[key] = serializeSmsMarketingConsentSelection(selection, customer.smsMarketingConsent ?? null);
+        break;
       case 'defaultAddress':
         result[key] = serializeDefaultAddressSelection(selection, customer.defaultAddress);
+        break;
+      case 'metafield': {
+        const args = getFieldArguments(selection, variables);
+        const namespace = typeof args['namespace'] === 'string' ? args['namespace'] : null;
+        const metafieldKey = typeof args['key'] === 'string' ? args['key'] : null;
+        const metafield =
+          namespace && metafieldKey
+            ? store
+                .getEffectiveMetafieldsByCustomerId(customer.id)
+                .find((candidate) => candidate.namespace === namespace && candidate.key === metafieldKey)
+            : null;
+        result[key] = metafield ? serializeCustomerMetafieldSelection(metafield, selection) : null;
+        break;
+      }
+      case 'metafields':
+        result[key] = serializeCustomerMetafieldsConnection(customer.id, selection, variables);
         break;
       case 'createdAt':
         result[key] = customer.createdAt;
@@ -409,6 +841,73 @@ function serializeCustomerSelection(customer: CustomerRecord, field: FieldNode):
     }
   }
 
+  return result;
+}
+
+function serializeEmailMarketingConsentSelection(
+  field: FieldNode,
+  value: CustomerRecord['emailMarketingConsent'],
+): Record<string, unknown> | null {
+  if (!value) {
+    return null;
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'marketingState':
+        result[key] = value.marketingState;
+        break;
+      case 'marketingOptInLevel':
+        result[key] = value.marketingOptInLevel;
+        break;
+      case 'consentUpdatedAt':
+        result[key] = value.consentUpdatedAt;
+        break;
+      case 'sourceLocation':
+        result[key] = null;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeSmsMarketingConsentSelection(
+  field: FieldNode,
+  value: CustomerRecord['smsMarketingConsent'],
+): Record<string, unknown> | null {
+  if (!value) {
+    return null;
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'marketingState':
+        result[key] = value.marketingState;
+        break;
+      case 'marketingOptInLevel':
+        result[key] = value.marketingOptInLevel;
+        break;
+      case 'consentUpdatedAt':
+        result[key] = value.consentUpdatedAt;
+        break;
+      case 'consentCollectedFrom':
+        result[key] = value.consentCollectedFrom;
+        break;
+      case 'sourceLocation':
+        result[key] = null;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
   return result;
 }
 
@@ -438,6 +937,86 @@ function listCustomersForConnection(catalogConnection: CustomerCatalogConnection
 
 function normalizeCustomerSearchValue(value: string | null | undefined): string {
   return (value ?? '').trim().toLowerCase();
+}
+
+function normalizeCustomerIdentifierValue(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+}
+
+function findCustomerByIdentifier(identifier: Record<string, unknown>): CustomerRecord | null {
+  const id = normalizeCustomerIdentifierValue(identifier['id']);
+  if (id) {
+    return store.getEffectiveCustomerById(id);
+  }
+
+  const emailAddress = normalizeCustomerIdentifierValue(identifier['emailAddress']);
+  if (emailAddress) {
+    const normalizedEmailAddress = emailAddress.toLowerCase();
+    return (
+      store
+        .listEffectiveCustomers()
+        .find(
+          (customer) =>
+            customer.email?.trim().toLowerCase() === normalizedEmailAddress ||
+            customer.defaultEmailAddress?.emailAddress?.trim().toLowerCase() === normalizedEmailAddress,
+        ) ?? null
+    );
+  }
+
+  const phoneNumber = normalizeCustomerIdentifierValue(identifier['phoneNumber']);
+  if (phoneNumber) {
+    return (
+      store
+        .listEffectiveCustomers()
+        .find((customer) => customer.defaultPhoneNumber?.phoneNumber?.trim() === phoneNumber) ?? null
+    );
+  }
+
+  return null;
+}
+
+function countProvidedCustomerIdentifiers(identifier: Record<string, unknown>): number {
+  return ['id', 'emailAddress', 'phoneNumber', 'customId'].filter((key) => identifier[key] !== undefined).length;
+}
+
+function buildInvalidCustomerIdentifierError(identifier: Record<string, unknown>): Record<string, unknown> {
+  const providedCount = countProvidedCustomerIdentifiers(identifier);
+  return {
+    message: 'Variable $identifier of type CustomerIdentifierInput! was provided invalid value',
+    extensions: {
+      code: 'INVALID_VARIABLE',
+      value: structuredClone(identifier),
+      problems: [
+        {
+          path: [],
+          explanation: `'CustomerIdentifierInput' requires exactly one argument, but ${providedCount} were provided.`,
+        },
+      ],
+    },
+  };
+}
+
+function buildMissingCustomerIdentifierArgumentError(field: FieldNode): Record<string, unknown> {
+  return {
+    message: "Field 'customerByIdentifier' is missing required arguments: identifier",
+    path: [getFieldResponseKey(field)],
+    extensions: {
+      code: 'missingRequiredArguments',
+      className: 'Field',
+      name: 'customerByIdentifier',
+      arguments: 'identifier',
+    },
+  };
+}
+
+function buildCustomerCustomIdentifierError(field: FieldNode): Record<string, unknown> {
+  return {
+    message: "Metafield definition of type 'id' is required when using custom ids.",
+    path: [getFieldResponseKey(field)],
+    extensions: {
+      code: 'NOT_FOUND',
+    },
+  };
 }
 
 function isPrefixPattern(rawValue: string): boolean {
@@ -817,7 +1396,9 @@ function serializeCustomersConnection(field: FieldNode, variables: Record<string
     const key = getFieldResponseKey(selection);
     switch (selection.name.value) {
       case 'nodes':
-        connection[key] = visibleCustomers.map((customer) => serializeCustomerSelection(customer, selection));
+        connection[key] = visibleCustomers.map((customer) =>
+          serializeCustomerSelection(customer, selection, variables),
+        );
         break;
       case 'edges':
         connection[key] = visibleCustomers.map((customer) => {
@@ -829,7 +1410,7 @@ function serializeCustomersConnection(field: FieldNode, variables: Record<string
                 edge[edgeKey] = resolveCatalogCustomerCursor(customer.id, activeConnection);
                 break;
               case 'node':
-                edge[edgeKey] = serializeCustomerSelection(customer, edgeSelection);
+                edge[edgeKey] = serializeCustomerSelection(customer, edgeSelection, variables);
                 break;
               default:
                 edge[edgeKey] = null;
@@ -878,15 +1459,28 @@ function normalizeCustomerCatalogPageInfo(raw: unknown): CustomerCatalogPageInfo
   };
 }
 
-function collectHydratableCustomers(raw: unknown): CustomerRecord[] {
+function collectHydratableCustomers(document: string, raw: unknown): CustomerRecord[] {
   if (!isObject(raw)) {
     return [];
   }
 
-  const directCustomer = normalizeCustomer(raw['customer']);
-  const customersConnection = raw['customers'];
-  const connectionCustomers = isObject(customersConnection)
-    ? [
+  const customers: CustomerRecord[] = [];
+  for (const field of getRootFields(document)) {
+    const responseKey = getFieldResponseKey(field);
+    if (field.name.value === 'customer' || field.name.value === 'customerByIdentifier') {
+      const customer = normalizeCustomer(raw[responseKey]);
+      if (customer) {
+        customers.push(customer);
+      }
+    }
+
+    if (field.name.value === 'customers') {
+      const customersConnection = raw[responseKey];
+      if (!isObject(customersConnection)) {
+        continue;
+      }
+
+      const connectionCustomers = [
         ...(Array.isArray(customersConnection['nodes']) ? customersConnection['nodes'] : []),
         ...(Array.isArray(customersConnection['edges'])
           ? customersConnection['edges']
@@ -895,12 +1489,131 @@ function collectHydratableCustomers(raw: unknown): CustomerRecord[] {
           : []),
       ]
         .map((candidate) => normalizeCustomer(candidate))
-        .filter((candidate): candidate is CustomerRecord => candidate !== null)
-    : [];
+        .filter((candidate): candidate is CustomerRecord => candidate !== null);
+      customers.push(...connectionCustomers);
+    }
+  }
 
-  return [directCustomer, ...connectionCustomers].filter(
-    (candidate): candidate is CustomerRecord => candidate !== null,
-  );
+  return customers;
+}
+
+function collectCustomerMetafieldsFromSelection(
+  customerId: string,
+  rawCustomer: Record<string, unknown>,
+  customerField: FieldNode,
+): CustomerMetafieldRecord[] {
+  const metafields: CustomerMetafieldRecord[] = [];
+
+  for (const selection of getSelectedChildFields(customerField)) {
+    const responseKey = getFieldResponseKey(selection);
+    if (selection.name.value === 'metafield') {
+      const metafield = normalizeCustomerMetafield(customerId, rawCustomer[responseKey]);
+      if (metafield) {
+        metafields.push(metafield);
+      }
+      continue;
+    }
+
+    if (selection.name.value !== 'metafields' || !isObject(rawCustomer[responseKey])) {
+      continue;
+    }
+
+    const connection = rawCustomer[responseKey];
+    const nodes = Array.isArray(connection['nodes']) ? connection['nodes'] : [];
+    const edgeNodes = Array.isArray(connection['edges'])
+      ? connection['edges']
+          .filter((edge): edge is Record<string, unknown> => isObject(edge))
+          .map((edge) => edge['node'])
+      : [];
+    for (const rawMetafield of [...nodes, ...edgeNodes]) {
+      const metafield = normalizeCustomerMetafield(customerId, rawMetafield);
+      if (metafield) {
+        metafields.push(metafield);
+      }
+    }
+  }
+
+  return metafields;
+}
+
+function mergeCustomerMetafieldRecords(
+  existing: CustomerMetafieldRecord[],
+  next: CustomerMetafieldRecord[],
+): CustomerMetafieldRecord[] {
+  const byIdentity = new Map(existing.map((metafield) => [`${metafield.namespace}:${metafield.key}`, metafield]));
+  for (const metafield of next) {
+    byIdentity.set(`${metafield.namespace}:${metafield.key}`, metafield);
+  }
+  return Array.from(byIdentity.values());
+}
+
+function collectCustomerMetafields(
+  document: string,
+  rawData: Record<string, unknown>,
+): Record<string, CustomerMetafieldRecord[]> {
+  const metafieldsByCustomerId: Record<string, CustomerMetafieldRecord[]> = {};
+
+  const addMetafields = (customerId: string, metafields: CustomerMetafieldRecord[]): void => {
+    if (metafields.length === 0) {
+      return;
+    }
+
+    metafieldsByCustomerId[customerId] = mergeCustomerMetafieldRecords(
+      metafieldsByCustomerId[customerId] ?? [],
+      metafields,
+    );
+  };
+
+  for (const field of getRootFields(document)) {
+    const rootValue = rawData[getFieldResponseKey(field)];
+    if (field.name.value === 'customer' && isObject(rootValue)) {
+      const customer = normalizeCustomer(rootValue);
+      if (customer) {
+        addMetafields(customer.id, collectCustomerMetafieldsFromSelection(customer.id, rootValue, field));
+      }
+      continue;
+    }
+
+    if (field.name.value !== 'customers' || !isObject(rootValue)) {
+      continue;
+    }
+
+    for (const connectionSelection of getSelectedChildFields(field)) {
+      const connectionValue = rootValue[getFieldResponseKey(connectionSelection)];
+      if (connectionSelection.name.value === 'nodes' && Array.isArray(connectionValue)) {
+        for (const rawCustomer of connectionValue) {
+          const customer = normalizeCustomer(rawCustomer);
+          if (customer && isObject(rawCustomer)) {
+            addMetafields(
+              customer.id,
+              collectCustomerMetafieldsFromSelection(customer.id, rawCustomer, connectionSelection),
+            );
+          }
+        }
+      }
+
+      if (connectionSelection.name.value === 'edges' && Array.isArray(connectionValue)) {
+        for (const rawEdge of connectionValue) {
+          if (!isObject(rawEdge) || !isObject(rawEdge['node'])) {
+            continue;
+          }
+
+          const customer = normalizeCustomer(rawEdge['node']);
+          const nodeSelection = getSelectedChildFields(connectionSelection).find(
+            (edgeSelection) => edgeSelection.name.value === 'node',
+          );
+          if (customer && nodeSelection) {
+            addMetafields(
+              customer.id,
+              collectCustomerMetafieldsFromSelection(customer.id, rawEdge['node'], nodeSelection),
+            );
+          }
+        }
+      }
+    }
+  }
+
+  return metafieldsByCustomerId;
 }
 
 function collectCustomerCatalogConnection(
@@ -973,6 +1686,7 @@ function collectCustomerSearchConnections(
 type CustomerMutationUserError = {
   field: string[] | null;
   message: string;
+  code?: string | null;
 };
 
 function serializeCustomerMutationUserErrors(
@@ -989,6 +1703,9 @@ function serializeCustomerMutationUserErrors(
           break;
         case 'message':
           result[key] = userError.message;
+          break;
+        case 'code':
+          result[key] = userError.code ?? null;
           break;
         default:
           result[key] = null;
@@ -1029,6 +1746,127 @@ function normalizeCustomerTags(raw: unknown, fallback: string[]): string[] {
     .sort((left, right) => left.localeCompare(right));
 }
 
+function normalizeCustomerTaxExemptions(raw: unknown, fallback: string[]): string[] {
+  if (!Array.isArray(raw)) {
+    return structuredClone(fallback);
+  }
+
+  return raw
+    .filter((value): value is string => typeof value === 'string' && VALID_TAX_EXEMPTIONS.has(value))
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function readCustomerMetafieldInputs(raw: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  return raw.filter((value): value is Record<string, unknown> => isObject(value));
+}
+
+function validateCustomerTaxExemptionInput(input: Record<string, unknown>): CustomerMutationUserError[] {
+  if (!hasOwnField(input, 'taxExemptions')) {
+    return [];
+  }
+
+  const rawTaxExemptions = input['taxExemptions'];
+  if (!Array.isArray(rawTaxExemptions)) {
+    return [{ field: ['taxExemptions'], message: 'Tax exemptions must be an array' }];
+  }
+
+  return rawTaxExemptions.flatMap((value, index): CustomerMutationUserError[] =>
+    typeof value === 'string' && VALID_TAX_EXEMPTIONS.has(value)
+      ? []
+      : [
+          {
+            field: ['taxExemptions', String(index)],
+            message: 'Tax exemption is not a valid value',
+          },
+        ],
+  );
+}
+
+function validateCustomerMetafieldInputs(rawMetafields: unknown, customerId: string): CustomerMutationUserError[] {
+  if (rawMetafields === undefined) {
+    return [];
+  }
+
+  if (!Array.isArray(rawMetafields)) {
+    return [{ field: ['metafields'], message: 'Metafields must be an array' }];
+  }
+
+  const existingMetafields = store.getEffectiveMetafieldsByCustomerId(customerId);
+  return rawMetafields.flatMap((rawMetafield, index): CustomerMutationUserError[] => {
+    if (!isObject(rawMetafield)) {
+      return [{ field: ['metafields', String(index)], message: 'Metafield input must be an object' }];
+    }
+
+    const existingById =
+      typeof rawMetafield['id'] === 'string'
+        ? (existingMetafields.find((metafield) => metafield.id === rawMetafield['id']) ?? null)
+        : null;
+    const namespace = typeof rawMetafield['namespace'] === 'string' ? rawMetafield['namespace'].trim() : '';
+    const key = typeof rawMetafield['key'] === 'string' ? rawMetafield['key'].trim() : '';
+    const type = typeof rawMetafield['type'] === 'string' ? rawMetafield['type'].trim() : '';
+    const errors: CustomerMutationUserError[] = [];
+
+    if (typeof rawMetafield['id'] === 'string' && !existingById) {
+      errors.push({ field: ['metafields', String(index), 'id'], message: 'Metafield does not exist' });
+    }
+
+    if (namespace && key && type && !isValidCustomerMetafieldType(type)) {
+      errors.push({
+        field: ['metafields', String(index), 'type'],
+        message: VALID_CUSTOMER_METAFIELD_TYPE_MESSAGE,
+      });
+    }
+
+    return errors;
+  });
+}
+
+function upsertMetafieldsForCustomer(customerId: string, inputs: Record<string, unknown>[]): CustomerMetafieldRecord[] {
+  const existingMetafields = store.getEffectiveMetafieldsByCustomerId(customerId);
+  const metafieldsById = new Map(existingMetafields.map((metafield) => [metafield.id, metafield]));
+  const metafieldsByIdentity = new Map(
+    existingMetafields.map((metafield) => [`${metafield.namespace}:${metafield.key}`, metafield]),
+  );
+
+  for (const input of inputs) {
+    const existingById = typeof input['id'] === 'string' ? (metafieldsById.get(input['id']) ?? null) : null;
+    const namespace =
+      typeof input['namespace'] === 'string' ? input['namespace'].trim() : (existingById?.namespace ?? '');
+    const key = typeof input['key'] === 'string' ? input['key'].trim() : (existingById?.key ?? '');
+    if (!existingById && (!namespace || !key)) {
+      continue;
+    }
+
+    const identityKey = `${namespace}:${key}`;
+    const existing = existingById ?? metafieldsByIdentity.get(identityKey);
+    const nextMetafield: CustomerMetafieldRecord = {
+      id: existing?.id ?? makeSyntheticGid('Metafield'),
+      customerId,
+      namespace,
+      key,
+      type: typeof input['type'] === 'string' ? input['type'].trim() : (existing?.type ?? null),
+      value: typeof input['value'] === 'string' ? input['value'] : (existing?.value ?? null),
+    };
+
+    if (existingById && (existingById.namespace !== namespace || existingById.key !== key)) {
+      metafieldsByIdentity.delete(`${existingById.namespace}:${existingById.key}`);
+    }
+    metafieldsById.set(nextMetafield.id, nextMetafield);
+    metafieldsByIdentity.set(identityKey, nextMetafield);
+  }
+
+  return Array.from(metafieldsByIdentity.values()).sort(
+    (left, right) =>
+      left.namespace.localeCompare(right.namespace) ||
+      left.key.localeCompare(right.key) ||
+      left.id.localeCompare(right.id),
+  );
+}
+
 function buildCreatedCustomer(input: Record<string, unknown>): CustomerRecord {
   const id = makeSyntheticGid('Customer');
   const timestamp = makeSyntheticTimestamp();
@@ -1042,6 +1880,7 @@ function buildCreatedCustomer(input: Record<string, unknown>): CustomerRecord {
   const note = typeof input['note'] === 'string' && input['note'].trim().length > 0 ? input['note'] : null;
   const phone = typeof input['phone'] === 'string' && input['phone'].trim().length > 0 ? input['phone'].trim() : null;
   const taxExempt = input['taxExempt'] === true;
+  const taxExemptions = normalizeCustomerTaxExemptions(input['taxExemptions'], []);
   const tags = normalizeCustomerTags(input['tags'], []);
 
   return {
@@ -1056,12 +1895,43 @@ function buildCreatedCustomer(input: Record<string, unknown>): CustomerRecord {
     canDelete: true,
     verifiedEmail: email ? true : null,
     taxExempt,
+    taxExemptions,
     state: 'DISABLED',
     tags,
     numberOfOrders: 0,
     amountSpent: null,
-    defaultEmailAddress: email ? { emailAddress: email } : null,
-    defaultPhoneNumber: phone ? { phoneNumber: maskPhoneNumber(phone) } : null,
+    defaultEmailAddress: email
+      ? {
+          emailAddress: email,
+          marketingState: 'NOT_SUBSCRIBED',
+          marketingOptInLevel: 'SINGLE_OPT_IN',
+          marketingUpdatedAt: null,
+        }
+      : null,
+    defaultPhoneNumber: phone
+      ? {
+          phoneNumber: maskPhoneNumber(phone),
+          marketingState: 'NOT_SUBSCRIBED',
+          marketingOptInLevel: 'SINGLE_OPT_IN',
+          marketingUpdatedAt: null,
+          marketingCollectedFrom: null,
+        }
+      : null,
+    emailMarketingConsent: email
+      ? {
+          marketingState: 'NOT_SUBSCRIBED',
+          marketingOptInLevel: 'SINGLE_OPT_IN',
+          consentUpdatedAt: null,
+        }
+      : null,
+    smsMarketingConsent: phone
+      ? {
+          marketingState: 'NOT_SUBSCRIBED',
+          marketingOptInLevel: 'SINGLE_OPT_IN',
+          consentUpdatedAt: null,
+          consentCollectedFrom: null,
+        }
+      : null,
     defaultAddress: null,
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -1089,9 +1959,33 @@ function buildUpdatedCustomer(existing: CustomerRecord, input: Record<string, un
     note,
     verifiedEmail: email ? true : existing.verifiedEmail,
     taxExempt: typeof input['taxExempt'] === 'boolean' ? input['taxExempt'] : existing.taxExempt,
+    taxExemptions: normalizeCustomerTaxExemptions(input['taxExemptions'], existing.taxExemptions ?? []),
     tags: normalizeCustomerTags(input['tags'], existing.tags),
-    defaultEmailAddress: email ? { emailAddress: email } : null,
-    defaultPhoneNumber: phone ? { phoneNumber: maskPhoneNumber(phone) } : null,
+    defaultEmailAddress: email
+      ? {
+          emailAddress: email,
+          marketingState:
+            existing.defaultEmailAddress?.marketingState ?? existing.emailMarketingConsent?.marketingState,
+          marketingOptInLevel:
+            existing.defaultEmailAddress?.marketingOptInLevel ?? existing.emailMarketingConsent?.marketingOptInLevel,
+          marketingUpdatedAt:
+            existing.defaultEmailAddress?.marketingUpdatedAt ?? existing.emailMarketingConsent?.consentUpdatedAt,
+        }
+      : null,
+    defaultPhoneNumber: phone
+      ? {
+          phoneNumber: maskPhoneNumber(phone),
+          marketingState: existing.defaultPhoneNumber?.marketingState ?? existing.smsMarketingConsent?.marketingState,
+          marketingOptInLevel:
+            existing.defaultPhoneNumber?.marketingOptInLevel ?? existing.smsMarketingConsent?.marketingOptInLevel,
+          marketingUpdatedAt:
+            existing.defaultPhoneNumber?.marketingUpdatedAt ?? existing.smsMarketingConsent?.consentUpdatedAt,
+          marketingCollectedFrom:
+            existing.defaultPhoneNumber?.marketingCollectedFrom ?? existing.smsMarketingConsent?.consentCollectedFrom,
+        }
+      : null,
+    emailMarketingConsent: email ? existing.emailMarketingConsent : null,
+    smsMarketingConsent: phone ? existing.smsMarketingConsent : null,
     updatedAt: makeSyntheticTimestamp(),
   };
 }
@@ -1108,6 +2002,109 @@ function validateCustomerCreateInput(input: Record<string, unknown>): CustomerMu
   return [{ field: null, message: 'A name, phone number, or email address must be present' }];
 }
 
+function readConsentPayload(input: Record<string, unknown>, key: string): Record<string, unknown> {
+  const value = input[key];
+  return isObject(value) ? value : {};
+}
+
+function validateMarketingState(
+  input: Record<string, unknown>,
+  consentKey: string,
+  acceptedStates: string[],
+): CustomerMutationUserError[] {
+  const consent = readConsentPayload(input, consentKey);
+  const marketingState = consent['marketingState'];
+  if (typeof marketingState !== 'string' || !acceptedStates.includes(marketingState)) {
+    return [
+      {
+        field: ['input', consentKey, 'marketingState'],
+        message: 'Marketing state is invalid',
+        code: 'INVALID',
+      },
+    ];
+  }
+
+  return [];
+}
+
+function buildEmailMarketingConsentUpdatedCustomer(
+  existing: CustomerRecord,
+  input: Record<string, unknown>,
+): CustomerRecord {
+  const consent = readConsentPayload(input, 'emailMarketingConsent');
+  const consentUpdatedAt =
+    typeof consent['consentUpdatedAt'] === 'string' && consent['consentUpdatedAt'].trim().length > 0
+      ? consent['consentUpdatedAt']
+      : makeSyntheticTimestamp();
+  const marketingState = typeof consent['marketingState'] === 'string' ? consent['marketingState'] : 'NOT_SUBSCRIBED';
+  const marketingOptInLevel =
+    typeof consent['marketingOptInLevel'] === 'string'
+      ? consent['marketingOptInLevel']
+      : (existing.emailMarketingConsent?.marketingOptInLevel ??
+        existing.defaultEmailAddress?.marketingOptInLevel ??
+        'SINGLE_OPT_IN');
+  const emailAddress = existing.defaultEmailAddress?.emailAddress ?? existing.email;
+
+  return {
+    ...existing,
+    defaultEmailAddress: emailAddress
+      ? {
+          ...(existing.defaultEmailAddress ?? { emailAddress }),
+          emailAddress,
+          marketingState,
+          marketingOptInLevel,
+          marketingUpdatedAt: consentUpdatedAt,
+        }
+      : null,
+    emailMarketingConsent: {
+      marketingState,
+      marketingOptInLevel,
+      consentUpdatedAt,
+    },
+    updatedAt: makeSyntheticTimestamp(),
+  };
+}
+
+function buildSmsMarketingConsentUpdatedCustomer(
+  existing: CustomerRecord,
+  input: Record<string, unknown>,
+): CustomerRecord {
+  const consent = readConsentPayload(input, 'smsMarketingConsent');
+  const consentUpdatedAt =
+    typeof consent['consentUpdatedAt'] === 'string' && consent['consentUpdatedAt'].trim().length > 0
+      ? consent['consentUpdatedAt']
+      : makeSyntheticTimestamp();
+  const marketingState = typeof consent['marketingState'] === 'string' ? consent['marketingState'] : 'NOT_SUBSCRIBED';
+  const marketingOptInLevel =
+    typeof consent['marketingOptInLevel'] === 'string'
+      ? consent['marketingOptInLevel']
+      : (existing.smsMarketingConsent?.marketingOptInLevel ??
+        existing.defaultPhoneNumber?.marketingOptInLevel ??
+        'SINGLE_OPT_IN');
+  const phoneNumber = existing.defaultPhoneNumber?.phoneNumber ?? null;
+
+  return {
+    ...existing,
+    defaultPhoneNumber: phoneNumber
+      ? {
+          ...(existing.defaultPhoneNumber ?? { phoneNumber }),
+          phoneNumber,
+          marketingState,
+          marketingOptInLevel,
+          marketingUpdatedAt: consentUpdatedAt,
+          marketingCollectedFrom: 'OTHER',
+        }
+      : null,
+    smsMarketingConsent: {
+      marketingState,
+      marketingOptInLevel,
+      consentUpdatedAt,
+      consentCollectedFrom: 'OTHER',
+    },
+    updatedAt: makeSyntheticTimestamp(),
+  };
+}
+
 function serializeCustomerMutationPayload(
   field: FieldNode,
   payload: {
@@ -1116,13 +2113,14 @@ function serializeCustomerMutationPayload(
     shop?: boolean;
     userErrors: CustomerMutationUserError[];
   },
+  variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const selection of getSelectedChildFields(field)) {
     const key = getFieldResponseKey(selection);
     switch (selection.name.value) {
       case 'customer':
-        result[key] = payload.customer ? serializeCustomerSelection(payload.customer, selection) : null;
+        result[key] = payload.customer ? serializeCustomerSelection(payload.customer, selection, variables) : null;
         break;
       case 'deletedCustomerId':
         result[key] = payload.deletedCustomerId ?? null;
@@ -1153,14 +2151,26 @@ export function handleCustomerMutation(
 
     if (field.name.value === 'customerCreate') {
       const input = readCustomerInput(args['input']);
-      const userErrors = validateCustomerCreateInput(input);
+      const customerIdForValidation = 'gid://shopify/Customer/__pending__';
+      const userErrors = [
+        ...validateCustomerCreateInput(input),
+        ...validateCustomerTaxExemptionInput(input),
+        ...validateCustomerMetafieldInputs(input['metafields'], customerIdForValidation),
+      ];
       if (userErrors.length > 0) {
-        data[key] = serializeCustomerMutationPayload(field, { customer: null, userErrors });
+        data[key] = serializeCustomerMutationPayload(field, { customer: null, userErrors }, variables);
         continue;
       }
 
       const customer = store.stageCreateCustomer(buildCreatedCustomer(input));
-      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] });
+      const metafieldInputs = readCustomerMetafieldInputs(input['metafields']);
+      if (metafieldInputs.length > 0) {
+        store.replaceStagedMetafieldsForCustomer(
+          customer.id,
+          upsertMetafieldsForCustomer(customer.id, metafieldInputs),
+        );
+      }
+      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
       continue;
     }
 
@@ -1169,15 +2179,102 @@ export function handleCustomerMutation(
       const customerId = typeof input['id'] === 'string' ? input['id'] : null;
       const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
       if (!existingCustomer) {
-        data[key] = serializeCustomerMutationPayload(field, {
-          customer: null,
-          userErrors: [{ field: ['id'], message: 'Customer does not exist' }],
-        });
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customer: null,
+            userErrors: [{ field: ['id'], message: 'Customer does not exist' }],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      const userErrors = [
+        ...validateCustomerTaxExemptionInput(input),
+        ...validateCustomerMetafieldInputs(input['metafields'], existingCustomer.id),
+      ];
+      if (userErrors.length > 0) {
+        data[key] = serializeCustomerMutationPayload(field, { customer: null, userErrors }, variables);
         continue;
       }
 
       const customer = store.stageUpdateCustomer(buildUpdatedCustomer(existingCustomer, input));
-      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] });
+      const metafieldInputs = readCustomerMetafieldInputs(input['metafields']);
+      if (metafieldInputs.length > 0) {
+        store.replaceStagedMetafieldsForCustomer(
+          customer.id,
+          upsertMetafieldsForCustomer(customer.id, metafieldInputs),
+        );
+      }
+      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
+      continue;
+    }
+
+    if (field.name.value === 'customerEmailMarketingConsentUpdate') {
+      const input = readCustomerInput(args['input']);
+      const customerId = typeof input['customerId'] === 'string' ? input['customerId'] : null;
+      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      if (!existingCustomer) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customer: null,
+            userErrors: [{ field: ['input', 'customerId'], message: 'Customer not found', code: 'INVALID' }],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      const userErrors = validateMarketingState(input, 'emailMarketingConsent', [
+        'NOT_SUBSCRIBED',
+        'PENDING',
+        'SUBSCRIBED',
+        'UNSUBSCRIBED',
+        'REDACTED',
+        'INVALID',
+      ]);
+      if (userErrors.length > 0) {
+        data[key] = serializeCustomerMutationPayload(field, { customer: null, userErrors }, variables);
+        continue;
+      }
+
+      const customer = store.stageUpdateCustomer(buildEmailMarketingConsentUpdatedCustomer(existingCustomer, input));
+      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
+      continue;
+    }
+
+    if (field.name.value === 'customerSmsMarketingConsentUpdate') {
+      const input = readCustomerInput(args['input']);
+      const customerId = typeof input['customerId'] === 'string' ? input['customerId'] : null;
+      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      if (!existingCustomer) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customer: null,
+            userErrors: [{ field: null, message: 'Customer not found', code: null }],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      const userErrors = validateMarketingState(input, 'smsMarketingConsent', [
+        'NOT_SUBSCRIBED',
+        'PENDING',
+        'SUBSCRIBED',
+        'UNSUBSCRIBED',
+        'REDACTED',
+      ]);
+      if (userErrors.length > 0) {
+        data[key] = serializeCustomerMutationPayload(field, { customer: null, userErrors }, variables);
+        continue;
+      }
+
+      const customer = store.stageUpdateCustomer(buildSmsMarketingConsentUpdatedCustomer(existingCustomer, input));
+      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
       continue;
     }
 
@@ -1186,20 +2283,28 @@ export function handleCustomerMutation(
       const customerId = typeof input['id'] === 'string' ? input['id'] : null;
       const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
       if (!existingCustomer || !customerId) {
-        data[key] = serializeCustomerMutationPayload(field, {
-          deletedCustomerId: null,
-          shop: true,
-          userErrors: [{ field: ['id'], message: "Customer can't be found" }],
-        });
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            deletedCustomerId: null,
+            shop: true,
+            userErrors: [{ field: ['id'], message: "Customer can't be found" }],
+          },
+          variables,
+        );
         continue;
       }
 
       store.stageDeleteCustomer(customerId);
-      data[key] = serializeCustomerMutationPayload(field, {
-        deletedCustomerId: customerId,
-        shop: true,
-        userErrors: [],
-      });
+      data[key] = serializeCustomerMutationPayload(
+        field,
+        {
+          deletedCustomerId: customerId,
+          shop: true,
+          userErrors: [],
+        },
+        variables,
+      );
     }
   }
 
@@ -1215,9 +2320,14 @@ export function hydrateCustomersFromUpstreamResponse(
     return;
   }
 
-  const customers = collectHydratableCustomers(upstreamBody['data']);
+  const customers = collectHydratableCustomers(document, upstreamBody['data']);
   if (customers.length > 0) {
     store.upsertBaseCustomers(customers);
+  }
+
+  const customerMetafields = collectCustomerMetafields(document, upstreamBody['data']);
+  for (const [customerId, metafields] of Object.entries(customerMetafields)) {
+    store.replaceBaseMetafieldsForCustomer(customerId, metafields);
   }
 
   const customerCatalogConnection = collectCustomerCatalogConnection(upstreamBody['data']);
@@ -1234,9 +2344,14 @@ export function hydrateCustomersFromUpstreamResponse(
 export function handleCustomerQuery(
   document: string,
   variables: Record<string, unknown> = {},
-): { data: Record<string, unknown>; extensions?: { search: CustomerSearchExtensionEntry[] } } {
+): {
+  data?: Record<string, unknown>;
+  errors?: Array<Record<string, unknown>>;
+  extensions?: { search: CustomerSearchExtensionEntry[] };
+} {
   const rootFields = getRootFields(document);
   const data: Record<string, unknown> = {};
+  const errors: Array<Record<string, unknown>> = [];
   const searchExtensions: CustomerSearchExtensionEntry[] = [];
 
   for (const field of rootFields) {
@@ -1245,7 +2360,37 @@ export function handleCustomerQuery(
       const args = getFieldArguments(field, variables);
       const customerId = typeof args['id'] === 'string' ? args['id'] : null;
       const customer = customerId ? store.getEffectiveCustomerById(customerId) : null;
-      data[key] = customer ? serializeCustomerSelection(customer, field) : null;
+      data[key] = customer ? serializeCustomerSelection(customer, field, variables) : null;
+      continue;
+    }
+
+    if (field.name.value === 'customerByIdentifier') {
+      const args = getFieldArguments(field, variables);
+      if (!hasOwnField(args, 'identifier')) {
+        errors.push(buildMissingCustomerIdentifierArgumentError(field));
+        continue;
+      }
+
+      const identifier = args['identifier'];
+      if (!isObject(identifier)) {
+        errors.push(buildInvalidCustomerIdentifierError({}));
+        continue;
+      }
+
+      const providedIdentifierCount = countProvidedCustomerIdentifiers(identifier);
+      if (providedIdentifierCount !== 1) {
+        errors.push(buildInvalidCustomerIdentifierError(identifier));
+        continue;
+      }
+
+      if (identifier['customId'] !== undefined) {
+        data[key] = null;
+        errors.push(buildCustomerCustomIdentifierError(field));
+        continue;
+      }
+
+      const customer = findCustomerByIdentifier(identifier);
+      data[key] = customer ? serializeCustomerSelection(customer, field, variables) : null;
       continue;
     }
 
@@ -1267,11 +2412,15 @@ export function handleCustomerQuery(
   if (searchExtensions.length > 0) {
     return {
       data,
+      ...(errors.length > 0 ? { errors } : {}),
       extensions: {
         search: searchExtensions,
       },
     };
   }
 
-  return { data };
+  return {
+    ...(Object.keys(data).length > 0 ? { data } : {}),
+    ...(errors.length > 0 ? { errors } : {}),
+  };
 }

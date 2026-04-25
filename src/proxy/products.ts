@@ -1,4 +1,4 @@
-import { Kind, type FieldNode, type SelectionNode } from 'graphql';
+import { getLocation, Kind, type FieldNode, type SelectionNode } from 'graphql';
 import type { ReadMode } from '../config.js';
 import { getFieldArguments, getRootField, getRootFieldArguments, getRootFields } from '../graphql/root-field.js';
 import { parseSearchQuery, type SearchQueryNode, type SearchQueryTerm } from '../search-query-parser.js';
@@ -178,6 +178,24 @@ function prepareProductInputWithResolvedHandle(
 
 function findEffectiveCollectionById(collectionId: string): CollectionRecord | null {
   return store.getEffectiveCollectionById(collectionId);
+}
+
+function findEffectiveCollectionByHandle(handle: string): CollectionRecord | null {
+  return listEffectiveCollections().find((collection) => collection.handle === handle) ?? null;
+}
+
+function findEffectiveCollectionByIdentifier(identifier: Record<string, unknown>): CollectionRecord | null {
+  const rawId = identifier['id'];
+  if (typeof rawId === 'string') {
+    return findEffectiveCollectionById(rawId);
+  }
+
+  const rawHandle = identifier['handle'];
+  if (typeof rawHandle === 'string') {
+    return findEffectiveCollectionByHandle(rawHandle);
+  }
+
+  return null;
 }
 
 function listEffectiveCollections(): CollectionRecord[] {
@@ -1889,6 +1907,9 @@ interface InventoryLevelTargetRecord {
   level: NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']>[number];
 }
 
+const INVENTORY_ADJUSTMENT_STAFF_MEMBER_REQUIRED_ACCESS =
+  '`read_users` access scope. Also: The app must be a finance embedded app or installed on a Shopify Plus or Advanced store. Contact Shopify Support to enable this scope for your app.';
+
 function buildInventoryAdjustInvalidVariableError(
   fieldPath: string,
   value: Record<string, unknown>,
@@ -1914,6 +1935,24 @@ function buildInventoryAdjustInvalidVariableError(
         },
       },
     ],
+  };
+}
+
+function buildInventoryAdjustmentStaffMemberAccessDeniedError(
+  rootField: FieldNode,
+  groupField: FieldNode,
+  staffMemberField: FieldNode,
+): Record<string, unknown> {
+  const location = staffMemberField.loc ? getLocation(staffMemberField.loc.source, staffMemberField.loc.start) : null;
+  return {
+    message: `Access denied for staffMember field. Required access: ${INVENTORY_ADJUSTMENT_STAFF_MEMBER_REQUIRED_ACCESS}`,
+    ...(location ? { locations: [{ line: location.line, column: location.column }] } : {}),
+    extensions: {
+      code: 'ACCESS_DENIED',
+      documentation: 'https://shopify.dev/api/usage/access-scopes',
+      requiredAccess: INVENTORY_ADJUSTMENT_STAFF_MEMBER_REQUIRED_ACCESS,
+    },
+    path: [getResponseKey(rootField), getResponseKey(groupField), getResponseKey(staffMemberField)],
   };
 }
 
@@ -6328,8 +6367,23 @@ export function hydrateProductsFromUpstreamResponse(
   };
 
   hydrateCollection(rawData['collection']);
+  hydrateCollection(rawData['collectionByIdentifier']);
+  hydrateCollection(rawData['collectionByHandle']);
   for (const collection of readCollectionNodes(rawData['collections'])) {
     hydrateCollection(collection);
+  }
+
+  for (const field of getRootFields(document)) {
+    if (
+      field.name.value !== 'collection' &&
+      field.name.value !== 'collectionByIdentifier' &&
+      field.name.value !== 'collectionByHandle'
+    ) {
+      continue;
+    }
+
+    const responseKey = field.alias?.value ?? field.name.value;
+    hydrateCollection(rawData[responseKey]);
   }
 
   const rawProducts = rawData['products'];
@@ -7913,17 +7967,25 @@ export function handleProductMutation(
       }
 
       const result = applyInventoryAdjustQuantities(input);
-      return {
+      const inventoryAdjustmentGroupField = getChildField(field, 'inventoryAdjustmentGroup');
+      const staffMemberField = inventoryAdjustmentGroupField
+        ? getChildField(inventoryAdjustmentGroupField, 'staffMember')
+        : null;
+      const response: Record<string, unknown> = {
         data: {
           [responseKey]: {
-            inventoryAdjustmentGroup: serializeInventoryAdjustmentGroup(
-              result.group,
-              getChildField(field, 'inventoryAdjustmentGroup'),
-            ),
+            inventoryAdjustmentGroup: serializeInventoryAdjustmentGroup(result.group, inventoryAdjustmentGroupField),
             userErrors: result.userErrors,
           },
         },
       };
+      if (result.group && inventoryAdjustmentGroupField && staffMemberField) {
+        response['errors'] = [
+          buildInventoryAdjustmentStaffMemberAccessDeniedError(field, inventoryAdjustmentGroupField, staffMemberField),
+        ];
+      }
+
+      return response;
     }
     case 'inventoryActivate': {
       const rawInventoryItemId = args['inventoryItemId'];
@@ -8675,6 +8737,23 @@ export function handleProductQuery(
         const rawId = args['id'];
         const id = typeof rawId === 'string' ? rawId : null;
         const collection = id ? findEffectiveCollectionById(id) : null;
+        data[responseKey] = collection
+          ? serializeCollectionObject(collection, field.selectionSet?.selections ?? [], variables)
+          : null;
+        break;
+      }
+      case 'collectionByIdentifier': {
+        const identifier = readProductInput(args['identifier']);
+        const collection = findEffectiveCollectionByIdentifier(identifier);
+        data[responseKey] = collection
+          ? serializeCollectionObject(collection, field.selectionSet?.selections ?? [], variables)
+          : null;
+        break;
+      }
+      case 'collectionByHandle': {
+        const rawHandle = args['handle'];
+        const handle = typeof rawHandle === 'string' ? rawHandle : null;
+        const collection = handle ? findEffectiveCollectionByHandle(handle) : null;
         data[responseKey] = collection
           ? serializeCollectionObject(collection, field.selectionSet?.selections ?? [], variables)
           : null;
