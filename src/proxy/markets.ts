@@ -21,6 +21,10 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function hasOwnProperty(value: object, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
 type FragmentMap = Map<string, FragmentDefinitionNode>;
 type MarketUserError = {
   field: string[];
@@ -179,6 +183,20 @@ function projectObject(
     const key = responseKey(selection);
     if (fieldName === '__typename') {
       result[key] = source['__typename'] ?? null;
+      continue;
+    }
+
+    if (
+      fieldName === 'catalogs' &&
+      typeof source['id'] === 'string' &&
+      source['id'].startsWith('gid://shopify/Market/')
+    ) {
+      result[key] = projectConnectionPayload(
+        catalogConnectionForMarket(source['id'], source['catalogs']),
+        selection,
+        fragments,
+        variables,
+      );
       continue;
     }
 
@@ -810,6 +828,34 @@ function catalogMarkets(catalog: CatalogRecord): ConnectionEdge[] {
   return readConnectionEdges(catalog.data['markets']);
 }
 
+function catalogReferencesMarket(catalog: CatalogRecord, marketId: string): boolean {
+  return catalogMarkets(catalog).some(
+    (edge) => isPlainObject(edge.node) && typeof edge.node['id'] === 'string' && edge.node['id'] === marketId,
+  );
+}
+
+function catalogConnectionForMarket(marketId: string, existingConnection: unknown): Record<string, unknown> {
+  const edgesById = new Map<string, ConnectionEdge>();
+
+  for (const edge of readConnectionEdges(existingConnection)) {
+    if (isPlainObject(edge.node) && typeof edge.node['id'] === 'string') {
+      edgesById.set(edge.node['id'], edge);
+    }
+  }
+
+  for (const catalog of store.listEffectiveCatalogs()) {
+    if (!catalogReferencesMarket(catalog, marketId)) {
+      continue;
+    }
+    edgesById.set(catalog.id, {
+      cursor: catalogCursor(catalog),
+      node: catalog.data,
+    });
+  }
+
+  return { edges: Array.from(edgesById.values()) };
+}
+
 function catalogHasType(catalog: CatalogRecord, rawType: unknown): boolean {
   if (typeof rawType !== 'string' || rawType.length === 0) {
     return true;
@@ -920,7 +966,7 @@ function compareCatalogsBySortKey(left: CatalogRecord, right: CatalogRecord, raw
 function listCatalogsForConnection(field: FieldNode, variables: Record<string, unknown>): CatalogRecord[] {
   const args = getFieldArguments(field, variables);
   const filteredCatalogs = applyCatalogsQuery(
-    store.listBaseCatalogs().filter((catalog) => catalogHasType(catalog, args['type'])),
+    store.listEffectiveCatalogs().filter((catalog) => catalogHasType(catalog, args['type'])),
     args['query'],
   );
   const sortedCatalogs = [...filteredCatalogs].sort((left, right) =>
@@ -1587,6 +1633,317 @@ function handleMarketDelete(field: FieldNode, variables: Record<string, unknown>
   );
 }
 
+function catalogTitleInUse(title: string, excludedCatalogId?: string): boolean {
+  return store
+    .listEffectiveCatalogs()
+    .some((catalog) => catalog.id !== excludedCatalogId && catalog.data['title'] === title);
+}
+
+function catalogError(field: string[], message: string, code: string): MarketUserError {
+  return { field, message, code };
+}
+
+function catalogMarketIds(catalog: CatalogRecord): string[] {
+  return catalogMarkets(catalog).flatMap((edge) =>
+    isPlainObject(edge.node) && typeof edge.node['id'] === 'string' ? [edge.node['id']] : [],
+  );
+}
+
+function readCatalogContextMarketIds(
+  rawContext: unknown,
+  fieldPrefix: string[],
+  errors: MarketUserError[],
+  options: { requireMarketContext: boolean },
+): string[] {
+  const context = readInput(rawContext);
+  const companyLocationIds = readStringArray(context['companyLocationIds']);
+  if (companyLocationIds.length > 0) {
+    errors.push(
+      catalogError(
+        [...fieldPrefix, 'companyLocationIds'],
+        'Only market catalog contexts are supported locally',
+        'UNSUPPORTED_CONTEXT',
+      ),
+    );
+  }
+
+  const marketIds = readStringArray(context['marketIds']);
+  if (options.requireMarketContext && marketIds.length === 0) {
+    errors.push(catalogError([...fieldPrefix, 'marketIds'], 'At least one market is required', 'BLANK'));
+  }
+
+  const uniqueMarketIds: string[] = [];
+  const seenMarketIds = new Set<string>();
+  for (const marketId of marketIds) {
+    if (seenMarketIds.has(marketId)) {
+      continue;
+    }
+    seenMarketIds.add(marketId);
+    if (!marketId.startsWith('gid://shopify/Market/')) {
+      errors.push(catalogError([...fieldPrefix, 'marketIds'], 'Market does not exist', 'MARKET_NOT_FOUND'));
+      continue;
+    }
+    if (!store.getEffectiveMarketRecordById(marketId)) {
+      errors.push(catalogError([...fieldPrefix, 'marketIds'], 'Market does not exist', 'MARKET_NOT_FOUND'));
+      continue;
+    }
+    uniqueMarketIds.push(marketId);
+  }
+
+  return uniqueMarketIds;
+}
+
+function marketNodeForCatalogConnection(marketId: string): Record<string, unknown> {
+  const market = store.getEffectiveMarketRecordById(marketId);
+  return market ? { __typename: 'Market', ...market.data, id: market.id } : { __typename: 'Market', id: marketId };
+}
+
+function marketConnectionFromIds(marketIds: string[]): Record<string, unknown> {
+  return {
+    edges: marketIds.map((marketId) => ({
+      cursor: marketId,
+      node: marketNodeForCatalogConnection(marketId),
+    })),
+    pageInfo: {
+      hasNextPage: false,
+      hasPreviousPage: false,
+      startCursor: marketIds[0] ?? null,
+      endCursor: marketIds.at(-1) ?? null,
+    },
+  };
+}
+
+function catalogStatusFromInput(
+  input: Record<string, unknown>,
+  existing: Record<string, unknown> | null,
+  errors: MarketUserError[],
+): string {
+  const rawStatus = input['status'];
+  if (rawStatus === undefined) {
+    return typeof existing?.['status'] === 'string' ? existing['status'] : 'ACTIVE';
+  }
+
+  if (rawStatus === 'ACTIVE' || rawStatus === 'DRAFT' || rawStatus === 'ARCHIVED') {
+    return rawStatus;
+  }
+
+  errors.push(catalogError(['input', 'status'], "Status isn't included in the list", 'INCLUSION'));
+  return typeof existing?.['status'] === 'string' ? existing['status'] : 'ACTIVE';
+}
+
+function linkedPriceList(rawPriceListId: unknown, existing: Record<string, unknown> | null): unknown {
+  if (rawPriceListId === null) {
+    return null;
+  }
+  if (typeof rawPriceListId === 'string' && rawPriceListId.length > 0) {
+    return store.getBasePriceListById(rawPriceListId) ?? { __typename: 'PriceList', id: rawPriceListId };
+  }
+  return existing?.['priceList'] ?? null;
+}
+
+function linkedPublication(rawPublicationId: unknown, existing: Record<string, unknown> | null): unknown {
+  if (rawPublicationId === null) {
+    return null;
+  }
+  if (typeof rawPublicationId === 'string' && rawPublicationId.length > 0) {
+    const publication = store.listEffectivePublications().find((candidate) => candidate.id === rawPublicationId);
+    return publication
+      ? { __typename: 'Publication', ...publication }
+      : { __typename: 'Publication', id: rawPublicationId };
+  }
+  return existing?.['publication'] ?? null;
+}
+
+function buildCatalogRecord(
+  id: string,
+  input: Record<string, unknown>,
+  existingCatalog: CatalogRecord | null,
+  errors: MarketUserError[],
+  contextMarketIds: string[],
+): CatalogRecord {
+  const existing = existingCatalog?.data ?? null;
+  const rawTitle = input['title'];
+  const title =
+    typeof rawTitle === 'string' ? rawTitle : typeof existing?.['title'] === 'string' ? existing['title'] : '';
+  const trimmedTitle = title.trim();
+
+  if (trimmedTitle.length === 0) {
+    errors.push(catalogError(['input', 'title'], "Title can't be blank", 'BLANK'));
+  } else if (trimmedTitle.length < 2) {
+    errors.push(catalogError(['input', 'title'], 'Title is too short (minimum is 2 characters)', 'TOO_SHORT'));
+  } else if (catalogTitleInUse(trimmedTitle, existingCatalog?.id)) {
+    errors.push(catalogError(['input', 'title'], `Title '${trimmedTitle}' has already been taken`, 'TAKEN'));
+  }
+
+  const now = makeSyntheticTimestamp();
+  const data: Record<string, unknown> = {
+    ...(existing ? structuredClone(existing) : {}),
+    __typename: 'MarketCatalog',
+    id,
+    title: trimmedTitle,
+    status: catalogStatusFromInput(input, existing, errors),
+    markets: marketConnectionFromIds(contextMarketIds),
+    operations: Array.isArray(existing?.['operations']) ? structuredClone(existing['operations']) : [],
+    priceList: hasOwnProperty(input, 'priceListId')
+      ? linkedPriceList(input['priceListId'], existing)
+      : (existing?.['priceList'] ?? null),
+    publication: hasOwnProperty(input, 'publicationId')
+      ? linkedPublication(input['publicationId'], existing)
+      : (existing?.['publication'] ?? null),
+    createdAt: typeof existing?.['createdAt'] === 'string' ? existing['createdAt'] : now,
+    updatedAt: now,
+  };
+
+  return {
+    id,
+    cursor: existingCatalog?.cursor ?? id,
+    data: data as Record<string, JsonValue>,
+  };
+}
+
+function selectedCatalogPayload(catalog: CatalogRecord | null): unknown {
+  return catalog ? catalog.data : null;
+}
+
+function handleCatalogCreate(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+  const args = getFieldArguments(field, variables);
+  const input = readInput(args['input']);
+  const errors: MarketUserError[] = [];
+  const marketIds = readCatalogContextMarketIds(input['context'], ['input', 'context'], errors, {
+    requireMarketContext: true,
+  });
+  const catalog = buildCatalogRecord(makeSyntheticGid('MarketCatalog'), input, null, errors, marketIds);
+
+  if (errors.length === 0) {
+    store.stageCreateCatalog(catalog);
+  }
+
+  return projectMutationPayload(
+    {
+      catalog: errors.length === 0 ? selectedCatalogPayload(catalog) : null,
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function handleCatalogUpdate(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+  const args = getFieldArguments(field, variables);
+  const id = typeof args['id'] === 'string' ? args['id'] : null;
+  const input = readInput(args['input']);
+  const errors: MarketUserError[] = [];
+  const existingCatalog = id ? store.getEffectiveCatalogRecordById(id) : null;
+
+  if (!id || !existingCatalog) {
+    errors.push(catalogError(['id'], 'Catalog does not exist', 'CATALOG_NOT_FOUND'));
+  } else if (!catalogHasType(existingCatalog, 'MARKET')) {
+    errors.push(catalogError(['id'], 'Only market catalogs are supported locally', 'UNSUPPORTED_CONTEXT'));
+  }
+
+  const marketIds =
+    existingCatalog && hasOwnProperty(input, 'context')
+      ? readCatalogContextMarketIds(input['context'], ['input', 'context'], errors, { requireMarketContext: true })
+      : existingCatalog
+        ? catalogMarketIds(existingCatalog)
+        : [];
+  const catalog = id && existingCatalog ? buildCatalogRecord(id, input, existingCatalog, errors, marketIds) : null;
+
+  if (errors.length === 0 && catalog) {
+    store.stageUpdateCatalog(catalog);
+  }
+
+  return projectMutationPayload(
+    {
+      catalog: errors.length === 0 ? selectedCatalogPayload(catalog) : null,
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function handleCatalogContextUpdate(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
+  const args = getFieldArguments(field, variables);
+  const catalogId = typeof args['catalogId'] === 'string' ? args['catalogId'] : null;
+  const errors: MarketUserError[] = [];
+  const existingCatalog = catalogId ? store.getEffectiveCatalogRecordById(catalogId) : null;
+
+  if (!catalogId || !existingCatalog) {
+    errors.push(catalogError(['catalogId'], 'Catalog does not exist', 'CATALOG_NOT_FOUND'));
+  } else if (!catalogHasType(existingCatalog, 'MARKET')) {
+    errors.push(catalogError(['catalogId'], 'Only market catalogs are supported locally', 'UNSUPPORTED_CONTEXT'));
+  }
+
+  const nextMarketIds = new Set(existingCatalog ? catalogMarketIds(existingCatalog) : []);
+  for (const marketId of readCatalogContextMarketIds(args['contextsToRemove'], ['contextsToRemove'], errors, {
+    requireMarketContext: false,
+  })) {
+    nextMarketIds.delete(marketId);
+  }
+  for (const marketId of readCatalogContextMarketIds(args['contextsToAdd'], ['contextsToAdd'], errors, {
+    requireMarketContext: false,
+  })) {
+    nextMarketIds.add(marketId);
+  }
+
+  if (existingCatalog && nextMarketIds.size === 0) {
+    errors.push(catalogError(['contextsToAdd', 'marketIds'], 'At least one market is required', 'BLANK'));
+  }
+
+  const catalog =
+    catalogId && existingCatalog
+      ? buildCatalogRecord(catalogId, {}, existingCatalog, errors, Array.from(nextMarketIds))
+      : null;
+
+  if (errors.length === 0 && catalog) {
+    store.stageUpdateCatalog(catalog);
+  }
+
+  return projectMutationPayload(
+    {
+      catalog: errors.length === 0 ? selectedCatalogPayload(catalog) : null,
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function handleCatalogDelete(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+  const args = getFieldArguments(field, variables);
+  const id = typeof args['id'] === 'string' ? args['id'] : null;
+  const errors: MarketUserError[] = [];
+  const existingCatalog = id ? store.getEffectiveCatalogRecordById(id) : null;
+
+  if (!id || !existingCatalog) {
+    errors.push(catalogError(['id'], 'Catalog does not exist', 'CATALOG_NOT_FOUND'));
+  } else if (!catalogHasType(existingCatalog, 'MARKET')) {
+    errors.push(catalogError(['id'], 'Only market catalogs are supported locally', 'UNSUPPORTED_CONTEXT'));
+  }
+
+  if (errors.length === 0 && id) {
+    store.stageDeleteCatalog(id);
+  }
+
+  return projectMutationPayload(
+    {
+      deletedId: errors.length === 0 ? id : null,
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
 function listMarketsForConnection(field: FieldNode, variables: Record<string, unknown>): MarketRecord[] {
   const args = getFieldArguments(field, variables);
   const filteredMarkets = applyMarketsQuery(applyRootMarketFilters(store.listEffectiveMarkets(), args), args['query']);
@@ -1653,7 +2010,7 @@ function rootPayloadForField(field: FieldNode, variables: Record<string, unknown
     case 'catalog': {
       const args = getFieldArguments(field, variables);
       const id = typeof args['id'] === 'string' ? args['id'] : null;
-      return id ? store.getBaseCatalogById(id) : null;
+      return id ? store.getEffectiveCatalogById(id) : null;
     }
     case 'catalogs':
       return serializeCatalogsConnection(field, variables, fragments);
@@ -1711,6 +2068,18 @@ export function handleMarketMutation(document: string, variables: Record<string,
         break;
       case 'marketDelete':
         data[key] = handleMarketDelete(field, variables, fragments);
+        break;
+      case 'catalogCreate':
+        data[key] = handleCatalogCreate(field, variables, fragments);
+        break;
+      case 'catalogUpdate':
+        data[key] = handleCatalogUpdate(field, variables, fragments);
+        break;
+      case 'catalogContextUpdate':
+        data[key] = handleCatalogContextUpdate(field, variables, fragments);
+        break;
+      case 'catalogDelete':
+        data[key] = handleCatalogDelete(field, variables, fragments);
         break;
       default:
         data[key] = null;

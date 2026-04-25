@@ -21,6 +21,10 @@ Stage-local mutations:
 - `marketCreate`
 - `marketUpdate`
 - `marketDelete`
+- `catalogCreate`
+- `catalogUpdate`
+- `catalogContextUpdate`
+- `catalogDelete`
 
 ## Unsupported roots still tracked by the registry
 
@@ -43,6 +47,11 @@ Stage-local mutations:
 - `marketCreate` generates stable synthetic `Market` IDs, handles, status/enabled values, timestamps, conditions, currency settings, price inclusions, catalog references, and web presence references from the input.
 - `marketUpdate` resolves staged or captured markets by ID, preserves existing fields when inputs omit them, and stages merged changes for downstream `market` and `markets` reads.
 - `marketDelete` marks the market deleted in staged state. Deleted staged/captured markets return `null` from `market(id:)` and are removed from `markets(...)` connections while the deleted ID remains visible in meta state.
+- `catalogCreate` stages MarketCatalog records only. It generates stable synthetic `MarketCatalog` IDs, title/status values, timestamps, empty operations, optional linked publication and price-list references, and a market context connection from existing Market IDs. It does not invent markets, price lists, publications, product memberships, or publication state.
+- `catalogUpdate` resolves staged or captured MarketCatalog records by ID, preserves omitted fields, supports title/status changes, and can replace the market context when `input.context.marketIds` is provided.
+- `catalogContextUpdate` adds and removes existing Market IDs from a staged/captured MarketCatalog context. Resulting `catalog`, `catalogs`, `catalogsCount`, `Market.catalogs`, and `MarketCatalog.markets` reads use the effective staged catalog state.
+- `catalogDelete` marks the MarketCatalog deleted in staged state. Deleted staged/captured catalogs return `null` from `catalog(id:)`, disappear from `catalogs(...)`, `catalogsCount(...)`, and nested `Market.catalogs`, while the deleted ID remains visible in meta state.
+- Catalog mutation validation is intentionally conservative. Captured parity currently covers blank `catalogCreate` titles and unknown IDs for `catalogUpdate`, `catalogContextUpdate`, and `catalogDelete`; unsupported non-market catalog contexts return local userErrors instead of claiming full B2B or app catalog support.
 - Captured validation parity currently covers safe no-side-effect branches for blank `marketCreate` names and unknown IDs for `marketUpdate`/`marketDelete`. Additional success-path conformance should use disposable market setup/cleanup before touching shared buyer-facing market configuration.
 
 ## Validation anchors
@@ -50,4 +59,4 @@ Stage-local mutations:
 - Runtime reads: `tests/integration/markets-query-shapes.test.ts`
 - Runtime lifecycle staging: `tests/integration/markets-lifecycle-flow.test.ts`
 - Conformance parity: `tests/unit/conformance-parity-scenarios.test.ts`
-- Conformance fixtures and requests: `config/parity-specs/market*.json`, `config/parity-specs/markets*.json`, `config/parity-specs/price-list*.json`, and matching files under `config/parity-requests/`
+- Conformance fixtures and requests: `config/parity-specs/market*.json`, `config/parity-specs/markets*.json`, `config/parity-specs/catalog*.json`, `config/parity-specs/price-list*.json`, and matching files under `config/parity-requests/`
