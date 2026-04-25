@@ -85,6 +85,12 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
   for `.mts`, `.cjs` for `.cts`). Do not import local modules with source
   extensions such as `.ts`, `.mts`, or `.cts`; `pnpm lint` enforces this with
   oxlint's `import/extensions` rule.
+- Connection implementations must use the shared helpers in
+  `src/proxy/graphql-helpers.ts` for cursor windowing, `nodes`/`edges`
+  serialization, and selected `pageInfo` fields. Keep resource-specific sorting,
+  filtering, cursor derivation, and node projection in the owning resource
+  module, then pass those decisions into `paginateConnectionItems(...)` and
+  `serializeConnection(...)` instead of rebuilding connection loops locally.
 
 ## GitHub repository
 

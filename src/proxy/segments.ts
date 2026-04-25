@@ -8,6 +8,7 @@ import {
 } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
+import { paginateConnectionItems } from './graphql-helpers.js';
 import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type { SegmentRecord } from '../state/types.js';
@@ -48,16 +49,11 @@ function buildSegmentsConnection(
   variables: Record<string, unknown>,
   segments: SegmentRecord[],
 ): Record<string, unknown> {
-  const args = getFieldArguments(field, variables);
-  const first =
-    typeof args['first'] === 'number' && Number.isFinite(args['first']) ? Math.max(0, Math.floor(args['first'])) : null;
-  const last =
-    typeof args['last'] === 'number' && Number.isFinite(args['last']) ? Math.max(0, Math.floor(args['last'])) : null;
-  const allSegments = segments;
-  const firstWindow = first === null ? allSegments : allSegments.slice(0, first);
-  const visibleSegments = last === null ? firstWindow : firstWindow.slice(Math.max(0, firstWindow.length - last));
-  const hasPreviousPage = last !== null && firstWindow.length > visibleSegments.length;
-  const hasNextPage = first !== null && allSegments.length > visibleSegments.length;
+  const {
+    items: visibleSegments,
+    hasNextPage,
+    hasPreviousPage,
+  } = paginateConnectionItems(segments, field, variables, (segment) => segment.id);
   const startCursor = visibleSegments[0] ? segmentCursor(visibleSegments[0]) : null;
   const endCursor = visibleSegments.at(-1) ? segmentCursor(visibleSegments.at(-1) as SegmentRecord) : null;
 
