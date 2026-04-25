@@ -11,9 +11,7 @@
       "extensions": {
         "code": "NOT_FOUND"
       },
-      "path": [
-        "missingSegment"
-      ]
+      "path": ["missingSegment"]
     }
   ],
   "data": {

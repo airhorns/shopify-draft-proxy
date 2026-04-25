@@ -238,10 +238,12 @@ function rootPayloadForField(field: FieldNode, variables: Record<string, unknown
     case 'segments':
       return store.getBaseSegmentsRootPayload('segments') ?? buildSegmentsConnection(field, variables);
     case 'segmentsCount':
-      return store.getBaseSegmentsRootPayload('segmentsCount') ?? {
-        count: store.listBaseSegments().length,
-        precision: 'EXACT',
-      };
+      return (
+        store.getBaseSegmentsRootPayload('segmentsCount') ?? {
+          count: store.listBaseSegments().length,
+          precision: 'EXACT',
+        }
+      );
     case 'segmentFilters':
     case 'segmentFilterSuggestions':
     case 'segmentValueSuggestions':
