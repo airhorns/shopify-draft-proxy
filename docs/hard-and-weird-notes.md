@@ -2291,7 +2291,14 @@ Observed current-version surface:
 Capture prerequisites and safety constraints:
 
 - Shopify Payments account and payout roots require Shopify Payments account-level access such as `read_shopify_payments` / `read_shopify_payments_accounts`; the current credential does not have that top-level access, so do not synthesize balances, payout history, bank accounts, disputes, statement descriptors, or money movement from adjacent Store properties reads
-- payment customization reads are currently capture-ready for empty/null behavior with `read_payment_customizations`; writes have `write_payment_customizations` on the app manifest but still require a disposable Shopify Function/payment customization setup and cleanup because they can change checkout payment behavior
+- payment customization reads now have a narrow HAR-223 snapshot/local model for `paymentCustomization(id:)` and `paymentCustomizations(...)`, seeded only from normalized state; writes are staged locally for `paymentCustomizationCreate`, `paymentCustomizationUpdate`, `paymentCustomizationDelete`, and `paymentCustomizationActivation` without invoking Shopify Functions or checkout payment behavior at runtime
+- HAR-223 checked in `payment-customization-empty-read` as the first executable parity contract for this slice: `paymentCustomizations(first: 2, query: "enabled:true")` returned empty `nodes`/`edges` with false/null `pageInfo`, and an unknown-id `paymentCustomization(id:)` returned `null`
+- HAR-223 also captured payment customization validation branches with the write scope granted:
+  - the current test store returned no `shopifyFunctions(first: 20)` nodes; HAR-223 added and deployed a repo-local `conformance-payment-customization` Function extension, but the existing store install still returned an empty Function catalog afterward, so a true live happy-path create/update/delete sequence likely needs a refreshed app install/grant that can see the released Function
+  - create with missing `title`, `enabled`, or `functionId` returns `PaymentCustomizationError` code `REQUIRED_INPUT_FIELD` under `['paymentCustomization', <field>]`
+  - create with `functionId: gid://shopify/ShopifyFunction/0` returns `FUNCTION_NOT_FOUND` under `['paymentCustomization', 'functionId']` and mentions the installed app id `347082227713`
+  - update/delete unknown `gid://shopify/PaymentCustomization/0` return `PAYMENT_CUSTOMIZATION_NOT_FOUND` under `['id']`; activation unknown ids return the same code under `['ids']` with an empty `ids` payload
+  - activation with an empty `ids` list returns `ids: []` and no user errors
 - customer payment method reads remain blocked on `read_customer_payment_methods` even though `read_customers` is present; writes require `write_customers` plus `write_customer_payment_methods` and must use isolated test customers/payment methods because card sessions, duplication data, update URLs, revocation, and remote gateway identifiers are sensitive
 - order payment captures and voids require order write scopes plus merchant permissions (`capture_payments_for_orders` for capture and cancel-order permission for void) and an isolated authorized transaction because successful paths capture or void real payment authorization
 - mandate payment requires `write_payment_mandate`, `pay_orders_by_vaulted_card` permission, mandate-backed schedule data, idempotency-key coverage, and Shopify Plus coverage for amount-specific branches
@@ -2301,7 +2308,7 @@ Capture prerequisites and safety constraints:
 
 Practical rule:
 
-- keep scaffold-only payment roots out of capability routing until captured evidence and local modeling exist for each family
+- keep scaffold-only payment roots out of capability routing until captured evidence and local modeling exist for each family; the current exception is the read-only payment customization slice backed by empty/null evidence plus normalized snapshot rows
 - do not add parity specs or parity request placeholders for payment roots until there is captured interaction evidence that can run as working conformance coverage
 - future runtime support must stage supported payment mutations locally and preserve raw mutation order for commit; unknown unsupported operations can still fall through the generic passthrough escape hatch with observability
 
