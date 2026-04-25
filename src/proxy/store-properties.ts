@@ -26,7 +26,7 @@ import type {
   ShopRecord,
   ShopResourceLimitsRecord,
 } from '../state/types.js';
-import { paginateConnectionItems, serializeConnectionPageInfo } from './graphql-helpers.js';
+import { paginateConnectionItems, serializeConnection } from './graphql-helpers.js';
 
 interface GraphQLResponseError {
   message: string;
@@ -411,30 +411,13 @@ function serializeLocationFulfillmentService(
 }
 
 function serializeEmptyMetafieldsConnection(field: FieldNode): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-
-  for (const selection of field.selectionSet?.selections ?? []) {
-    if (selection.kind !== Kind.FIELD) {
-      continue;
-    }
-
-    const key = responseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = [];
-        break;
-      case 'edges':
-        result[key] = [];
-        break;
-      case 'pageInfo':
-        result[key] = serializeConnectionPageInfo(selection, [], false, false, () => '');
-        break;
-      default:
-        result[key] = null;
-    }
-  }
-
-  return result;
+  return serializeConnection(field, {
+    items: [],
+    hasNextPage: false,
+    hasPreviousPage: false,
+    getCursorValue: () => '',
+    serializeNode: () => null,
+  });
 }
 
 function serializeInventoryLevelQuantities(
@@ -627,65 +610,17 @@ function serializeLocationInventoryLevelsConnection(
     hasNextPage,
     hasPreviousPage,
   } = paginateConnectionItems(allLevels, field, variables, getInventoryLevelCursor);
-  const result: Record<string, unknown> = {};
-
-  for (const selection of field.selectionSet?.selections ?? []) {
-    if (selection.kind !== Kind.FIELD) {
-      continue;
-    }
-
-    const key = responseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = levels.map((level) =>
-          serializeInventoryLevel(level, selection.selectionSet?.selections ?? [], variables),
-        );
-        break;
-      case 'edges':
-        result[key] = levels.map((level) => {
-          const edgeResult: Record<string, unknown> = {};
-          for (const edgeSelection of selection.selectionSet?.selections ?? []) {
-            if (edgeSelection.kind !== Kind.FIELD) {
-              continue;
-            }
-
-            const edgeKey = responseKey(edgeSelection);
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edgeResult[edgeKey] = getInventoryLevelCursor(level);
-                break;
-              case 'node':
-                edgeResult[edgeKey] = serializeInventoryLevel(
-                  level,
-                  edgeSelection.selectionSet?.selections ?? [],
-                  variables,
-                );
-                break;
-              default:
-                edgeResult[edgeKey] = null;
-            }
-          }
-          return edgeResult;
-        });
-        break;
-      case 'pageInfo':
-        result[key] = serializeConnectionPageInfo(
-          selection,
-          levels,
-          hasNextPage,
-          hasPreviousPage,
-          getInventoryLevelCursor,
-          {
-            prefixCursors: false,
-          },
-        );
-        break;
-      default:
-        result[key] = null;
-    }
-  }
-
-  return result;
+  return serializeConnection(field, {
+    items: levels,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: getInventoryLevelCursor,
+    serializeNode: (level, selection) =>
+      serializeInventoryLevel(level, selection.selectionSet?.selections ?? [], variables),
+    pageInfoOptions: {
+      prefixCursors: false,
+    },
+  });
 }
 
 function findInventoryLevelForLocation(

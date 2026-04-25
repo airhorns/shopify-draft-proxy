@@ -9,8 +9,7 @@ import {
   getSelectedChildFields as getGraphQLSelectedChildFields,
   readNullableIntArgument,
   readNullableStringArgument,
-  serializeConnectionPageInfo,
-  serializeEmptyConnectionPageInfo as serializePageInfo,
+  serializeConnection,
 } from './graphql-helpers.js';
 import {
   readMetafieldInputObjects,
@@ -1947,57 +1946,13 @@ function serializeDraftOrderLineItemsConnection(
   field: FieldNode,
   lineItems: DraftOrderLineItemRecord[],
 ): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = lineItems.map((lineItem) => serializeDraftOrderLineItemNode(selection, lineItem));
-        break;
-      case 'edges':
-        result[key] = lineItems.map((lineItem) => {
-          const edgeResult: Record<string, unknown> = {};
-          for (const edgeSelection of getSelectedChildFields(selection)) {
-            const edgeKey = getFieldResponseKey(edgeSelection);
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edgeResult[edgeKey] = `cursor:${lineItem.id}`;
-                break;
-              case 'node':
-                edgeResult[edgeKey] = serializeDraftOrderLineItemNode(edgeSelection, lineItem);
-                break;
-              default:
-                edgeResult[edgeKey] = null;
-                break;
-            }
-          }
-          return edgeResult;
-        });
-        break;
-      case 'pageInfo':
-        result[key] = Object.fromEntries(
-          getSelectedChildFields(selection).map((pageInfoSelection) => {
-            const pageInfoKey = getFieldResponseKey(pageInfoSelection);
-            switch (pageInfoSelection.name.value) {
-              case 'hasNextPage':
-              case 'hasPreviousPage':
-                return [pageInfoKey, false];
-              case 'startCursor':
-                return [pageInfoKey, lineItems[0] ? `cursor:${lineItems[0].id}` : null];
-              case 'endCursor':
-                return [pageInfoKey, lineItems.length > 0 ? `cursor:${lineItems[lineItems.length - 1]!.id}` : null];
-              default:
-                return [pageInfoKey, null];
-            }
-          }),
-        );
-        break;
-      default:
-        result[key] = null;
-        break;
-    }
-  }
-  return result;
+  return serializeConnection(field, {
+    items: lineItems,
+    hasNextPage: false,
+    hasPreviousPage: false,
+    getCursorValue: (lineItem) => lineItem.id,
+    serializeNode: (lineItem, selection) => serializeDraftOrderLineItemNode(selection, lineItem),
+  });
 }
 
 function serializeDraftOrderNode(field: FieldNode, draftOrder: DraftOrderRecord): Record<string, unknown> {
@@ -2454,49 +2409,15 @@ function serializeDraftOrdersConnection(
     field,
     variables,
   );
-  const result: Record<string, unknown> = {};
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'edges':
-        result[key] = visibleRecords.map((draftOrder) => {
-          const edgeResult: Record<string, unknown> = {};
-          for (const edgeSelection of getSelectedChildFields(selection)) {
-            const edgeKey = getFieldResponseKey(edgeSelection);
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edgeResult[edgeKey] = buildSyntheticCursor(draftOrder.id);
-                break;
-              case 'node':
-                edgeResult[edgeKey] = serializeDraftOrderNode(edgeSelection, draftOrder);
-                break;
-              default:
-                edgeResult[edgeKey] = null;
-                break;
-            }
-          }
-          return edgeResult;
-        });
-        break;
-      case 'nodes':
-        result[key] = visibleRecords.map((draftOrder) => serializeDraftOrderNode(selection, draftOrder));
-        break;
-      case 'pageInfo':
-        result[key] = serializeConnectionPageInfo(
-          selection,
-          visibleRecords,
-          hasNextPage,
-          hasPreviousPage,
-          (draftOrder) => buildSyntheticCursor(draftOrder.id),
-          { prefixCursors: false, includeInlineFragments: true },
-        );
-        break;
-      default:
-        result[key] = null;
-        break;
-    }
-  }
-  return result;
+  return serializeConnection(field, {
+    items: visibleRecords,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (draftOrder) => buildSyntheticCursor(draftOrder.id),
+    serializeNode: (draftOrder, selection) => serializeDraftOrderNode(selection, draftOrder),
+    selectedFieldOptions: { includeInlineFragments: true },
+    pageInfoOptions: { prefixCursors: false, includeInlineFragments: true },
+  });
 }
 
 function serializeDraftOrdersCount(
@@ -2593,44 +2514,17 @@ function serializeOrderDiscountApplicationsConnection(
   field: FieldNode,
   discountApplications: OrderDiscountApplicationRecord[],
 ): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = discountApplications.map((discountApplication) =>
-          serializeOrderDiscountApplication(selection, discountApplication),
-        );
-        break;
-      case 'edges':
-        result[key] = discountApplications.map((discountApplication, index) => {
-          const edgeResult: Record<string, unknown> = {};
-          for (const edgeSelection of getSelectedChildFields(selection)) {
-            const edgeKey = getFieldResponseKey(edgeSelection);
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edgeResult[edgeKey] = `cursor:discount-application:${index + 1}`;
-                break;
-              case 'node':
-                edgeResult[edgeKey] = serializeOrderDiscountApplication(edgeSelection, discountApplication);
-                break;
-              default:
-                edgeResult[edgeKey] = null;
-                break;
-            }
-          }
-          return edgeResult;
-        });
-        break;
-      case 'pageInfo':
-        result[key] = serializePageInfo(selection);
-        break;
-      default:
-        result[key] = null;
-        break;
-    }
-  }
-  return result;
+  return serializeConnection(field, {
+    items: discountApplications,
+    hasNextPage: false,
+    hasPreviousPage: false,
+    getCursorValue: (_discountApplication, index) => `discount-application:${index + 1}`,
+    serializeNode: (discountApplication, selection) =>
+      serializeOrderDiscountApplication(selection, discountApplication),
+    pageInfoOptions: {
+      includeCursors: false,
+    },
+  });
 }
 
 function serializeOrderDiscountApplication(
@@ -2743,57 +2637,13 @@ function serializeOrderLineItemsConnection(
   field: FieldNode,
   lineItems: OrderLineItemRecord[],
 ): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = lineItems.map((lineItem) => serializeOrderLineItemNode(selection, lineItem));
-        break;
-      case 'edges':
-        result[key] = lineItems.map((lineItem) => {
-          const edgeResult: Record<string, unknown> = {};
-          for (const edgeSelection of getSelectedChildFields(selection)) {
-            const edgeKey = getFieldResponseKey(edgeSelection);
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edgeResult[edgeKey] = `cursor:${lineItem.id}`;
-                break;
-              case 'node':
-                edgeResult[edgeKey] = serializeOrderLineItemNode(edgeSelection, lineItem);
-                break;
-              default:
-                edgeResult[edgeKey] = null;
-                break;
-            }
-          }
-          return edgeResult;
-        });
-        break;
-      case 'pageInfo':
-        result[key] = Object.fromEntries(
-          getSelectedChildFields(selection).map((pageInfoSelection) => {
-            const pageInfoKey = getFieldResponseKey(pageInfoSelection);
-            switch (pageInfoSelection.name.value) {
-              case 'hasNextPage':
-              case 'hasPreviousPage':
-                return [pageInfoKey, false];
-              case 'startCursor':
-                return [pageInfoKey, lineItems[0] ? `cursor:${lineItems[0].id}` : null];
-              case 'endCursor':
-                return [pageInfoKey, lineItems.length > 0 ? `cursor:${lineItems[lineItems.length - 1]!.id}` : null];
-              default:
-                return [pageInfoKey, null];
-            }
-          }),
-        );
-        break;
-      default:
-        result[key] = null;
-        break;
-    }
-  }
-  return result;
+  return serializeConnection(field, {
+    items: lineItems,
+    hasNextPage: false,
+    hasPreviousPage: false,
+    getCursorValue: (lineItem) => lineItem.id,
+    serializeNode: (lineItem, selection) => serializeOrderLineItemNode(selection, lineItem),
+  });
 }
 
 function serializeOrderFulfillmentLineItem(
@@ -2839,42 +2689,16 @@ function serializeOrderFulfillmentLineItemsConnection(
   field: FieldNode,
   fulfillmentLineItems: OrderFulfillmentLineItemRecord[],
 ): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = fulfillmentLineItems.map((lineItem) => serializeOrderFulfillmentLineItem(selection, lineItem));
-        break;
-      case 'edges':
-        result[key] = fulfillmentLineItems.map((lineItem) => {
-          const edgeResult: Record<string, unknown> = {};
-          for (const edgeSelection of getSelectedChildFields(selection)) {
-            const edgeKey = getFieldResponseKey(edgeSelection);
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edgeResult[edgeKey] = `cursor:${lineItem.id}`;
-                break;
-              case 'node':
-                edgeResult[edgeKey] = serializeOrderFulfillmentLineItem(edgeSelection, lineItem);
-                break;
-              default:
-                edgeResult[edgeKey] = null;
-                break;
-            }
-          }
-          return edgeResult;
-        });
-        break;
-      case 'pageInfo':
-        result[key] = serializePageInfo(selection);
-        break;
-      default:
-        result[key] = null;
-        break;
-    }
-  }
-  return result;
+  return serializeConnection(field, {
+    items: fulfillmentLineItems,
+    hasNextPage: false,
+    hasPreviousPage: false,
+    getCursorValue: (lineItem) => lineItem.id,
+    serializeNode: (lineItem, selection) => serializeOrderFulfillmentLineItem(selection, lineItem),
+    pageInfoOptions: {
+      includeCursors: false,
+    },
+  });
 }
 
 function serializeOrderFulfillment(field: FieldNode, fulfillment: OrderFulfillmentRecord): Record<string, unknown> {
@@ -2973,42 +2797,16 @@ function serializeOrderFulfillmentOrderLineItemsConnection(
   field: FieldNode,
   lineItems: OrderFulfillmentOrderLineItemRecord[],
 ): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = lineItems.map((lineItem) => serializeOrderFulfillmentOrderLineItem(selection, lineItem));
-        break;
-      case 'edges':
-        result[key] = lineItems.map((lineItem) => {
-          const edgeResult: Record<string, unknown> = {};
-          for (const edgeSelection of getSelectedChildFields(selection)) {
-            const edgeKey = getFieldResponseKey(edgeSelection);
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edgeResult[edgeKey] = `cursor:${lineItem.id}`;
-                break;
-              case 'node':
-                edgeResult[edgeKey] = serializeOrderFulfillmentOrderLineItem(edgeSelection, lineItem);
-                break;
-              default:
-                edgeResult[edgeKey] = null;
-                break;
-            }
-          }
-          return edgeResult;
-        });
-        break;
-      case 'pageInfo':
-        result[key] = serializePageInfo(selection);
-        break;
-      default:
-        result[key] = null;
-        break;
-    }
-  }
-  return result;
+  return serializeConnection(field, {
+    items: lineItems,
+    hasNextPage: false,
+    hasPreviousPage: false,
+    getCursorValue: (lineItem) => lineItem.id,
+    serializeNode: (lineItem, selection) => serializeOrderFulfillmentOrderLineItem(selection, lineItem),
+    pageInfoOptions: {
+      includeCursors: false,
+    },
+  });
 }
 
 function serializeOrderFulfillmentOrder(
@@ -3058,44 +2856,16 @@ function serializeOrderFulfillmentOrdersConnection(
   field: FieldNode,
   fulfillmentOrders: OrderFulfillmentOrderRecord[],
 ): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = fulfillmentOrders.map((fulfillmentOrder) =>
-          serializeOrderFulfillmentOrder(selection, fulfillmentOrder),
-        );
-        break;
-      case 'edges':
-        result[key] = fulfillmentOrders.map((fulfillmentOrder) => {
-          const edgeResult: Record<string, unknown> = {};
-          for (const edgeSelection of getSelectedChildFields(selection)) {
-            const edgeKey = getFieldResponseKey(edgeSelection);
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edgeResult[edgeKey] = `cursor:${fulfillmentOrder.id}`;
-                break;
-              case 'node':
-                edgeResult[edgeKey] = serializeOrderFulfillmentOrder(edgeSelection, fulfillmentOrder);
-                break;
-              default:
-                edgeResult[edgeKey] = null;
-                break;
-            }
-          }
-          return edgeResult;
-        });
-        break;
-      case 'pageInfo':
-        result[key] = serializePageInfo(selection);
-        break;
-      default:
-        result[key] = null;
-        break;
-    }
-  }
-  return result;
+  return serializeConnection(field, {
+    items: fulfillmentOrders,
+    hasNextPage: false,
+    hasPreviousPage: false,
+    getCursorValue: (fulfillmentOrder) => fulfillmentOrder.id,
+    serializeNode: (fulfillmentOrder, selection) => serializeOrderFulfillmentOrder(selection, fulfillmentOrder),
+    pageInfoOptions: {
+      includeCursors: false,
+    },
+  });
 }
 
 function serializeOrderTransaction(field: FieldNode, transaction: OrderTransactionRecord): Record<string, unknown> {
@@ -3130,42 +2900,16 @@ function serializeOrderTransactionsConnection(
   field: FieldNode,
   transactions: OrderTransactionRecord[],
 ): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = transactions.map((transaction) => serializeOrderTransaction(selection, transaction));
-        break;
-      case 'edges':
-        result[key] = transactions.map((transaction) => {
-          const edgeResult: Record<string, unknown> = {};
-          for (const edgeSelection of getSelectedChildFields(selection)) {
-            const edgeKey = getFieldResponseKey(edgeSelection);
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edgeResult[edgeKey] = `cursor:${transaction.id}`;
-                break;
-              case 'node':
-                edgeResult[edgeKey] = serializeOrderTransaction(edgeSelection, transaction);
-                break;
-              default:
-                edgeResult[edgeKey] = null;
-                break;
-            }
-          }
-          return edgeResult;
-        });
-        break;
-      case 'pageInfo':
-        result[key] = serializePageInfo(selection);
-        break;
-      default:
-        result[key] = null;
-        break;
-    }
-  }
-  return result;
+  return serializeConnection(field, {
+    items: transactions,
+    hasNextPage: false,
+    hasPreviousPage: false,
+    getCursorValue: (transaction) => transaction.id,
+    serializeNode: (transaction, selection) => serializeOrderTransaction(selection, transaction),
+    pageInfoOptions: {
+      includeCursors: false,
+    },
+  });
 }
 
 function serializeOrderRefundLineItem(
@@ -3215,42 +2959,16 @@ function serializeRefundLineItemsConnection(
   field: FieldNode,
   refundLineItems: OrderRefundLineItemRecord[],
 ): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = refundLineItems.map((lineItem) => serializeOrderRefundLineItem(selection, lineItem));
-        break;
-      case 'edges':
-        result[key] = refundLineItems.map((lineItem) => {
-          const edgeResult: Record<string, unknown> = {};
-          for (const edgeSelection of getSelectedChildFields(selection)) {
-            const edgeKey = getFieldResponseKey(edgeSelection);
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edgeResult[edgeKey] = `cursor:${lineItem.id}`;
-                break;
-              case 'node':
-                edgeResult[edgeKey] = serializeOrderRefundLineItem(edgeSelection, lineItem);
-                break;
-              default:
-                edgeResult[edgeKey] = null;
-                break;
-            }
-          }
-          return edgeResult;
-        });
-        break;
-      case 'pageInfo':
-        result[key] = serializePageInfo(selection);
-        break;
-      default:
-        result[key] = null;
-        break;
-    }
-  }
-  return result;
+  return serializeConnection(field, {
+    items: refundLineItems,
+    hasNextPage: false,
+    hasPreviousPage: false,
+    getCursorValue: (lineItem) => lineItem.id,
+    serializeNode: (lineItem, selection) => serializeOrderRefundLineItem(selection, lineItem),
+    pageInfoOptions: {
+      includeCursors: false,
+    },
+  });
 }
 
 function serializeOrderRefund(field: FieldNode, refund: OrderRefundRecord): Record<string, unknown> {
@@ -3307,99 +3025,29 @@ function serializeOrderReturn(field: FieldNode, orderReturn: OrderReturnRecord):
 }
 
 function serializeOrderReturnsConnection(field: FieldNode, returns: OrderReturnRecord[]): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = returns.map((orderReturn) => serializeOrderReturn(selection, orderReturn));
-        break;
-      case 'edges':
-        result[key] = returns.map((orderReturn) => {
-          const edgeResult: Record<string, unknown> = {};
-          for (const edgeSelection of getSelectedChildFields(selection)) {
-            const edgeKey = getFieldResponseKey(edgeSelection);
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edgeResult[edgeKey] = `cursor:${orderReturn.id}`;
-                break;
-              case 'node':
-                edgeResult[edgeKey] = serializeOrderReturn(edgeSelection, orderReturn);
-                break;
-              default:
-                edgeResult[edgeKey] = null;
-                break;
-            }
-          }
-          return edgeResult;
-        });
-        break;
-      case 'pageInfo':
-        result[key] = serializePageInfo(selection);
-        break;
-      default:
-        result[key] = null;
-        break;
-    }
-  }
-  return result;
+  return serializeConnection(field, {
+    items: returns,
+    hasNextPage: false,
+    hasPreviousPage: false,
+    getCursorValue: (orderReturn) => orderReturn.id,
+    serializeNode: (orderReturn, selection) => serializeOrderReturn(selection, orderReturn),
+    pageInfoOptions: {
+      includeCursors: false,
+    },
+  });
 }
 
 function serializeOrderShippingLinesConnection(
   field: FieldNode,
   shippingLines: OrderShippingLineRecord[],
 ): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = shippingLines.map((shippingLine) => serializeDraftOrderShippingLine(selection, shippingLine));
-        break;
-      case 'edges':
-        result[key] = shippingLines.map((shippingLine, index) => {
-          const edgeResult: Record<string, unknown> = {};
-          for (const edgeSelection of getSelectedChildFields(selection)) {
-            const edgeKey = getFieldResponseKey(edgeSelection);
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edgeResult[edgeKey] = `cursor:shipping-line:${index + 1}`;
-                break;
-              case 'node':
-                edgeResult[edgeKey] = serializeDraftOrderShippingLine(edgeSelection, shippingLine);
-                break;
-              default:
-                edgeResult[edgeKey] = null;
-                break;
-            }
-          }
-          return edgeResult;
-        });
-        break;
-      case 'pageInfo':
-        result[key] = Object.fromEntries(
-          getSelectedChildFields(selection).map((pageInfoSelection) => {
-            const pageInfoKey = getFieldResponseKey(pageInfoSelection);
-            switch (pageInfoSelection.name.value) {
-              case 'hasNextPage':
-              case 'hasPreviousPage':
-                return [pageInfoKey, false];
-              case 'startCursor':
-                return [pageInfoKey, shippingLines.length > 0 ? 'cursor:shipping-line:1' : null];
-              case 'endCursor':
-                return [pageInfoKey, shippingLines.length > 0 ? `cursor:shipping-line:${shippingLines.length}` : null];
-              default:
-                return [pageInfoKey, null];
-            }
-          }),
-        );
-        break;
-      default:
-        result[key] = null;
-        break;
-    }
-  }
-  return result;
+  return serializeConnection(field, {
+    items: shippingLines,
+    hasNextPage: false,
+    hasPreviousPage: false,
+    getCursorValue: (_shippingLine, index) => `shipping-line:${index + 1}`,
+    serializeNode: (shippingLine, selection) => serializeDraftOrderShippingLine(selection, shippingLine),
+  });
 }
 
 function deriveOrderTotalShippingPriceSet(order: OrderRecord): { shopMoney: MoneyV2Record } {
@@ -3695,49 +3343,15 @@ function serializeOrdersConnection(
       : applyOrdersQuery(orders, args['query']);
   const orderedOrders = sortOrdersForConnection(filteredOrders, field, variables);
   const { visibleRecords, hasNextPage, hasPreviousPage } = applySyntheticCursorWindow(orderedOrders, field, variables);
-  const result: Record<string, unknown> = {};
-
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'edges':
-        result[key] = visibleRecords.map((order) => {
-          const edgeResult: Record<string, unknown> = {};
-          for (const edgeSelection of getSelectedChildFields(selection)) {
-            const edgeKey = getFieldResponseKey(edgeSelection);
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edgeResult[edgeKey] = buildSyntheticCursor(order.id);
-                break;
-              case 'node':
-                edgeResult[edgeKey] = serializeOrderNode(edgeSelection, order);
-                break;
-              default:
-                edgeResult[edgeKey] = null;
-                break;
-            }
-          }
-          return edgeResult;
-        });
-        break;
-      case 'nodes':
-        result[key] = visibleRecords.map((order) => serializeOrderNode(selection, order));
-        break;
-      case 'pageInfo':
-        result[key] = serializeConnectionPageInfo(
-          selection,
-          visibleRecords,
-          hasNextPage,
-          hasPreviousPage,
-          (order) => buildSyntheticCursor(order.id),
-          { prefixCursors: false, includeInlineFragments: true },
-        );
-        break;
-      default:
-        result[key] = null;
-        break;
-    }
-  }
+  const result = serializeConnection(field, {
+    items: visibleRecords,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (order) => buildSyntheticCursor(order.id),
+    serializeNode: (order, selection) => serializeOrderNode(selection, order),
+    selectedFieldOptions: { includeInlineFragments: true },
+    pageInfoOptions: { prefixCursors: false, includeInlineFragments: true },
+  });
 
   return result;
 }

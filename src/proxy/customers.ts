@@ -5,8 +5,8 @@ import { parseSearchQuery, type SearchQueryNode, type SearchQueryTerm } from '..
 import {
   getFieldResponseKey,
   getSelectedChildFields,
-  serializeConnectionPageInfo,
-  serializeEmptyConnectionPageInfo,
+  paginateConnectionItems,
+  serializeConnection,
 } from './graphql-helpers.js';
 import {
   mergeMetafieldRecords,
@@ -640,25 +640,13 @@ function serializeDefaultAddressSelection(
 }
 
 function serializeEmptyConnectionSelection(field: FieldNode): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-      case 'edges':
-        result[key] = [];
-        break;
-      case 'pageInfo':
-        result[key] = serializeEmptyConnectionPageInfo(selection);
-        break;
-      default:
-        result[key] = null;
-        break;
-    }
-  }
-
-  return result;
+  return serializeConnection(field, {
+    items: [],
+    hasNextPage: false,
+    hasPreviousPage: false,
+    getCursorValue: () => '',
+    serializeNode: () => null,
+  });
 }
 function serializeCustomerSelection(
   customer: CustomerRecord,
@@ -1264,36 +1252,11 @@ function serializeCustomersCount(_rawQuery: unknown, selections: readonly Select
   return result;
 }
 
-function buildCatalogPageInfo(
-  visibleCustomers: CustomerRecord[],
-  field: FieldNode,
-  hasNextPage: boolean,
-  hasPreviousPage: boolean,
-  catalogConnection: CustomerCatalogConnectionRecord | null,
-  options: { preserveBaselinePageInfo: boolean },
-): Record<string, boolean | string | null> {
-  return serializeConnectionPageInfo(
-    field,
-    visibleCustomers,
-    hasNextPage,
-    hasPreviousPage,
-    (customer) => resolveCatalogCustomerCursor(customer.id, catalogConnection),
-    {
-      prefixCursors: false,
-      fallbackStartCursor: options.preserveBaselinePageInfo ? (catalogConnection?.pageInfo.startCursor ?? null) : null,
-      fallbackEndCursor: options.preserveBaselinePageInfo ? (catalogConnection?.pageInfo.endCursor ?? null) : null,
-    },
-  ) as Record<string, boolean | string | null>;
-}
-
 function serializeCustomersConnection(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
-  const first =
-    typeof args['first'] === 'number' && Number.isFinite(args['first']) ? Math.max(0, Math.floor(args['first'])) : null;
+  const before = typeof args['before'] === 'string' ? args['before'] : null;
   const last =
     typeof args['last'] === 'number' && Number.isFinite(args['last']) ? Math.max(0, Math.floor(args['last'])) : null;
-  const after = typeof args['after'] === 'string' ? args['after'] : null;
-  const before = typeof args['before'] === 'string' ? args['before'] : null;
 
   const catalogConnection = store.getBaseCustomerCatalogConnection();
   const searchConnectionKey = buildCustomerSearchConnectionKey(args['query'], args['sortKey'], args['reverse']);
@@ -1309,75 +1272,36 @@ function serializeCustomersConnection(field: FieldNode, variables: Record<string
     args['sortKey'],
     args['reverse'],
   );
-  const afterIndex = after
-    ? allCustomers.findIndex((customer) => resolveCatalogCustomerCursor(customer.id, activeConnection) === after)
-    : -1;
-  const beforeIndex = before
-    ? allCustomers.findIndex((customer) => resolveCatalogCustomerCursor(customer.id, activeConnection) === before)
-    : -1;
-  const startIndex = afterIndex >= 0 ? afterIndex + 1 : 0;
-  const endIndex = beforeIndex >= 0 ? beforeIndex : allCustomers.length;
-  const cursorWindow = allCustomers.slice(startIndex, endIndex);
-  const firstWindow = first === null ? cursorWindow : cursorWindow.slice(0, first);
-  const visibleCustomers = last === null ? firstWindow : firstWindow.slice(Math.max(0, firstWindow.length - last));
-  const visibleStartIndex =
-    last === null ? startIndex : Math.max(startIndex, startIndex + firstWindow.length - visibleCustomers.length);
-  const visibleEndIndex = visibleStartIndex + visibleCustomers.length;
-  const calculatedHasPreviousPage = visibleStartIndex > 0;
-  const calculatedHasNextPage = visibleEndIndex < allCustomers.length;
+  const {
+    items: visibleCustomers,
+    hasNextPage: calculatedHasNextPage,
+    hasPreviousPage: calculatedHasPreviousPage,
+  } = paginateConnectionItems(
+    allCustomers,
+    field,
+    variables,
+    (customer) => resolveCatalogCustomerCursor(customer.id, activeConnection),
+    {
+      parseCursor: (raw) => raw,
+    },
+  );
   const hasPreviousPage =
     calculatedHasPreviousPage || (preserveBaselinePageInfo && (activeConnection?.pageInfo.hasPreviousPage ?? false));
   const hasNextPage =
     calculatedHasNextPage || (preserveBaselinePageInfo && (activeConnection?.pageInfo.hasNextPage ?? false));
 
-  const connection: Record<string, unknown> = {};
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-        connection[key] = visibleCustomers.map((customer) =>
-          serializeCustomerSelection(customer, selection, variables),
-        );
-        break;
-      case 'edges':
-        connection[key] = visibleCustomers.map((customer) => {
-          const edge: Record<string, unknown> = {};
-          for (const edgeSelection of getSelectedChildFields(selection)) {
-            const edgeKey = getFieldResponseKey(edgeSelection);
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edge[edgeKey] = resolveCatalogCustomerCursor(customer.id, activeConnection);
-                break;
-              case 'node':
-                edge[edgeKey] = serializeCustomerSelection(customer, edgeSelection, variables);
-                break;
-              default:
-                edge[edgeKey] = null;
-                break;
-            }
-          }
-          return edge;
-        });
-        break;
-      case 'pageInfo':
-        connection[key] = buildCatalogPageInfo(
-          visibleCustomers,
-          selection,
-          hasNextPage,
-          hasPreviousPage,
-          activeConnection,
-          {
-            preserveBaselinePageInfo,
-          },
-        );
-        break;
-      default:
-        connection[key] = null;
-        break;
-    }
-  }
-
-  return connection;
+  return serializeConnection(field, {
+    items: visibleCustomers,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (customer) => resolveCatalogCustomerCursor(customer.id, activeConnection),
+    serializeNode: (customer, selection) => serializeCustomerSelection(customer, selection, variables),
+    pageInfoOptions: {
+      prefixCursors: false,
+      fallbackStartCursor: preserveBaselinePageInfo ? (activeConnection?.pageInfo.startCursor ?? null) : null,
+      fallbackEndCursor: preserveBaselinePageInfo ? (activeConnection?.pageInfo.endCursor ?? null) : null,
+    },
+  });
 }
 
 function normalizeCustomerCatalogPageInfo(raw: unknown): CustomerCatalogPageInfoRecord {

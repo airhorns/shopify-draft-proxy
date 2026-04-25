@@ -2,12 +2,7 @@ import { Kind, parse, type FieldNode, type FragmentDefinitionNode, type Selectio
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import { parseSearchQuery, type SearchQueryNode, type SearchQueryTerm } from '../search-query-parser.js';
-import {
-  getFieldResponseKey,
-  getSelectedChildFields,
-  paginateConnectionItems,
-  serializeConnectionPageInfo,
-} from './graphql-helpers.js';
+import { paginateConnectionItems, serializeConnection } from './graphql-helpers.js';
 import { store } from '../state/store.js';
 import type { MarketRecord } from '../state/types.js';
 
@@ -143,35 +138,18 @@ function projectConnectionPayload(
 ): Record<string, unknown> {
   const edges = readConnectionEdges(value);
   const window = paginateConnectionItems(edges, selection, variables, (edge) => edge.cursor);
-  const result: Record<string, unknown> = {};
-
-  for (const childSelection of getSelectedChildFields(selection)) {
-    const key = getFieldResponseKey(childSelection);
-    switch (childSelection.name.value) {
-      case 'nodes':
-        result[key] = window.items.map((edge) =>
-          projectValue(edge.node, childSelection.selectionSet?.selections ?? [], fragments, variables),
-        );
-        break;
-      case 'edges':
-        result[key] = window.items.map((edge) => projectEdge(edge, childSelection, fragments, variables));
-        break;
-      case 'pageInfo':
-        result[key] = serializeConnectionPageInfo(
-          childSelection,
-          window.items,
-          window.hasNextPage,
-          window.hasPreviousPage,
-          (edge) => edge.cursor,
-          { prefixCursors: false },
-        );
-        break;
-      default:
-        result[key] = value[childSelection.name.value] ?? null;
-    }
-  }
-
-  return result;
+  return serializeConnection(selection, {
+    items: window.items,
+    hasNextPage: window.hasNextPage,
+    hasPreviousPage: window.hasPreviousPage,
+    getCursorValue: (edge) => edge.cursor,
+    serializeNode: (edge, nodeSelection) =>
+      projectValue(edge.node, nodeSelection.selectionSet?.selections ?? [], fragments, variables),
+    pageInfoOptions: {
+      prefixCursors: false,
+    },
+    serializeUnknownField: (childSelection) => value[childSelection.name.value] ?? null,
+  });
 }
 
 function projectSelectedFieldValue(
@@ -185,31 +163,6 @@ function projectSelectedFieldValue(
   }
 
   return projectValue(value, selection.selectionSet?.selections ?? [], fragments, variables);
-}
-
-function projectEdge(
-  edge: ConnectionEdge,
-  selection: FieldNode,
-  fragments: FragmentMap,
-  variables: Record<string, unknown>,
-): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-
-  for (const edgeSelection of getSelectedChildFields(selection)) {
-    const key = getFieldResponseKey(edgeSelection);
-    switch (edgeSelection.name.value) {
-      case 'cursor':
-        result[key] = edge.cursor;
-        break;
-      case 'node':
-        result[key] = projectValue(edge.node, edgeSelection.selectionSet?.selections ?? [], fragments, variables);
-        break;
-      default:
-        result[key] = null;
-    }
-  }
-
-  return result;
 }
 
 function getFragments(document: string): FragmentMap {
@@ -511,37 +464,17 @@ function serializeMarketsConnection(
 ): Record<string, unknown> {
   const markets = listMarketsForConnection(field, variables);
   const window = paginateConnectionItems(markets, field, variables, marketCursor);
-  const result: Record<string, unknown> = {};
-
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = window.items.map((market) =>
-          projectValue(market.data, selection.selectionSet?.selections ?? [], fragments, variables),
-        );
-        break;
-      case 'edges':
-        result[key] = window.items.map((market) =>
-          projectEdge({ cursor: marketCursor(market), node: market.data }, selection, fragments, variables),
-        );
-        break;
-      case 'pageInfo':
-        result[key] = serializeConnectionPageInfo(
-          selection,
-          window.items,
-          window.hasNextPage,
-          window.hasPreviousPage,
-          marketCursor,
-          { prefixCursors: false },
-        );
-        break;
-      default:
-        result[key] = null;
-    }
-  }
-
-  return result;
+  return serializeConnection(field, {
+    items: window.items,
+    hasNextPage: window.hasNextPage,
+    hasPreviousPage: window.hasPreviousPage,
+    getCursorValue: marketCursor,
+    serializeNode: (market, selection) =>
+      projectValue(market.data, selection.selectionSet?.selections ?? [], fragments, variables),
+    pageInfoOptions: {
+      prefixCursors: false,
+    },
+  });
 }
 
 function rootPayloadForField(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {

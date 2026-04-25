@@ -15,7 +15,7 @@ import {
   getFieldResponseKey,
   getSelectedChildFields,
   paginateConnectionItems,
-  serializeConnectionPageInfo,
+  serializeConnection,
 } from './graphql-helpers.js';
 
 function parseDiscountQuery(rawQuery: unknown): SearchQueryTerm[] {
@@ -158,46 +158,13 @@ function serializeCodesConnection(
     id: `gid://shopify/DiscountRedeemCode/${discount.id.split('/').at(-1) ?? code}`,
   }));
   const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(codes, field, variables, (code) => code.code);
-  const connection: Record<string, unknown> = {};
-
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-        connection[key] = items.map((code) => serializeCodeNode(code, selection));
-        break;
-      case 'edges':
-        connection[key] = items.map((code) => {
-          const edge: Record<string, unknown> = {};
-          for (const edgeSelection of getSelectedChildFields(selection)) {
-            const edgeKey = getFieldResponseKey(edgeSelection);
-            if (edgeSelection.name.value === 'cursor') {
-              edge[edgeKey] = `cursor:${code.code}`;
-            } else if (edgeSelection.name.value === 'node') {
-              edge[edgeKey] = serializeCodeNode(code, edgeSelection);
-            } else {
-              edge[edgeKey] = null;
-            }
-          }
-          return edge;
-        });
-        break;
-      case 'pageInfo':
-        connection[key] = serializeConnectionPageInfo(
-          selection,
-          items,
-          hasNextPage,
-          hasPreviousPage,
-          (code) => code.code,
-        );
-        break;
-      default:
-        connection[key] = null;
-        break;
-    }
-  }
-
-  return connection;
+  return serializeConnection(field, {
+    items,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (code) => code.code,
+    serializeNode: serializeCodeNode,
+  });
 }
 
 function serializeCodeNode(code: { code: string; id: string }, field: FieldNode): Record<string, unknown> {
@@ -331,50 +298,13 @@ function serializeDiscountNodesConnection(
     variables,
     (discount) => discount.id,
   );
-  const connection: Record<string, unknown> = {};
-
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-        connection[key] = items.map((discount) => serializeDiscountNode(discount, selection, variables));
-        break;
-      case 'edges':
-        connection[key] = items.map((discount) => {
-          const edge: Record<string, unknown> = {};
-          for (const edgeSelection of getSelectedChildFields(selection)) {
-            const edgeKey = getFieldResponseKey(edgeSelection);
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edge[edgeKey] = `cursor:${discount.id}`;
-                break;
-              case 'node':
-                edge[edgeKey] = serializeDiscountNode(discount, edgeSelection, variables);
-                break;
-              default:
-                edge[edgeKey] = null;
-                break;
-            }
-          }
-          return edge;
-        });
-        break;
-      case 'pageInfo':
-        connection[key] = serializeConnectionPageInfo(
-          selection,
-          items,
-          hasNextPage,
-          hasPreviousPage,
-          (discount) => discount.id,
-        );
-        break;
-      default:
-        connection[key] = null;
-        break;
-    }
-  }
-
-  return connection;
+  return serializeConnection(field, {
+    items,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (discount) => discount.id,
+    serializeNode: (discount, selection) => serializeDiscountNode(discount, selection, variables),
+  });
 }
 
 function serializeDiscountNodesCount(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
