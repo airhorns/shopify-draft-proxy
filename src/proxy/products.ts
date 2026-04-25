@@ -2127,6 +2127,37 @@ function buildProductDeleteInvalidVariableError(
   };
 }
 
+function buildMetafieldsDeleteInvalidVariableError(
+  metafields: unknown[],
+  fieldPath: string,
+  problemPath: Array<string | number>,
+  locations: GraphqlErrorLocation[],
+): {
+  errors: Array<{
+    message: string;
+    locations: GraphqlErrorLocation[];
+    extensions: {
+      code: 'INVALID_VARIABLE';
+      value: unknown[];
+      problems: Array<{ path: Array<string | number>; explanation: 'Expected value to not be null' }>;
+    };
+  }>;
+} {
+  return {
+    errors: [
+      {
+        message: `Variable $metafields of type [MetafieldIdentifierInput!]! was provided invalid value for ${fieldPath} (Expected value to not be null)`,
+        locations,
+        extensions: {
+          code: 'INVALID_VARIABLE',
+          value: structuredClone(metafields),
+          problems: [{ path: problemPath, explanation: 'Expected value to not be null' }],
+        },
+      },
+    ],
+  };
+}
+
 function buildMissingProductDeleteInputIdArgumentError(locations: GraphqlErrorLocation[]): {
   errors: Array<{
     message: string;
@@ -2771,20 +2802,30 @@ type DeletedMetafieldIdentifierRecord = {
   key: string;
 };
 
+type DeletedMetafieldIdentifierPayload = DeletedMetafieldIdentifierRecord | null;
+
 function serializeDeletedMetafieldIdentifiers(
-  identifiers: DeletedMetafieldIdentifierRecord[],
+  identifiers: DeletedMetafieldIdentifierPayload[],
   field: FieldNode | null,
-): Record<string, unknown>[] {
+): Array<Record<string, unknown> | null> {
   if (!field) {
-    return identifiers.map((identifier) => ({
-      ownerId: identifier.ownerId,
-      namespace: identifier.namespace,
-      key: identifier.key,
-    }));
+    return identifiers.map((identifier) =>
+      identifier === null
+        ? null
+        : {
+            ownerId: identifier.ownerId,
+            namespace: identifier.namespace,
+            key: identifier.key,
+          },
+    );
   }
 
-  return identifiers.map((identifier) =>
-    Object.fromEntries(
+  return identifiers.map((identifier) => {
+    if (identifier === null) {
+      return null;
+    }
+
+    return Object.fromEntries(
       (field.selectionSet?.selections ?? [])
         .filter((selection): selection is FieldNode => selection.kind === Kind.FIELD)
         .map((selection) => {
@@ -2800,8 +2841,8 @@ function serializeDeletedMetafieldIdentifiers(
               return [responseKey, null];
           }
         }),
-    ),
-  );
+    );
+  });
 }
 
 function upsertMetafieldsForProduct(
@@ -2826,19 +2867,45 @@ function findMetafieldById(metafieldId: string): ProductMetafieldRecord | null {
   return null;
 }
 
+function validateMetafieldsDeleteRequiredFields(rawMetafields: unknown): {
+  fieldPath: string;
+  problemPath: Array<string | number>;
+} | null {
+  if (!Array.isArray(rawMetafields)) {
+    return null;
+  }
+
+  for (const [index, rawMetafield] of rawMetafields.entries()) {
+    if (!isObject(rawMetafield)) {
+      continue;
+    }
+
+    for (const fieldName of ['ownerId', 'namespace', 'key']) {
+      if (!hasOwnField(rawMetafield, fieldName) || rawMetafield[fieldName] === null) {
+        return {
+          fieldPath: `${index}.${fieldName}`,
+          problemPath: [index, fieldName],
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
 function deleteMetafieldsByIdentifiers(inputs: Record<string, unknown>[]): {
-  deletedMetafields: DeletedMetafieldIdentifierRecord[];
+  deletedMetafields: DeletedMetafieldIdentifierPayload[];
   userErrors: Array<{ field: string[]; message: string }>;
 } {
   if (inputs.length === 0) {
     return {
       deletedMetafields: [],
-      userErrors: [{ field: ['metafields'], message: 'At least one metafield identifier is required' }],
+      userErrors: [],
     };
   }
 
   const effectiveMetafieldsByProductId = new Map<string, ProductMetafieldRecord[]>();
-  const deletedMetafields: DeletedMetafieldIdentifierRecord[] = [];
+  const deletedMetafields: DeletedMetafieldIdentifierPayload[] = [];
   const userErrors: Array<{ field: string[]; message: string }> = [];
 
   for (const [index, input] of inputs.entries()) {
@@ -2867,7 +2934,7 @@ function deleteMetafieldsByIdentifiers(inputs: Record<string, unknown>[]): {
       (metafield) => metafield.namespace === namespace && metafield.key === key,
     );
     if (!metafieldExists) {
-      userErrors.push({ field: ['metafields', String(index)], message: 'Metafield not found' });
+      deletedMetafields.push(null);
       continue;
     }
 
@@ -8393,6 +8460,21 @@ export function handleProductMutation(
       };
     }
     case 'metafieldsDelete': {
+      const metafieldsArg = field.arguments?.find((argument) => argument.name.value === 'metafields') ?? null;
+      if (metafieldsArg?.value.kind === Kind.VARIABLE) {
+        const variableName = metafieldsArg.value.name.value;
+        const rawMetafields = variables[variableName];
+        const validationError = validateMetafieldsDeleteRequiredFields(rawMetafields);
+        if (validationError) {
+          return buildMetafieldsDeleteInvalidVariableError(
+            Array.isArray(rawMetafields) ? rawMetafields : [],
+            validationError.fieldPath,
+            validationError.problemPath,
+            getVariableDefinitionLocation(document, variableName),
+          );
+        }
+      }
+
       const deleteResult = deleteMetafieldsByIdentifiers(readMetafieldInputObjects(args['metafields']));
       return {
         data: {

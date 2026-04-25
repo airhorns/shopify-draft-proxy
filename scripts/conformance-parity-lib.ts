@@ -3054,11 +3054,22 @@ function seedMetafieldsDeleteOwnerProducts(capture: unknown, variables: Record<s
   const existingKeys = new Set(retainedMetafields.map((metafield) => `${metafield.namespace}:${metafield.key}`));
   const primaryInput = readRecordField(variables, 'input');
   const singularDeleteId = readStringField(primaryInput, 'id');
+  const capturedDeletedMetafields = readArrayField(mutationPayloadFromCapture(capture), 'deletedMetafields');
+  const hasCapturedDeletedMetafields = capturedDeletedMetafields.length > 0;
   const deletedMetafields = deletedIdentifiers
     .map((identifier, index): ProductMetafieldRecord | null => {
-      const namespace = readStringField(identifier, 'namespace');
-      const key = readStringField(identifier, 'key');
-      const productId = readStringField(identifier, 'ownerId') ?? ownerId;
+      const capturedDeletedMetafield = hasCapturedDeletedMetafields
+        ? isPlainObject(capturedDeletedMetafields[index])
+          ? capturedDeletedMetafields[index]
+          : null
+        : identifier;
+      if (!capturedDeletedMetafield) {
+        return null;
+      }
+
+      const namespace = readStringField(capturedDeletedMetafield, 'namespace');
+      const key = readStringField(capturedDeletedMetafield, 'key');
+      const productId = readStringField(capturedDeletedMetafield, 'ownerId') ?? ownerId;
       if (!namespace || !key || !productId.startsWith('gid://shopify/Product/')) {
         return null;
       }
