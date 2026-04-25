@@ -197,8 +197,6 @@ Current implementation note:
 - normalized snapshot JSON is parsed through Zod schemas at the file boundary; the same schemas derive the runtime snapshot TypeScript types
 - loading that file seeds the in-memory base state before the server handles requests
 - `POST /__meta/reset` restores that startup snapshot baseline, including captured connection cursor/pageInfo baselines, rather than wiping snapshot mode back to an empty store
-- Store properties business entity reads are modeled in the normalized snapshot as `businessEntities` plus an explicit `businessEntityOrder` list. Snapshot mode resolves `businessEntities` and `businessEntity(id:)` locally, including omitted-id primary fallback and unknown-id `null` behavior from captured Shopify responses.
-- Business entity snapshots expose only core legal-entity identity/address fields plus the safe `ShopifyPaymentsAccount` scalar subset (`id`, `activated`, `country`, `defaultCurrency`, `onboardable`) when fixture-backed. Account balances, payouts, bank accounts, descriptors, disputes, and similar payment-provider details are not inferred from store-property captures.
 
 Snapshot misses should return the same kind of empty/null structure Shopify returns when the backing store has no matching data.
 
