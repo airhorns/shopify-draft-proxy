@@ -213,6 +213,8 @@ function mergeCustomerRecords(base: CustomerRecord | null, staged: CustomerRecor
     amountSpent: staged.amountSpent ?? base.amountSpent,
     defaultEmailAddress: staged.defaultEmailAddress ?? base.defaultEmailAddress,
     defaultPhoneNumber: staged.defaultPhoneNumber ?? base.defaultPhoneNumber,
+    emailMarketingConsent: staged.emailMarketingConsent ?? base.emailMarketingConsent,
+    smsMarketingConsent: staged.smsMarketingConsent ?? base.smsMarketingConsent,
     defaultAddress: staged.defaultAddress ?? base.defaultAddress,
     createdAt: base.createdAt,
     updatedAt:

@@ -83,6 +83,94 @@ describe('customer query shapes', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('serves customerByIdentifier locally in snapshot mode without hitting upstream', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('customerByIdentifier should not hit upstream fetch');
+    });
+
+    store.upsertBaseCustomers([
+      {
+        id: 'gid://shopify/Customer/303',
+        firstName: 'Evelyn',
+        lastName: 'Boyd',
+        displayName: 'Evelyn Boyd',
+        email: 'evelyn@example.com',
+        legacyResourceId: '303',
+        locale: 'en',
+        note: null,
+        canDelete: false,
+        verifiedEmail: true,
+        taxExempt: false,
+        state: 'ENABLED',
+        tags: [],
+        numberOfOrders: 0,
+        amountSpent: null,
+        defaultEmailAddress: {
+          emailAddress: 'evelyn@example.com',
+          marketingState: 'SUBSCRIBED',
+          marketingOptInLevel: 'SINGLE_OPT_IN',
+          marketingUpdatedAt: '2026-04-25T01:00:00Z',
+        },
+        defaultPhoneNumber: null,
+        emailMarketingConsent: {
+          marketingState: 'SUBSCRIBED',
+          marketingOptInLevel: 'SINGLE_OPT_IN',
+          consentUpdatedAt: '2026-04-25T01:00:00Z',
+        },
+        smsMarketingConsent: null,
+        defaultAddress: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-02-01T00:00:00.000Z',
+      },
+    ]);
+
+    const app = createApp(config).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query CustomerByIdentifier($identifier: CustomerIdentifierInput!) {
+          customerByIdentifier(identifier: $identifier) {
+            id
+            defaultEmailAddress {
+              emailAddress
+              marketingState
+              marketingOptInLevel
+              marketingUpdatedAt
+            }
+            emailMarketingConsent {
+              marketingState
+              marketingOptInLevel
+              consentUpdatedAt
+            }
+          }
+        }`,
+        variables: {
+          identifier: { emailAddress: 'evelyn@example.com' },
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        customerByIdentifier: {
+          id: 'gid://shopify/Customer/303',
+          defaultEmailAddress: {
+            emailAddress: 'evelyn@example.com',
+            marketingState: 'SUBSCRIBED',
+            marketingOptInLevel: 'SINGLE_OPT_IN',
+            marketingUpdatedAt: '2026-04-25T01:00:00Z',
+          },
+          emailMarketingConsent: {
+            marketingState: 'SUBSCRIBED',
+            marketingOptInLevel: 'SINGLE_OPT_IN',
+            consentUpdatedAt: '2026-04-25T01:00:00Z',
+          },
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('treats unsupported customersCount query fields as no-op filters in snapshot mode without hitting upstream', async () => {
     store.upsertBaseCustomers([
       {

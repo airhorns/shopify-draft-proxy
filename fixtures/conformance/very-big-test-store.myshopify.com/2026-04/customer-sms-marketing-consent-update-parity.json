@@ -1,0 +1,223 @@
+{
+  "precondition": {
+    "response": {
+      "data": {
+        "customerEmailMarketingConsentUpdate": {
+          "customer": {
+            "id": "gid://shopify/Customer/9102995325161",
+            "firstName": "Hermes",
+            "lastName": "Consent",
+            "displayName": "Hermes Consent",
+            "email": "hermes-consent-1777082419343@example.com",
+            "defaultEmailAddress": {
+              "emailAddress": "hermes-consent-1777082419343@example.com",
+              "marketingState": "SUBSCRIBED",
+              "marketingOptInLevel": "SINGLE_OPT_IN",
+              "marketingUpdatedAt": "2026-04-25T01:00:00Z"
+            },
+            "defaultPhoneNumber": {
+              "phoneNumber": "+14155559343",
+              "marketingState": "NOT_SUBSCRIBED",
+              "marketingOptInLevel": "SINGLE_OPT_IN",
+              "marketingUpdatedAt": null,
+              "marketingCollectedFrom": null
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "mutation": {
+    "variables": {
+      "input": {
+        "customerId": "gid://shopify/Customer/9102995325161",
+        "smsMarketingConsent": {
+          "marketingState": "SUBSCRIBED",
+          "marketingOptInLevel": "SINGLE_OPT_IN",
+          "consentUpdatedAt": "2026-04-25T01:05:00Z"
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "customerSmsMarketingConsentUpdate": {
+          "customer": {
+            "id": "gid://shopify/Customer/9102995325161",
+            "firstName": "Hermes",
+            "lastName": "Consent",
+            "displayName": "Hermes Consent",
+            "email": "hermes-consent-1777082419343@example.com",
+            "defaultEmailAddress": {
+              "emailAddress": "hermes-consent-1777082419343@example.com",
+              "marketingState": "SUBSCRIBED",
+              "marketingOptInLevel": "SINGLE_OPT_IN",
+              "marketingUpdatedAt": "2026-04-25T01:00:00Z"
+            },
+            "defaultPhoneNumber": {
+              "phoneNumber": "+14155559343",
+              "marketingState": "SUBSCRIBED",
+              "marketingOptInLevel": "SINGLE_OPT_IN",
+              "marketingUpdatedAt": "2026-04-25T01:05:00Z",
+              "marketingCollectedFrom": "OTHER"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "variables": {
+      "id": "gid://shopify/Customer/9102995325161",
+      "identifier": {
+        "id": "gid://shopify/Customer/9102995325161"
+      },
+      "query": "email:hermes-consent-1777082419343@example.com",
+      "first": 5
+    },
+    "response": {
+      "data": {
+        "customer": {
+          "id": "gid://shopify/Customer/9102995325161",
+          "firstName": "Hermes",
+          "lastName": "Consent",
+          "displayName": "Hermes Consent",
+          "email": "hermes-consent-1777082419343@example.com",
+          "defaultEmailAddress": {
+            "emailAddress": "hermes-consent-1777082419343@example.com",
+            "marketingState": "SUBSCRIBED",
+            "marketingOptInLevel": "SINGLE_OPT_IN",
+            "marketingUpdatedAt": "2026-04-25T01:00:00Z"
+          },
+          "defaultPhoneNumber": {
+            "phoneNumber": "+14155559343",
+            "marketingState": "SUBSCRIBED",
+            "marketingOptInLevel": "SINGLE_OPT_IN",
+            "marketingUpdatedAt": "2026-04-25T01:05:00Z",
+            "marketingCollectedFrom": "OTHER"
+          }
+        },
+        "customerByIdentifier": {
+          "id": "gid://shopify/Customer/9102995325161",
+          "firstName": "Hermes",
+          "lastName": "Consent",
+          "displayName": "Hermes Consent",
+          "email": "hermes-consent-1777082419343@example.com",
+          "defaultEmailAddress": {
+            "emailAddress": "hermes-consent-1777082419343@example.com",
+            "marketingState": "SUBSCRIBED",
+            "marketingOptInLevel": "SINGLE_OPT_IN",
+            "marketingUpdatedAt": "2026-04-25T01:00:00Z"
+          },
+          "defaultPhoneNumber": {
+            "phoneNumber": "+14155559343",
+            "marketingState": "SUBSCRIBED",
+            "marketingOptInLevel": "SINGLE_OPT_IN",
+            "marketingUpdatedAt": "2026-04-25T01:05:00Z",
+            "marketingCollectedFrom": "OTHER"
+          }
+        },
+        "customers": {
+          "nodes": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 17,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "validation": {
+    "unknownCustomer": {
+      "variables": {
+        "input": {
+          "customerId": "gid://shopify/Customer/999999999999999",
+          "smsMarketingConsent": {
+            "marketingState": "SUBSCRIBED",
+            "marketingOptInLevel": "SINGLE_OPT_IN"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "customerSmsMarketingConsentUpdate": {
+            "customer": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Customer not found",
+                "code": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "response": {
+      "data": {
+        "customerDelete": {
+          "deletedCustomerId": "gid://shopify/Customer/9102995325161",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

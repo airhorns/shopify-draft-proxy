@@ -345,6 +345,284 @@ describe('customer draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('stages customer marketing consent updates locally and exposes them on downstream customer reads', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('customer consent updates should not hit upstream fetch');
+    });
+
+    store.upsertBaseCustomers([
+      {
+        id: 'gid://shopify/Customer/403',
+        firstName: 'Katherine',
+        lastName: 'Johnson',
+        displayName: 'Katherine Johnson',
+        email: 'katherine@example.com',
+        legacyResourceId: '403',
+        locale: 'en',
+        note: null,
+        canDelete: true,
+        verifiedEmail: true,
+        taxExempt: false,
+        state: 'DISABLED',
+        tags: ['newsletter'],
+        numberOfOrders: '2',
+        amountSpent: null,
+        defaultEmailAddress: {
+          emailAddress: 'katherine@example.com',
+          marketingState: 'NOT_SUBSCRIBED',
+          marketingOptInLevel: 'SINGLE_OPT_IN',
+          marketingUpdatedAt: null,
+        },
+        defaultPhoneNumber: {
+          phoneNumber: '+14155550124',
+          marketingState: 'NOT_SUBSCRIBED',
+          marketingOptInLevel: 'SINGLE_OPT_IN',
+          marketingUpdatedAt: null,
+          marketingCollectedFrom: null,
+        },
+        emailMarketingConsent: {
+          marketingState: 'NOT_SUBSCRIBED',
+          marketingOptInLevel: 'SINGLE_OPT_IN',
+          consentUpdatedAt: null,
+        },
+        smsMarketingConsent: {
+          marketingState: 'NOT_SUBSCRIBED',
+          marketingOptInLevel: 'SINGLE_OPT_IN',
+          consentUpdatedAt: null,
+          consentCollectedFrom: null,
+        },
+        defaultAddress: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-02T00:00:00.000Z',
+      },
+    ]);
+
+    const app = createApp(snapshotConfig).callback();
+    const emailResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation EmailConsent($input: CustomerEmailMarketingConsentUpdateInput!) {
+          customerEmailMarketingConsentUpdate(input: $input) {
+            customer {
+              id
+              defaultEmailAddress {
+                emailAddress
+                marketingState
+                marketingOptInLevel
+                marketingUpdatedAt
+              }
+              emailMarketingConsent {
+                marketingState
+                marketingOptInLevel
+                consentUpdatedAt
+              }
+            }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          input: {
+            customerId: 'gid://shopify/Customer/403',
+            emailMarketingConsent: {
+              marketingState: 'SUBSCRIBED',
+              marketingOptInLevel: 'SINGLE_OPT_IN',
+              consentUpdatedAt: '2026-04-25T01:00:00Z',
+            },
+          },
+        },
+      });
+
+    expect(emailResponse.status).toBe(200);
+    expect(emailResponse.body.data.customerEmailMarketingConsentUpdate).toEqual({
+      customer: {
+        id: 'gid://shopify/Customer/403',
+        defaultEmailAddress: {
+          emailAddress: 'katherine@example.com',
+          marketingState: 'SUBSCRIBED',
+          marketingOptInLevel: 'SINGLE_OPT_IN',
+          marketingUpdatedAt: '2026-04-25T01:00:00Z',
+        },
+        emailMarketingConsent: {
+          marketingState: 'SUBSCRIBED',
+          marketingOptInLevel: 'SINGLE_OPT_IN',
+          consentUpdatedAt: '2026-04-25T01:00:00Z',
+        },
+      },
+      userErrors: [],
+    });
+
+    const smsResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation SmsConsent($input: CustomerSmsMarketingConsentUpdateInput!) {
+          customerSmsMarketingConsentUpdate(input: $input) {
+            customer {
+              id
+              defaultPhoneNumber {
+                phoneNumber
+                marketingState
+                marketingOptInLevel
+                marketingUpdatedAt
+                marketingCollectedFrom
+              }
+              smsMarketingConsent {
+                marketingState
+                marketingOptInLevel
+                consentUpdatedAt
+                consentCollectedFrom
+              }
+            }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          input: {
+            customerId: 'gid://shopify/Customer/403',
+            smsMarketingConsent: {
+              marketingState: 'SUBSCRIBED',
+              marketingOptInLevel: 'SINGLE_OPT_IN',
+              consentUpdatedAt: '2026-04-25T01:05:00Z',
+            },
+          },
+        },
+      });
+
+    expect(smsResponse.status).toBe(200);
+    expect(smsResponse.body.data.customerSmsMarketingConsentUpdate).toEqual({
+      customer: {
+        id: 'gid://shopify/Customer/403',
+        defaultPhoneNumber: {
+          phoneNumber: '+14155550124',
+          marketingState: 'SUBSCRIBED',
+          marketingOptInLevel: 'SINGLE_OPT_IN',
+          marketingUpdatedAt: '2026-04-25T01:05:00Z',
+          marketingCollectedFrom: 'OTHER',
+        },
+        smsMarketingConsent: {
+          marketingState: 'SUBSCRIBED',
+          marketingOptInLevel: 'SINGLE_OPT_IN',
+          consentUpdatedAt: '2026-04-25T01:05:00Z',
+          consentCollectedFrom: 'OTHER',
+        },
+      },
+      userErrors: [],
+    });
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ConsentReadback($id: ID!, $identifier: CustomerIdentifierInput!) {
+          customer(id: $id) {
+            id
+            defaultEmailAddress { marketingState marketingOptInLevel marketingUpdatedAt }
+            defaultPhoneNumber { marketingState marketingOptInLevel marketingUpdatedAt marketingCollectedFrom }
+          }
+          customerByIdentifier(identifier: $identifier) {
+            id
+            emailMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt }
+            smsMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt consentCollectedFrom }
+          }
+          customers(first: 5, query: "email:katherine@example.com") {
+            nodes {
+              id
+              defaultEmailAddress { marketingState marketingUpdatedAt }
+              defaultPhoneNumber { marketingState marketingUpdatedAt marketingCollectedFrom }
+            }
+          }
+        }`,
+        variables: {
+          id: 'gid://shopify/Customer/403',
+          identifier: { emailAddress: 'katherine@example.com' },
+        },
+      });
+
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body).toEqual({
+      data: {
+        customer: {
+          id: 'gid://shopify/Customer/403',
+          defaultEmailAddress: {
+            marketingState: 'SUBSCRIBED',
+            marketingOptInLevel: 'SINGLE_OPT_IN',
+            marketingUpdatedAt: '2026-04-25T01:00:00Z',
+          },
+          defaultPhoneNumber: {
+            marketingState: 'SUBSCRIBED',
+            marketingOptInLevel: 'SINGLE_OPT_IN',
+            marketingUpdatedAt: '2026-04-25T01:05:00Z',
+            marketingCollectedFrom: 'OTHER',
+          },
+        },
+        customerByIdentifier: {
+          id: 'gid://shopify/Customer/403',
+          emailMarketingConsent: {
+            marketingState: 'SUBSCRIBED',
+            marketingOptInLevel: 'SINGLE_OPT_IN',
+            consentUpdatedAt: '2026-04-25T01:00:00Z',
+          },
+          smsMarketingConsent: {
+            marketingState: 'SUBSCRIBED',
+            marketingOptInLevel: 'SINGLE_OPT_IN',
+            consentUpdatedAt: '2026-04-25T01:05:00Z',
+            consentCollectedFrom: 'OTHER',
+          },
+        },
+        customers: {
+          nodes: [
+            {
+              id: 'gid://shopify/Customer/403',
+              defaultEmailAddress: {
+                marketingState: 'SUBSCRIBED',
+                marketingUpdatedAt: '2026-04-25T01:00:00Z',
+              },
+              defaultPhoneNumber: {
+                marketingState: 'SUBSCRIBED',
+                marketingUpdatedAt: '2026-04-25T01:05:00Z',
+                marketingCollectedFrom: 'OTHER',
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(logResponse.status).toBe(200);
+    expect(logResponse.body.entries).toMatchObject([
+      {
+        operationName: 'customerEmailMarketingConsentUpdate',
+        interpreted: {
+          operationName: 'EmailConsent',
+          primaryRootField: 'customerEmailMarketingConsentUpdate',
+        },
+        requestBody: {
+          variables: {
+            input: {
+              customerId: 'gid://shopify/Customer/403',
+            },
+          },
+        },
+        status: 'staged',
+      },
+      {
+        operationName: 'customerSmsMarketingConsentUpdate',
+        interpreted: {
+          operationName: 'SmsConsent',
+          primaryRootField: 'customerSmsMarketingConsentUpdate',
+        },
+        requestBody: {
+          variables: {
+            input: {
+              customerId: 'gid://shopify/Customer/403',
+            },
+          },
+        },
+        status: 'staged',
+      },
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('mirrors the captured customer mutation validation userErrors in snapshot mode', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('customer mutation validation should not hit upstream fetch');
@@ -427,6 +705,78 @@ describe('customer draft flow', () => {
             {
               field: ['id'],
               message: "Customer can't be found",
+            },
+          ],
+        },
+      },
+    });
+
+    const emailConsentResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CustomerEmailConsentValidation($input: CustomerEmailMarketingConsentUpdateInput!) {
+          customerEmailMarketingConsentUpdate(input: $input) {
+            customer { id }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          input: {
+            customerId: 'gid://shopify/Customer/999999999999999',
+            emailMarketingConsent: {
+              marketingState: 'SUBSCRIBED',
+              marketingOptInLevel: 'SINGLE_OPT_IN',
+            },
+          },
+        },
+      });
+
+    expect(emailConsentResponse.status).toBe(200);
+    expect(emailConsentResponse.body).toEqual({
+      data: {
+        customerEmailMarketingConsentUpdate: {
+          customer: null,
+          userErrors: [
+            {
+              field: ['input', 'customerId'],
+              message: 'Customer not found',
+              code: 'INVALID',
+            },
+          ],
+        },
+      },
+    });
+
+    const smsConsentResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CustomerSmsConsentValidation($input: CustomerSmsMarketingConsentUpdateInput!) {
+          customerSmsMarketingConsentUpdate(input: $input) {
+            customer { id }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          input: {
+            customerId: 'gid://shopify/Customer/999999999999999',
+            smsMarketingConsent: {
+              marketingState: 'SUBSCRIBED',
+              marketingOptInLevel: 'SINGLE_OPT_IN',
+            },
+          },
+        },
+      });
+
+    expect(smsConsentResponse.status).toBe(200);
+    expect(smsConsentResponse.body).toEqual({
+      data: {
+        customerSmsMarketingConsentUpdate: {
+          customer: null,
+          userErrors: [
+            {
+              field: null,
+              message: 'Customer not found',
+              code: null,
             },
           ],
         },
