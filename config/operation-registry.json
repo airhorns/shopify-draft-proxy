@@ -1345,45 +1345,60 @@
     "type": "query",
     "domain": "markets",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["market", "Market"],
-    "runtimeTests": []
+    "runtimeTests": [
+      "tests/integration/markets-query-shapes.test.ts",
+      "tests/unit/conformance-parity-scenarios.test.ts"
+    ]
   },
   {
     "name": "markets",
     "type": "query",
     "domain": "markets",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["markets", "Markets"],
-    "runtimeTests": []
+    "runtimeTests": [
+      "tests/integration/markets-query-shapes.test.ts",
+      "tests/unit/conformance-parity-scenarios.test.ts"
+    ]
   },
   {
     "name": "catalogs",
     "type": "query",
     "domain": "markets",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["catalogs", "Catalogs"],
-    "runtimeTests": []
+    "runtimeTests": [
+      "tests/integration/markets-query-shapes.test.ts",
+      "tests/unit/conformance-parity-scenarios.test.ts"
+    ]
   },
   {
     "name": "webPresences",
     "type": "query",
     "domain": "markets",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["webPresences", "WebPresences"],
-    "runtimeTests": []
+    "runtimeTests": [
+      "tests/integration/markets-query-shapes.test.ts",
+      "tests/unit/conformance-parity-scenarios.test.ts"
+    ]
   },
   {
     "name": "marketsResolvedValues",
     "type": "query",
     "domain": "markets",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketsResolvedValues", "MarketsResolvedValues"],
-    "runtimeTests": []
+    "runtimeTests": [
+      "tests/integration/markets-query-shapes.test.ts",
+      "tests/unit/conformance-parity-scenarios.test.ts"
+    ]
   },
   {
     "name": "marketCreate",

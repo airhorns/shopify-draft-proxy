@@ -8,14 +8,18 @@
     "documentPath": "config/parity-requests/markets-catalog-read.graphql",
     "variablesPath": "config/parity-requests/markets-catalog-read.variables.json"
   },
-  "comparisonMode": "capture-only",
+  "comparisonMode": "captured-vs-proxy-request",
   "notes": "Live Shopify Markets catalog capture for Admin GraphQL 2026-04, including selected conditions, currencies, price inclusions, nested catalogs, nested web presences, and opaque Shopify cursors.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "markets-catalog-data",
+        "capturePath": "$.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
   }
 }

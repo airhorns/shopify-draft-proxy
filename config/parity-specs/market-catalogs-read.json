@@ -8,14 +8,18 @@
     "documentPath": "config/parity-requests/market-catalogs-read.graphql",
     "variablesPath": "config/parity-requests/market-catalogs-read.variables.json"
   },
-  "comparisonMode": "capture-only",
+  "comparisonMode": "captured-vs-proxy-request",
   "notes": "Live `catalogs(type: MARKET)` capture for Admin GraphQL 2026-04. The selected slice covers the Catalog interface fields and MarketCatalog.markets back-reference without mutating catalog state.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "market-catalogs-data",
+        "capturePath": "$.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
   }
 }

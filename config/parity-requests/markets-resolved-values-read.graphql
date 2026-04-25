@@ -47,6 +47,18 @@ fragment MarketWebPresenceReadFields on MarketWebPresence {
     locale
     url
   }
+  defaultLocale {
+    locale
+    name
+    primary
+    published
+  }
+  alternateLocales {
+    locale
+    name
+    primary
+    published
+  }
   markets(first: 5) {
     edges {
       cursor

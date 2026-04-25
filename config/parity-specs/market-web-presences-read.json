@@ -8,19 +8,18 @@
     "documentPath": "config/parity-requests/market-web-presences-read.graphql",
     "variablesPath": "config/parity-requests/market-web-presences-read.variables.json"
   },
-  "comparisonMode": "capture-only",
-  "notes": "Live `webPresences` capture for Admin GraphQL 2026-04. Locale object fields are intentionally omitted because this credential lacks `read_locales` / `read_markets_home`; the exact access-scope failure is preserved in the markets baseline fixture.",
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live `webPresences` capture for Admin GraphQL 2026-04. The refreshed credential exposes `MarketWebPresence.defaultLocale` and `alternateLocales`, so strict comparison includes locale object fields.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null,
-    "details": {
-      "requiredScopes": ["read_markets", "read_locales or read_markets_home for locale object fields"],
-      "blockedFields": ["MarketWebPresence.defaultLocale", "MarketWebPresence.alternateLocales"],
-      "failingMessage": "Access denied for defaultLocale field. Required access: `read_locales` access scope or `read_markets_home` access scope."
-    }
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "market-web-presences-data",
+        "capturePath": "$.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
   }
 }

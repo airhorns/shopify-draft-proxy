@@ -88,6 +88,18 @@ fragment MarketReadFields on Market {
           locale
           url
         }
+        defaultLocale {
+          locale
+          name
+          primary
+          published
+        }
+        alternateLocales {
+          locale
+          name
+          primary
+          published
+        }
       }
     }
     pageInfo {

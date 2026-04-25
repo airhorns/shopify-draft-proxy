@@ -117,6 +117,18 @@ const marketFields = `#graphql
             locale
             url
           }
+          defaultLocale {
+            locale
+            name
+            primary
+            published
+          }
+          alternateLocales {
+            locale
+            name
+            primary
+            published
+          }
         }
       }
       pageInfo {
@@ -180,6 +192,18 @@ const marketWebPresenceFields = `#graphql
     rootUrls {
       locale
       url
+    }
+    defaultLocale {
+      locale
+      name
+      primary
+      published
+    }
+    alternateLocales {
+      locale
+      name
+      primary
+      published
     }
     markets(first: 5) {
       edges {

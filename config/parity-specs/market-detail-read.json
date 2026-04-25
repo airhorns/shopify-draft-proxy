@@ -13,14 +13,18 @@
     "documentPath": "config/parity-requests/market-detail-read.graphql",
     "variablesPath": "config/parity-requests/market-detail-read.variables.json"
   },
-  "comparisonMode": "capture-only",
-  "notes": "Live Shopify Markets detail capture for Admin GraphQL 2026-04. This is capture-only until the proxy models Market reads from snapshot/overlay state.",
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify Markets detail capture for Admin GraphQL 2026-04. Strict comparison exercises local snapshot Market reads seeded from captured Markets baselines.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "market-detail-data",
+        "capturePath": "$.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
   }
 }

@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-04-25T00:23:38.030Z",
+  "capturedAt": "2026-04-25T01:02:21.921Z",
   "storeDomain": "very-big-test-store.myshopify.com",
   "apiVersion": "2026-04",
   "schemaInventory": {
@@ -1418,7 +1418,14 @@
                             "locale": "en",
                             "url": "https://very-big-test-store.myshopify.com/"
                           }
-                        ]
+                        ],
+                        "defaultLocale": {
+                          "locale": "en",
+                          "name": "English",
+                          "primary": true,
+                          "published": true
+                        },
+                        "alternateLocales": []
                       }
                     }
                   ],
@@ -1442,11 +1449,11 @@
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 78,
+          "requestedQueryCost": 90,
           "actualQueryCost": 24,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1922,
+            "currentlyAvailable": 1929,
             "restoreRate": 100
           }
         }
@@ -1522,11 +1529,11 @@
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 38,
+          "requestedQueryCost": 44,
           "actualQueryCost": 14,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1929,
+            "currentlyAvailable": 1944,
             "restoreRate": 100
           }
         }
@@ -1632,7 +1639,7 @@
           "actualQueryCost": 14,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1933,
+            "currentlyAvailable": 1949,
             "restoreRate": 100
           }
         }
@@ -1659,6 +1666,13 @@
                     "url": "https://very-big-test-store.myshopify.com/"
                   }
                 ],
+                "defaultLocale": {
+                  "locale": "en",
+                  "name": "English",
+                  "primary": true,
+                  "published": true
+                },
+                "alternateLocales": [],
                 "markets": {
                   "edges": [
                     {
@@ -1692,11 +1706,11 @@
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 18,
-          "actualQueryCost": 8,
+          "requestedQueryCost": 22,
+          "actualQueryCost": 9,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1936,
+            "currentlyAvailable": 1952,
             "restoreRate": 100
           }
         }
@@ -1738,6 +1752,13 @@
                       "url": "https://very-big-test-store.myshopify.com/"
                     }
                   ],
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "alternateLocales": [],
                   "markets": {
                     "edges": [
                       {
@@ -1772,11 +1793,11 @@
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 38,
-          "actualQueryCost": 12,
+          "requestedQueryCost": 42,
+          "actualQueryCost": 13,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1938,
+            "currentlyAvailable": 1950,
             "restoreRate": 100
           }
         }
@@ -1790,33 +1811,31 @@
       "result": {
         "status": 200,
         "payload": {
-          "errors": [
-            {
-              "message": "Access denied for defaultLocale field. Required access: `read_locales` access scope or `read_markets_home` access scope.",
-              "locations": [
-                {
-                  "line": 7,
-                  "column": 11
-                }
-              ],
-              "extensions": {
-                "code": "ACCESS_DENIED",
-                "documentation": "https://shopify.dev/api/usage/access-scopes",
-                "requiredAccess": "`read_locales` access scope or `read_markets_home` access scope."
-              },
-              "path": ["webPresences", "edges", 0, "node", "defaultLocale"]
-            }
-          ],
           "data": {
-            "webPresences": null
+            "webPresences": {
+              "edges": [
+                {
+                  "node": {
+                    "id": "gid://shopify/MarketWebPresence/33131921641",
+                    "defaultLocale": {
+                      "locale": "en",
+                      "name": "English",
+                      "primary": true,
+                      "published": true
+                    },
+                    "alternateLocales": []
+                  }
+                }
+              ]
+            }
           },
           "extensions": {
             "cost": {
               "requestedQueryCost": 8,
-              "actualQueryCost": 4,
+              "actualQueryCost": 5,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1948,
+                "currentlyAvailable": 1961,
                 "restoreRate": 100
               }
             }

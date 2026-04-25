@@ -137,7 +137,14 @@
                         "locale": "en",
                         "url": "https://very-big-test-store.myshopify.com/"
                       }
-                    ]
+                    ],
+                    "defaultLocale": {
+                      "locale": "en",
+                      "name": "English",
+                      "primary": true,
+                      "published": true
+                    },
+                    "alternateLocales": []
                   }
                 }
               ],
@@ -161,11 +168,11 @@
   },
   "extensions": {
     "cost": {
-      "requestedQueryCost": 78,
+      "requestedQueryCost": 90,
       "actualQueryCost": 24,
       "throttleStatus": {
         "maximumAvailable": 2000,
-        "currentlyAvailable": 1922,
+        "currentlyAvailable": 1929,
         "restoreRate": 100
       }
     }

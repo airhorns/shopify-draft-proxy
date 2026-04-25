@@ -68,11 +68,11 @@
   },
   "extensions": {
     "cost": {
-      "requestedQueryCost": 38,
+      "requestedQueryCost": 44,
       "actualQueryCost": 14,
       "throttleStatus": {
         "maximumAvailable": 2000,
-        "currentlyAvailable": 1929,
+        "currentlyAvailable": 1944,
         "restoreRate": 100
       }
     }

@@ -10,6 +10,7 @@ import { createUpstreamGraphQLClient } from '../shopify/upstream-client.js';
 import { getOperationCapability, type OperationCapability } from './capabilities.js';
 import { handleMediaMutation } from './media.js';
 import { handleCustomerMutation, handleCustomerQuery, hydrateCustomersFromUpstreamResponse } from './customers.js';
+import { handleMarketsQuery, hydrateMarketsFromUpstreamResponse } from './markets.js';
 import { handleOrderMutation, handleOrderQuery, shouldServeDraftOrderCatalogLocally } from './orders.js';
 import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamResponse } from './products.js';
 import { handleStorePropertiesQuery } from './store-properties.js';
@@ -299,6 +300,35 @@ export function createProxyRouter(config: AppConfig): Router {
       if (config.readMode === 'snapshot') {
         ctx.status = 200;
         ctx.body = handleStorePropertiesQuery(body.query, variables);
+        return;
+      }
+    }
+
+    if (capability.execution === 'overlay-read' && capability.domain === 'markets') {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleMarketsQuery(body.query, variables);
+        return;
+      }
+
+      if (config.readMode === 'live-hybrid') {
+        const response = await upstream.request({
+          path: ctx.path,
+          headers: {
+            'content-type': 'application/json',
+            'x-shopify-access-token': ctx.get('x-shopify-access-token'),
+          },
+          body: {
+            query: body.query,
+            variables,
+          },
+        });
+
+        const upstreamBody = await response.json();
+        hydrateMarketsFromUpstreamResponse(body.query, variables, upstreamBody);
+
+        ctx.status = response.status;
+        ctx.body = upstreamBody;
         return;
       }
     }
