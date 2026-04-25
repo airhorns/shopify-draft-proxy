@@ -1142,7 +1142,7 @@ function buildOrderLineItemsFromDraftOrder(draftOrder: DraftOrderRecord): OrderL
     id: makeSyntheticGid('LineItem'),
     title: lineItem.title,
     quantity: lineItem.quantity,
-    sku: lineItem.sku,
+    sku: lineItem.sku === '' ? null : lineItem.sku,
     variantId: null,
     variantTitle: lineItem.variantTitle,
     originalUnitPriceSet: structuredClone(lineItem.originalUnitPriceSet),
@@ -1183,8 +1183,8 @@ function buildOrderFromCompletedDraftOrder(
     closedAt: null,
     cancelledAt: null,
     cancelReason: null,
-    sourceName: completion.sourceName,
-    paymentGatewayNames: [],
+    sourceName: normalizeDraftOrderCompleteOrderSourceName(completion.sourceName),
+    paymentGatewayNames: completion.paymentPending ? [] : ['manual'],
     displayFinancialStatus: completion.paymentPending ? 'PENDING' : 'PAID',
     displayFulfillmentStatus: 'UNFULFILLED',
     note: draftOrder.note,
@@ -1218,6 +1218,14 @@ function buildOrderFromCompletedDraftOrder(
     refunds: [],
     returns: [],
   };
+}
+
+function normalizeDraftOrderCompleteOrderSourceName(sourceName: string | null): string | null {
+  if (sourceName === null) {
+    return null;
+  }
+
+  return '347082227713';
 }
 
 function buildCalculatedLineItemFromVariant(variantId: string, quantity: number): OrderLineItemRecord | null {
