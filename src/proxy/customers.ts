@@ -2611,11 +2611,30 @@ function buildSmsMarketingConsentUpdatedCustomer(
   };
 }
 
+function buildAccountInviteBufferedCustomer(existing: CustomerRecord): CustomerRecord {
+  return {
+    ...existing,
+    state: existing.state === 'ENABLED' ? existing.state : 'INVITED',
+    updatedAt: makeSyntheticTimestamp(),
+  };
+}
+
+function buildSyntheticAccountActivationUrl(customerId: string): string {
+  const customerKey = customerId.split('/').pop() ?? 'customer';
+  const token = makeSyntheticGid('CustomerAccountActivationToken').split('/').pop() ?? 'token';
+  return `https://shopify-draft-proxy.local/customer-activation/${encodeURIComponent(customerKey)}?token=${encodeURIComponent(token)}`;
+}
+
+function isCustomerPaymentMethodGid(value: string): boolean {
+  return value.startsWith('gid://shopify/CustomerPaymentMethod/');
+}
+
 function serializeCustomerMutationPayload(
   field: FieldNode,
   payload: {
     customer?: CustomerRecord | null;
     customerAddress?: CustomerAddressRecord | null;
+    accountActivationUrl?: string | null;
     deletedCustomerId?: string | null;
     deletedCustomerAddressId?: string | null;
     resultingCustomerId?: string | null;
@@ -2631,6 +2650,9 @@ function serializeCustomerMutationPayload(
     switch (selection.name.value) {
       case 'customer':
         result[key] = payload.customer ? serializeCustomerSelection(payload.customer, selection, variables) : null;
+        break;
+      case 'accountActivationUrl':
+        result[key] = payload.accountActivationUrl ?? null;
         break;
       case 'customerAddress':
       case 'address':
@@ -2832,6 +2854,76 @@ export function handleCustomerMutation(
           upsertMetafieldsForCustomer(customer.id, metafieldInputs),
         );
       }
+      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
+      continue;
+    }
+
+    if (field.name.value === 'customerGenerateAccountActivationUrl') {
+      const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
+      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      if (!customerId || !existingCustomer) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            accountActivationUrl: null,
+            userErrors: [{ field: ['customerId'], message: "The customer can't be found." }],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      data[key] = serializeCustomerMutationPayload(
+        field,
+        {
+          accountActivationUrl: buildSyntheticAccountActivationUrl(customerId),
+          userErrors: [],
+        },
+        variables,
+      );
+      continue;
+    }
+
+    if (field.name.value === 'customerSendAccountInviteEmail') {
+      const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
+      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      if (!customerId || !existingCustomer) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customer: null,
+            userErrors: [{ field: ['customerId'], message: "Customer can't be found" }],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      const customer = store.stageUpdateCustomer(buildAccountInviteBufferedCustomer(existingCustomer));
+      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
+      continue;
+    }
+
+    if (field.name.value === 'customerPaymentMethodSendUpdateEmail') {
+      const customerPaymentMethodId =
+        typeof args['customerPaymentMethodId'] === 'string' ? args['customerPaymentMethodId'] : null;
+      const paymentMethod =
+        customerPaymentMethodId && isCustomerPaymentMethodGid(customerPaymentMethodId)
+          ? store.getEffectiveCustomerPaymentMethodById(customerPaymentMethodId)
+          : null;
+      if (!customerPaymentMethodId || !paymentMethod) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customer: null,
+            userErrors: [{ field: ['customerPaymentMethodId'], message: 'Customer payment method does not exist' }],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      const customer = paymentMethod.customerId ? store.getEffectiveCustomerById(paymentMethod.customerId) : null;
       data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
       continue;
     }

@@ -441,30 +441,30 @@
     "type": "mutation",
     "domain": "customers",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerGenerateAccountActivationUrl", "CustomerGenerateAccountActivationUrl"],
-    "runtimeTests": [],
-    "supportNotes": "Customer account activation URL scaffold only. This returns sensitive, expiring customer account material; future support must synthesize non-deliverable local URLs from captured shape evidence without sending invite email or treating upstream passthrough as support."
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"],
+    "supportNotes": "Staged locally with a synthetic non-deliverable activation URL. The original raw mutation is retained in the mutation log for commit replay; runtime support does not request a live Shopify activation URL."
   },
   {
     "name": "customerSendAccountInviteEmail",
     "type": "mutation",
     "domain": "customers",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerSendAccountInviteEmail", "CustomerSendAccountInviteEmail"],
-    "runtimeTests": [],
-    "supportNotes": "Explicitly unsupported outbound email side effect. A successful local response would imply customer-visible delivery that the proxy cannot observe or roll back; future support needs a product decision for blocked behavior or a non-delivering test outbox model before this can be marked implemented."
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"],
+    "supportNotes": "Buffered locally as a staged outbound invite intent. Runtime support validates the customer, updates local account state to invited when applicable, and keeps the original raw mutation for commit-time email delivery."
   },
   {
     "name": "customerPaymentMethodSendUpdateEmail",
     "type": "mutation",
-    "domain": "payments",
+    "domain": "customers",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerPaymentMethodSendUpdateEmail", "CustomerPaymentMethodSendUpdateEmail"],
-    "runtimeTests": [],
-    "supportNotes": "Explicitly unsupported outbound payment-method email side effect. Future capture requires write_customers plus write_customer_payment_methods and a no-recipient or non-delivering test plan; future implementation must not claim successful customer-visible delivery unless a safe local outbox/blocking model exists."
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"],
+    "supportNotes": "Buffered locally as a staged payment-method update-email intent. Runtime support validates that the payment method is present in the local customer-payment graph, preserves the original raw mutation for commit-time delivery, and mirrors Shopify's not-found userError for unknown payment methods."
   },
   {
     "name": "customerMerge",

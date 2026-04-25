@@ -24,6 +24,9 @@ Local staged mutations:
 - `customerUpdateDefaultAddress`
 - `customerEmailMarketingConsentUpdate`
 - `customerSmsMarketingConsentUpdate`
+- `customerGenerateAccountActivationUrl`
+- `customerSendAccountInviteEmail`
+- `customerPaymentMethodSendUpdateEmail`
 - `customerMerge`
 
 ## Unsupported roots still tracked by the registry
@@ -32,10 +35,7 @@ Local staged mutations:
 - `customerRemoveTaxExemptions`
 - `customerReplaceTaxExemptions`
 - `customerSet`
-- `customerGenerateAccountActivationUrl`
 - `customerPaymentMethodGetUpdateUrl`
-- `customerSendAccountInviteEmail`
-- `customerPaymentMethodSendUpdateEmail`
 
 ## Behavior notes
 
@@ -50,15 +50,17 @@ Local staged mutations:
 - Staged `customerMerge` updates the normalized resulting customer row, marks the source customer deleted, records the source-to-result redirect in `mergedCustomerIds`, and records the observed merge job/result shape in `customerMergeRequests`.
 - `customerMergePreview` and `customerMergeJobStatus` resolve from normalized customer/merge-request state. The first local merge slice supports customers already present in staged state or hydrated base state and does not fetch unknown customer ids during the supported mutation path.
 
-## Outbound email and activation safety
+## Outbound email and activation buffering
 
 The customer surface includes roots that look related but have different safety profiles:
 
 - `customerEmailMarketingConsentUpdate` and `customerSmsMarketingConsentUpdate` are customer state changes, not outbound notification sends. They are safe to stage locally once captured behavior is modeled because downstream reads can observe the changed consent fields.
-- `customerGenerateAccountActivationUrl` and `customerPaymentMethodGetUpdateUrl` return sensitive, expiring customer-facing links. They can be represented safely only as synthetic non-deliverable local URLs after captured payload/error shape evidence exists; until then they stay unimplemented registry entries.
-- `customerSendAccountInviteEmail` and `customerPaymentMethodSendUpdateEmail` are explicit outbound email side effects. They stay unsupported because a successful local response would claim customer-visible delivery that the proxy cannot observe, undo, or validate through downstream Admin reads.
+- `customerGenerateAccountActivationUrl` returns a sensitive, expiring customer-facing link. Runtime support synthesizes a non-deliverable local activation URL and keeps the original raw mutation for commit replay instead of asking Shopify for a live URL.
+- `customerSendAccountInviteEmail` and `customerPaymentMethodSendUpdateEmail` are explicit outbound email side effects. These can still be supported because the proxy buffers the original mutations locally and does not deliver email at runtime; delivery happens only if the staged mutation log is committed to Shopify.
+- `customerPaymentMethodSendUpdateEmail` validates that the payment method is present in the local customer-payment graph before buffering. It returns the associated customer when that ownership edge is known locally, and otherwise mirrors Shopify's not-found userError instead of claiming delivery for an unknown payment method.
+- `customerPaymentMethodGetUpdateUrl` remains unsupported because the proxy does not yet model customer payment-method ownership or synthesize payment-method update URLs.
 
-Do not mark outbound email roots implemented by proxying them upstream. Future support needs a product decision between a blocking response and a non-delivering local outbox/audit model, plus conformance evidence for the payload and user-error shapes.
+Do not mark outbound email roots implemented by proxying them upstream. Support means local validation/buffering plus original raw mutation retention for commit-time replay; it does not require pretending the runtime email or URL side effect already happened in Shopify.
 
 ## Validation anchors
 
