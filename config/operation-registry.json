@@ -241,10 +241,10 @@
     "type": "query",
     "domain": "payments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["shopifyPaymentsAccount", "ShopifyPaymentsAccount"],
-    "runtimeTests": [],
-    "supportNotes": "Shopify Payments account scaffold only. The 2026-04-25 harry-test-heelo probe still returned ACCESS_DENIED without read_shopify_payments/read_shopify_payments_accounts; future top-level capture must not synthesize balances, payouts, disputes, bank accounts, or descriptors without fixture evidence."
+    "runtimeTests": ["tests/integration/business-entity-query-shapes.test.ts"],
+    "supportNotes": "Snapshot overlay supports the direct root from normalized Shopify Payments account fixtures shared with BusinessEntity.shopifyPaymentsAccount. Safe scalar fields are exposed when captured; payouts, disputes, and balanceTransactions serialize as empty no-data connections until non-empty account activity fixtures exist. Balance, bank account, statement descriptor, payout schedule, and other payment-account-sensitive fields remain explicit unsupported diagnostics. The 2026-04-25 harry-test-heelo capture still returned ACCESS_DENIED without read_shopify_payments/read_shopify_payments_accounts."
   },
   {
     "name": "tenderTransactions",
