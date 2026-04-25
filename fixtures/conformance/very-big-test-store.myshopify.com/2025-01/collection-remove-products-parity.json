@@ -15,16 +15,14 @@
   ],
   "mutation": {
     "variables": {
-      "id": "gid://shopify/Collection/468786544873",
-      "productIds": [
-        "gid://shopify/Product/8971842846953"
-      ]
+      "id": "gid://shopify/Collection/468786741481",
+      "productIds": ["gid://shopify/Product/8971842846953"]
     },
     "response": {
       "data": {
         "collectionRemoveProducts": {
           "job": {
-            "id": "gid://shopify/Job/255da922-934d-43bb-9629-3f3d28a9b81f",
+            "id": "gid://shopify/Job/f633e65a-ff48-4281-8424-810b1abe3044",
             "done": false
           },
           "userErrors": []
@@ -36,7 +34,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1975,
+            "currentlyAvailable": 1981,
             "restoreRate": 100
           }
         }
@@ -46,9 +44,9 @@
   "downstreamRead": {
     "data": {
       "collection": {
-        "id": "gid://shopify/Collection/468786544873",
-        "title": "Hermes Collection Conformance 1777075490789 Updated",
-        "handle": "hermes-collection-conformance-1777075490789-updated",
+        "id": "gid://shopify/Collection/468786741481",
+        "title": "Hermes Collection Conformance 1777076165973 Updated",
+        "handle": "hermes-collection-conformance-1777076165973-updated",
         "products": {
           "nodes": [
             {
@@ -83,9 +81,9 @@
               "handle": "adidas"
             },
             {
-              "id": "gid://shopify/Collection/468786544873",
-              "title": "Hermes Collection Conformance 1777075490789 Updated",
-              "handle": "hermes-collection-conformance-1777075490789-updated"
+              "id": "gid://shopify/Collection/468786741481",
+              "title": "Hermes Collection Conformance 1777076165973 Updated",
+              "handle": "hermes-collection-conformance-1777076165973-updated"
             }
           ],
           "pageInfo": {
@@ -101,7 +99,7 @@
         "actualQueryCost": 16,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1971,
+          "currentlyAvailable": 1976,
           "restoreRate": 100
         }
       }
