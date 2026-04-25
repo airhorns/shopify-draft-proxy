@@ -308,6 +308,13 @@ describe('getOperationCapability anonymous operations', () => {
       operationName: 'customerByIdentifier',
       type: 'query',
     });
+
+    expect(getOperationCapability({ type: 'mutation', name: null, rootFields: ['customerSet'] })).toEqual({
+      domain: 'customers',
+      execution: 'stage-locally',
+      operationName: 'customerSet',
+      type: 'mutation',
+    });
   });
 
   it('classifies anonymous top-level product variant and inventory item queries by root field name', () => {

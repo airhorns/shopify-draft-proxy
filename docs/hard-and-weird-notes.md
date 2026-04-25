@@ -1905,7 +1905,7 @@ The first Store properties inventory for Admin GraphQL 2026-04 exposed several r
 Current scaffold decision:
 
 - `shop`, `location`, `locationByIdentifier`, `businessEntities`, and `businessEntity` now have narrow Store properties overlay-read support backed by captured fixtures; `cashManagementLocationSummary` remains a registry-tracked planned overlay read
-- `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, and `locationDelete` are registry-tracked as planned local-staging mutations, but they remain unsupported at runtime
+- `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, and `locationDelete` stage locally at runtime; the lifecycle roots are backed by safe 2026-04 validation captures for missing `@idempotent` and active stocked delete rejection, while happy-path lifecycle captures still require a disposable location setup
 - `shopPolicyUpdate` now stages locally by `ShopPolicyType` when a shop baseline is available; captured 2026-04 evidence shows oversized policy bodies return `field: ["shopPolicy", "body"]`, message `Body is too big (maximum is 512 KB)`, and code `TOO_BIG`
 - generic `publishablePublish` / `publishableUnpublish` now stage Product and Collection targets locally; `publishablePublishToCurrentChannel` / `publishableUnpublishToCurrentChannel` currently have product-scoped local staging only
 - the capture harness now records schema inventory plus safe read-only `shop` / `locations` / `location(id:)` baselines, while mutation validation probes are recorded as a plan instead of executed by default
@@ -1920,6 +1920,22 @@ Safety traps:
 Practical rule:
 
 - keep Store properties registry inventory separate from runtime support; do not flip these roots to implemented until there is captured fixture evidence plus local model behavior for the specific root family
+
+### 47c. Location lifecycle mutation support is local-first and validation-backed
+
+HAR-170 enabled local staging for `locationActivate`, `locationDeactivate`, and `locationDelete`.
+
+Live evidence refreshed on this host:
+
+- Admin GraphQL 2026-04 returns a top-level `BAD_REQUEST` error when `locationActivate` or `locationDeactivate` omits the required `@idempotent` directive, with `data.<root>: null`
+- deleting an active stocked location returns both `LOCATION_IS_ACTIVE` and `LOCATION_HAS_INVENTORY` userErrors without mutating the location
+
+Practical rule for the proxy:
+
+- keep lifecycle success paths local and never proxy them upstream at runtime
+- require `@idempotent(key: "...")` before activate/deactivate staging
+- require a valid active destination location before locally deactivating a stocked location, then move effective inventory levels to that destination
+- tombstone successful `locationDelete` results so downstream location and inventory-level reads stop exposing the deleted location while meta/log state retains the staged mutation evidence
 
 ### 47b. `location` detail reads should reuse the effective inventory graph
 
@@ -2307,3 +2323,21 @@ Practical rule:
 - locally stage address lifecycle roots against a normalized customer-owned address graph and keep `Customer.defaultAddress` synchronized from the selected address row
 - use fixture-backed top-level errors for unknown address ids instead of turning those branches into payload `userErrors`
 - keep broader address validation, normalization, and territory-specific postal validation out of local support until new fixtures capture those branches
+
+## 63. `customerSet` uses its own identifier input and replaces address lists
+
+HAR-155 captured a first `customerSet` slice on Admin GraphQL 2026-04.
+
+Captured facts:
+
+- the mutation arguments are `customerSet(input: CustomerSetInput!, identifier: CustomerSetIdentifiers)`, not `CustomerIdentifierInput`
+- `CustomerSetIdentifiers` uses `email` and `phone`, while `customerByIdentifier` uses `emailAddress` and `phoneNumber`
+- no-identifier `customerSet` creates a customer when the input has a name, phone, or email
+- `identifier.email` upserts: a missing email identifier creates a customer, and a later call with the same identifier updates that customer
+- unknown `identifier.id` returns payload `userErrors` with `field: ["input"]` and message `Resource matching the identifier was not found.`
+- `identifier.customId` without an id-typed unique metafield definition returns `data.customerSet: null` plus a top-level `NOT_FOUND` error
+- `input.addresses` behaves as a replacement list for an existing customer; an empty list clears the default address and downstream `addressesV2`
+
+Practical rule:
+
+- keep the local `customerSet` support boundary narrower than `customerUpdate`: support fixture-backed scalar replacement, tag/tax exemption replacement, id/email/phone resolution, synthetic create/upsert, and existing-customer address-list replacement; reject unmodeled fields locally instead of letting a now-supported root proxy upstream
