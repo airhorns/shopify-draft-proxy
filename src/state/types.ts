@@ -366,6 +366,15 @@ export const customerRecordSchema = z.strictObject({
 });
 export type CustomerRecord = z.infer<typeof customerRecordSchema>;
 
+export const segmentRecordSchema = z.strictObject({
+  id: z.string(),
+  name: nullableStringSchema,
+  query: nullableStringSchema,
+  creationDate: nullableStringSchema,
+  lastEditDate: nullableStringSchema,
+});
+export type SegmentRecord = z.infer<typeof segmentRecordSchema>;
+
 export const businessEntityAddressRecordSchema = z.strictObject({
   address1: nullableStringSchema,
   address2: nullableStringSchema,
@@ -887,6 +896,7 @@ export const stateSnapshotSchema = z.strictObject({
   collections: z.record(z.string(), collectionRecordSchema),
   publications: z.record(z.string(), publicationRecordSchema).default({}),
   customers: z.record(z.string(), customerRecordSchema),
+  segments: z.record(z.string(), segmentRecordSchema).default({}),
   businessEntities: z.record(z.string(), businessEntityRecordSchema).default({}),
   businessEntityOrder: z.array(z.string()).default([]),
   productCollections: z.record(z.string(), productCollectionRecordSchema),

@@ -1,0 +1,110 @@
+query SegmentsBaselineRead(
+  $first: Int!
+  $knownSegmentId: ID!
+  $missingSegmentId: ID!
+  $filterSearch: String!
+  $valueSearch: String!
+  $valueFilterQueryName: String!
+) {
+  segments(first: $first) {
+    edges {
+      cursor
+      node {
+        id
+        name
+        query
+        creationDate
+        lastEditDate
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  knownSegment: segment(id: $knownSegmentId) {
+    id
+    name
+    query
+    creationDate
+    lastEditDate
+  }
+  missingSegment: segment(id: $missingSegmentId) {
+    id
+    name
+    query
+    creationDate
+    lastEditDate
+  }
+  segmentsCount {
+    count
+    precision
+  }
+  segmentFilters(first: 2) {
+    edges {
+      cursor
+      node {
+        __typename
+        queryName
+        localizedName
+        multiValue
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  segmentFilterSuggestions(first: 2, search: $filterSearch) {
+    edges {
+      cursor
+      node {
+        __typename
+        queryName
+        localizedName
+        multiValue
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  segmentValueSuggestions(first: 3, search: $valueSearch, filterQueryName: $valueFilterQueryName) {
+    edges {
+      cursor
+      node {
+        queryName
+        localizedValue
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  segmentMigrations(first: 2) {
+    edges {
+      cursor
+      node {
+        id
+        savedSearchId
+        segmentId
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

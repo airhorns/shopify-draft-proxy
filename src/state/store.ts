@@ -20,6 +20,7 @@ import type {
   ProductRecord,
   ProductVariantRecord,
   PublicationRecord,
+  SegmentRecord,
   ShopRecord,
   StateSnapshot,
 } from './types.js';
@@ -45,6 +46,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   collections: {},
   publications: {},
   customers: {},
+  segments: {},
   businessEntities: {},
   businessEntityOrder: [],
   productCollections: {},
@@ -253,6 +255,7 @@ export class InMemoryStore {
   private baseOrders: Record<string, OrderRecord> = {};
   private baseMarketsById: Record<string, unknown> = {};
   private baseMarketsRootPayloads: Record<string, unknown> = {};
+  private baseSegmentsRootPayloads: Record<string, unknown> = {};
   private stagedOrders: Record<string, OrderRecord> = {};
   private calculatedOrders: Record<string, CalculatedOrderRecord> = {};
   private stagedDraftOrders: Record<string, DraftOrderRecord> = {};
@@ -284,6 +287,7 @@ export class InMemoryStore {
     this.baseOrders = structuredClone(this.initialBaseOrders);
     this.baseMarketsById = {};
     this.baseMarketsRootPayloads = {};
+    this.baseSegmentsRootPayloads = {};
     this.stagedOrders = {};
     this.calculatedOrders = {};
     this.stagedDraftOrders = structuredClone(this.initialDraftOrders);
@@ -354,6 +358,26 @@ export class InMemoryStore {
       delete this.stagedState.mergedCustomerIds[customer.id];
       this.baseState.customers[customer.id] = structuredClone(customer);
     }
+  }
+
+  upsertBaseSegments(segments: SegmentRecord[]): void {
+    for (const segment of segments) {
+      this.baseState.segments[segment.id] = structuredClone(segment);
+    }
+  }
+
+  getBaseSegmentById(segmentId: string): SegmentRecord | null {
+    const segment = this.baseState.segments[segmentId] ?? null;
+    return segment ? structuredClone(segment) : null;
+  }
+
+  listBaseSegments(): SegmentRecord[] {
+    return Object.values(this.baseState.segments)
+      .map((segment) => structuredClone(segment))
+      .sort(
+        (left, right) =>
+          (left.creationDate ?? '').localeCompare(right.creationDate ?? '') || left.id.localeCompare(right.id),
+      );
   }
 
   upsertBaseBusinessEntities(businessEntities: BusinessEntityRecord[]): void {
@@ -454,6 +478,15 @@ export class InMemoryStore {
 
   getBaseMarketsRootPayload(rootField: string): unknown | null {
     const payload = this.baseMarketsRootPayloads[rootField];
+    return payload === undefined ? null : structuredClone(payload);
+  }
+
+  setBaseSegmentsRootPayload(rootField: string, payload: unknown): void {
+    this.baseSegmentsRootPayloads[rootField] = structuredClone(payload);
+  }
+
+  getBaseSegmentsRootPayload(rootField: string): unknown | null {
+    const payload = this.baseSegmentsRootPayloads[rootField];
     return payload === undefined ? null : structuredClone(payload);
   }
 

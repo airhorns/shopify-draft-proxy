@@ -13,6 +13,7 @@ import { handleCustomerMutation, handleCustomerQuery, hydrateCustomersFromUpstre
 import { handleMarketsQuery, hydrateMarketsFromUpstreamResponse } from './markets.js';
 import { handleOrderMutation, handleOrderQuery, shouldServeDraftOrderCatalogLocally } from './orders.js';
 import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamResponse } from './products.js';
+import { handleSegmentsQuery, hydrateSegmentsFromUpstreamResponse } from './segments.js';
 import { handleStorePropertiesMutation, handleStorePropertiesQuery } from './store-properties.js';
 
 interface GraphQLBody {
@@ -433,6 +434,35 @@ export function createProxyRouter(config: AppConfig): Router {
 
         const upstreamBody = await response.json();
         hydrateMarketsFromUpstreamResponse(body.query, variables, upstreamBody);
+
+        ctx.status = response.status;
+        ctx.body = upstreamBody;
+        return;
+      }
+    }
+
+    if (capability.execution === 'overlay-read' && capability.domain === 'segments') {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleSegmentsQuery(body.query, variables);
+        return;
+      }
+
+      if (config.readMode === 'live-hybrid') {
+        const response = await upstream.request({
+          path: ctx.path,
+          headers: {
+            'content-type': 'application/json',
+            'x-shopify-access-token': ctx.get('x-shopify-access-token'),
+          },
+          body: {
+            query: body.query,
+            variables,
+          },
+        });
+
+        const upstreamBody = await response.json();
+        hydrateSegmentsFromUpstreamResponse(body.query, variables, upstreamBody);
 
         ctx.status = response.status;
         ctx.body = upstreamBody;

@@ -170,6 +170,14 @@ Current customer-domain state deliberately stays narrower than the product model
 - staged `customerUpdate(input.metafields)` computes against the effective customer metafield set and replaces the staged customer-owned set, so downstream `customer.metafield(...)` and `customer.metafields(...)` reads stay consistent
 - staged `customerMerge` updates the normalized resulting customer row, marks the source customer deleted, records the source-to-result customer id redirect in `mergedCustomerIds`, and records the observed merge job/result shape in `customerMergeRequests`
 
+Current segment read support is capture-driven and intentionally narrow:
+
+- `segment(id:)`, `segments`, and `segmentsCount` use normalized segment records for the selected catalog/detail/count fields captured in HAR-215
+- `segmentFilters`, `segmentFilterSuggestions`, `segmentValueSuggestions`, and `segmentMigrations` preserve captured root payloads for selected metadata/suggestion/migration fields
+- snapshot mode returns Shopify-like empty connections and `EXACT` zero counts when no segment data has been hydrated
+- unknown `segment(id:)` returns `null` with Shopify's captured `NOT_FOUND` error shape
+- segment search/sort/member-query grammar is not inferred beyond the captured request arguments
+
 ## Mutation handling strategy
 
 Mutation handling should eventually have four steps:
