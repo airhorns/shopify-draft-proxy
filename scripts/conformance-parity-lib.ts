@@ -29,7 +29,7 @@ import {
   handleCustomerQuery,
   hydrateCustomersFromUpstreamResponse,
 } from '../src/proxy/customers.js';
-import { handleDiscountQuery } from '../src/proxy/discounts.js';
+import { handleDiscountMutation, handleDiscountQuery } from '../src/proxy/discounts.js';
 import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
 import {
   handleMarketMutation,
@@ -602,6 +602,16 @@ async function executeGraphQLAgainstLocalProxy(
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   const parsed = parseOperation(document);
   const capability = getOperationCapability(parsed);
+
+  if (parsed.type === 'mutation') {
+    const discountValidationBody = handleDiscountMutation(document, variables);
+    if (discountValidationBody) {
+      return {
+        status: 200,
+        body: discountValidationBody,
+      };
+    }
+  }
 
   if (
     capability.execution === 'stage-locally' &&

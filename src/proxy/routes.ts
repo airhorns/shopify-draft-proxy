@@ -11,7 +11,7 @@ import { getOperationCapability, type OperationCapability } from './capabilities
 import { findOperationRegistryEntry } from './operation-registry.js';
 import { handleMediaMutation } from './media.js';
 import { handleCustomerMutation, handleCustomerQuery, hydrateCustomersFromUpstreamResponse } from './customers.js';
-import { handleDiscountQuery } from './discounts.js';
+import { handleDiscountMutation, handleDiscountQuery } from './discounts.js';
 import { handleMarketMutation, handleMarketsQuery, hydrateMarketsFromUpstreamResponse } from './markets.js';
 import { handleOrderMutation, handleOrderQuery, shouldServeDraftOrderCatalogLocally } from './orders.js';
 import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamResponse } from './products.js';
@@ -31,6 +31,12 @@ const APP_DISCOUNT_MUTATION_ROOTS = new Set([
   'discountCodeAppUpdate',
   'discountAutomaticAppCreate',
   'discountAutomaticAppUpdate',
+]);
+
+const FULFILLMENT_SERVICE_MUTATION_ROOTS = new Set([
+  'fulfillmentServiceCreate',
+  'fulfillmentServiceUpdate',
+  'fulfillmentServiceDelete',
 ]);
 
 function readVariables(raw: unknown): Record<string, unknown> {
@@ -140,6 +146,11 @@ function unsupportedMutationNotes(parsed: ParsedOperation): string {
     return 'Unsupported app-managed discount mutation would be proxied to Shopify. Shopify Functions app-discount roots require conformance-backed local staging before they can be supported without executing external Function logic.';
   }
 
+  const registryEntry = findOperationRegistryEntry(parsed.type, [...parsed.rootFields, parsed.name]);
+  if (registryEntry?.domain === 'discounts') {
+    return 'Unsupported discount mutation lifecycle branch would be proxied to Shopify. Captured validation failures are handled locally only; full local emulation is required before this root can be supported.';
+  }
+
   return 'Mutation passthrough placeholder until supported local staging is implemented.';
 }
 
@@ -170,6 +181,24 @@ export function createProxyRouter(config: AppConfig): Router {
     const parsed = parseOperation(body.query);
     const capability = getOperationCapability(parsed);
     const primaryRootField = parsed.rootFields[0] ?? capability.operationName;
+
+    if (parsed.type === 'mutation') {
+      const discountValidationResponse = handleDiscountMutation(body.query, variables);
+      if (discountValidationResponse) {
+        proxyLogger.debug(
+          {
+            operationName: capability.operationName,
+            operationType: parsed.type,
+            rootFields: parsed.rootFields,
+          },
+          'returning captured discount validation response locally',
+        );
+
+        ctx.status = 200;
+        ctx.body = discountValidationResponse;
+        return;
+      }
+    }
 
     if (isProductLocalMutationCapability(capability)) {
       proxyLogger.debug(
@@ -234,6 +263,44 @@ export function createProxyRouter(config: AppConfig): Router {
         status: 'staged',
         interpreted: interpretMutationLogEntry(parsed, capability),
         notes: 'Staged locally in the in-memory publishable draft store.',
+      });
+
+      ctx.status = 200;
+      ctx.body = responseBody;
+      return;
+    }
+
+    if (
+      capability.execution === 'stage-locally' &&
+      capability.domain === 'shipping-fulfillments' &&
+      primaryRootField &&
+      FULFILLMENT_SERVICE_MUTATION_ROOTS.has(primaryRootField)
+    ) {
+      proxyLogger.debug(
+        {
+          execution: capability.execution,
+          operationName: capability.operationName,
+          operationType: parsed.type,
+          rootFields: parsed.rootFields,
+        },
+        'staging supported fulfillment service mutation locally',
+      );
+
+      const responseBody = handleStorePropertiesMutation(body.query, variables);
+
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: ctx.path,
+        query: body.query,
+        variables,
+        requestBody,
+        stagedResourceIds: collectProxySyntheticGids(responseBody),
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        notes:
+          'Staged locally in the in-memory fulfillment service draft store; callback, inventory, tracking, and fulfillment-order notification endpoints are not invoked.',
       });
 
       ctx.status = 200;
@@ -344,7 +411,7 @@ export function createProxyRouter(config: AppConfig): Router {
           operationType: parsed.type,
           rootFields: parsed.rootFields,
         },
-        'staging supported shop policy mutation locally',
+        'staging supported store properties mutation locally',
       );
 
       const responseBody = handleStorePropertiesMutation(body.query, variables);
@@ -527,6 +594,25 @@ export function createProxyRouter(config: AppConfig): Router {
 
         ctx.status = response.status;
         ctx.body = await response.json();
+        return;
+      }
+    }
+
+    if (capability.execution === 'overlay-read' && capability.domain === 'shipping-fulfillments') {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleStorePropertiesQuery(body.query, variables);
+        return;
+      }
+
+      if (
+        config.readMode === 'live-hybrid' &&
+        primaryRootField === 'fulfillmentService' &&
+        typeof variables['id'] === 'string' &&
+        store.getEffectiveFulfillmentServiceById(variables['id']) !== null
+      ) {
+        ctx.status = 200;
+        ctx.body = handleStorePropertiesQuery(body.query, variables);
         return;
       }
     }
