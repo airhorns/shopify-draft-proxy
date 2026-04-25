@@ -1564,6 +1564,9 @@ function makeSeedCustomer(customerId: string, source: Record<string, unknown> | 
     canDelete: readBooleanField(source, 'canDelete') ?? true,
     verifiedEmail: readBooleanField(source, 'verifiedEmail') ?? (email ? true : null),
     taxExempt: readBooleanField(source, 'taxExempt') ?? false,
+    taxExemptions: readArrayField(source, 'taxExemptions').filter(
+      (taxExemption): taxExemption is string => typeof taxExemption === 'string',
+    ),
     state: readStringField(source, 'state') ?? 'DISABLED',
     tags: readArrayField(source, 'tags').filter((tag): tag is string => typeof tag === 'string'),
     numberOfOrders: readNumberField(source, 'numberOfOrders') ?? readStringField(source, 'numberOfOrders') ?? 0,
@@ -1605,6 +1608,7 @@ function makePlaceholderCustomer(index: number): CustomerRecord {
     canDelete: true,
     verifiedEmail: true,
     taxExempt: false,
+    taxExemptions: [],
     state: 'DISABLED',
     tags: ['baseline'],
     numberOfOrders: 0,
@@ -1630,7 +1634,10 @@ function seedCustomerMutationPreconditions(
     mutationName !== 'customerUpdate' &&
     mutationName !== 'customerDelete' &&
     mutationName !== 'customerEmailMarketingConsentUpdate' &&
-    mutationName !== 'customerSmsMarketingConsentUpdate'
+    mutationName !== 'customerSmsMarketingConsentUpdate' &&
+    mutationName !== 'customerAddTaxExemptions' &&
+    mutationName !== 'customerRemoveTaxExemptions' &&
+    mutationName !== 'customerReplaceTaxExemptions'
   ) {
     return false;
   }
@@ -1639,7 +1646,9 @@ function seedCustomerMutationPreconditions(
   const customerPayload = readRecordField(payload, 'customer');
   const preconditionPayload = firstObjectValue(readJsonPath(capture, '$.precondition.response.data'));
   const preconditionCustomerPayload = readRecordField(preconditionPayload, 'customer');
-  const downstreamData = readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data');
+  const downstreamRead = readRecordField(capture as Record<string, unknown>, 'downstreamRead');
+  const downstreamData =
+    readRecordField(downstreamRead, 'data') ?? readRecordField(readRecordField(downstreamRead, 'response'), 'data');
   const downstreamCount = readNumberField(readRecordField(downstreamData, 'customersCount'), 'count');
   const targetCustomerId =
     readStringField(input, 'id') ??
@@ -1655,7 +1664,13 @@ function seedCustomerMutationPreconditions(
 
   if (downstreamCount !== null) {
     const targetContributesToDownstreamCount =
-      mutationName === 'customerCreate' || mutationName === 'customerUpdate' ? 1 : 0;
+      mutationName === 'customerCreate' ||
+      mutationName === 'customerUpdate' ||
+      mutationName === 'customerAddTaxExemptions' ||
+      mutationName === 'customerRemoveTaxExemptions' ||
+      mutationName === 'customerReplaceTaxExemptions'
+        ? 1
+        : 0;
     const placeholderCount = Math.max(0, downstreamCount - targetContributesToDownstreamCount);
     for (let index = 0; index < placeholderCount; index += 1) {
       seedCustomers.push(makePlaceholderCustomer(index));
@@ -2869,6 +2884,75 @@ function readCapturedFulfillmentLineItems(source: Record<string, unknown> | null
     });
 }
 
+function readCapturedFulfillmentEvents(
+  source: Record<string, unknown> | null,
+): NonNullable<OrderFulfillmentRecord['events']> {
+  return readArrayField(readRecordField(source, 'events'), 'nodes')
+    .filter(isPlainObject)
+    .map((event, index) => ({
+      id: readStringField(event, 'id') ?? `gid://shopify/FulfillmentEvent/conformance-${index}`,
+      status: readStringField(event, 'status'),
+      message: readStringField(event, 'message'),
+      happenedAt: readStringField(event, 'happenedAt') ?? readStringField(event, 'createdAt') ?? '2026-04-19T00:00:00Z',
+      createdAt: readStringField(event, 'createdAt'),
+      estimatedDeliveryAt: readStringField(event, 'estimatedDeliveryAt'),
+      city: readStringField(event, 'city'),
+      province: readStringField(event, 'province'),
+      country: readStringField(event, 'country'),
+      zip: readStringField(event, 'zip'),
+      address1: readStringField(event, 'address1'),
+      latitude: readNumberField(event, 'latitude'),
+      longitude: readNumberField(event, 'longitude'),
+    }));
+}
+
+function readCapturedFulfillmentLocation(
+  source: Record<string, unknown> | null,
+): NonNullable<OrderFulfillmentRecord['location']> | null {
+  if (!source) {
+    return null;
+  }
+
+  return {
+    id: readStringField(source, 'id'),
+    name: readStringField(source, 'name'),
+  };
+}
+
+function readCapturedFulfillmentService(
+  source: Record<string, unknown> | null,
+): NonNullable<OrderFulfillmentRecord['service']> | null {
+  if (!source) {
+    return null;
+  }
+
+  return {
+    id: readStringField(source, 'id'),
+    handle: readStringField(source, 'handle'),
+    serviceName: readStringField(source, 'serviceName'),
+    trackingSupport: readBooleanField(source, 'trackingSupport'),
+    type: readStringField(source, 'type'),
+    location: readCapturedFulfillmentLocation(readRecordField(source, 'location')),
+  };
+}
+
+function readCapturedFulfillmentOriginAddress(
+  source: Record<string, unknown> | null,
+): NonNullable<OrderFulfillmentRecord['originAddress']> | null {
+  if (!source) {
+    return null;
+  }
+
+  return {
+    address1: readStringField(source, 'address1'),
+    address2: readStringField(source, 'address2'),
+    city: readStringField(source, 'city'),
+    countryCode: readStringField(source, 'countryCode'),
+    provinceCode: readStringField(source, 'provinceCode'),
+    zip: readStringField(source, 'zip'),
+  };
+}
+
 function readCapturedOrderFulfillments(order: Record<string, unknown> | null): OrderFulfillmentRecord[] {
   return readArrayField(order, 'fulfillments')
     .filter(isPlainObject)
@@ -2878,6 +2962,9 @@ function readCapturedOrderFulfillments(order: Record<string, unknown> | null): O
       displayStatus: readStringField(fulfillment, 'displayStatus'),
       createdAt: readStringField(fulfillment, 'createdAt'),
       updatedAt: readStringField(fulfillment, 'updatedAt'),
+      deliveredAt: readStringField(fulfillment, 'deliveredAt'),
+      estimatedDeliveryAt: readStringField(fulfillment, 'estimatedDeliveryAt'),
+      inTransitAt: readStringField(fulfillment, 'inTransitAt'),
       trackingInfo: readArrayField(fulfillment, 'trackingInfo')
         .filter(isPlainObject)
         .map((trackingInfo) => ({
@@ -2885,7 +2972,11 @@ function readCapturedOrderFulfillments(order: Record<string, unknown> | null): O
           url: readStringField(trackingInfo, 'url'),
           company: readStringField(trackingInfo, 'company'),
         })),
+      events: readCapturedFulfillmentEvents(fulfillment),
       fulfillmentLineItems: readCapturedFulfillmentLineItems(fulfillment),
+      service: readCapturedFulfillmentService(readRecordField(fulfillment, 'service')),
+      location: readCapturedFulfillmentLocation(readRecordField(fulfillment, 'location')),
+      originAddress: readCapturedFulfillmentOriginAddress(readRecordField(fulfillment, 'originAddress')),
     }));
 }
 
@@ -3172,6 +3263,25 @@ function readCapturedDraftOrderShippingLine(
   };
 }
 
+function readCapturedDraftOrderPaymentTerms(
+  draftOrder: Record<string, unknown> | null,
+): DraftOrderRecord['paymentTerms'] {
+  const paymentTerms = readRecordField(draftOrder, 'paymentTerms');
+  if (!paymentTerms) {
+    return null;
+  }
+
+  return {
+    id: readStringField(paymentTerms, 'id') ?? 'gid://shopify/PaymentTerms/conformance',
+    due: readBooleanField(paymentTerms, 'due') ?? false,
+    overdue: readBooleanField(paymentTerms, 'overdue') ?? false,
+    dueInDays: readNumberField(paymentTerms, 'dueInDays'),
+    paymentTermsName: readStringField(paymentTerms, 'paymentTermsName') ?? '',
+    paymentTermsType: readStringField(paymentTerms, 'paymentTermsType') ?? '',
+    translatedName: readStringField(paymentTerms, 'translatedName') ?? '',
+  };
+}
+
 function makeSeedDraftOrder(draftOrderId: string, source: Record<string, unknown> | null = null): DraftOrderRecord {
   const now = '2026-04-19T00:00:00.000Z';
   return {
@@ -3187,7 +3297,7 @@ function makeSeedDraftOrder(draftOrderId: string, source: Record<string, unknown
     taxExempt: readBooleanField(source, 'taxExempt') ?? false,
     taxesIncluded: readBooleanField(source, 'taxesIncluded') ?? false,
     reserveInventoryUntil: readStringField(source, 'reserveInventoryUntil'),
-    paymentTerms: null,
+    paymentTerms: readCapturedDraftOrderPaymentTerms(source),
     appliedDiscount: readCapturedDraftOrderAppliedDiscount(source),
     customAttributes: readArrayField(source, 'customAttributes')
       .filter(isPlainObject)
@@ -3394,6 +3504,52 @@ function readCapturedProductVariants(
     .filter((variant): variant is ProductVariantRecord => variant !== null);
 }
 
+function readCapturedProductOptions(productId: string, product: Record<string, unknown> | null): ProductOptionRecord[] {
+  return readArrayField(product, 'options')
+    .filter(isPlainObject)
+    .map((option) => {
+      const id = readStringField(option, 'id');
+      const name = readStringField(option, 'name');
+      if (!id || !name) {
+        return null;
+      }
+
+      const optionValues = readArrayField(option, 'optionValues')
+        .filter(isPlainObject)
+        .map((optionValue) => {
+          const valueId = readStringField(optionValue, 'id');
+          const valueName = readStringField(optionValue, 'name');
+          if (!valueId || !valueName) {
+            return null;
+          }
+
+          return {
+            id: valueId,
+            name: valueName,
+            hasVariants: readBooleanField(optionValue, 'hasVariants') ?? false,
+          };
+        })
+        .filter((optionValue): optionValue is ProductOptionRecord['optionValues'][number] => optionValue !== null);
+
+      return {
+        id,
+        productId,
+        name,
+        position: readNumberField(option, 'position') ?? 1,
+        optionValues,
+      };
+    })
+    .filter((option): option is ProductOptionRecord => option !== null);
+}
+
+function readPreMutationProduct(capture: unknown, productId: string): Record<string, unknown> | null {
+  const preMutationRead = readRecordField(capture as Record<string, unknown>, 'preMutationRead');
+  const data =
+    readRecordField(preMutationRead, 'data') ?? readRecordField(readRecordField(preMutationRead, 'response'), 'data');
+  const product = readRecordField(data, 'product');
+  return readStringField(product, 'id') === productId ? product : null;
+}
+
 function readBulkUpdateSeedVariants(
   productId: string,
   product: Record<string, unknown> | null,
@@ -3510,7 +3666,22 @@ function makeSeedCollection(collectionId: string, source: Record<string, unknown
   };
 }
 
-function seedProductOptionState(productId: string, variables: Record<string, unknown>): void {
+function seedProductOptionState(productId: string, variables: Record<string, unknown>, capture?: unknown): void {
+  const preMutationProduct = capture === undefined ? null : readPreMutationProduct(capture, productId);
+  if (preMutationProduct) {
+    const capturedOptions = readCapturedProductOptions(productId, preMutationProduct);
+    const capturedVariants = readCapturedProductVariants(productId, preMutationProduct);
+    if (capturedOptions.length > 0) {
+      store.replaceBaseOptionsForProduct(productId, capturedOptions);
+    }
+    if (capturedVariants.length > 0) {
+      store.replaceBaseVariantsForProduct(productId, capturedVariants);
+    }
+    if (capturedOptions.length > 0 || capturedVariants.length > 0) {
+      return;
+    }
+  }
+
   const optionInput = readRecordField(variables, 'option');
   const optionId =
     readStringField(optionInput, 'id') ??
@@ -3823,6 +3994,37 @@ function seedProductVariantDeleteCompatibilityPreconditions(
     makeProductVariantUpdateCompatibilitySeedVariant(productId, variantId, null),
     ...retainedVariants.filter((variant) => variant.id !== variantId),
   ]);
+  return true;
+}
+
+function seedProductVariantsBulkReorderPreconditions(capture: unknown, productId: string): boolean {
+  const setup = readRecordField(capture as Record<string, unknown>, 'setup');
+  const setupCreatedProduct = readRecordField(
+    readRecordField(readRecordField(setup, 'productCreate'), 'data'),
+    'productCreate',
+  );
+  const setupProduct = readRecordField(setupCreatedProduct, 'product');
+  const setupVariantCreate = readRecordField(
+    readRecordField(readRecordField(setup, 'productVariantsBulkCreate'), 'data'),
+    'productVariantsBulkCreate',
+  );
+  const setupVariantProduct = readRecordField(setupVariantCreate, 'product');
+  const seedSource =
+    readStringField(setupProduct, 'id') === productId
+      ? setupProduct
+      : readStringField(setupVariantProduct, 'id') === productId
+        ? setupVariantProduct
+        : null;
+
+  if (!seedSource) {
+    return false;
+  }
+
+  store.upsertBaseProducts([makeSeedProduct(productId, seedSource, 'Product variant reorder conformance seed')]);
+  const variants = readCapturedProductVariants(productId, setupVariantProduct);
+  if (variants.length > 0) {
+    store.replaceBaseVariantsForProduct(productId, variants);
+  }
   return true;
 }
 
@@ -4926,6 +5128,13 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       return;
     }
 
+    if (
+      mutationName === 'productVariantsBulkReorder' &&
+      seedProductVariantsBulkReorderPreconditions(capture, productId)
+    ) {
+      return;
+    }
+
     const captureSeedProduct = readRecordField(capture as Record<string, unknown>, 'seedProduct');
     const seedSource =
       mutationName === 'tagsAdd'
@@ -4958,7 +5167,7 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       }
     }
     if (readArrayField(variables, 'options').length > 0 || readRecordField(variables, 'option')) {
-      seedProductOptionState(productId, variables);
+      seedProductOptionState(productId, variables, capture);
     }
 
     if (mutationName === 'productUpdateMedia') {

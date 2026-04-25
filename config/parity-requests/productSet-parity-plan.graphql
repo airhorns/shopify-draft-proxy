@@ -1,5 +1,5 @@
-mutation ProductSetParityPlan($input: ProductSetInput!, $synchronous: Boolean!) {
-  productSet(input: $input, synchronous: $synchronous) {
+mutation ProductSetParityPlan($identifier: ProductSetIdentifiers, $input: ProductSetInput!, $synchronous: Boolean!) {
+  productSet(identifier: $identifier, input: $input, synchronous: $synchronous) {
     product {
       id
       title
@@ -8,6 +8,7 @@ mutation ProductSetParityPlan($input: ProductSetInput!, $synchronous: Boolean!) 
       vendor
       productType
       tags
+      totalInventory
       options {
         id
         name
@@ -31,8 +32,23 @@ mutation ProductSetParityPlan($input: ProductSetInput!, $synchronous: Boolean!) 
             value
           }
           inventoryItem {
+            id
             tracked
             requiresShipping
+            inventoryLevels(first: 10) {
+              nodes {
+                id
+                location {
+                  id
+                  name
+                }
+                quantities(names: ["available", "on_hand", "incoming"]) {
+                  name
+                  quantity
+                  updatedAt
+                }
+              }
+            }
           }
         }
       }
