@@ -1,6 +1,7 @@
 import { Kind, type FieldNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
+import { parseSearchQueryTerms, type SearchQueryTerm } from '../search-query-parser.js';
 import { store } from '../state/store.js';
 import type { DiscountRecord } from '../state/types.js';
 import {
@@ -10,12 +11,6 @@ import {
   serializeConnectionPageInfo,
 } from './graphql-helpers.js';
 
-type DiscountQueryTerm = {
-  field: string;
-  value: string;
-  comparator: ':' | '>' | '>=' | '<' | '<=';
-};
-
 function normalizeSearchValue(value: string): string {
   return value
     .trim()
@@ -23,30 +18,14 @@ function normalizeSearchValue(value: string): string {
     .toLowerCase();
 }
 
-function parseDiscountQuery(rawQuery: unknown): DiscountQueryTerm[] {
+function parseDiscountQuery(rawQuery: unknown): SearchQueryTerm[] {
   if (typeof rawQuery !== 'string' || rawQuery.trim().length === 0) {
     return [];
   }
 
-  return rawQuery
-    .split(/\s+AND\s+/iu)
-    .map((rawTerm) => {
-      const match = /^([A-Za-z_]+)\s*(:|>=|<=|>|<)\s*(.+)$/u.exec(rawTerm.trim());
-      if (!match) {
-        return {
-          field: 'default',
-          comparator: ':' as const,
-          value: normalizeSearchValue(rawTerm),
-        };
-      }
-
-      return {
-        field: match[1]!.toLowerCase(),
-        comparator: match[2] as DiscountQueryTerm['comparator'],
-        value: normalizeSearchValue(match[3]!),
-      };
-    })
-    .filter((term) => term.value.length > 0);
+  return parseSearchQueryTerms(rawQuery.trim(), { ignoredKeywords: ['AND'] }).filter(
+    (term) => normalizeSearchValue(term.value).length > 0,
+  );
 }
 
 function compareNullableStrings(left: string | null | undefined, right: string | null | undefined): number {
@@ -66,13 +45,13 @@ function compareResourceIds(leftId: string, rightId: string): number {
   return leftId.localeCompare(rightId);
 }
 
-function compareNumber(value: number | null, term: DiscountQueryTerm): boolean {
-  const expected = Number.parseFloat(term.value);
+function compareNumber(value: number | null, term: SearchQueryTerm): boolean {
+  const expected = Number.parseFloat(normalizeSearchValue(term.value));
   if (!Number.isFinite(expected) || value === null) {
     return false;
   }
 
-  switch (term.comparator) {
+  switch (term.comparator ?? '=') {
     case '>':
       return value > expected;
     case '>=':
@@ -81,23 +60,24 @@ function compareNumber(value: number | null, term: DiscountQueryTerm): boolean {
       return value < expected;
     case '<=':
       return value <= expected;
-    case ':':
+    case '=':
       return value === expected;
   }
 }
 
-function compareDate(value: string | null | undefined, term: DiscountQueryTerm): boolean {
+function compareDate(value: string | null | undefined, term: SearchQueryTerm): boolean {
   if (!value) {
     return false;
   }
 
   const actualDate = Date.parse(value);
-  const expectedDate = term.value === 'now' ? Date.now() : Date.parse(term.value);
+  const expectedValue = normalizeSearchValue(term.value);
+  const expectedDate = expectedValue === 'now' ? Date.now() : Date.parse(expectedValue);
   if (Number.isNaN(actualDate) || Number.isNaN(expectedDate)) {
     return false;
   }
 
-  switch (term.comparator) {
+  switch (term.comparator ?? '=') {
     case '>':
       return actualDate > expectedDate;
     case '>=':
@@ -106,7 +86,7 @@ function compareDate(value: string | null | undefined, term: DiscountQueryTerm):
       return actualDate < expectedDate;
     case '<=':
       return actualDate <= expectedDate;
-    case ':':
+    case '=':
       return actualDate === expectedDate;
   }
 }
@@ -131,33 +111,36 @@ function inferDiscountType(discount: DiscountRecord): string | null {
   return null;
 }
 
-function matchesDiscountTerm(discount: DiscountRecord, term: DiscountQueryTerm): boolean {
-  switch (term.field) {
+function matchesPositiveDiscountTerm(discount: DiscountRecord, term: SearchQueryTerm): boolean {
+  const field = term.field?.toLowerCase() ?? 'default';
+  const value = normalizeSearchValue(term.value);
+
+  switch (field) {
     case 'default':
     case 'title':
-      return discount.title.toLowerCase().includes(term.value);
+      return discount.title.toLowerCase().includes(value);
     case 'code':
       // Captured 2026-04 behavior: native code discounts found through codeDiscountNodes
       // did not match discountNodes(query: "code:<code>").
       return false;
     case 'combines_with':
-      if (term.value === 'product_discounts') return discount.combinesWith.productDiscounts;
-      if (term.value === 'order_discounts') return discount.combinesWith.orderDiscounts;
-      if (term.value === 'shipping_discounts') return discount.combinesWith.shippingDiscounts;
+      if (value === 'product_discounts') return discount.combinesWith.productDiscounts;
+      if (value === 'order_discounts') return discount.combinesWith.orderDiscounts;
+      if (value === 'shipping_discounts') return discount.combinesWith.shippingDiscounts;
       return false;
     case 'discount_class':
-      return discount.discountClasses.some((discountClass) => discountClass.toLowerCase() === term.value);
+      return discount.discountClasses.some((discountClass) => discountClass.toLowerCase() === value);
     case 'discount_type':
     case 'type': {
-      if (term.value === 'all') return true;
-      if (term.value === 'all_with_app') return true;
-      if (term.value === 'app') return discount.typeName.toLowerCase().includes('app');
-      return inferDiscountType(discount) === term.value;
+      if (value === 'all') return true;
+      if (value === 'all_with_app') return true;
+      if (value === 'app') return discount.typeName.toLowerCase().includes('app');
+      return inferDiscountType(discount) === value;
     }
     case 'method':
-      return discount.method === term.value;
+      return discount.method === value;
     case 'status':
-      return discount.status?.toLowerCase() === term.value;
+      return discount.status?.toLowerCase() === value;
     case 'starts_at':
       return compareDate(discount.startsAt, term);
     case 'ends_at':
@@ -169,12 +152,21 @@ function matchesDiscountTerm(discount: DiscountRecord, term: DiscountQueryTerm):
     case 'times_used':
       return compareNumber(discount.asyncUsageCount, term);
     case 'app_id':
-      return discount.appId?.toLowerCase() === term.value;
+      return discount.appId?.toLowerCase() === value;
     case 'id':
-      return discount.id.endsWith(`/${term.value}`) || discount.id === term.value;
+      return discount.id.endsWith(`/${value}`) || discount.id === value;
     default:
       return false;
   }
+}
+
+function matchesDiscountTerm(discount: DiscountRecord, term: SearchQueryTerm): boolean {
+  if (!term.raw) {
+    return true;
+  }
+
+  const matches = matchesPositiveDiscountTerm(discount, term);
+  return term.negated ? !matches : matches;
 }
 
 function filterDiscountsByQuery(discounts: DiscountRecord[], rawQuery: unknown): DiscountRecord[] {
