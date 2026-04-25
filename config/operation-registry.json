@@ -1479,7 +1479,7 @@
     "implemented": true,
     "matchNames": ["paymentCustomizationActivation", "PaymentCustomizationActivation"],
     "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
-    "supportNotes": "Payment customization activation is staged locally against normalized payment customization records. Unknown ids mirror captured PAYMENT_CUSTOMIZATION_NOT_FOUND userErrors; existing records update enabled without invoking Shopify Functions or checkout payment behavior."
+    "supportNotes": "Payment customization activation is staged locally against normalized payment customization records. Unknown ids mirror captured PAYMENT_CUSTOMIZATION_NOT_FOUND userErrors; existing records update enabled without invoking Shopify Functions or checkout payment behavior, and duplicate ids are handled idempotently."
   },
   {
     "name": "paymentCustomizationCreate",
@@ -1489,7 +1489,7 @@
     "implemented": true,
     "matchNames": ["paymentCustomizationCreate", "PaymentCustomizationCreate"],
     "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
-    "supportNotes": "Payment customization create stages a normalized record locally with selected metafields, stable synthetic ids, and downstream detail/catalog visibility. Captured missing required fields and missing Function id validation are handled locally without runtime Shopify writes."
+    "supportNotes": "Payment customization create stages a normalized record locally with selected metafields, stable synthetic ids, current functionHandle input support, deprecated functionId input support, and downstream detail/catalog visibility. Captured missing required fields plus Function/metafield validation branches are handled locally without runtime Shopify writes."
   },
   {
     "name": "paymentCustomizationDelete",
@@ -1509,7 +1509,7 @@
     "implemented": true,
     "matchNames": ["paymentCustomizationUpdate", "PaymentCustomizationUpdate"],
     "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
-    "supportNotes": "Payment customization update stages local scalar/metafield changes over normalized records. Unknown ids and captured missing Function ids return Shopify-like PaymentCustomizationError payloads without proxying runtime writes upstream."
+    "supportNotes": "Payment customization update stages local scalar/metafield changes over normalized records, including current functionHandle and deprecated functionId identifier changes. Unknown ids and captured Function/metafield validation branches return Shopify-like PaymentCustomizationError payloads without proxying runtime writes upstream."
   },
   {
     "name": "paymentReminderSend",

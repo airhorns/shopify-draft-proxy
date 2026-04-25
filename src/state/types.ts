@@ -828,6 +828,7 @@ export const paymentCustomizationRecordSchema = z.strictObject({
   title: nullableStringSchema,
   enabled: nullableBooleanSchema,
   functionId: nullableStringSchema,
+  functionHandle: nullableStringSchema.optional(),
   shopifyFunction: jsonObjectSchema.optional(),
   errorHistory: jsonValueSchema.optional(),
   metafields: z.array(paymentCustomizationMetafieldRecordSchema).optional(),

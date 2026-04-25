@@ -55,6 +55,12 @@ function isCapturedMissingFunctionId(functionId: string): boolean {
   return gidTail(functionId) === '0';
 }
 
+function isCapturedMissingFunctionHandle(functionHandle: string): boolean {
+  return ['0', 'missing-function', 'missing-payment-customization-function'].includes(
+    normalizeSearchQueryValue(functionHandle),
+  );
+}
+
 function matchesIdentifier(id: string | null | undefined, expected: string): boolean {
   if (!id) {
     return false;
@@ -324,6 +330,22 @@ function functionNotFoundError(functionId: string): PaymentCustomizationUserErro
   };
 }
 
+function functionHandleNotFoundError(functionHandle: string): PaymentCustomizationUserError {
+  return {
+    field: ['paymentCustomization', 'functionHandle'],
+    message: `Function ${functionHandle} not found. Ensure that it is released in the current app (${CAPTURED_PAYMENT_CUSTOMIZATION_APP_ID}), and that the app is installed.`,
+    code: 'FUNCTION_NOT_FOUND',
+  };
+}
+
+function multipleFunctionIdentifiersError(): PaymentCustomizationUserError {
+  return {
+    field: ['paymentCustomization', 'functionHandle'],
+    message: 'Only one of function_id or function_handle can be provided, not both.',
+    code: 'MULTIPLE_FUNCTION_IDENTIFIERS',
+  };
+}
+
 function paymentCustomizationNotFoundError(fieldName: string, id: string): PaymentCustomizationUserError {
   return {
     field: [fieldName],
@@ -340,6 +362,83 @@ function paymentCustomizationActivationNotFoundError(ids: string[]): PaymentCust
   };
 }
 
+function invalidMetafieldsError(): PaymentCustomizationUserError {
+  return {
+    field: ['paymentCustomization', 'metafields'],
+    message: 'Could not create or update metafields.',
+    code: 'INVALID_METAFIELDS',
+  };
+}
+
+function readFunctionId(input: Record<string, unknown>): string | null {
+  return typeof input['functionId'] === 'string' && input['functionId'].trim().length > 0 ? input['functionId'] : null;
+}
+
+function readFunctionHandle(input: Record<string, unknown>): string | null {
+  return typeof input['functionHandle'] === 'string' && input['functionHandle'].trim().length > 0
+    ? input['functionHandle']
+    : null;
+}
+
+function hasFunctionIdentifier(input: Record<string, unknown>): boolean {
+  return readFunctionId(input) !== null || readFunctionHandle(input) !== null;
+}
+
+function validateFunctionIdentifier(input: Record<string, unknown>): PaymentCustomizationUserError | null {
+  const functionId = readFunctionId(input);
+  const functionHandle = readFunctionHandle(input);
+  if (functionId !== null && functionHandle !== null) {
+    return multipleFunctionIdentifiersError();
+  }
+
+  if (functionId !== null && isCapturedMissingFunctionId(functionId)) {
+    return functionNotFoundError(functionId);
+  }
+
+  if (functionHandle !== null && isCapturedMissingFunctionHandle(functionHandle)) {
+    return functionHandleNotFoundError(functionHandle);
+  }
+
+  return null;
+}
+
+function validateMetafieldInputs(
+  input: Record<string, unknown>,
+  existingMetafields: PaymentCustomizationMetafieldRecord[] = [],
+): PaymentCustomizationUserError | null {
+  if (!hasOwnField(input, 'metafields')) {
+    return null;
+  }
+
+  const metafields = input['metafields'];
+  if (!Array.isArray(metafields)) {
+    return invalidMetafieldsError();
+  }
+
+  for (const metafield of metafields) {
+    if (!isPlainObject(metafield)) {
+      return invalidMetafieldsError();
+    }
+
+    const hasId = typeof metafield['id'] === 'string' && metafield['id'].trim().length > 0;
+    const namespace = typeof metafield['namespace'] === 'string' ? metafield['namespace'].trim() : '';
+    const key = typeof metafield['key'] === 'string' ? metafield['key'].trim() : '';
+    const type = typeof metafield['type'] === 'string' ? metafield['type'].trim() : '';
+    const value = typeof metafield['value'] === 'string' ? metafield['value'] : null;
+    const existingById = hasId
+      ? (existingMetafields.find((candidate) => candidate.id === metafield['id']) ?? null)
+      : null;
+    if (!existingById && (!namespace || !key)) {
+      return invalidMetafieldsError();
+    }
+    if (!(type || existingById?.type) || (value === null && existingById?.value == null)) {
+      return invalidMetafieldsError();
+    }
+  }
+
+  return null;
+}
+
 function validateCreateInput(input: Record<string, unknown>): PaymentCustomizationUserError[] {
   if (!hasOwnField(input, 'title')) {
     return [requiredPaymentCustomizationInputError('title')];
@@ -349,16 +448,15 @@ function validateCreateInput(input: Record<string, unknown>): PaymentCustomizati
     return [requiredPaymentCustomizationInputError('enabled')];
   }
 
-  if (!hasOwnField(input, 'functionId')) {
+  if (!hasFunctionIdentifier(input)) {
     return [requiredPaymentCustomizationInputError('functionId')];
   }
 
-  const functionId = input['functionId'];
-  if (typeof functionId === 'string' && isCapturedMissingFunctionId(functionId)) {
-    return [functionNotFoundError(functionId)];
-  }
+  const functionError = validateFunctionIdentifier(input);
+  if (functionError) return [functionError];
 
-  return [];
+  const metafieldError = validateMetafieldInputs(input);
+  return metafieldError ? [metafieldError] : [];
 }
 
 function applyMetafieldInputs(
@@ -384,7 +482,8 @@ function buildPaymentCustomizationFromInput(input: Record<string, unknown>): Pay
     id,
     title: typeof input['title'] === 'string' ? input['title'] : null,
     enabled: typeof input['enabled'] === 'boolean' ? input['enabled'] : null,
-    functionId: typeof input['functionId'] === 'string' ? input['functionId'] : null,
+    functionId: readFunctionId(input),
+    functionHandle: readFunctionHandle(input),
     metafields: [],
   };
   customization.metafields = applyMetafieldInputs(id, input, []);
@@ -402,8 +501,16 @@ function updatePaymentCustomizationFromInput(
   if (typeof input['enabled'] === 'boolean') {
     next.enabled = input['enabled'];
   }
-  if (typeof input['functionId'] === 'string') {
-    next.functionId = input['functionId'];
+  const functionId = readFunctionId(input);
+  const functionHandle = readFunctionHandle(input);
+  if (functionId !== null) {
+    next.functionId = functionId;
+    next.functionHandle = null;
+    next.shopifyFunction = undefined;
+  }
+  if (functionHandle !== null) {
+    next.functionHandle = functionHandle;
+    next.functionId = null;
     next.shopifyFunction = undefined;
   }
   next.metafields = applyMetafieldInputs(current.id, input, current.metafields ?? []);
@@ -510,11 +617,19 @@ function updatePaymentCustomization(field: FieldNode, variables: Record<string, 
   }
 
   const input = isPlainObject(args['paymentCustomization']) ? args['paymentCustomization'] : {};
-  const functionId = input['functionId'];
-  if (typeof functionId === 'string' && isCapturedMissingFunctionId(functionId)) {
+  const functionError = validateFunctionIdentifier(input);
+  if (functionError) {
     return serializePaymentCustomizationMutationPayload(field, variables, {
       paymentCustomization: null,
-      userErrors: [functionNotFoundError(functionId)],
+      userErrors: [functionError],
+    });
+  }
+
+  const metafieldError = validateMetafieldInputs(input, current.metafields ?? []);
+  if (metafieldError) {
+    return serializePaymentCustomizationMutationPayload(field, variables, {
+      paymentCustomization: null,
+      userErrors: [metafieldError],
     });
   }
 
@@ -546,7 +661,9 @@ function deletePaymentCustomization(field: FieldNode, variables: Record<string, 
 
 function activatePaymentCustomizations(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
-  const ids = Array.isArray(args['ids']) ? args['ids'].filter((id): id is string => typeof id === 'string') : [];
+  const ids = Array.isArray(args['ids'])
+    ? Array.from(new Set(args['ids'].filter((id): id is string => typeof id === 'string')))
+    : [];
   const enabled = args['enabled'] === true;
   const updatedIds: string[] = [];
   const missingIds: string[] = [];
