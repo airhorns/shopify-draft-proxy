@@ -468,6 +468,32 @@ export const customerRecordSchema = z.strictObject({
 });
 export type CustomerRecord = z.infer<typeof customerRecordSchema>;
 
+export const customerPaymentMethodInstrumentRecordSchema = z.strictObject({
+  typeName: z.string(),
+  data: jsonObjectSchema.default({}),
+});
+export type CustomerPaymentMethodInstrumentRecord = z.infer<typeof customerPaymentMethodInstrumentRecordSchema>;
+
+export const customerPaymentMethodSubscriptionContractRecordSchema = z.strictObject({
+  id: z.string(),
+  cursor: nullableStringSchema.optional(),
+  data: jsonObjectSchema.default({}),
+});
+export type CustomerPaymentMethodSubscriptionContractRecord = z.infer<
+  typeof customerPaymentMethodSubscriptionContractRecordSchema
+>;
+
+export const customerPaymentMethodRecordSchema = z.strictObject({
+  id: z.string(),
+  customerId: z.string(),
+  cursor: nullableStringSchema.optional(),
+  instrument: customerPaymentMethodInstrumentRecordSchema.nullable(),
+  revokedAt: nullableStringSchema,
+  revokedReason: nullableStringSchema.optional(),
+  subscriptionContracts: z.array(customerPaymentMethodSubscriptionContractRecordSchema).default([]),
+});
+export type CustomerPaymentMethodRecord = z.infer<typeof customerPaymentMethodRecordSchema>;
+
 export const segmentRecordSchema = z.strictObject({
   id: z.string(),
   name: nullableStringSchema,
@@ -1152,6 +1178,7 @@ export const stateSnapshotSchema = z.strictObject({
   publications: z.record(z.string(), publicationRecordSchema).default({}),
   customers: z.record(z.string(), customerRecordSchema),
   customerAddresses: z.record(z.string(), customerAddressRecordSchema).default({}),
+  customerPaymentMethods: z.record(z.string(), customerPaymentMethodRecordSchema).default({}),
   segments: z.record(z.string(), segmentRecordSchema).default({}),
   discounts: z.record(z.string(), discountRecordSchema).default({}),
   businessEntities: z.record(z.string(), businessEntityRecordSchema).default({}),
@@ -1176,6 +1203,7 @@ export const stateSnapshotSchema = z.strictObject({
   deletedCollectionIds: z.record(z.string(), z.literal(true)),
   deletedCustomerIds: z.record(z.string(), z.literal(true)),
   deletedCustomerAddressIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedCustomerPaymentMethodIds: z.record(z.string(), z.literal(true)).default({}),
   deletedSegmentIds: z.record(z.string(), z.literal(true)).default({}),
   deletedDiscountIds: z.record(z.string(), z.literal(true)).default({}),
   deletedMarketIds: z.record(z.string(), z.literal(true)).default({}),

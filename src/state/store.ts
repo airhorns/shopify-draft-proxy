@@ -7,6 +7,7 @@ import type {
   CustomerCatalogConnectionRecord,
   CustomerMergeRequestRecord,
   CustomerMetafieldRecord,
+  CustomerPaymentMethodRecord,
   CustomerRecord,
   DiscountRecord,
   DraftOrderRecord,
@@ -56,6 +57,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   publications: {},
   customers: {},
   customerAddresses: {},
+  customerPaymentMethods: {},
   segments: {},
   discounts: {},
   businessEntities: {},
@@ -80,6 +82,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedCollectionIds: {},
   deletedCustomerIds: {},
   deletedCustomerAddressIds: {},
+  deletedCustomerPaymentMethodIds: {},
   deletedSegmentIds: {},
   deletedDiscountIds: {},
   deletedMarketIds: {},
@@ -436,6 +439,14 @@ export class InMemoryStore {
       delete this.baseState.deletedCustomerAddressIds[address.id];
       delete this.stagedState.deletedCustomerAddressIds[address.id];
       this.baseState.customerAddresses[address.id] = structuredClone(address);
+    }
+  }
+
+  upsertBaseCustomerPaymentMethods(paymentMethods: CustomerPaymentMethodRecord[]): void {
+    for (const paymentMethod of paymentMethods) {
+      delete this.baseState.deletedCustomerPaymentMethodIds[paymentMethod.id];
+      delete this.stagedState.deletedCustomerPaymentMethodIds[paymentMethod.id];
+      this.baseState.customerPaymentMethods[paymentMethod.id] = structuredClone(paymentMethod);
     }
   }
 
@@ -1617,6 +1628,29 @@ export class InMemoryStore {
     return address ? structuredClone(address) : null;
   }
 
+  getEffectiveCustomerPaymentMethodById(
+    paymentMethodId: string,
+    options: { showRevoked?: boolean } = {},
+  ): CustomerPaymentMethodRecord | null {
+    if (this.stagedState.deletedCustomerPaymentMethodIds[paymentMethodId]) {
+      return null;
+    }
+
+    const paymentMethod =
+      this.stagedState.customerPaymentMethods[paymentMethodId] ??
+      this.baseState.customerPaymentMethods[paymentMethodId] ??
+      null;
+    if (!paymentMethod || this.stagedState.deletedCustomerIds[paymentMethod.customerId]) {
+      return null;
+    }
+
+    if (paymentMethod.revokedAt && options.showRevoked !== true) {
+      return null;
+    }
+
+    return structuredClone(paymentMethod);
+  }
+
   listEffectiveCustomerAddresses(customerId: string): CustomerAddressRecord[] {
     if (this.stagedState.deletedCustomerIds[customerId]) {
       return [];
@@ -1640,6 +1674,33 @@ export class InMemoryStore {
     }
 
     return addresses.sort(compareCustomerAddresses);
+  }
+
+  listEffectiveCustomerPaymentMethods(
+    customerId: string,
+    options: { showRevoked?: boolean } = {},
+  ): CustomerPaymentMethodRecord[] {
+    if (this.stagedState.deletedCustomerIds[customerId]) {
+      return [];
+    }
+
+    const paymentMethodIds = new Set([
+      ...Object.keys(this.baseState.customerPaymentMethods),
+      ...Object.keys(this.stagedState.customerPaymentMethods),
+    ]);
+    const paymentMethods: CustomerPaymentMethodRecord[] = [];
+
+    for (const paymentMethodId of Array.from(paymentMethodIds)) {
+      const paymentMethod = this.getEffectiveCustomerPaymentMethodById(paymentMethodId, options);
+      if (paymentMethod?.customerId === customerId) {
+        paymentMethods.push(paymentMethod);
+      }
+    }
+
+    return paymentMethods.sort(
+      (left, right) =>
+        (left.cursor ?? left.id).localeCompare(right.cursor ?? right.id) || left.id.localeCompare(right.id),
+    );
   }
 
   listEffectiveCustomers(): CustomerRecord[] {
@@ -1683,6 +1744,14 @@ export class InMemoryStore {
 
   hasBaseCustomers(): boolean {
     return Object.keys(this.baseState.customers).length > 0;
+  }
+
+  hasCustomerPaymentMethods(): boolean {
+    return (
+      Object.keys(this.baseState.customerPaymentMethods).length > 0 ||
+      Object.keys(this.stagedState.customerPaymentMethods).length > 0 ||
+      Object.keys(this.stagedState.deletedCustomerPaymentMethodIds).length > 0
+    );
   }
 
   hasStagedCustomers(): boolean {

@@ -173,8 +173,8 @@
     "execution": "overlay-read",
     "implemented": false,
     "matchNames": ["customerPaymentMethod", "CustomerPaymentMethod"],
-    "runtimeTests": [],
-    "supportNotes": "Payment-area scaffold only. The 2026-04-25 harry-test-heelo probe still returned ACCESS_DENIED without read_customer_payment_methods; future capture requires read_customers plus read_customer_payment_methods and should settle revoked/empty payment-method behavior before local overlay support."
+    "runtimeTests": ["tests/integration/customer-query-shapes.test.ts"],
+    "supportNotes": "Seeded/snapshot customer payment method reads serialize from normalized customerPaymentMethods state, including showRevoked filtering, instrument unions, customer links, and payment-method subscription contracts. Formal live overlay support remains false because the 2026-04-25 harry-test-heelo probe still returned ACCESS_DENIED without read_customer_payment_methods; future live capture requires read_customers plus read_customer_payment_methods."
   },
   {
     "name": "orderPaymentStatus",
@@ -453,7 +453,7 @@
     "implemented": false,
     "matchNames": ["customerPaymentMethodSendUpdateEmail", "CustomerPaymentMethodSendUpdateEmail"],
     "runtimeTests": [],
-    "supportNotes": "Customer payment method email scaffold only. This is customer-visible side effect work; future capture requires write_customers plus write_customer_payment_methods and a no-recipient or otherwise safe email plan before local staging support."
+    "supportNotes": "Customer payment method email scaffold only. This is customer-visible side effect work; future local staging requires write_customers plus write_customer_payment_methods and a no-recipient or otherwise safe email plan before support."
   },
   {
     "name": "customerMerge",
@@ -1256,7 +1256,7 @@
     "implemented": false,
     "matchNames": ["customerPaymentMethodCreateFromDuplicationData", "CustomerPaymentMethodCreateFromDuplicationData"],
     "runtimeTests": [],
-    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods and must avoid creating reusable vaulted payment data without an isolated test customer/payment method lifecycle."
+    "supportNotes": "Customer payment method scaffold only. Future local staging requires write_customers plus write_customer_payment_methods and must avoid creating reusable vaulted payment data without an isolated test customer/payment method lifecycle; duplication data must be treated as sensitive ephemeral payment material."
   },
   {
     "name": "customerPaymentMethodCreditCardCreate",
@@ -1266,7 +1266,7 @@
     "implemented": false,
     "matchNames": ["customerPaymentMethodCreditCardCreate", "CustomerPaymentMethodCreditCardCreate"],
     "runtimeTests": [],
-    "supportNotes": "Customer payment method scaffold only. Requires write_customers plus write_customer_payment_methods and PCI-sensitive card session inputs; future capture must use safe non-real payment data and record async/processing behavior before local staging support."
+    "supportNotes": "Customer payment method scaffold only. Future local staging requires write_customers plus write_customer_payment_methods and PCI-sensitive card session inputs; capture must use safe non-real payment data and record read-after-write behavior before support."
   },
   {
     "name": "customerPaymentMethodCreditCardUpdate",
@@ -1276,7 +1276,7 @@
     "implemented": false,
     "matchNames": ["customerPaymentMethodCreditCardUpdate", "CustomerPaymentMethodCreditCardUpdate"],
     "runtimeTests": [],
-    "supportNotes": "Customer payment method scaffold only. Requires write_customers plus write_customer_payment_methods and an isolated vaulted payment method; future capture must avoid real card data and document revoked/updated read-after-write behavior."
+    "supportNotes": "Customer payment method scaffold only. Future local staging requires write_customers plus write_customer_payment_methods and an isolated vaulted payment method; capture must avoid real card data and document revoked/updated read-after-write behavior."
   },
   {
     "name": "customerPaymentMethodGetDuplicationData",
@@ -1286,7 +1286,7 @@
     "implemented": false,
     "matchNames": ["customerPaymentMethodGetDuplicationData", "CustomerPaymentMethodGetDuplicationData"],
     "runtimeTests": [],
-    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods and should treat returned duplication data as sensitive ephemeral payment material."
+    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods and must treat returned duplication data as sensitive ephemeral payment material."
   },
   {
     "name": "customerPaymentMethodGetUpdateUrl",
@@ -1296,7 +1296,7 @@
     "implemented": false,
     "matchNames": ["customerPaymentMethodGetUpdateUrl", "CustomerPaymentMethodGetUpdateUrl"],
     "runtimeTests": [],
-    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods and must treat returned update URLs as sensitive, expiring customer-payment links."
+    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods and must treat returned update URLs as sensitive, expiring customer-payment links that should not be generated or emailed by the proxy."
   },
   {
     "name": "customerPaymentMethodPaypalBillingAgreementCreate",
@@ -1309,7 +1309,7 @@
       "CustomerPaymentMethodPaypalBillingAgreementCreate"
     ],
     "runtimeTests": [],
-    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods and isolated PayPal billing-agreement test data before local staging support."
+    "supportNotes": "Customer payment method scaffold only. Future local staging requires write_customers plus write_customer_payment_methods and isolated PayPal billing-agreement test data before support."
   },
   {
     "name": "customerPaymentMethodPaypalBillingAgreementUpdate",
@@ -1322,7 +1322,7 @@
       "CustomerPaymentMethodPaypalBillingAgreementUpdate"
     ],
     "runtimeTests": [],
-    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods and an isolated PayPal billing-agreement test method before local staging support."
+    "supportNotes": "Customer payment method scaffold only. Future local staging requires write_customers plus write_customer_payment_methods and an isolated PayPal billing-agreement test method before support."
   },
   {
     "name": "customerPaymentMethodRemoteCreate",
@@ -1332,7 +1332,7 @@
     "implemented": false,
     "matchNames": ["customerPaymentMethodRemoteCreate", "CustomerPaymentMethodRemoteCreate"],
     "runtimeTests": [],
-    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods, safe remote gateway identifiers, and polling evidence through customerPaymentMethod before local staging support."
+    "supportNotes": "Customer payment method scaffold only. Future local staging requires write_customers plus write_customer_payment_methods, safe remote gateway identifiers, and polling/asynchronous status evidence through customerPaymentMethod before support."
   },
   {
     "name": "customerPaymentMethodRevoke",
@@ -1342,7 +1342,7 @@
     "implemented": false,
     "matchNames": ["customerPaymentMethodRevoke", "CustomerPaymentMethodRevoke"],
     "runtimeTests": [],
-    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods and an isolated payment method because revoke is destructive for recurring billing flows."
+    "supportNotes": "Customer payment method scaffold only. Future local staging requires write_customers plus write_customer_payment_methods and an isolated payment method because revoke is destructive for recurring billing flows; unsupported runtime passthrough must stay visible in logs."
   },
   {
     "name": "orderCapture",
