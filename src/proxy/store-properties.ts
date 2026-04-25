@@ -26,7 +26,11 @@ import type {
   ShopRecord,
   ShopResourceLimitsRecord,
 } from '../state/types.js';
-import { paginateConnectionItems, serializeConnectionPageInfo } from './graphql-helpers.js';
+import {
+  paginateConnectionItems,
+  serializeConnectionPageInfo,
+  serializeEmptyConnectionPageInfo,
+} from './graphql-helpers.js';
 import {
   readMetafieldInputObjects,
   serializeMetafieldSelection,
@@ -1462,13 +1466,10 @@ function serializeShop(shop: ShopRecord, selections: readonly SelectionNode[]): 
   return result;
 }
 
-function unsupportedShopifyPaymentsFieldError(
-  businessEntity: BusinessEntityRecord,
-  fieldName: string,
-): GraphQLResponseError {
+function unsupportedShopifyPaymentsFieldError(fieldName: string, path: Array<string | number>): GraphQLResponseError {
   return {
     message: `Field ShopifyPaymentsAccount.${fieldName} is not exposed by the local snapshot because it can contain account-specific payment data. Capture and model it explicitly before relying on it.`,
-    path: ['businessEntity', 'shopifyPaymentsAccount', fieldName],
+    path,
     extensions: {
       code: 'UNSUPPORTED_FIELD',
       reason: 'shopify-payments-account-sensitive-field',
@@ -1476,11 +1477,39 @@ function unsupportedShopifyPaymentsFieldError(
   };
 }
 
+function serializeEmptyShopifyPaymentsConnection(field: FieldNode): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of field.selectionSet?.selections ?? []) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case 'nodes':
+        result[key] = [];
+        break;
+      case 'edges':
+        result[key] = [];
+        break;
+      case 'pageInfo':
+        result[key] = serializeEmptyConnectionPageInfo(selection);
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
 function serializeShopifyPaymentsAccount(
   businessEntity: BusinessEntityRecord,
   account: ShopifyPaymentsAccountRecord,
   selections: readonly SelectionNode[],
   context: SerializationContext,
+  path: Array<string | number>,
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
@@ -1491,7 +1520,7 @@ function serializeShopifyPaymentsAccount(
       }
       Object.assign(
         result,
-        serializeShopifyPaymentsAccount(businessEntity, account, selection.selectionSet.selections, context),
+        serializeShopifyPaymentsAccount(businessEntity, account, selection.selectionSet.selections, context, path),
       );
       continue;
     }
@@ -1520,6 +1549,11 @@ function serializeShopifyPaymentsAccount(
       case 'onboardable':
         result[key] = account.onboardable;
         break;
+      case 'balanceTransactions':
+      case 'disputes':
+      case 'payouts':
+        result[key] = serializeEmptyShopifyPaymentsConnection(selection);
+        break;
       default: {
         if (!SAFE_SHOPIFY_PAYMENTS_ACCOUNT_FIELDS.has(selection.name.value)) {
           storePropertiesLogger.warn(
@@ -1529,7 +1563,7 @@ function serializeShopifyPaymentsAccount(
             },
             'unsupported Shopify Payments account field requested from snapshot business entity',
           );
-          context.errors.push(unsupportedShopifyPaymentsFieldError(businessEntity, selection.name.value));
+          context.errors.push(unsupportedShopifyPaymentsFieldError(selection.name.value, [...path, key]));
         }
         result[key] = null;
       }
@@ -1543,6 +1577,7 @@ function serializeBusinessEntity(
   businessEntity: BusinessEntityRecord,
   selections: readonly SelectionNode[],
   context: SerializationContext,
+  path: Array<string | number>,
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
@@ -1551,7 +1586,7 @@ function serializeBusinessEntity(
       if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'BusinessEntity') {
         continue;
       }
-      Object.assign(result, serializeBusinessEntity(businessEntity, selection.selectionSet.selections, context));
+      Object.assign(result, serializeBusinessEntity(businessEntity, selection.selectionSet.selections, context, path));
       continue;
     }
 
@@ -1589,6 +1624,7 @@ function serializeBusinessEntity(
               businessEntity.shopifyPaymentsAccount,
               selection.selectionSet?.selections ?? [],
               context,
+              [...path, key],
             )
           : null;
         break;
@@ -1598,6 +1634,30 @@ function serializeBusinessEntity(
   }
 
   return result;
+}
+
+function getShopifyPaymentsAccountOwner(): {
+  businessEntity: BusinessEntityRecord;
+  account: ShopifyPaymentsAccountRecord;
+} | null {
+  const primaryBusinessEntity = store.getPrimaryBusinessEntity();
+  if (primaryBusinessEntity?.shopifyPaymentsAccount) {
+    return {
+      businessEntity: primaryBusinessEntity,
+      account: primaryBusinessEntity.shopifyPaymentsAccount,
+    };
+  }
+
+  const firstAccountBusinessEntity =
+    store.listEffectiveBusinessEntities().find((businessEntity) => businessEntity.shopifyPaymentsAccount !== null) ??
+    null;
+
+  return firstAccountBusinessEntity?.shopifyPaymentsAccount
+    ? {
+        businessEntity: firstAccountBusinessEntity,
+        account: firstAccountBusinessEntity.shopifyPaymentsAccount,
+      }
+    : null;
 }
 
 function readShopPolicyInput(args: Record<string, unknown>): Record<string, unknown> {
@@ -2188,8 +2248,8 @@ export function handleStorePropertiesQuery(
       case 'businessEntities':
         data[key] = store
           .listEffectiveBusinessEntities()
-          .map((businessEntity) =>
-            serializeBusinessEntity(businessEntity, field.selectionSet?.selections ?? [], context),
+          .map((businessEntity, index) =>
+            serializeBusinessEntity(businessEntity, field.selectionSet?.selections ?? [], context, [key, index]),
           );
         break;
       case 'businessEntity': {
@@ -2198,7 +2258,20 @@ export function handleStorePropertiesQuery(
         const id = typeof rawId === 'string' && rawId.length > 0 ? rawId : null;
         const businessEntity = id ? store.getBusinessEntityById(id) : store.getPrimaryBusinessEntity();
         data[key] = businessEntity
-          ? serializeBusinessEntity(businessEntity, field.selectionSet?.selections ?? [], context)
+          ? serializeBusinessEntity(businessEntity, field.selectionSet?.selections ?? [], context, [key])
+          : null;
+        break;
+      }
+      case 'shopifyPaymentsAccount': {
+        const owner = getShopifyPaymentsAccountOwner();
+        data[key] = owner
+          ? serializeShopifyPaymentsAccount(
+              owner.businessEntity,
+              owner.account,
+              field.selectionSet?.selections ?? [],
+              context,
+              [key],
+            )
           : null;
         break;
       }
