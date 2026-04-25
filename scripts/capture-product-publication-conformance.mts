@@ -8,7 +8,7 @@ import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
-import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mts';
+import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 import {
   extractCliIdentityFromConfig,
@@ -26,12 +26,12 @@ import {
   persistShopifyCliIdentity,
   shouldAttemptShopifyAppDeploy,
   shouldProbeManualStoreAuthFallback,
-} from './product-publication-conformance-lib.mts';
+} from './product-publication-conformance-lib.mjs';
 import {
   parseAccessDeniedErrors,
   parseWriteScopeBlocker,
   renderWriteScopeBlockerNote,
-} from './product-mutation-conformance-lib.mts';
+} from './product-mutation-conformance-lib.mjs';
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const conformanceAppHandle = process.env['SHOPIFY_CONFORMANCE_APP_HANDLE'] || null;
