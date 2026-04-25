@@ -7,6 +7,7 @@ import {
   getSelectedChildFields,
   paginateConnectionItems,
   serializeConnectionPageInfo,
+  serializeEmptyConnectionPageInfo,
 } from './graphql-helpers.js';
 import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
@@ -652,6 +653,28 @@ function serializeDefaultAddressSelection(
   return result;
 }
 
+function serializeEmptyConnectionSelection(field: FieldNode): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'nodes':
+      case 'edges':
+        result[key] = [];
+        break;
+      case 'pageInfo':
+        result[key] = serializeEmptyConnectionPageInfo(selection);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+
+  return result;
+}
+
 function serializeCustomerMetafieldSelection(
   metafield: CustomerMetafieldRecord,
   field: FieldNode,
@@ -812,6 +835,21 @@ function serializeCustomerSelection(
         break;
       case 'defaultAddress':
         result[key] = serializeDefaultAddressSelection(selection, customer.defaultAddress);
+        break;
+      case 'addresses':
+      case 'companyContactProfiles':
+        result[key] = [];
+        break;
+      case 'addressesV2':
+      case 'events':
+      case 'orders':
+      case 'paymentMethods':
+      case 'storeCreditAccounts':
+      case 'subscriptionContracts':
+        result[key] = serializeEmptyConnectionSelection(selection);
+        break;
+      case 'lastOrder':
+        result[key] = null;
         break;
       case 'metafield': {
         const args = getFieldArguments(selection, variables);

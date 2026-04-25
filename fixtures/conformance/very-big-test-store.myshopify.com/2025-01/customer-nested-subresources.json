@@ -1,0 +1,153 @@
+{
+  "data": {
+    "customer": {
+      "id": "gid://shopify/Customer/6157654556905",
+      "addresses": [
+        {
+          "address1": "Ap #147-5705 Nonummy Street",
+          "city": "Maubeuge"
+        },
+        {
+          "address1": "Ap #147-5705 Nonummy Street",
+          "city": "Maubeuge"
+        },
+        {
+          "address1": "500 King St W",
+          "city": "Toronto"
+        },
+        {
+          "address1": "123 Queen St W",
+          "city": "Toronto"
+        },
+        {
+          "address1": "500 King St W",
+          "city": "Toronto"
+        },
+        {
+          "address1": "123 Queen St W",
+          "city": "Toronto"
+        }
+      ],
+      "addressesV2": {
+        "nodes": [
+          {
+            "address1": "Ap #147-5705 Nonummy Street",
+            "city": "Maubeuge"
+          },
+          {
+            "address1": "Ap #147-5705 Nonummy Street",
+            "city": "Maubeuge"
+          }
+        ],
+        "edges": [
+          {
+            "cursor": "eyJsYXN0X2lkIjo3NjYyODU0NjAyOTg1LCJsYXN0X3ZhbHVlIjoiNzY2Mjg1NDYwMjk4NSJ9",
+            "node": {
+              "address1": "Ap #147-5705 Nonummy Street",
+              "city": "Maubeuge"
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo4ODU1OTMyNzk3MTYxLCJsYXN0X3ZhbHVlIjoiODg1NTkzMjc5NzE2MSJ9",
+            "node": {
+              "address1": "Ap #147-5705 Nonummy Street",
+              "city": "Maubeuge"
+            }
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": true,
+          "hasPreviousPage": false,
+          "startCursor": "eyJsYXN0X2lkIjo3NjYyODU0NjAyOTg1LCJsYXN0X3ZhbHVlIjoiNzY2Mjg1NDYwMjk4NSJ9",
+          "endCursor": "eyJsYXN0X2lkIjo4ODU1OTMyNzk3MTYxLCJsYXN0X3ZhbHVlIjoiODg1NTkzMjc5NzE2MSJ9"
+        }
+      },
+      "companyContactProfiles": [],
+      "orders": {
+        "nodes": [
+          {
+            "id": "gid://shopify/Order/6834528944361"
+          },
+          {
+            "id": "gid://shopify/Order/6834565087465"
+          }
+        ],
+        "edges": [
+          {
+            "cursor": "eyJsYXN0X2lkIjo2ODM0NTI4OTQ0MzYxLCJsYXN0X3ZhbHVlIjoiNjgzNDUyODk0NDM2MSJ9",
+            "node": {
+              "id": "gid://shopify/Order/6834528944361"
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo2ODM0NTY1MDg3NDY1LCJsYXN0X3ZhbHVlIjoiNjgzNDU2NTA4NzQ2NSJ9",
+            "node": {
+              "id": "gid://shopify/Order/6834565087465"
+            }
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": true,
+          "hasPreviousPage": false,
+          "startCursor": "eyJsYXN0X2lkIjo2ODM0NTI4OTQ0MzYxLCJsYXN0X3ZhbHVlIjoiNjgzNDUyODk0NDM2MSJ9",
+          "endCursor": "eyJsYXN0X2lkIjo2ODM0NTY1MDg3NDY1LCJsYXN0X3ZhbHVlIjoiNjgzNDU2NTA4NzQ2NSJ9"
+        }
+      },
+      "events": {
+        "nodes": [
+          {
+            "id": "gid://shopify/BasicEvent/158727551320297"
+          },
+          {
+            "id": "gid://shopify/BasicEvent/158727551451369"
+          }
+        ],
+        "edges": [
+          {
+            "cursor": "eyJsYXN0X2lkIjoxNTg3Mjc1NTEzMjAyOTcsImxhc3RfdmFsdWUiOiIxNTg3Mjc1NTEzMjAyOTcifQ==",
+            "node": {
+              "id": "gid://shopify/BasicEvent/158727551320297"
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjoxNTg3Mjc1NTE0NTEzNjksImxhc3RfdmFsdWUiOiIxNTg3Mjc1NTE0NTEzNjkifQ==",
+            "node": {
+              "id": "gid://shopify/BasicEvent/158727551451369"
+            }
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": true,
+          "hasPreviousPage": false,
+          "startCursor": "eyJsYXN0X2lkIjoxNTg3Mjc1NTEzMjAyOTcsImxhc3RfdmFsdWUiOiIxNTg3Mjc1NTEzMjAyOTcifQ==",
+          "endCursor": "eyJsYXN0X2lkIjoxNTg3Mjc1NTE0NTEzNjksImxhc3RfdmFsdWUiOiIxNTg3Mjc1NTE0NTEzNjkifQ=="
+        }
+      },
+      "metafield": null,
+      "metafields": {
+        "nodes": [],
+        "edges": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      },
+      "lastOrder": {
+        "id": "gid://shopify/Order/6834622726377"
+      }
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 20,
+      "actualQueryCost": 19,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1967,
+        "restoreRate": 100
+      }
+    }
+  }
+}
