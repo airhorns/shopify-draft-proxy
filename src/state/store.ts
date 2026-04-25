@@ -1,6 +1,7 @@
 import type {
   BusinessEntityRecord,
   CalculatedOrderRecord,
+  CarrierServiceRecord,
   CatalogRecord,
   CollectionRecord,
   CustomerAddressRecord,
@@ -62,6 +63,8 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   locationOrder: [],
   fulfillmentServices: {},
   fulfillmentServiceOrder: [],
+  carrierServices: {},
+  carrierServiceOrder: [],
   collections: {},
   publications: {},
   customers: {},
@@ -100,6 +103,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedCollectionIds: {},
   deletedLocationIds: {},
   deletedFulfillmentServiceIds: {},
+  deletedCarrierServiceIds: {},
   deletedCustomerIds: {},
   deletedCustomerAddressIds: {},
   deletedSegmentIds: {},
@@ -239,6 +243,17 @@ function mergeFulfillmentServiceRecords(
   base: FulfillmentServiceRecord | null,
   staged: FulfillmentServiceRecord | null,
 ): FulfillmentServiceRecord | null {
+  if (!base && !staged) {
+    return null;
+  }
+
+  return structuredClone(staged ?? base);
+}
+
+function mergeCarrierServiceRecords(
+  base: CarrierServiceRecord | null,
+  staged: CarrierServiceRecord | null,
+): CarrierServiceRecord | null {
   if (!base && !staged) {
     return null;
   }
@@ -709,6 +724,17 @@ export class InMemoryStore {
     }
   }
 
+  upsertBaseCarrierServices(services: CarrierServiceRecord[]): void {
+    for (const service of services) {
+      delete this.baseState.deletedCarrierServiceIds[service.id];
+      delete this.stagedState.deletedCarrierServiceIds[service.id];
+      this.baseState.carrierServices[service.id] = structuredClone(service);
+      if (!this.baseState.carrierServiceOrder.includes(service.id)) {
+        this.baseState.carrierServiceOrder.push(service.id);
+      }
+    }
+  }
+
   listBaseLocations(): LocationRecord[] {
     const orderedIds = new Set(this.baseState.locationOrder);
     const orderedLocations = this.baseState.locationOrder
@@ -848,6 +874,67 @@ export class InMemoryStore {
     return (
       Object.keys(this.stagedState.fulfillmentServices).length > 0 ||
       Object.keys(this.stagedState.deletedFulfillmentServiceIds).length > 0
+    );
+  }
+
+  stageCreateCarrierService(service: CarrierServiceRecord): CarrierServiceRecord {
+    delete this.stagedState.deletedCarrierServiceIds[service.id];
+    this.stagedState.carrierServices[service.id] = structuredClone(service);
+    if (!this.stagedState.carrierServiceOrder.includes(service.id)) {
+      this.stagedState.carrierServiceOrder.push(service.id);
+    }
+    return structuredClone(service);
+  }
+
+  stageUpdateCarrierService(service: CarrierServiceRecord): CarrierServiceRecord {
+    delete this.stagedState.deletedCarrierServiceIds[service.id];
+    this.stagedState.carrierServices[service.id] = structuredClone(service);
+    if (
+      !this.baseState.carrierServiceOrder.includes(service.id) &&
+      !this.stagedState.carrierServiceOrder.includes(service.id)
+    ) {
+      this.stagedState.carrierServiceOrder.push(service.id);
+    }
+    return structuredClone(service);
+  }
+
+  stageDeleteCarrierService(serviceId: string): void {
+    delete this.stagedState.carrierServices[serviceId];
+    this.stagedState.deletedCarrierServiceIds[serviceId] = true;
+  }
+
+  getEffectiveCarrierServiceById(serviceId: string): CarrierServiceRecord | null {
+    if (this.stagedState.deletedCarrierServiceIds[serviceId] || this.baseState.deletedCarrierServiceIds[serviceId]) {
+      return null;
+    }
+
+    return mergeCarrierServiceRecords(
+      this.baseState.carrierServices[serviceId] ?? null,
+      this.stagedState.carrierServices[serviceId] ?? null,
+    );
+  }
+
+  listEffectiveCarrierServices(): CarrierServiceRecord[] {
+    const orderedIds = new Set([...this.baseState.carrierServiceOrder, ...this.stagedState.carrierServiceOrder]);
+    const orderedServices = [...orderedIds]
+      .map((id) => this.getEffectiveCarrierServiceById(id))
+      .filter((service): service is CarrierServiceRecord => service !== null);
+    const unorderedServices = Object.values({
+      ...this.baseState.carrierServices,
+      ...this.stagedState.carrierServices,
+    })
+      .filter((service) => !orderedIds.has(service.id))
+      .map((service) => this.getEffectiveCarrierServiceById(service.id))
+      .filter((service): service is CarrierServiceRecord => service !== null)
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
+
+    return structuredClone([...orderedServices, ...unorderedServices]);
+  }
+
+  hasStagedCarrierServices(): boolean {
+    return (
+      Object.keys(this.stagedState.carrierServices).length > 0 ||
+      Object.keys(this.stagedState.deletedCarrierServiceIds).length > 0
     );
   }
 
