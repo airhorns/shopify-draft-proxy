@@ -1044,10 +1044,10 @@
     "type": "mutation",
     "domain": "metafields",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["standardMetafieldDefinitionEnable", "StandardMetafieldDefinitionEnable"],
-    "runtimeTests": ["tests/integration/metafield-definition-draft-flow.test.ts"],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires standard template catalog modeling plus created-definition semantics before support."
+    "runtimeTests": ["tests/integration/metafield-definition-query-shapes.test.ts"],
+    "supportNotes": "Local staging support for fixture-backed standard template IDs/namespaces captured by HAR-257. Successful calls create normalized metafield definition records locally and downstream definition reads observe them without runtime Shopify writes."
   },
   {
     "name": "metaobject",
