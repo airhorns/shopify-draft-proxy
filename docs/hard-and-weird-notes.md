@@ -1813,7 +1813,16 @@ Current HAR-177 decision:
 
 This keeps generic product publication mutations isolated from upstream Shopify while preventing duplicate or contradictory publication behavior from pretending that product evidence also settles collection publication semantics.
 
-## 48. Business entity Store properties reads expose payments-adjacent data
+## 48. Manual collection ordering is not the default collection write path
+
+Live collection capture for `collectionReorderProducts` exposed two easy traps:
+
+- a freshly-created collection is not reorderable unless it is explicitly created with `sortOrder: MANUAL`
+- `collectionAddProducts` on a manual collection preserves the request `productIds` order in the immediate collection product connection
+
+`collectionReorderProducts` itself returns an async `Job` payload with `done: false` on success, and downstream `collection.products(sortKey: COLLECTION_DEFAULT)` plus `sortKey: MANUAL` both reflected the reordered manual order in the captured two-product slice. Reorder parity should therefore seed a manual collection baseline before staging moves, and should treat only the opaque job id as nondeterministic.
+
+## 49. Business entity Store properties reads expose payments-adjacent data
 
 The first `businessEntities` / `businessEntity` capture for Admin GraphQL 2026-04 showed a single primary entity on the conformance store. `businessEntity` without an `id` returned that primary entity, and an unknown `gid://shopify/BusinessEntity/...` returned `null`.
 

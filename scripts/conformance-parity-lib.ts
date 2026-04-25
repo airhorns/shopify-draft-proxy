@@ -1754,7 +1754,7 @@ function seedProductOptionState(productId: string, variables: Record<string, unk
 
 function seedCollectionProducts(collection: CollectionRecord, productNodes: unknown[]): void {
   const collectionMemberships: ProductCollectionRecord[] = [];
-  for (const node of productNodes.filter(isPlainObject)) {
+  for (const [position, node] of productNodes.filter(isPlainObject).entries()) {
     const productId = readStringField(node, 'id');
     if (!productId) {
       continue;
@@ -1765,10 +1765,51 @@ function seedCollectionProducts(collection: CollectionRecord, productNodes: unkn
       productId,
       title: collection.title,
       handle: collection.handle,
+      position,
     });
   }
   for (const membership of collectionMemberships) {
     store.replaceBaseCollectionsForProduct(membership.productId, [membership]);
+  }
+}
+
+function seedPreexistingProductCollectionsFromReadPayload(source: unknown, stagedCollectionId: string): void {
+  const data = readRecordField(isPlainObject(source) ? source : null, 'data');
+  if (!data) {
+    return;
+  }
+
+  for (const value of Object.values(data)) {
+    if (!isPlainObject(value)) {
+      continue;
+    }
+    const productId = readStringField(value, 'id');
+    if (!productId?.startsWith('gid://shopify/Product/')) {
+      continue;
+    }
+
+    const memberships = [...store.getEffectiveCollectionsByProductId(productId)];
+    for (const node of readArrayField(readRecordField(value, 'collections'), 'nodes').filter(isPlainObject)) {
+      const collectionId = readStringField(node, 'id');
+      if (!collectionId?.startsWith('gid://shopify/Collection/') || collectionId === stagedCollectionId) {
+        continue;
+      }
+
+      const collection = makeSeedCollection(collectionId, node);
+      store.upsertBaseCollections([collection]);
+      if (!memberships.some((membership) => membership.id === collectionId)) {
+        memberships.push({
+          id: collection.id,
+          productId,
+          title: collection.title,
+          handle: collection.handle,
+        });
+      }
+    }
+
+    if (memberships.length > 0) {
+      store.replaceBaseCollectionsForProduct(productId, memberships);
+    }
   }
 }
 
@@ -2742,11 +2783,18 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   }
 
   const collectionPayload = readRecordField(payload, 'collection');
+  const initialCollectionPayload = readRecordField(
+    readRecordField(readRecordField(capture as Record<string, unknown>, 'initialCollectionRead'), 'data'),
+    'collection',
+  );
   const rawCollectionId =
-    readStringField(variables, 'id') ?? readStringField(input, 'id') ?? readStringField(collectionPayload, 'id');
+    readStringField(variables, 'id') ??
+    readStringField(input, 'id') ??
+    readStringField(collectionPayload, 'id') ??
+    readStringField(initialCollectionPayload, 'id');
   const collectionId = rawCollectionId?.startsWith('gid://shopify/Collection/') ? rawCollectionId : null;
   if (collectionId) {
-    const collection = makeSeedCollection(collectionId, collectionPayload);
+    const collection = makeSeedCollection(collectionId, collectionPayload ?? initialCollectionPayload);
     store.upsertBaseCollections([collection]);
     const seedProducts = readArrayField(capture as Record<string, unknown>, 'seedProducts').filter(isPlainObject);
     for (const seedProduct of seedProducts) {
@@ -2757,7 +2805,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     }
     const rawProductNodes = readRecordField(collectionPayload, 'products')?.['nodes'];
     const productNodes = Array.isArray(rawProductNodes) ? rawProductNodes : [];
-    if (mutationName === 'collectionUpdate') {
+    const initialProductNodes = readArrayField(readRecordField(initialCollectionPayload, 'products'), 'nodes');
+    if (mutationName === 'collectionReorderProducts') {
+      seedCollectionProducts(collection, initialProductNodes);
+    } else if (mutationName === 'collectionUpdate') {
       seedCollectionProducts(collection, productNodes);
     } else {
       for (const node of productNodes.filter(isPlainObject)) {
@@ -2767,6 +2818,14 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
         }
       }
     }
+    seedPreexistingProductCollectionsFromReadPayload(
+      readRecordField(capture as Record<string, unknown>, 'initialCollectionRead'),
+      collection.id,
+    );
+    seedPreexistingProductCollectionsFromReadPayload(
+      readRecordField(capture as Record<string, unknown>, 'downstreamRead'),
+      collection.id,
+    );
     for (const productIdValue of readArrayField(variables, 'productIds')) {
       if (typeof productIdValue !== 'string') {
         continue;

@@ -340,6 +340,19 @@ describe('getOperationCapability', () => {
       operationName: 'CollectionDelete',
       type: 'mutation',
     });
+
+    expect(
+      getOperationCapability({
+        type: 'mutation',
+        name: 'CollectionReorderProducts',
+        rootFields: ['collectionReorderProducts'],
+      }),
+    ).toEqual({
+      domain: 'products',
+      execution: 'stage-locally',
+      operationName: 'CollectionReorderProducts',
+      type: 'mutation',
+    });
   });
 
   it('marks product media mutations as locally staged mutations', () => {
