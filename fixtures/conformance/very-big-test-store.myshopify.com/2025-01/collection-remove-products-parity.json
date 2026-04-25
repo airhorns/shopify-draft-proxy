@@ -19,7 +19,7 @@
   },
   "mutation": {
     "variables": {
-      "id": "gid://shopify/Collection/468787331305",
+      "id": "gid://shopify/Collection/468787495145",
       "productIds": [
         "gid://shopify/Product/8971842846953"
       ]
@@ -28,7 +28,7 @@
       "data": {
         "collectionRemoveProducts": {
           "job": {
-            "id": "gid://shopify/Job/d530e805-e372-4046-a133-9dd6d69a9ff3",
+            "id": "gid://shopify/Job/2be29839-60fa-4d88-a93c-531f7e1d0f27",
             "done": false
           },
           "userErrors": []
@@ -40,7 +40,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1976,
+            "currentlyAvailable": 1990,
             "restoreRate": 100
           }
         }
@@ -50,9 +50,9 @@
   "downstreamRead": {
     "data": {
       "collection": {
-        "id": "gid://shopify/Collection/468787331305",
-        "title": "Hermes Collection Conformance 1777076966277 Updated",
-        "handle": "hermes-collection-conformance-1777076966277-updated",
+        "id": "gid://shopify/Collection/468787495145",
+        "title": "Hermes Collection Conformance 1777077452757 Updated",
+        "handle": "hermes-collection-conformance-1777077452757-updated",
         "products": {
           "nodes": [
             {
@@ -87,9 +87,9 @@
               "handle": "adidas"
             },
             {
-              "id": "gid://shopify/Collection/468787331305",
-              "title": "Hermes Collection Conformance 1777076966277 Updated",
-              "handle": "hermes-collection-conformance-1777076966277-updated"
+              "id": "gid://shopify/Collection/468787495145",
+              "title": "Hermes Collection Conformance 1777077452757 Updated",
+              "handle": "hermes-collection-conformance-1777077452757-updated"
             }
           ],
           "pageInfo": {
@@ -105,7 +105,7 @@
         "actualQueryCost": 16,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1971,
+          "currentlyAvailable": 1984,
           "restoreRate": 100
         }
       }
