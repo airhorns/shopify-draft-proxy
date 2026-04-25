@@ -461,6 +461,12 @@ export const customerAddressRecordSchema = z.strictObject({
 });
 export type CustomerAddressRecord = z.infer<typeof customerAddressRecordSchema>;
 
+export const customerPaymentMethodRecordSchema = z.strictObject({
+  id: z.string(),
+  customerId: nullableStringSchema,
+});
+export type CustomerPaymentMethodRecord = z.infer<typeof customerPaymentMethodRecordSchema>;
+
 export const customerRecordSchema = z.strictObject({
   id: z.string(),
   firstName: nullableStringSchema,
@@ -1190,6 +1196,7 @@ export const stateSnapshotSchema = z.strictObject({
   publications: z.record(z.string(), publicationRecordSchema).default({}),
   customers: z.record(z.string(), customerRecordSchema),
   customerAddresses: z.record(z.string(), customerAddressRecordSchema).default({}),
+  customerPaymentMethods: z.record(z.string(), customerPaymentMethodRecordSchema).default({}),
   segments: z.record(z.string(), segmentRecordSchema).default({}),
   discounts: z.record(z.string(), discountRecordSchema).default({}),
   businessEntities: z.record(z.string(), businessEntityRecordSchema).default({}),
@@ -1219,6 +1226,7 @@ export const stateSnapshotSchema = z.strictObject({
   deletedSegmentIds: z.record(z.string(), z.literal(true)).default({}),
   deletedDiscountIds: z.record(z.string(), z.literal(true)).default({}),
   deletedMarketIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedCatalogIds: z.record(z.string(), z.literal(true)).default({}),
   deletedWebPresenceIds: z.record(z.string(), z.literal(true)).default({}),
   mergedCustomerIds: z.record(z.string(), z.string()).default({}),
   customerMergeRequests: z.record(z.string(), customerMergeRequestRecordSchema).default({}),

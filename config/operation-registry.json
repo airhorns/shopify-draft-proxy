@@ -432,28 +432,39 @@
     "type": "mutation",
     "domain": "customers",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerSet", "CustomerSet"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
+  },
+  {
+    "name": "customerGenerateAccountActivationUrl",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["customerGenerateAccountActivationUrl", "CustomerGenerateAccountActivationUrl"],
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"],
+    "supportNotes": "Staged locally with a synthetic non-deliverable activation URL. The original raw mutation is retained in the mutation log for commit replay; runtime support does not request a live Shopify activation URL."
   },
   {
     "name": "customerSendAccountInviteEmail",
     "type": "mutation",
     "domain": "customers",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerSendAccountInviteEmail", "CustomerSendAccountInviteEmail"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"],
+    "supportNotes": "Buffered locally as a staged outbound invite intent. Runtime support validates the customer, updates local account state to invited when applicable, and keeps the original raw mutation for commit-time email delivery."
   },
   {
     "name": "customerPaymentMethodSendUpdateEmail",
     "type": "mutation",
-    "domain": "payments",
+    "domain": "customers",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerPaymentMethodSendUpdateEmail", "CustomerPaymentMethodSendUpdateEmail"],
-    "runtimeTests": [],
-    "supportNotes": "Customer payment method email scaffold only. This is customer-visible side effect work; future capture requires write_customers plus write_customer_payment_methods and a no-recipient or otherwise safe email plan before local staging support."
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"],
+    "supportNotes": "Buffered locally as a staged payment-method update-email intent. Runtime support validates that the payment method is present in the local customer-payment graph, preserves the original raw mutation for commit-time delivery, and mirrors Shopify's not-found userError for unknown payment methods."
   },
   {
     "name": "customerMerge",
@@ -2182,9 +2193,9 @@
     "type": "query",
     "domain": "discounts",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["automaticDiscountNodes", "AutomaticDiscountNodes"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts"]
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/discount-automatic-basic-flow.test.ts"]
   },
   {
     "name": "automaticDiscountNode",
@@ -2337,19 +2348,21 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticBasicCreate", "DiscountAutomaticBasicCreate"],
-    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
-    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
+    "runtimeTests": [
+      "tests/integration/discount-mutation-validation.test.ts",
+      "tests/integration/discount-automatic-basic-flow.test.ts"
+    ]
   },
   {
     "name": "discountAutomaticBasicUpdate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticBasicUpdate", "DiscountAutomaticBasicUpdate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/discount-automatic-basic-flow.test.ts"]
   },
   {
     "name": "discountAutomaticBxgyCreate",
@@ -2394,27 +2407,27 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticActivate", "DiscountAutomaticActivate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/discount-automatic-basic-flow.test.ts"]
   },
   {
     "name": "discountAutomaticDeactivate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticDeactivate", "DiscountAutomaticDeactivate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/discount-automatic-basic-flow.test.ts"]
   },
   {
     "name": "discountAutomaticDelete",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticDelete", "DiscountAutomaticDelete"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/discount-automatic-basic-flow.test.ts"]
   },
   {
     "name": "discountAutomaticBulkDelete",
@@ -2908,6 +2921,42 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["marketDelete", "MarketDelete"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
+  },
+  {
+    "name": "catalogCreate",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["catalogCreate", "CatalogCreate"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
+  },
+  {
+    "name": "catalogUpdate",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["catalogUpdate", "CatalogUpdate"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
+  },
+  {
+    "name": "catalogContextUpdate",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["catalogContextUpdate", "CatalogContextUpdate"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
+  },
+  {
+    "name": "catalogDelete",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["catalogDelete", "CatalogDelete"],
     "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
   },
   {

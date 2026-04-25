@@ -12,10 +12,27 @@ export type ConnectionWindow<T> = {
   hasPreviousPage: boolean;
 };
 
+export type ConnectionWindowOptions = {
+  parseCursor?: (raw: string) => string | null;
+};
+
 export type ConnectionPageInfoOptions = SelectedFieldOptions & {
   prefixCursors?: boolean;
+  includeCursors?: boolean;
   fallbackStartCursor?: string | null;
   fallbackEndCursor?: string | null;
+};
+
+export type SerializeConnectionOptions<T> = {
+  items: T[];
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+  getCursorValue: (item: T, index: number) => string;
+  serializeNode: (item: T, field: FieldNode, index: number, context: { path: string[] }) => unknown;
+  serializePageInfo?: (field: FieldNode) => Record<string, unknown> | undefined;
+  serializeUnknownField?: (field: FieldNode) => unknown;
+  selectedFieldOptions?: SelectedFieldOptions;
+  pageInfoOptions?: ConnectionPageInfoOptions;
 };
 
 export function getFieldResponseKey(field: FieldNode): string {
@@ -104,20 +121,34 @@ function readConnectionCursor(raw: unknown): string | null {
   return raw.length > 0 ? raw : null;
 }
 
+function formatConnectionCursor<T>(
+  item: T,
+  index: number,
+  getCursorValue: (item: T, index: number) => string,
+  options: ConnectionPageInfoOptions,
+): string {
+  const cursor = getCursorValue(item, index);
+  return options.prefixCursors === false ? cursor : buildSyntheticCursor(cursor);
+}
+
 export function paginateConnectionItems<T>(
   items: T[],
   field: FieldNode,
   variables: Record<string, unknown>,
-  getCursorValue: (item: T) => string,
+  getCursorValue: (item: T, index: number) => string,
+  options: ConnectionWindowOptions = {},
 ): ConnectionWindow<T> {
   const args = getFieldArguments(field, variables);
   const first = readConnectionSizeArgument(args['first']);
   const last = readConnectionSizeArgument(args['last']);
-  const after = readConnectionCursor(args['after']);
-  const before = readConnectionCursor(args['before']);
+  const parseCursor = options.parseCursor ?? readConnectionCursor;
+  const after = typeof args['after'] === 'string' ? parseCursor(args['after']) : readConnectionCursor(args['after']);
+  const before =
+    typeof args['before'] === 'string' ? parseCursor(args['before']) : readConnectionCursor(args['before']);
 
-  const startIndex = after === null ? 0 : items.findIndex((item) => getCursorValue(item) === after) + 1;
-  const beforeIndex = before === null ? items.length : items.findIndex((item) => getCursorValue(item) === before);
+  const startIndex = after === null ? 0 : items.findIndex((item, index) => getCursorValue(item, index) === after) + 1;
+  const beforeIndex =
+    before === null ? items.length : items.findIndex((item, index) => getCursorValue(item, index) === before);
   const windowStart = Math.max(0, startIndex);
   const windowEnd = Math.max(windowStart, beforeIndex >= 0 ? beforeIndex : items.length);
   const paginatedItems = items.slice(windowStart, windowEnd);
@@ -148,14 +179,9 @@ export function serializeConnectionPageInfo<T>(
   items: T[],
   hasNextPage: boolean,
   hasPreviousPage: boolean,
-  getCursorValue: (item: T) => string,
+  getCursorValue: (item: T, index: number) => string,
   options: ConnectionPageInfoOptions = {},
 ): Record<string, unknown> {
-  const formatCursor = (item: T): string => {
-    const cursor = getCursorValue(item);
-    return options.prefixCursors === false ? cursor : buildSyntheticCursor(cursor);
-  };
-
   return Object.fromEntries(
     getSelectedChildFields(selection, options).map((pageInfoSelection) => {
       const pageInfoKey = getFieldResponseKey(pageInfoSelection);
@@ -165,11 +191,22 @@ export function serializeConnectionPageInfo<T>(
         case 'hasPreviousPage':
           return [pageInfoKey, hasPreviousPage];
         case 'startCursor':
-          return [pageInfoKey, items[0] ? formatCursor(items[0]) : (options.fallbackStartCursor ?? null)];
+          return [
+            pageInfoKey,
+            options.includeCursors === false
+              ? null
+              : items[0]
+                ? formatConnectionCursor(items[0], 0, getCursorValue, options)
+                : (options.fallbackStartCursor ?? null),
+          ];
         case 'endCursor':
           return [
             pageInfoKey,
-            items.length > 0 ? formatCursor(items[items.length - 1]!) : (options.fallbackEndCursor ?? null),
+            options.includeCursors === false
+              ? null
+              : items.length > 0
+                ? formatConnectionCursor(items[items.length - 1]!, items.length - 1, getCursorValue, options)
+                : (options.fallbackEndCursor ?? null),
           ];
         default:
           return [pageInfoKey, null];
@@ -183,4 +220,63 @@ export function serializeEmptyConnectionPageInfo(
   options: SelectedFieldOptions = {},
 ): Record<string, unknown> {
   return serializeConnectionPageInfo(selection, [], false, false, () => '', options);
+}
+
+export function serializeConnection<T>(
+  field: FieldNode,
+  {
+    items,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue,
+    serializeNode,
+    serializePageInfo,
+    serializeUnknownField,
+    selectedFieldOptions = {},
+    pageInfoOptions = selectedFieldOptions,
+  }: SerializeConnectionOptions<T>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field, selectedFieldOptions)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'nodes':
+        result[key] = items.map((item, index) => serializeNode(item, selection, index, { path: [key, String(index)] }));
+        break;
+      case 'edges':
+        result[key] = items.map((item, index) => {
+          const edge: Record<string, unknown> = {};
+          for (const edgeSelection of getSelectedChildFields(selection, selectedFieldOptions)) {
+            const edgeKey = getFieldResponseKey(edgeSelection);
+            switch (edgeSelection.name.value) {
+              case 'cursor':
+                edge[edgeKey] = formatConnectionCursor(item, index, getCursorValue, pageInfoOptions);
+                break;
+              case 'node':
+                edge[edgeKey] = serializeNode(item, edgeSelection, index, { path: [key, String(index), edgeKey] });
+                break;
+              default:
+                edge[edgeKey] = null;
+                break;
+            }
+          }
+          return edge;
+        });
+        break;
+      case 'pageInfo':
+        result[key] =
+          serializePageInfo?.(selection) ??
+          serializeConnectionPageInfo(selection, items, hasNextPage, hasPreviousPage, getCursorValue, {
+            ...selectedFieldOptions,
+            ...pageInfoOptions,
+          });
+        break;
+      default:
+        result[key] = serializeUnknownField ? serializeUnknownField(selection) : null;
+        break;
+    }
+  }
+
+  return result;
 }

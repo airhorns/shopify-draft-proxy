@@ -1,0 +1,265 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "create": {
+    "query": "#graphql\nmutation DiscountAutomaticBasicLifecycleCreate($input: DiscountAutomaticBasicInput!) {\n  discountAutomaticBasicCreate(automaticBasicDiscount: $input) {\n    automaticDiscountNode { id automaticDiscount { __typename ... on DiscountAutomaticBasic { title status startsAt endsAt combinesWith { productDiscounts orderDiscounts shippingDiscounts } customerGets { value { __typename ... on DiscountPercentage { percentage } } items { __typename ... on AllDiscountItems { allItems } } appliesOnOneTimePurchase appliesOnSubscription } minimumRequirement { __typename ... on DiscountMinimumQuantity { greaterThanOrEqualToQuantity } ... on DiscountMinimumSubtotal { greaterThanOrEqualToSubtotal { amount currencyCode } } } } } }\n    userErrors { field message code extraInfo }\n  }\n}",
+    "variables": {
+      "input": {
+        "title": "HAR194LIFECYCLE1777147964006",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "endsAt": null,
+        "combinesWith": {
+          "productDiscounts": false,
+          "orderDiscounts": true,
+          "shippingDiscounts": false
+        },
+        "context": {
+          "all": "ALL"
+        },
+        "customerGets": {
+          "value": {
+            "percentage": 0.15
+          },
+          "items": {
+            "all": true
+          }
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "discountAutomaticBasicCreate": {
+          "automaticDiscountNode": {
+            "id": "gid://shopify/DiscountAutomaticNode/1638460096818",
+            "automaticDiscount": {
+              "__typename": "DiscountAutomaticBasic",
+              "title": "HAR194LIFECYCLE1777147964006",
+              "status": "ACTIVE",
+              "startsAt": "2026-04-25T00:00:00Z",
+              "endsAt": null,
+              "combinesWith": {
+                "productDiscounts": false,
+                "orderDiscounts": true,
+                "shippingDiscounts": false
+              },
+              "customerGets": {
+                "value": {
+                  "__typename": "DiscountPercentage",
+                  "percentage": 0.15
+                },
+                "items": {
+                  "__typename": "AllDiscountItems",
+                  "allItems": true
+                },
+                "appliesOnOneTimePurchase": true,
+                "appliesOnSubscription": false
+              },
+              "minimumRequirement": null
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 16,
+          "actualQueryCost": 16,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1984,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "status": 200
+  },
+  "update": {
+    "query": "#graphql\nmutation DiscountAutomaticBasicLifecycleUpdate($id: ID!, $input: DiscountAutomaticBasicInput!) {\n  discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $input) {\n    automaticDiscountNode { id automaticDiscount { __typename ... on DiscountAutomaticBasic { title status startsAt endsAt combinesWith { productDiscounts orderDiscounts shippingDiscounts } customerGets { value { __typename ... on DiscountAmount { amount { amount currencyCode } appliesOnEachItem } } items { __typename ... on AllDiscountItems { allItems } } appliesOnOneTimePurchase appliesOnSubscription } minimumRequirement { __typename ... on DiscountMinimumSubtotal { greaterThanOrEqualToSubtotal { amount currencyCode } } } } } }\n    userErrors { field message code extraInfo }\n  }\n}",
+    "variables": {
+      "id": "gid://shopify/DiscountAutomaticNode/1638460096818",
+      "input": {
+        "title": "HAR194LIFECYCLE1777147964006 updated",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "endsAt": null,
+        "combinesWith": {
+          "productDiscounts": true,
+          "orderDiscounts": false,
+          "shippingDiscounts": false
+        },
+        "context": {
+          "all": "ALL"
+        },
+        "minimumRequirement": {
+          "subtotal": {
+            "greaterThanOrEqualToSubtotal": "10.00"
+          }
+        },
+        "customerGets": {
+          "value": {
+            "discountAmount": {
+              "amount": "5.00",
+              "appliesOnEachItem": false
+            }
+          },
+          "items": {
+            "all": true
+          }
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "discountAutomaticBasicUpdate": {
+          "automaticDiscountNode": {
+            "id": "gid://shopify/DiscountAutomaticNode/1638460096818",
+            "automaticDiscount": {
+              "__typename": "DiscountAutomaticBasic",
+              "title": "HAR194LIFECYCLE1777147964006 updated",
+              "status": "ACTIVE",
+              "startsAt": "2026-04-25T00:00:00Z",
+              "endsAt": null,
+              "combinesWith": {
+                "productDiscounts": true,
+                "orderDiscounts": false,
+                "shippingDiscounts": false
+              },
+              "customerGets": {
+                "value": {
+                  "__typename": "DiscountAmount",
+                  "amount": {
+                    "amount": "5.0",
+                    "currencyCode": "CAD"
+                  },
+                  "appliesOnEachItem": false
+                },
+                "items": {
+                  "__typename": "AllDiscountItems",
+                  "allItems": true
+                },
+                "appliesOnOneTimePurchase": true,
+                "appliesOnSubscription": false
+              },
+              "minimumRequirement": {
+                "__typename": "DiscountMinimumSubtotal",
+                "greaterThanOrEqualToSubtotal": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 16,
+          "actualQueryCost": 16,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1984,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "status": 200
+  },
+  "deactivate": {
+    "query": "#graphql\nmutation DiscountAutomaticBasicLifecycleDeactivate($id: ID!) { discountAutomaticDeactivate(id: $id) { automaticDiscountNode { id automaticDiscount { __typename ... on DiscountAutomaticBasic { title status startsAt endsAt } } } userErrors { field message code extraInfo } } }",
+    "variables": {
+      "id": "gid://shopify/DiscountAutomaticNode/1638460096818"
+    },
+    "response": {
+      "data": {
+        "discountAutomaticDeactivate": {
+          "automaticDiscountNode": {
+            "id": "gid://shopify/DiscountAutomaticNode/1638460096818",
+            "automaticDiscount": {
+              "__typename": "DiscountAutomaticBasic",
+              "title": "HAR194LIFECYCLE1777147964006 updated",
+              "status": "EXPIRED",
+              "startsAt": "2026-04-25T00:00:00Z",
+              "endsAt": "2026-04-25T20:12:44Z"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "status": 200
+  },
+  "activate": {
+    "query": "#graphql\nmutation DiscountAutomaticBasicLifecycleActivate($id: ID!) { discountAutomaticActivate(id: $id) { automaticDiscountNode { id automaticDiscount { __typename ... on DiscountAutomaticBasic { title status startsAt endsAt } } } userErrors { field message code extraInfo } } }",
+    "variables": {
+      "id": "gid://shopify/DiscountAutomaticNode/1638460096818"
+    },
+    "response": {
+      "data": {
+        "discountAutomaticActivate": {
+          "automaticDiscountNode": {
+            "id": "gid://shopify/DiscountAutomaticNode/1638460096818",
+            "automaticDiscount": {
+              "__typename": "DiscountAutomaticBasic",
+              "title": "HAR194LIFECYCLE1777147964006 updated",
+              "status": "ACTIVE",
+              "startsAt": "2026-04-25T00:00:00Z",
+              "endsAt": null
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "status": 200
+  },
+  "delete": {
+    "query": "#graphql\nmutation DiscountAutomaticBasicLifecycleDelete($id: ID!) { discountAutomaticDelete(id: $id) { deletedAutomaticDiscountId userErrors { field message code extraInfo } } }",
+    "variables": {
+      "id": "gid://shopify/DiscountAutomaticNode/1638460096818"
+    },
+    "response": {
+      "data": {
+        "discountAutomaticDelete": {
+          "deletedAutomaticDiscountId": "gid://shopify/DiscountAutomaticNode/1638460096818",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "status": 200
+  }
+}

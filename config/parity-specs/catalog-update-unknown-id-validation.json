@@ -1,0 +1,24 @@
+{
+  "scenarioId": "catalog-update-unknown-id-validation",
+  "operationNames": ["catalogUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/catalog-lifecycle-validation.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/catalog-update-unknown-id-validation.graphql",
+    "variablesCapturePath": "$.cases[1].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Safe live Shopify Catalog validation capture for Admin GraphQL 2026-04. Unknown catalogUpdate ID returns CatalogUserError without mutating catalog state.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "unknown-id-catalog-update-data",
+        "capturePath": "$.cases[1].response.payload.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

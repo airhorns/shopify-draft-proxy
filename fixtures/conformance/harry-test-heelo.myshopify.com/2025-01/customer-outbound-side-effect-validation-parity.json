@@ -1,0 +1,50 @@
+{
+  "validation": {
+    "variables": {
+      "customerId": "gid://shopify/Customer/999999999999999",
+      "customerPaymentMethodId": "gid://shopify/CustomerPaymentMethod/999999999999999"
+    },
+    "response": {
+      "data": {
+        "customerGenerateAccountActivationUrl": {
+          "accountActivationUrl": null,
+          "userErrors": [
+            {
+              "field": ["customerId"],
+              "message": "The customer can't be found."
+            }
+          ]
+        },
+        "customerSendAccountInviteEmail": {
+          "customer": null,
+          "userErrors": [
+            {
+              "field": ["customerId"],
+              "message": "Customer can't be found"
+            }
+          ]
+        },
+        "customerPaymentMethodSendUpdateEmail": {
+          "customer": null,
+          "userErrors": [
+            {
+              "field": ["customerPaymentMethodId"],
+              "message": "Customer payment method does not exist"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 30,
+          "actualQueryCost": 30,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1970,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}
