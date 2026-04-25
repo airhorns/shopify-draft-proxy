@@ -18,6 +18,11 @@ Overlay reads:
 - `codeDiscountNodes`
 - `automaticDiscountNodes`
 - `automaticDiscounts`
+- Shopify Functions app-discount write roots:
+  - `discountCodeAppCreate`
+  - `discountCodeAppUpdate`
+  - `discountAutomaticAppCreate`
+  - `discountAutomaticAppUpdate`
 
 ## Behavior notes
 
@@ -31,15 +36,19 @@ Overlay reads:
 - Supported detail serialization covers common native code/automatic fields captured from Shopify 2026-04: title, status, summary, starts/ends timestamps, created/updated timestamps, usage counts, discount classes, `combinesWith`, redeem-code connections, all-buyer context, `customerGets`, minimum subtotal/quantity requirements, metafields, and events.
 - Snapshot misses for singular roots return `null`. Known detail records with no metafields/events return Shopify-like empty connections and null singular metafields.
 - Product, variant, collection, customer, and segment links are represented as normalized IDs on discount item/context selections; serializers expose selected `id` fields and hydrate simple titles/display names when the linked resource is already present in local state.
-- App-managed discount objects (`DiscountCodeApp`, `DiscountAutomaticApp`) preserve `__typename` and common scalar fields that are present in normalized state. App-only fields such as `appDiscountType`, `errorHistory`, and app `discountId` are intentionally returned as `null` with `UNSUPPORTED_APP_DISCOUNT_FIELD` errors so local reads do not invent app-function data.
+- App-managed discount objects (`DiscountCodeApp`, `DiscountAutomaticApp`) preserve `__typename`, title/status timestamps, usage counts, `combinesWith`, classes, code connections, and any captured app-managed metadata present in normalized state.
+- `appDiscountType`, `discountId`, and `errorHistory` are read-only captured fixture fields. When `appDiscountType` is present, serializers preserve selected scalar/object fields such as `appKey`, `functionId`, `title`, and `description`; when a non-null Shopify app field has not been captured, the serializer returns `null` and emits `UNSUPPORTED_APP_DISCOUNT_FIELD` instead of inventing Function metadata.
 - Discount query parsing uses the shared Shopify-style search parser.
 - Local connection cursors use the proxy's synthetic `cursor:<gid>` form; parity specs document Shopify's opaque cursor values as non-contractual.
 - `codeDiscountNodes` and `automaticDiscountNodes` remain known registry entries but are not promoted to locally implemented support until their node-specific shapes have captured fixtures.
 - Deprecated `automaticDiscounts` remains unsupported rather than mapped to `automaticDiscountNodes`; unknown/unsupported reads continue through the existing passthrough path outside snapshot-only parity execution.
 - Discount mutation lifecycle support is not implemented yet, but the store exposes staged discount records so later locally staged discount mutations can appear in catalog/count reads without upstream writes.
+- App-discount create/update mutation roots are explicitly classified as registry-only, unimplemented local-staging gaps rather than supported passthrough. In normal runtime they still take the unsupported mutation escape hatch and would hit Shopify; the mutation log includes a `registeredOperation` record plus `unsupported-app-discount-function-mutation` safety metadata so operators can distinguish them from supported local staging.
+- The current safety stance is unsupported passthrough with loud observability. Supporting app-discount writes later requires conformance-backed staging for the specific Function-backed shape, including captured `appDiscountType.functionId` / app identity metadata, and must not execute external Shopify Function logic during proxy runtime.
 - `scripts/capture-discount-conformance.ts` probes the live conformance app Admin access scopes through `currentAppInstallation.accessScopes`.
 - The capture script records `read_discounts` and `write_discounts` availability before attempting discount catalog captures.
 - The capture script also creates temporary native `DiscountCodeBasic` and `DiscountAutomaticBasic` records, captures singular detail payloads, and deletes those temporary records immediately after capture.
+- The current discount capture script does not create app-managed discounts. Only capture app-discount read fixtures from an already safe existing app discount or a disposable Function-backed setup with explicit cleanup; do not create app-discount fixtures by invoking unknown merchant Function logic on the shared store.
 - Tokens must come through `scripts/shopify-conformance-auth.mts`; repo `.env` files must not contain Admin access tokens.
 - Discount capture fails before discount reads or writes when either required discount scope is missing.
 - Discount capture files use the `discount-*` conformance naming convention only after scope checks pass.
