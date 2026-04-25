@@ -234,8 +234,8 @@ function makeFileRecordFromProductMedia(media: ProductMediaRecord): FileRecord {
     filename: deriveFilename(originalSource),
     originalSource,
     imageUrl: media.imageUrl ?? media.previewImageUrl,
-    imageWidth: null,
-    imageHeight: null,
+    imageWidth: media.imageWidth ?? null,
+    imageHeight: media.imageHeight ?? null,
   };
 }
 
@@ -289,6 +289,8 @@ function makeProductMediaRecordFromFile(productId: string, file: FileRecord, pos
     status: file.fileStatus,
     productImageId: file.contentType === 'IMAGE' ? makeSyntheticGid('ProductImage') : null,
     imageUrl: file.imageUrl,
+    imageWidth: file.imageWidth,
+    imageHeight: file.imageHeight,
     previewImageUrl: file.imageUrl,
     sourceUrl: file.originalSource,
   };
@@ -301,6 +303,8 @@ function updateProductMediaRecordFromFile(media: ProductMediaRecord, file: FileR
     alt: file.alt,
     status: file.fileStatus,
     imageUrl: file.imageUrl,
+    imageWidth: file.imageWidth,
+    imageHeight: file.imageHeight,
     previewImageUrl: file.imageUrl,
     sourceUrl: file.originalSource,
   };
