@@ -365,6 +365,19 @@ export const customerCatalogConnectionRecordSchema = z.strictObject({
 });
 export type CustomerCatalogConnectionRecord = z.infer<typeof customerCatalogConnectionRecordSchema>;
 
+export const customerMergeRequestRecordSchema = z.strictObject({
+  jobId: z.string(),
+  resultingCustomerId: z.string(),
+  status: z.enum(['IN_PROGRESS', 'COMPLETED', 'FAILED']),
+  customerMergeErrors: z.array(
+    z.strictObject({
+      errorFields: z.array(z.string()),
+      message: z.string(),
+    }),
+  ),
+});
+export type CustomerMergeRequestRecord = z.infer<typeof customerMergeRequestRecordSchema>;
+
 export const draftOrderAttributeRecordSchema = z.strictObject({
   key: z.string(),
   value: nullableStringSchema,
@@ -822,6 +835,8 @@ export const stateSnapshotSchema = z.strictObject({
   deletedFileIds: z.record(z.string(), z.literal(true)).default({}),
   deletedCollectionIds: z.record(z.string(), z.literal(true)),
   deletedCustomerIds: z.record(z.string(), z.literal(true)),
+  mergedCustomerIds: z.record(z.string(), z.string()).default({}),
+  customerMergeRequests: z.record(z.string(), customerMergeRequestRecordSchema).default({}),
 });
 export type StateSnapshot = z.infer<typeof stateSnapshotSchema>;
 

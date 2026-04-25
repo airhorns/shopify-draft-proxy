@@ -2020,3 +2020,33 @@ Safety rule:
 
 - do not run successful live writes for market lifecycle, web presence, localization, backup-region, or currency-setting roots on the shared conformance store without a disposable market setup and cleanup story
 - current local Markets support is read-only snapshot replay for captured safe roots; mutation registry entries are local-staging scaffolds with `implemented: false` and must not be read as runtime support
+
+## 55. Customer merge is permission-gated and job-backed, but downstream reads settle quickly
+
+HAR-159 live capture on the conformance store became possible only after the app token included both `read_customer_merge` and `write_customer_merge`. The merge roots are distinct from generic customer update behavior:
+
+- `customerMergePreview(customerOneId:, customerTwoId:, overrideFields:)` requires read merge scope and returns a non-null preview object on safe inputs
+- `customerMerge(customerOneId:, customerTwoId:, overrideFields:)` requires write merge scope and returns `resultingCustomerId`, a `Job`, and `userErrors`
+- `customerMergeJobStatus(jobId:)` returns a `CustomerMergeRequest` with `jobId`, `resultingCustomerId`, `status`, and `customerMergeErrors`
+
+Captured validation behavior:
+
+- self-merge preview returns a top-level `BAD_REQUEST` error with message `Customers must be different.`
+- self-merge mutation returns payload `userErrors` with `field: null`, message `Customers IDs should not match`, and code `INVALID_CUSTOMER_ID`
+- an unknown second customer id returns payload `userErrors` at `['customerTwoId']` with code `INVALID_CUSTOMER_ID`
+- omitting the required second id returns a top-level `missingRequiredArguments` GraphQL error before mutation execution
+
+Captured safe happy path for two synthetic customers:
+
+- Shopify selected `customerTwoId` as the resulting customer id
+- the mutation returned a job with `done: false`
+- after polling, `customerMergeJobStatus` reached `COMPLETED`
+- downstream `customer(id: customerOneId)` and `customerByIdentifier(emailAddress: customer one email)` returned `null`
+- downstream `customer(id: customerTwoId)` and `customerByIdentifier(emailAddress: customer two email)` returned the merged customer
+- override `note` and `tags` replaced the default combined note/tag values; selected name/email fields followed the requested customer id override fields
+
+Practical rule:
+
+- stage supported `customerMerge` locally for customers already present in the normalized graph, mark the source customer deleted, record the source-to-result id redirect for state inspection, and expose a local merge request for `customerMergeJobStatus`
+- do not fetch or mutate Shopify during normal runtime to discover missing merge customers; unknown ids should return captured `CustomerMergeUserError` payloads instead
+- do not model transfer of orders, draft orders, gift cards, discounts, addresses, or other attached resources until a fixture captures those non-empty merge fields

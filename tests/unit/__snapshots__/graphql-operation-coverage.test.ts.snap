@@ -72,7 +72,6 @@ exports[`GraphQL operation coverage > snapshots introspected Admin GraphQL mutat
   "customerAddTaxExemptions",
   "customerCancelDataErasure",
   "customerGenerateAccountActivationUrl",
-  "customerMerge",
   "customerPaymentMethodCreateFromDuplicationData",
   "customerPaymentMethodCreditCardCreate",
   "customerPaymentMethodCreditCardUpdate",
