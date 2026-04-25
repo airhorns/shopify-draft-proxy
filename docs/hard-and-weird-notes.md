@@ -195,6 +195,15 @@ Current live findings on this host:
   - non-null `sourceName` is normalized to the captured installed app/channel identifier (`347082227713`) on the staged order instead of echoing the requested input string
   - non-null `paymentGatewayId` returns the captured `Invalid payment gateway` userError because the proxy has no local payment-gateway catalog yet
 - practical consequence: the repo still should not jump straight from "order roots exist in introspection" to speculative full draft-to-order staging code; keep the local completion slice limited to staged synthetic drafts until live Shopify happy-path evidence exists
+- refreshed draft-order family capture on this host settled four previously planned write scenarios:
+  - `draftOrderUpdate` accepts scalar/tag/custom-attribute/shipping-line updates on a live draft and returns the updated draft plus immediate downstream `draftOrder(id:)` visibility
+  - `draftOrderDuplicate` creates a new open, ready draft, allocates a new name/invoice URL/line-item IDs, copies customer/email/tags/custom attributes/addresses, but clears reserve inventory, shipping line, tax exemption, and discounts; totals recalculate from the undiscounted copied line items
+  - `draftOrderDelete` returns the deleted draft ID and downstream `draftOrder(id:)` returns `null`
+  - `draftOrderCreateFromOrder` can use an order produced by a setup `draftOrderComplete` flow and mirrors the duplicate-like clearing behavior for discounts/shipping while preserving the merchant-facing draft/order customer context
+- easy schema/request traps from promoting those scenarios:
+  - `DraftOrder.note` is not selectable on the current Admin GraphQL schema for these payloads, even though draft-order inputs can carry note-like data through local state
+  - `DraftOrderInput.shippingLine` does not accept a `code` field; live updates accepted title and price fields, and Shopify returned `code: "custom"` on the resulting `shippingLine`
+  - empty variant SKUs can stay as empty strings on draft-order line items while the completed regular order path normalizes empty SKUs to `null`
 
 Practical rule:
 
@@ -1577,6 +1586,25 @@ Important distinction:
   family while preserving the original raw `fileDelete` mutation for commit
   replay
 
+The generic media update worklist item maps to `fileUpdate`, not
+`productUpdateMedia`.
+
+Important distinction:
+
+- `productUpdateMedia(productId, media)` updates media records already attached
+  to one product's `product.media` connection
+- `fileUpdate(files)` updates store-level Files API records and can add/remove
+  product references through `referencesToAdd` / `referencesToRemove`
+- current `FileUpdateInput` references currently accept product IDs, so adding
+  a reference should make the same file visible in the target product's
+  downstream `product.media` connection while preserving the source product
+  reference unless it is explicitly removed
+- updating a referenced MediaImage's alt/source through `fileUpdate` should
+  refresh all locally known product media references for that file ID
+- this first local slice models file metadata plus product-reference visibility;
+  richer Files API reads and ready-state locking still need dedicated capture
+  evidence before they should become stricter
+
 Practical rule:
 
 1. model `inventoryItemUpdate` as a product-backed staged mutation over the effective variant inventory-item record, not as a separate detached inventory-item table
@@ -1801,6 +1829,21 @@ Practical rule for the proxy:
 - side-effect email roots and customer merge should stay explicit passthrough/deferred until a product decision says whether to block, simulate, or proxy them with stronger observability
 - the protected-customer-data denial mode remains a real fallback path in `scripts/capture-customer-conformance.mts`, but current successful fixtures should not be overwritten by stale blocker notes unless the capture script reproduces the denial again
 
+### 46a. `customerByIdentifier` is an effective-customer lookup, with custom-id caveats
+
+Live `customerByIdentifier` capture on this host showed the safe read branches that should use the same normalized customer graph as `customer(id:)`:
+
+- `identifier: { id }`, `{ emailAddress }`, and `{ phoneNumber }` all returned the same customer when the captured values matched the live record
+- an unmatched email identifier returned `customerByIdentifier: null` with no top-level error
+- `customId` is not a generic local key/value lookup: without a unique metafield definition of type `id`, Shopify returned `data.customId: null` plus a top-level `NOT_FOUND` error saying that an id-type metafield definition is required
+- an empty identifier object failed variable validation before returning data: `CustomerIdentifierInput` requires exactly one argument
+
+Practical rule for the proxy:
+
+- resolve id/email/phone identifier reads against effective normalized customer state, so snapshot rows and staged `customerCreate` / `customerUpdate` rows are visible immediately
+- keep custom-id support limited to the captured Shopify-like error until customer metafield definitions and unique metafield values are modeled explicitly
+- classify `customerByIdentifier` by root field, because apps can use arbitrary or misleading GraphQL operation names
+
 ## 47. Store properties roots are deceptively broad for a "properties" category
 
 The first Store properties inventory for Admin GraphQL 2026-04 exposed several roots that should be tracked before runtime support, but should not be treated as harmless metadata reads/writes.
@@ -1881,3 +1924,20 @@ Practical rule:
 
 - snapshot mode should return `shop: null` when no normalized shop slice is present rather than inventing store identity
 - keep payment/account-sensitive shop feature fields out of the local baseline until the capture proves both access and shape
+
+## 51. Customer tax exemptions and metafields are part of customerUpdate, but not generic owner support yet
+
+The HAR-154 customer mutation capture added `taxExemptions`, `customer.metafield(...)`, and `customer.metafields(...)` to the existing customer CRUD parity fixture.
+
+Captured facts:
+
+- `customerUpdate(input.taxExemptions)` replaces the customer's applied tax exemption list independently from the boolean `taxExempt`
+- `CustomerInput.metafields` can create a customer-owned metafield and the immediate mutation payload plus downstream `customer(id:)` read expose it through both singular `metafield(namespace:, key:)` and the `metafields` connection
+- Shopify returns opaque cursors for `customer.metafields`; local replay should use stable synthetic cursors and keep only cursor values as expected differences
+- an invalid tax exemption string never reaches `userErrors`; Shopify rejects the GraphQL variable with `INVALID_VARIABLE` before mutation execution
+- an invalid customer metafield type returns `customer: null` with a `userErrors` entry at `['metafields', '0', 'type']`
+
+Practical rule:
+
+- model customer-owned metafields as a customer-scoped sub-model for `customerUpdate` before broadening shared `metafieldsSet` beyond the currently captured product owner slice
+- do not infer support for `customerAddTaxExemptions`, `customerRemoveTaxExemptions`, or `customerReplaceTaxExemptions` from this fixture; those roots still need their own local staging and conformance evidence

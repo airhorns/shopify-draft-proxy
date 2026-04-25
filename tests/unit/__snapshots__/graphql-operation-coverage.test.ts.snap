@@ -141,7 +141,6 @@ exports[`GraphQL operation coverage > snapshots introspected Admin GraphQL mutat
   "draftOrderInvoicePreview",
   "eventBridgeServerPixelUpdate",
   "fileAcknowledgeUpdateFailed",
-  "fileUpdate",
   "flowGenerateSignature",
   "flowTriggerReceive",
   "fulfillmentConstraintRuleCreate",

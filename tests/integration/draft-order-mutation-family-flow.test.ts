@@ -260,7 +260,7 @@ describe('draft-order mutation family flow', () => {
     expect(duplicateResponse.body.data.draftOrderDuplicate.userErrors).toEqual([]);
     expect(duplicatedDraftOrder).toMatchObject({
       status: 'OPEN',
-      ready: false,
+      ready: true,
       email: 'updated-draft-family@example.com',
       note: 'updated note',
       tags: ['draft', 'updated'],

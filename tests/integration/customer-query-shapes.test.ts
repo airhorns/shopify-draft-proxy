@@ -83,6 +83,154 @@ describe('customer query shapes', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('serves customerByIdentifier by id, email, and phone from snapshot state without trusting the operation name', async () => {
+    store.upsertBaseCustomers([
+      {
+        id: 'gid://shopify/Customer/301',
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+        displayName: 'Ada Lovelace',
+        email: 'ada@example.com',
+        legacyResourceId: '301',
+        locale: 'en',
+        note: null,
+        canDelete: true,
+        verifiedEmail: true,
+        taxExempt: false,
+        state: 'ENABLED',
+        tags: ['vip'],
+        numberOfOrders: 0,
+        amountSpent: null,
+        defaultEmailAddress: { emailAddress: 'ada@example.com' },
+        defaultPhoneNumber: { phoneNumber: '+15550101' },
+        defaultAddress: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-02T00:00:00.000Z',
+      },
+    ]);
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('customerByIdentifier snapshot lookup should not hit upstream fetch');
+    });
+
+    const app = createApp(config).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query Customer(
+          $idIdentifier: CustomerIdentifierInput!
+          $emailIdentifier: CustomerIdentifierInput!
+          $phoneIdentifier: CustomerIdentifierInput!
+          $missingIdentifier: CustomerIdentifierInput!
+        ) {
+          byId: customerByIdentifier(identifier: $idIdentifier) { id email }
+          byEmail: customerByIdentifier(identifier: $emailIdentifier) {
+            id
+            defaultEmailAddress { emailAddress }
+          }
+          byPhone: customerByIdentifier(identifier: $phoneIdentifier) {
+            id
+            defaultPhoneNumber { phoneNumber }
+          }
+          missing: customerByIdentifier(identifier: $missingIdentifier) { id }
+        }`,
+        variables: {
+          idIdentifier: { id: 'gid://shopify/Customer/301' },
+          emailIdentifier: { emailAddress: 'ADA@example.com' },
+          phoneIdentifier: { phoneNumber: '+15550101' },
+          missingIdentifier: { emailAddress: 'missing@example.com' },
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        byId: {
+          id: 'gid://shopify/Customer/301',
+          email: 'ada@example.com',
+        },
+        byEmail: {
+          id: 'gid://shopify/Customer/301',
+          defaultEmailAddress: { emailAddress: 'ada@example.com' },
+        },
+        byPhone: {
+          id: 'gid://shopify/Customer/301',
+          defaultPhoneNumber: { phoneNumber: '+15550101' },
+        },
+        missing: null,
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns Shopify-like customerByIdentifier validation errors for unsupported identifier shapes', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('customerByIdentifier validation should not hit upstream fetch');
+    });
+
+    const app = createApp(config).callback();
+    const customIdResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query CustomerByIdentifierCustom($identifier: CustomerIdentifierInput!) {
+          customId: customerByIdentifier(identifier: $identifier) { id }
+        }`,
+        variables: {
+          identifier: {
+            customId: {
+              namespace: 'custom',
+              key: 'har_150_missing',
+              value: 'missing',
+            },
+          },
+        },
+      });
+
+    expect(customIdResponse.status).toBe(200);
+    expect(customIdResponse.body).toEqual({
+      data: {
+        customId: null,
+      },
+      errors: [
+        {
+          message: "Metafield definition of type 'id' is required when using custom ids.",
+          path: ['customId'],
+          extensions: {
+            code: 'NOT_FOUND',
+          },
+        },
+      ],
+    });
+
+    const emptyIdentifierResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query CustomerByIdentifierEmpty($identifier: CustomerIdentifierInput!) {
+          customerByIdentifier(identifier: $identifier) { id }
+        }`,
+        variables: { identifier: {} },
+      });
+
+    expect(emptyIdentifierResponse.status).toBe(200);
+    expect(emptyIdentifierResponse.body).toEqual({
+      errors: [
+        {
+          message: 'Variable $identifier of type CustomerIdentifierInput! was provided invalid value',
+          extensions: {
+            code: 'INVALID_VARIABLE',
+            value: {},
+            problems: [
+              {
+                path: [],
+                explanation: "'CustomerIdentifierInput' requires exactly one argument, but 0 were provided.",
+              },
+            ],
+          },
+        },
+      ],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('treats unsupported customersCount query fields as no-op filters in snapshot mode without hitting upstream', async () => {
     store.upsertBaseCustomers([
       {
@@ -230,6 +378,7 @@ describe('customer query shapes', () => {
                         canDelete: false,
                         verifiedEmail: true,
                         taxExempt: false,
+                        taxExemptions: ['CA_BC_RESELLER_EXEMPTION'],
                         state: 'ENABLED',
                         tags: ['vip', 'wholesale'],
                         numberOfOrders: 3,
@@ -250,6 +399,23 @@ describe('customer query shapes', () => {
                           country: 'United Kingdom',
                           zip: 'SW1A 1AA',
                           formattedArea: 'London, United Kingdom',
+                        },
+                        metafields: {
+                          nodes: [
+                            {
+                              id: 'gid://shopify/Metafield/101',
+                              namespace: 'custom',
+                              key: 'loyalty',
+                              type: 'single_line_text_field',
+                              value: 'gold',
+                            },
+                          ],
+                          pageInfo: {
+                            hasNextPage: false,
+                            hasPreviousPage: false,
+                            startCursor: 'metafield-cursor-101',
+                            endCursor: 'metafield-cursor-101',
+                          },
                         },
                         createdAt: '2024-01-01T00:00:00.000Z',
                         updatedAt: '2024-01-02T00:00:00.000Z',
@@ -297,6 +463,7 @@ describe('customer query shapes', () => {
                 canDelete
                 verifiedEmail
                 taxExempt
+                taxExemptions
                 state
                 tags
                 numberOfOrders
@@ -310,6 +477,10 @@ describe('customer query shapes', () => {
                   country
                   zip
                   formattedArea
+                }
+                metafields(first: 5) {
+                  nodes { id namespace key type value }
+                  pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
                 }
                 createdAt
                 updatedAt
@@ -339,9 +510,21 @@ describe('customer query shapes', () => {
             canDelete
             verifiedEmail
             taxExempt
+            taxExemptions
             state
             tags
             numberOfOrders
+            loyalty: metafield(namespace: "custom", key: "loyalty") {
+              id
+              namespace
+              key
+              type
+              value
+            }
+            metafields(first: 5) {
+              nodes { id namespace key type value }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
             amountSpent { amount currencyCode }
             defaultEmailAddress { emailAddress }
             defaultPhoneNumber { phoneNumber }
@@ -375,9 +558,34 @@ describe('customer query shapes', () => {
           canDelete: false,
           verifiedEmail: true,
           taxExempt: false,
+          taxExemptions: ['CA_BC_RESELLER_EXEMPTION'],
           state: 'ENABLED',
           tags: ['vip', 'wholesale'],
           numberOfOrders: 3,
+          loyalty: {
+            id: 'gid://shopify/Metafield/101',
+            namespace: 'custom',
+            key: 'loyalty',
+            type: 'single_line_text_field',
+            value: 'gold',
+          },
+          metafields: {
+            nodes: [
+              {
+                id: 'gid://shopify/Metafield/101',
+                namespace: 'custom',
+                key: 'loyalty',
+                type: 'single_line_text_field',
+                value: 'gold',
+              },
+            ],
+            pageInfo: {
+              hasNextPage: false,
+              hasPreviousPage: false,
+              startCursor: 'cursor:gid://shopify/Metafield/101',
+              endCursor: 'cursor:gid://shopify/Metafield/101',
+            },
+          },
           amountSpent: {
             amount: '125.50',
             currencyCode: 'USD',

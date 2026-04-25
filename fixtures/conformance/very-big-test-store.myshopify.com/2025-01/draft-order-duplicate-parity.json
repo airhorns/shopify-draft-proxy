@@ -1,0 +1,782 @@
+{
+  "setup": {
+    "draftOrderCreate": {
+      "id": "gid://shopify/DraftOrder/1307835564265",
+      "variables": {
+        "input": {
+          "purchasingEntity": {
+            "customerId": "gid://shopify/Customer/6157654556905"
+          },
+          "email": "hermes-draft-order-duplicate-1777080281195@example.com",
+          "note": "draft order duplicate setup",
+          "taxExempt": true,
+          "reserveInventoryUntil": "2026-05-23T12:00:00Z",
+          "tags": ["parity-capture", "draft-order-family", "duplicate"],
+          "customAttributes": [
+            {
+              "key": "source",
+              "value": "phone-order"
+            },
+            {
+              "key": "purchase-order",
+              "value": "PO-117"
+            }
+          ],
+          "appliedDiscount": {
+            "title": "Loyalty credit",
+            "description": "merchant order-level discount",
+            "value": 5,
+            "amount": 5,
+            "valueType": "FIXED_AMOUNT"
+          },
+          "billingAddress": {
+            "firstName": "Hermes",
+            "lastName": "Buyer",
+            "address1": "123 Queen St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCode": "CA",
+            "zip": "M5H 2M9",
+            "phone": "+14165550101"
+          },
+          "shippingAddress": {
+            "firstName": "Hermes",
+            "lastName": "Buyer",
+            "address1": "500 King St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCode": "CA",
+            "zip": "M5V 1L9",
+            "phone": "+14165550102"
+          },
+          "shippingLine": {
+            "title": "Merchant Courier",
+            "priceWithCurrency": {
+              "amount": "7.25",
+              "currencyCode": "CAD"
+            }
+          },
+          "lineItems": [
+            {
+              "title": "Custom installation service",
+              "quantity": 2,
+              "originalUnitPrice": "20.00",
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "CUSTOM-INSTALL",
+              "appliedDiscount": {
+                "title": "Service discount",
+                "description": "10 percent off service",
+                "value": 10,
+                "amount": 4,
+                "valueType": "PERCENTAGE"
+              },
+              "customAttributes": [
+                {
+                  "key": "appointment",
+                  "value": "morning"
+                }
+              ]
+            },
+            {
+              "variantId": "gid://shopify/ProductVariant/48540157378793",
+              "quantity": 1
+            }
+          ]
+        }
+      },
+      "mutation": {
+        "response": {
+          "data": {
+            "draftOrderCreate": {
+              "draftOrder": {
+                "id": "gid://shopify/DraftOrder/1307835564265",
+                "name": "#D70",
+                "status": "OPEN",
+                "ready": true,
+                "email": "hermes-draft-order-duplicate-1777080281195@example.com",
+                "customer": {
+                  "id": "gid://shopify/Customer/6157654556905",
+                  "email": "egnition_sample_29@egnition.com",
+                  "displayName": "Henry Short"
+                },
+                "taxExempt": true,
+                "taxesIncluded": false,
+                "reserveInventoryUntil": "2026-05-23T12:00:00Z",
+                "paymentTerms": null,
+                "tags": ["draft-order-family", "duplicate", "parity-capture"],
+                "invoiceUrl": "https://very-big-test-store.myshopify.com/63755419881/invoices/533a8d25a55bf8d752537398ad1ae2eb",
+                "customAttributes": [
+                  {
+                    "key": "source",
+                    "value": "phone-order"
+                  },
+                  {
+                    "key": "purchase-order",
+                    "value": "PO-117"
+                  }
+                ],
+                "appliedDiscount": {
+                  "title": "Loyalty credit",
+                  "description": "merchant order-level discount",
+                  "value": 5,
+                  "valueType": "FIXED_AMOUNT",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "5.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                "billingAddress": {
+                  "firstName": "Hermes",
+                  "lastName": "Buyer",
+                  "address1": "123 Queen St W",
+                  "city": "Toronto",
+                  "provinceCode": "ON",
+                  "countryCodeV2": "CA",
+                  "zip": "M5H 2M9"
+                },
+                "shippingAddress": {
+                  "firstName": "Hermes",
+                  "lastName": "Buyer",
+                  "address1": "500 King St W",
+                  "city": "Toronto",
+                  "provinceCode": "ON",
+                  "countryCodeV2": "CA",
+                  "zip": "M5V 1L9"
+                },
+                "shippingLine": {
+                  "title": "Merchant Courier",
+                  "code": "custom",
+                  "custom": true,
+                  "originalPriceSet": {
+                    "shopMoney": {
+                      "amount": "7.25",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "discountedPriceSet": {
+                    "shopMoney": {
+                      "amount": "7.25",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                "subtotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "31.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalDiscountsSet": {
+                  "shopMoney": {
+                    "amount": "9.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalShippingPriceSet": {
+                  "shopMoney": {
+                    "amount": "7.25",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "38.25",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalQuantityOfLineItems": 3,
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/DraftOrderLineItem/58863895118057",
+                      "title": "Custom installation service",
+                      "name": "Custom installation service",
+                      "quantity": 2,
+                      "sku": "CUSTOM-INSTALL",
+                      "variantTitle": null,
+                      "custom": true,
+                      "requiresShipping": false,
+                      "taxable": false,
+                      "customAttributes": [
+                        {
+                          "key": "appointment",
+                          "value": "morning"
+                        }
+                      ],
+                      "appliedDiscount": {
+                        "title": "Service discount",
+                        "description": "10 percent off service",
+                        "value": 10,
+                        "valueType": "PERCENTAGE",
+                        "amountSet": {
+                          "shopMoney": {
+                            "amount": "4.0",
+                            "currencyCode": "CAD"
+                          }
+                        }
+                      },
+                      "originalUnitPriceSet": {
+                        "shopMoney": {
+                          "amount": "20.0",
+                          "currencyCode": "CAD"
+                        }
+                      },
+                      "originalTotalSet": {
+                        "shopMoney": {
+                          "amount": "40.0",
+                          "currencyCode": "CAD"
+                        }
+                      },
+                      "discountedTotalSet": {
+                        "shopMoney": {
+                          "amount": "36.0",
+                          "currencyCode": "CAD"
+                        }
+                      },
+                      "totalDiscountSet": {
+                        "shopMoney": {
+                          "amount": "4.0",
+                          "currencyCode": "CAD"
+                        }
+                      },
+                      "variant": null
+                    },
+                    {
+                      "id": "gid://shopify/DraftOrderLineItem/58863895150825",
+                      "title": "Test Product - 6635",
+                      "name": "Test Product - 6635",
+                      "quantity": 1,
+                      "sku": "",
+                      "variantTitle": null,
+                      "custom": false,
+                      "requiresShipping": true,
+                      "taxable": true,
+                      "customAttributes": [],
+                      "appliedDiscount": null,
+                      "originalUnitPriceSet": {
+                        "shopMoney": {
+                          "amount": "0.0",
+                          "currencyCode": "CAD"
+                        }
+                      },
+                      "originalTotalSet": {
+                        "shopMoney": {
+                          "amount": "0.0",
+                          "currencyCode": "CAD"
+                        }
+                      },
+                      "discountedTotalSet": {
+                        "shopMoney": {
+                          "amount": "0.0",
+                          "currencyCode": "CAD"
+                        }
+                      },
+                      "totalDiscountSet": {
+                        "shopMoney": {
+                          "amount": "0.0",
+                          "currencyCode": "CAD"
+                        }
+                      },
+                      "variant": {
+                        "id": "gid://shopify/ProductVariant/48540157378793",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 31,
+              "actualQueryCost": 24,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1976,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "downstreamRead": {
+        "variables": {
+          "id": "gid://shopify/DraftOrder/1307835564265"
+        },
+        "response": {
+          "data": {
+            "draftOrder": {
+              "id": "gid://shopify/DraftOrder/1307835564265",
+              "name": "#D70",
+              "status": "OPEN",
+              "ready": true,
+              "email": "hermes-draft-order-duplicate-1777080281195@example.com",
+              "customer": {
+                "id": "gid://shopify/Customer/6157654556905",
+                "email": "egnition_sample_29@egnition.com",
+                "displayName": "Henry Short"
+              },
+              "taxExempt": true,
+              "taxesIncluded": false,
+              "reserveInventoryUntil": "2026-05-23T12:00:00Z",
+              "paymentTerms": null,
+              "tags": ["draft-order-family", "duplicate", "parity-capture"],
+              "invoiceUrl": "https://very-big-test-store.myshopify.com/63755419881/invoices/533a8d25a55bf8d752537398ad1ae2eb",
+              "customAttributes": [
+                {
+                  "key": "source",
+                  "value": "phone-order"
+                },
+                {
+                  "key": "purchase-order",
+                  "value": "PO-117"
+                }
+              ],
+              "appliedDiscount": {
+                "title": "Loyalty credit",
+                "description": "merchant order-level discount",
+                "value": 5,
+                "valueType": "FIXED_AMOUNT",
+                "amountSet": {
+                  "shopMoney": {
+                    "amount": "5.0",
+                    "currencyCode": "CAD"
+                  }
+                }
+              },
+              "billingAddress": {
+                "firstName": "Hermes",
+                "lastName": "Buyer",
+                "address1": "123 Queen St W",
+                "city": "Toronto",
+                "provinceCode": "ON",
+                "countryCodeV2": "CA",
+                "zip": "M5H 2M9"
+              },
+              "shippingAddress": {
+                "firstName": "Hermes",
+                "lastName": "Buyer",
+                "address1": "500 King St W",
+                "city": "Toronto",
+                "provinceCode": "ON",
+                "countryCodeV2": "CA",
+                "zip": "M5V 1L9"
+              },
+              "shippingLine": {
+                "title": "Merchant Courier",
+                "code": "custom",
+                "custom": true,
+                "originalPriceSet": {
+                  "shopMoney": {
+                    "amount": "7.25",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "discountedPriceSet": {
+                  "shopMoney": {
+                    "amount": "7.25",
+                    "currencyCode": "CAD"
+                  }
+                }
+              },
+              "subtotalPriceSet": {
+                "shopMoney": {
+                  "amount": "31.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalDiscountsSet": {
+                "shopMoney": {
+                  "amount": "9.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalShippingPriceSet": {
+                "shopMoney": {
+                  "amount": "7.25",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "38.25",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalQuantityOfLineItems": 3,
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/DraftOrderLineItem/58863895118057",
+                    "title": "Custom installation service",
+                    "name": "Custom installation service",
+                    "quantity": 2,
+                    "sku": "CUSTOM-INSTALL",
+                    "variantTitle": null,
+                    "custom": true,
+                    "requiresShipping": false,
+                    "taxable": false,
+                    "customAttributes": [
+                      {
+                        "key": "appointment",
+                        "value": "morning"
+                      }
+                    ],
+                    "appliedDiscount": {
+                      "title": "Service discount",
+                      "description": "10 percent off service",
+                      "value": 10,
+                      "valueType": "PERCENTAGE",
+                      "amountSet": {
+                        "shopMoney": {
+                          "amount": "4.0",
+                          "currencyCode": "CAD"
+                        }
+                      }
+                    },
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "20.0",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "originalTotalSet": {
+                      "shopMoney": {
+                        "amount": "40.0",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "discountedTotalSet": {
+                      "shopMoney": {
+                        "amount": "36.0",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "totalDiscountSet": {
+                      "shopMoney": {
+                        "amount": "4.0",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "variant": null
+                  },
+                  {
+                    "id": "gid://shopify/DraftOrderLineItem/58863895150825",
+                    "title": "Test Product - 6635",
+                    "name": "Test Product - 6635",
+                    "quantity": 1,
+                    "sku": "",
+                    "variantTitle": null,
+                    "custom": false,
+                    "requiresShipping": true,
+                    "taxable": true,
+                    "customAttributes": [],
+                    "appliedDiscount": null,
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "0.0",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "originalTotalSet": {
+                      "shopMoney": {
+                        "amount": "0.0",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "discountedTotalSet": {
+                      "shopMoney": {
+                        "amount": "0.0",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "totalDiscountSet": {
+                      "shopMoney": {
+                        "amount": "0.0",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "variant": {
+                      "id": "gid://shopify/ProductVariant/48540157378793",
+                      "title": "Default Title",
+                      "sku": null
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 22,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "variables": {
+    "id": "gid://shopify/DraftOrder/1307835564265"
+  },
+  "mutation": {
+    "response": {
+      "data": {
+        "draftOrderDuplicate": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1307835597033",
+            "name": "#D71",
+            "invoiceUrl": "https://very-big-test-store.myshopify.com/63755419881/invoices/2358fa2c7c3de04194ef3ae10902ec26",
+            "status": "OPEN",
+            "ready": true,
+            "email": "hermes-draft-order-duplicate-1777080281195@example.com",
+            "tags": ["draft-order-family", "duplicate", "parity-capture"],
+            "customAttributes": [
+              {
+                "key": "source",
+                "value": "phone-order"
+              },
+              {
+                "key": "purchase-order",
+                "value": "PO-117"
+              }
+            ],
+            "subtotalPriceSet": {
+              "shopMoney": {
+                "amount": "40.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "totalPriceSet": {
+              "shopMoney": {
+                "amount": "40.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "lineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/DraftOrderLineItem/58863895183593",
+                  "title": "Custom installation service",
+                  "quantity": 2,
+                  "sku": "CUSTOM-INSTALL"
+                },
+                {
+                  "id": "gid://shopify/DraftOrderLineItem/58863895216361",
+                  "title": "Test Product - 6635",
+                  "quantity": 1,
+                  "sku": ""
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 16,
+          "actualQueryCost": 15,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "variables": {
+      "id": "gid://shopify/DraftOrder/1307835597033"
+    },
+    "response": {
+      "data": {
+        "draftOrder": {
+          "id": "gid://shopify/DraftOrder/1307835597033",
+          "name": "#D71",
+          "status": "OPEN",
+          "ready": true,
+          "email": "hermes-draft-order-duplicate-1777080281195@example.com",
+          "customer": {
+            "id": "gid://shopify/Customer/6157654556905",
+            "email": "egnition_sample_29@egnition.com",
+            "displayName": "Henry Short"
+          },
+          "taxExempt": false,
+          "taxesIncluded": false,
+          "reserveInventoryUntil": null,
+          "paymentTerms": null,
+          "tags": ["draft-order-family", "duplicate", "parity-capture"],
+          "invoiceUrl": "https://very-big-test-store.myshopify.com/63755419881/invoices/2358fa2c7c3de04194ef3ae10902ec26",
+          "customAttributes": [
+            {
+              "key": "source",
+              "value": "phone-order"
+            },
+            {
+              "key": "purchase-order",
+              "value": "PO-117"
+            }
+          ],
+          "appliedDiscount": null,
+          "billingAddress": {
+            "firstName": "Hermes",
+            "lastName": "Buyer",
+            "address1": "123 Queen St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCodeV2": "CA",
+            "zip": "M5H 2M9"
+          },
+          "shippingAddress": {
+            "firstName": "Hermes",
+            "lastName": "Buyer",
+            "address1": "500 King St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCodeV2": "CA",
+            "zip": "M5V 1L9"
+          },
+          "shippingLine": null,
+          "subtotalPriceSet": {
+            "shopMoney": {
+              "amount": "40.0",
+              "currencyCode": "CAD"
+            }
+          },
+          "totalDiscountsSet": {
+            "shopMoney": {
+              "amount": "0.0",
+              "currencyCode": "CAD"
+            }
+          },
+          "totalShippingPriceSet": {
+            "shopMoney": {
+              "amount": "0.0",
+              "currencyCode": "CAD"
+            }
+          },
+          "totalPriceSet": {
+            "shopMoney": {
+              "amount": "40.0",
+              "currencyCode": "CAD"
+            }
+          },
+          "totalQuantityOfLineItems": 3,
+          "lineItems": {
+            "nodes": [
+              {
+                "id": "gid://shopify/DraftOrderLineItem/58863895183593",
+                "title": "Custom installation service",
+                "name": "Custom installation service",
+                "quantity": 2,
+                "sku": "CUSTOM-INSTALL",
+                "variantTitle": null,
+                "custom": true,
+                "requiresShipping": false,
+                "taxable": false,
+                "customAttributes": [
+                  {
+                    "key": "appointment",
+                    "value": "morning"
+                  }
+                ],
+                "appliedDiscount": null,
+                "originalUnitPriceSet": {
+                  "shopMoney": {
+                    "amount": "20.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "originalTotalSet": {
+                  "shopMoney": {
+                    "amount": "40.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "discountedTotalSet": {
+                  "shopMoney": {
+                    "amount": "40.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalDiscountSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "variant": null
+              },
+              {
+                "id": "gid://shopify/DraftOrderLineItem/58863895216361",
+                "title": "Test Product - 6635",
+                "name": "Test Product - 6635",
+                "quantity": 1,
+                "sku": "",
+                "variantTitle": null,
+                "custom": false,
+                "requiresShipping": true,
+                "taxable": true,
+                "customAttributes": [],
+                "appliedDiscount": null,
+                "originalUnitPriceSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "originalTotalSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "discountedTotalSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalDiscountSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "variant": {
+                  "id": "gid://shopify/ProductVariant/48540157378793",
+                  "title": "Default Title",
+                  "sku": null
+                }
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 22,
+          "actualQueryCost": 15,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

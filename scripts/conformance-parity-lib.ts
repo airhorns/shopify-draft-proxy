@@ -880,7 +880,7 @@ function readCapturedOrderLineItems(order: Record<string, unknown> | null): Orde
       title: readStringField(lineItem, 'title'),
       quantity: readNumberField(lineItem, 'quantity') ?? 0,
       currentQuantity: readNumberField(lineItem, 'currentQuantity') ?? undefined,
-      sku: readStringField(lineItem, 'sku'),
+      sku: typeof lineItem['sku'] === 'string' ? lineItem['sku'] : null,
       variantId: readStringField(readRecordField(lineItem, 'variant'), 'id'),
       variantTitle: readStringField(lineItem, 'variantTitle'),
       originalUnitPriceSet: readMoneySetField(lineItem, 'originalUnitPriceSet'),
@@ -1059,6 +1059,31 @@ function seedCustomerMutationPreconditions(
     store.upsertBaseCustomers(seedCustomers);
   }
 
+  return true;
+}
+
+function seedCustomerByIdentifierPreconditions(capture: unknown): boolean {
+  const positiveAndMissingData = readRecordField(
+    readRecordField(capture as Record<string, unknown>, 'positiveAndMissing'),
+    'data',
+  );
+  const customers = ['byId', 'byEmail', 'byPhone']
+    .map((key) => readRecordField(positiveAndMissingData, key))
+    .filter((customer): customer is Record<string, unknown> => customer !== null);
+  const seedCustomers = new Map<string, CustomerRecord>();
+
+  for (const customer of customers) {
+    const customerId = readStringField(customer, 'id');
+    if (customerId && !seedCustomers.has(customerId)) {
+      seedCustomers.set(customerId, makeSeedCustomer(customerId, customer));
+    }
+  }
+
+  if (seedCustomers.size === 0) {
+    return false;
+  }
+
+  store.upsertBaseCustomers([...seedCustomers.values()]);
   return true;
 }
 
@@ -1635,7 +1660,8 @@ function readCapturedDraftOrderLineItems(draftOrder: Record<string, unknown> | n
         name: readStringField(lineItem, 'name') ?? title,
         quantity: readNumberField(lineItem, 'quantity') ?? 0,
         sku: typeof lineItem['sku'] === 'string' ? lineItem['sku'] : null,
-        variantTitle: readStringField(lineItem, 'variantTitle'),
+        variantTitle:
+          readStringField(lineItem, 'variantTitle') ?? readStringField(readRecordField(lineItem, 'variant'), 'title'),
         variantId: readStringField(readRecordField(lineItem, 'variant'), 'id'),
         productId: null,
         custom: readBooleanField(lineItem, 'custom') ?? true,
@@ -1648,13 +1674,44 @@ function readCapturedDraftOrderLineItems(draftOrder: Record<string, unknown> | n
             value: readStringField(attribute, 'value'),
           }))
           .filter((attribute) => attribute.key.length > 0),
-        appliedDiscount: null,
+        appliedDiscount: readCapturedDraftOrderAppliedDiscount(lineItem),
         originalUnitPriceSet: readMoneySetField(lineItem, 'originalUnitPriceSet'),
         originalTotalSet: readMoneySetField(lineItem, 'originalTotalSet'),
         discountedTotalSet: readMoneySetField(lineItem, 'discountedTotalSet'),
         totalDiscountSet: readMoneySetField(lineItem, 'totalDiscountSet'),
       };
     });
+}
+
+function readCapturedDraftOrderAppliedDiscount(
+  source: Record<string, unknown> | null,
+): DraftOrderRecord['appliedDiscount'] {
+  const appliedDiscount = readRecordField(source, 'appliedDiscount');
+  if (!appliedDiscount) {
+    return null;
+  }
+
+  return {
+    title: readStringField(appliedDiscount, 'title'),
+    description: readStringField(appliedDiscount, 'description'),
+    value: readNumberField(appliedDiscount, 'value'),
+    valueType: readStringField(appliedDiscount, 'valueType'),
+    amountSet: readMoneySetField(appliedDiscount, 'amountSet'),
+  };
+}
+
+function readCapturedDraftOrderCustomer(source: Record<string, unknown> | null): DraftOrderRecord['customer'] {
+  const customer = readRecordField(source, 'customer');
+  const id = readStringField(customer, 'id');
+  if (!id) {
+    return null;
+  }
+
+  return {
+    id,
+    email: readStringField(customer, 'email'),
+    displayName: readStringField(customer, 'displayName'),
+  };
 }
 
 function readCapturedDraftOrderShippingLine(
@@ -1683,12 +1740,12 @@ function makeSeedDraftOrder(draftOrderId: string, source: Record<string, unknown
     email: readStringField(source, 'email'),
     note: readStringField(source, 'note'),
     tags: readArrayField(source, 'tags').filter((tag): tag is string => typeof tag === 'string'),
-    customer: null,
+    customer: readCapturedDraftOrderCustomer(source),
     taxExempt: readBooleanField(source, 'taxExempt') ?? false,
     taxesIncluded: readBooleanField(source, 'taxesIncluded') ?? false,
     reserveInventoryUntil: readStringField(source, 'reserveInventoryUntil'),
     paymentTerms: null,
-    appliedDiscount: null,
+    appliedDiscount: readCapturedDraftOrderAppliedDiscount(source),
     customAttributes: readArrayField(source, 'customAttributes')
       .filter(isPlainObject)
       .map((attribute) => ({
@@ -2767,6 +2824,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     return;
   }
 
+  if (seedCustomerByIdentifierPreconditions(capture)) {
+    return;
+  }
+
   if (seedShopPreconditions(capture)) {
     return;
   }
@@ -2936,6 +2997,81 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
         seedDraftOrder.note = readStringField(setupInput, 'note');
       }
       store.stageCreateDraftOrder(seedDraftOrder);
+    }
+    return;
+  }
+
+  if (
+    mutationName === 'draftOrderUpdate' ||
+    mutationName === 'draftOrderDuplicate' ||
+    mutationName === 'draftOrderDelete'
+  ) {
+    const draftOrderId = readStringField(variables, 'id') ?? readStringField(readRecordField(variables, 'input'), 'id');
+    if (draftOrderId) {
+      const setupDraftOrder = readRecordField(
+        readRecordField(
+          readRecordField(
+            readRecordField(
+              readRecordField(readRecordField(capture as Record<string, unknown>, 'setup'), 'draftOrderCreate'),
+              'mutation',
+            ),
+            'response',
+          ),
+          'data',
+        ),
+        'draftOrderCreate',
+      );
+      const setupSource = readRecordField(setupDraftOrder, 'draftOrder');
+      if (setupSource) {
+        store.stageCreateDraftOrder(makeSeedDraftOrder(draftOrderId, setupSource));
+      }
+    }
+    return;
+  }
+
+  if (mutationName === 'draftOrderCreateFromOrder') {
+    const orderId = readStringField(variables, 'orderId');
+    if (orderId) {
+      const setupDraftOrder = readRecordField(
+        readRecordField(
+          readRecordField(
+            readRecordField(
+              readRecordField(readRecordField(capture as Record<string, unknown>, 'setup'), 'draftOrderCreate'),
+              'mutation',
+            ),
+            'response',
+          ),
+          'data',
+        ),
+        'draftOrderCreate',
+      );
+      const setupDraftOrderSource = readRecordField(setupDraftOrder, 'draftOrder');
+      const completedDraftOrder = readRecordField(
+        readRecordField(
+          readRecordField(
+            readRecordField(
+              readRecordField(readRecordField(capture as Record<string, unknown>, 'setup'), 'draftOrderComplete'),
+              'mutation',
+            ),
+            'response',
+          ),
+          'data',
+        ),
+        'draftOrderComplete',
+      );
+      const orderSource =
+        setupDraftOrderSource ??
+        readRecordField(readRecordField(completedDraftOrder, 'draftOrder'), 'order') ??
+        readRecordField(
+          readRecordField(
+            readRecordField(readRecordField(capture as Record<string, unknown>, 'setup'), 'downstreamOrderRead'),
+            'response',
+          ),
+          'data',
+        )?.['order'];
+      if (isPlainObject(orderSource)) {
+        store.upsertBaseOrders([makeSeedOrder(orderId, orderSource)]);
+      }
     }
     return;
   }

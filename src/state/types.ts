@@ -223,6 +223,16 @@ export const productMetafieldRecordSchema = z.strictObject({
 });
 export type ProductMetafieldRecord = z.infer<typeof productMetafieldRecordSchema>;
 
+export const customerMetafieldRecordSchema = z.strictObject({
+  id: z.string(),
+  customerId: z.string(),
+  namespace: z.string(),
+  key: z.string(),
+  type: nullableStringSchema,
+  value: nullableStringSchema,
+});
+export type CustomerMetafieldRecord = z.infer<typeof customerMetafieldRecordSchema>;
+
 export const moneyV2RecordSchema = moneyV2Schema;
 export type MoneyV2Record = z.infer<typeof moneyV2RecordSchema>;
 
@@ -258,6 +268,7 @@ export const customerRecordSchema = z.strictObject({
   canDelete: nullableBooleanSchema,
   verifiedEmail: nullableBooleanSchema,
   taxExempt: nullableBooleanSchema,
+  taxExemptions: z.array(z.string()).optional(),
   state: nullableStringSchema,
   tags: z.array(z.string()),
   numberOfOrders: z.union([z.string(), z.number()]).nullable(),
@@ -782,6 +793,7 @@ export const stateSnapshotSchema = z.strictObject({
   productMedia: z.record(z.string(), productMediaRecordSchema),
   files: z.record(z.string(), fileRecordSchema).default({}),
   productMetafields: z.record(z.string(), productMetafieldRecordSchema),
+  customerMetafields: z.record(z.string(), customerMetafieldRecordSchema).default({}),
   deletedProductIds: z.record(z.string(), z.literal(true)),
   deletedFileIds: z.record(z.string(), z.literal(true)).default({}),
   deletedCollectionIds: z.record(z.string(), z.literal(true)),

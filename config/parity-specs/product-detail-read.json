@@ -11,14 +11,17 @@
     "documentPath": "config/parity-requests/product-detail-read.graphql",
     "variablesPath": "config/parity-requests/product-detail-read.variables.json"
   },
-  "comparisonMode": "capture-only",
-  "notes": "Live product read capture now couples the concrete product-detail request scaffold with extra empty/null evidence: a real product whose collections/media connections are empty plus a dedicated empty-state fixture covering missing-product null behavior and unmatched `products` / `productsCount` responses. Comparator wiring can reuse the same request scaffold once proxy-vs-Shopify comparison is implemented.",
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity coverage for the product detail read scaffold: compares Shopify captured product identity, presentation fields, SEO/category shape, and empty collections/media connection behavior for a real product.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "product-detail-data",
+        "capturePath": "$.data",
+        "proxyPath": "$.data"
+      }
+    ]
   }
 }

@@ -181,9 +181,9 @@
     "type": "query",
     "domain": "customers",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerByIdentifier", "CustomerByIdentifier"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/customer-query-shapes.test.ts", "tests/integration/customer-draft-flow.test.ts"]
   },
   {
     "name": "customerMergePreview",
@@ -1450,6 +1450,15 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["fileCreate", "FileCreate"],
+    "runtimeTests": ["tests/integration/media-draft-flow.test.ts"]
+  },
+  {
+    "name": "fileUpdate",
+    "type": "mutation",
+    "domain": "media",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["fileUpdate", "FileUpdate"],
     "runtimeTests": ["tests/integration/media-draft-flow.test.ts"]
   },
   {

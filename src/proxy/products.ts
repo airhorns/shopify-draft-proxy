@@ -1,4 +1,4 @@
-import { Kind, type FieldNode, type SelectionNode } from 'graphql';
+import { getLocation, Kind, type FieldNode, type SelectionNode } from 'graphql';
 import type { ReadMode } from '../config.js';
 import { getFieldArguments, getRootField, getRootFieldArguments, getRootFields } from '../graphql/root-field.js';
 import { paginateConnectionItems, serializeConnectionPageInfo } from './graphql-helpers.js';
@@ -1888,6 +1888,9 @@ interface InventoryLevelTargetRecord {
   level: NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']>[number];
 }
 
+const INVENTORY_ADJUSTMENT_STAFF_MEMBER_REQUIRED_ACCESS =
+  '`read_users` access scope. Also: The app must be a finance embedded app or installed on a Shopify Plus or Advanced store. Contact Shopify Support to enable this scope for your app.';
+
 function buildInventoryAdjustInvalidVariableError(
   fieldPath: string,
   value: Record<string, unknown>,
@@ -1913,6 +1916,24 @@ function buildInventoryAdjustInvalidVariableError(
         },
       },
     ],
+  };
+}
+
+function buildInventoryAdjustmentStaffMemberAccessDeniedError(
+  rootField: FieldNode,
+  groupField: FieldNode,
+  staffMemberField: FieldNode,
+): Record<string, unknown> {
+  const location = staffMemberField.loc ? getLocation(staffMemberField.loc.source, staffMemberField.loc.start) : null;
+  return {
+    message: `Access denied for staffMember field. Required access: ${INVENTORY_ADJUSTMENT_STAFF_MEMBER_REQUIRED_ACCESS}`,
+    ...(location ? { locations: [{ line: location.line, column: location.column }] } : {}),
+    extensions: {
+      code: 'ACCESS_DENIED',
+      documentation: 'https://shopify.dev/api/usage/access-scopes',
+      requiredAccess: INVENTORY_ADJUSTMENT_STAFF_MEMBER_REQUIRED_ACCESS,
+    },
+    path: [getResponseKey(rootField), getResponseKey(groupField), getResponseKey(staffMemberField)],
   };
 }
 
@@ -8081,17 +8102,25 @@ export function handleProductMutation(
       }
 
       const result = applyInventoryAdjustQuantities(input);
-      return {
+      const inventoryAdjustmentGroupField = getChildField(field, 'inventoryAdjustmentGroup');
+      const staffMemberField = inventoryAdjustmentGroupField
+        ? getChildField(inventoryAdjustmentGroupField, 'staffMember')
+        : null;
+      const response: Record<string, unknown> = {
         data: {
           [responseKey]: {
-            inventoryAdjustmentGroup: serializeInventoryAdjustmentGroup(
-              result.group,
-              getChildField(field, 'inventoryAdjustmentGroup'),
-            ),
+            inventoryAdjustmentGroup: serializeInventoryAdjustmentGroup(result.group, inventoryAdjustmentGroupField),
             userErrors: result.userErrors,
           },
         },
       };
+      if (result.group && inventoryAdjustmentGroupField && staffMemberField) {
+        response['errors'] = [
+          buildInventoryAdjustmentStaffMemberAccessDeniedError(field, inventoryAdjustmentGroupField, staffMemberField),
+        ];
+      }
+
+      return response;
     }
     case 'inventoryActivate': {
       const rawInventoryItemId = args['inventoryItemId'];

@@ -206,6 +206,13 @@ describe('getOperationCapability anonymous operations', () => {
       type: 'mutation',
     });
 
+    expect(getOperationCapability({ type: 'mutation', name: null, rootFields: ['fileUpdate'] })).toEqual({
+      domain: 'media',
+      execution: 'stage-locally',
+      operationName: 'fileUpdate',
+      type: 'mutation',
+    });
+
     expect(getOperationCapability({ type: 'mutation', name: null, rootFields: ['fileDelete'] })).toEqual({
       domain: 'media',
       execution: 'stage-locally',
@@ -278,6 +285,13 @@ describe('getOperationCapability anonymous operations', () => {
       domain: 'customers',
       execution: 'overlay-read',
       operationName: 'customersCount',
+      type: 'query',
+    });
+
+    expect(getOperationCapability({ type: 'query', name: null, rootFields: ['customerByIdentifier'] })).toEqual({
+      domain: 'customers',
+      execution: 'overlay-read',
+      operationName: 'customerByIdentifier',
       type: 'query',
     });
   });
