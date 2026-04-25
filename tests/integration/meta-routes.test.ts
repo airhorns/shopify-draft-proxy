@@ -29,6 +29,7 @@ const emptySnapshot = {
   marketingEvents: {},
   marketingEventOrder: [],
   discounts: {},
+  discountBulkOperations: {},
   paymentCustomizations: {},
   paymentCustomizationOrder: [],
   deletedPaymentCustomizationIds: {},

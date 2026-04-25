@@ -13,6 +13,7 @@ import { compareNullableStrings, compareShopifyResourceIds } from '../shopify/re
 import { makeProxySyntheticGid, makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type {
+  DiscountBulkOperationRecord,
   DiscountCombinesWithRecord,
   DiscountContextRecord,
   DiscountCustomerGetsRecord,
@@ -105,6 +106,16 @@ const discountMutationArgumentTypes: Record<string, Record<string, string>> = {
   },
   discountCodeFreeShippingCreate: {
     freeShippingCodeDiscount: 'DiscountCodeFreeShippingInput!',
+  },
+  discountRedeemCodeBulkAdd: {
+    discountId: 'ID!',
+    codes: '[String!]!',
+  },
+  discountCodeRedeemCodeBulkDelete: {
+    discountId: 'ID!',
+  },
+  discountRedeemCodeBulkDelete: {
+    discountId: 'ID!',
   },
 };
 
@@ -437,6 +448,71 @@ function serializeAutomaticDiscountDeletePayload(
   return payload;
 }
 
+function serializeDiscountBulkOperation(
+  operation: DiscountBulkOperationRecord,
+  field: FieldNode,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = operation.id;
+        break;
+      case '__typename':
+        result[key] = operation.typeName;
+        break;
+      case 'done':
+        result[key] = operation.done;
+        break;
+      case 'status':
+        result[key] = operation.status;
+        break;
+      case 'codesCount':
+        result[key] = operation.codesCount ?? 0;
+        break;
+      case 'importedCount':
+        result[key] = operation.importedCount ?? 0;
+        break;
+      case 'failedCount':
+        result[key] = operation.failedCount ?? 0;
+        break;
+      case 'query':
+        result[key] = null;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeDiscountBulkMutationPayload(
+  field: FieldNode,
+  operation: DiscountBulkOperationRecord | null,
+  userErrors: DiscountMutationUserError[],
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'bulkCreation':
+      case 'job':
+        payload[key] =
+          operation && userErrors.length === 0 ? serializeDiscountBulkOperation(operation, selection) : null;
+        break;
+      case 'userErrors':
+        payload[key] = serializeDiscountMutationUserErrors(selection, userErrors);
+        break;
+      default:
+        payload[key] = null;
+        break;
+    }
+  }
+  return payload;
+}
+
 function hasDateRangeError(input: Record<string, unknown> | null): boolean {
   const startsAt = typeof input?.['startsAt'] === 'string' ? input['startsAt'] : null;
   const endsAt = typeof input?.['endsAt'] === 'string' ? input['endsAt'] : null;
@@ -513,6 +589,32 @@ function validateDiscountCodeBasicCreate(input: Record<string, unknown> | null):
   userErrors.push(...listInvalidIds(variantIds, 'productVariantsToAdd'));
 
   return userErrors.length > 0 ? userErrors : null;
+}
+
+function validateCodeUniqueness(codes: string[], field: string[]): DiscountMutationUserError[] | null {
+  const normalizedCodes = codes.map((code) => code.trim()).filter((code) => code.length > 0);
+  const duplicateInputCodes = normalizedCodes.filter((code, index) => normalizedCodes.indexOf(code) !== index);
+  const existingCodes = new Set(
+    store
+      .listEffectiveDiscounts()
+      .flatMap((discount) =>
+        discount.method === 'code' ? getDiscountCodes(discount).map((entry) => entry.code.trim()) : [],
+      ),
+  );
+  const duplicateExistingCodes = normalizedCodes.filter((code) => existingCodes.has(code));
+
+  if (duplicateInputCodes.length === 0 && duplicateExistingCodes.length === 0) {
+    return null;
+  }
+
+  return [
+    {
+      field,
+      message: 'Code must be unique. Please try a different code.',
+      code: 'TAKEN',
+      extraInfo: null,
+    },
+  ];
 }
 
 function validateDiscountAutomaticBasicCreate(
@@ -646,6 +748,117 @@ function validateKnownCodeDiscountId(id: unknown): DiscountMutationUserError[] |
       extraInfo: null,
     },
   ];
+}
+
+function findCodeDiscountById(id: unknown): DiscountRecord | null {
+  if (typeof id !== 'string') {
+    return null;
+  }
+
+  return store.listEffectiveDiscounts().find((discount) => discount.id === id && discount.method === 'code') ?? null;
+}
+
+function readRedeemCodeInputs(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => {
+      if (typeof item === 'string') {
+        return item.trim();
+      }
+
+      const record = readRecord(item);
+      return readString(record?.['code'])?.trim() ?? '';
+    })
+    .filter((code) => code.length > 0);
+}
+
+function buildDiscountBulkOperation(
+  operation: DiscountBulkOperationRecord['operation'],
+  discountId: string,
+  values: {
+    id: string;
+    typeName: string;
+    codesCount?: number;
+    importedCount?: number;
+    failedCount?: number;
+    redeemCodeIds?: string[];
+  },
+): DiscountBulkOperationRecord {
+  const now = makeSyntheticTimestamp();
+  return {
+    id: values.id,
+    typeName: values.typeName,
+    operation,
+    discountId,
+    status: 'COMPLETED',
+    done: true,
+    createdAt: now,
+    completedAt: now,
+    ...(values.codesCount === undefined ? {} : { codesCount: values.codesCount }),
+    ...(values.importedCount === undefined ? {} : { importedCount: values.importedCount }),
+    ...(values.failedCount === undefined ? {} : { failedCount: values.failedCount }),
+    ...(values.redeemCodeIds === undefined ? {} : { redeemCodeIds: values.redeemCodeIds }),
+  };
+}
+
+function stageRedeemCodeBulkAdd(discountId: string, codes: string[]): DiscountBulkOperationRecord {
+  const existing = findCodeDiscountById(discountId);
+  if (!existing) {
+    throw new Error(`Cannot add redeem codes to unknown code discount ${discountId}`);
+  }
+
+  const existingRedeemCodes = getDiscountCodes(existing);
+  const bulkCreationId = makeProxySyntheticGid('DiscountRedeemCodeBulkCreation');
+  const addedRedeemCodes = codes.map((code) => ({
+    id: makeProxySyntheticGid('DiscountRedeemCode'),
+    code,
+    asyncUsageCount: 0,
+  }));
+  const nextRedeemCodes = [...existingRedeemCodes, ...addedRedeemCodes];
+  store.stageCreateDiscount({
+    ...structuredClone(existing),
+    codes: nextRedeemCodes.map((redeemCode) => redeemCode.code),
+    redeemCodes: nextRedeemCodes,
+    updatedAt: makeSyntheticTimestamp(),
+  });
+
+  return store.stageDiscountBulkOperation(
+    buildDiscountBulkOperation('discountRedeemCodeBulkAdd', discountId, {
+      id: bulkCreationId,
+      typeName: 'DiscountRedeemCodeBulkCreation',
+      codesCount: codes.length,
+      importedCount: codes.length,
+      failedCount: 0,
+      redeemCodeIds: addedRedeemCodes.map((code) => code.id),
+    }),
+  );
+}
+
+function stageRedeemCodeBulkDelete(discountId: string, redeemCodeIds: string[]): DiscountBulkOperationRecord {
+  const existing = findCodeDiscountById(discountId);
+  if (!existing) {
+    throw new Error(`Cannot delete redeem codes from unknown code discount ${discountId}`);
+  }
+
+  const ids = new Set(redeemCodeIds);
+  const nextRedeemCodes = getDiscountCodes(existing).filter((code) => !ids.has(code.id));
+  store.stageCreateDiscount({
+    ...structuredClone(existing),
+    codes: nextRedeemCodes.map((redeemCode) => redeemCode.code),
+    redeemCodes: nextRedeemCodes,
+    updatedAt: makeSyntheticTimestamp(),
+  });
+
+  return store.stageDiscountBulkOperation(
+    buildDiscountBulkOperation('discountCodeRedeemCodeBulkDelete', discountId, {
+      id: makeProxySyntheticGid('Job'),
+      typeName: 'Job',
+      redeemCodeIds,
+    }),
+  );
 }
 
 function normalizeDiscountCombinesWith(
@@ -886,6 +1099,119 @@ function validateBulkSelectorConflict(
       extraInfo: null,
     },
   ];
+}
+
+function validateBroadBulkSelector(
+  args: Record<string, unknown>,
+  conflictMessage: string,
+): DiscountMutationUserError[] | null {
+  const conflict = validateBulkSelectorConflict(args, conflictMessage);
+  if (conflict) {
+    return conflict;
+  }
+
+  const ids = readStringArray(args['ids']);
+  const search = args['search'];
+  const savedSearchId = args['savedSearchId'];
+  const hasSavedSearch = typeof savedSearchId === 'string' && savedSearchId.trim().length > 0;
+  if (ids.length > 0 || hasSavedSearch) {
+    return null;
+  }
+
+  if (typeof search === 'string') {
+    return search.trim().length === 0
+      ? [
+          {
+            field: ['search'],
+            message: 'Local proxy refuses blank bulk search selectors to avoid broad destructive discount writes.',
+            code: 'INVALID',
+            extraInfo: null,
+          },
+        ]
+      : null;
+  }
+
+  return [
+    {
+      field: null,
+      message:
+        'Local proxy refuses discount bulk mutations without ids, search, or savedSearchId to avoid broad destructive writes.',
+      code: 'INVALID',
+      extraInfo: null,
+    },
+  ];
+}
+
+function validateRedeemCodeBulkAdd(args: Record<string, unknown>): DiscountMutationUserError[] | null {
+  const discountError = validateKnownCodeDiscountId(args['discountId']);
+  if (discountError) {
+    return discountError.map((error) => ({ ...error, field: ['discountId'] }));
+  }
+
+  const codes = readRedeemCodeInputs(args['codes']);
+  if (codes.length === 0) {
+    return [
+      {
+        field: ['codes'],
+        message: "Codes can't be blank",
+        code: 'BLANK',
+        extraInfo: null,
+      },
+    ];
+  }
+
+  return validateCodeUniqueness(codes, ['codes']);
+}
+
+function validateRedeemCodeBulkDelete(args: Record<string, unknown>): DiscountMutationUserError[] | null {
+  const discountError = validateKnownCodeDiscountId(args['discountId']);
+  if (discountError) {
+    return discountError.map((error) => ({ ...error, field: ['discountId'] }));
+  }
+
+  const conflict = validateBulkSelectorConflict(args, "Only one of 'ids', 'search' or 'saved_search_id' is allowed.");
+  if (conflict) {
+    return conflict;
+  }
+
+  if (typeof args['search'] === 'string' || typeof args['savedSearchId'] === 'string') {
+    return [
+      {
+        field: typeof args['search'] === 'string' ? ['search'] : ['savedSearchId'],
+        message:
+          'Local proxy only supports id-scoped redeem-code bulk delete and refuses search selectors to avoid broad destructive writes.',
+        code: 'INVALID',
+        extraInfo: null,
+      },
+    ];
+  }
+
+  const ids = readStringArray(args['ids']);
+  if (ids.length === 0) {
+    return [
+      {
+        field: ['ids'],
+        message: 'Redeem-code bulk delete requires one or more redeem code IDs for local staging.',
+        code: 'BLANK',
+        extraInfo: null,
+      },
+    ];
+  }
+
+  const existingDiscount = findCodeDiscountById(args['discountId']);
+  const existingIds = new Set(existingDiscount ? getDiscountCodes(existingDiscount).map((code) => code.id) : []);
+  if (ids.some((id) => !existingIds.has(id))) {
+    return [
+      {
+        field: ['ids'],
+        message: 'Redeem code does not exist',
+        code: null,
+        extraInfo: null,
+      },
+    ];
+  }
+
+  return null;
 }
 
 function parseDiscountQuery(rawQuery: unknown): SearchQueryTerm[] {
@@ -2555,6 +2881,31 @@ export function handleDiscountMutation(
           userErrors = [];
         }
         break;
+      case 'discountRedeemCodeBulkAdd': {
+        const codes = readRedeemCodeInputs(args['codes']);
+        userErrors = validateRedeemCodeBulkAdd(args);
+        if (typeof args['discountId'] === 'string' && userErrors === null) {
+          const operation = stageRedeemCodeBulkAdd(args['discountId'], codes);
+          handled = true;
+          staged = true;
+          stagedResourceIds.push(operation.id);
+          data[key] = serializeDiscountBulkMutationPayload(field, operation, []);
+        }
+        break;
+      }
+      case 'discountCodeRedeemCodeBulkDelete':
+      case 'discountRedeemCodeBulkDelete': {
+        const ids = readStringArray(args['ids']);
+        userErrors = validateRedeemCodeBulkDelete(args);
+        if (typeof args['discountId'] === 'string' && userErrors === null) {
+          const operation = stageRedeemCodeBulkDelete(args['discountId'], ids);
+          handled = true;
+          staged = true;
+          stagedResourceIds.push(operation.id);
+          data[key] = serializeDiscountBulkMutationPayload(field, operation, []);
+        }
+        break;
+      }
       case 'discountCodeBxgyCreate':
         userErrors = validateDiscountBxgyCreate(readRecord(args['bxgyCodeDiscount']), 'bxgyCodeDiscount');
         break;
@@ -2573,14 +2924,15 @@ export function handleDiscountMutation(
           'freeShippingAutomaticDiscount',
         );
         break;
+      case 'discountCodeBulkActivate':
+      case 'discountCodeBulkDelete':
+        userErrors = validateBroadBulkSelector(args, "Only one of 'ids', 'search' or 'saved_search_id' is allowed.");
+        break;
       case 'discountCodeBulkDeactivate':
-        userErrors = validateBulkSelectorConflict(args, "Only one of 'ids', 'search' or 'saved_search_id' is allowed.");
+        userErrors = validateBroadBulkSelector(args, "Only one of 'ids', 'search' or 'saved_search_id' is allowed.");
         break;
       case 'discountAutomaticBulkDelete':
-        userErrors = validateBulkSelectorConflict(
-          args,
-          'Only one of IDs, search argument or saved search ID is allowed.',
-        );
+        userErrors = validateBroadBulkSelector(args, 'Only one of IDs, search argument or saved search ID is allowed.');
         break;
       default:
         break;
@@ -2600,6 +2952,12 @@ export function handleDiscountMutation(
       rootName === 'discountAutomaticDeactivate'
     ) {
       data[key] = serializeAutomaticDiscountMutationPayload(field, variables, null, userErrors);
+    } else if (
+      rootName === 'discountRedeemCodeBulkAdd' ||
+      rootName === 'discountCodeRedeemCodeBulkDelete' ||
+      rootName === 'discountRedeemCodeBulkDelete'
+    ) {
+      data[key] = serializeDiscountBulkMutationPayload(field, null, userErrors);
     } else {
       data[key] = serializeDiscountMutationPayload(field, nodeField, userErrors, discount, deletedCodeDiscountId);
     }

@@ -2380,3 +2380,20 @@ Captured facts:
 Practical rule:
 
 - keep the local `customerSet` support boundary narrower than `customerUpdate`: support fixture-backed scalar replacement, tag/tax exemption replacement, id/email/phone resolution, synthetic create/upsert, and existing-customer address-list replacement; reject unmodeled fields locally instead of letting a now-supported root proxy upstream
+
+## 64. Discount redeem-code bulk support is narrow by design
+
+HAR-197 added a safe local model for code-basic redeem-code bulk operations without promoting broad discount bulk lifecycle roots.
+
+Useful constraints:
+
+- `discountRedeemCodeBulkAdd` is narrow and locally stageable because an explicit code list can be appended to one known code discount and reflected in `codes`, `codesCount`, `codeDiscountNodeByCode`, and catalog reads.
+- The introspected delete root is `discountCodeRedeemCodeBulkDelete`; the older `discountRedeemCodeBulkDelete` name remains a compatibility match alias, but new tests and docs should use the introspected root.
+- Local redeem-code bulk delete supports explicit redeem-code IDs only. Search and saved-search selectors are intentionally refused locally because they can describe broad destructive writes and need separate conformance evidence before staging.
+- The broad code/automatic bulk roots stay unimplemented. Blank search and no-selector destructive inputs are locally refused; other unsupported selector shapes still use the unsupported passthrough escape hatch so the mutation log records the registered unimplemented operation.
+- Local job-like payloads are completed immediately because the in-memory state change has already happened. Keep this scoped to selected fields with stable evidence (`id`, `done`, `query`, and bulk creation counts) until live captures justify modeling asynchronous progress or failure details.
+
+Practical rule:
+
+- do not mark broad discount bulk roots implemented until local staging covers the full selected lifecycle and downstream read effects without runtime Shopify writes
+- preserve raw bulk mutation bodies in the staged log so `__meta/commit` replays the original add/delete order exactly once
