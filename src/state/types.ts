@@ -284,6 +284,60 @@ export const productMetafieldRecordSchema = z.strictObject({
 });
 export type ProductMetafieldRecord = z.infer<typeof productMetafieldRecordSchema>;
 
+export const metafieldDefinitionCapabilityRecordSchema = z.strictObject({
+  enabled: z.boolean(),
+  eligible: z.boolean(),
+  status: nullableStringSchema.optional(),
+});
+export type MetafieldDefinitionCapabilityRecord = z.infer<typeof metafieldDefinitionCapabilityRecordSchema>;
+
+export const metafieldDefinitionCapabilitiesRecordSchema = z.strictObject({
+  adminFilterable: metafieldDefinitionCapabilityRecordSchema,
+  smartCollectionCondition: metafieldDefinitionCapabilityRecordSchema,
+  uniqueValues: metafieldDefinitionCapabilityRecordSchema,
+});
+export type MetafieldDefinitionCapabilitiesRecord = z.infer<typeof metafieldDefinitionCapabilitiesRecordSchema>;
+
+export const metafieldDefinitionConstraintValueRecordSchema = z.strictObject({
+  value: z.string(),
+});
+export type MetafieldDefinitionConstraintValueRecord = z.infer<typeof metafieldDefinitionConstraintValueRecordSchema>;
+
+export const metafieldDefinitionConstraintsRecordSchema = z.strictObject({
+  key: nullableStringSchema,
+  values: z.array(metafieldDefinitionConstraintValueRecordSchema),
+});
+export type MetafieldDefinitionConstraintsRecord = z.infer<typeof metafieldDefinitionConstraintsRecordSchema>;
+
+export const metafieldDefinitionTypeRecordSchema = z.strictObject({
+  name: z.string(),
+  category: nullableStringSchema.optional(),
+});
+export type MetafieldDefinitionTypeRecord = z.infer<typeof metafieldDefinitionTypeRecordSchema>;
+
+export const metafieldDefinitionValidationRecordSchema = z.strictObject({
+  name: z.string(),
+  value: nullableStringSchema,
+});
+export type MetafieldDefinitionValidationRecord = z.infer<typeof metafieldDefinitionValidationRecordSchema>;
+
+export const metafieldDefinitionRecordSchema = z.strictObject({
+  id: z.string(),
+  name: z.string(),
+  namespace: z.string(),
+  key: z.string(),
+  ownerType: z.string(),
+  type: metafieldDefinitionTypeRecordSchema,
+  description: nullableStringSchema,
+  validations: z.array(metafieldDefinitionValidationRecordSchema),
+  access: z.record(z.string(), jsonValueSchema),
+  capabilities: metafieldDefinitionCapabilitiesRecordSchema,
+  constraints: metafieldDefinitionConstraintsRecordSchema.nullable(),
+  pinnedPosition: nullableNumberSchema,
+  validationStatus: z.string(),
+});
+export type MetafieldDefinitionRecord = z.infer<typeof metafieldDefinitionRecordSchema>;
+
 export const customerMetafieldRecordSchema = z.strictObject({
   id: z.string(),
   customerId: z.string(),
@@ -1025,6 +1079,7 @@ export const stateSnapshotSchema = z.strictObject({
   productMedia: z.record(z.string(), productMediaRecordSchema),
   files: z.record(z.string(), fileRecordSchema).default({}),
   productMetafields: z.record(z.string(), productMetafieldRecordSchema),
+  metafieldDefinitions: z.record(z.string(), metafieldDefinitionRecordSchema).default({}),
   customerMetafields: z.record(z.string(), customerMetafieldRecordSchema).default({}),
   deletedProductIds: z.record(z.string(), z.literal(true)),
   deletedFileIds: z.record(z.string(), z.literal(true)).default({}),

@@ -11,6 +11,7 @@ import type {
   FileRecord,
   LocationRecord,
   MarketRecord,
+  MetafieldDefinitionRecord,
   MutationLogEntry,
   NormalizedStateSnapshotFile,
   OrderRecord,
@@ -59,6 +60,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   productMedia: {},
   files: {},
   productMetafields: {},
+  metafieldDefinitions: {},
   customerMetafields: {},
   deletedProductIds: {},
   deletedFileIds: {},
@@ -993,6 +995,18 @@ export class InMemoryStore {
     }
   }
 
+  upsertBaseMetafieldDefinitions(definitions: MetafieldDefinitionRecord[]): void {
+    for (const definition of definitions) {
+      this.baseState.metafieldDefinitions[definition.id] = structuredClone(definition);
+    }
+  }
+
+  upsertStagedMetafieldDefinitions(definitions: MetafieldDefinitionRecord[]): void {
+    for (const definition of definitions) {
+      this.stagedState.metafieldDefinitions[definition.id] = structuredClone(definition);
+    }
+  }
+
   replaceStagedMetafieldsForProduct(productId: string, metafields: ProductMetafieldRecord[]): void {
     for (const metafield of Object.values(this.stagedState.productMetafields)) {
       if (metafield.productId === productId) {
@@ -1466,6 +1480,47 @@ export class InMemoryStore {
     );
   }
 
+  listEffectiveMetafieldDefinitions(): MetafieldDefinitionRecord[] {
+    const definitionsById = new Map<string, MetafieldDefinitionRecord>();
+
+    for (const definition of Object.values(this.baseState.metafieldDefinitions)) {
+      definitionsById.set(definition.id, structuredClone(definition));
+    }
+
+    for (const definition of Object.values(this.stagedState.metafieldDefinitions)) {
+      definitionsById.set(definition.id, structuredClone(definition));
+    }
+
+    return [...definitionsById.values()].sort(
+      (left, right) =>
+        left.ownerType.localeCompare(right.ownerType) ||
+        left.namespace.localeCompare(right.namespace) ||
+        left.key.localeCompare(right.key) ||
+        compareShopifyResourceIds(left.id, right.id),
+    );
+  }
+
+  getEffectiveMetafieldDefinitionById(definitionId: string): MetafieldDefinitionRecord | null {
+    const definition =
+      this.stagedState.metafieldDefinitions[definitionId] ?? this.baseState.metafieldDefinitions[definitionId];
+    return definition ? structuredClone(definition) : null;
+  }
+
+  findEffectiveMetafieldDefinition(identifier: {
+    ownerType: string;
+    namespace: string;
+    key: string;
+  }): MetafieldDefinitionRecord | null {
+    const definition =
+      this.listEffectiveMetafieldDefinitions().find(
+        (candidate) =>
+          candidate.ownerType === identifier.ownerType &&
+          candidate.namespace === identifier.namespace &&
+          candidate.key === identifier.key,
+      ) ?? null;
+    return definition ? structuredClone(definition) : null;
+  }
+
   getEffectiveMetafieldsByCustomerId(customerId: string): CustomerMetafieldRecord[] {
     if (this.stagedState.deletedCustomerIds[customerId]) {
       return [];
@@ -1501,6 +1556,7 @@ export class InMemoryStore {
       Object.keys(this.stagedState.productMedia).length > 0 ||
       this.stagedMediaFamilies.size > 0 ||
       Object.keys(this.stagedState.productMetafields).length > 0 ||
+      Object.keys(this.stagedState.metafieldDefinitions).length > 0 ||
       Object.keys(this.stagedState.deletedProductIds).length > 0 ||
       Object.keys(this.stagedState.deletedCollectionIds).length > 0
     );

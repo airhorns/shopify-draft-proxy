@@ -32,6 +32,7 @@ const emptySnapshot = {
   productMedia: {},
   files: {},
   productMetafields: {},
+  metafieldDefinitions: {},
   deletedProductIds: {},
   deletedFileIds: {},
   deletedCollectionIds: {},
