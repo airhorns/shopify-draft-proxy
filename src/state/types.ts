@@ -1092,6 +1092,8 @@ export const orderFulfillmentOrderLineItemRecordSchema = z.strictObject({
   id: z.string(),
   lineItemId: nullableStringSchema,
   title: nullableStringSchema,
+  lineItemQuantity: z.number().nullable().optional(),
+  lineItemFulfillableQuantity: z.number().nullable().optional(),
   totalQuantity: z.number(),
   remainingQuantity: z.number(),
 });

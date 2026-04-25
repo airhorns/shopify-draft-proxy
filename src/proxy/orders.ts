@@ -3482,6 +3482,10 @@ function serializeOrderFulfillmentOrderLineItem(
                     return [lineItemKey, lineItem.lineItemId];
                   case 'title':
                     return [lineItemKey, lineItem.title];
+                  case 'quantity':
+                    return [lineItemKey, lineItem.lineItemQuantity ?? lineItem.totalQuantity];
+                  case 'fulfillableQuantity':
+                    return [lineItemKey, lineItem.lineItemFulfillableQuantity ?? lineItem.remainingQuantity];
                   default:
                     return [lineItemKey, null];
                 }
@@ -5300,6 +5304,8 @@ function serializeFulfillmentOrderMutationPayload(
                     return [holdKey, hold.reasonNotes ?? null];
                   case 'displayReason':
                     return [holdKey, hold.displayReason ?? null];
+                  case 'heldByApp':
+                    return [holdKey, null];
                   case 'heldByRequestingApp':
                     return [holdKey, hold.heldByRequestingApp ?? null];
                   default:
@@ -5350,6 +5356,7 @@ function splitFulfillmentOrderLineItems(
         ...lineItem,
         totalQuantity: selectedQuantity,
         remainingQuantity: selectedQuantity,
+        lineItemFulfillableQuantity: selectedQuantity,
       });
     }
 
@@ -5360,6 +5367,7 @@ function splitFulfillmentOrderLineItems(
         id: makeSyntheticGid('FulfillmentOrderLineItem'),
         totalQuantity: remainingQuantity,
         remainingQuantity,
+        lineItemFulfillableQuantity: remainingQuantity,
       });
     }
   }
@@ -5476,13 +5484,19 @@ function applyFulfillmentOrderReleaseHold(
       siblingLineItems.map((lineItem) => {
         const releasedLineItem = lineItem.lineItemId ? releasedLineItemsByLineItemId.get(lineItem.lineItemId) : null;
         if (releasedLineItem) {
+          const currentFulfillableQuantity =
+            releasedLineItem.lineItemFulfillableQuantity ?? releasedLineItem.remainingQuantity;
           releasedLineItem.totalQuantity += lineItem.totalQuantity;
           releasedLineItem.remainingQuantity += lineItem.remainingQuantity;
+          releasedLineItem.lineItemFulfillableQuantity =
+            currentFulfillableQuantity + (lineItem.lineItemFulfillableQuantity ?? lineItem.remainingQuantity);
         }
         return {
           ...lineItem,
           totalQuantity: 0,
           remainingQuantity: 0,
+          lineItemFulfillableQuantity:
+            releasedLineItem?.lineItemFulfillableQuantity ?? lineItem.lineItemFulfillableQuantity,
         };
       }),
     );
@@ -5527,10 +5541,26 @@ function applyFulfillmentOrderMove(
   originalFulfillmentOrder: OrderFulfillmentOrderRecord;
   remainingFulfillmentOrder: OrderFulfillmentOrderRecord | null;
 } {
-  const { selectedLineItems, remainingLineItems } = splitFulfillmentOrderLineItems(
+  const splitLineItems = splitFulfillmentOrderLineItems(
     fulfillmentOrder,
     readFulfillmentOrderLineItemInputs(variables),
   );
+  const restoreLineItemFulfillableQuantities = (
+    lineItems: OrderFulfillmentOrderLineItemRecord[],
+  ): OrderFulfillmentOrderLineItemRecord[] =>
+    lineItems.map((lineItem) => {
+      const originalLineItem =
+        (fulfillmentOrder.lineItems ?? []).find((candidate) => candidate.lineItemId === lineItem.lineItemId) ?? null;
+      return {
+        ...lineItem,
+        lineItemFulfillableQuantity:
+          originalLineItem?.lineItemFulfillableQuantity ??
+          originalLineItem?.lineItemQuantity ??
+          lineItem.lineItemFulfillableQuantity,
+      };
+    });
+  const selectedLineItems = restoreLineItemFulfillableQuantities(splitLineItems.selectedLineItems);
+  const remainingLineItems = restoreLineItemFulfillableQuantities(splitLineItems.remainingLineItems);
   const newLocationId = typeof variables['newLocationId'] === 'string' ? variables['newLocationId'] : null;
   const movedFulfillmentOrder = buildReplacementFulfillmentOrder(fulfillmentOrder, selectedLineItems, {
     assignedLocation: {
@@ -5573,6 +5603,16 @@ function applyFulfillmentOrderStatus(
   const updatedOrder = updateOrderFulfillmentOrders(order, (fulfillmentOrders) =>
     fulfillmentOrders.map((candidate) => (candidate.id === fulfillmentOrder.id ? updatedFulfillmentOrder : candidate)),
   );
+  if (status === 'IN_PROGRESS' || status === 'OPEN') {
+    const displayFulfillmentStatus = status === 'IN_PROGRESS' ? 'IN_PROGRESS' : 'UNFULFILLED';
+    return {
+      order: store.updateOrder({
+        ...updatedOrder,
+        displayFulfillmentStatus,
+      }),
+      fulfillmentOrder: updatedFulfillmentOrder,
+    };
+  }
   return { order: updatedOrder, fulfillmentOrder: updatedFulfillmentOrder };
 }
 

@@ -187,26 +187,16 @@ function isKnownMatcher(matcher: string): matcher is Matcher {
   );
 }
 
-export function validateComparisonContract(comparison: unknown): string[] {
+function validateExpectedDifferences(rawRules: unknown, labelPrefix: string): string[] {
   const errors: string[] = [];
-  const candidate = isPlainObject(comparison) ? comparison : {};
-
-  if (candidate['mode'] !== 'strict-json') {
-    errors.push('Comparison contract mode must be `strict-json`.');
-  }
-
-  if ('allowedDifferences' in candidate) {
-    errors.push('Comparison contract must use `expectedDifferences`; `allowedDifferences` is no longer supported.');
-  }
-
-  if (!Array.isArray(candidate['expectedDifferences'])) {
-    errors.push('Comparison contract must declare an `expectedDifferences` array.');
+  if (!Array.isArray(rawRules)) {
+    errors.push(`${labelPrefix} must declare an expectedDifferences array.`);
     return errors;
   }
 
-  for (const [index, rawRule] of candidate['expectedDifferences'].entries()) {
+  for (const [index, rawRule] of rawRules.entries()) {
     const rule = isPlainObject(rawRule) ? rawRule : {};
-    const label = `expectedDifferences[${index}]`;
+    const label = `${labelPrefix}[${index}]`;
     if (typeof rule['path'] !== 'string' || rule['path'].length === 0) {
       errors.push(`${label} must declare a non-empty JSON path.`);
     }
@@ -233,6 +223,28 @@ export function validateComparisonContract(comparison: unknown): string[] {
       errors.push(`${label} with \`ignore: true\` must set \`regrettable: true\` for the parity gap.`);
     }
   }
+
+  return errors;
+}
+
+export function validateComparisonContract(comparison: unknown): string[] {
+  const errors: string[] = [];
+  const candidate = isPlainObject(comparison) ? comparison : {};
+
+  if (candidate['mode'] !== 'strict-json') {
+    errors.push('Comparison contract mode must be `strict-json`.');
+  }
+
+  if ('allowedDifferences' in candidate) {
+    errors.push('Comparison contract must use `expectedDifferences`; `allowedDifferences` is no longer supported.');
+  }
+
+  if (!Array.isArray(candidate['expectedDifferences'])) {
+    errors.push('Comparison contract must declare an `expectedDifferences` array.');
+    return errors;
+  }
+
+  errors.push(...validateExpectedDifferences(candidate['expectedDifferences'], 'expectedDifferences'));
 
   const rawTargets = candidate['targets'];
   if (rawTargets !== undefined) {
@@ -261,6 +273,9 @@ export function validateComparisonContract(comparison: unknown): string[] {
               }
             }
           }
+        }
+        if ('expectedDifferences' in target) {
+          errors.push(...validateExpectedDifferences(target['expectedDifferences'], `${label}.expectedDifferences`));
         }
       }
     }
@@ -3098,6 +3113,8 @@ function readCapturedFulfillmentOrderLineItems(
           `gid://shopify/FulfillmentOrderLineItem/conformance-${index}`,
         lineItemId: readStringField(lineItem, 'id'),
         title: readStringField(lineItem, 'title'),
+        lineItemQuantity: readNumberField(lineItem, 'quantity'),
+        lineItemFulfillableQuantity: readNumberField(lineItem, 'fulfillableQuantity'),
         totalQuantity: readNumberField(fulfillmentOrderLineItem, 'totalQuantity') ?? 0,
         remainingQuantity: readNumberField(fulfillmentOrderLineItem, 'remainingQuantity') ?? 0,
       };
@@ -5507,10 +5524,14 @@ export async function executeParityScenario({
     }
 
     const actual = readJsonPath(proxyResponseBody, target.proxyPath);
+    const expectedDifferences = [
+      ...(paritySpec.comparison.expectedDifferences ?? []),
+      ...(target.expectedDifferences ?? []),
+    ];
     const comparison = compareJsonPayloads(
       selectComparisonPaths(expected, target.selectedPaths),
       selectComparisonPaths(actual, target.selectedPaths),
-      paritySpec.comparison,
+      { expectedDifferences },
     );
     comparisons.push({
       name: target.name,

@@ -10,6 +10,7 @@ mutation FulfillmentOrderMoveLifecycle(
       requestStatus
       fulfillAt
       fulfillBy
+      updatedAt
       supportedActions {
         action
       }
@@ -26,6 +27,10 @@ mutation FulfillmentOrderMoveLifecycle(
         reason
         reasonNotes
         displayReason
+        heldByApp {
+          id
+          title
+        }
         heldByRequestingApp
       }
       lineItems(first: 5) {
@@ -36,6 +41,8 @@ mutation FulfillmentOrderMoveLifecycle(
           lineItem {
             id
             title
+            quantity
+            fulfillableQuantity
           }
         }
       }
@@ -46,6 +53,7 @@ mutation FulfillmentOrderMoveLifecycle(
       requestStatus
       fulfillAt
       fulfillBy
+      updatedAt
       supportedActions {
         action
       }
@@ -62,6 +70,10 @@ mutation FulfillmentOrderMoveLifecycle(
         reason
         reasonNotes
         displayReason
+        heldByApp {
+          id
+          title
+        }
         heldByRequestingApp
       }
       lineItems(first: 5) {
@@ -72,6 +84,8 @@ mutation FulfillmentOrderMoveLifecycle(
           lineItem {
             id
             title
+            quantity
+            fulfillableQuantity
           }
         }
       }
@@ -82,6 +96,7 @@ mutation FulfillmentOrderMoveLifecycle(
       requestStatus
       fulfillAt
       fulfillBy
+      updatedAt
       supportedActions {
         action
       }
@@ -98,6 +113,10 @@ mutation FulfillmentOrderMoveLifecycle(
         reason
         reasonNotes
         displayReason
+        heldByApp {
+          id
+          title
+        }
         heldByRequestingApp
       }
       lineItems(first: 5) {
@@ -108,6 +127,8 @@ mutation FulfillmentOrderMoveLifecycle(
           lineItem {
             id
             title
+            quantity
+            fulfillableQuantity
           }
         }
       }

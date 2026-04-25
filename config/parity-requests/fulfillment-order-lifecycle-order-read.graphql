@@ -10,6 +10,7 @@ query FulfillmentOrderLifecycleOrderRead($id: ID!) {
         requestStatus
         fulfillAt
         fulfillBy
+        updatedAt
         supportedActions {
           action
         }
@@ -26,6 +27,10 @@ query FulfillmentOrderLifecycleOrderRead($id: ID!) {
           reason
           reasonNotes
           displayReason
+          heldByApp {
+            id
+            title
+          }
           heldByRequestingApp
         }
         lineItems(first: 5) {
@@ -36,6 +41,8 @@ query FulfillmentOrderLifecycleOrderRead($id: ID!) {
             lineItem {
               id
               title
+              quantity
+              fulfillableQuantity
             }
           }
         }

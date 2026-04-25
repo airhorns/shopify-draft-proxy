@@ -6,6 +6,7 @@ mutation FulfillmentOrderRescheduleLifecycle($id: ID!, $fulfillAt: DateTime!) {
       requestStatus
       fulfillAt
       fulfillBy
+      updatedAt
       supportedActions {
         action
       }
@@ -22,6 +23,10 @@ mutation FulfillmentOrderRescheduleLifecycle($id: ID!, $fulfillAt: DateTime!) {
         reason
         reasonNotes
         displayReason
+        heldByApp {
+          id
+          title
+        }
         heldByRequestingApp
       }
       lineItems(first: 5) {
@@ -32,6 +37,8 @@ mutation FulfillmentOrderRescheduleLifecycle($id: ID!, $fulfillAt: DateTime!) {
           lineItem {
             id
             title
+            quantity
+            fulfillableQuantity
           }
         }
       }
