@@ -16,10 +16,10 @@ const storePropertiesQueryRoots = [
   'shop',
   'location',
   'locationByIdentifier',
-  'businessEntities',
-  'businessEntity',
   'cashManagementLocationSummary',
 ] as const;
+
+const implementedStorePropertiesQueryRoots = ['businessEntities', 'businessEntity'] as const;
 
 const storePropertiesMutationRoots = [
   'locationAdd',
@@ -50,7 +50,11 @@ const genericPublishableMutationRoots = [
   'publishableUnpublishToCurrentChannel',
 ] as const;
 
-const storePropertiesRoots = [...storePropertiesQueryRoots, ...storePropertiesMutationRoots] as const;
+const storePropertiesRoots = [
+  ...storePropertiesQueryRoots,
+  ...implementedStorePropertiesQueryRoots,
+  ...storePropertiesMutationRoots,
+] as const;
 
 function readText(relativePath: string): string {
   return readFileSync(resolve(repoRoot, relativePath), 'utf8');
@@ -71,6 +75,20 @@ describe('Store properties registry scaffold', () => {
       expect(entry?.domain, `${root} should be grouped under Store properties`).toBe('store-properties');
     }
 
+    for (const root of [...storePropertiesQueryRoots, ...storePropertiesLocalStagingMutationRoots]) {
+      const entry = entriesByName.get(root);
+      expect(entry?.implemented, `${root} should remain scaffold-only`).toBe(false);
+      expect(entry?.runtimeTests, `${root} should not claim runtime coverage`).toEqual([]);
+    }
+
+    for (const root of implementedStorePropertiesQueryRoots) {
+      const entry = entriesByName.get(root);
+      expect(entry?.implemented, `${root} should now have runtime support`).toBe(true);
+      expect(entry?.runtimeTests, `${root} should declare its targeted integration coverage`).toEqual([
+        'tests/integration/business-entity-query-shapes.test.ts',
+      ]);
+    }
+
     for (const root of storePropertiesQueryRoots) {
       expect(entriesByName.get(root)?.execution, `${root} should be a planned overlay read`).toBe('overlay-read');
       expect(entriesByName.get(root)?.implemented, `${root} should remain scaffold-only`).toBe(false);
@@ -83,6 +101,10 @@ describe('Store properties registry scaffold', () => {
       );
       expect(entriesByName.get(root)?.implemented, `${root} should remain scaffold-only`).toBe(false);
       expect(entriesByName.get(root)?.runtimeTests, `${root} should not claim runtime coverage`).toEqual([]);
+    }
+
+    for (const root of implementedStorePropertiesQueryRoots) {
+      expect(entriesByName.get(root)?.execution, `${root} should be a supported overlay read`).toBe('overlay-read');
     }
 
     for (const root of genericPublishableMutationRoots) {
@@ -142,6 +164,24 @@ describe('Store properties registry scaffold', () => {
     }
   });
 
+  it('routes implemented business entity reads through the Store properties overlay', () => {
+    expect(
+      getOperationCapability({ type: 'query', name: 'BusinessEntities', rootFields: ['businessEntities'] }),
+    ).toEqual({
+      domain: 'store-properties',
+      execution: 'overlay-read',
+      operationName: 'BusinessEntities',
+      type: 'query',
+    });
+
+    expect(getOperationCapability({ type: 'query', name: 'BusinessEntity', rootFields: ['businessEntity'] })).toEqual({
+      domain: 'store-properties',
+      execution: 'overlay-read',
+      operationName: 'BusinessEntity',
+      type: 'query',
+    });
+  });
+
   it('does not create planned-only parity scenarios for scaffold-only Store properties roots', () => {
     const scenarios = loadConformanceScenarios(repoRoot);
     const scenarioOperations = new Set(scenarios.flatMap((scenario) => scenario.operationNames));
@@ -152,6 +192,16 @@ describe('Store properties registry scaffold', () => {
         false,
       );
       expect(statusDocument.implementedOperations.some((entry) => entry.name === root)).toBe(false);
+    }
+
+    for (const root of implementedStorePropertiesQueryRoots) {
+      expect(scenarioOperations.has(root), `${root} should now have captured business entity evidence`).toBe(true);
+      expect(statusDocument.implementedOperations.some((entry) => entry.name === root)).toBe(true);
+    }
+
+    for (const root of genericPublishableMutationRoots) {
+      expect(scenarioOperations.has(root), `${root} should now have product-scoped publication evidence`).toBe(true);
+      expect(statusDocument.implementedOperations.some((entry) => entry.name === root)).toBe(true);
     }
   });
 

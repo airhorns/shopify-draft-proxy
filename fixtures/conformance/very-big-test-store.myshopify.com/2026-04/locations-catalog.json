@@ -1,0 +1,39 @@
+{
+  "data": {
+    "locations": {
+      "edges": [
+        {
+          "cursor": "eyJsYXN0X2lkIjo2ODUwOTE3MTk0NSwibGFzdF92YWx1ZSI6IjEwMyBvc3Npbmd0b24ifQ==",
+          "node": {
+            "id": "gid://shopify/Location/68509171945",
+            "name": "103 ossington"
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo4OTAyNjkyMDY4MSwibGFzdF92YWx1ZSI6Ikhlcm1lcyBDb25mb3JtYW5jZSBBbm5leCJ9",
+          "node": {
+            "id": "gid://shopify/Location/89026920681",
+            "name": "Hermes Conformance Annex"
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": "eyJsYXN0X2lkIjo2ODUwOTE3MTk0NSwibGFzdF92YWx1ZSI6IjEwMyBvc3Npbmd0b24ifQ==",
+        "endCursor": "eyJsYXN0X2lkIjo4OTAyNjkyMDY4MSwibGFzdF92YWx1ZSI6Ikhlcm1lcyBDb25mb3JtYW5jZSBBbm5leCJ9"
+      }
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 6,
+      "actualQueryCost": 4,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1952,
+        "restoreRate": 100
+      }
+    }
+  }
+}

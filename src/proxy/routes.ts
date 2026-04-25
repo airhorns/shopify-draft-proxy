@@ -12,6 +12,7 @@ import { handleMediaMutation } from './media.js';
 import { handleCustomerMutation, handleCustomerQuery, hydrateCustomersFromUpstreamResponse } from './customers.js';
 import { handleOrderMutation, handleOrderQuery, shouldServeDraftOrderCatalogLocally } from './orders.js';
 import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamResponse } from './products.js';
+import { handleStorePropertiesQuery } from './store-properties.js';
 
 interface GraphQLBody {
   query?: unknown;
@@ -298,6 +299,14 @@ export function createProxyRouter(config: AppConfig): Router {
 
         ctx.status = response.status;
         ctx.body = await response.json();
+        return;
+      }
+    }
+
+    if (capability.execution === 'overlay-read' && capability.domain === 'store-properties') {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleStorePropertiesQuery(body.query, variables);
         return;
       }
     }

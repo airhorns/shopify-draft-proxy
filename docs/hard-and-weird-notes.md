@@ -172,23 +172,27 @@ Current live findings on this host:
 - a later healthy-probe pass confirmed the current repo credential can now recapture that same happy-path slice directly on this host
   - practical consequence: `draftOrderCreate` is no longer the remaining live creation blocker on the current repo credential
   - the next remaining creation blocker is `draftOrderComplete`, not draft creation itself
-- `draftOrderComplete` exists in the current schema and is the next draft-to-order bridge worth tracking once draft creation is scaffolded
+- `draftOrderComplete` exists in the current schema and is now captured for the draft-to-order bridge when the conformance credential can mark the draft as paid
 - but live `draftOrderComplete` has four easy-to-confuse branches on this host:
   - omitting the inline required `id` argument fails first with top-level GraphQL `missingRequiredArguments` (`Field 'draftOrderComplete' is missing required arguments: id`) before Shopify reaches the root's write-access gate
   - sending inline `id: null` fails first with top-level GraphQL `argumentLiteralsIncompatible` (`Argument 'id' on Field 'draftOrderComplete' has an invalid value (null). Expected type 'ID!'.`) before Shopify reaches the root's write-access gate
   - omitting the missing required `$id` variable fails earlier with top-level GraphQL `INVALID_VARIABLE` (`Variable $id of type ID! was provided invalid value`, `Expected value to not be null`) before Shopify reaches the root's write-access gate
-  - once the required `id` is present, the root still fails immediately with GraphQL `ACCESS_DENIED`
+  - older captures with a required `id` failed immediately with GraphQL `ACCESS_DENIED`
     - required access included `write_draft_orders`
     - Shopify also required the acting install/user to be able to mark draft orders as paid, or set payment terms
+  - with the refreshed conformance grant, completing a newly-created draft succeeds and returns the created order through `draftOrder { order { ... } }`
+    - Shopify reports the completed order `paymentGatewayNames` as `["manual"]` for the default paid completion path
+    - Shopify normalizes the completed order `sourceName` to the app/channel identifier rather than echoing the requested `sourceName` string
+    - empty variant SKUs on draft order lines come back as `null` on the completed order line item
 - additional schema trap for that same root on this host: `DraftOrderCompletePayload` does **not** expose a top-level `order` field
   - probing `draftOrderComplete { order { ... } }` fails schema validation with `Field 'order' doesn't exist on type 'DraftOrderCompletePayload'`
   - current 2026-04 docs instead expose the created order through `draftOrder { order { ... } }`; keep the parity scaffold on that nested link and do not reintroduce the stale top-level payload `order` selection
-- nearby runtime routing rule: once that missing-`$id` `INVALID_VARIABLE` branch is captured, do not keep proxying it upstream in `live-hybrid`; the proxy now short-circuits that obviously invalid `draftOrderComplete` request locally in both snapshot and live-hybrid mode while still leaving live Shopify happy-path completion blocked on access
+- nearby runtime routing rule: once that missing-`$id` `INVALID_VARIABLE` branch is captured, do not keep proxying it upstream in `live-hybrid`; the proxy now short-circuits that obviously invalid `draftOrderComplete` request locally in both snapshot and live-hybrid mode while still requiring an existing local draft for happy-path completion
 - a narrow local-only follow-up slice is now safe without overclaiming the real Shopify completion bridge: for a synthetic/local staged draft, `draftOrderComplete` can flip the local draft payload to `status: COMPLETED` and `ready: true` while preserving the current `invoiceUrl`, create a local synthetic `Order`, link it through `DraftOrder.order`, and replay the completed draft plus `order(id:)` / `orders` / `ordersCount` locally
 - local payment behavior for that synthetic-only slice remains deliberately narrow:
   - default completion stages the regular order as `displayFinancialStatus: PAID`
   - deprecated `paymentPending: true` stages it as `displayFinancialStatus: PENDING`
-  - `sourceName` is copied to the staged order for downstream attribution reads
+  - non-null `sourceName` is normalized to the captured installed app/channel identifier (`347082227713`) on the staged order instead of echoing the requested input string
   - non-null `paymentGatewayId` returns the captured `Invalid payment gateway` userError because the proxy has no local payment-gateway catalog yet
 - practical consequence: the repo still should not jump straight from "order roots exist in introspection" to speculative full draft-to-order staging code; keep the local completion slice limited to staged synthetic drafts until live Shopify happy-path evidence exists
 
@@ -1808,3 +1812,19 @@ Current HAR-177 decision:
 - treat product and collection targets separately because the Shopify `Publishable` interface currently covers both resource families, and collection publication behavior should not inherit product assumptions without evidence
 
 This keeps generic product publication mutations isolated from upstream Shopify while preventing duplicate or contradictory publication behavior from pretending that product evidence also settles collection publication semantics.
+
+## 48. Business entity Store properties reads expose payments-adjacent data
+
+The first `businessEntities` / `businessEntity` capture for Admin GraphQL 2026-04 showed a single primary entity on the conformance store. `businessEntity` without an `id` returned that primary entity, and an unknown `gid://shopify/BusinessEntity/...` returned `null`.
+
+Captured shape for the first local slice:
+
+- core entity fields: `id`, `displayName`, `companyName`, `primary`, `archived`
+- address fields: `address1`, `address2`, `city`, `countryCode`, `province`, `zip`
+- `shopifyPaymentsAccount` selected with safe scalar fields, but the live token received `ACCESS_DENIED` without `read_shopify_payments` / `read_shopify_payments_accounts`, so the captured value is `null`
+
+Practical rule:
+
+- local business entity snapshots can fixture safe account scalars only when they were explicitly captured
+- do not synthesize balances, payouts, bank accounts, statement descriptors, disputes, or account opener details from Store properties reads
+- order and market attribution should treat `BusinessEntity` as an identity link for now; do not model Markets assignment or order attribution rules until there is separate captured evidence for those domains
