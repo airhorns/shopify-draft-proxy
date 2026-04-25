@@ -13,11 +13,7 @@
         "documentation": "https://shopify.dev/api/usage/access-scopes",
         "requiredAccess": "the `read_shopify_payments` or the `read_shopify_payments_accounts` access scope."
       },
-      "path": [
-        "businessEntities",
-        0,
-        "shopifyPaymentsAccount"
-      ]
+      "path": ["businessEntities", 0, "shopifyPaymentsAccount"]
     }
   ],
   "data": {
