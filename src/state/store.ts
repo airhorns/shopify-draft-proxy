@@ -20,6 +20,7 @@ import type {
   MarketLocalizationRecord,
   MarketRecord,
   MarketingRecord,
+  MetaobjectDefinitionRecord,
   MetafieldDefinitionRecord,
   MutationLogEntry,
   NormalizedStateSnapshotFile,
@@ -97,6 +98,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   files: {},
   productMetafields: {},
   metafieldDefinitions: {},
+  metaobjectDefinitions: {},
   customerMetafields: {},
   deletedProductIds: {},
   deletedFileIds: {},
@@ -1948,6 +1950,18 @@ export class InMemoryStore {
     }
   }
 
+  upsertBaseMetaobjectDefinitions(definitions: MetaobjectDefinitionRecord[]): void {
+    for (const definition of definitions) {
+      this.baseState.metaobjectDefinitions[definition.id] = structuredClone(definition);
+    }
+  }
+
+  upsertStagedMetaobjectDefinitions(definitions: MetaobjectDefinitionRecord[]): void {
+    for (const definition of definitions) {
+      this.stagedState.metaobjectDefinitions[definition.id] = structuredClone(definition);
+    }
+  }
+
   replaceBaseMetafieldsForProduct(productId: string, metafields: ProductMetafieldRecord[]): void {
     this.replaceBaseMetafieldsForOwner(productId, metafields);
   }
@@ -2565,6 +2579,44 @@ export class InMemoryStore {
           candidate.key === identifier.key,
       ) ?? null;
     return definition ? structuredClone(definition) : null;
+  }
+
+  listEffectiveMetaobjectDefinitions(): MetaobjectDefinitionRecord[] {
+    const definitionsById = new Map<string, MetaobjectDefinitionRecord>();
+
+    for (const definition of Object.values(this.baseState.metaobjectDefinitions)) {
+      definitionsById.set(definition.id, structuredClone(definition));
+    }
+
+    for (const definition of Object.values(this.stagedState.metaobjectDefinitions)) {
+      definitionsById.set(definition.id, structuredClone(definition));
+    }
+
+    return [...definitionsById.values()].sort(
+      (left, right) => left.type.localeCompare(right.type) || compareShopifyResourceIds(left.id, right.id),
+    );
+  }
+
+  getEffectiveMetaobjectDefinitionById(definitionId: string): MetaobjectDefinitionRecord | null {
+    const definition =
+      this.stagedState.metaobjectDefinitions[definitionId] ?? this.baseState.metaobjectDefinitions[definitionId];
+    return definition ? structuredClone(definition) : null;
+  }
+
+  findEffectiveMetaobjectDefinitionByType(type: string): MetaobjectDefinitionRecord | null {
+    const definition = this.listEffectiveMetaobjectDefinitions().find((candidate) => candidate.type === type) ?? null;
+    return definition ? structuredClone(definition) : null;
+  }
+
+  hasEffectiveMetaobjectDefinitions(): boolean {
+    return (
+      Object.keys(this.baseState.metaobjectDefinitions).length > 0 ||
+      Object.keys(this.stagedState.metaobjectDefinitions).length > 0
+    );
+  }
+
+  hasStagedMetaobjectDefinitions(): boolean {
+    return Object.keys(this.stagedState.metaobjectDefinitions).length > 0;
   }
 
   getEffectiveMetafieldsByProductId(productId: string): ProductMetafieldRecord[] {

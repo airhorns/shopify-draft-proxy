@@ -666,6 +666,23 @@ describe('getOperationCapability', () => {
     });
   });
 
+  it('routes implemented metaobject definition read roots through the local overlay', () => {
+    for (const rootField of ['metaobjectDefinition', 'metaobjectDefinitionByType', 'metaobjectDefinitions']) {
+      expect(
+        getOperationCapability({
+          type: 'query',
+          name: rootField,
+          rootFields: [rootField],
+        }),
+      ).toEqual({
+        domain: 'metaobjects',
+        execution: 'overlay-read',
+        operationName: rootField,
+        type: 'query',
+      });
+    }
+  });
+
   it('routes implemented payment customization read roots through the local overlay', () => {
     expect(
       getOperationCapability({

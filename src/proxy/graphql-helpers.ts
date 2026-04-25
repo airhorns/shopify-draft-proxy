@@ -58,6 +58,22 @@ export function isPlainObject(value: unknown): value is Record<string, unknown> 
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+export function readStringValue(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
+export function readNumberValue(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+export function readBooleanValue(value: unknown): boolean | null {
+  return typeof value === 'boolean' ? value : null;
+}
+
+export function readPlainObjectArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.filter(isPlainObject) : [];
+}
+
 export function defaultGraphqlTypeConditionApplies(
   source: Record<string, unknown>,
   typeCondition: string | undefined,

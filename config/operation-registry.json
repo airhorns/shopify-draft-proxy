@@ -1084,30 +1084,30 @@
     "type": "query",
     "domain": "metaobjects",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectDefinition", "MetaobjectDefinition"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 definition read root. Registry-only declared gap until ID lookup nullability, field definition ordering, capabilities, access settings, and empty/no-data behavior are captured."
+    "runtimeTests": ["tests/integration/metaobject-definition-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 definition read root. HAR-241 supports snapshot and live-hybrid overlay reads from normalized fixture/local state, including ID lookup nullability, captured field ordering, capabilities, access settings, and no-data behavior."
   },
   {
     "name": "metaobjectDefinitionByType",
     "type": "query",
     "domain": "metaobjects",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectDefinitionByType", "MetaobjectDefinitionByType"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 definition type lookup root. Registry-only declared gap until type identity, app-reserved type handling, and missing-type nullability are captured."
+    "runtimeTests": ["tests/integration/metaobject-definition-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 definition type lookup root. HAR-241 supports snapshot and live-hybrid overlay reads from normalized fixture/local state, including type identity and missing-type nullability."
   },
   {
     "name": "metaobjectDefinitions",
     "type": "query",
     "domain": "metaobjects",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectDefinitions", "MetaobjectDefinitions"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 definition catalog root. Registry-only declared gap until definition pagination, ordering, type filtering, standard-template metadata, and empty connection behavior are captured."
+    "runtimeTests": ["tests/integration/metaobject-definition-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 definition catalog root. HAR-241 supports snapshot and live-hybrid overlay reads from normalized fixture/local state, including definition pagination, reverse ordering, standard-template metadata, and empty connection behavior."
   },
   {
     "name": "metaobjectCreate",
