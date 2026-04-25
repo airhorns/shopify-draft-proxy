@@ -113,7 +113,7 @@ describe('conformance scenario discovery', () => {
     expect(status.implementedOperations.every((entry) => entry.scenarioIds.length > 0)).toBe(true);
   });
 
-  it('treats captured order-edit workflows as the conformance source instead of stale single-root plans', () => {
+  it('keeps order-edit single-root parity slices executable instead of stale planned blockers', () => {
     const status = buildConformanceStatusDocument(repoRoot);
 
     expect(status.plannedScenarioIds).not.toEqual(
@@ -126,6 +126,10 @@ describe('conformance scenario discovery', () => {
     );
     expect(status.capturedScenarioIds).toEqual(
       expect.arrayContaining([
+        'order-edit-begin-live-parity',
+        'order-edit-add-variant-live-parity',
+        'order-edit-set-quantity-live-parity',
+        'order-edit-commit-live-parity',
         'order-edit-existing-order-happy-path',
         'order-edit-existing-order-validation',
         'order-edit-existing-order-zero-removal',

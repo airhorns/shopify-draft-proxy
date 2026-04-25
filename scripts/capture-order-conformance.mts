@@ -2555,11 +2555,15 @@ ${renderManualStoreAuthSection(manualStoreAuthSummary)}
 - the proxy already supports a first local calculated-order edit flow for synthetic/local orders in snapshot mode and live-hybrid mode
 - safe missing-\`$id\` GraphQL validation coverage is now captured for \`orderEditBegin\`, \`orderEditAddVariant\`, \`orderEditSetQuantity\`, and \`orderEditCommit\`
 - captured existing-order workflow specs now cover begin/add/set/commit behavior, validation branches, and downstream \`order(id:)\` read-after-write effects
-- the old single-root parity-plan specs for \`orderEditBegin\`, \`orderEditAddVariant\`, \`orderEditSetQuantity\`, and \`orderEditCommit\` were intentionally removed from scenario discovery because they duplicated the captured workflow evidence as stale pending blockers
+- the old single-root scenario IDs for \`orderEditBegin\`, \`orderEditAddVariant\`, \`orderEditSetQuantity\`, and \`orderEditCommit\` are now executable captured parity slices backed by the workflow fixtures, not planned access-scope blockers
 
 ## Practical next step for order-edit parity
 
 1. keep the checked-in calculated-order edit flow and captured workflow specs as the source of truth:
+   - \`config/parity-specs/orderEditBegin-parity-plan.json\`
+   - \`config/parity-specs/orderEditAddVariant-parity-plan.json\`
+   - \`config/parity-specs/orderEditSetQuantity-parity-plan.json\`
+   - \`config/parity-specs/orderEditCommit-parity-plan.json\`
    - \`config/parity-specs/orderEditExistingOrder-happy-path.json\`
    - \`config/parity-specs/orderEditExistingOrder-validation.json\`
    - \`config/parity-specs/orderEditExistingOrder-zero-removal.json\`

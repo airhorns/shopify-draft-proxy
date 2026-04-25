@@ -506,8 +506,7 @@ Current live findings on this host:
   - `orderEditCommit` also fails on the same missing-`$id` variables-path validation branch before the access gate: omitting the required `$id` variable while still sending `notifyCustomer` / `staffNote` returns top-level `INVALID_VARIABLE` before Shopify reaches the root's separate `write_order_edits` blocker
 - current practical split for that family:
   - `orderEditBegin`, `orderEditAddVariant`, `orderEditSetQuantity`, and `orderEditCommit` are safe to mirror locally in snapshot mode and live-hybrid for the missing-`$id` validation branch without hitting upstream, and captured existing-order workflows now cover the initial lifecycle and downstream read-after-write paths
-  - the remaining calculated-order edit work is now represented by captured existing-order workflow evidence instead of four separate planned single-root blockers
-  - do not reintroduce `order-edit-begin-live-parity`, `order-edit-add-variant-live-parity`, `order-edit-set-quantity-live-parity`, or `order-edit-commit-live-parity`; those stale access-scope plans were superseded by `order-edit-existing-order-happy-path`, `order-edit-existing-order-validation`, and `order-edit-existing-order-zero-removal`
+  - the remaining calculated-order edit work is represented by captured existing-order workflow evidence plus executable single-root begin/add/set/commit parity slices; those scenario IDs must not return to planned access-scope-only blockers
 
 - keep the captured workflow parity requests checked in so later live capture can compare full begin/add/set/commit sequences rather than isolated root placeholders
 - refresh HAR-115 with `corepack pnpm conformance:capture-orders` evidence instead of leaving the order-edit family as a generic worklist bullet
