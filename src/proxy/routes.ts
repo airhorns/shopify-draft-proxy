@@ -345,6 +345,30 @@ export function createProxyRouter(config: AppConfig): Router {
         ctx.body = handleStorePropertiesQuery(body.query, variables);
         return;
       }
+
+      if (config.readMode === 'live-hybrid') {
+        if (primaryRootField === 'shop' && store.getEffectiveShop() !== null) {
+          ctx.status = 200;
+          ctx.body = handleStorePropertiesQuery(body.query, variables);
+          return;
+        }
+
+        const response = await upstream.request({
+          path: ctx.path,
+          headers: {
+            'content-type': 'application/json',
+            'x-shopify-access-token': ctx.get('x-shopify-access-token'),
+          },
+          body: {
+            query: body.query,
+            variables,
+          },
+        });
+
+        ctx.status = response.status;
+        ctx.body = await response.json();
+        return;
+      }
     }
 
     if (

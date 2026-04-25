@@ -12,6 +12,7 @@ const config: AppConfig = {
 };
 
 const emptySnapshot = {
+  shop: null,
   products: {},
   productVariants: {},
   productOptions: {},
