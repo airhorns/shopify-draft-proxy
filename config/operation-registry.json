@@ -1693,27 +1693,27 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountCodeBasicCreate", "DiscountCodeBasicCreate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"]
   },
   {
     "name": "discountCodeBasicUpdate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountCodeBasicUpdate", "DiscountCodeBasicUpdate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"]
   },
   {
     "name": "discountCodeBxgyCreate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountCodeBxgyCreate", "DiscountCodeBxgyCreate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"]
   },
   {
     "name": "discountCodeBxgyUpdate",
@@ -1729,9 +1729,9 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountCodeFreeShippingCreate", "DiscountCodeFreeShippingCreate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"]
   },
   {
     "name": "discountCodeFreeShippingUpdate",
@@ -1783,9 +1783,9 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountCodeBulkDeactivate", "DiscountCodeBulkDeactivate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"]
   },
   {
     "name": "discountCodeBulkDelete",
@@ -1819,9 +1819,9 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticBasicCreate", "DiscountAutomaticBasicCreate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"]
   },
   {
     "name": "discountAutomaticBasicUpdate",
@@ -1837,9 +1837,9 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticBxgyCreate", "DiscountAutomaticBxgyCreate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"]
   },
   {
     "name": "discountAutomaticBxgyUpdate",
@@ -1855,9 +1855,9 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticFreeShippingCreate", "DiscountAutomaticFreeShippingCreate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"]
   },
   {
     "name": "discountAutomaticFreeShippingUpdate",
@@ -1900,9 +1900,9 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticBulkDelete", "DiscountAutomaticBulkDelete"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"]
   },
   {
     "name": "discountCodeAppUpdate",

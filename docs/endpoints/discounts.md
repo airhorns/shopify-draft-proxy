@@ -13,6 +13,18 @@ Overlay reads:
 - `codeDiscountNodeByCode`
 - `automaticDiscountNode`
 
+Validation-only mutation branches:
+
+- `discountCodeBasicCreate`
+- `discountAutomaticBasicCreate`
+- `discountCodeBasicUpdate`
+- `discountCodeBxgyCreate`
+- `discountAutomaticBxgyCreate`
+- `discountCodeFreeShippingCreate`
+- `discountAutomaticFreeShippingCreate`
+- `discountCodeBulkDeactivate`
+- `discountAutomaticBulkDelete`
+
 ## Unsupported roots still tracked by the registry
 
 - `codeDiscountNodes`
@@ -36,10 +48,17 @@ Overlay reads:
 - Local connection cursors use the proxy's synthetic `cursor:<gid>` form; parity specs document Shopify's opaque cursor values as non-contractual.
 - `codeDiscountNodes` and `automaticDiscountNodes` remain known registry entries but are not promoted to locally implemented support until their node-specific shapes have captured fixtures.
 - Deprecated `automaticDiscounts` remains unsupported rather than mapped to `automaticDiscountNodes`; unknown/unsupported reads continue through the existing passthrough path outside snapshot-only parity execution.
-- Discount mutation lifecycle support is not implemented yet, but the store exposes staged discount records so later locally staged discount mutations can appear in catalog/count reads without upstream writes.
+- Full discount mutation lifecycle support is not implemented yet, but validation-only branches for the roots listed above are locally short-circuited from captured 2026-04 evidence. Broader happy-path discount creates/updates/deletes are not faked as successful local staging.
+- Captured validation branches split into top-level GraphQL errors and mutation-scoped `DiscountUserError` payloads:
+  - missing `$input` for `discountCodeBasicCreate` returns top-level `INVALID_VARIABLE`
+  - inline `basicCodeDiscount: null` returns top-level `argumentLiteralsIncompatible`
+  - duplicate codes, invalid date ranges, invalid product/variant references, unsupported collection+product entitlement combinations, unknown update IDs, invalid BXGY/free-shipping inputs, and mutually exclusive bulk selectors return `userErrors` on the mutation payload
+- The 2026-04 validation capture includes a live `currentAppInstallation.accessScopes` probe showing the current grant has `read_discounts` and `write_discounts`. A no-discount-scope access-denied fixture is still not available; local discount handling must never convert any future `ACCESS_DENIED` capture into successful staging.
+- Discount mutation lifecycle support can reuse the staged discount graph exposed by the store so later locally staged discount mutations can appear in catalog/count reads without upstream writes.
 - `scripts/capture-discount-conformance.ts` probes the live conformance app Admin access scopes through `currentAppInstallation.accessScopes`.
 - The capture script records `read_discounts` and `write_discounts` availability before attempting discount catalog captures.
 - The capture script also creates temporary native `DiscountCodeBasic` and `DiscountAutomaticBasic` records, captures singular detail payloads, and deletes those temporary records immediately after capture.
+- `scripts/capture-discount-validation-conformance.ts` creates a temporary native `DiscountCodeBasic` only to settle the duplicate-code branch, captures representative validation failures, and deletes the seed discount immediately.
 - Tokens must come through `scripts/shopify-conformance-auth.mts`; repo `.env` files must not contain Admin access tokens.
 - Discount capture fails before discount reads or writes when either required discount scope is missing.
 - Discount capture files use the `discount-*` conformance naming convention only after scope checks pass.
@@ -47,6 +66,7 @@ Overlay reads:
 ## Validation anchors
 
 - Discount reads: `tests/integration/discount-query-shapes.test.ts`
+- Discount mutation validation: `tests/integration/discount-mutation-validation.test.ts`
 - Conformance fixtures and requests: `config/parity-specs/discount*.json` and matching files under `config/parity-requests/`; singular detail fixtures are `discount-code-basic-detail-read.json` and `discount-automatic-basic-detail-read.json` under the 2026-04 conformance fixture directory.
 - Registry/coverage tests: `tests/unit/operation-registry.test.ts`, `tests/unit/graphql-operation-coverage.test.ts`
 - Capture helper tests: `tests/unit/discount-conformance-lib.test.ts`

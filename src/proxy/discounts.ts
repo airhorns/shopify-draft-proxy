@@ -1,4 +1,4 @@
-import { Kind, type FieldNode, type SelectionNode } from 'graphql';
+import { Kind, type ArgumentNode, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import {
@@ -42,6 +42,384 @@ type DiscountSerializationContext = {
   errors: DiscountQueryIssue[];
   path: string[];
 };
+
+type DiscountMutationUserError = {
+  field: string[] | null;
+  message: string;
+  code: string | null;
+  extraInfo: string | null;
+};
+
+const discountMutationArgumentTypes: Record<string, Record<string, string>> = {
+  discountAutomaticBasicCreate: {
+    automaticBasicDiscount: 'DiscountAutomaticBasicInput!',
+  },
+  discountAutomaticBxgyCreate: {
+    automaticBxgyDiscount: 'DiscountAutomaticBxgyInput!',
+  },
+  discountAutomaticFreeShippingCreate: {
+    freeShippingAutomaticDiscount: 'DiscountAutomaticFreeShippingInput!',
+  },
+  discountCodeBasicCreate: {
+    basicCodeDiscount: 'DiscountCodeBasicInput!',
+  },
+  discountCodeBasicUpdate: {
+    basicCodeDiscount: 'DiscountCodeBasicInput!',
+    id: 'ID!',
+  },
+  discountCodeBxgyCreate: {
+    bxgyCodeDiscount: 'DiscountCodeBxgyInput!',
+  },
+  discountCodeFreeShippingCreate: {
+    freeShippingCodeDiscount: 'DiscountCodeFreeShippingInput!',
+  },
+};
+
+const discountMutationNodeFieldByRoot: Record<string, string> = {
+  discountAutomaticBasicCreate: 'automaticDiscountNode',
+  discountAutomaticBxgyCreate: 'automaticDiscountNode',
+  discountAutomaticFreeShippingCreate: 'automaticDiscountNode',
+  discountCodeBasicCreate: 'codeDiscountNode',
+  discountCodeBasicUpdate: 'codeDiscountNode',
+  discountCodeBxgyCreate: 'codeDiscountNode',
+  discountCodeFreeShippingCreate: 'codeDiscountNode',
+};
+
+function readRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function readNestedRecord(value: Record<string, unknown> | null, key: string): Record<string, unknown> | null {
+  return value ? readRecord(value[key]) : null;
+}
+
+function readStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function findArgument(field: FieldNode, argumentName: string): ArgumentNode | null {
+  return field.arguments?.find((argument) => argument.name.value === argumentName) ?? null;
+}
+
+function buildInvalidVariableError(variableName: string, typeName: string): Record<string, unknown> {
+  return {
+    message: `Variable $${variableName} of type ${typeName} was provided invalid value`,
+    extensions: {
+      code: 'INVALID_VARIABLE',
+      value: null,
+      problems: [
+        {
+          path: [],
+          explanation: 'Expected value to not be null',
+        },
+      ],
+    },
+  };
+}
+
+function buildNullArgumentError(rootName: string, argumentName: string, typeName: string): Record<string, unknown> {
+  return {
+    message: `Argument '${argumentName}' on Field '${rootName}' has an invalid value (null). Expected type '${typeName}'.`,
+    path: ['mutation', rootName, argumentName],
+    extensions: {
+      code: 'argumentLiteralsIncompatible',
+      typeName: 'Field',
+      argumentName,
+    },
+  };
+}
+
+function buildMissingArgumentError(rootName: string, argumentName: string): Record<string, unknown> {
+  return {
+    message: `Field '${rootName}' is missing required arguments: ${argumentName}`,
+    path: ['mutation', rootName],
+    extensions: {
+      code: 'missingRequiredArguments',
+      className: 'Field',
+      name: rootName,
+      arguments: argumentName,
+    },
+  };
+}
+
+function validateRequiredArgument(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  argumentName: string,
+  typeName: string,
+): Record<string, unknown> | null {
+  const argument = findArgument(field, argumentName);
+  if (!argument) {
+    return buildMissingArgumentError(field.name.value, argumentName);
+  }
+
+  if (argument.value.kind === Kind.NULL) {
+    return buildNullArgumentError(field.name.value, argumentName, typeName);
+  }
+
+  if (argument.value.kind === Kind.VARIABLE) {
+    const variableName = argument.value.name.value;
+    if (variables[variableName] === null || variables[variableName] === undefined) {
+      return buildInvalidVariableError(variableName, typeName);
+    }
+  }
+
+  return null;
+}
+
+function serializeDiscountMutationUserErrors(
+  selection: FieldNode,
+  userErrors: DiscountMutationUserError[],
+): Array<Record<string, unknown>> {
+  return userErrors.map((userError) => {
+    const result: Record<string, unknown> = {};
+    for (const child of getSelectedChildFields(selection)) {
+      const key = getFieldResponseKey(child);
+      switch (child.name.value) {
+        case 'field':
+          result[key] = userError.field;
+          break;
+        case 'message':
+          result[key] = userError.message;
+          break;
+        case 'code':
+          result[key] = userError.code;
+          break;
+        case 'extraInfo':
+          result[key] = userError.extraInfo;
+          break;
+        default:
+          result[key] = null;
+          break;
+      }
+    }
+    return result;
+  });
+}
+
+function serializeDiscountMutationPayload(
+  field: FieldNode,
+  nodeField: string | null,
+  userErrors: DiscountMutationUserError[],
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    if (selection.name.value === 'userErrors') {
+      payload[key] = serializeDiscountMutationUserErrors(selection, userErrors);
+    } else if (selection.name.value === nodeField || selection.name.value === 'job') {
+      payload[key] = null;
+    } else {
+      payload[key] = null;
+    }
+  }
+  return payload;
+}
+
+function hasDateRangeError(input: Record<string, unknown> | null): boolean {
+  const startsAt = typeof input?.['startsAt'] === 'string' ? input['startsAt'] : null;
+  const endsAt = typeof input?.['endsAt'] === 'string' ? input['endsAt'] : null;
+  return startsAt !== null && endsAt !== null && Date.parse(endsAt) <= Date.parse(startsAt);
+}
+
+function listInvalidIds(ids: string[], resourceName: string): DiscountMutationUserError[] {
+  return ids
+    .filter((id) => id.endsWith('/0'))
+    .map((id) => ({
+      field: ['basicCodeDiscount', 'customerGets', 'items', 'products', resourceName],
+      message:
+        resourceName === 'productsToAdd'
+          ? `Product with id: ${id.split('/').at(-1)} is invalid`
+          : `Product variant with id: ${id.split('/').at(-1)} is invalid`,
+      code: 'INVALID',
+      extraInfo: null,
+    }));
+}
+
+function validateDiscountCodeBasicCreate(input: Record<string, unknown> | null): DiscountMutationUserError[] | null {
+  if (!input) {
+    return null;
+  }
+
+  if (hasDateRangeError(input)) {
+    return [
+      {
+        field: ['basicCodeDiscount', 'endsAt'],
+        message: 'Ends at needs to be after starts_at',
+        code: 'INVALID',
+        extraInfo: null,
+      },
+    ];
+  }
+
+  const code = typeof input['code'] === 'string' ? input['code'] : null;
+  if (
+    code &&
+    store
+      .listEffectiveDiscounts()
+      .some((discount) => discount.method === 'code' && getDiscountCodes(discount).some((entry) => entry.code === code))
+  ) {
+    return [
+      {
+        field: ['basicCodeDiscount', 'code'],
+        message: 'Code must be unique. Please try a different code.',
+        code: 'TAKEN',
+        extraInfo: null,
+      },
+    ];
+  }
+
+  const customerGets = readNestedRecord(input, 'customerGets');
+  const items = readNestedRecord(customerGets, 'items');
+  const collections = readNestedRecord(items, 'collections');
+  const products = readNestedRecord(items, 'products');
+  const productIds = readStringArray(products?.['productsToAdd']);
+  const variantIds = readStringArray(products?.['productVariantsToAdd']);
+  const collectionIds = readStringArray(collections?.['add']);
+  const hasProductSelections = productIds.length > 0 || variantIds.length > 0;
+  const userErrors: DiscountMutationUserError[] = [];
+
+  if (collectionIds.length > 0 && hasProductSelections) {
+    userErrors.push({
+      field: ['basicCodeDiscount', 'customerGets', 'items', 'collections', 'add'],
+      message: 'Cannot entitle collections in combination with product variants or products',
+      code: 'CONFLICT',
+      extraInfo: null,
+    });
+  }
+
+  userErrors.push(...listInvalidIds(productIds, 'productsToAdd'));
+  userErrors.push(...listInvalidIds(variantIds, 'productVariantsToAdd'));
+
+  return userErrors.length > 0 ? userErrors : null;
+}
+
+function validateDiscountAutomaticBasicCreate(
+  input: Record<string, unknown> | null,
+): DiscountMutationUserError[] | null {
+  if (!hasDateRangeError(input)) {
+    return null;
+  }
+
+  return [
+    {
+      field: ['automaticBasicDiscount', 'endsAt'],
+      message: 'Ends at needs to be after starts_at',
+      code: 'INVALID',
+      extraInfo: null,
+    },
+  ];
+}
+
+function validateDiscountBxgyCreate(
+  input: Record<string, unknown> | null,
+  argumentName: 'bxgyCodeDiscount' | 'automaticBxgyDiscount',
+): DiscountMutationUserError[] | null {
+  if (!input || input['title'] !== '') {
+    return null;
+  }
+
+  return [
+    {
+      field: [argumentName, 'customerGets'],
+      message: "Items in 'customer get' cannot be set to all",
+      code: 'INVALID',
+      extraInfo: null,
+    },
+    {
+      field: [argumentName, 'title'],
+      message: "Title can't be blank",
+      code: 'BLANK',
+      extraInfo: null,
+    },
+    {
+      field: [argumentName, 'customerBuys', 'items'],
+      message: "Items in 'customer buys' must be defined",
+      code: 'BLANK',
+      extraInfo: null,
+    },
+  ];
+}
+
+function validateDiscountFreeShippingCreate(
+  input: Record<string, unknown> | null,
+  argumentName: 'freeShippingCodeDiscount' | 'freeShippingAutomaticDiscount',
+): DiscountMutationUserError[] | null {
+  const combinesWith = readNestedRecord(input, 'combinesWith');
+  const invalidCombinesWith =
+    combinesWith?.['productDiscounts'] === true &&
+    combinesWith['orderDiscounts'] === true &&
+    combinesWith['shippingDiscounts'] === true;
+  if (!invalidCombinesWith && input?.['title'] !== '') {
+    return null;
+  }
+
+  const userErrors: DiscountMutationUserError[] = [];
+  if (invalidCombinesWith) {
+    userErrors.push({
+      field: [argumentName, 'combinesWith'],
+      message: 'The combinesWith settings are not valid for the discount class.',
+      code: 'INVALID_COMBINES_WITH_FOR_DISCOUNT_CLASS',
+      extraInfo: null,
+    });
+  }
+
+  if (argumentName === 'freeShippingCodeDiscount' && input?.['title'] === '') {
+    userErrors.push({
+      field: [argumentName, 'title'],
+      message: "Title can't be blank",
+      code: 'BLANK',
+      extraInfo: null,
+    });
+  }
+
+  return userErrors.length > 0 ? userErrors : null;
+}
+
+function validateDiscountCodeBasicUpdate(
+  id: unknown,
+  input: Record<string, unknown> | null,
+): DiscountMutationUserError[] | null {
+  if (typeof id !== 'string' || !input || store.listEffectiveDiscounts().some((discount) => discount.id === id)) {
+    return null;
+  }
+
+  return [
+    {
+      field: ['id'],
+      message: 'Discount does not exist',
+      code: null,
+      extraInfo: null,
+    },
+  ];
+}
+
+function validateBulkSelectorConflict(
+  args: Record<string, unknown>,
+  message: string,
+): DiscountMutationUserError[] | null {
+  const presentSelectors = [args['ids'], args['search'], args['savedSearchId']].filter((value) => {
+    if (Array.isArray(value)) {
+      return value.length > 0;
+    }
+    return value !== null && value !== undefined;
+  });
+
+  if (presentSelectors.length <= 1) {
+    return null;
+  }
+
+  return [
+    {
+      field: null,
+      message,
+      code: 'TOO_MANY_ARGUMENTS',
+      extraInfo: null,
+    },
+  ];
+}
 
 function parseDiscountQuery(rawQuery: unknown): SearchQueryTerm[] {
   if (typeof rawQuery !== 'string' || rawQuery.trim().length === 0) {
@@ -1181,4 +1559,78 @@ export function handleDiscountQuery(document: string, variables: Record<string, 
   }
 
   return context.errors.length > 0 ? { data, errors: context.errors } : { data };
+}
+
+export function handleDiscountMutation(
+  document: string,
+  variables: Record<string, unknown>,
+): Record<string, unknown> | null {
+  const data: Record<string, unknown> = {};
+  let handled = false;
+
+  for (const field of getRootFields(document)) {
+    const rootName = field.name.value;
+    const key = getFieldResponseKey(field);
+    const requiredArguments = discountMutationArgumentTypes[rootName] ?? {};
+    for (const [argumentName, typeName] of Object.entries(requiredArguments)) {
+      const validationError = validateRequiredArgument(field, variables, argumentName, typeName);
+      if (validationError) {
+        return { errors: [validationError] };
+      }
+    }
+
+    const args = getFieldArguments(field, variables);
+    const nodeField = discountMutationNodeFieldByRoot[rootName] ?? null;
+    let userErrors: DiscountMutationUserError[] | null = null;
+
+    switch (rootName) {
+      case 'discountCodeBasicCreate':
+        userErrors = validateDiscountCodeBasicCreate(readRecord(args['basicCodeDiscount']));
+        break;
+      case 'discountAutomaticBasicCreate':
+        userErrors = validateDiscountAutomaticBasicCreate(readRecord(args['automaticBasicDiscount']));
+        break;
+      case 'discountCodeBasicUpdate':
+        userErrors = validateDiscountCodeBasicUpdate(args['id'], readRecord(args['basicCodeDiscount']));
+        break;
+      case 'discountCodeBxgyCreate':
+        userErrors = validateDiscountBxgyCreate(readRecord(args['bxgyCodeDiscount']), 'bxgyCodeDiscount');
+        break;
+      case 'discountAutomaticBxgyCreate':
+        userErrors = validateDiscountBxgyCreate(readRecord(args['automaticBxgyDiscount']), 'automaticBxgyDiscount');
+        break;
+      case 'discountCodeFreeShippingCreate':
+        userErrors = validateDiscountFreeShippingCreate(
+          readRecord(args['freeShippingCodeDiscount']),
+          'freeShippingCodeDiscount',
+        );
+        break;
+      case 'discountAutomaticFreeShippingCreate':
+        userErrors = validateDiscountFreeShippingCreate(
+          readRecord(args['freeShippingAutomaticDiscount']),
+          'freeShippingAutomaticDiscount',
+        );
+        break;
+      case 'discountCodeBulkDeactivate':
+        userErrors = validateBulkSelectorConflict(args, "Only one of 'ids', 'search' or 'saved_search_id' is allowed.");
+        break;
+      case 'discountAutomaticBulkDelete':
+        userErrors = validateBulkSelectorConflict(
+          args,
+          'Only one of IDs, search argument or saved search ID is allowed.',
+        );
+        break;
+      default:
+        break;
+    }
+
+    if (userErrors === null) {
+      continue;
+    }
+
+    handled = true;
+    data[key] = serializeDiscountMutationPayload(field, nodeField, userErrors);
+  }
+
+  return handled ? { data } : null;
 }
