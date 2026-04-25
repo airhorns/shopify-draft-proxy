@@ -2900,18 +2900,18 @@
     "type": "mutation",
     "domain": "markets",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["webPresenceCreate", "WebPresenceCreate"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
   },
   {
     "name": "webPresenceUpdate",
     "type": "mutation",
     "domain": "markets",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["webPresenceUpdate", "WebPresenceUpdate"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
   },
   {
     "name": "webPresenceDelete",
