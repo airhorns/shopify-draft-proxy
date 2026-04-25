@@ -32,11 +32,13 @@ Local staged mutations:
 ## Behavior notes
 
 - `baseState` includes a nullable normalized `shop` slice. Snapshot mode returns `shop: null` when no shop slice is present instead of inventing store identity; live-hybrid can serve a locally staged shop overlay when one exists.
+- `shop.fulfillmentServices` is serialized from the normalized fulfillment-service graph owned by `docs/endpoints/shipping-fulfillments.md`; the field returns an empty list when no services are staged or snapshotted.
 - `shopPolicyUpdate` stages legal policy writes into the shop slice by `ShopPolicyType`. Downstream `shop.shopPolicies` reads in snapshot and live-hybrid modes observe staged body, identity, URL, title, timestamps, and empty translations shape without sending supported policy mutations upstream at runtime.
 - Snapshot `location` and `locationByIdentifier` detail reads use the Store properties overlay. They combine narrow normalized location metadata for captured address/lifecycle scalars with nested inventory-level connections derived from the effective inventory-level graph.
 - The first location detail slice supports primary-location fallback when `location(id:)` omits `id`, identifier lookup by `LocationIdentifierInput.id`, unknown-location `null` behavior, address and lifecycle scalar shapes, empty metafield/suggested-address structures, and nested `inventoryLevel` / `inventoryLevels` selections.
 - `locationAdd` stages new normalized locations with proxy-synthetic `Location` IDs, stable timestamps, address metadata, `fulfillsOnlineOrders`, and owner-scoped metafields. Downstream `location`, `locationByIdentifier`, top-level `locations`, and meta state/log inspection observe the staged location without sending the write upstream at runtime.
 - `locationEdit` stages updates against base or synthetic locations, preserving unspecified address fields and updating inventory-level location name serialization through the effective location record. Captured validation branches include blank-name `userErrors` (`input.name` / `Add a location name`) and missing-location `userErrors` (`id` / `Location not found.`). Fulfillment-service locations are blocked locally unless future conformance proves an app-owned editable fulfillment-service branch.
+- Fulfillment-service lifecycle support can create, update, keep, or delete service-managed locations as a side effect. Direct location activation/deactivation/deletion remains unsupported, and direct `locationEdit` continues to reject existing fulfillment-service locations unless a separate app-owned editable branch is captured.
 - Generic `publishablePublish` and `publishableUnpublish` stage Product and Collection publishables locally. `publishablePublishToCurrentChannel` and `publishableUnpublishToCurrentChannel` currently cover Product publishables. Unsupported publishable target types return local userErrors instead of proxying upstream as supported behavior.
 
 ## Validation anchors
@@ -44,6 +46,7 @@ Local staged mutations:
 - Shop reads: `tests/integration/shop-query-shapes.test.ts`
 - Shop policy mutation flow: `tests/integration/shop-policy-update-flow.test.ts`
 - Location reads: `tests/integration/location-query-shapes.test.ts`
+- Fulfillment-service location linkage: `tests/integration/fulfillment-service-flow.test.ts`
 - Business entity reads: `tests/integration/business-entity-query-shapes.test.ts`
 - Generic publishable slices: `tests/integration/product-draft-flow.test.ts`, `tests/integration/collection-draft-flow.test.ts`
 - Conformance fixtures and requests: `config/parity-specs/shop*.json`, `config/parity-specs/location*.json`, `config/parity-specs/locations*.json`, `config/parity-specs/business*.json`, `config/parity-specs/publishable*.json`, and matching files under `config/parity-requests/`
