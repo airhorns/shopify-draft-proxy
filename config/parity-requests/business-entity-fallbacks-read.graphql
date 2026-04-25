@@ -1,0 +1,49 @@
+query StorePropertiesBusinessEntityFallbacks($knownId: ID!, $unknownId: ID!) {
+  primary: businessEntity {
+    id
+    displayName
+    companyName
+    primary
+    archived
+    address {
+      address1
+      address2
+      city
+      countryCode
+      province
+      zip
+    }
+    shopifyPaymentsAccount {
+      id
+      activated
+      country
+      defaultCurrency
+      onboardable
+    }
+  }
+  known: businessEntity(id: $knownId) {
+    id
+    displayName
+    companyName
+    primary
+    archived
+    address {
+      address1
+      address2
+      city
+      countryCode
+      province
+      zip
+    }
+    shopifyPaymentsAccount {
+      id
+      activated
+      country
+      defaultCurrency
+      onboardable
+    }
+  }
+  unknown: businessEntity(id: $unknownId) {
+    id
+  }
+}

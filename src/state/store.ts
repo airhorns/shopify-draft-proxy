@@ -1,4 +1,5 @@
 import type {
+  BusinessEntityRecord,
   CalculatedOrderRecord,
   CollectionRecord,
   CustomerCatalogConnectionRecord,
@@ -37,6 +38,8 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   collections: {},
   publications: {},
   customers: {},
+  businessEntities: {},
+  businessEntityOrder: [],
   productCollections: {},
   productMedia: {},
   files: {},
@@ -324,6 +327,37 @@ export class InMemoryStore {
       delete this.stagedState.deletedCustomerIds[customer.id];
       this.baseState.customers[customer.id] = structuredClone(customer);
     }
+  }
+
+  upsertBaseBusinessEntities(businessEntities: BusinessEntityRecord[]): void {
+    for (const businessEntity of businessEntities) {
+      this.baseState.businessEntities[businessEntity.id] = structuredClone(businessEntity);
+      if (!this.baseState.businessEntityOrder.includes(businessEntity.id)) {
+        this.baseState.businessEntityOrder.push(businessEntity.id);
+      }
+    }
+  }
+
+  listEffectiveBusinessEntities(): BusinessEntityRecord[] {
+    const orderedIds = new Set(this.baseState.businessEntityOrder);
+    const orderedEntities = this.baseState.businessEntityOrder
+      .map((id) => this.baseState.businessEntities[id] ?? null)
+      .filter((entity): entity is BusinessEntityRecord => entity !== null);
+    const unorderedEntities = Object.values(this.baseState.businessEntities)
+      .filter((entity) => !orderedIds.has(entity.id))
+      .sort((left, right) => Number(right.primary) - Number(left.primary) || left.id.localeCompare(right.id));
+
+    return structuredClone([...orderedEntities, ...unorderedEntities]);
+  }
+
+  getBusinessEntityById(businessEntityId: string): BusinessEntityRecord | null {
+    const businessEntity = this.baseState.businessEntities[businessEntityId] ?? null;
+    return businessEntity ? structuredClone(businessEntity) : null;
+  }
+
+  getPrimaryBusinessEntity(): BusinessEntityRecord | null {
+    const businessEntity = this.listEffectiveBusinessEntities().find((candidate) => candidate.primary) ?? null;
+    return businessEntity ? structuredClone(businessEntity) : null;
   }
 
   stageCreateCustomer(customer: CustomerRecord): CustomerRecord {

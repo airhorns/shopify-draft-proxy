@@ -9,22 +9,22 @@
       "orders": {
         "edges": [
           {
-            "cursor": "eyJsYXN0X2lkIjo2ODMwNjQ3NzcxMzY5LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNC0yMiAyMzoyOTowMy43Mzc0NjUifQ==",
+            "cursor": "eyJsYXN0X2lkIjo2ODM0NTI4OTQ0MzYxLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNC0yNCAyMzo1MTozMC4yNzIwNTIifQ==",
             "node": {
-              "id": "gid://shopify/Order/6830647771369",
-              "name": "#1329"
+              "id": "gid://shopify/Order/6834528944361",
+              "name": "#1330"
             }
           }
         ],
         "pageInfo": {
           "hasNextPage": true,
           "hasPreviousPage": false,
-          "startCursor": "eyJsYXN0X2lkIjo2ODMwNjQ3NzcxMzY5LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNC0yMiAyMzoyOTowMy43Mzc0NjUifQ==",
-          "endCursor": "eyJsYXN0X2lkIjo2ODMwNjQ3NzcxMzY5LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNC0yMiAyMzoyOTowMy43Mzc0NjUifQ=="
+          "startCursor": "eyJsYXN0X2lkIjo2ODM0NTI4OTQ0MzYxLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNC0yNCAyMzo1MTozMC4yNzIwNTIifQ==",
+          "endCursor": "eyJsYXN0X2lkIjo2ODM0NTI4OTQ0MzYxLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNC0yNCAyMzo1MTozMC4yNzIwNTIifQ=="
         }
       },
       "ordersCount": {
-        "count": 69,
+        "count": 70,
         "precision": "EXACT"
       }
     },
