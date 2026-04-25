@@ -2237,19 +2237,23 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountCodeBxgyCreate", "DiscountCodeBxgyCreate"],
-    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
-    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
+    "runtimeTests": [
+      "tests/integration/discount-bxgy-flow.test.ts",
+      "tests/integration/discount-mutation-validation.test.ts"
+    ],
+    "supportNotes": "HAR-195 stages native code BXGY create locally with product, variant, and collection references, read-after-write discount detail/catalog visibility, and captured validation guardrails. This models Admin GraphQL visibility only and does not claim checkout price-calculation behavior."
   },
   {
     "name": "discountCodeBxgyUpdate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountCodeBxgyUpdate", "DiscountCodeBxgyUpdate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-bxgy-flow.test.ts"],
+    "supportNotes": "HAR-195 stages native code BXGY updates for existing local BXGY code discounts and preserves downstream reads. Shared code activate/deactivate/delete roots apply to staged BXGY code discounts through the normalized discount state."
   },
   {
     "name": "discountCodeFreeShippingCreate",
@@ -2369,19 +2373,23 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticBxgyCreate", "DiscountAutomaticBxgyCreate"],
-    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
-    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
+    "runtimeTests": [
+      "tests/integration/discount-bxgy-flow.test.ts",
+      "tests/integration/discount-mutation-validation.test.ts"
+    ],
+    "supportNotes": "HAR-195 stages native automatic BXGY create locally with product, variant, and collection references, read-after-write discount detail/catalog visibility, and captured validation guardrails. This models Admin GraphQL visibility only and does not claim checkout price-calculation behavior."
   },
   {
     "name": "discountAutomaticBxgyUpdate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticBxgyUpdate", "DiscountAutomaticBxgyUpdate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-bxgy-flow.test.ts"],
+    "supportNotes": "HAR-195 stages native automatic BXGY updates for existing local BXGY automatic discounts and preserves downstream reads. Shared automatic activate/deactivate/delete roots apply to staged BXGY automatic discounts through the normalized discount state."
   },
   {
     "name": "discountAutomaticFreeShippingCreate",

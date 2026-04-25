@@ -1,0 +1,41 @@
+{
+  "scenarioId": "discount-bxgy-lifecycle",
+  "operationNames": [
+    "discountCodeBxgyCreate",
+    "discountCodeBxgyUpdate",
+    "discountCodeDeactivate",
+    "discountCodeActivate",
+    "discountCodeDelete",
+    "discountAutomaticBxgyCreate",
+    "discountAutomaticBxgyUpdate",
+    "discountAutomaticDeactivate",
+    "discountAutomaticActivate",
+    "discountAutomaticDelete",
+    "discountNode",
+    "codeDiscountNodeByCode",
+    "automaticDiscountNode"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "mutation-lifecycle", "read-after-write"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discount-bxgy-lifecycle.json"],
+  "comparisonMode": "capture-only",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "capture-only-code-bxgy-create-payload",
+        "capturePath": "$.code.create.response.data.discountCodeBxgyCreate",
+        "proxyPath": "$.data.discountCodeBxgyCreate",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "capture-only-automatic-bxgy-create-payload",
+        "capturePath": "$.automatic.create.response.data.discountAutomaticBxgyCreate",
+        "proxyPath": "$.data.discountAutomaticBxgyCreate",
+        "upstreamCapturePath": null
+      }
+    ]
+  },
+  "notes": "Captured 2026-04 native DiscountCodeBxgy and DiscountAutomaticBxgy create, update, deactivate, activate, delete cleanup, and downstream detail reads with product, variant, and collection prerequisites. Runtime parity is covered by tests/integration/discount-bxgy-flow.test.ts while broader executable conformance comparison for BXGY mutation lifecycles is still being built."
+}

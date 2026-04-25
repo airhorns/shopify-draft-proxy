@@ -600,13 +600,29 @@ export const discountItemsRecordSchema = z.strictObject({
 });
 export type DiscountItemsRecord = z.infer<typeof discountItemsRecordSchema>;
 
-export const discountValueRecordSchema = z.strictObject({
+export const discountEffectRecordSchema = z.strictObject({
   typeName: z.string(),
   percentage: nullableNumberSchema.optional(),
   amount: discountMoneyRecordSchema.nullable().optional(),
   appliesOnEachItem: nullableBooleanSchema.optional(),
 });
+export type DiscountEffectRecord = z.infer<typeof discountEffectRecordSchema>;
+
+export const discountValueRecordSchema = z.strictObject({
+  typeName: z.string(),
+  percentage: nullableNumberSchema.optional(),
+  amount: discountMoneyRecordSchema.nullable().optional(),
+  appliesOnEachItem: nullableBooleanSchema.optional(),
+  quantity: nullableStringSchema.optional(),
+  effect: discountEffectRecordSchema.nullable().optional(),
+});
 export type DiscountValueRecord = z.infer<typeof discountValueRecordSchema>;
+
+export const discountCustomerBuysRecordSchema = z.strictObject({
+  value: discountValueRecordSchema,
+  items: discountItemsRecordSchema,
+});
+export type DiscountCustomerBuysRecord = z.infer<typeof discountCustomerBuysRecordSchema>;
 
 export const discountCustomerGetsRecordSchema = z.strictObject({
   value: discountValueRecordSchema,
@@ -660,11 +676,14 @@ export const discountRecordSchema = z.strictObject({
   createdAt: nullableStringSchema,
   updatedAt: nullableStringSchema,
   asyncUsageCount: nullableNumberSchema,
+  usageLimit: nullableNumberSchema.optional(),
+  usesPerOrderLimit: nullableNumberSchema.optional(),
   discountClasses: z.array(z.string()),
   combinesWith: discountCombinesWithRecordSchema,
   codes: z.array(z.string()).default([]),
   redeemCodes: z.array(discountRedeemCodeRecordSchema).optional(),
   context: discountContextRecordSchema.nullable().optional(),
+  customerBuys: discountCustomerBuysRecordSchema.nullable().optional(),
   customerGets: discountCustomerGetsRecordSchema.nullable().optional(),
   minimumRequirement: discountMinimumRequirementRecordSchema.nullable().optional(),
   metafields: z.array(discountMetafieldRecordSchema).optional(),
