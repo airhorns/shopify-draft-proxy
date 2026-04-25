@@ -1889,3 +1889,14 @@ Practical rule:
 - local business entity snapshots can fixture safe account scalars only when they were explicitly captured
 - do not synthesize balances, payouts, bank accounts, statement descriptors, disputes, or account opener details from Store properties reads
 - order and market attribution should treat `BusinessEntity` as an identity link for now; do not model Markets assignment or order attribution rules until there is separate captured evidence for those domains
+
+## 50. Shop baseline reads are broad, and some feature fields are access-gated
+
+The HAR-167 2026-04 shop baseline capture covers identity, domains, contact/currency/timezone/tax settings, `shopAddress`, `plan`, `resourceLimits`, safe `features`, `paymentSettings.supportedDigitalWallets`, and `shopPolicies`.
+
+`shop.shopPolicies` requires `read_legal_policies`; a token without that scope returns `ACCESS_DENIED` for the field. `ShopFeatures.usingShopifyBalance` also returned `ACCESS_DENIED` with the current conformance token even though nearby feature booleans were readable, so it is intentionally excluded from the baseline fixture and local serializer until separately captured.
+
+Practical rule:
+
+- snapshot mode should return `shop: null` when no normalized shop slice is present rather than inventing store identity
+- keep payment/account-sensitive shop feature fields out of the local baseline until the capture proves both access and shape
