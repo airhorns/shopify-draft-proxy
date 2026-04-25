@@ -1651,7 +1651,7 @@
     "implemented": true,
     "matchNames": ["fulfillmentOrder", "FulfillmentOrder"],
     "runtimeTests": ["tests/integration/order-query-shapes.test.ts"],
-    "supportNotes": "Admin GraphQL 2026-04 FulfillmentOrder ID lookup root. Snapshot reads resolve from fulfillment-order records already present on the local order graph, return null for missing IDs, and keep detail serialization aligned with nested Order.fulfillmentOrders; holds, deliveryMethod, and lifecycle replacement semantics remain out of scope."
+    "supportNotes": "Admin GraphQL 2026-04 FulfillmentOrder ID lookup root. Snapshot reads resolve from fulfillment-order records already present on the local order graph, return null for missing IDs, and keep detail serialization aligned with nested Order.fulfillmentOrders. Stored fixture deliveryMethod data is serialized when present and returns null when absent; holds and lifecycle replacement semantics remain out of scope."
   },
   {
     "name": "fulfillmentOrders",

@@ -551,6 +551,15 @@ describe('order query shapes', () => {
       status: 'OPEN',
       requestStatus: 'UNSUBMITTED',
       assignedLocation: { name: 'Shop location' },
+      deliveryMethod: {
+        id: 'gid://shopify/DeliveryMethod/100',
+        methodType: 'SHIPPING',
+        presentedName: 'Standard',
+        serviceCode: 'STANDARD',
+        minDeliveryDateTime: null,
+        maxDeliveryDateTime: null,
+        sourceReference: null,
+      },
       lineItems: [
         {
           id: 'gid://shopify/FulfillmentOrderLineItem/101',
@@ -643,6 +652,15 @@ describe('order query shapes', () => {
             status
             requestStatus
             assignedLocation { name }
+            deliveryMethod {
+              id
+              methodType
+              presentedName
+              serviceCode
+              minDeliveryDateTime
+              maxDeliveryDateTime
+              sourceReference
+            }
             lineItems(first: 5) {
               nodes { id totalQuantity remainingQuantity lineItem { id title } }
               pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
@@ -668,6 +686,15 @@ describe('order query shapes', () => {
                 status
                 requestStatus
                 assignedLocation { name }
+                deliveryMethod {
+                  id
+                  methodType
+                  presentedName
+                  serviceCode
+                  minDeliveryDateTime
+                  maxDeliveryDateTime
+                  sourceReference
+                }
                 lineItems(first: 5) {
                   nodes { id totalQuantity remainingQuantity lineItem { id title } }
                   pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
@@ -677,7 +704,7 @@ describe('order query shapes', () => {
             }
           }
           openOnly: fulfillmentOrders(first: 5, sortKey: ID) {
-            nodes { id status }
+            nodes { id status deliveryMethod { methodType presentedName } }
             pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
           }
           allFirst: fulfillmentOrders(first: 1, includeClosed: true, sortKey: ID) {
@@ -712,7 +739,26 @@ describe('order query shapes', () => {
     expect(response.status).toBe(200);
     expect(response.body.data.fulfillment).toEqual(response.body.data.order.fulfillments[0]);
     expect(response.body.data.fulfillmentOrder).toEqual(response.body.data.order.fulfillmentOrders.nodes[1]);
-    expect(response.body.data.openOnly.nodes).toEqual([{ id: openFulfillmentOrder.id, status: 'OPEN' }]);
+    expect(response.body.data.order.fulfillmentOrders.nodes[0].deliveryMethod).toEqual({
+      id: 'gid://shopify/DeliveryMethod/100',
+      methodType: 'SHIPPING',
+      presentedName: 'Standard',
+      serviceCode: 'STANDARD',
+      minDeliveryDateTime: null,
+      maxDeliveryDateTime: null,
+      sourceReference: null,
+    });
+    expect(response.body.data.fulfillmentOrder.deliveryMethod).toBeNull();
+    expect(response.body.data.openOnly.nodes).toEqual([
+      {
+        id: openFulfillmentOrder.id,
+        status: 'OPEN',
+        deliveryMethod: {
+          methodType: 'SHIPPING',
+          presentedName: 'Standard',
+        },
+      },
+    ]);
     expect(response.body.data.allFirst).toEqual({
       nodes: [{ id: openFulfillmentOrder.id, status: 'OPEN' }],
       pageInfo: {
