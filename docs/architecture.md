@@ -152,8 +152,6 @@ Initial normalized entities should include at least:
 
 The architecture should be open to later domains without making products special in the core engine.
 
-Current product-owned metafields are normalized as product-scoped records. Besides the core identity/value fields (`id`, `namespace`, `key`, `type`, `value`), hydrated and staged product metafields carry the read fields needed for owner-scoped parity: `compareDigest`, `jsonValue`, `createdAt`, `updatedAt`, and `ownerType`. Product metafield `definition` currently serializes as `null` unless future fixture evidence justifies modeling definition linkage. Local `metafieldsSet` validates the whole product-owned input batch before replacing staged product metafields, supports compare-and-set through `compareDigest`, treats `compareDigest: null` as a create-only guard, and preserves Shopify-like atomic no-write behavior when any modeled resolver error is returned.
-
 Current customer-domain state deliberately stays narrower than the product model, but it is still normalized:
 
 - `CustomerRecord` carries scalar/detail fields plus `taxExemptions` as a separate list from the boolean `taxExempt`
