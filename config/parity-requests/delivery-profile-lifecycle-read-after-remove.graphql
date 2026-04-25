@@ -1,0 +1,5 @@
+query DeliveryProfileLifecycleReadAfterRemove($id: ID!) {
+  deliveryProfile(id: $id) {
+    id
+  }
+}
