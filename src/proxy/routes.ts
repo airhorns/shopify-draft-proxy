@@ -12,7 +12,7 @@ import { findOperationRegistryEntry } from './operation-registry.js';
 import { handleMediaMutation } from './media.js';
 import { handleMarketingQuery, hydrateMarketingFromUpstreamResponse } from './marketing.js';
 import { handleCustomerMutation, handleCustomerQuery, hydrateCustomersFromUpstreamResponse } from './customers.js';
-import { handleDeliveryProfileQuery } from './delivery-profiles.js';
+import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from './delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from './discounts.js';
 import { handleMarketMutation, handleMarketsQuery, hydrateMarketsFromUpstreamResponse } from './markets.js';
 import { handleOrderMutation, handleOrderQuery, shouldServeDraftOrderCatalogLocally } from './orders.js';
@@ -49,6 +49,12 @@ const FULFILLMENT_SERVICE_MUTATION_ROOTS = new Set([
   'fulfillmentServiceCreate',
   'fulfillmentServiceUpdate',
   'fulfillmentServiceDelete',
+]);
+
+const DELIVERY_PROFILE_MUTATION_ROOTS = new Set([
+  'deliveryProfileCreate',
+  'deliveryProfileUpdate',
+  'deliveryProfileRemove',
 ]);
 
 const CARRIER_SERVICE_MUTATION_ROOTS = new Set([
@@ -422,6 +428,46 @@ export function createProxyRouter(config: AppConfig): Router {
       ctx.status = 200;
       ctx.body = responseBody;
       return;
+    }
+
+    if (
+      capability.execution === 'stage-locally' &&
+      capability.domain === 'shipping-fulfillments' &&
+      primaryRootField &&
+      DELIVERY_PROFILE_MUTATION_ROOTS.has(primaryRootField)
+    ) {
+      proxyLogger.debug(
+        {
+          execution: capability.execution,
+          operationName: capability.operationName,
+          operationType: parsed.type,
+          rootFields: parsed.rootFields,
+        },
+        'staging supported delivery profile mutation locally',
+      );
+
+      const deliveryProfileMutation = handleDeliveryProfileMutation(body.query, variables);
+      if (deliveryProfileMutation) {
+        if (deliveryProfileMutation.staged) {
+          store.appendLog({
+            id: makeSyntheticGid('MutationLogEntry'),
+            receivedAt: makeSyntheticTimestamp(),
+            operationName: capability.operationName,
+            path: ctx.path,
+            query: body.query,
+            variables,
+            requestBody,
+            stagedResourceIds: deliveryProfileMutation.stagedResourceIds,
+            status: 'staged',
+            interpreted: interpretMutationLogEntry(parsed, capability),
+            notes: deliveryProfileMutation.notes,
+          });
+        }
+
+        ctx.status = 200;
+        ctx.body = deliveryProfileMutation.response;
+        return;
+      }
     }
 
     if (capability.execution === 'stage-locally' && capability.domain === 'customers') {
@@ -873,6 +919,16 @@ export function createProxyRouter(config: AppConfig): Router {
       ) {
         ctx.status = 200;
         ctx.body = handleStorePropertiesQuery(body.query, variables);
+        return;
+      }
+
+      if (
+        config.readMode === 'live-hybrid' &&
+        (primaryRootField === 'deliveryProfile' || primaryRootField === 'deliveryProfiles') &&
+        store.hasStagedDeliveryProfiles()
+      ) {
+        ctx.status = 200;
+        ctx.body = handleDeliveryProfileQuery(body.query, variables);
         return;
       }
     }

@@ -1152,6 +1152,28 @@ HAR-256 captured `metafieldDefinitionPin` and `metafieldDefinitionUnpin` against
 
 The implemented local slice is intentionally limited to existing normalized definitions. Keep create/update/delete and app-configuration-managed or unsupported-owner pinning branches separate until they have their own evidence.
 
+## 20. Metaobject read no-data behavior is clean, but setup access has a trap
+
+HAR-240 captured the first Admin GraphQL 2026-04 metaobject read fixture against `harry-test-heelo.myshopify.com`.
+
+Useful read behavior from `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects-read.json`:
+
+- unknown `metaobjectDefinitionByType(type:)` returns `null`
+- unknown `metaobjectDefinition(id:)` returns `null`
+- unknown `metaobjectByHandle(handle:)` returns `null`
+- unknown `metaobject(id:)` returns `null`
+- unknown-type `metaobjects(type:, first:)` returns a non-null empty connection with empty `edges`/`nodes`, false `pageInfo` booleans, and null cursors
+- a merchant-owned seeded definition returned default `access.admin: PUBLIC_READ_WRITE` and `access.storefront: NONE`
+- a publishable seeded entry returned `capabilities.publishable.status: ACTIVE`; disabled online-store capability data returned `onlineStore: null`
+- `Metaobject` exposes `updatedAt` in 2026-04 for the captured selected timestamp slice; the live type introspection in the fixture does not expose a `createdAt` field
+
+Setup trap:
+
+- passing `access.admin` while creating a merchant-owned metaobject definition returns `ADMIN_ACCESS_INPUT_NOT_ALLOWED` with message `Admin access can only be specified on metaobject definitions that have an app-reserved type.`
+- practical consequence: for merchant-owned fixture setup, omit `access` from `metaobjectDefinitionCreate` and capture the default access through read queries instead of trying to force it in setup input
+
+No parity spec is checked in for this fixture yet because the proxy does not have an executable metaobject read/snapshot model. Do not add a planned-only metaobject parity spec just to point at this fixture.
+
 ## 18a. Staged metafield writes need product-scoped replacement semantics, not id-wise merge
 
 Adding `metafieldsSet` / `metafieldDelete` exposed a subtle state-model trap:

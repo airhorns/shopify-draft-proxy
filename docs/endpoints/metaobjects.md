@@ -55,7 +55,24 @@ Planned local-staging mutations:
 - Capture create, update, upsert, delete, bulk delete, definition create/update/delete, and standard definition enable userErrors before local staging is marked implemented.
 - Promote parity specs only after comparison targets can verify Shopify payload shape, userErrors, nullability, empty connections, cursor treatment, and downstream read-after-write or read-after-delete behavior.
 
+## Captured read fixture slice
+
+HAR-240 adds a live 2026-04 read fixture at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects-read.json`, recorded by `corepack pnpm conformance:capture-metaobjects`.
+
+The recorder captures no-data behavior before setup:
+
+- `metaobjectDefinitionByType(type:)` returns `null` for an unknown type.
+- `metaobjectDefinition(id:)` returns `null` for an unknown definition GID.
+- `metaobjects(type:, first:)` returns a non-null empty connection for an unknown type, with empty `edges`/`nodes`, `hasNextPage: false`, `hasPreviousPage: false`, and null cursors.
+- `metaobjectByHandle(handle:)` returns `null` for an unknown type/handle pair.
+- `metaobject(id:)` returns `null` for an unknown entry GID.
+
+The seeded branch creates one disposable merchant-owned metaobject definition and one entry, reads them, then deletes both. Definition reads cover catalog/detail/type lookup with `access`, `capabilities`, `displayNameKey`, ordered `fieldDefinitions`, `metaobjectsCount`, and connection cursors. Entry reads cover type catalog, ID lookup, handle lookup, `handle`, `type`, `displayName`, `updatedAt`, entry `capabilities`, ordered `fields`, and `field(key: "title")`.
+
+No parity spec or proxy request is checked in for this fixture yet. The local proxy still has no executable metaobject snapshot/read model, so a strict parity scenario would either fail for lack of implementation or require invented local data, which the repository rules prohibit.
+
 ## Validation anchors
 
 - Registry and coverage tests: `tests/unit/operation-registry.test.ts`, `tests/unit/graphql-operation-coverage.test.ts`
 - Captured root inventory: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-graphql-root-operation-introspection.json`
+- Read fixture recorder: `scripts/capture-metaobject-read-conformance.mts`
