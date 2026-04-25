@@ -190,6 +190,21 @@ const removeProductsMutation = `#graphql
   }
 `;
 
+const reorderProductsMutation = `#graphql
+  mutation CollectionReorderProductsConformance($id: ID!, $moves: [MoveInput!]!) {
+    collectionReorderProducts(id: $id, moves: $moves) {
+      job {
+        id
+        done
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
 const postCreateReadQuery = `#graphql
   query CollectionCreateDownstream($collectionId: ID!) {
     collection(id: $collectionId) {
@@ -205,6 +220,44 @@ const postAddReadQuery = `#graphql
   query CollectionAddProductsDownstream($collectionId: ID!, $firstProductId: ID!, $secondProductId: ID!) {
     collection(id: $collectionId) {
       ${collectionDetailSlice}
+    }
+    first: product(id: $firstProductId) {
+      ${productCollectionsSlice}
+    }
+    second: product(id: $secondProductId) {
+      ${productCollectionsSlice}
+    }
+  }
+`;
+
+const postReorderReadQuery = `#graphql
+  query CollectionReorderProductsDownstream($collectionId: ID!, $firstProductId: ID!, $secondProductId: ID!) {
+    collection(id: $collectionId) {
+      id
+      title
+      handle
+      defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) {
+        nodes {
+          id
+          title
+          handle
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+        }
+      }
+      manualProducts: products(first: 10, sortKey: MANUAL) {
+        nodes {
+          id
+          title
+          handle
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+        }
+      }
     }
     first: product(id: $firstProductId) {
       ${productCollectionsSlice}
@@ -263,6 +316,7 @@ function buildCreateVariables(runId) {
   return {
     input: {
       title: `Hermes Collection Conformance ${runId}`,
+      sortOrder: 'MANUAL',
     },
   };
 }
@@ -289,6 +343,7 @@ async function writeScopeBlocker(blocker) {
       'collectionDelete',
       'collectionAddProducts',
       'collectionRemoveProducts',
+      'collectionReorderProducts',
     ],
     blocker,
     whyBlocked:
@@ -313,6 +368,7 @@ const createVariables = buildCreateVariables(runId);
 let createdCollectionId = null;
 let createResponse = null;
 let addResponse = null;
+let reorderResponse = null;
 let updateResponse = null;
 let removeResponse = null;
 let deleteResponse = null;
@@ -336,6 +392,23 @@ try {
     secondProductId: secondProduct.id,
   };
   const postAddRead = await runGraphql(postAddReadQuery, postAddReadVariables);
+
+  const reorderVariables = {
+    id: createdCollectionId,
+    moves: [
+      {
+        id: secondProduct.id,
+        newPosition: '0',
+      },
+    ],
+  };
+  reorderResponse = await runGraphql(reorderProductsMutation, reorderVariables);
+  const postReorderReadVariables = {
+    collectionId: createdCollectionId,
+    firstProductId: firstProduct.id,
+    secondProductId: secondProduct.id,
+  };
+  const postReorderRead = await runGraphql(postReorderReadQuery, postReorderReadVariables);
 
   const updateVariables = buildUpdateVariables(createdCollectionId, runId);
   updateResponse = await runGraphql(updateMutation, updateVariables);
@@ -381,6 +454,16 @@ try {
       },
       downstreamReadVariables: postAddReadVariables,
       downstreamRead: postAddRead,
+    },
+    'collection-reorder-products-parity.json': {
+      seedProducts: [firstProduct, secondProduct],
+      initialCollectionRead: postAddRead,
+      mutation: {
+        variables: reorderVariables,
+        response: reorderResponse,
+      },
+      downstreamReadVariables: postReorderReadVariables,
+      downstreamRead: postReorderRead,
     },
     'collection-update-parity.json': {
       seedProducts: [firstProduct, secondProduct],

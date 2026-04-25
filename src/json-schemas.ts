@@ -42,6 +42,7 @@ export const operationRegistryEntrySchema = z.strictObject({
   implemented: z.boolean(),
   matchNames: z.array(z.string().min(1)),
   runtimeTests: z.array(z.string().min(1)),
+  supportNotes: z.string().min(1).optional(),
 });
 export const operationRegistrySchema = z.array(operationRegistryEntrySchema);
 export type OperationRegistryEntry = z.infer<typeof operationRegistryEntrySchema>;

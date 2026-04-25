@@ -11,7 +11,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "oxlint -D no-console . && oxfmt --check .",
+    "lint": "oxlint --import-plugin -D no-console . && oxfmt --check .",
     "conformance:check": "vitest run tests/unit/conformance-scenario-discovery.test.ts tests/unit/operation-registry.test.ts",
     "conformance:status": "tsx ./scripts/conformance-status-report.ts",
     "conformance:parity": "vitest run tests/unit/conformance-parity-scenarios.test.ts",

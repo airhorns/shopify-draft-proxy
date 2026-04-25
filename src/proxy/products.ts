@@ -251,6 +251,154 @@ function makeProductCollectionRecord(
   };
 }
 
+interface CollectionMembershipEntry {
+  product: ProductRecord;
+  membership: ProductCollectionRecord;
+}
+
+interface CollectionProductMove {
+  id: string;
+  newPosition: number;
+}
+
+type CollectionReorderUserError = { field: string[]; message: string };
+
+function listEffectiveCollectionMembershipEntries(collectionId: string): CollectionMembershipEntry[] {
+  return store
+    .listEffectiveProducts()
+    .map((product) => ({
+      product,
+      membership:
+        store.getEffectiveCollectionsByProductId(product.id).find((collection) => collection.id === collectionId) ??
+        null,
+    }))
+    .filter((entry): entry is CollectionMembershipEntry => entry.membership !== null)
+    .sort((left, right) => {
+      const leftPosition =
+        typeof left.membership.position === 'number' ? left.membership.position : Number.POSITIVE_INFINITY;
+      const rightPosition =
+        typeof right.membership.position === 'number' ? right.membership.position : Number.POSITIVE_INFINITY;
+      return leftPosition - rightPosition || left.product.id.localeCompare(right.product.id);
+    });
+}
+
+function readCollectionReorderPosition(rawPosition: unknown): number | null {
+  if (typeof rawPosition === 'number' && Number.isFinite(rawPosition)) {
+    return Math.max(0, Math.floor(rawPosition));
+  }
+
+  if (typeof rawPosition !== 'string' || !/^\d+$/u.test(rawPosition.trim())) {
+    return null;
+  }
+
+  return Number.parseInt(rawPosition, 10);
+}
+
+function readCollectionProductMoves(rawMoves: unknown): {
+  moves: CollectionProductMove[];
+  userErrors: CollectionReorderUserError[];
+} {
+  const rawMoveList = Array.isArray(rawMoves) ? rawMoves : isObject(rawMoves) ? [rawMoves] : [];
+  const moves: CollectionProductMove[] = [];
+  const userErrors: CollectionReorderUserError[] = [];
+
+  if (rawMoveList.length === 0) {
+    return {
+      moves,
+      userErrors: [{ field: ['moves'], message: 'At least one move is required' }],
+    };
+  }
+
+  if (rawMoveList.length > 250) {
+    userErrors.push({ field: ['moves'], message: 'Too many moves were provided' });
+  }
+
+  for (const [index, rawMove] of rawMoveList.entries()) {
+    if (!isObject(rawMove)) {
+      userErrors.push({ field: ['moves', `${index}`], message: 'Move is invalid' });
+      continue;
+    }
+
+    const productId = typeof rawMove['id'] === 'string' ? rawMove['id'] : null;
+    const newPosition = readCollectionReorderPosition(rawMove['newPosition']);
+
+    if (!productId) {
+      userErrors.push({ field: ['moves', `${index}`, 'id'], message: 'Product id is required' });
+    }
+    if (newPosition === null) {
+      userErrors.push({ field: ['moves', `${index}`, 'newPosition'], message: 'Position is invalid' });
+    }
+    if (productId && newPosition !== null) {
+      moves.push({ id: productId, newPosition });
+    }
+  }
+
+  return { moves, userErrors };
+}
+
+function reorderCollectionProducts(
+  collection: CollectionRecord,
+  rawMoves: unknown,
+): { job: { id: string; done: boolean } | null; userErrors: CollectionReorderUserError[] } {
+  if (
+    collection.isSmart ||
+    (collection.sortOrder !== undefined && collection.sortOrder !== null && collection.sortOrder !== 'MANUAL')
+  ) {
+    return {
+      job: null,
+      userErrors: [{ field: ['id'], message: "Can't reorder products unless collection is manually sorted" }],
+    };
+  }
+
+  const { moves, userErrors } = readCollectionProductMoves(rawMoves);
+  const orderedEntries = listEffectiveCollectionMembershipEntries(collection.id);
+  const productIdsInCollection = new Set(orderedEntries.map((entry) => entry.product.id));
+
+  for (const [index, move] of moves.entries()) {
+    if (!store.getEffectiveProductById(move.id)) {
+      userErrors.push({ field: ['moves', `${index}`, 'id'], message: 'Product does not exist' });
+    } else if (!productIdsInCollection.has(move.id)) {
+      userErrors.push({ field: ['moves', `${index}`, 'id'], message: 'Product is not in the collection' });
+    }
+  }
+
+  if (userErrors.length > 0) {
+    return { job: null, userErrors };
+  }
+
+  for (const move of moves) {
+    const currentIndex = orderedEntries.findIndex((entry) => entry.product.id === move.id);
+    if (currentIndex < 0) {
+      continue;
+    }
+
+    const [entry] = orderedEntries.splice(currentIndex, 1);
+    if (!entry) {
+      continue;
+    }
+
+    const nextIndex = Math.min(move.newPosition, orderedEntries.length);
+    orderedEntries.splice(nextIndex, 0, entry);
+  }
+
+  for (const [position, entry] of orderedEntries.entries()) {
+    const nextCollections = store.getEffectiveCollectionsByProductId(entry.product.id).map((membership) =>
+      membership.id === collection.id
+        ? {
+            ...membership,
+            position,
+          }
+        : membership,
+    );
+    store.replaceStagedCollectionsForProduct(entry.product.id, nextCollections);
+  }
+
+  return {
+    job: { id: makeSyntheticGid('Job'), done: false },
+    userErrors: [],
+  };
+}
+
 function addProductsToCollection(
   collection: CollectionRecord,
   productIds: string[],
@@ -300,7 +448,7 @@ function addProductsToCollection(
   for (const [index, productId] of existingProductIds.entries()) {
     const nextCollections = [
       ...store.getEffectiveCollectionsByProductId(productId),
-      makeProductCollectionRecord(productId, collection, firstPosition + (addedCount - index - 1)),
+      makeProductCollectionRecord(productId, collection, firstPosition + index),
     ];
     store.replaceStagedCollectionsForProduct(productId, nextCollections);
   }
@@ -454,6 +602,8 @@ function isUnknownPublicationId(publicationId: string): boolean {
   return publicationId.startsWith('__unknown_publication__');
 }
 
+const currentPublicationPlaceholderId = '__current_publication__';
+
 function readPublicationIds(raw: unknown, fallback: string[] = []): string[] {
   if (!Array.isArray(raw)) {
     return structuredClone(fallback);
@@ -550,6 +700,10 @@ function removePublicationTargets(existing: string[], removals: string[]): strin
   }
 
   return next;
+}
+
+function getPublishableProductId(rawId: unknown): string | null {
+  return typeof rawId === 'string' && rawId.startsWith('gid://shopify/Product/') ? rawId : null;
 }
 
 function serializeCountValue(field: FieldNode, count: number): Record<string, unknown> {
@@ -3233,6 +3387,28 @@ function serializeProductMutationPayload(
   const productField = getChildField(field, 'product');
   if (productField) {
     result[getResponseKey(productField)] = serializeProduct(payload.product, productField, variables);
+  }
+
+  const userErrorsField = getChildField(field, 'userErrors');
+  if (userErrorsField) {
+    result[getResponseKey(userErrorsField)] = payload.userErrors;
+  }
+
+  return result;
+}
+
+function serializePublishableMutationPayload(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  payload: {
+    publishable: ProductRecord | null;
+    userErrors: Array<{ field: string[]; message: string }>;
+  },
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  const publishableField = getChildField(field, 'publishable');
+  if (publishableField) {
+    result[getResponseKey(publishableField)] = serializeProduct(payload.publishable, publishableField, variables);
   }
 
   const userErrorsField = getChildField(field, 'userErrors');
@@ -6727,6 +6903,116 @@ export function handleProductMutation(
         },
       };
     }
+    case 'publishablePublish':
+    case 'publishablePublishToCurrentChannel': {
+      const rawPublishableId = args['id'];
+      const productId = getPublishableProductId(rawPublishableId);
+      if (!productId) {
+        return {
+          data: {
+            [responseKey]: serializePublishableMutationPayload(field, variables, {
+              publishable: null,
+              userErrors: [{ field: ['id'], message: 'Only Product publishable IDs are supported locally' }],
+            }),
+          },
+        };
+      }
+
+      const existing = store.getEffectiveProductById(productId);
+      if (!existing) {
+        return {
+          data: {
+            [responseKey]: serializePublishableMutationPayload(field, variables, {
+              publishable: null,
+              userErrors: [{ field: ['id'], message: 'Product not found' }],
+            }),
+          },
+        };
+      }
+
+      const publicationTargets =
+        field.name.value === 'publishablePublishToCurrentChannel'
+          ? [currentPublicationPlaceholderId]
+          : readPublicationTargets(args['input']);
+      if (publicationTargets.length === 0) {
+        return {
+          data: {
+            [responseKey]: serializePublishableMutationPayload(field, variables, {
+              publishable: existing,
+              userErrors: [{ field: ['input'], message: 'Publication target is required' }],
+            }),
+          },
+        };
+      }
+
+      const nextPublicationIds = mergePublicationTargets(existing.publicationIds, publicationTargets);
+      store.stageUpdateProduct(makeProductRecord({ id: productId, publicationIds: nextPublicationIds }, existing));
+      const product = store.getEffectiveProductById(productId);
+
+      return {
+        data: {
+          [responseKey]: serializePublishableMutationPayload(field, variables, {
+            publishable: product,
+            userErrors: [],
+          }),
+        },
+      };
+    }
+    case 'publishableUnpublish':
+    case 'publishableUnpublishToCurrentChannel': {
+      const rawPublishableId = args['id'];
+      const productId = getPublishableProductId(rawPublishableId);
+      if (!productId) {
+        return {
+          data: {
+            [responseKey]: serializePublishableMutationPayload(field, variables, {
+              publishable: null,
+              userErrors: [{ field: ['id'], message: 'Only Product publishable IDs are supported locally' }],
+            }),
+          },
+        };
+      }
+
+      const existing = store.getEffectiveProductById(productId);
+      if (!existing) {
+        return {
+          data: {
+            [responseKey]: serializePublishableMutationPayload(field, variables, {
+              publishable: null,
+              userErrors: [{ field: ['id'], message: 'Product not found' }],
+            }),
+          },
+        };
+      }
+
+      const publicationTargets =
+        field.name.value === 'publishableUnpublishToCurrentChannel'
+          ? [currentPublicationPlaceholderId]
+          : readPublicationTargets(args['input']);
+      if (publicationTargets.length === 0) {
+        return {
+          data: {
+            [responseKey]: serializePublishableMutationPayload(field, variables, {
+              publishable: existing,
+              userErrors: [{ field: ['input'], message: 'Publication target is required' }],
+            }),
+          },
+        };
+      }
+
+      const nextPublicationIds = removePublicationTargets(existing.publicationIds, publicationTargets);
+      store.stageUpdateProduct(makeProductRecord({ id: productId, publicationIds: nextPublicationIds }, existing));
+      const product = store.getEffectiveProductById(productId);
+
+      return {
+        data: {
+          [responseKey]: serializePublishableMutationPayload(field, variables, {
+            publishable: product,
+            userErrors: [],
+          }),
+        },
+      };
+    }
     case 'productOptionsCreate': {
       const rawProductId = args['productId'];
       const productId = typeof rawProductId === 'string' ? rawProductId : null;
@@ -7102,6 +7388,44 @@ export function handleProductMutation(
           [responseKey]: {
             job: serializeJobSelectionSet(job, getChildField(field, 'job')?.selectionSet?.selections ?? []),
             userErrors: [],
+          },
+        },
+      };
+    }
+    case 'collectionReorderProducts': {
+      const rawCollectionId = args['id'];
+      const collectionId = typeof rawCollectionId === 'string' ? rawCollectionId : null;
+      if (!collectionId) {
+        return {
+          data: {
+            [responseKey]: {
+              job: null,
+              userErrors: [{ field: ['id'], message: 'Collection id is required' }],
+            },
+          },
+        };
+      }
+
+      const existing = findEffectiveCollectionById(collectionId);
+      if (!existing) {
+        return {
+          data: {
+            [responseKey]: {
+              job: null,
+              userErrors: [{ field: ['id'], message: 'Collection not found' }],
+            },
+          },
+        };
+      }
+
+      const result = reorderCollectionProducts(existing, args['moves']);
+      return {
+        data: {
+          [responseKey]: {
+            job: result.job
+              ? serializeJobSelectionSet(result.job, getChildField(field, 'job')?.selectionSet?.selections ?? [])
+              : null,
+            userErrors: result.userErrors,
           },
         },
       };

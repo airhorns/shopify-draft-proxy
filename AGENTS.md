@@ -21,6 +21,10 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 3. **Do not send supported mutations to Shopify at runtime**
    - Supported mutations must stage locally.
    - Unsupported mutations may proxy through, but must be visible in logs/observability.
+   - Do not register operations as permanent passthrough capabilities. A
+     registered operation is a commitment to model it locally before it is
+     considered supported; passthrough is only the unknown/unsupported escape
+     hatch, not an intended execution posture for a known operation.
 
 4. **Keep original raw mutations for commit**
    - Commit should replay original mutations in original order.
@@ -56,6 +60,11 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
   difference because clients must not depend on their internal encoding.
 - Repo scripts must be TypeScript files executed with `tsx` or similar, not
   `.mjs` files. Do not add `.mjs` files anywhere in this repository.
+- Relative TypeScript import specifiers must use the emitted JavaScript
+  extension that TypeScript expects for NodeNext output (`.js` for `.ts`, `.mjs`
+  for `.mts`, `.cjs` for `.cts`). Do not import local modules with source
+  extensions such as `.ts`, `.mts`, or `.cts`; `pnpm lint` enforces this with
+  oxlint's `import/extensions` rule.
 
 ## GitHub repository
 
