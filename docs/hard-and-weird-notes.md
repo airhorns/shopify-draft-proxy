@@ -2181,3 +2181,20 @@ Practical rule:
 - keep scaffold-only payment roots out of capability routing until captured evidence and local modeling exist for each family
 - do not add parity specs or parity request placeholders for payment roots until there is captured interaction evidence that can run as working conformance coverage
 - future runtime support must stage supported payment mutations locally and preserve raw mutation order for commit; unknown unsupported operations can still fall through the generic passthrough escape hatch with observability
+
+## 60. MarketCatalog and PriceList reads connect catalogs, publications, and contextual prices
+
+HAR-178 expanded Markets read parity with Admin GraphQL 2026-04 captures from `harry-test-heelo.myshopify.com`. The useful detail is not just the root availability; the captured graph links a `MarketCatalog` to a `Publication`, a `PriceList`, associated `Market` rows, and `PriceList.prices` rows that point back to product variants.
+
+Captured facts:
+
+- `catalog(id:)` on a MarketCatalog can return `operations: []`, `marketsCount`, `markets`, `publication`, and `priceList` in one read.
+- `catalogsCount(type: MARKET)` returns a `Count` object with `count` and `precision`.
+- `priceList(id:)` returns `fixedPricesCount`, `parent.adjustment`, nullable `catalog`, and `prices`.
+- The captured Mexico price list had `fixedPricesCount: 0` but still returned `PriceList.prices` rows with `originType: RELATIVE`, variant IDs, product IDs, and product titles.
+- Shopify's `PriceList.prices(query:)` expects numeric IDs for `variant_id` and `product_id`; a GID-shaped `variant_id:` query produced search warnings and no rows.
+
+Practical rule:
+
+- model catalog and price-list reads from captured normalized records, but keep quantity rules and price-list write surfaces unsupported until captures prove the non-empty shape.
+- when testing price filters, use numeric Shopify legacy IDs in search strings even though the returned nodes use GIDs.

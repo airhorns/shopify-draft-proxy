@@ -1,0 +1,60 @@
+{
+  "data": {
+    "webPresences": {
+      "edges": [
+        {
+          "cursor": "eyJsYXN0X2lkIjo2Mjg0Mjc2NTYxOCwibGFzdF92YWx1ZSI6IjYyODQyNzY1NjE4In0=",
+          "node": {
+            "id": "gid://shopify/MarketWebPresence/62842765618",
+            "subfolderSuffix": null,
+            "domain": {
+              "id": "gid://shopify/Domain/157391388978",
+              "host": "harry-test-heelo.myshopify.com",
+              "url": "https://harry-test-heelo.myshopify.com",
+              "sslEnabled": true
+            },
+            "rootUrls": [
+              {
+                "locale": "en",
+                "url": "https://harry-test-heelo.myshopify.com/"
+              }
+            ],
+            "defaultLocale": {
+              "locale": "en",
+              "name": "English",
+              "primary": true,
+              "published": true
+            },
+            "alternateLocales": [],
+            "markets": {
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": "eyJsYXN0X2lkIjo2Mjg0Mjc2NTYxOCwibGFzdF92YWx1ZSI6IjYyODQyNzY1NjE4In0=",
+        "endCursor": "eyJsYXN0X2lkIjo2Mjg0Mjc2NTYxOCwibGFzdF92YWx1ZSI6IjYyODQyNzY1NjE4In0="
+      }
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 22,
+      "actualQueryCost": 8,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1896,
+        "restoreRate": 100
+      }
+    }
+  }
+}
