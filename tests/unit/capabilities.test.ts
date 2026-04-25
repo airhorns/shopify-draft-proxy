@@ -57,6 +57,24 @@ describe('getOperationCapability', () => {
       operationName: 'CustomersCount',
       type: 'query',
     });
+
+    expect(
+      getOperationCapability({ type: 'query', name: 'CustomerByIdentifier', rootFields: ['customerByIdentifier'] }),
+    ).toEqual({
+      domain: 'customers',
+      execution: 'overlay-read',
+      operationName: 'CustomerByIdentifier',
+      type: 'query',
+    });
+  });
+
+  it('classifies customerByIdentifier by root field when the operation name is misleading', () => {
+    expect(getOperationCapability({ type: 'query', name: 'Customer', rootFields: ['customerByIdentifier'] })).toEqual({
+      domain: 'customers',
+      execution: 'overlay-read',
+      operationName: 'customerByIdentifier',
+      type: 'query',
+    });
   });
 
   it('marks customer create, update, and delete as locally staged mutations', () => {

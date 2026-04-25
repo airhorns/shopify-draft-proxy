@@ -181,9 +181,9 @@
     "type": "query",
     "domain": "customers",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerByIdentifier", "CustomerByIdentifier"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/customer-query-shapes.test.ts", "tests/integration/customer-draft-flow.test.ts"]
   },
   {
     "name": "customerMergePreview",

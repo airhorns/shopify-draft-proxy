@@ -1052,6 +1052,31 @@ function seedCustomerMutationPreconditions(
   return true;
 }
 
+function seedCustomerByIdentifierPreconditions(capture: unknown): boolean {
+  const positiveAndMissingData = readRecordField(
+    readRecordField(capture as Record<string, unknown>, 'positiveAndMissing'),
+    'data',
+  );
+  const customers = ['byId', 'byEmail', 'byPhone']
+    .map((key) => readRecordField(positiveAndMissingData, key))
+    .filter((customer): customer is Record<string, unknown> => customer !== null);
+  const seedCustomers = new Map<string, CustomerRecord>();
+
+  for (const customer of customers) {
+    const customerId = readStringField(customer, 'id');
+    if (customerId && !seedCustomers.has(customerId)) {
+      seedCustomers.set(customerId, makeSeedCustomer(customerId, customer));
+    }
+  }
+
+  if (seedCustomers.size === 0) {
+    return false;
+  }
+
+  store.upsertBaseCustomers([...seedCustomers.values()]);
+  return true;
+}
+
 function readShopifyPaymentsAccountRecord(source: Record<string, unknown> | null): ShopifyPaymentsAccountRecord | null {
   if (!source) {
     return null;
@@ -2507,6 +2532,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   const payload = mutationPayloadFromCapture(capture);
   const mutationName = mutationNameFromCapture(capture);
   if (seedCustomerMutationPreconditions(capture, variables, mutationName, payload)) {
+    return;
+  }
+
+  if (seedCustomerByIdentifierPreconditions(capture)) {
     return;
   }
 

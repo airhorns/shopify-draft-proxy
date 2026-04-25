@@ -280,6 +280,13 @@ describe('getOperationCapability anonymous operations', () => {
       operationName: 'customersCount',
       type: 'query',
     });
+
+    expect(getOperationCapability({ type: 'query', name: null, rootFields: ['customerByIdentifier'] })).toEqual({
+      domain: 'customers',
+      execution: 'overlay-read',
+      operationName: 'customerByIdentifier',
+      type: 'query',
+    });
   });
 
   it('classifies anonymous top-level product variant and inventory item queries by root field name', () => {

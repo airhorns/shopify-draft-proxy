@@ -1801,6 +1801,21 @@ Practical rule for the proxy:
 - side-effect email roots and customer merge should stay explicit passthrough/deferred until a product decision says whether to block, simulate, or proxy them with stronger observability
 - the protected-customer-data denial mode remains a real fallback path in `scripts/capture-customer-conformance.mts`, but current successful fixtures should not be overwritten by stale blocker notes unless the capture script reproduces the denial again
 
+### 46a. `customerByIdentifier` is an effective-customer lookup, with custom-id caveats
+
+Live `customerByIdentifier` capture on this host showed the safe read branches that should use the same normalized customer graph as `customer(id:)`:
+
+- `identifier: { id }`, `{ emailAddress }`, and `{ phoneNumber }` all returned the same customer when the captured values matched the live record
+- an unmatched email identifier returned `customerByIdentifier: null` with no top-level error
+- `customId` is not a generic local key/value lookup: without a unique metafield definition of type `id`, Shopify returned `data.customId: null` plus a top-level `NOT_FOUND` error saying that an id-type metafield definition is required
+- an empty identifier object failed variable validation before returning data: `CustomerIdentifierInput` requires exactly one argument
+
+Practical rule for the proxy:
+
+- resolve id/email/phone identifier reads against effective normalized customer state, so snapshot rows and staged `customerCreate` / `customerUpdate` rows are visible immediately
+- keep custom-id support limited to the captured Shopify-like error until customer metafield definitions and unique metafield values are modeled explicitly
+- classify `customerByIdentifier` by root field, because apps can use arbitrary or misleading GraphQL operation names
+
 ## 47. Store properties roots are deceptively broad for a "properties" category
 
 The first Store properties inventory for Admin GraphQL 2026-04 exposed several roots that should be tracked before runtime support, but should not be treated as harmless metadata reads/writes.
