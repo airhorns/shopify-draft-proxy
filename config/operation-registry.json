@@ -2200,27 +2200,30 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": true,
+    "implemented": false,
     "matchNames": ["discountCodeBasicCreate", "DiscountCodeBasicCreate"],
-    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"]
+    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
+    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
   },
   {
     "name": "discountCodeBasicUpdate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": true,
+    "implemented": false,
     "matchNames": ["discountCodeBasicUpdate", "DiscountCodeBasicUpdate"],
-    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"]
+    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
+    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
   },
   {
     "name": "discountCodeBxgyCreate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": true,
+    "implemented": false,
     "matchNames": ["discountCodeBxgyCreate", "DiscountCodeBxgyCreate"],
-    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"]
+    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
+    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
   },
   {
     "name": "discountCodeBxgyUpdate",
@@ -2236,9 +2239,10 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": true,
+    "implemented": false,
     "matchNames": ["discountCodeFreeShippingCreate", "DiscountCodeFreeShippingCreate"],
-    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"]
+    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
+    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
   },
   {
     "name": "discountCodeFreeShippingUpdate",
@@ -2290,9 +2294,10 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": true,
+    "implemented": false,
     "matchNames": ["discountCodeBulkDeactivate", "DiscountCodeBulkDeactivate"],
-    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"]
+    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
+    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
   },
   {
     "name": "discountCodeBulkDelete",
@@ -2326,9 +2331,10 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": true,
+    "implemented": false,
     "matchNames": ["discountAutomaticBasicCreate", "DiscountAutomaticBasicCreate"],
-    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"]
+    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
+    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
   },
   {
     "name": "discountAutomaticBasicUpdate",
@@ -2344,9 +2350,10 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": true,
+    "implemented": false,
     "matchNames": ["discountAutomaticBxgyCreate", "DiscountAutomaticBxgyCreate"],
-    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"]
+    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
+    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
   },
   {
     "name": "discountAutomaticBxgyUpdate",
@@ -2362,9 +2369,10 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": true,
+    "implemented": false,
     "matchNames": ["discountAutomaticFreeShippingCreate", "DiscountAutomaticFreeShippingCreate"],
-    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"]
+    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
+    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
   },
   {
     "name": "discountAutomaticFreeShippingUpdate",
@@ -2407,9 +2415,10 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": true,
+    "implemented": false,
     "matchNames": ["discountAutomaticBulkDelete", "DiscountAutomaticBulkDelete"],
-    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"]
+    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
+    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
   },
   {
     "name": "discountCodeAppCreate",

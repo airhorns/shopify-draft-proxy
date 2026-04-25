@@ -139,6 +139,11 @@ function unsupportedMutationNotes(parsed: ParsedOperation): string {
     return 'Unsupported app-managed discount mutation would be proxied to Shopify. Shopify Functions app-discount roots require conformance-backed local staging before they can be supported without executing external Function logic.';
   }
 
+  const registryEntry = findOperationRegistryEntry(parsed.type, [...parsed.rootFields, parsed.name]);
+  if (registryEntry?.domain === 'discounts') {
+    return 'Unsupported discount mutation lifecycle branch would be proxied to Shopify. Captured validation failures are handled locally only; full local emulation is required before this root can be supported.';
+  }
+
   return 'Mutation passthrough placeholder until supported local staging is implemented.';
 }
 
@@ -169,6 +174,24 @@ export function createProxyRouter(config: AppConfig): Router {
     const parsed = parseOperation(body.query);
     const capability = getOperationCapability(parsed);
     const primaryRootField = parsed.rootFields[0] ?? capability.operationName;
+
+    if (parsed.type === 'mutation') {
+      const discountValidationResponse = handleDiscountMutation(body.query, variables);
+      if (discountValidationResponse) {
+        proxyLogger.debug(
+          {
+            operationName: capability.operationName,
+            operationType: parsed.type,
+            rootFields: parsed.rootFields,
+          },
+          'returning captured discount validation response locally',
+        );
+
+        ctx.status = 200;
+        ctx.body = discountValidationResponse;
+        return;
+      }
+    }
 
     if (isProductLocalMutationCapability(capability)) {
       proxyLogger.debug(
@@ -302,29 +325,6 @@ export function createProxyRouter(config: AppConfig): Router {
       ctx.status = 200;
       ctx.body = responseBody;
       return;
-    }
-
-    if (capability.execution === 'stage-locally' && capability.domain === 'discounts') {
-      const responseBody = handleDiscountMutation(body.query, variables);
-      if (responseBody) {
-        store.appendLog({
-          id: makeSyntheticGid('MutationLogEntry'),
-          receivedAt: makeSyntheticTimestamp(),
-          operationName: capability.operationName,
-          path: ctx.path,
-          query: body.query,
-          variables,
-          requestBody,
-          stagedResourceIds: collectProxySyntheticGids(responseBody),
-          status: 'staged',
-          interpreted: interpretMutationLogEntry(parsed, capability),
-          notes: 'Locally short-circuited captured discount validation branch.',
-        });
-
-        ctx.status = 200;
-        ctx.body = responseBody;
-        return;
-      }
     }
 
     if (capability.execution === 'stage-locally' && capability.domain === 'segments') {

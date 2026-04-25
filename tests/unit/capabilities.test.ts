@@ -543,15 +543,11 @@ describe('getOperationCapability', () => {
     });
 
     expect(
-      getOperationCapability({
-        type: 'mutation',
-        name: 'CreateDiscount',
-        rootFields: ['discountCodeBasicCreate'],
-      }),
+      getOperationCapability({ type: 'mutation', name: 'CreateDiscount', rootFields: ['discountCodeBasicCreate'] }),
     ).toEqual({
-      domain: 'discounts',
-      execution: 'stage-locally',
-      operationName: 'discountCodeBasicCreate',
+      domain: 'unknown',
+      execution: 'passthrough',
+      operationName: 'CreateDiscount',
       type: 'mutation',
     });
 
@@ -562,9 +558,9 @@ describe('getOperationCapability', () => {
         rootFields: ['discountAutomaticBulkDelete'],
       }),
     ).toEqual({
-      domain: 'discounts',
-      execution: 'stage-locally',
-      operationName: 'discountAutomaticBulkDelete',
+      domain: 'unknown',
+      execution: 'passthrough',
+      operationName: 'DeleteAutomaticDiscounts',
       type: 'mutation',
     });
   });

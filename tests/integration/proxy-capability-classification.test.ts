@@ -105,7 +105,7 @@ describe('proxy capability classification', () => {
     expect(response.status).toBe(200);
     expect(store.getLog()).toHaveLength(1);
     expect(store.getLog()[0]).toMatchObject({
-      operationName: 'discountCodeBasicCreate',
+      operationName: 'CreateDiscount',
       status: 'proxied',
       interpreted: {
         operationType: 'mutation',
@@ -113,12 +113,19 @@ describe('proxy capability classification', () => {
         rootFields: ['discountCodeBasicCreate'],
         primaryRootField: 'discountCodeBasicCreate',
         capability: {
-          operationName: 'discountCodeBasicCreate',
+          operationName: 'CreateDiscount',
+          domain: 'unknown',
+          execution: 'passthrough',
+        },
+        registeredOperation: {
+          name: 'discountCodeBasicCreate',
           domain: 'discounts',
           execution: 'stage-locally',
+          implemented: false,
         },
       },
-      notes: 'Mutation passthrough placeholder until supported local staging is implemented.',
+      notes:
+        'Unsupported discount mutation lifecycle branch would be proxied to Shopify. Captured validation failures are handled locally only; full local emulation is required before this root can be supported.',
     });
   });
 
