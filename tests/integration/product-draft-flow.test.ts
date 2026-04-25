@@ -1803,6 +1803,206 @@ describe('product draft flow', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
+  it('stages generic publishable product roots locally without upstream writes', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('generic publishable product mutations should stage locally');
+    });
+
+    const app = createApp(config).callback();
+
+    const createResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Generic Publishable Hat", status: ACTIVE }) { product { id } userErrors { field message } } }',
+    });
+    const productId = createResponse.body.data.productCreate.product.id as string;
+
+    const publishResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `#graphql
+          mutation PublishGeneric($id: ID!, $input: [PublicationInput!]!) {
+            publishablePublish(id: $id, input: $input) {
+              publishable {
+                ... on Product {
+                  id
+                  publishedOnCurrentPublication
+                  availablePublicationsCount {
+                    count
+                    precision
+                  }
+                }
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+        variables: {
+          id: productId,
+          input: [{ publicationId: 'gid://shopify/Publication/1' }],
+        },
+      });
+
+    expect(publishResponse.status).toBe(200);
+    expect(publishResponse.body.data.publishablePublish).toEqual({
+      publishable: {
+        id: productId,
+        publishedOnCurrentPublication: true,
+        availablePublicationsCount: {
+          count: 1,
+          precision: 'EXACT',
+        },
+      },
+      userErrors: [],
+    });
+
+    const unpublishResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `#graphql
+          mutation UnpublishGeneric($id: ID!, $input: [PublicationInput!]!) {
+            publishableUnpublish(id: $id, input: $input) {
+              publishable {
+                ... on Product {
+                  id
+                  publishedOnCurrentPublication
+                  availablePublicationsCount {
+                    count
+                    precision
+                  }
+                }
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+        variables: {
+          id: productId,
+          input: [{ publicationId: 'gid://shopify/Publication/1' }],
+        },
+      });
+
+    expect(unpublishResponse.status).toBe(200);
+    expect(unpublishResponse.body.data.publishableUnpublish).toEqual({
+      publishable: {
+        id: productId,
+        publishedOnCurrentPublication: false,
+        availablePublicationsCount: {
+          count: 0,
+          precision: 'EXACT',
+        },
+      },
+      userErrors: [],
+    });
+
+    const currentChannelPublishResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `#graphql
+          mutation PublishCurrentGeneric($id: ID!) {
+            publishablePublishToCurrentChannel(id: $id) {
+              publishable {
+                ... on Product {
+                  id
+                  publishedOnCurrentPublication
+                }
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+        variables: { id: productId },
+      });
+
+    expect(currentChannelPublishResponse.status).toBe(200);
+    expect(currentChannelPublishResponse.body.data.publishablePublishToCurrentChannel).toEqual({
+      publishable: {
+        id: productId,
+        publishedOnCurrentPublication: true,
+      },
+      userErrors: [],
+    });
+
+    const currentChannelUnpublishResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `#graphql
+          mutation UnpublishCurrentGeneric($id: ID!) {
+            publishableUnpublishToCurrentChannel(id: $id) {
+              publishable {
+                ... on Product {
+                  id
+                  publishedOnCurrentPublication
+                }
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+        variables: { id: productId },
+      });
+
+    expect(currentChannelUnpublishResponse.status).toBe(200);
+    expect(currentChannelUnpublishResponse.body.data.publishableUnpublishToCurrentChannel).toEqual({
+      publishable: {
+        id: productId,
+        publishedOnCurrentPublication: false,
+      },
+      userErrors: [],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('rejects unsupported generic publishable targets locally instead of proxying upstream', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('unsupported generic publishable targets should not proxy upstream');
+    });
+
+    const app = createApp(config).callback();
+
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `#graphql
+          mutation PublishUnsupportedGeneric($id: ID!, $input: [PublicationInput!]!) {
+            publishablePublish(id: $id, input: $input) {
+              publishable {
+                ... on Product {
+                  id
+                }
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+        variables: {
+          id: 'gid://shopify/Article/1',
+          input: [{ publicationId: 'gid://shopify/Publication/1' }],
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.publishablePublish).toEqual({
+      publishable: null,
+      userErrors: [{ field: ['id'], message: 'Only Product and Collection publishable IDs are supported locally' }],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('matches minimal productUnpublish payload selections without leaking unselected product fields', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('productUnpublish should stage locally without upstream fetches');

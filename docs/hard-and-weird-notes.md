@@ -1785,8 +1785,8 @@ The first Store properties inventory for Admin GraphQL 2026-04 exposed several r
 Current scaffold decision:
 
 - `shop`, `location`, `locationByIdentifier`, `businessEntities`, `businessEntity`, and `cashManagementLocationSummary` are registry-tracked as planned overlay reads, but they are not implemented runtime capabilities yet
-- `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, `locationDelete`, `publishablePublishToCurrentChannel`, `publishableUnpublishToCurrentChannel`, and `shopPolicyUpdate` are registry-tracked as planned local-staging mutations, but they remain unsupported at runtime
-- generic `publishablePublish` / `publishableUnpublish` are implemented only for Product and Collection publishables; broader publishable resource families still need separate modeling
+- `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, `locationDelete`, and `shopPolicyUpdate` are registry-tracked as planned local-staging mutations, but they remain unsupported at runtime
+- generic `publishablePublish` / `publishableUnpublish` now stage Product and Collection targets locally; `publishablePublishToCurrentChannel` / `publishableUnpublishToCurrentChannel` currently have product-scoped local staging only
 - the capture harness now records schema inventory plus safe read-only `shop` / `locations` / `location(id:)` baselines, while mutation validation probes are recorded as a plan instead of executed by default
 
 Safety traps:
@@ -1800,14 +1800,26 @@ Practical rule:
 
 - keep Store properties registry inventory separate from runtime support; do not flip these roots to implemented until there is captured fixture evidence plus local model behavior for the specific root family
 
-### 47a. Collection publication starts as aggregate-only publishable state
+### 47a. Generic Publishable roots must not become permanent passthrough
 
-Shopify documents `Collection` as a `Publishable` implementer and notes that collections are unpublished by default after creation. The local model now mirrors the product publication aggregate path for collections:
+The generic Store properties publication roots (`publishablePublish`, `publishablePublishToCurrentChannel`, `publishableUnpublish`, and `publishableUnpublishToCurrentChannel`) should not be collapsed into the existing product-specific publication handlers just because `Product` implements `Publishable`.
+
+Current HAR-177 / HAR-163 decision:
+
+- keep `productPublish` / `productUnpublish` as the product-domain staged write path with their own captured parity fixtures
+- add a product-scoped local staging slice for the generic `publishable*` roots so known product publication mutations do not escape to the real store
+- add collection-scoped local staging for `publishablePublish` / `publishableUnpublish` only after collection-specific capture showed the aggregate publication path
+- keep `publishablePublishToCurrentChannel` / `publishableUnpublishToCurrentChannel` product-only until collection current-channel semantics have separate evidence
+- do not add other `Publishable` support until that resource family has captured evidence and local model behavior
+- treat product and collection targets separately because the Shopify `Publishable` interface covers both resource families, and collection publication behavior must not inherit product assumptions without evidence
+
+This keeps generic product and collection publication mutations isolated from upstream Shopify while preventing duplicate or contradictory publication behavior from pretending that one resource family's evidence settles another's semantics.
+
+Collection-specific facts from the current capture:
 
 - `CollectionRecord.publicationIds` is the first normalized state for collection publication visibility
 - `collectionCreate` records start with an empty publication id list, so `publishedOnPublication`, `availablePublicationsCount`, and `resourcePublicationsCount` serialize as unpublished/zero until a publish mutation stages a target
 - captured Online Store publication writes leave `publishedOnCurrentPublication` false, so the local aggregate model does not treat "published somewhere" as "published on the app's current publication"
-- generic `publishablePublish` / `publishableUnpublish` are locally supported for Product and Collection ids only; other `Publishable` implementers remain outside the supported mutation surface
 - `collections(query: "published_status:published")` and `published_status:unpublished` filter against the same aggregate collection state in local reads
 - full `resourcePublications` / `resourcePublicationsV2` edge parity remains pending collection-specific live capture because the current safe local model only proves the aggregate publication fields and search visibility path
 

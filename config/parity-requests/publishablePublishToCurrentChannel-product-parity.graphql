@@ -1,0 +1,22 @@
+mutation PublishablePublishToCurrentChannelProductParity($id: ID!) {
+  publishablePublishToCurrentChannel(id: $id) {
+    publishable {
+      ... on Product {
+        id
+        publishedOnCurrentPublication
+        availablePublicationsCount {
+          count
+          precision
+        }
+        resourcePublicationsCount {
+          count
+          precision
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

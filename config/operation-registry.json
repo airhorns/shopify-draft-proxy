@@ -315,7 +315,7 @@
     "name": "customerSendAccountInviteEmail",
     "type": "mutation",
     "domain": "customers",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["customerSendAccountInviteEmail", "CustomerSendAccountInviteEmail"],
     "runtimeTests": []
@@ -324,7 +324,7 @@
     "name": "customerPaymentMethodSendUpdateEmail",
     "type": "mutation",
     "domain": "customers",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["customerPaymentMethodSendUpdateEmail", "CustomerPaymentMethodSendUpdateEmail"],
     "runtimeTests": []
@@ -333,7 +333,7 @@
     "name": "customerMerge",
     "type": "mutation",
     "domain": "customers",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["customerMerge", "CustomerMerge"],
     "runtimeTests": []
@@ -483,16 +483,18 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["publishablePublish", "PublishablePublish"],
-    "runtimeTests": ["tests/integration/collection-draft-flow.test.ts"]
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts", "tests/integration/collection-draft-flow.test.ts"],
+    "supportNotes": "HAR-177/HAR-163 slices: stages generic Publishable mutations locally when the publishable ID is a Product or Collection. Product-specific productPublish/productUnpublish remain the deeper product publication parity roots; unsupported Publishable targets return local userErrors instead of proxying upstream."
   },
   {
     "name": "publishablePublishToCurrentChannel",
     "type": "mutation",
     "domain": "store-properties",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["publishablePublishToCurrentChannel", "PublishablePublishToCurrentChannel"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
+    "supportNotes": "HAR-177 product slice: stages generic Publishable mutations locally when the publishable ID is a Product. Product-specific productPublish/productUnpublish remain the deeper product publication parity roots; non-product Publishable targets return local userErrors instead of proxying upstream."
   },
   {
     "name": "publishableUnpublish",
@@ -501,16 +503,18 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["publishableUnpublish", "PublishableUnpublish"],
-    "runtimeTests": ["tests/integration/collection-draft-flow.test.ts"]
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts", "tests/integration/collection-draft-flow.test.ts"],
+    "supportNotes": "HAR-177/HAR-163 slices: stages generic Publishable mutations locally when the publishable ID is a Product or Collection. Product-specific productPublish/productUnpublish remain the deeper product publication parity roots; unsupported Publishable targets return local userErrors instead of proxying upstream."
   },
   {
     "name": "publishableUnpublishToCurrentChannel",
     "type": "mutation",
     "domain": "store-properties",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["publishableUnpublishToCurrentChannel", "PublishableUnpublishToCurrentChannel"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
+    "supportNotes": "HAR-177 product slice: stages generic Publishable mutations locally when the publishable ID is a Product. Product-specific productPublish/productUnpublish remain the deeper product publication parity roots; non-product Publishable targets return local userErrors instead of proxying upstream."
   },
   {
     "name": "shopPolicyUpdate",
@@ -1038,7 +1042,7 @@
     "name": "discountNodes",
     "type": "query",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "overlay-read",
     "implemented": false,
     "matchNames": ["discountNodes", "DiscountNodes"],
     "runtimeTests": ["tests/unit/capabilities.test.ts"]
@@ -1047,7 +1051,7 @@
     "name": "discountNodesCount",
     "type": "query",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "overlay-read",
     "implemented": false,
     "matchNames": ["discountNodesCount", "DiscountNodesCount"],
     "runtimeTests": ["tests/unit/capabilities.test.ts"]
@@ -1056,7 +1060,7 @@
     "name": "discountNode",
     "type": "query",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "overlay-read",
     "implemented": false,
     "matchNames": ["discountNode", "DiscountNode"],
     "runtimeTests": ["tests/unit/capabilities.test.ts"]
@@ -1065,7 +1069,7 @@
     "name": "codeDiscountNodes",
     "type": "query",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "overlay-read",
     "implemented": false,
     "matchNames": ["codeDiscountNodes", "CodeDiscountNodes"],
     "runtimeTests": ["tests/unit/capabilities.test.ts"]
@@ -1074,7 +1078,7 @@
     "name": "codeDiscountNode",
     "type": "query",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "overlay-read",
     "implemented": false,
     "matchNames": ["codeDiscountNode", "CodeDiscountNode"],
     "runtimeTests": ["tests/unit/capabilities.test.ts"]
@@ -1083,7 +1087,7 @@
     "name": "codeDiscountNodeByCode",
     "type": "query",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "overlay-read",
     "implemented": false,
     "matchNames": ["codeDiscountNodeByCode", "CodeDiscountNodeByCode"],
     "runtimeTests": ["tests/unit/capabilities.test.ts"]
@@ -1092,7 +1096,7 @@
     "name": "automaticDiscountNodes",
     "type": "query",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "overlay-read",
     "implemented": false,
     "matchNames": ["automaticDiscountNodes", "AutomaticDiscountNodes"],
     "runtimeTests": ["tests/unit/capabilities.test.ts"]
@@ -1101,7 +1105,7 @@
     "name": "automaticDiscountNode",
     "type": "query",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "overlay-read",
     "implemented": false,
     "matchNames": ["automaticDiscountNode", "AutomaticDiscountNode"],
     "runtimeTests": ["tests/unit/capabilities.test.ts"]
@@ -1110,7 +1114,7 @@
     "name": "discountCodeBasicCreate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeBasicCreate", "DiscountCodeBasicCreate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1119,7 +1123,7 @@
     "name": "discountCodeBasicUpdate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeBasicUpdate", "DiscountCodeBasicUpdate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1128,7 +1132,7 @@
     "name": "discountCodeBxgyCreate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeBxgyCreate", "DiscountCodeBxgyCreate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1137,7 +1141,7 @@
     "name": "discountCodeBxgyUpdate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeBxgyUpdate", "DiscountCodeBxgyUpdate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1146,7 +1150,7 @@
     "name": "discountCodeFreeShippingCreate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeFreeShippingCreate", "DiscountCodeFreeShippingCreate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1155,7 +1159,7 @@
     "name": "discountCodeFreeShippingUpdate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeFreeShippingUpdate", "DiscountCodeFreeShippingUpdate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1164,7 +1168,7 @@
     "name": "discountCodeActivate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeActivate", "DiscountCodeActivate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1173,7 +1177,7 @@
     "name": "discountCodeDeactivate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeDeactivate", "DiscountCodeDeactivate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1182,7 +1186,7 @@
     "name": "discountCodeDelete",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeDelete", "DiscountCodeDelete"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1191,7 +1195,7 @@
     "name": "discountCodeBulkActivate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeBulkActivate", "DiscountCodeBulkActivate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1200,7 +1204,7 @@
     "name": "discountCodeBulkDeactivate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeBulkDeactivate", "DiscountCodeBulkDeactivate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1209,7 +1213,7 @@
     "name": "discountCodeBulkDelete",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeBulkDelete", "DiscountCodeBulkDelete"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1218,7 +1222,7 @@
     "name": "discountRedeemCodeBulkAdd",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountRedeemCodeBulkAdd", "DiscountRedeemCodeBulkAdd"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1227,7 +1231,7 @@
     "name": "discountRedeemCodeBulkDelete",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountRedeemCodeBulkDelete", "DiscountRedeemCodeBulkDelete"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1236,7 +1240,7 @@
     "name": "discountAutomaticBasicCreate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountAutomaticBasicCreate", "DiscountAutomaticBasicCreate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1245,7 +1249,7 @@
     "name": "discountAutomaticBasicUpdate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountAutomaticBasicUpdate", "DiscountAutomaticBasicUpdate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1254,7 +1258,7 @@
     "name": "discountAutomaticBxgyCreate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountAutomaticBxgyCreate", "DiscountAutomaticBxgyCreate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1263,7 +1267,7 @@
     "name": "discountAutomaticBxgyUpdate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountAutomaticBxgyUpdate", "DiscountAutomaticBxgyUpdate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1272,7 +1276,7 @@
     "name": "discountAutomaticFreeShippingCreate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountAutomaticFreeShippingCreate", "DiscountAutomaticFreeShippingCreate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1281,7 +1285,7 @@
     "name": "discountAutomaticFreeShippingUpdate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountAutomaticFreeShippingUpdate", "DiscountAutomaticFreeShippingUpdate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1290,7 +1294,7 @@
     "name": "discountAutomaticActivate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountAutomaticActivate", "DiscountAutomaticActivate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1299,7 +1303,7 @@
     "name": "discountAutomaticDeactivate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountAutomaticDeactivate", "DiscountAutomaticDeactivate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1308,7 +1312,7 @@
     "name": "discountAutomaticDelete",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountAutomaticDelete", "DiscountAutomaticDelete"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1317,7 +1321,7 @@
     "name": "discountAutomaticBulkDelete",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountAutomaticBulkDelete", "DiscountAutomaticBulkDelete"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1326,7 +1330,7 @@
     "name": "discountCodeAppUpdate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeAppUpdate", "DiscountCodeAppUpdate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1335,7 +1339,7 @@
     "name": "discountAutomaticAppUpdate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountAutomaticAppUpdate", "DiscountAutomaticAppUpdate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]

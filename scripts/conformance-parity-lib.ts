@@ -586,7 +586,11 @@ async function executeGraphQLAgainstLocalProxy(
   const parsed = parseOperation(document);
   const capability = getOperationCapability(parsed);
 
-  if (capability.execution === 'stage-locally' && capability.domain === 'products') {
+  if (
+    capability.execution === 'stage-locally' &&
+    (capability.domain === 'products' ||
+      (capability.domain === 'store-properties' && capability.operationName?.startsWith('publishable') === true))
+  ) {
     store.appendLog({
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
