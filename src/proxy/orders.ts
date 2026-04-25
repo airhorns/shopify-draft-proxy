@@ -2,6 +2,7 @@ import { Kind, type FieldNode, type ObjectValueNode } from 'graphql';
 
 import type { ReadMode } from '../config.js';
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
+import { parseSearchQueryTerms, type SearchQueryTerm } from '../search-query-parser.js';
 import {
   buildSyntheticCursor,
   getFieldResponseKey,
@@ -2195,37 +2196,6 @@ export function shouldServeDraftOrderCatalogLocally(rawQuery: unknown, rawSavedS
   return typeof rawQuery !== 'string' || shouldServeDraftOrderSearchLocally(rawQuery);
 }
 
-function tokenizeDraftOrderSearchQuery(query: string): string[] {
-  const terms: string[] = [];
-  let current = '';
-  let inQuotes = false;
-
-  const flushCurrent = (): void => {
-    const value = current.trim();
-    if (value) {
-      terms.push(value);
-    }
-    current = '';
-  };
-
-  for (const character of query) {
-    if (character === '"') {
-      inQuotes = !inQuotes;
-      continue;
-    }
-
-    if (!inQuotes && /\s/u.test(character)) {
-      flushCurrent();
-      continue;
-    }
-
-    current += character;
-  }
-
-  flushCurrent();
-  return terms;
-}
-
 function isDraftOrderSearchQuerySupported(rawQuery: unknown): boolean {
   if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
     return true;
@@ -2235,18 +2205,17 @@ function isDraftOrderSearchQuerySupported(rawQuery: unknown): boolean {
     return true;
   }
 
-  const terms = tokenizeDraftOrderSearchQuery(rawQuery.trim());
+  const terms = parseSearchQueryTerms(rawQuery.trim(), { quoteCharacters: ['"'] });
   if (terms.length === 0) {
     return true;
   }
 
   return terms.every((term) => {
-    const separatorIndex = term.indexOf(':');
-    if (separatorIndex <= 0) {
+    if (term.field === null || term.field === '') {
       return false;
     }
 
-    const field = term.slice(0, separatorIndex).toLowerCase();
+    const field = term.field.toLowerCase();
     return (
       field === 'status' ||
       field === 'tag' ||
@@ -2340,6 +2309,10 @@ function normalizeSearchValue(rawValue: string): string {
   return trimmed;
 }
 
+function searchTermValue(term: SearchQueryTerm): string {
+  return term.comparator === null ? term.value : `${term.comparator}${term.value}`;
+}
+
 function matchesStringValueIncludingContains(candidate: string | null | undefined, rawValue: string): boolean {
   if (!candidate) {
     return false;
@@ -2358,14 +2331,13 @@ function matchesDraftOrderSource(draftOrder: DraftOrderRecord, rawValue: string)
   );
 }
 
-function matchesDraftOrderSearchTerm(draftOrder: DraftOrderRecord, term: string): boolean {
-  const separatorIndex = term.indexOf(':');
-  if (separatorIndex <= 0) {
+function matchesDraftOrderSearchTerm(draftOrder: DraftOrderRecord, term: SearchQueryTerm): boolean {
+  if (term.field === null || term.field === '') {
     return false;
   }
 
-  const field = term.slice(0, separatorIndex).toLowerCase();
-  const value = term.slice(separatorIndex + 1);
+  const field = term.field.toLowerCase();
+  const value = searchTermValue(term);
 
   switch (field) {
     case 'status':
@@ -2400,7 +2372,7 @@ function applyDraftOrdersQuery(draftOrders: DraftOrderRecord[], rawQuery: unknow
     return [];
   }
 
-  const terms = tokenizeDraftOrderSearchQuery(rawQuery.trim());
+  const terms = parseSearchQueryTerms(rawQuery.trim(), { quoteCharacters: ['"'] });
   return draftOrders.filter((draftOrder) => terms.every((term) => matchesDraftOrderSearchTerm(draftOrder, term)));
 }
 
@@ -3949,19 +3921,18 @@ function matchesOrderLifecycleStatus(order: OrderRecord, rawValue: string): bool
   }
 }
 
-function matchesOrderSearchTerm(order: OrderRecord, term: string): boolean {
-  const separatorIndex = term.indexOf(':');
-  if (separatorIndex <= 0) {
+function matchesOrderSearchTerm(order: OrderRecord, term: SearchQueryTerm): boolean {
+  if (term.field === null || term.field === '') {
     return (
-      matchesStringValueIncludingContains(order.name, term) ||
-      matchesStringValueIncludingContains(order.email ?? order.customer?.email, term) ||
-      matchesStringValueIncludingContains(order.note, term) ||
-      order.tags.some((tag) => matchesStringValueIncludingContains(tag, term))
+      matchesStringValueIncludingContains(order.name, term.value) ||
+      matchesStringValueIncludingContains(order.email ?? order.customer?.email, term.value) ||
+      matchesStringValueIncludingContains(order.note, term.value) ||
+      order.tags.some((tag) => matchesStringValueIncludingContains(tag, term.value))
     );
   }
 
-  const field = term.slice(0, separatorIndex).toLowerCase();
-  const value = term.slice(separatorIndex + 1);
+  const field = term.field.toLowerCase();
+  const value = searchTermValue(term);
 
   switch (field) {
     case 'name':
@@ -4012,44 +3983,16 @@ function readCustomerNumericId(order: OrderRecord): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function tokenizeOrderSearchQuery(query: string): string[] {
-  const terms: string[] = [];
-  let current = '';
-  let inQuotes = false;
-
-  const flushCurrent = (): void => {
-    const value = current.trim();
-    if (value && value.toUpperCase() !== 'AND') {
-      terms.push(value);
-    }
-    current = '';
-  };
-
-  for (const character of query) {
-    if (character === '"') {
-      inQuotes = !inQuotes;
-      current += character;
-      continue;
-    }
-
-    if (!inQuotes && /\s/u.test(character)) {
-      flushCurrent();
-      continue;
-    }
-
-    current += character;
-  }
-
-  flushCurrent();
-  return terms;
-}
-
 function applyOrdersQuery(orders: OrderRecord[], rawQuery: unknown): OrderRecord[] {
   if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
     return orders;
   }
 
-  const terms = tokenizeOrderSearchQuery(rawQuery.trim());
+  const terms = parseSearchQueryTerms(rawQuery.trim(), {
+    quoteCharacters: ['"'],
+    preserveQuotesInTerms: true,
+    ignoredKeywords: ['AND'],
+  });
   if (terms.length === 0) {
     return orders;
   }
