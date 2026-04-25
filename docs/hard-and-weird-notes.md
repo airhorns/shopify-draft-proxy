@@ -2360,3 +2360,22 @@ Captured facts:
 Practical rule:
 
 - keep the local `customerSet` support boundary narrower than `customerUpdate`: support fixture-backed scalar replacement, tag/tax exemption replacement, id/email/phone resolution, synthetic create/upsert, and existing-customer address-list replacement; reject unmodeled fields locally instead of letting a now-supported root proxy upstream
+
+## 64. `standardMetafieldDefinitionEnable` is a schema write, even when the safe captures are validation-only
+
+HAR-257 captured `standardMetafieldDefinitionEnable` on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com`. The important safety point is that successful standard enablement creates a real metafield definition; do not run happy-path captures without a disposable setup and cleanup plan.
+
+Captured no-side-effect branches:
+
+- the mutation is argument-based, not input-object-based: `ownerType` is non-null, while `id`, `namespace`, `key`, `pin`, `capabilities`, and `access` are optional arguments
+- the payload has `createdDefinition` and `userErrors`
+- no selector (`ownerType` only) returns `createdDefinition: null`, `field: null`, `code: TEMPLATE_NOT_FOUND`, and message `A namespace and key or standard metafield definition template id must be provided.`
+- unknown template ID returns `field: ["id"]`, `code: TEMPLATE_NOT_FOUND`, and message `Id is not a valid standard metafield definition template id`
+- unknown namespace/key returns `field: null`, `code: TEMPLATE_NOT_FOUND`, and message `A standard definition wasn't found for the specified owner type, namespace, and key.`
+- using template ID `1` with owner type `CUSTOMER` also returns the invalid-template-ID branch, because the sampled template is product/product-variant scoped
+
+Practical rule:
+
+- keep `standardMetafieldDefinitionEnable` `implemented: false` until standard template catalog reads and created definition lifecycle effects are modeled locally
+- validation-only captures are guardrails, not operation support
+- runtime passthrough for this known unsupported root must stay loud in mutation-log safety metadata because it can write Shopify schema state

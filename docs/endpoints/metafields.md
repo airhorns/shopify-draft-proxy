@@ -28,3 +28,16 @@ The serializer currently covers these selected definition fields:
 Catalog filters are intentionally limited to the fixture-backed product-owner slice: owner type, namespace, key, pinned status, constraint status/subtype, and search query terms for `id`, `namespace`, `key`, `owner_type`, and `type`. `sortKey: PINNED_POSITION` follows the captured Shopify ordering where higher pinned positions sort before lower pinned positions.
 
 Definition lifecycle mutations remain unsupported and must not be registered as local staged capabilities until they are modeled and covered separately.
+
+## Standard metafield definition enablement
+
+`standardMetafieldDefinitionEnable` is explicitly tracked as an unimplemented schema mutation. It is not local-staged support: a successful call can create a real metafield definition in Shopify, so the proxy must not claim support until it can model the standard template catalog, created-definition identity, access/capability inputs, pinning behavior, and downstream `metafieldDefinition` / `metafieldDefinitions` read effects locally.
+
+HAR-257 captured safe no-side-effect validation behavior in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/standard-metafield-definition-enable-validation.json`:
+
+- no `id` and no `namespace` / `key` returns `createdDefinition: null` with `TEMPLATE_NOT_FOUND`
+- an unknown template ID returns `field: ["id"]`, `TEMPLATE_NOT_FOUND`
+- an unknown namespace/key selector returns `field: null`, `TEMPLATE_NOT_FOUND`
+- template ID `1` with incompatible owner type `CUSTOMER` returns the same invalid-template-ID branch
+
+Runtime requests for this root still use the unsupported mutation escape hatch outside snapshot-only parity execution, but they now carry `unsupported-metafield-definition-schema-mutation` safety metadata in the mutation log so operators can distinguish the real-Shopify schema-write risk from generic unknown passthrough.

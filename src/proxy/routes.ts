@@ -32,6 +32,14 @@ const APP_DISCOUNT_MUTATION_ROOTS = new Set([
   'discountAutomaticAppCreate',
   'discountAutomaticAppUpdate',
 ]);
+const METAFIELD_DEFINITION_SCHEMA_MUTATION_ROOTS = new Set([
+  'metafieldDefinitionCreate',
+  'metafieldDefinitionUpdate',
+  'metafieldDefinitionDelete',
+  'metafieldDefinitionPin',
+  'metafieldDefinitionUnpin',
+  'standardMetafieldDefinitionEnable',
+]);
 
 const ORDER_PAYMENT_MUTATION_ROOTS = new Set(['orderCapture', 'transactionVoid', 'orderCreateMandatePayment']);
 
@@ -139,6 +147,18 @@ function buildUnsupportedMutationObservability(parsed: ParsedOperation): Partial
     };
   }
 
+  if (METAFIELD_DEFINITION_SCHEMA_MUTATION_ROOTS.has(primaryRootField)) {
+    return {
+      registeredOperation,
+      safety: {
+        classification: 'unsupported-metafield-definition-schema-mutation',
+        wouldProxyToShopify: true,
+        reason:
+          'Metafield definition lifecycle mutations can create or change Shopify schema records. They require template catalog and definition lifecycle modeling before local support can be claimed without runtime Shopify writes.',
+      },
+    };
+  }
+
   return { registeredOperation };
 }
 
@@ -151,6 +171,11 @@ function unsupportedMutationNotes(parsed: ParsedOperation): string {
   const registryEntry = findOperationRegistryEntry(parsed.type, [...parsed.rootFields, parsed.name]);
   if (registryEntry?.domain === 'discounts') {
     return 'Unsupported discount mutation lifecycle branch would be proxied to Shopify. Captured validation failures are handled locally only; full local emulation is required before this root can be supported.';
+  }
+  if (registryEntry?.domain === 'metafields' && primaryRootField) {
+    if (METAFIELD_DEFINITION_SCHEMA_MUTATION_ROOTS.has(primaryRootField)) {
+      return 'Unsupported metafield definition schema mutation would be proxied to Shopify. Standard definition enablement and definition lifecycle roots can create or change schema records, so local support requires conformance-backed template catalog and definition lifecycle modeling first.';
+    }
   }
 
   return 'Mutation passthrough placeholder until supported local staging is implemented.';

@@ -980,8 +980,8 @@
     "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["standardMetafieldDefinitionEnable", "StandardMetafieldDefinitionEnable"],
-    "runtimeTests": ["tests/integration/metafield-definition-draft-flow.test.ts"],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires standard template catalog modeling plus created-definition semantics before support."
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Explicit unsupported schema-mutation gap. HAR-257 captured no-side-effect validation branches in fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/standard-metafield-definition-enable-validation.json; successful enablement can create real metafield definitions and must remain unimplemented until standard template catalog plus created-definition lifecycle semantics are modeled locally."
   },
   {
     "name": "metaobject",

@@ -190,6 +190,88 @@ describe('proxy capability classification', () => {
     expect(store.getLog()[0]?.interpreted.safety?.reason).toContain('external Function logic');
   });
 
+  it('marks standard metafield definition enablement as an unsafe unsupported schema passthrough', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            standardMetafieldDefinitionEnable: {
+              createdDefinition: null,
+              userErrors: [
+                {
+                  field: null,
+                  message: 'A standard definition was not found.',
+                  code: 'TEMPLATE_NOT_FOUND',
+                },
+              ],
+            },
+          },
+        }),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        },
+      ),
+    );
+
+    const app = createApp(config);
+
+    const response = await request(app.callback())
+      .post('/admin/api/2025-01/graphql.json')
+      .set('x-shopify-access-token', 'shpat_test')
+      .send({
+        query: `#graphql
+          mutation StandardMetafieldDefinitionEnableValidation {
+            standardMetafieldDefinitionEnable(
+              ownerType: PRODUCT
+              namespace: "codex_missing_standard"
+              key: "codex_missing_key"
+            ) {
+              createdDefinition {
+                id
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+      });
+
+    expect(response.status).toBe(200);
+    expect(store.getLog()).toHaveLength(1);
+    expect(store.getLog()[0]).toMatchObject({
+      operationName: 'StandardMetafieldDefinitionEnableValidation',
+      status: 'proxied',
+      interpreted: {
+        operationType: 'mutation',
+        operationName: 'StandardMetafieldDefinitionEnableValidation',
+        rootFields: ['standardMetafieldDefinitionEnable'],
+        primaryRootField: 'standardMetafieldDefinitionEnable',
+        capability: {
+          operationName: 'StandardMetafieldDefinitionEnableValidation',
+          domain: 'unknown',
+          execution: 'passthrough',
+        },
+        registeredOperation: {
+          name: 'standardMetafieldDefinitionEnable',
+          domain: 'metafields',
+          execution: 'stage-locally',
+          implemented: false,
+        },
+        safety: {
+          classification: 'unsupported-metafield-definition-schema-mutation',
+          wouldProxyToShopify: true,
+        },
+      },
+      notes:
+        'Unsupported metafield definition schema mutation would be proxied to Shopify. Standard definition enablement and definition lifecycle roots can create or change schema records, so local support requires conformance-backed template catalog and definition lifecycle modeling first.',
+    });
+    expect(store.getLog()[0]?.interpreted.safety?.reason).toContain('schema records');
+  });
+
   it('logs generic publishable mutations as local Store properties staging', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('generic publishable product support should not proxy upstream');
