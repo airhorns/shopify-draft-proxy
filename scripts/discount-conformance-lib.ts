@@ -1,4 +1,4 @@
-import { type AdminGraphqlOptions, runAdminGraphql } from './conformance-graphql-client.js';
+import { type AdminGraphqlOptions, createAdminGraphqlClient } from './conformance-graphql-client.js';
 
 export const DISCOUNT_REQUIRED_SCOPES = ['read_discounts', 'write_discounts'] as const;
 
@@ -115,7 +115,8 @@ export const DISCOUNT_NODES_CATALOG_QUERY = `#graphql
 `;
 
 export async function probeDiscountConformanceScopes(options: AdminGraphqlOptions): Promise<DiscountScopeProbeResult> {
-  const payload = (await runAdminGraphql(options, DISCOUNT_ACCESS_SCOPES_QUERY)) as AccessScopesPayload;
+  const { runGraphql } = createAdminGraphqlClient(options);
+  const payload = (await runGraphql(DISCOUNT_ACCESS_SCOPES_QUERY)) as AccessScopesPayload;
   const scopeNodes = payload.data?.currentAppInstallation?.accessScopes ?? [];
   const availableScopes = scopeNodes
     .map((scope) => (typeof scope.handle === 'string' ? scope.handle : null))
@@ -157,15 +158,16 @@ export async function captureDiscountReadEvidence(
   options: AdminGraphqlOptions,
   variables: { first: number; query?: string | null },
 ): Promise<DiscountReadCapture> {
+  const { runGraphql } = createAdminGraphqlClient(options);
   const requestVariables = {
     first: variables.first,
     query: variables.query ?? null,
   };
 
-  const discountNodesCount = await runAdminGraphql(options, DISCOUNT_NODES_COUNT_QUERY, {
+  const discountNodesCount = await runGraphql(DISCOUNT_NODES_COUNT_QUERY, {
     query: requestVariables.query,
   });
-  const discountNodesCatalog = await runAdminGraphql(options, DISCOUNT_NODES_CATALOG_QUERY, requestVariables);
+  const discountNodesCatalog = await runGraphql(DISCOUNT_NODES_CATALOG_QUERY, requestVariables);
 
   return {
     discountNodesCount,
