@@ -1,0 +1,14 @@
+{
+  "scenarioId": "product-reorder-media-live-parity",
+  "operationNames": ["productReorderMedia"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "media-user-errors-parity", "downstream-read-parity", "sort-order-semantics"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/product-reorder-media-parity.json"],
+  "comparisonMode": "captured-fixture",
+  "runtimeTestFiles": ["tests/integration/product-draft-flow.test.ts"],
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "notes": "Runtime-test-backed live fixture for `productReorderMedia`. Live Admin GraphQL 2025-01 returned an async `Job` with `done: false` and downstream `product.media` reflected zero-based `MoveInput.newPosition` ordering while the image connection stayed empty for processing media."
+}
