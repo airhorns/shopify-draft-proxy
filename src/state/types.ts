@@ -515,6 +515,28 @@ export const segmentRecordSchema = z.strictObject({
 });
 export type SegmentRecord = z.infer<typeof segmentRecordSchema>;
 
+export const webhookSubscriptionEndpointRecordSchema = z.strictObject({
+  __typename: z.enum(['WebhookHttpEndpoint', 'WebhookEventBridgeEndpoint', 'WebhookPubSubEndpoint']),
+  callbackUrl: nullableStringSchema.optional(),
+  arn: nullableStringSchema.optional(),
+  pubSubProject: nullableStringSchema.optional(),
+  pubSubTopic: nullableStringSchema.optional(),
+});
+export type WebhookSubscriptionEndpointRecord = z.infer<typeof webhookSubscriptionEndpointRecordSchema>;
+
+export const webhookSubscriptionRecordSchema = z.strictObject({
+  id: z.string(),
+  topic: nullableStringSchema,
+  format: nullableStringSchema,
+  includeFields: z.array(z.string()).default([]),
+  metafieldNamespaces: z.array(z.string()).default([]),
+  filter: nullableStringSchema,
+  createdAt: nullableStringSchema,
+  updatedAt: nullableStringSchema,
+  endpoint: webhookSubscriptionEndpointRecordSchema.nullable(),
+});
+export type WebhookSubscriptionRecord = z.infer<typeof webhookSubscriptionRecordSchema>;
+
 export const marketingRecordSchema = z.strictObject({
   id: z.string(),
   cursor: nullableStringSchema.optional(),
@@ -1393,6 +1415,8 @@ export const stateSnapshotSchema = z.strictObject({
   customerAddresses: z.record(z.string(), customerAddressRecordSchema).default({}),
   customerPaymentMethods: z.record(z.string(), customerPaymentMethodRecordSchema).default({}),
   segments: z.record(z.string(), segmentRecordSchema).default({}),
+  webhookSubscriptions: z.record(z.string(), webhookSubscriptionRecordSchema).default({}),
+  webhookSubscriptionOrder: z.array(z.string()).default([]),
   marketingActivities: z.record(z.string(), marketingRecordSchema).default({}),
   marketingActivityOrder: z.array(z.string()).default([]),
   marketingEvents: z.record(z.string(), marketingRecordSchema).default({}),
@@ -1429,6 +1453,7 @@ export const stateSnapshotSchema = z.strictObject({
   deletedCustomerIds: z.record(z.string(), z.literal(true)),
   deletedCustomerAddressIds: z.record(z.string(), z.literal(true)).default({}),
   deletedSegmentIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedWebhookSubscriptionIds: z.record(z.string(), z.literal(true)).default({}),
   deletedDiscountIds: z.record(z.string(), z.literal(true)).default({}),
   deletedPaymentCustomizationIds: z.record(z.string(), z.literal(true)).default({}),
   deletedMarketIds: z.record(z.string(), z.literal(true)).default({}),
