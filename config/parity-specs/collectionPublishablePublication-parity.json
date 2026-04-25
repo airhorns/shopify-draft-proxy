@@ -1,0 +1,52 @@
+{
+  "scenarioId": "collection-publishable-publication-parity",
+  "operationNames": ["publishablePublish", "publishableUnpublish"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collection-publication-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/collectionPublishablePublish-parity.graphql",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "notes": "Collection-specific publication capture for generic publishable publish/unpublish aggregate fields. The live fixture also records `collections` published_status filter slices, but strict parity compares the target collection read only because the current parity harness does not seed the entire live collection catalog. Runtime integration tests cover staged published_status filtering for local collection state.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "publish mutation payload",
+        "capturePath": "$.publishMutation.response.data.publishablePublish",
+        "proxyPath": "$.data.publishablePublish"
+      },
+      {
+        "name": "post-publish downstream collection read",
+        "capturePath": "$.postPublishRead.data.collection",
+        "proxyPath": "$.data.collection",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/collection-publication-downstream-read.graphql",
+          "variablesCapturePath": "$.publishMutation.variables"
+        }
+      },
+      {
+        "name": "unpublish mutation payload",
+        "capturePath": "$.unpublishMutation.response.data.publishableUnpublish",
+        "proxyPath": "$.data.publishableUnpublish",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/collectionPublishableUnpublish-parity.graphql",
+          "variablesCapturePath": "$.unpublishMutation.variables"
+        }
+      },
+      {
+        "name": "post-unpublish downstream collection read",
+        "capturePath": "$.postUnpublishRead.data.collection",
+        "proxyPath": "$.data.collection",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/collection-publication-downstream-read.graphql",
+          "variablesCapturePath": "$.unpublishMutation.variables"
+        }
+      }
+    ]
+  }
+}

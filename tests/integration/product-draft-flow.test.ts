@@ -1964,7 +1964,7 @@ describe('product draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('rejects non-product generic publishable targets locally instead of proxying upstream', async () => {
+  it('rejects unsupported generic publishable targets locally instead of proxying upstream', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('unsupported generic publishable targets should not proxy upstream');
     });
@@ -1975,7 +1975,7 @@ describe('product draft flow', () => {
       .post('/admin/api/2025-01/graphql.json')
       .send({
         query: `#graphql
-          mutation PublishCollectionGeneric($id: ID!, $input: [PublicationInput!]!) {
+          mutation PublishUnsupportedGeneric($id: ID!, $input: [PublicationInput!]!) {
             publishablePublish(id: $id, input: $input) {
               publishable {
                 ... on Product {
@@ -1990,7 +1990,7 @@ describe('product draft flow', () => {
           }
         `,
         variables: {
-          id: 'gid://shopify/Collection/1',
+          id: 'gid://shopify/Article/1',
           input: [{ publicationId: 'gid://shopify/Publication/1' }],
         },
       });
@@ -1998,7 +1998,7 @@ describe('product draft flow', () => {
     expect(response.status).toBe(200);
     expect(response.body.data.publishablePublish).toEqual({
       publishable: null,
-      userErrors: [{ field: ['id'], message: 'Only Product publishable IDs are supported locally' }],
+      userErrors: [{ field: ['id'], message: 'Only Product and Collection publishable IDs are supported locally' }],
     });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
