@@ -228,6 +228,7 @@ Current implementation notes:
 - `POST /__meta/commit` replays pending locally `staged` mutations against upstream Shopify in original log order using the caller-provided `X-Shopify-Access-Token`; `proxied` unsupported mutations are intentionally not replayed because they already went upstream at runtime
 - commit replay tracks proxy-created resource IDs returned by local staging and, after a successful upstream replay returns authoritative Shopify IDs, rewrites later staged mutation inputs from the proxy synthetic IDs to the real IDs before sending them upstream
 - commit replay persists per-entry `committed` / `failed` statuses back into the in-memory log and stops at the first upstream transport or GraphQL failure
+- commit reports include `ok`, `stopIndex`, and ordered `attempts`; each attempt includes explicit `success`, log `status`, `upstreamStatus`, `upstreamBody` when Shopify returned one, and `upstreamError` when replay failed before an upstream body was available
 
 Collection publication implementation note:
 
