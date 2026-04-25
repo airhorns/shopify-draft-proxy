@@ -442,6 +442,84 @@ export const discountCombinesWithRecordSchema = z.strictObject({
 });
 export type DiscountCombinesWithRecord = z.infer<typeof discountCombinesWithRecordSchema>;
 
+export const discountMoneyRecordSchema = z.strictObject({
+  amount: z.string(),
+  currencyCode: z.string(),
+});
+export type DiscountMoneyRecord = z.infer<typeof discountMoneyRecordSchema>;
+
+export const discountRedeemCodeRecordSchema = z.strictObject({
+  id: z.string(),
+  code: z.string(),
+  asyncUsageCount: nullableNumberSchema.default(0),
+});
+export type DiscountRedeemCodeRecord = z.infer<typeof discountRedeemCodeRecordSchema>;
+
+export const discountContextRecordSchema = z.strictObject({
+  typeName: z.string(),
+  all: nullableStringSchema.optional(),
+  customerIds: z.array(z.string()).optional(),
+  customerSegmentIds: z.array(z.string()).optional(),
+});
+export type DiscountContextRecord = z.infer<typeof discountContextRecordSchema>;
+
+export const discountItemsRecordSchema = z.strictObject({
+  typeName: z.string(),
+  allItems: nullableBooleanSchema.optional(),
+  productIds: z.array(z.string()).optional(),
+  productVariantIds: z.array(z.string()).optional(),
+  collectionIds: z.array(z.string()).optional(),
+});
+export type DiscountItemsRecord = z.infer<typeof discountItemsRecordSchema>;
+
+export const discountValueRecordSchema = z.strictObject({
+  typeName: z.string(),
+  percentage: nullableNumberSchema.optional(),
+  amount: discountMoneyRecordSchema.nullable().optional(),
+  appliesOnEachItem: nullableBooleanSchema.optional(),
+});
+export type DiscountValueRecord = z.infer<typeof discountValueRecordSchema>;
+
+export const discountCustomerGetsRecordSchema = z.strictObject({
+  value: discountValueRecordSchema,
+  items: discountItemsRecordSchema,
+  appliesOnOneTimePurchase: z.boolean(),
+  appliesOnSubscription: z.boolean(),
+});
+export type DiscountCustomerGetsRecord = z.infer<typeof discountCustomerGetsRecordSchema>;
+
+export const discountMinimumRequirementRecordSchema = z.strictObject({
+  typeName: z.string(),
+  greaterThanOrEqualToQuantity: nullableStringSchema.optional(),
+  greaterThanOrEqualToSubtotal: discountMoneyRecordSchema.nullable().optional(),
+});
+export type DiscountMinimumRequirementRecord = z.infer<typeof discountMinimumRequirementRecordSchema>;
+
+export const discountMetafieldRecordSchema = z.strictObject({
+  id: z.string(),
+  namespace: z.string(),
+  key: z.string(),
+  type: z.string(),
+  value: z.string(),
+  compareDigest: nullableStringSchema.optional(),
+  jsonValue: jsonValueSchema.optional(),
+  createdAt: nullableStringSchema.optional(),
+  updatedAt: nullableStringSchema.optional(),
+  ownerType: nullableStringSchema.optional(),
+});
+export type DiscountMetafieldRecord = z.infer<typeof discountMetafieldRecordSchema>;
+
+export const discountEventRecordSchema = z.strictObject({
+  id: z.string(),
+  typeName: z.string(),
+  action: nullableStringSchema.optional(),
+  message: nullableStringSchema.optional(),
+  createdAt: nullableStringSchema.optional(),
+  subjectId: nullableStringSchema.optional(),
+  subjectType: nullableStringSchema.optional(),
+});
+export type DiscountEventRecord = z.infer<typeof discountEventRecordSchema>;
+
 export const discountRecordSchema = z.strictObject({
   id: z.string(),
   typeName: z.string(),
@@ -457,8 +535,15 @@ export const discountRecordSchema = z.strictObject({
   discountClasses: z.array(z.string()),
   combinesWith: discountCombinesWithRecordSchema,
   codes: z.array(z.string()).default([]),
+  redeemCodes: z.array(discountRedeemCodeRecordSchema).optional(),
+  context: discountContextRecordSchema.nullable().optional(),
+  customerGets: discountCustomerGetsRecordSchema.nullable().optional(),
+  minimumRequirement: discountMinimumRequirementRecordSchema.nullable().optional(),
+  metafields: z.array(discountMetafieldRecordSchema).optional(),
+  events: z.array(discountEventRecordSchema).optional(),
   discountType: nullableStringSchema.optional(),
   appId: nullableStringSchema.optional(),
+  unsupportedAppFieldNames: z.array(z.string()).optional(),
 });
 export type DiscountRecord = z.infer<typeof discountRecordSchema>;
 

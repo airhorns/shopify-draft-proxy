@@ -37,6 +37,19 @@ function buildDiscount(overrides: Partial<DiscountRecord> = {}): DiscountRecord 
   };
 }
 
+function buildAutomaticDiscount(overrides: Partial<DiscountRecord> = {}): DiscountRecord {
+  return buildDiscount({
+    id: 'gid://shopify/DiscountAutomaticNode/1688770479000',
+    typeName: 'DiscountAutomaticBasic',
+    method: 'automatic',
+    title: 'HAR-192 automatic detail fixture',
+    summary: '15% off entire order',
+    discountClasses: ['ORDER'],
+    codes: [],
+    ...overrides,
+  });
+}
+
 describe('discount query shapes', () => {
   beforeEach(() => {
     store.reset();
@@ -214,6 +227,367 @@ describe('discount query shapes', () => {
       precision: 'EXACT',
     });
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('serializes singular code discount detail roots by id and redeem code with nested selected fields', async () => {
+    store.upsertBaseDiscounts([
+      buildDiscount({
+        id: 'gid://shopify/DiscountCodeNode/192001',
+        title: 'HAR-192 detail code fixture',
+        summary: '10% off entire order - Minimum purchase of $1.00',
+        redeemCodes: [
+          {
+            id: 'gid://shopify/DiscountRedeemCode/99001',
+            code: 'HAR192DETAIL',
+            asyncUsageCount: 0,
+          },
+        ],
+        context: {
+          typeName: 'DiscountBuyerSelectionAll',
+          all: 'ALL',
+        },
+        customerGets: {
+          value: {
+            typeName: 'DiscountPercentage',
+            percentage: 0.1,
+          },
+          items: {
+            typeName: 'AllDiscountItems',
+            allItems: true,
+          },
+          appliesOnOneTimePurchase: true,
+          appliesOnSubscription: false,
+        },
+        minimumRequirement: {
+          typeName: 'DiscountMinimumSubtotal',
+          greaterThanOrEqualToSubtotal: {
+            amount: '1.0',
+            currencyCode: 'CAD',
+          },
+        },
+      }),
+    ]);
+
+    const app = createApp(config).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query($id: ID!, $code: String!) {
+          discountNode(id: $id) {
+            id
+            discount {
+              __typename
+              ... on DiscountCodeBasic {
+                title
+                status
+                summary
+                codes(first: 2) {
+                  nodes {
+                    id
+                    code
+                    asyncUsageCount
+                  }
+                  pageInfo {
+                    hasNextPage
+                    hasPreviousPage
+                    startCursor
+                    endCursor
+                  }
+                }
+                context {
+                  __typename
+                  ... on DiscountBuyerSelectionAll {
+                    all
+                  }
+                }
+                customerGets {
+                  value {
+                    __typename
+                    ... on DiscountPercentage {
+                      percentage
+                    }
+                  }
+                  items {
+                    __typename
+                    ... on AllDiscountItems {
+                      allItems
+                    }
+                  }
+                  appliesOnOneTimePurchase
+                  appliesOnSubscription
+                }
+                minimumRequirement {
+                  __typename
+                  ... on DiscountMinimumSubtotal {
+                    greaterThanOrEqualToSubtotal {
+                      amount
+                      currencyCode
+                    }
+                  }
+                }
+              }
+            }
+            metafield(namespace: "custom", key: "missing") {
+              id
+            }
+            metafields(first: 2) {
+              nodes {
+                id
+              }
+              pageInfo {
+                hasNextPage
+                hasPreviousPage
+                startCursor
+                endCursor
+              }
+            }
+            events(first: 2) {
+              edges {
+                cursor
+              }
+              pageInfo {
+                hasNextPage
+                hasPreviousPage
+                startCursor
+                endCursor
+              }
+            }
+          }
+          codeDiscountNode(id: $id) {
+            id
+            codeDiscount {
+              __typename
+              ... on DiscountCodeBasic {
+                title
+              }
+            }
+          }
+          codeDiscountNodeByCode(code: $code) {
+            id
+            codeDiscount {
+              __typename
+              ... on DiscountCodeBasic {
+                title
+              }
+            }
+          }
+        }`,
+        variables: {
+          id: 'gid://shopify/DiscountCodeNode/192001',
+          code: 'HAR192DETAIL',
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.discountNode).toEqual({
+      id: 'gid://shopify/DiscountCodeNode/192001',
+      discount: {
+        __typename: 'DiscountCodeBasic',
+        title: 'HAR-192 detail code fixture',
+        status: 'ACTIVE',
+        summary: '10% off entire order - Minimum purchase of $1.00',
+        codes: {
+          nodes: [
+            {
+              id: 'gid://shopify/DiscountRedeemCode/99001',
+              code: 'HAR192DETAIL',
+              asyncUsageCount: 0,
+            },
+          ],
+          pageInfo: {
+            hasNextPage: false,
+            hasPreviousPage: false,
+            startCursor: 'cursor:HAR192DETAIL',
+            endCursor: 'cursor:HAR192DETAIL',
+          },
+        },
+        context: {
+          __typename: 'DiscountBuyerSelectionAll',
+          all: 'ALL',
+        },
+        customerGets: {
+          value: {
+            __typename: 'DiscountPercentage',
+            percentage: 0.1,
+          },
+          items: {
+            __typename: 'AllDiscountItems',
+            allItems: true,
+          },
+          appliesOnOneTimePurchase: true,
+          appliesOnSubscription: false,
+        },
+        minimumRequirement: {
+          __typename: 'DiscountMinimumSubtotal',
+          greaterThanOrEqualToSubtotal: {
+            amount: '1.0',
+            currencyCode: 'CAD',
+          },
+        },
+      },
+      metafield: null,
+      metafields: {
+        nodes: [],
+        pageInfo: {
+          hasNextPage: false,
+          hasPreviousPage: false,
+          startCursor: null,
+          endCursor: null,
+        },
+      },
+      events: {
+        edges: [],
+        pageInfo: {
+          hasNextPage: false,
+          hasPreviousPage: false,
+          startCursor: null,
+          endCursor: null,
+        },
+      },
+    });
+    expect(response.body.data.codeDiscountNode).toEqual({
+      id: 'gid://shopify/DiscountCodeNode/192001',
+      codeDiscount: {
+        __typename: 'DiscountCodeBasic',
+        title: 'HAR-192 detail code fixture',
+      },
+    });
+    expect(response.body.data.codeDiscountNodeByCode).toEqual(response.body.data.codeDiscountNode);
+  });
+
+  it('serializes singular automatic discount detail and returns null for mismatched or unknown roots', async () => {
+    store.upsertBaseDiscounts([
+      buildAutomaticDiscount({
+        id: 'gid://shopify/DiscountAutomaticNode/192002',
+        customerGets: {
+          value: {
+            typeName: 'DiscountPercentage',
+            percentage: 0.15,
+          },
+          items: {
+            typeName: 'AllDiscountItems',
+            allItems: true,
+          },
+          appliesOnOneTimePurchase: true,
+          appliesOnSubscription: false,
+        },
+        minimumRequirement: {
+          typeName: 'DiscountMinimumQuantity',
+          greaterThanOrEqualToQuantity: '2',
+        },
+      }),
+    ]);
+
+    const app = createApp(config).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query($id: ID!, $missing: ID!) {
+          automaticDiscountNode(id: $id) {
+            id
+            automaticDiscount {
+              __typename
+              ... on DiscountAutomaticBasic {
+                title
+                customerGets {
+                  value {
+                    __typename
+                    ... on DiscountPercentage {
+                      percentage
+                    }
+                  }
+                }
+                minimumRequirement {
+                  __typename
+                  ... on DiscountMinimumQuantity {
+                    greaterThanOrEqualToQuantity
+                  }
+                }
+              }
+            }
+          }
+          discountNode(id: $missing) {
+            id
+          }
+        }`,
+        variables: {
+          id: 'gid://shopify/DiscountAutomaticNode/192002',
+          missing: 'gid://shopify/DiscountAutomaticNode/404',
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual({
+      automaticDiscountNode: {
+        id: 'gid://shopify/DiscountAutomaticNode/192002',
+        automaticDiscount: {
+          __typename: 'DiscountAutomaticBasic',
+          title: 'HAR-192 automatic detail fixture',
+          customerGets: {
+            value: {
+              __typename: 'DiscountPercentage',
+              percentage: 0.15,
+            },
+          },
+          minimumRequirement: {
+            __typename: 'DiscountMinimumQuantity',
+            greaterThanOrEqualToQuantity: '2',
+          },
+        },
+      },
+      discountNode: null,
+    });
+  });
+
+  it('makes unsupported app-discount detail fields explicit instead of inventing app data', async () => {
+    store.upsertBaseDiscounts([
+      buildDiscount({
+        id: 'gid://shopify/DiscountCodeNode/192003',
+        typeName: 'DiscountCodeApp',
+        method: 'code',
+        title: 'App discount boundary',
+        appId: 'gid://shopify/App/1',
+      }),
+    ]);
+
+    const app = createApp(config).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query($id: ID!) {
+          codeDiscountNode(id: $id) {
+            codeDiscount {
+              __typename
+              ... on DiscountCodeApp {
+                title
+                appDiscountType {
+                  title
+                }
+              }
+            }
+          }
+        }`,
+        variables: {
+          id: 'gid://shopify/DiscountCodeNode/192003',
+        },
+      });
+
+    expect(response.body.data.codeDiscountNode.codeDiscount).toEqual({
+      __typename: 'DiscountCodeApp',
+      title: 'App discount boundary',
+      appDiscountType: null,
+    });
+    expect(response.body.errors).toEqual([
+      {
+        message: 'Local discount detail does not model app-managed field appDiscountType.',
+        path: ['codeDiscountNode', 'codeDiscount', 'appDiscountType'],
+        extensions: {
+          code: 'UNSUPPORTED_APP_DISCOUNT_FIELD',
+          fieldName: 'appDiscountType',
+          typeName: 'DiscountCodeApp',
+        },
+      },
+    ]);
   });
 
   it('paginates and reverses discount catalog reads over the effective local discount graph', async () => {
