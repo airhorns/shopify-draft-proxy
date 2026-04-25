@@ -1953,3 +1953,23 @@ Practical rule:
 
 - model customer-owned metafields as a customer-scoped sub-model for `customerUpdate` before broadening shared `metafieldsSet` beyond the currently captured product owner slice
 - do not infer support for `customerAddTaxExemptions`, `customerRemoveTaxExemptions`, or `customerReplaceTaxExemptions` from this fixture; those roots still need their own local staging and conformance evidence
+
+## 52. Customer marketing consent moved under default contact methods
+
+HAR-153 live capture used Admin GraphQL 2026-04 because customer consent fields are not present on the configured store's 2025-01 `Customer` object. In 2026-04 introspection, the standalone consent state and update input types still exist, but selected customer read fields are exposed through the default contact objects:
+
+- `Customer.defaultEmailAddress.marketingState`, `marketingOptInLevel`, and `marketingUpdatedAt`
+- `Customer.defaultPhoneNumber.marketingState`, `marketingOptInLevel`, `marketingUpdatedAt`, and `marketingCollectedFrom`
+- `customerByIdentifier(identifier: { id | emailAddress | phoneNumber })` is available and returns the same selected customer contact consent fields as `customer(id:)`
+
+Captured mutation behavior:
+
+- `customerEmailMarketingConsentUpdate` maps input `consentUpdatedAt` to `defaultEmailAddress.marketingUpdatedAt`
+- `customerSmsMarketingConsentUpdate` maps input `consentUpdatedAt` to `defaultPhoneNumber.marketingUpdatedAt` and returns `marketingCollectedFrom: "OTHER"` for the captured Admin API update
+- an unknown email-consent customer id returns `userErrors: [{ field: ["input", "customerId"], message: "Customer not found", code: "INVALID" }]`
+- an unknown SMS-consent customer id returns `userErrors: [{ field: null, message: "Customer not found", code: null }]`
+
+Practical rule:
+
+- model the 2026-04 nested default contact fields as the conformance-backed read shape, and keep direct `emailMarketingConsent` / `smsMarketingConsent` serialization only as a compatibility branch for callers that still request the older field names
+- do not route either supported consent update mutation upstream during normal runtime; the local stage must update the normalized customer contact consent state and preserve the original raw mutation in the meta log for commit replay
