@@ -1453,6 +1453,13 @@ function sumRefundedAmount(order: OrderRecord): number {
   return order.refunds.reduce((sum, refund) => sum + parseDecimalAmount(refund.totalRefundedSet?.shopMoney.amount), 0);
 }
 
+function sumRefundedShippingAmount(order: OrderRecord): number {
+  return order.refunds.reduce(
+    (sum, refund) => sum + parseDecimalAmount(refund.totalRefundedShippingSet?.shopMoney.amount),
+    0,
+  );
+}
+
 function makeOrderMoneyBag(amount: number | string, currencyCode: string): { shopMoney: MoneyV2Record } {
   return {
     shopMoney: normalizeMoney(formatDecimalAmount(parseDecimalAmount(amount)), currencyCode),
@@ -1618,6 +1625,9 @@ function buildRefundFromInput(order: OrderRecord, input: Record<string, unknown>
     totalRefundedSet: {
       shopMoney: normalizeMoney(formatDecimalAmount(totalRefunded), currencyCode),
     },
+    totalRefundedShippingSet: {
+      shopMoney: normalizeMoney(formatDecimalAmount(shippingRefundAmount), currencyCode),
+    },
     refundLineItems,
     transactions,
   };
@@ -1631,6 +1641,12 @@ function applyRefundToOrder(order: OrderRecord, refund: OrderRefundRecord): Orde
   const totalRefundedSet = {
     shopMoney: normalizeMoney(formatDecimalAmount(totalRefunded), currencyCode),
   };
+  const totalRefundedShippingSet = {
+    shopMoney: normalizeMoney(
+      formatDecimalAmount(sumRefundedShippingAmount({ ...order, refunds: [...order.refunds, refund] })),
+      currencyCode,
+    ),
+  };
   const netPaymentSet = subtractMoney(
     order.totalReceivedSet ?? order.currentTotalPriceSet,
     totalRefundedSet,
@@ -1642,6 +1658,7 @@ function applyRefundToOrder(order: OrderRecord, refund: OrderRefundRecord): Orde
     updatedAt: refund.createdAt,
     displayFinancialStatus,
     totalRefundedSet,
+    totalRefundedShippingSet,
     netPaymentSet,
     transactions: [...structuredClone(order.transactions), ...structuredClone(refund.transactions)],
     refunds: [...structuredClone(order.refunds), structuredClone(refund)],
@@ -3320,6 +3337,51 @@ function serializeOrderFulfillmentOrderLineItemsConnection(
   });
 }
 
+function serializeOrderFulfillmentOrderDeliveryMethod(
+  field: FieldNode,
+  deliveryMethod: OrderFulfillmentOrderRecord['deliveryMethod'],
+): Record<string, unknown> | null {
+  if (!deliveryMethod) {
+    return null;
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = deliveryMethod.id;
+        break;
+      case 'methodType':
+        result[key] = deliveryMethod.methodType;
+        break;
+      case 'presentedName':
+        result[key] = deliveryMethod.presentedName ?? null;
+        break;
+      case 'serviceCode':
+        result[key] = deliveryMethod.serviceCode ?? null;
+        break;
+      case 'minDeliveryDateTime':
+        result[key] = deliveryMethod.minDeliveryDateTime ?? null;
+        break;
+      case 'maxDeliveryDateTime':
+        result[key] = deliveryMethod.maxDeliveryDateTime ?? null;
+        break;
+      case 'sourceReference':
+        result[key] = deliveryMethod.sourceReference ?? null;
+        break;
+      case 'additionalInformation':
+      case 'brandedPromise':
+        result[key] = null;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
 function serializeOrderFulfillmentOrder(
   field: FieldNode,
   fulfillmentOrder: OrderFulfillmentOrderRecord,
@@ -3351,6 +3413,9 @@ function serializeOrderFulfillmentOrder(
               }),
             )
           : null;
+        break;
+      case 'deliveryMethod':
+        result[key] = serializeOrderFulfillmentOrderDeliveryMethod(selection, fulfillmentOrder.deliveryMethod ?? null);
         break;
       case 'lineItems':
         result[key] = serializeOrderFulfillmentOrderLineItemsConnection(selection, fulfillmentOrder.lineItems ?? []);
