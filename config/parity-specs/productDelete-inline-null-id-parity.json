@@ -1,0 +1,29 @@
+{
+  "scenarioId": "productDelete-inline-null-id-parity",
+  "operationNames": ["productDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-delete-parity.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/productDelete-inline-null-id-parity.graphql"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity coverage for Shopify's captured inline argument error when productDelete input.id is null.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.errors[0].locations[0].column",
+        "matcher": "any-number",
+        "reason": "The checked-in proxy request is repo-formatted while the live capture came from the indented capture script document; both point at the inline ProductDeleteInput object."
+      }
+    ],
+    "targets": [
+      {
+        "name": "inline-null-id-product-delete-error",
+        "capturePath": "$.invalidInput.inlineNullId.response",
+        "proxyPath": "$"
+      }
+    ]
+  }
+}

@@ -342,6 +342,7 @@ describe('product draft flow', () => {
       {
         message:
           'Variable $input of type ProductDeleteInput! was provided invalid value for id (Expected value to not be null)',
+        locations: [{ line: expect.any(Number), column: expect.any(Number) }],
         extensions: {
           code: 'INVALID_VARIABLE',
           value: {},
@@ -362,6 +363,7 @@ describe('product draft flow', () => {
     expect(response.body.errors).toEqual([
       {
         message: "Argument 'id' on InputObject 'ProductDeleteInput' is required. Expected type ID!",
+        locations: [{ line: expect.any(Number), column: expect.any(Number) }],
         path: ['mutation', 'productDelete', 'input', 'id'],
         extensions: {
           code: 'missingRequiredInputObjectAttribute',
@@ -384,6 +386,7 @@ describe('product draft flow', () => {
     expect(response.body.errors).toEqual([
       {
         message: "Argument 'id' on InputObject 'ProductDeleteInput' has an invalid value (null). Expected type 'ID!'.",
+        locations: [{ line: expect.any(Number), column: expect.any(Number) }],
         path: ['mutation', 'productDelete', 'input', 'id'],
         extensions: {
           code: 'argumentLiteralsIncompatible',

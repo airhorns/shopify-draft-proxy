@@ -2776,12 +2776,24 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   const productDeletePayloadId = mutationName === 'productDelete' ? readStringField(payload, 'deletedProductId') : null;
   const isProductDeleteValidationProbe =
     mutationName === 'productDelete' && productDeletePayloadId !== null && productDeletePayloadId !== productId;
+  const productUserErrors = readArrayField(payload, 'userErrors').filter(isPlainObject);
+  const isMissingProductValidationProbe =
+    (mutationName === 'productUpdate' || mutationName === 'productChangeStatus') &&
+    productPayload === null &&
+    productUserErrors.some((userError) => {
+      const fieldPath = readArrayField(userError, 'field');
+      return (
+        (fieldPath.includes('id') || fieldPath.includes('productId')) &&
+        readStringField(userError, 'message') === 'Product does not exist'
+      );
+    });
 
   const shouldSeedProduct =
     productId !== null &&
     !(mutationName === 'productCreate' && readStringField(productInput, 'id') === null) &&
     !isProductSetCreate &&
-    !isProductDeleteValidationProbe;
+    !isProductDeleteValidationProbe &&
+    !isMissingProductValidationProbe;
 
   if (seedProductDuplicateSource(capture)) {
     return;
