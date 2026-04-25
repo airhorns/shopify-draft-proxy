@@ -67,6 +67,19 @@ function supportedRootOperations(type: OperationType, rootFieldNames: string[]):
   return rootFieldNames.filter((fieldName) => implementedRegistryNames.has(fieldName));
 }
 
+function classifyRootCoverage(type: OperationType, rootFieldNames: string[]) {
+  const registryEntries = new Map(
+    listOperationRegistryEntries()
+      .filter((entry) => entry.type === type)
+      .map((entry) => [entry.name, entry]),
+  );
+
+  return {
+    declaredGaps: rootFieldNames.filter((fieldName) => registryEntries.get(fieldName)?.implemented === false),
+    unregistered: rootFieldNames.filter((fieldName) => !registryEntries.has(fieldName)),
+  };
+}
+
 describe('GraphQL operation coverage', () => {
   it('identifies formally supported root operations from Admin GraphQL introspection', () => {
     const fixture = readRootOperationIntrospectionFixture();
@@ -92,5 +105,12 @@ describe('GraphQL operation coverage', () => {
     const unsupportedMutations = mutationRootFields.filter((fieldName) => !supportedMutations.has(fieldName));
 
     expect(unsupportedMutations).toMatchSnapshot();
+  });
+
+  it('separates declared mutation gaps from unregistered introspected mutation roots', () => {
+    const fixture = readRootOperationIntrospectionFixture();
+    const mutationRootFields = sortedUniqueFieldNames(fixture.introspection.data.mutationRoot.fields);
+
+    expect(classifyRootCoverage('mutation', mutationRootFields)).toMatchSnapshot();
   });
 });
