@@ -12,15 +12,20 @@ import { findOperationRegistryEntry } from './operation-registry.js';
 import { handleMediaMutation } from './media.js';
 import { handleMarketingQuery, hydrateMarketingFromUpstreamResponse } from './marketing.js';
 import { handleCustomerMutation, handleCustomerQuery, hydrateCustomersFromUpstreamResponse } from './customers.js';
-import { handleDeliveryProfileQuery } from './delivery-profiles.js';
+import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from './delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from './discounts.js';
 import { handleMarketMutation, handleMarketsQuery, hydrateMarketsFromUpstreamResponse } from './markets.js';
 import { handleOrderMutation, handleOrderQuery, shouldServeDraftOrderCatalogLocally } from './orders.js';
 import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamResponse } from './products.js';
 import { handleMetafieldDefinitionMutation, handleMetafieldDefinitionQuery } from './metafield-definitions.js';
+import {
+  handleMetaobjectDefinitionQuery,
+  hydrateMetaobjectDefinitionsFromUpstreamResponse,
+} from './metaobject-definitions.js';
 import { handlePaymentMutation, handlePaymentQuery } from './payments.js';
 import { handleSegmentMutation, handleSegmentsQuery, hydrateSegmentsFromUpstreamResponse } from './segments.js';
 import { handleStorePropertiesMutation, handleStorePropertiesQuery } from './store-properties.js';
+import { handleWebhookSubscriptionQuery, hydrateWebhookSubscriptionsFromUpstreamResponse } from './webhooks.js';
 
 interface GraphQLBody {
   query?: unknown;
@@ -49,6 +54,12 @@ const FULFILLMENT_SERVICE_MUTATION_ROOTS = new Set([
   'fulfillmentServiceCreate',
   'fulfillmentServiceUpdate',
   'fulfillmentServiceDelete',
+]);
+
+const DELIVERY_PROFILE_MUTATION_ROOTS = new Set([
+  'deliveryProfileCreate',
+  'deliveryProfileUpdate',
+  'deliveryProfileRemove',
 ]);
 
 const CARRIER_SERVICE_MUTATION_ROOTS = new Set([
@@ -382,6 +393,46 @@ export function createProxyRouter(config: AppConfig): Router {
       ctx.status = 200;
       ctx.body = responseBody;
       return;
+    }
+
+    if (
+      capability.execution === 'stage-locally' &&
+      capability.domain === 'shipping-fulfillments' &&
+      primaryRootField &&
+      DELIVERY_PROFILE_MUTATION_ROOTS.has(primaryRootField)
+    ) {
+      proxyLogger.debug(
+        {
+          execution: capability.execution,
+          operationName: capability.operationName,
+          operationType: parsed.type,
+          rootFields: parsed.rootFields,
+        },
+        'staging supported delivery profile mutation locally',
+      );
+
+      const deliveryProfileMutation = handleDeliveryProfileMutation(body.query, variables);
+      if (deliveryProfileMutation) {
+        if (deliveryProfileMutation.staged) {
+          store.appendLog({
+            id: makeSyntheticGid('MutationLogEntry'),
+            receivedAt: makeSyntheticTimestamp(),
+            operationName: capability.operationName,
+            path: ctx.path,
+            query: body.query,
+            variables,
+            requestBody,
+            stagedResourceIds: deliveryProfileMutation.stagedResourceIds,
+            status: 'staged',
+            interpreted: interpretMutationLogEntry(parsed, capability),
+            notes: deliveryProfileMutation.notes,
+          });
+        }
+
+        ctx.status = 200;
+        ctx.body = deliveryProfileMutation.response;
+        return;
+      }
     }
 
     if (capability.execution === 'stage-locally' && capability.domain === 'customers') {
@@ -835,6 +886,16 @@ export function createProxyRouter(config: AppConfig): Router {
         ctx.body = handleStorePropertiesQuery(body.query, variables);
         return;
       }
+
+      if (
+        config.readMode === 'live-hybrid' &&
+        (primaryRootField === 'deliveryProfile' || primaryRootField === 'deliveryProfiles') &&
+        store.hasStagedDeliveryProfiles()
+      ) {
+        ctx.status = 200;
+        ctx.body = handleDeliveryProfileQuery(body.query, variables);
+        return;
+      }
     }
 
     if (
@@ -917,6 +978,39 @@ export function createProxyRouter(config: AppConfig): Router {
       return;
     }
 
+    if (capability.execution === 'overlay-read' && capability.domain === 'metaobjects') {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleMetaobjectDefinitionQuery(body.query, variables);
+        return;
+      }
+
+      if (config.readMode === 'live-hybrid') {
+        const hadLocalDefinitions = store.hasEffectiveMetaobjectDefinitions();
+        const response = await upstream.request({
+          path: ctx.path,
+          headers: {
+            'content-type': 'application/json',
+            'x-shopify-access-token': ctx.get('x-shopify-access-token'),
+          },
+          body: {
+            query: body.query,
+            variables,
+          },
+        });
+
+        const upstreamBody = await response.json();
+        hydrateMetaobjectDefinitionsFromUpstreamResponse(body.query, variables, upstreamBody);
+
+        ctx.status = response.status;
+        ctx.body =
+          store.hasEffectiveMetaobjectDefinitions() && (hadLocalDefinitions || store.hasStagedMetaobjectDefinitions())
+            ? handleMetaobjectDefinitionQuery(body.query, variables)
+            : upstreamBody;
+        return;
+      }
+    }
+
     if (capability.execution === 'overlay-read' && capability.domain === 'payments') {
       if (config.readMode === 'snapshot') {
         ctx.status = 200;
@@ -956,6 +1050,38 @@ export function createProxyRouter(config: AppConfig): Router {
 
         ctx.status = response.status;
         ctx.body = store.hasStagedSegments() ? handleSegmentsQuery(body.query, variables) : upstreamBody;
+        return;
+      }
+    }
+
+    if (capability.execution === 'overlay-read' && capability.domain === 'webhooks') {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleWebhookSubscriptionQuery(body.query, variables);
+        return;
+      }
+
+      if (config.readMode === 'live-hybrid') {
+        const response = await upstream.request({
+          path: ctx.path,
+          headers: {
+            'content-type': 'application/json',
+            'x-shopify-access-token': ctx.get('x-shopify-access-token'),
+          },
+          body: {
+            query: body.query,
+            variables,
+          },
+        });
+
+        const upstreamBody = await response.json();
+        hydrateWebhookSubscriptionsFromUpstreamResponse(body.query, variables, upstreamBody);
+
+        ctx.status = response.status;
+        ctx.body =
+          store.hasWebhookSubscriptions() || store.hasStagedWebhookSubscriptions()
+            ? handleWebhookSubscriptionQuery(body.query, variables)
+            : upstreamBody;
         return;
       }
     }

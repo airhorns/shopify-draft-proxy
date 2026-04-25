@@ -405,27 +405,27 @@
     "type": "mutation",
     "domain": "customers",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerAddTaxExemptions", "CustomerAddTaxExemptions"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
   },
   {
     "name": "customerRemoveTaxExemptions",
     "type": "mutation",
     "domain": "customers",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerRemoveTaxExemptions", "CustomerRemoveTaxExemptions"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
   },
   {
     "name": "customerReplaceTaxExemptions",
     "type": "mutation",
     "domain": "customers",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerReplaceTaxExemptions", "CustomerReplaceTaxExemptions"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
   },
   {
     "name": "customerSet",
@@ -1084,30 +1084,30 @@
     "type": "query",
     "domain": "metaobjects",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectDefinition", "MetaobjectDefinition"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 definition read root. Registry-only declared gap until ID lookup nullability, field definition ordering, capabilities, access settings, and empty/no-data behavior are captured."
+    "runtimeTests": ["tests/integration/metaobject-definition-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 definition read root. HAR-241 supports snapshot and live-hybrid overlay reads from normalized fixture/local state, including ID lookup nullability, captured field ordering, capabilities, access settings, and no-data behavior."
   },
   {
     "name": "metaobjectDefinitionByType",
     "type": "query",
     "domain": "metaobjects",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectDefinitionByType", "MetaobjectDefinitionByType"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 definition type lookup root. Registry-only declared gap until type identity, app-reserved type handling, and missing-type nullability are captured."
+    "runtimeTests": ["tests/integration/metaobject-definition-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 definition type lookup root. HAR-241 supports snapshot and live-hybrid overlay reads from normalized fixture/local state, including type identity and missing-type nullability."
   },
   {
     "name": "metaobjectDefinitions",
     "type": "query",
     "domain": "metaobjects",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectDefinitions", "MetaobjectDefinitions"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 definition catalog root. Registry-only declared gap until definition pagination, ordering, type filtering, standard-template metadata, and empty connection behavior are captured."
+    "runtimeTests": ["tests/integration/metaobject-definition-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 definition catalog root. HAR-241 supports snapshot and live-hybrid overlay reads from normalized fixture/local state, including definition pagination, reverse ordering, standard-template metadata, and empty connection behavior."
   },
   {
     "name": "metaobjectCreate",
@@ -1651,7 +1651,7 @@
     "implemented": true,
     "matchNames": ["fulfillmentOrder", "FulfillmentOrder"],
     "runtimeTests": ["tests/integration/order-query-shapes.test.ts"],
-    "supportNotes": "Admin GraphQL 2026-04 FulfillmentOrder ID lookup root. Snapshot reads resolve from fulfillment-order records already present on the local order graph, return null for missing IDs, and keep detail serialization aligned with nested Order.fulfillmentOrders; holds, deliveryMethod, and lifecycle replacement semantics remain out of scope."
+    "supportNotes": "Admin GraphQL 2026-04 FulfillmentOrder ID lookup root. Snapshot reads resolve from fulfillment-order records already present on the local order graph, return null for missing IDs, and keep detail serialization aligned with nested Order.fulfillmentOrders. Stored fixture deliveryMethod data is serialized when present and returns null when absent; holds and lifecycle replacement semantics remain out of scope."
   },
   {
     "name": "fulfillmentOrders",
@@ -2001,30 +2001,30 @@
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["deliveryProfileCreate", "DeliveryProfileCreate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires nested profile/location-group/zone/rate method validation, variant assignment, and downstream profile reads before support."
+    "runtimeTests": ["tests/integration/delivery-profile-lifecycle-flow.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 deliveryProfileCreate stages locally for merchant-owned custom profiles, name validation, nested location groups/zones/static rate definitions, weight/price condition creation, variant association, downstream delivery profile reads, and meta log/state inspection. Carrier participants, selling-plan lifecycle semantics, and full delivery-setting eligibility validation remain outside the supported subset."
   },
   {
     "name": "deliveryProfileRemove",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["deliveryProfileRemove", "DeliveryProfileRemove"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires asynchronous job payload semantics, default-profile restrictions, and downstream profile/catalog absence before support."
+    "runtimeTests": ["tests/integration/delivery-profile-lifecycle-flow.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 deliveryProfileRemove stages locally for custom-profile removal, Shopify-like asynchronous Job payloads, missing-profile userErrors, default-profile denial, and downstream profile/catalog absence. Removal is immediate in local staged reads while commit replay retains the original mutation order for Shopify's asynchronous runtime behavior."
   },
   {
     "name": "deliveryProfileUpdate",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["deliveryProfileUpdate", "DeliveryProfileUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires nested diff semantics for groups, zones, method definitions, variant/selling-plan associations, legacy-mode transitions, and downstream profile reads before support."
+    "runtimeTests": ["tests/integration/delivery-profile-lifecycle-flow.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 deliveryProfileUpdate stages locally for profile rename, nested location add/remove, location-group create/update/delete, zone create/update/delete, static rate method create/update/delete, condition update/delete, variant association/dissociation, and downstream profile reads. Legacy-mode transitions, carrier participant callbacks, and full selling-plan routing remain excluded until separately captured."
   },
   {
     "name": "orderEditAddShippingLine",
@@ -2699,30 +2699,30 @@
     "type": "query",
     "domain": "webhooks",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["webhookSubscription", "WebhookSubscription"],
-    "runtimeTests": [],
-    "supportNotes": "Conformance scaffold only. HAR-267 captured empty/null and create/update/delete lifecycle evidence for API-created webhook subscriptions, but local snapshot/live-hybrid reads are not modeled yet."
+    "runtimeTests": ["tests/integration/webhook-subscription-query-shapes.test.ts"],
+    "supportNotes": "Local snapshot/live-hybrid reads are modeled for API-created webhook subscription records in normalized state. Unknown IDs return null. Create/update/delete staging remains unsupported until a local mutation lifecycle model exists."
   },
   {
     "name": "webhookSubscriptions",
     "type": "query",
     "domain": "webhooks",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["webhookSubscriptions", "WebhookSubscriptions"],
-    "runtimeTests": [],
-    "supportNotes": "Conformance scaffold only. Catalog/count/detail behavior is captured for API-created subscriptions; app TOML webhooks and local connection modeling remain out of scope until runtime support is implemented."
+    "runtimeTests": ["tests/integration/webhook-subscription-query-shapes.test.ts"],
+    "supportNotes": "Local snapshot/live-hybrid catalog reads are modeled for API-created webhook subscriptions with normalized nodes, edges, pageInfo, stable synthetic cursors, ID sorting, reverse ordering, pagination, and simple captured query filtering. App TOML webhooks remain out of scope."
   },
   {
     "name": "webhookSubscriptionsCount",
     "type": "query",
     "domain": "webhooks",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["webhookSubscriptionsCount", "WebhookSubscriptionsCount"],
-    "runtimeTests": [],
-    "supportNotes": "Conformance scaffold only. Empty and filtered count behavior is captured, but the proxy does not yet synthesize webhook subscription counts locally."
+    "runtimeTests": ["tests/integration/webhook-subscription-query-shapes.test.ts"],
+    "supportNotes": "Local snapshot/live-hybrid count reads are synthesized from normalized API-created webhook subscription state with Shopify-like count/precision fields and limit-aware AT_LEAST precision."
   },
   {
     "name": "webhookSubscriptionCreate",

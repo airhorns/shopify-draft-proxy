@@ -29,7 +29,7 @@ import {
   handleCustomerQuery,
   hydrateCustomersFromUpstreamResponse,
 } from '../src/proxy/customers.js';
-import { handleDeliveryProfileQuery } from '../src/proxy/delivery-profiles.js';
+import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from '../src/proxy/delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from '../src/proxy/discounts.js';
 import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
 import { handleMarketingQuery, hydrateMarketingFromUpstreamResponse } from '../src/proxy/marketing.js';
@@ -876,6 +876,46 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'stage-locally' && capability.domain === 'shipping-fulfillments') {
+    const deliveryProfileMutation = handleDeliveryProfileMutation(document, variables);
+    if (deliveryProfileMutation) {
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: '/admin/api/2026-04/graphql.json',
+        query: document,
+        variables,
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        stagedResourceIds: deliveryProfileMutation.stagedResourceIds,
+        notes: deliveryProfileMutation.notes,
+      });
+
+      return {
+        status: 200,
+        body: deliveryProfileMutation.response,
+      };
+    }
+
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2026-04/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: handleStorePropertiesMutation(document, variables),
+    };
+  }
+
   if (
     capability.execution === 'stage-locally' &&
     capability.domain === 'payments' &&
@@ -1524,6 +1564,9 @@ function makeSeedCustomer(customerId: string, source: Record<string, unknown> | 
     canDelete: readBooleanField(source, 'canDelete') ?? true,
     verifiedEmail: readBooleanField(source, 'verifiedEmail') ?? (email ? true : null),
     taxExempt: readBooleanField(source, 'taxExempt') ?? false,
+    taxExemptions: readArrayField(source, 'taxExemptions').filter(
+      (taxExemption): taxExemption is string => typeof taxExemption === 'string',
+    ),
     state: readStringField(source, 'state') ?? 'DISABLED',
     tags: readArrayField(source, 'tags').filter((tag): tag is string => typeof tag === 'string'),
     numberOfOrders: readNumberField(source, 'numberOfOrders') ?? readStringField(source, 'numberOfOrders') ?? 0,
@@ -1565,6 +1608,7 @@ function makePlaceholderCustomer(index: number): CustomerRecord {
     canDelete: true,
     verifiedEmail: true,
     taxExempt: false,
+    taxExemptions: [],
     state: 'DISABLED',
     tags: ['baseline'],
     numberOfOrders: 0,
@@ -1590,7 +1634,10 @@ function seedCustomerMutationPreconditions(
     mutationName !== 'customerUpdate' &&
     mutationName !== 'customerDelete' &&
     mutationName !== 'customerEmailMarketingConsentUpdate' &&
-    mutationName !== 'customerSmsMarketingConsentUpdate'
+    mutationName !== 'customerSmsMarketingConsentUpdate' &&
+    mutationName !== 'customerAddTaxExemptions' &&
+    mutationName !== 'customerRemoveTaxExemptions' &&
+    mutationName !== 'customerReplaceTaxExemptions'
   ) {
     return false;
   }
@@ -1599,7 +1646,9 @@ function seedCustomerMutationPreconditions(
   const customerPayload = readRecordField(payload, 'customer');
   const preconditionPayload = firstObjectValue(readJsonPath(capture, '$.precondition.response.data'));
   const preconditionCustomerPayload = readRecordField(preconditionPayload, 'customer');
-  const downstreamData = readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data');
+  const downstreamRead = readRecordField(capture as Record<string, unknown>, 'downstreamRead');
+  const downstreamData =
+    readRecordField(downstreamRead, 'data') ?? readRecordField(readRecordField(downstreamRead, 'response'), 'data');
   const downstreamCount = readNumberField(readRecordField(downstreamData, 'customersCount'), 'count');
   const targetCustomerId =
     readStringField(input, 'id') ??
@@ -1615,7 +1664,13 @@ function seedCustomerMutationPreconditions(
 
   if (downstreamCount !== null) {
     const targetContributesToDownstreamCount =
-      mutationName === 'customerCreate' || mutationName === 'customerUpdate' ? 1 : 0;
+      mutationName === 'customerCreate' ||
+      mutationName === 'customerUpdate' ||
+      mutationName === 'customerAddTaxExemptions' ||
+      mutationName === 'customerRemoveTaxExemptions' ||
+      mutationName === 'customerReplaceTaxExemptions'
+        ? 1
+        : 0;
     const placeholderCount = Math.max(0, downstreamCount - targetContributesToDownstreamCount);
     for (let index = 0; index < placeholderCount; index += 1) {
       seedCustomers.push(makePlaceholderCustomer(index));
@@ -2646,6 +2701,100 @@ function seedDeliveryProfilePreconditions(capture: unknown): boolean {
   return true;
 }
 
+function seedDeliveryProfileWritePreconditions(capture: unknown): boolean {
+  const mutations = readRecordField(capture as Record<string, unknown>, 'mutations');
+  const nestedCreate = readRecordField(mutations, 'nestedCreate');
+  const nestedCreateData = readRecordField(
+    readRecordField(readRecordField(readRecordField(nestedCreate, 'result'), 'payload'), 'data'),
+    'deliveryProfileCreate',
+  );
+  const createdProfile = readRecordField(nestedCreateData, 'profile');
+  if (!createdProfile) {
+    return false;
+  }
+
+  const profileItems = readConnectionNodes(readRecordField(createdProfile, 'profileItems'));
+  for (const profileItem of profileItems) {
+    const product = readRecordField(profileItem, 'product');
+    const productId = readStringField(product, 'id');
+    if (!productId) {
+      continue;
+    }
+
+    store.upsertBaseProducts([makeSeedProduct(productId, product, 'Delivery profile write seed product')]);
+    const variants = readConnectionNodes(readRecordField(profileItem, 'variants'))
+      .map((variant, index) => makeDeliveryProfileSeedVariant(productId, variant, index))
+      .filter((variant): variant is ProductVariantRecord => variant !== null);
+    store.replaceBaseVariantsForProduct(productId, variants);
+  }
+
+  const locationIds = new Set<string>();
+  for (const groupInput of readArrayField(
+    readRecordField(readRecordField(nestedCreate, 'variables'), 'profile'),
+    'locationGroupsToCreate',
+  )) {
+    if (!isPlainObject(groupInput)) {
+      continue;
+    }
+    for (const locationId of readArrayField(groupInput, 'locations')) {
+      if (typeof locationId === 'string' && locationId.startsWith('gid://shopify/Location/')) {
+        locationIds.add(locationId);
+      }
+    }
+  }
+
+  const nestedUpdate = readRecordField(mutations, 'nestedUpdate');
+  for (const groupInput of readArrayField(
+    readRecordField(readRecordField(nestedUpdate, 'variables'), 'profile'),
+    'locationGroupsToUpdate',
+  )) {
+    if (!isPlainObject(groupInput)) {
+      continue;
+    }
+    for (const locationId of readArrayField(groupInput, 'locationsToAdd')) {
+      if (typeof locationId === 'string' && locationId.startsWith('gid://shopify/Location/')) {
+        locationIds.add(locationId);
+      }
+    }
+  }
+
+  store.upsertBaseLocations(
+    [...locationIds].map(
+      (id, index): LocationRecord => ({
+        id,
+        name: `Delivery profile write location ${index + 1}`,
+        isActive: true,
+        shipsInventory: true,
+      }),
+    ),
+  );
+
+  const defaultRemove = readRecordField(mutations, 'defaultRemove');
+  const defaultProfileId = readStringField(readRecordField(defaultRemove, 'variables'), 'id');
+  if (defaultProfileId) {
+    store.upsertBaseDeliveryProfiles([
+      {
+        id: defaultProfileId,
+        name: 'General profile',
+        default: true,
+        merchantOwned: true,
+        version: 1,
+        activeMethodDefinitionsCount: 0,
+        locationsWithoutRatesCount: 0,
+        originLocationCount: 0,
+        zoneCountryCount: 0,
+        productVariantsCount: { count: 0, precision: 'EXACT' },
+        profileItems: [],
+        profileLocationGroups: [],
+        unassignedLocationIds: [],
+        sellingPlanGroups: [],
+      },
+    ]);
+  }
+
+  return true;
+}
+
 function seedBusinessEntityPreconditions(capture: unknown): boolean {
   const data = readRecordField(capture as Record<string, unknown>, 'data');
   const catalogEntities = readArrayField(data, 'businessEntities');
@@ -3114,6 +3263,25 @@ function readCapturedDraftOrderShippingLine(
   };
 }
 
+function readCapturedDraftOrderPaymentTerms(
+  draftOrder: Record<string, unknown> | null,
+): DraftOrderRecord['paymentTerms'] {
+  const paymentTerms = readRecordField(draftOrder, 'paymentTerms');
+  if (!paymentTerms) {
+    return null;
+  }
+
+  return {
+    id: readStringField(paymentTerms, 'id') ?? 'gid://shopify/PaymentTerms/conformance',
+    due: readBooleanField(paymentTerms, 'due') ?? false,
+    overdue: readBooleanField(paymentTerms, 'overdue') ?? false,
+    dueInDays: readNumberField(paymentTerms, 'dueInDays'),
+    paymentTermsName: readStringField(paymentTerms, 'paymentTermsName') ?? '',
+    paymentTermsType: readStringField(paymentTerms, 'paymentTermsType') ?? '',
+    translatedName: readStringField(paymentTerms, 'translatedName') ?? '',
+  };
+}
+
 function makeSeedDraftOrder(draftOrderId: string, source: Record<string, unknown> | null = null): DraftOrderRecord {
   const now = '2026-04-19T00:00:00.000Z';
   return {
@@ -3129,7 +3297,7 @@ function makeSeedDraftOrder(draftOrderId: string, source: Record<string, unknown
     taxExempt: readBooleanField(source, 'taxExempt') ?? false,
     taxesIncluded: readBooleanField(source, 'taxesIncluded') ?? false,
     reserveInventoryUntil: readStringField(source, 'reserveInventoryUntil'),
-    paymentTerms: null,
+    paymentTerms: readCapturedDraftOrderPaymentTerms(source),
     appliedDiscount: readCapturedDraftOrderAppliedDiscount(source),
     customAttributes: readArrayField(source, 'customAttributes')
       .filter(isPlainObject)
@@ -3336,6 +3504,52 @@ function readCapturedProductVariants(
     .filter((variant): variant is ProductVariantRecord => variant !== null);
 }
 
+function readCapturedProductOptions(productId: string, product: Record<string, unknown> | null): ProductOptionRecord[] {
+  return readArrayField(product, 'options')
+    .filter(isPlainObject)
+    .map((option) => {
+      const id = readStringField(option, 'id');
+      const name = readStringField(option, 'name');
+      if (!id || !name) {
+        return null;
+      }
+
+      const optionValues = readArrayField(option, 'optionValues')
+        .filter(isPlainObject)
+        .map((optionValue) => {
+          const valueId = readStringField(optionValue, 'id');
+          const valueName = readStringField(optionValue, 'name');
+          if (!valueId || !valueName) {
+            return null;
+          }
+
+          return {
+            id: valueId,
+            name: valueName,
+            hasVariants: readBooleanField(optionValue, 'hasVariants') ?? false,
+          };
+        })
+        .filter((optionValue): optionValue is ProductOptionRecord['optionValues'][number] => optionValue !== null);
+
+      return {
+        id,
+        productId,
+        name,
+        position: readNumberField(option, 'position') ?? 1,
+        optionValues,
+      };
+    })
+    .filter((option): option is ProductOptionRecord => option !== null);
+}
+
+function readPreMutationProduct(capture: unknown, productId: string): Record<string, unknown> | null {
+  const preMutationRead = readRecordField(capture as Record<string, unknown>, 'preMutationRead');
+  const data =
+    readRecordField(preMutationRead, 'data') ?? readRecordField(readRecordField(preMutationRead, 'response'), 'data');
+  const product = readRecordField(data, 'product');
+  return readStringField(product, 'id') === productId ? product : null;
+}
+
 function readBulkUpdateSeedVariants(
   productId: string,
   product: Record<string, unknown> | null,
@@ -3452,7 +3666,22 @@ function makeSeedCollection(collectionId: string, source: Record<string, unknown
   };
 }
 
-function seedProductOptionState(productId: string, variables: Record<string, unknown>): void {
+function seedProductOptionState(productId: string, variables: Record<string, unknown>, capture?: unknown): void {
+  const preMutationProduct = capture === undefined ? null : readPreMutationProduct(capture, productId);
+  if (preMutationProduct) {
+    const capturedOptions = readCapturedProductOptions(productId, preMutationProduct);
+    const capturedVariants = readCapturedProductVariants(productId, preMutationProduct);
+    if (capturedOptions.length > 0) {
+      store.replaceBaseOptionsForProduct(productId, capturedOptions);
+    }
+    if (capturedVariants.length > 0) {
+      store.replaceBaseVariantsForProduct(productId, capturedVariants);
+    }
+    if (capturedOptions.length > 0 || capturedVariants.length > 0) {
+      return;
+    }
+  }
+
   const optionInput = readRecordField(variables, 'option');
   const optionId =
     readStringField(optionInput, 'id') ??
@@ -4491,6 +4720,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     return;
   }
 
+  if (seedDeliveryProfileWritePreconditions(capture)) {
+    return;
+  }
+
   if (seedMarketsFromCapture(capture)) {
     return;
   }
@@ -4896,7 +5129,7 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       }
     }
     if (readArrayField(variables, 'options').length > 0 || readRecordField(variables, 'option')) {
-      seedProductOptionState(productId, variables);
+      seedProductOptionState(productId, variables, capture);
     }
 
     if (mutationName === 'productUpdateMedia') {

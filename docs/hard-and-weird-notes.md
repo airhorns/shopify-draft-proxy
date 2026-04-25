@@ -1152,6 +1152,28 @@ HAR-256 captured `metafieldDefinitionPin` and `metafieldDefinitionUnpin` against
 
 The implemented local slice is intentionally limited to existing normalized definitions. Keep create/update/delete and app-configuration-managed or unsupported-owner pinning branches separate until they have their own evidence.
 
+## 20. Metaobject read no-data behavior is clean, but setup access has a trap
+
+HAR-240 captured the first Admin GraphQL 2026-04 metaobject read fixture against `harry-test-heelo.myshopify.com`.
+
+Useful read behavior from `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects-read.json`:
+
+- unknown `metaobjectDefinitionByType(type:)` returns `null`
+- unknown `metaobjectDefinition(id:)` returns `null`
+- unknown `metaobjectByHandle(handle:)` returns `null`
+- unknown `metaobject(id:)` returns `null`
+- unknown-type `metaobjects(type:, first:)` returns a non-null empty connection with empty `edges`/`nodes`, false `pageInfo` booleans, and null cursors
+- a merchant-owned seeded definition returned default `access.admin: PUBLIC_READ_WRITE` and `access.storefront: NONE`
+- a publishable seeded entry returned `capabilities.publishable.status: ACTIVE`; disabled online-store capability data returned `onlineStore: null`
+- `Metaobject` exposes `updatedAt` in 2026-04 for the captured selected timestamp slice; the live type introspection in the fixture does not expose a `createdAt` field
+
+Setup trap:
+
+- passing `access.admin` while creating a merchant-owned metaobject definition returns `ADMIN_ACCESS_INPUT_NOT_ALLOWED` with message `Admin access can only be specified on metaobject definitions that have an app-reserved type.`
+- practical consequence: for merchant-owned fixture setup, omit `access` from `metaobjectDefinitionCreate` and capture the default access through read queries instead of trying to force it in setup input
+
+No parity spec is checked in for this fixture yet because the proxy does not have an executable metaobject read/snapshot model. Do not add a planned-only metaobject parity spec just to point at this fixture.
+
 ## 18a. Staged metafield writes need product-scoped replacement semantics, not id-wise merge
 
 Adding `metafieldsSet` / `metafieldDelete` exposed a subtle state-model trap:
@@ -2076,10 +2098,21 @@ Captured facts:
 - an invalid tax exemption string never reaches `userErrors`; Shopify rejects the GraphQL variable with `INVALID_VARIABLE` before mutation execution
 - an invalid customer metafield type returns `customer: null` with a `userErrors` entry at `['metafields', '0', 'type']`
 
+HAR-281 later captured dedicated Admin GraphQL 2025-01 tax exemption roots against a disposable customer:
+
+- `customerAddTaxExemptions`, `customerRemoveTaxExemptions`, and `customerReplaceTaxExemptions` all return `{ customer, userErrors }` and successful mutations expose the updated `Customer.taxExemptions` list
+- the boolean `Customer.taxExempt` remains independent; adding an exemption did not flip it from `false` to `true`
+- add appends new unique exemptions after existing exemptions and treats an empty list or already-present duplicate input as a successful no-op
+- remove deletes listed exemptions that are present and treats an empty list or a missing exemption as a successful no-op
+- replace replaces the list, de-duplicates duplicate inputs, and clears the list for an empty input
+- unknown customer ids return payload `userErrors: [{ field: ["customerId"], message: "Customer does not exist." }]`
+- invalid tax exemption strings never reach payload `userErrors`; Shopify rejects the GraphQL variable with top-level `INVALID_VARIABLE` errors before mutation execution
+
 Practical rule:
 
 - model customer-owned metafields as a customer-scoped sub-model for `customerUpdate` before broadening shared `metafieldsSet` beyond the currently captured product owner slice
-- do not infer support for `customerAddTaxExemptions`, `customerRemoveTaxExemptions`, or `customerReplaceTaxExemptions` from this fixture; those roots still need their own local staging and conformance evidence
+- dedicated `customerAddTaxExemptions`, `customerRemoveTaxExemptions`, and `customerReplaceTaxExemptions` support must be backed by their own root-specific evidence rather than inferred from `customerUpdate(input.taxExemptions)`
+- model those dedicated roots as local customer-list mutations on normalized `CustomerRecord.taxExemptions`, preserve the original raw mutation in the meta log, and keep downstream `customer`, `customerByIdentifier`, `customers`, and `customersCount` reads consistent with the effective staged customer graph
 
 ## 52. Customer marketing consent moved under default contact methods
 
@@ -2461,3 +2494,20 @@ Practical rule:
 
 - do not mark broad discount bulk roots implemented until local staging covers the full selected lifecycle and downstream read effects without runtime Shopify writes
 - preserve raw bulk mutation bodies in the staged log so `__meta/commit` replays the original add/delete order exactly once
+
+## 66. `productSet` inventory quantities are location rows, but product totals lag
+
+HAR-286 refreshed `productSet` live parity on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com` with two active locations.
+
+Captured facts:
+
+- live `ProductSetInput.variants[].inventoryQuantities[]` entries require `locationId`, `name`, and `quantity`; the captured writable name is `available`
+- a single productSet-created variant can carry multiple location rows, and each row is exposed immediately through nested `inventoryItem.inventoryLevels`
+- `available` rows are mirrored into `on_hand` rows with the same quantity, while `incoming` remained `0`
+- `productVariant.inventoryQuantity` is the aggregate available quantity across the variant's captured inventory levels
+- product-level `totalInventory` did not simply sum every variant: on create it counted the tracked variant and excluded the untracked variant, and after a follow-up `productSet` inventory update it stayed at the prior product aggregate even though the variant and inventory-item quantities changed immediately
+
+Practical rule:
+
+- model `productSet` inventory inputs as inventory item location-level rows, then derive variant `inventoryQuantity` from those rows
+- do not use the generic eager product inventory-summary recomputation path for `productSet`; preserve the captured create/update product total behavior until fresher evidence shows Shopify has changed it
