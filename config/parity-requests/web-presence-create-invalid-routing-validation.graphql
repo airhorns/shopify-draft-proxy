@@ -1,0 +1,12 @@
+mutation WebPresenceCreateInvalidRouting($input: WebPresenceCreateInput!) {
+  webPresenceCreate(input: $input) {
+    webPresence {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -1,0 +1,13 @@
+#graphql
+mutation LocationAddBlankName($input: LocationAddInput!) {
+  locationAdd(input: $input) {
+    location {
+      id
+      name
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

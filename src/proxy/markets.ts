@@ -11,7 +11,14 @@ import {
 import { store } from '../state/store.js';
 import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import type { JsonValue } from '../json-schemas.js';
-import type { CatalogRecord, MarketRecord, PriceListRecord } from '../state/types.js';
+import type {
+  CatalogRecord,
+  MarketLocalizationRecord,
+  MarketRecord,
+  PriceListRecord,
+  ProductMetafieldRecord,
+  WebPresenceRecord,
+} from '../state/types.js';
 
 function responseKey(selection: FieldNode): string {
   return selection.alias?.value ?? selection.name.value;
@@ -26,6 +33,14 @@ type MarketUserError = {
   field: string[];
   message: string;
   code: string;
+};
+type MarketLocalizableResourceRecord = {
+  resourceId: string;
+  content: Array<{
+    key: string;
+    value: string | null;
+    digest: string | null;
+  }>;
 };
 
 const CURRENCY_NAMES: Record<string, string> = {
@@ -58,6 +73,17 @@ const COUNTRY_CURRENCIES: Record<string, string> = {
   JP: 'JPY',
   NZ: 'NZD',
   US: 'USD',
+};
+
+const LOCALE_NAMES: Record<string, string> = {
+  de: 'German',
+  en: 'English',
+  es: 'Spanish',
+  fr: 'French',
+  it: 'Italian',
+  ja: 'Japanese',
+  nl: 'Dutch',
+  pt: 'Portuguese',
 };
 
 function emptyConnection(): Record<string, unknown> {
@@ -422,6 +448,11 @@ type MarketHydrationEntry = {
   cursor: string | null;
 };
 
+type WebPresenceHydrationEntry = {
+  webPresence: Record<string, unknown>;
+  cursor: string | null;
+};
+
 type CatalogHydrationEntry = {
   catalog: Record<string, unknown>;
   cursor: string | null;
@@ -472,6 +503,48 @@ function collectMarketNodes(
   }
 
   return markets;
+}
+
+function collectWebPresenceNodes(
+  value: unknown,
+  webPresences: WebPresenceHydrationEntry[] = [],
+  cursor: string | null = null,
+): WebPresenceHydrationEntry[] {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectWebPresenceNodes(item, webPresences, cursor);
+    }
+    return webPresences;
+  }
+
+  if (!isPlainObject(value)) {
+    return webPresences;
+  }
+
+  if (Array.isArray(value['edges'])) {
+    for (const edge of value['edges']) {
+      if (!isPlainObject(edge)) {
+        continue;
+      }
+
+      const edgeCursor = typeof edge['cursor'] === 'string' && edge['cursor'].length > 0 ? edge['cursor'] : null;
+      collectWebPresenceNodes(edge['node'], webPresences, edgeCursor);
+    }
+  }
+
+  const id = value['id'];
+  if (typeof id === 'string' && id.startsWith('gid://shopify/MarketWebPresence/')) {
+    webPresences.push({ webPresence: value, cursor });
+  }
+
+  for (const [key, child] of Object.entries(value)) {
+    if (key === 'edges') {
+      continue;
+    }
+    collectWebPresenceNodes(child, webPresences, null);
+  }
+
+  return webPresences;
 }
 
 function collectCatalogNodes(
@@ -590,6 +663,9 @@ export function hydrateMarketsFromUpstreamResponse(
     'priceLists',
     'webPresences',
     'marketsResolvedValues',
+    'marketLocalizableResource',
+    'marketLocalizableResources',
+    'marketLocalizableResourcesByIds',
   ]) {
     const rootPayload = readRootPayload(upstreamPayload, rootField);
     if (rootPayload === null) {
@@ -597,6 +673,7 @@ export function hydrateMarketsFromUpstreamResponse(
     }
 
     store.setBaseMarketsRootPayload(rootField, rootPayload);
+    store.upsertBaseWebPresences(collectWebPresenceNodes(rootPayload));
     store.upsertBaseCatalogs(collectCatalogNodes(rootPayload));
     store.upsertBasePriceLists(collectPriceListNodes(rootPayload));
 
@@ -1059,6 +1136,259 @@ function marketError(field: string[], message: string, code: string): MarketUser
   return { field, message, code };
 }
 
+function translationError(field: string[], message: string, code: string): MarketUserError {
+  return { field, message, code };
+}
+
+function listMarketLocalizableMetafields(): ProductMetafieldRecord[] {
+  return store
+    .listEffectiveProducts()
+    .flatMap((product) => store.getEffectiveMetafieldsByProductId(product.id))
+    .sort((left, right) => left.id.localeCompare(right.id));
+}
+
+function findMarketLocalizableMetafield(resourceId: string): ProductMetafieldRecord | null {
+  return listMarketLocalizableMetafields().find((metafield) => metafield.id === resourceId) ?? null;
+}
+
+function localizableResourceFromMetafield(metafield: ProductMetafieldRecord): MarketLocalizableResourceRecord {
+  return {
+    resourceId: metafield.id,
+    content: [
+      {
+        key: 'value',
+        value: metafield.value,
+        digest: metafield.compareDigest ?? null,
+      },
+    ],
+  };
+}
+
+function readMarketLocalizableResource(resourceId: string): MarketLocalizableResourceRecord | null {
+  const metafield = findMarketLocalizableMetafield(resourceId);
+  return metafield ? localizableResourceFromMetafield(metafield) : null;
+}
+
+function serializeMarketLocalizationMarket(
+  marketId: string,
+  selections: readonly SelectionNode[],
+  fragments: FragmentMap,
+  variables: Record<string, unknown>,
+): unknown {
+  const market = store.getEffectiveMarketById(marketId);
+  return projectValue(market, selections, fragments, variables);
+}
+
+function serializeMarketLocalization(
+  localization: MarketLocalizationRecord,
+  selections: readonly SelectionNode[],
+  fragments: FragmentMap,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of selections) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case 'key':
+        result[key] = localization.key;
+        break;
+      case 'value':
+        result[key] = localization.value;
+        break;
+      case 'updatedAt':
+        result[key] = localization.updatedAt;
+        break;
+      case 'outdated':
+        result[key] = localization.outdated;
+        break;
+      case 'market':
+        result[key] = serializeMarketLocalizationMarket(
+          localization.marketId,
+          selection.selectionSet?.selections ?? [],
+          fragments,
+          variables,
+        );
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+  return result;
+}
+
+function serializeMarketLocalizableContent(
+  resource: MarketLocalizableResourceRecord,
+  selections: readonly SelectionNode[],
+): Array<Record<string, unknown>> {
+  return resource.content.map((content) => {
+    const result: Record<string, unknown> = {};
+    for (const selection of selections) {
+      if (selection.kind !== Kind.FIELD) {
+        continue;
+      }
+
+      const key = responseKey(selection);
+      switch (selection.name.value) {
+        case 'key':
+          result[key] = content.key;
+          break;
+        case 'value':
+          result[key] = content.value;
+          break;
+        case 'digest':
+          result[key] = content.digest;
+          break;
+        default:
+          result[key] = null;
+      }
+    }
+    return result;
+  });
+}
+
+function serializeMarketLocalizableResource(
+  resource: MarketLocalizableResourceRecord | null,
+  selections: readonly SelectionNode[],
+  fragments: FragmentMap,
+  variables: Record<string, unknown>,
+): Record<string, unknown> | null {
+  if (!resource) {
+    return null;
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const selection of selections) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case 'resourceId':
+        result[key] = resource.resourceId;
+        break;
+      case 'marketLocalizableContent':
+        result[key] = serializeMarketLocalizableContent(resource, selection.selectionSet?.selections ?? []);
+        break;
+      case 'marketLocalizations': {
+        const args = getFieldArguments(selection, variables);
+        const marketId = typeof args['marketId'] === 'string' ? args['marketId'] : null;
+        const localizations = marketId ? store.listEffectiveMarketLocalizations(resource.resourceId, marketId) : [];
+        result[key] = localizations.map((localization) =>
+          serializeMarketLocalization(localization, selection.selectionSet?.selections ?? [], fragments, variables),
+        );
+        break;
+      }
+      default:
+        result[key] = null;
+    }
+  }
+  return result;
+}
+
+function listMarketLocalizableResources(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): MarketLocalizableResourceRecord[] {
+  const args = getFieldArguments(field, variables);
+  const resourceType = args['resourceType'];
+  if (resourceType !== 'METAFIELD') {
+    return [];
+  }
+
+  const resources = listMarketLocalizableMetafields().map(localizableResourceFromMetafield);
+  return args['reverse'] === true ? resources.reverse() : resources;
+}
+
+function listMarketLocalizableResourcesByIds(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): MarketLocalizableResourceRecord[] {
+  const args = getFieldArguments(field, variables);
+  const resourceIds = Array.isArray(args['resourceIds'])
+    ? args['resourceIds'].filter((id): id is string => typeof id === 'string')
+    : [];
+  const resourcesById = new Map(
+    listMarketLocalizableMetafields().map((metafield) => [metafield.id, localizableResourceFromMetafield(metafield)]),
+  );
+  const resources = resourceIds.flatMap((resourceId) => {
+    const resource = resourcesById.get(resourceId);
+    return resource ? [resource] : [];
+  });
+  return args['reverse'] === true ? resources.reverse() : resources;
+}
+
+function marketLocalizableResourceCursor(resource: MarketLocalizableResourceRecord): string {
+  return resource.resourceId;
+}
+
+function serializedMarketLocalizableResourceCursor(resource: MarketLocalizableResourceRecord): string {
+  return `cursor:${marketLocalizableResourceCursor(resource)}`;
+}
+
+function serializeMarketLocalizableResourcesConnection(
+  resources: MarketLocalizableResourceRecord[],
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): Record<string, unknown> {
+  const window = paginateConnectionItems(resources, field, variables, marketLocalizableResourceCursor);
+  const result: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'nodes':
+        result[key] = window.items.map((resource) =>
+          serializeMarketLocalizableResource(resource, selection.selectionSet?.selections ?? [], fragments, variables),
+        );
+        break;
+      case 'edges':
+        result[key] = window.items.map((resource) => {
+          const edgeResult: Record<string, unknown> = {};
+          for (const edgeSelection of getSelectedChildFields(selection)) {
+            const edgeKey = getFieldResponseKey(edgeSelection);
+            switch (edgeSelection.name.value) {
+              case 'cursor':
+                edgeResult[edgeKey] = serializedMarketLocalizableResourceCursor(resource);
+                break;
+              case 'node':
+                edgeResult[edgeKey] = serializeMarketLocalizableResource(
+                  resource,
+                  edgeSelection.selectionSet?.selections ?? [],
+                  fragments,
+                  variables,
+                );
+                break;
+              default:
+                edgeResult[edgeKey] = null;
+            }
+          }
+          return edgeResult;
+        });
+        break;
+      case 'pageInfo':
+        result[key] = serializeConnectionPageInfo(
+          selection,
+          window.items,
+          window.hasNextPage,
+          window.hasPreviousPage,
+          marketLocalizableResourceCursor,
+          { prefixCursors: true },
+        );
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
 function readInput(raw: unknown): Record<string, unknown> {
   return isPlainObject(raw) ? raw : {};
 }
@@ -1393,6 +1723,30 @@ function addIdsToConnection(existing: unknown, ids: string[], typeName: string):
   return connectionFromNodes(nodes);
 }
 
+function addWebPresenceIdsToConnection(existing: unknown, ids: string[]): Record<string, unknown> {
+  const edges = readConnectionEdges(existing);
+  const knownIds = new Set(
+    edges.flatMap((edge) => (isPlainObject(edge.node) && typeof edge.node['id'] === 'string' ? [edge.node['id']] : [])),
+  );
+  const nodes = edges.map((edge) => {
+    if (!isPlainObject(edge.node) || typeof edge.node['id'] !== 'string') {
+      return edge.node;
+    }
+
+    return store.getEffectiveWebPresenceById(edge.node['id']) ?? edge.node;
+  });
+
+  for (const id of ids) {
+    if (knownIds.has(id)) {
+      continue;
+    }
+
+    nodes.push(store.getEffectiveWebPresenceById(id) ?? { __typename: 'MarketWebPresence', id });
+  }
+
+  return connectionFromNodes(nodes);
+}
+
 function removeIdsFromConnection(existing: unknown, ids: string[]): Record<string, unknown> {
   const deletedIds = new Set(ids);
   const nodes = readConnectionEdges(existing)
@@ -1436,7 +1790,10 @@ function buildMarketRecord(
     handle: handleResolution.handle,
     status: statusResolution.status,
     enabled: statusResolution.enabled,
-    type: marketTypeFromConditions(conditions),
+    type:
+      input['conditions'] === undefined && typeof existing?.['type'] === 'string'
+        ? existing['type']
+        : marketTypeFromConditions(conditions),
     conditions,
     currencySettings: buildCurrencySettings(input, existing, conditions, errors),
     priceInclusions: buildPriceInclusions(input, existing),
@@ -1451,10 +1808,9 @@ function buildMarketRecord(
     webPresences:
       input['webPresencesToDelete'] !== undefined
         ? removeIdsFromConnection(existing?.['webPresences'], readStringArray(input['webPresencesToDelete']))
-        : addIdsToConnection(
+        : addWebPresenceIdsToConnection(
             existing?.['webPresences'],
             readStringArray(input['webPresences'] ?? input['webPresencesToAdd']),
-            'MarketWebPresence',
           ),
     createdAt: typeof existing?.['createdAt'] === 'string' ? existing['createdAt'] : now,
     updatedAt: now,
@@ -1469,6 +1825,349 @@ function buildMarketRecord(
 
 function selectedMarketPayload(market: MarketRecord | null): unknown {
   return market ? market.data : null;
+}
+
+function marketSummaryForWebPresence(market: MarketRecord): Record<string, unknown> {
+  return {
+    __typename: 'Market',
+    id: market.id,
+    name: market.data['name'] ?? null,
+    handle: market.data['handle'] ?? null,
+    status: market.data['status'] ?? null,
+    type: market.data['type'] ?? null,
+  };
+}
+
+function syncWebPresenceMarketLinks(market: MarketRecord): void {
+  const edges = readConnectionEdges(market.data['webPresences']);
+  const marketSummary = marketSummaryForWebPresence(market);
+  for (const edge of edges) {
+    if (!isPlainObject(edge.node) || typeof edge.node['id'] !== 'string') {
+      continue;
+    }
+
+    const existing = store.getEffectiveWebPresenceRecordById(edge.node['id']);
+    if (!existing) {
+      continue;
+    }
+
+    store.stageUpdateWebPresence({
+      ...existing,
+      data: {
+        ...structuredClone(existing.data),
+        markets: connectionFromNodes([
+          ...readConnectionEdges(existing.data['markets'])
+            .map((marketEdge) => marketEdge.node)
+            .filter((node) => !(isPlainObject(node) && typeof node['id'] === 'string' && node['id'] === market.id)),
+          marketSummary,
+        ]) as JsonValue,
+      },
+    });
+  }
+}
+
+function syncMarketWebPresenceNodes(webPresence: WebPresenceRecord): void {
+  for (const market of store.listEffectiveMarkets()) {
+    const edges = readConnectionEdges(market.data['webPresences']);
+    if (
+      !edges.some(
+        (edge) => isPlainObject(edge.node) && typeof edge.node['id'] === 'string' && edge.node['id'] === webPresence.id,
+      )
+    ) {
+      continue;
+    }
+
+    store.stageUpdateMarket({
+      ...market,
+      data: {
+        ...structuredClone(market.data),
+        webPresences: connectionFromNodes(
+          edges.map((edge) =>
+            isPlainObject(edge.node) && typeof edge.node['id'] === 'string' && edge.node['id'] === webPresence.id
+              ? webPresence.data
+              : edge.node,
+          ),
+        ) as JsonValue,
+      },
+    });
+  }
+}
+
+function normalizeLocale(rawLocale: unknown): string | null {
+  if (typeof rawLocale !== 'string') {
+    return null;
+  }
+
+  const locale = rawLocale.trim();
+  return locale.length > 0 ? locale : null;
+}
+
+function isValidLocale(locale: string): boolean {
+  return /^[a-z]{2}(?:-[A-Z]{2})?$/u.test(locale);
+}
+
+function invalidLocaleMessage(locale: string, label = 'locale codes'): string {
+  return `Invalid ${label}: ${locale}`;
+}
+
+function localePayload(locale: string, primary: boolean): Record<string, unknown> {
+  const language = locale.split('-')[0] ?? locale;
+  return {
+    locale,
+    name: LOCALE_NAMES[language] ?? locale,
+    primary,
+    published: true,
+  };
+}
+
+function normalizeAlternateLocales(rawLocales: unknown, defaultLocale: string, errors: MarketUserError[]): string[] {
+  if (rawLocales === undefined || rawLocales === null) {
+    return [];
+  }
+
+  if (!Array.isArray(rawLocales)) {
+    errors.push(marketError(['input', 'alternateLocales'], 'Alternate locales must be an array', 'INVALID'));
+    return [];
+  }
+
+  const seen = new Set<string>();
+  const locales: string[] = [];
+  for (const rawLocale of rawLocales) {
+    const locale = normalizeLocale(rawLocale);
+    if (!locale || !isValidLocale(locale)) {
+      errors.push(
+        marketError(['input', 'alternateLocales'], invalidLocaleMessage(locale ?? String(rawLocale)), 'INVALID'),
+      );
+      continue;
+    }
+
+    if (locale === defaultLocale) {
+      errors.push(
+        marketError(['input', 'alternateLocales'], "Alternate locales can't include the default locale", 'INVALID'),
+      );
+      continue;
+    }
+
+    if (seen.has(locale)) {
+      errors.push(marketError(['input', 'alternateLocales'], 'Alternate locales must be unique', 'TAKEN'));
+      continue;
+    }
+
+    seen.add(locale);
+    locales.push(locale);
+  }
+
+  return locales;
+}
+
+function normalizeSubfolderSuffix(rawSuffix: unknown, errors: MarketUserError[]): string | null {
+  if (rawSuffix === undefined || rawSuffix === null) {
+    return null;
+  }
+
+  if (typeof rawSuffix !== 'string' || rawSuffix.trim() === '') {
+    errors.push(marketError(['input', 'subfolderSuffix'], "Subfolder suffix can't be blank", 'BLANK'));
+    return null;
+  }
+
+  const suffix = rawSuffix.trim().toLowerCase();
+  const isAscii = [...suffix].every((character) => character.charCodeAt(0) <= 0x7f);
+  if (!isAscii || !/^[a-z0-9][a-z0-9-]*$/u.test(suffix)) {
+    errors.push(marketError(['input', 'subfolderSuffix'], 'Subfolder suffix is invalid', 'INVALID'));
+    return suffix;
+  }
+
+  return suffix;
+}
+
+function domainIdFromInput(input: Record<string, unknown>): string | null {
+  return typeof input['domainId'] === 'string' && input['domainId'].trim() ? input['domainId'].trim() : null;
+}
+
+function domainIdExists(domainId: string): boolean {
+  return store.listEffectiveWebPresences().some((webPresence) => {
+    const domain = webPresence.data['domain'];
+    return isPlainObject(domain) && domain['id'] === domainId;
+  });
+}
+
+function webPresenceDomainFromId(domainId: string | null): Record<string, unknown> | null {
+  if (!domainId) {
+    return null;
+  }
+
+  const tail = domainId.split('/').at(-1) ?? 'domain';
+  const host = `domain-${tail.toLowerCase()}.example.com`;
+  return {
+    id: domainId,
+    host,
+    url: `https://${host}`,
+    sslEnabled: true,
+  };
+}
+
+function primaryWebPresenceBaseUrl(existing?: Record<string, unknown> | null): string {
+  const existingDomain = isPlainObject(existing?.['domain']) ? existing['domain'] : null;
+  if (isPlainObject(existingDomain) && typeof existingDomain['url'] === 'string') {
+    return existingDomain['url'].replace(/\/$/u, '');
+  }
+
+  const shop = store.getEffectiveShop();
+  if (shop?.url) {
+    return shop.url.replace(/\/$/u, '');
+  }
+
+  const capturedDomain = store
+    .listEffectiveWebPresences()
+    .map((webPresence) => webPresence.data['domain'])
+    .find((domain): domain is Record<string, JsonValue> => isPlainObject(domain) && typeof domain['url'] === 'string');
+  if (capturedDomain && typeof capturedDomain['url'] === 'string') {
+    return capturedDomain['url'].replace(/\/$/u, '');
+  }
+
+  return 'https://example.myshopify.com';
+}
+
+function buildRootUrls(
+  defaultLocale: string,
+  alternateLocales: string[],
+  subfolderSuffix: string | null,
+  domain: Record<string, unknown> | null,
+  existing?: Record<string, unknown> | null,
+): Array<Record<string, unknown>> {
+  const baseUrl =
+    domain && typeof domain['url'] === 'string'
+      ? domain['url'].replace(/\/$/u, '')
+      : primaryWebPresenceBaseUrl(existing);
+  return [defaultLocale, ...alternateLocales].map((locale, index) => ({
+    locale,
+    url: subfolderSuffix
+      ? `${baseUrl}/${locale}-${subfolderSuffix}`
+      : index === 0
+        ? `${baseUrl}/`
+        : `${baseUrl}/${locale}`,
+  }));
+}
+
+function webPresenceIdentifierInUse(
+  input: { domainId: string | null; subfolderSuffix: string | null },
+  excludedWebPresenceId?: string,
+): MarketUserError[] {
+  const errors: MarketUserError[] = [];
+  for (const webPresence of store.listEffectiveWebPresences()) {
+    if (webPresence.id === excludedWebPresenceId) {
+      continue;
+    }
+
+    const domain = isPlainObject(webPresence.data['domain']) ? webPresence.data['domain'] : null;
+    if (input.domainId && domain && domain['id'] === input.domainId) {
+      errors.push(marketError(['input', 'domainId'], 'Domain has already been taken', 'TAKEN'));
+    }
+
+    if (input.subfolderSuffix && webPresence.data['subfolderSuffix'] === input.subfolderSuffix) {
+      errors.push(marketError(['input', 'subfolderSuffix'], 'Subfolder suffix has already been taken', 'TAKEN'));
+    }
+  }
+
+  return errors;
+}
+
+function buildWebPresenceRecord(
+  id: string,
+  input: Record<string, unknown>,
+  existingWebPresence: WebPresenceRecord | null,
+  errors: MarketUserError[],
+): WebPresenceRecord {
+  const existing = existingWebPresence?.data ?? null;
+  const existingDefaultLocale =
+    isPlainObject(existing?.['defaultLocale']) && typeof existing['defaultLocale']['locale'] === 'string'
+      ? existing['defaultLocale']['locale']
+      : null;
+  const domainId = domainIdFromInput(input);
+  const domainExists = domainId ? domainIdExists(domainId) : false;
+  if (domainId && !domainExists) {
+    errors.push(marketError(['input', 'domainId'], 'Domain does not exist', 'DOMAIN_NOT_FOUND'));
+  }
+
+  const rawDefaultLocale = normalizeLocale(input['defaultLocale']);
+  const defaultLocale = rawDefaultLocale ?? existingDefaultLocale ?? '';
+  if (!defaultLocale) {
+    errors.push(marketError(['input', 'defaultLocale'], "Default locale can't be blank", 'BLANK'));
+  } else if (!isValidLocale(defaultLocale)) {
+    errors.push(marketError(['input', 'defaultLocale'], invalidLocaleMessage(defaultLocale), 'INVALID'));
+  }
+
+  const defaultLocaleIsUsable = !!defaultLocale && isValidLocale(defaultLocale);
+  const alternateLocales = !defaultLocaleIsUsable
+    ? []
+    : input['alternateLocales'] === undefined && Array.isArray(existing?.['alternateLocales'])
+      ? (existing['alternateLocales'] as unknown[]).flatMap((locale) =>
+          isPlainObject(locale) && typeof locale['locale'] === 'string' ? [locale['locale']] : [],
+        )
+      : normalizeAlternateLocales(input['alternateLocales'], defaultLocale, errors);
+  const subfolderSuffix =
+    domainId && !domainExists
+      ? null
+      : input['subfolderSuffix'] === undefined
+        ? typeof existing?.['subfolderSuffix'] === 'string'
+          ? existing['subfolderSuffix']
+          : null
+        : normalizeSubfolderSuffix(input['subfolderSuffix'], errors);
+
+  if (domainId && domainExists && subfolderSuffix) {
+    errors.push(
+      marketError(
+        ['input', 'domainId'],
+        "Domain ID must be null when subfolder suffix isn't null",
+        'DOMAIN_AND_SUBFOLDER_MUTUALLY_EXCLUSIVE',
+      ),
+    );
+  }
+
+  if (input['subfolderSuffix'] !== undefined && existing && existing['subfolderSuffix'] === null) {
+    errors.push(
+      marketError(
+        ['input', 'subfolderSuffix'],
+        'Subfolder suffix can only be updated for a subfolder web presence',
+        'INVALID',
+      ),
+    );
+  }
+
+  if (!domainId || domainExists) {
+    errors.push(...webPresenceIdentifierInUse({ domainId, subfolderSuffix }, existingWebPresence?.id));
+  }
+
+  const now = makeSyntheticTimestamp();
+  const domain = domainId
+    ? webPresenceDomainFromId(domainId)
+    : isPlainObject(existing?.['domain'])
+      ? existing['domain']
+      : null;
+  const markets = existing?.['markets'] ?? emptyConnection();
+  const data: Record<string, unknown> = {
+    ...(existing ? structuredClone(existing) : {}),
+    __typename: 'MarketWebPresence',
+    id,
+    subfolderSuffix,
+    domain: subfolderSuffix ? null : domain,
+    rootUrls: defaultLocale ? buildRootUrls(defaultLocale, alternateLocales, subfolderSuffix, domain, existing) : [],
+    defaultLocale: defaultLocale ? localePayload(defaultLocale, true) : null,
+    alternateLocales: alternateLocales.map((locale) => localePayload(locale, false)),
+    markets,
+    createdAt: typeof existing?.['createdAt'] === 'string' ? existing['createdAt'] : now,
+    updatedAt: now,
+  };
+
+  return {
+    id,
+    cursor: existingWebPresence?.cursor ?? id,
+    data: data as Record<string, JsonValue>,
+  };
+}
+
+function selectedWebPresencePayload(webPresence: WebPresenceRecord | null): unknown {
+  return webPresence ? webPresence.data : null;
 }
 
 function projectMutationPayload(
@@ -1495,6 +2194,7 @@ function handleMarketCreate(field: FieldNode, variables: Record<string, unknown>
   const market = buildMarketRecord(makeSyntheticGid('Market'), input, null, errors);
   if (errors.length === 0) {
     store.stageCreateMarket(market);
+    syncWebPresenceMarketLinks(market);
   }
 
   return projectMutationPayload(
@@ -1526,6 +2226,7 @@ function handleMarketUpdate(field: FieldNode, variables: Record<string, unknown>
   const market = id && existingMarket ? buildMarketRecord(id, input, existingMarket, errors) : null;
   if (errors.length === 0 && market) {
     store.stageUpdateMarket(market);
+    syncWebPresenceMarketLinks(market);
   }
 
   return projectMutationPayload(
@@ -1579,6 +2280,307 @@ function handleMarketDelete(field: FieldNode, variables: Record<string, unknown>
   return projectMutationPayload(
     {
       deletedId: errors.length === 0 ? id : null,
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function handleWebPresenceCreate(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
+  const args = getFieldArguments(field, variables);
+  const input = readInput(args['input']);
+  const errors: MarketUserError[] = [];
+  const webPresence = buildWebPresenceRecord(makeSyntheticGid('MarketWebPresence'), input, null, errors);
+
+  if (errors.length === 0) {
+    store.stageCreateWebPresence(webPresence);
+  }
+
+  return projectMutationPayload(
+    {
+      webPresence: errors.length === 0 ? selectedWebPresencePayload(webPresence) : null,
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function handleWebPresenceUpdate(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
+  const args = getFieldArguments(field, variables);
+  const id = typeof args['id'] === 'string' ? args['id'] : null;
+  const input = readInput(args['input']);
+  const errors: MarketUserError[] = [];
+
+  if (!id) {
+    errors.push(marketError(['id'], "The market web presence wasn't found.", 'WEB_PRESENCE_NOT_FOUND'));
+  }
+
+  const existingWebPresence = id ? store.getEffectiveWebPresenceRecordById(id) : null;
+  if (id && !existingWebPresence) {
+    errors.push(marketError(['id'], "The market web presence wasn't found.", 'WEB_PRESENCE_NOT_FOUND'));
+  }
+
+  const webPresence = id && existingWebPresence ? buildWebPresenceRecord(id, input, existingWebPresence, errors) : null;
+  if (errors.length === 0 && webPresence) {
+    store.stageUpdateWebPresence(webPresence);
+    syncMarketWebPresenceNodes(webPresence);
+  }
+
+  return projectMutationPayload(
+    {
+      webPresence: errors.length === 0 ? selectedWebPresencePayload(webPresence) : null,
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function validateMarketLocalizationResource(resourceId: unknown): {
+  resource: MarketLocalizableResourceRecord | null;
+  errors: MarketUserError[];
+} {
+  if (typeof resourceId !== 'string' || !resourceId) {
+    return {
+      resource: null,
+      errors: [translationError(['resourceId'], 'Resource does not exist', 'RESOURCE_NOT_FOUND')],
+    };
+  }
+
+  const resource = readMarketLocalizableResource(resourceId);
+  if (!resource) {
+    return {
+      resource: null,
+      errors: [translationError(['resourceId'], `Resource ${resourceId} does not exist`, 'RESOURCE_NOT_FOUND')],
+    };
+  }
+
+  return { resource, errors: [] };
+}
+
+function validateMarketLocalizationKey(
+  resource: MarketLocalizableResourceRecord,
+  rawKey: unknown,
+  fieldPrefix: string[],
+): { key: string | null; contentDigest: string | null; errors: MarketUserError[] } {
+  const key = typeof rawKey === 'string' ? rawKey : '';
+  const content = resource.content.find((entry) => entry.key === key) ?? null;
+  if (!content) {
+    return {
+      key: key || null,
+      contentDigest: null,
+      errors: [
+        translationError(
+          fieldPrefix,
+          `Key ${key || String(rawKey)} is not market localizable for this resource`,
+          'INVALID_KEY_FOR_MODEL',
+        ),
+      ],
+    };
+  }
+
+  return { key, contentDigest: content.digest, errors: [] };
+}
+
+function validateMarketId(
+  rawMarketId: unknown,
+  fieldPrefix: string[],
+): { marketId: string | null; errors: MarketUserError[] } {
+  const marketId = typeof rawMarketId === 'string' ? rawMarketId : '';
+  if (!marketId || !store.getEffectiveMarketRecordById(marketId)) {
+    return {
+      marketId: marketId || null,
+      errors: [
+        translationError(
+          fieldPrefix,
+          `Market ${marketId || String(rawMarketId)} does not exist`,
+          'MARKET_DOES_NOT_EXIST',
+        ),
+      ],
+    };
+  }
+
+  return { marketId, errors: [] };
+}
+
+function projectMarketLocalizationMutationPayload(
+  payload: Record<string, unknown>,
+  field: FieldNode,
+  fragments: FragmentMap,
+  variables: Record<string, unknown>,
+): unknown {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'marketLocalizations':
+        result[key] = Array.isArray(payload['marketLocalizations'])
+          ? payload['marketLocalizations'].map((localization) =>
+              serializeMarketLocalization(
+                localization as MarketLocalizationRecord,
+                selection.selectionSet?.selections ?? [],
+                fragments,
+                variables,
+              ),
+            )
+          : null;
+        break;
+      case 'userErrors':
+        result[key] = projectValue(
+          payload['userErrors'],
+          selection.selectionSet?.selections ?? [],
+          fragments,
+          variables,
+        );
+        break;
+      default:
+        result[key] = payload[selection.name.value] ?? null;
+    }
+  }
+  return result;
+}
+
+function handleMarketLocalizationsRegister(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
+  const args = getFieldArguments(field, variables);
+  const resourceValidation = validateMarketLocalizationResource(args['resourceId']);
+  const errors = [...resourceValidation.errors];
+  const inputs = Array.isArray(args['marketLocalizations'])
+    ? args['marketLocalizations'].filter((input): input is Record<string, unknown> => isPlainObject(input))
+    : [];
+
+  if (inputs.length === 0) {
+    errors.push(translationError(['marketLocalizations'], 'At least one market localization is required', 'BLANK'));
+  }
+
+  const localizations: MarketLocalizationRecord[] = [];
+  const resource = resourceValidation.resource;
+  if (resource) {
+    inputs.forEach((input, index) => {
+      const indexPath = ['marketLocalizations', String(index)];
+      const marketValidation = validateMarketId(input['marketId'], [...indexPath, 'marketId']);
+      const keyValidation = validateMarketLocalizationKey(resource, input['key'], [...indexPath, 'key']);
+      errors.push(...marketValidation.errors, ...keyValidation.errors);
+
+      if (typeof input['value'] !== 'string' || input['value'] === '') {
+        errors.push(translationError([...indexPath, 'value'], "Value can't be blank", 'BLANK'));
+      }
+
+      if (
+        keyValidation.contentDigest !== null &&
+        input['marketLocalizableContentDigest'] !== keyValidation.contentDigest
+      ) {
+        errors.push(
+          translationError(
+            [...indexPath, 'marketLocalizableContentDigest'],
+            'Market localizable content digest does not match the resource content',
+            'INVALID_MARKET_LOCALIZABLE_CONTENT',
+          ),
+        );
+      }
+
+      if (errors.length === 0 && marketValidation.marketId && keyValidation.key && typeof input['value'] === 'string') {
+        localizations.push({
+          resourceId: resource.resourceId,
+          marketId: marketValidation.marketId,
+          key: keyValidation.key,
+          value: input['value'],
+          updatedAt: makeSyntheticTimestamp(),
+          outdated: false,
+        });
+      }
+    });
+  }
+
+  if (errors.length === 0) {
+    for (const localization of localizations) {
+      store.stageMarketLocalization(localization);
+    }
+  }
+
+  return projectMarketLocalizationMutationPayload(
+    {
+      marketLocalizations: errors.length === 0 ? localizations : null,
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function handleMarketLocalizationsRemove(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
+  const args = getFieldArguments(field, variables);
+  const resourceValidation = validateMarketLocalizationResource(args['resourceId']);
+  const errors = [...resourceValidation.errors];
+  const rawKeys = Array.isArray(args['marketLocalizationKeys']) ? args['marketLocalizationKeys'] : [];
+  const rawMarketIds = Array.isArray(args['marketIds']) ? args['marketIds'] : [];
+
+  if (rawKeys.length === 0) {
+    errors.push(
+      translationError(['marketLocalizationKeys'], 'At least one market localization key is required', 'BLANK'),
+    );
+  }
+  if (rawMarketIds.length === 0) {
+    errors.push(translationError(['marketIds'], 'At least one market ID is required', 'BLANK'));
+  }
+
+  const keys: string[] = [];
+  const marketIds: string[] = [];
+  const resource = resourceValidation.resource;
+  if (resource) {
+    rawKeys.forEach((rawKey, index) => {
+      const keyValidation = validateMarketLocalizationKey(resource, rawKey, ['marketLocalizationKeys', String(index)]);
+      errors.push(...keyValidation.errors);
+      if (keyValidation.key) {
+        keys.push(keyValidation.key);
+      }
+    });
+
+    rawMarketIds.forEach((rawMarketId, index) => {
+      const marketValidation = validateMarketId(rawMarketId, ['marketIds', String(index)]);
+      errors.push(...marketValidation.errors);
+      if (marketValidation.marketId) {
+        marketIds.push(marketValidation.marketId);
+      }
+    });
+  }
+
+  const removedLocalizations: MarketLocalizationRecord[] = [];
+  if (errors.length === 0 && resource) {
+    for (const marketId of marketIds) {
+      for (const key of keys) {
+        const removed = store.removeMarketLocalization(resource.resourceId, marketId, key);
+        if (removed) {
+          removedLocalizations.push(removed);
+        }
+      }
+    }
+  }
+
+  return projectMarketLocalizationMutationPayload(
+    {
+      marketLocalizations: errors.length === 0 ? removedLocalizations : null,
       userErrors: errors,
     },
     field,
@@ -1641,6 +2643,84 @@ function serializeMarketsConnection(
   return result;
 }
 
+function webPresenceCursor(webPresence: WebPresenceRecord): string {
+  return webPresence.cursor ?? webPresence.id;
+}
+
+function serializeWebPresencesConnection(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): Record<string, unknown> {
+  const webPresences = store.listEffectiveWebPresences();
+  const args = getFieldArguments(field, variables);
+  const sortedWebPresences = args['reverse'] === true ? [...webPresences].reverse() : webPresences;
+  const window = paginateConnectionItems(sortedWebPresences, field, variables, webPresenceCursor);
+  const result: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'nodes':
+        result[key] = window.items.map((webPresence) =>
+          projectValue(webPresence.data, selection.selectionSet?.selections ?? [], fragments, variables),
+        );
+        break;
+      case 'edges':
+        result[key] = window.items.map((webPresence) =>
+          projectEdge(
+            { cursor: webPresenceCursor(webPresence), node: webPresence.data },
+            selection,
+            fragments,
+            variables,
+          ),
+        );
+        break;
+      case 'pageInfo':
+        result[key] = serializeConnectionPageInfo(
+          selection,
+          window.items,
+          window.hasNextPage,
+          window.hasPreviousPage,
+          webPresenceCursor,
+          { prefixCursors: false },
+        );
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function overlayMarketsResolvedValuesWebPresences(rootPayload: unknown): unknown {
+  if (!isPlainObject(rootPayload)) {
+    return rootPayload;
+  }
+
+  const webPresences = store.listEffectiveWebPresences();
+  if (webPresences.length === 0) {
+    return rootPayload;
+  }
+
+  return {
+    ...structuredClone(rootPayload),
+    webPresences: {
+      edges: webPresences.map((webPresence) => ({
+        cursor: webPresenceCursor(webPresence),
+        node: webPresence.data,
+      })),
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: webPresenceCursor(webPresences[0] as WebPresenceRecord),
+        endCursor: webPresenceCursor(webPresences.at(-1) as WebPresenceRecord),
+      },
+    },
+  };
+}
+
 function rootPayloadForField(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
   switch (field.name.value) {
     case 'market': {
@@ -1650,6 +2730,32 @@ function rootPayloadForField(field: FieldNode, variables: Record<string, unknown
     }
     case 'markets':
       return serializeMarketsConnection(field, variables, fragments);
+    case 'marketLocalizableResource': {
+      const args = getFieldArguments(field, variables);
+      const resourceId = typeof args['resourceId'] === 'string' ? args['resourceId'] : null;
+      return resourceId
+        ? serializeMarketLocalizableResource(
+            readMarketLocalizableResource(resourceId),
+            field.selectionSet?.selections ?? [],
+            fragments,
+            variables,
+          )
+        : null;
+    }
+    case 'marketLocalizableResources':
+      return serializeMarketLocalizableResourcesConnection(
+        listMarketLocalizableResources(field, variables),
+        field,
+        variables,
+        fragments,
+      );
+    case 'marketLocalizableResourcesByIds':
+      return serializeMarketLocalizableResourcesConnection(
+        listMarketLocalizableResourcesByIds(field, variables),
+        field,
+        variables,
+        fragments,
+      );
     case 'catalog': {
       const args = getFieldArguments(field, variables);
       const id = typeof args['id'] === 'string' ? args['id'] : null;
@@ -1667,9 +2773,9 @@ function rootPayloadForField(field: FieldNode, variables: Record<string, unknown
     case 'priceLists':
       return serializePriceListsConnection(field, variables, fragments);
     case 'webPresences':
-      return store.getBaseMarketsRootPayload(field.name.value) ?? emptyConnection();
+      return serializeWebPresencesConnection(field, variables, fragments);
     case 'marketsResolvedValues':
-      return store.getBaseMarketsRootPayload(field.name.value);
+      return overlayMarketsResolvedValuesWebPresences(store.getBaseMarketsRootPayload(field.name.value));
     default:
       return null;
   }
@@ -1684,9 +2790,13 @@ export function handleMarketsQuery(document: string, variables: Record<string, u
     const rootPayload = rootPayloadForField(field, variables, fragments);
     data[key] =
       field.name.value === 'markets' ||
+      field.name.value === 'marketLocalizableResource' ||
+      field.name.value === 'marketLocalizableResources' ||
+      field.name.value === 'marketLocalizableResourcesByIds' ||
       field.name.value === 'catalogs' ||
       field.name.value === 'catalogsCount' ||
-      field.name.value === 'priceLists'
+      field.name.value === 'priceLists' ||
+      field.name.value === 'webPresences'
         ? rootPayload
         : field.selectionSet
           ? projectValue(rootPayload, field.selectionSet.selections, fragments, variables)
@@ -1712,6 +2822,18 @@ export function handleMarketMutation(document: string, variables: Record<string,
       case 'marketDelete':
         data[key] = handleMarketDelete(field, variables, fragments);
         break;
+      case 'webPresenceCreate':
+        data[key] = handleWebPresenceCreate(field, variables, fragments);
+        break;
+      case 'webPresenceUpdate':
+        data[key] = handleWebPresenceUpdate(field, variables, fragments);
+        break;
+      case 'marketLocalizationsRegister':
+        data[key] = handleMarketLocalizationsRegister(field, variables, fragments);
+        break;
+      case 'marketLocalizationsRemove':
+        data[key] = handleMarketLocalizationsRemove(field, variables, fragments);
+        break;
       default:
         data[key] = null;
         break;
@@ -1732,6 +2854,9 @@ export function seedMarketsFromCapture(capture: unknown): boolean {
     'priceLists',
     'webPresences',
     'marketsResolvedValues',
+    'marketLocalizableResource',
+    'marketLocalizableResources',
+    'marketLocalizableResourcesByIds',
   ];
   const seededPayload: Record<string, unknown> = { data: {} };
   const data = seededPayload['data'] as Record<string, unknown>;

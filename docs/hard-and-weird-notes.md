@@ -1090,6 +1090,18 @@ The read fixture proves `definition: null` for the captured product-owned metafi
 
 This is another case where the serializer layer needs field-specific handling rather than one generic nested-object rule.
 
+## 19a. Product metafield definitions are schema records, but counts come from owner metafields
+
+HAR-144 captured product-owner `metafieldDefinition` and `metafieldDefinitions` reads against the 2025-01 conformance store while checking the 2026-04 docs for the latest field surface. The useful fidelity points were:
+
+- absent `metafieldDefinition(identifier:)` returns `null`
+- an unmatched `metafieldDefinitions(ownerType: PRODUCT, namespace: ...)` filter returns a non-null empty connection
+- `sortKey: PINNED_POSITION` returned pinned position `2` before pinned position `1` in the live capture
+- definition records carry schema fields (`type`, `validations`, `access`, `capabilities`, `constraints`, `pinnedPosition`, `validationStatus`) separately from actual metafield rows
+- `metafieldsCount` and the definition `metafields` connection should be derived from effective product-owned metafields matching the definition namespace/key, so staged product metafield writes become visible through existing definitions
+
+Keep definition lifecycle mutations out of this read slice; create/update/delete/pin/unpin need their own mutation evidence and local staging semantics.
+
 ## 18a. Staged metafield writes need product-scoped replacement semantics, not id-wise merge
 
 Adding `metafieldsSet` / `metafieldDelete` exposed a subtle state-model trap:
@@ -2065,7 +2077,14 @@ Access-scope trap:
 Safety rule:
 
 - do not run successful live writes for market lifecycle, web presence, localization, backup-region, or currency-setting roots on the shared conformance store without a disposable market setup and cleanup story
-- current local Markets support is read-only snapshot replay for captured safe roots; mutation registry entries are local-staging scaffolds with `implemented: false` and must not be read as runtime support
+- pre-HAR-182 local Markets support started as read-only snapshot replay for captured safe roots plus lifecycle local staging; registry mutation entries with `implemented: false` must not be read as runtime support
+
+HAR-182 market localization follow-up:
+
+- Admin GraphQL 2026-04 reports `MarketLocalizableResourceType` enum values `METAFIELD` and `METAOBJECT` only; direct `PRODUCT` / `COLLECTION` resource filtering is not present in the current schema
+- safe live reads on `harry-test-heelo.myshopify.com` with `read_translations` returned Shopify empty/no-data behavior for unknown metafield resources and an empty `marketLocalizableResources(resourceType: METAFIELD)` connection
+- safe no-side-effect writes with `write_translations` showed both `marketLocalizationsRegister` and `marketLocalizationsRemove` return `TranslationUserError` with `field: ["resourceId"]`, `code: "RESOURCE_NOT_FOUND"`, and `marketLocalizations: null` for an unknown metafield resource before checking market IDs or digests
+- the local proxy now supports the product-adjacent product metafield slice for market-localizable reads and local register/remove staging; successful live localization writes are still deferred until a disposable localized-resource setup/cleanup path exists
 
 ## 55. Customer merge is permission-gated and job-backed, but downstream reads settle quickly
 
@@ -2222,3 +2241,22 @@ Practical rule:
 - validate the full `metafieldsSet` input batch before replacing the staged product metafield set when any resolver-level error is present
 - keep required-input GraphQL validation branches separate from resolver `userErrors`
 - do not broaden owner support from this evidence; these fixtures remain product-owned metafield coverage
+
+## 62. Admin customer address roots use MailingAddress payloads and split validation styles
+
+HAR-152 captured customer address lifecycle evidence on Admin GraphQL 2025-01 with `corepack pnpm conformance:capture-customer-addresses`.
+
+Captured facts:
+
+- `customerAddressCreate(customerId:, address:, setAsDefault:)` and `customerAddressUpdate(customerId:, addressId:, address:, setAsDefault:)` return payload field `address`, not `customerAddress`, and that object is a `MailingAddress`
+- `customerAddressDelete(customerId:, addressId:)` returns `deletedAddressId`
+- `customerUpdateDefaultAddress(customerId:, addressId:)` returns a `customer` payload with `defaultAddress` and `addressesV2`
+- `MailingAddressInput` accepts `countryCode` and `provinceCode`; the response expands those to full `country` / `province` strings plus `countryCodeV2` / `provinceCode`
+- unknown customer ids on address create return payload `userErrors` with `field: ["customerId"]` and message `Customer does not exist`
+- unknown address ids on update, delete, and default-address selection return top-level GraphQL errors with message `invalid id`, extension code `RESOURCE_NOT_FOUND`, and `data.<root>: null`
+
+Practical rule:
+
+- locally stage address lifecycle roots against a normalized customer-owned address graph and keep `Customer.defaultAddress` synchronized from the selected address row
+- use fixture-backed top-level errors for unknown address ids instead of turning those branches into payload `userErrors`
+- keep broader address validation, normalization, and territory-specific postal validation out of local support until new fixtures capture those branches

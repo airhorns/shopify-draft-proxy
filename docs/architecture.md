@@ -152,10 +152,12 @@ Initial normalized entities should include at least:
 
 The architecture should be open to later domains without making products special in the core engine.
 
+Product-domain metafields are normalized as owner-scoped records for product, product variant, and collection owner IDs. Broader `HasMetafields` owner families still need domain-specific evidence and storage decisions before being added to shared `metafieldsSet` / `metafieldsDelete` staging.
+
 Current customer-domain state deliberately stays narrower than the product model, but it is still normalized:
 
 - `CustomerRecord` carries scalar/detail fields plus `taxExemptions` as a separate list from the boolean `taxExempt`
-- customer-owned metafields live in a customer-scoped `customerMetafields` bucket instead of reusing product metafield storage or broadening `metafieldsSet` owner support without separate evidence
+- customer-owned metafields live in a customer-scoped `customerMetafields` bucket instead of reusing product-domain metafield storage or broadening shared `metafieldsSet` owner support without separate customer-domain evidence
 - staged `customerUpdate(input.metafields)` computes against the effective customer metafield set and replaces the staged customer-owned set, so downstream `customer.metafield(...)` and `customer.metafields(...)` reads stay consistent
 - staged `customerMerge` updates the normalized resulting customer row, marks the source customer deleted, records the source-to-result customer id redirect in `mergedCustomerIds`, and records the observed merge job/result shape in `customerMergeRequests`
 

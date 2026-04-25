@@ -15,6 +15,8 @@ Overlay reads:
 
 Local staged mutations:
 
+- `locationAdd`
+- `locationEdit`
 - `publishablePublish`
 - `publishablePublishToCurrentChannel`
 - `publishableUnpublish`
@@ -24,8 +26,6 @@ Local staged mutations:
 ## Unsupported roots still tracked by the registry
 
 - `cashManagementLocationSummary`
-- `locationAdd`
-- `locationEdit`
 - `locationActivate`
 - `locationDeactivate`
 - `locationDelete`
@@ -36,7 +36,8 @@ Local staged mutations:
 - `shopPolicyUpdate` stages legal policy writes into the shop slice by `ShopPolicyType`. Downstream `shop.shopPolicies` reads in snapshot and live-hybrid modes observe staged body, identity, URL, title, timestamps, and empty translations shape without sending supported policy mutations upstream at runtime.
 - Snapshot `location` and `locationByIdentifier` detail reads use the Store properties overlay. They combine narrow normalized location metadata for captured address/lifecycle scalars with nested inventory-level connections derived from the effective inventory-level graph.
 - The first location detail slice supports primary-location fallback when `location(id:)` omits `id`, identifier lookup by `LocationIdentifierInput.id`, unknown-location `null` behavior, address and lifecycle scalar shapes, empty metafield/suggested-address structures, and nested `inventoryLevel` / `inventoryLevels` selections.
-- Location creation/update/deletion remains unsupported runtime scope. Location metadata is read-only baseline state and staged inventory remains the source of truth for read-after-write inventory visibility.
+- `locationAdd` stages new normalized locations with proxy-synthetic `Location` IDs, stable timestamps, address metadata, `fulfillsOnlineOrders`, and owner-scoped metafields. Downstream `location`, `locationByIdentifier`, top-level `locations`, and meta state/log inspection observe the staged location without sending the write upstream at runtime.
+- `locationEdit` stages updates against base or synthetic locations, preserving unspecified address fields and updating inventory-level location name serialization through the effective location record. Captured validation branches include blank-name `userErrors` (`input.name` / `Add a location name`) and missing-location `userErrors` (`id` / `Location not found.`). Fulfillment-service locations are blocked locally unless future conformance proves an app-owned editable fulfillment-service branch.
 - Snapshot `shopifyPaymentsAccount` reads are backed by the same normalized safe account fixture used by `BusinessEntity.shopifyPaymentsAccount`. When no account fixture is present, the direct root returns `null`, matching the current access-denied capture's data shape. When a safe account fixture is present, scalar identity/setup fields are exposed and `payouts`, `disputes`, and `balanceTransactions` return empty no-data connections with selected `edges`, `nodes`, and `pageInfo`.
 - Shopify Payments fields that can reveal balances, bank accounts, statement descriptors, payout schedules, or other account-specific financial data remain unavailable unless captured and modeled explicitly; snapshot reads return `null` for those selections with `UNSUPPORTED_FIELD` diagnostics.
 - Generic `publishablePublish` and `publishableUnpublish` stage Product and Collection publishables locally. `publishablePublishToCurrentChannel` and `publishableUnpublishToCurrentChannel` currently cover Product publishables. Unsupported publishable target types return local userErrors instead of proxying upstream as supported behavior.
