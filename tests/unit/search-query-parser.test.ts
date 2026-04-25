@@ -1,12 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  applySearchQuery,
+  applySearchQueryTerms,
   matchesSearchQueryDate,
   matchesSearchQueryNumber,
+  matchesSearchQueryString,
   normalizeSearchQueryValue,
   parseSearchQuery,
   parseSearchQueryTerm,
   parseSearchQueryTerms,
+  searchQueryTermValue,
+  stripSearchQueryValueQuotes,
+  type SearchQueryTerm,
 } from '../../src/search-query-parser.js';
 
 describe('search query parser', () => {
@@ -195,5 +201,76 @@ describe('search query parser', () => {
       ),
     ).toBe(true);
     expect(matchesSearchQueryDate('invalid', parseSearchQueryTerm('starts_at:>2026-01-01T00:00:00Z'))).toBe(false);
+  });
+
+  it('applies parsed query trees through a resource-specific positive term matcher', () => {
+    type Row = {
+      id: string;
+      title: string;
+      tags: string[];
+      status: string;
+    };
+
+    const rows: Row[] = [
+      { id: '1', title: 'Nike Cap', tags: ['vip'], status: 'active' },
+      { id: '2', title: 'Clearance Hat', tags: ['clearance'], status: 'active' },
+      { id: '3', title: 'Wholesale Cap', tags: ['wholesale'], status: 'disabled' },
+    ];
+
+    const matchesTerm = (row: Row, term: SearchQueryTerm): boolean => {
+      const value = searchQueryTermValue(term);
+      switch (term.field) {
+        case null:
+          return matchesSearchQueryString(row.title, value, 'includes', { wordPrefix: true });
+        case 'tag':
+          return row.tags.some((tag) => matchesSearchQueryString(tag, value));
+        case 'status':
+          return matchesSearchQueryString(row.status, value);
+        default:
+          return true;
+      }
+    };
+
+    expect(
+      applySearchQuery(
+        rows,
+        '(tag:vip OR tag:wholesale) -status:disabled',
+        { recognizeNotKeyword: true },
+        matchesTerm,
+      ).map((row) => row.id),
+    ).toEqual(['1']);
+  });
+
+  it('applies simple term-list queries with common raw-query guards and negation', () => {
+    const rows = [
+      { id: '1', status: 'open', tag: 'vip' },
+      { id: '2', status: 'closed', tag: 'vip' },
+      { id: '3', status: 'open', tag: 'staff' },
+    ];
+
+    const matchesTerm = (row: (typeof rows)[number], term: SearchQueryTerm): boolean => {
+      const value = searchQueryTermValue(term);
+      if (term.field === 'status') {
+        return matchesSearchQueryString(row.status, value);
+      }
+      if (term.field === 'tag') {
+        return matchesSearchQueryString(row.tag, value);
+      }
+      return false;
+    };
+
+    expect(
+      applySearchQueryTerms(rows, 'tag:vip -status:closed AND', { ignoredKeywords: ['AND'] }, matchesTerm).map(
+        (row) => row.id,
+      ),
+    ).toEqual(['1']);
+    expect(applySearchQueryTerms(rows, null, { ignoredKeywords: ['AND'] }, matchesTerm)).toBe(rows);
+  });
+
+  it('shares string matching and quote stripping for endpoint filters', () => {
+    expect(stripSearchQueryValueQuotes(" 'Canada' ")).toBe('Canada');
+    expect(matchesSearchQueryString('Conformance US', 'conformance', 'includes')).toBe(true);
+    expect(matchesSearchQueryString('North America Market', 'ame*', 'includes', { wordPrefix: true })).toBe(true);
+    expect(matchesSearchQueryString('North America Market', 'ame*', 'includes')).toBe(false);
   });
 });

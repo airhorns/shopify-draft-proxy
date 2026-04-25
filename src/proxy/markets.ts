@@ -1,7 +1,13 @@
 import { Kind, parse, type FieldNode, type FragmentDefinitionNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
-import { parseSearchQuery, type SearchQueryNode, type SearchQueryTerm } from '../search-query-parser.js';
+import {
+  applySearchQuery,
+  matchesSearchQueryString,
+  searchQueryTermValue,
+  stripSearchQueryValueQuotes,
+  type SearchQueryTerm,
+} from '../search-query-parser.js';
 import {
   getFieldResponseKey,
   getSelectedChildFields,
@@ -304,18 +310,6 @@ export function hydrateMarketsFromUpstreamResponse(
   }
 }
 
-function stripSearchValueQuotes(rawValue: string): string {
-  const value = rawValue.trim();
-  if (
-    value.length >= 2 &&
-    ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'")))
-  ) {
-    return value.slice(1, -1);
-  }
-
-  return value;
-}
-
 function marketNumericId(market: MarketRecord): number | null {
   const match = market.id.match(/\/(\d+)$/u);
   if (!match) {
@@ -331,17 +325,11 @@ function matchesStringValue(candidate: unknown, rawValue: string, mode: 'exact' 
     return false;
   }
 
-  const value = stripSearchValueQuotes(rawValue).toLowerCase();
-  const normalizedCandidate = candidate.toLowerCase();
-  return mode === 'includes' ? normalizedCandidate.includes(value) : normalizedCandidate === value;
-}
-
-function searchTermValue(term: SearchQueryTerm): string {
-  return term.comparator === null ? term.value : `${term.comparator}${term.value}`;
+  return matchesSearchQueryString(candidate, rawValue, mode);
 }
 
 function compareMarketId(marketId: number, rawValue: string): boolean {
-  const match = stripSearchValueQuotes(rawValue).match(/^(<=|>=|<|>|=)?\s*(?:gid:\/\/shopify\/Market\/)?(\d+)$/u);
+  const match = stripSearchQueryValueQuotes(rawValue).match(/^(<=|>=|<|>|=)?\s*(?:gid:\/\/shopify\/Market\/)?(\d+)$/u);
   if (!match) {
     return false;
   }
@@ -375,7 +363,7 @@ function marketConditionTypes(market: MarketRecord): string[] {
 
 function matchesPositiveMarketQueryTerm(market: MarketRecord, term: SearchQueryTerm): boolean {
   if (term.field === null) {
-    const value = stripSearchValueQuotes(term.value);
+    const value = stripSearchQueryValueQuotes(term.value);
     return (
       matchesStringValue(market.data['name'], value, 'includes') ||
       matchesStringValue(market.data['handle'], value, 'includes') ||
@@ -384,7 +372,7 @@ function matchesPositiveMarketQueryTerm(market: MarketRecord, term: SearchQueryT
   }
 
   const field = term.field.toLowerCase();
-  const value = searchTermValue(term);
+  const value = searchQueryTermValue(term);
 
   switch (field) {
     case 'id': {
@@ -403,7 +391,7 @@ function matchesPositiveMarketQueryTerm(market: MarketRecord, term: SearchQueryT
     case 'type':
       return matchesStringValue(market.data['type'], value, 'exact');
     case 'market_condition_types': {
-      const expectedTypes = stripSearchValueQuotes(value)
+      const expectedTypes = stripSearchQueryValueQuotes(value)
         .split(',')
         .map((entry) => entry.trim().toUpperCase())
         .filter(Boolean);
@@ -415,39 +403,8 @@ function matchesPositiveMarketQueryTerm(market: MarketRecord, term: SearchQueryT
   }
 }
 
-function matchesMarketQueryTerm(market: MarketRecord, term: SearchQueryTerm): boolean {
-  if (!term.raw) {
-    return true;
-  }
-
-  const matches = matchesPositiveMarketQueryTerm(market, term);
-  return term.negated ? !matches : matches;
-}
-
-function matchesMarketQueryNode(market: MarketRecord, node: SearchQueryNode): boolean {
-  switch (node.type) {
-    case 'term':
-      return matchesMarketQueryTerm(market, node.term);
-    case 'and':
-      return node.children.every((child) => matchesMarketQueryNode(market, child));
-    case 'or':
-      return node.children.some((child) => matchesMarketQueryNode(market, child));
-    case 'not':
-      return !matchesMarketQueryNode(market, node.child);
-  }
-}
-
 function applyMarketsQuery(markets: MarketRecord[], rawQuery: unknown): MarketRecord[] {
-  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
-    return markets;
-  }
-
-  const parsedQuery = parseSearchQuery(rawQuery, { recognizeNotKeyword: true });
-  if (!parsedQuery) {
-    return markets;
-  }
-
-  return markets.filter((market) => matchesMarketQueryNode(market, parsedQuery));
+  return applySearchQuery(markets, rawQuery, { recognizeNotKeyword: true }, matchesPositiveMarketQueryTerm);
 }
 
 function applyRootMarketFilters(markets: MarketRecord[], args: Record<string, unknown>): MarketRecord[] {

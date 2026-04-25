@@ -33,6 +33,18 @@ export type SearchQueryTermListOptions = {
   ignoredKeywords?: readonly string[];
 };
 
+export type SearchQueryTermListParseOptions = SearchQueryTermListOptions & {
+  dropEmptyValues?: boolean;
+};
+
+export type SearchQueryTermMatcher<T> = (item: T, term: SearchQueryTerm) => boolean;
+
+export type SearchQueryStringMatchMode = 'includes' | 'exact';
+
+export type SearchQueryStringMatchOptions = {
+  wordPrefix?: boolean;
+};
+
 const DEFAULT_QUOTE_CHARACTERS = ['"', "'"] as const;
 const COMPARATORS: SearchQueryComparator[] = ['<=', '>=', '<', '>', '='];
 
@@ -86,6 +98,56 @@ export function normalizeSearchQueryValue(value: string): string {
     .trim()
     .replace(/^['"]|['"]$/g, '')
     .toLowerCase();
+}
+
+export function stripSearchQueryValueQuotes(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length >= 2) {
+    const firstCharacter = trimmed[0];
+    const lastCharacter = trimmed[trimmed.length - 1];
+    if ((firstCharacter === '"' || firstCharacter === "'") && firstCharacter === lastCharacter) {
+      return trimmed.slice(1, -1);
+    }
+  }
+
+  return trimmed;
+}
+
+export function searchQueryTermValue(term: SearchQueryTerm): string {
+  return term.comparator === null ? term.value : `${term.comparator}${term.value}`;
+}
+
+export function matchesSearchQueryString(
+  candidate: string | null | undefined,
+  rawValue: string,
+  matchMode: SearchQueryStringMatchMode = 'exact',
+  options: SearchQueryStringMatchOptions = {},
+): boolean {
+  const value = stripSearchQueryValueQuotes(rawValue).toLowerCase();
+  if (!value) {
+    return true;
+  }
+
+  const prefixMode = value.endsWith('*');
+  const normalizedValue = prefixMode ? value.slice(0, -1) : value;
+  if (!normalizedValue) {
+    return true;
+  }
+
+  const normalizedCandidate = (candidate ?? '').toLowerCase();
+  if (prefixMode) {
+    if (normalizedCandidate.startsWith(normalizedValue)) {
+      return true;
+    }
+
+    return options.wordPrefix === true
+      ? normalizedCandidate.split(/[^a-z0-9]+/u).some((part) => part.startsWith(normalizedValue))
+      : false;
+  }
+
+  return matchMode === 'exact'
+    ? normalizedCandidate === normalizedValue
+    : normalizedCandidate.includes(normalizedValue);
 }
 
 export function matchesSearchQueryNumber(value: number | null, term: SearchQueryTerm): boolean {
@@ -174,6 +236,22 @@ export function parseSearchQueryTerms(query: string, options: SearchQueryTermLis
 
   flushCurrent();
   return terms;
+}
+
+export function parseSearchQueryTermList(
+  rawQuery: unknown,
+  options: SearchQueryTermListParseOptions = {},
+): SearchQueryTerm[] {
+  if (typeof rawQuery !== 'string' || rawQuery.trim().length === 0) {
+    return [];
+  }
+
+  const terms = parseSearchQueryTerms(rawQuery.trim(), options);
+  if (options.dropEmptyValues !== true) {
+    return terms;
+  }
+
+  return terms.filter((term) => normalizeSearchQueryValue(term.value).length > 0);
 }
 
 function tokenizeSearchQuery(query: string, options: Required<SearchQueryParseOptions>): SearchQueryToken[] {
@@ -328,4 +406,70 @@ export function parseSearchQuery(query: string, options: SearchQueryParseOptions
   };
 
   return parseOrExpression();
+}
+
+export function matchesSearchQueryTerm<T>(
+  item: T,
+  term: SearchQueryTerm,
+  matchesPositiveTerm: SearchQueryTermMatcher<T>,
+): boolean {
+  if (!term.raw) {
+    return true;
+  }
+
+  if (term.negated && !term.value && term.field === null) {
+    return true;
+  }
+
+  const matches = matchesPositiveTerm(item, term);
+  return term.negated ? !matches : matches;
+}
+
+export function matchesSearchQueryNode<T>(
+  item: T,
+  node: SearchQueryNode,
+  matchesPositiveTerm: SearchQueryTermMatcher<T>,
+): boolean {
+  switch (node.type) {
+    case 'term':
+      return matchesSearchQueryTerm(item, node.term, matchesPositiveTerm);
+    case 'and':
+      return node.children.every((child) => matchesSearchQueryNode(item, child, matchesPositiveTerm));
+    case 'or':
+      return node.children.some((child) => matchesSearchQueryNode(item, child, matchesPositiveTerm));
+    case 'not':
+      return !matchesSearchQueryNode(item, node.child, matchesPositiveTerm);
+  }
+}
+
+export function applySearchQuery<T>(
+  items: T[],
+  rawQuery: unknown,
+  options: SearchQueryParseOptions,
+  matchesPositiveTerm: SearchQueryTermMatcher<T>,
+): T[] {
+  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
+    return items;
+  }
+
+  const parsedQuery = parseSearchQuery(rawQuery, options);
+  if (!parsedQuery) {
+    return items;
+  }
+
+  return items.filter((item) => matchesSearchQueryNode(item, parsedQuery, matchesPositiveTerm));
+}
+
+export function applySearchQueryTerms<T>(
+  items: T[],
+  rawQuery: unknown,
+  options: SearchQueryTermListParseOptions,
+  matchesPositiveTerm: SearchQueryTermMatcher<T>,
+): T[] {
+  const terms = parseSearchQueryTermList(rawQuery, options);
+  if (terms.length === 0) {
+    return items;
+  }
+
+  return items.filter((item) => terms.every((term) => matchesSearchQueryTerm(item, term, matchesPositiveTerm)));
 }

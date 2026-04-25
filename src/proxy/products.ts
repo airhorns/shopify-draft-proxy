@@ -1,7 +1,13 @@
 import { getLocation, Kind, parse, type ASTNode, type FieldNode, type SelectionNode } from 'graphql';
 import type { ReadMode } from '../config.js';
 import { getFieldArguments, getRootField, getRootFieldArguments, getRootFields } from '../graphql/root-field.js';
-import { parseSearchQuery, type SearchQueryNode, type SearchQueryTerm } from '../search-query-parser.js';
+import {
+  applySearchQuery,
+  matchesSearchQueryString,
+  searchQueryTermValue,
+  stripSearchQueryValueQuotes,
+  type SearchQueryTerm,
+} from '../search-query-parser.js';
 import { paginateConnectionItems, serializeConnectionPageInfo } from './graphql-helpers.js';
 import {
   normalizeOwnerMetafield,
@@ -5571,13 +5577,6 @@ function serializeProductsCount(rawQuery: unknown, selections: readonly Selectio
   return result;
 }
 
-function matchesProductVariantTerm(product: ProductRecord, field: 'sku' | 'barcode', value: string): boolean {
-  const normalizedValue = value.toLowerCase();
-  return store
-    .getEffectiveVariantsByProductId(product.id)
-    .some((variant) => typeof variant[field] === 'string' && variant[field]!.toLowerCase() === normalizedValue);
-}
-
 function matchesProductTimestampTerm(productValue: string, rawValue: string): boolean {
   const match = rawValue.match(/^(<=|>=|<|>|=)?\s*(.+)$/);
   if (!match) {
@@ -5585,7 +5584,7 @@ function matchesProductTimestampTerm(productValue: string, rawValue: string): bo
   }
 
   const operator = match[1] ?? '=';
-  const thresholdValue = stripSearchValueQuotes(match[2]?.trim() ?? '');
+  const thresholdValue = stripSearchQueryValueQuotes(match[2]?.trim() ?? '');
   if (!thresholdValue) {
     return true;
   }
@@ -5612,21 +5611,8 @@ function matchesProductTimestampTerm(productValue: string, rawValue: string): bo
   }
 }
 
-function stripSearchValueQuotes(value: string): string {
-  const trimmed = value.trim();
-  if (trimmed.length >= 2) {
-    const firstCharacter = trimmed[0];
-    const lastCharacter = trimmed[trimmed.length - 1];
-    if ((firstCharacter === '"' || firstCharacter === "'") && firstCharacter === lastCharacter) {
-      return trimmed.slice(1, -1);
-    }
-  }
-
-  return trimmed;
-}
-
 function matchesNullableProductTimestampTerm(productValue: string | null, rawValue: string): boolean {
-  const normalizedValue = stripSearchValueQuotes(rawValue);
+  const normalizedValue = stripSearchQueryValueQuotes(rawValue);
   if (normalizedValue === '*') {
     return productValue !== null;
   }
@@ -5634,34 +5620,8 @@ function matchesNullableProductTimestampTerm(productValue: string | null, rawVal
   return productValue === null ? false : matchesProductTimestampTerm(productValue, normalizedValue);
 }
 
-function isPrefixPattern(rawValue: string): boolean {
-  return rawValue.endsWith('*');
-}
-
 function matchesStringValue(candidate: string, rawValue: string, matchMode: 'includes' | 'exact'): boolean {
-  const value = rawValue.trim().toLowerCase();
-  if (!value) {
-    return true;
-  }
-
-  const prefixMode = isPrefixPattern(value);
-  const normalizedValue = prefixMode ? value.slice(0, -1) : value;
-  if (!normalizedValue) {
-    return true;
-  }
-
-  const normalizedCandidate = candidate.toLowerCase();
-  if (prefixMode) {
-    if (normalizedCandidate.startsWith(normalizedValue)) {
-      return true;
-    }
-
-    return normalizedCandidate.split(/[^a-z0-9]+/).some((part) => part.startsWith(normalizedValue));
-  }
-
-  return matchMode === 'exact'
-    ? normalizedCandidate === normalizedValue
-    : normalizedCandidate.includes(normalizedValue);
+  return matchesSearchQueryString(candidate, rawValue, matchMode, { wordPrefix: true });
 }
 
 function getSearchableProductTags(product: ProductRecord): string[] {
@@ -5702,17 +5662,13 @@ function matchesProductSearchText(product: ProductRecord, rawValue: string): boo
   return searchableValues.some((candidate) => matchesStringValue(candidate, rawValue, 'includes'));
 }
 
-function searchTermValue(term: SearchQueryTerm): string {
-  return term.comparator === null ? term.value : `${term.comparator}${term.value}`;
-}
-
 function matchesPositiveProductQueryTerm(product: ProductRecord, term: SearchQueryTerm): boolean {
   if (term.field === null) {
     return matchesProductSearchText(product, term.value);
   }
 
   const field = term.field.toLowerCase();
-  const value = searchTermValue(term);
+  const value = searchQueryTermValue(term);
 
   switch (field) {
     case 'title':
@@ -5775,45 +5731,8 @@ function matchesPositiveProductQueryTerm(product: ProductRecord, term: SearchQue
   }
 }
 
-function matchesProductQueryTerm(product: ProductRecord, term: SearchQueryTerm): boolean {
-  if (!term.raw) {
-    return true;
-  }
-
-  if (term.negated && !term.value && term.field === null) {
-    return true;
-  }
-
-  const matches = matchesPositiveProductQueryTerm(product, term);
-  return term.negated ? !matches : matches;
-}
-
-function matchesProductsQueryNode(product: ProductRecord, node: SearchQueryNode): boolean {
-  switch (node.type) {
-    case 'term':
-      return matchesProductQueryTerm(product, node.term);
-    case 'and':
-      return node.children.every((child) => matchesProductsQueryNode(product, child));
-    case 'or':
-      return node.children.some((child) => matchesProductsQueryNode(product, child));
-    case 'not':
-      return !matchesProductsQueryNode(product, node.child);
-    default:
-      return true;
-  }
-}
-
 function applyProductsQuery(products: ProductRecord[], rawQuery: unknown): ProductRecord[] {
-  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
-    return products;
-  }
-
-  const parsedQuery = parseSearchQuery(rawQuery, { recognizeNotKeyword: true });
-  if (!parsedQuery) {
-    return products;
-  }
-
-  return products.filter((product) => matchesProductsQueryNode(product, parsedQuery));
+  return applySearchQuery(products, rawQuery, { recognizeNotKeyword: true }, matchesPositiveProductQueryTerm);
 }
 
 function collectionIsSmart(collection: CollectionRecord | ProductCollectionRecord): boolean {
@@ -5821,7 +5740,7 @@ function collectionIsSmart(collection: CollectionRecord | ProductCollectionRecor
 }
 
 function matchesResourceIdValue(resourceId: string, rawValue: string): boolean {
-  const normalizedValue = stripSearchValueQuotes(rawValue).trim();
+  const normalizedValue = stripSearchQueryValueQuotes(rawValue).trim();
   if (!normalizedValue) {
     return true;
   }
@@ -5840,7 +5759,7 @@ function matchesResourceIdRange(resourceId: string, rawValue: string): boolean {
   }
 
   const operator = match[1] ?? '=';
-  const thresholdValue = stripSearchValueQuotes(match[2]?.trim() ?? '');
+  const thresholdValue = stripSearchQueryValueQuotes(match[2]?.trim() ?? '');
   if (!thresholdValue) {
     return true;
   }
@@ -5898,7 +5817,7 @@ function matchesPositiveCollectionQueryTerm(
   }
 
   const field = term.field.toLowerCase();
-  const value = searchTermValue(term);
+  const value = searchQueryTermValue(term);
 
   switch (field) {
     case 'title':
@@ -5906,7 +5825,7 @@ function matchesPositiveCollectionQueryTerm(
     case 'handle':
       return matchesStringValue(collection.handle, value, 'exact');
     case 'collection_type': {
-      const normalizedValue = stripSearchValueQuotes(value).trim().toLowerCase();
+      const normalizedValue = stripSearchQueryValueQuotes(value).trim().toLowerCase();
       if (normalizedValue === 'smart') {
         return collectionIsSmart(collection);
       }
@@ -5931,54 +5850,11 @@ function matchesPositiveCollectionQueryTerm(
   }
 }
 
-function matchesCollectionQueryTerm(
-  collection: CollectionRecord | ProductCollectionRecord,
-  term: SearchQueryTerm,
-): boolean {
-  if (!term.raw) {
-    return true;
-  }
-
-  if (term.negated && !term.value && term.field === null) {
-    return true;
-  }
-
-  const matches = matchesPositiveCollectionQueryTerm(collection, term);
-  return term.negated ? !matches : matches;
-}
-
-function matchesCollectionsQueryNode(
-  collection: CollectionRecord | ProductCollectionRecord,
-  node: SearchQueryNode,
-): boolean {
-  switch (node.type) {
-    case 'term':
-      return matchesCollectionQueryTerm(collection, node.term);
-    case 'and':
-      return node.children.every((child) => matchesCollectionsQueryNode(collection, child));
-    case 'or':
-      return node.children.some((child) => matchesCollectionsQueryNode(collection, child));
-    case 'not':
-      return !matchesCollectionsQueryNode(collection, node.child);
-    default:
-      return true;
-  }
-}
-
 function applyCollectionsQuery<T extends CollectionRecord | ProductCollectionRecord>(
   collections: T[],
   rawQuery: unknown,
 ): T[] {
-  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
-    return collections;
-  }
-
-  const parsedQuery = parseSearchQuery(rawQuery, { recognizeNotKeyword: true });
-  if (!parsedQuery) {
-    return collections;
-  }
-
-  return collections.filter((collection) => matchesCollectionsQueryNode(collection, parsedQuery));
+  return applySearchQuery(collections, rawQuery, { recognizeNotKeyword: true }, matchesPositiveCollectionQueryTerm);
 }
 
 function compareCollectionIds(leftId: string, rightId: string): number {
