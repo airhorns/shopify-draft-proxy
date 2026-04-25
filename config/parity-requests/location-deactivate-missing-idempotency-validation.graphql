@@ -1,7 +1,14 @@
 #graphql
 mutation LocationDeactivateMissingIdempotencyKey($locationId: ID!) {
   locationDeactivate(locationId: $locationId) {
-    location { id isActive }
-    locationDeactivateUserErrors { field message code }
+    location {
+      id
+      isActive
+    }
+    locationDeactivateUserErrors {
+      field
+      message
+      code
+    }
   }
 }

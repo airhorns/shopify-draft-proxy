@@ -3,7 +3,9 @@
   "operationNames": ["locationActivate"],
   "scenarioStatus": "captured",
   "assertionKinds": ["graphql-error-parity", "idempotency-parity"],
-  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/location-lifecycle-validation.json"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/location-lifecycle-validation.json"
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/location-activate-missing-idempotency-validation.graphql",
     "variablesCapturePath": "$.cases[0].variables"

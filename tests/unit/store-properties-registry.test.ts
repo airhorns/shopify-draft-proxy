@@ -168,13 +168,7 @@ describe('Store properties registry scaffold', () => {
   });
 
   it('routes implemented location mutations as Store properties local staging', () => {
-    for (const root of [
-      'locationAdd',
-      'locationEdit',
-      'locationActivate',
-      'locationDeactivate',
-      'locationDelete',
-    ]) {
+    for (const root of ['locationAdd', 'locationEdit', 'locationActivate', 'locationDeactivate', 'locationDelete']) {
       expect(getOperationCapability({ type: 'mutation', name: root, rootFields: [root] })).toEqual({
         domain: 'store-properties',
         execution: 'stage-locally',

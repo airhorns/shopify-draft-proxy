@@ -2,6 +2,10 @@
 mutation LocationDeleteActiveLocation($locationId: ID!) {
   locationDelete(locationId: $locationId) {
     deletedLocationId
-    locationDeleteUserErrors { field message code }
+    locationDeleteUserErrors {
+      field
+      message
+      code
+    }
   }
 }

@@ -3,7 +3,9 @@
   "operationNames": ["locationDelete"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity"],
-  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/location-lifecycle-validation.json"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/location-lifecycle-validation.json"
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/location-delete-active-location-validation.graphql",
     "variablesCapturePath": "$.cases[2].variables"
