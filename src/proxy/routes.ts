@@ -12,7 +12,7 @@ import { handleMediaMutation } from './media.js';
 import { handleCustomerMutation, handleCustomerQuery, hydrateCustomersFromUpstreamResponse } from './customers.js';
 import { handleOrderMutation, handleOrderQuery, shouldServeDraftOrderCatalogLocally } from './orders.js';
 import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamResponse } from './products.js';
-import { handleStorePropertiesQuery } from './store-properties.js';
+import { handleStorePropertiesMutation, handleStorePropertiesQuery } from './store-properties.js';
 
 interface GraphQLBody {
   query?: unknown;
@@ -225,6 +225,42 @@ export function createProxyRouter(config: AppConfig): Router {
 
       ctx.status = 200;
       ctx.body = handleMediaMutation(body.query, variables);
+      return;
+    }
+
+    if (
+      capability.execution === 'stage-locally' &&
+      capability.domain === 'store-properties' &&
+      primaryRootField === 'shopPolicyUpdate'
+    ) {
+      proxyLogger.debug(
+        {
+          execution: capability.execution,
+          operationName: capability.operationName,
+          operationType: parsed.type,
+          rootFields: parsed.rootFields,
+        },
+        'staging supported shop policy mutation locally',
+      );
+
+      const responseBody = handleStorePropertiesMutation(body.query, variables);
+
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: ctx.path,
+        query: body.query,
+        variables,
+        requestBody,
+        stagedResourceIds: collectProxySyntheticGids(responseBody),
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        notes: 'Staged locally in the in-memory Store properties legal policy draft store.',
+      });
+
+      ctx.status = 200;
+      ctx.body = responseBody;
       return;
     }
 

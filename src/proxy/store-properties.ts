@@ -2,6 +2,7 @@ import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { logger } from '../logger.js';
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
+import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type {
   BusinessEntityAddressRecord,
@@ -33,9 +34,41 @@ interface SerializationContext {
   errors: GraphQLResponseError[];
 }
 
+interface ShopPolicyUserErrorRecord {
+  field: string[] | null;
+  message: string;
+  code: 'TOO_BIG' | null;
+}
+
 const storePropertiesLogger = logger.child({ component: 'proxy.store-properties' });
 
 const SAFE_SHOPIFY_PAYMENTS_ACCOUNT_FIELDS = new Set(['id', 'activated', 'country', 'defaultCurrency', 'onboardable']);
+
+const SHOP_POLICY_BODY_LIMIT_BYTES = 512 * 1024;
+
+const SHOP_POLICY_TYPE_ORDER = [
+  'CONTACT_INFORMATION',
+  'LEGAL_NOTICE',
+  'PRIVACY_POLICY',
+  'REFUND_POLICY',
+  'SHIPPING_POLICY',
+  'SUBSCRIPTION_POLICY',
+  'TERMS_OF_SALE',
+  'TERMS_OF_SERVICE',
+] as const;
+
+const SHOP_POLICY_TYPES = new Set<string>(SHOP_POLICY_TYPE_ORDER);
+
+const SHOP_POLICY_TITLES_BY_TYPE: Record<string, string> = {
+  CONTACT_INFORMATION: 'Contact',
+  LEGAL_NOTICE: 'Legal notice',
+  PRIVACY_POLICY: 'Privacy policy',
+  REFUND_POLICY: 'Refund policy',
+  SHIPPING_POLICY: 'Shipping policy',
+  SUBSCRIPTION_POLICY: 'Cancellation policy',
+  TERMS_OF_SALE: 'Terms of sale',
+  TERMS_OF_SERVICE: 'Terms of service',
+};
 
 function responseKey(selection: FieldNode): string {
   return selection.alias?.value ?? selection.name.value;
@@ -586,6 +619,50 @@ function serializeShopPolicy(policy: ShopPolicyRecord, selections: readonly Sele
       case 'updatedAt':
         result[key] = policy.updatedAt;
         break;
+      case 'translations':
+        result[key] = [];
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeShopPolicyUserError(
+  userError: ShopPolicyUserErrorRecord,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'ShopPolicyUserError') {
+        continue;
+      }
+      Object.assign(result, serializeShopPolicyUserError(userError, selection.selectionSet.selections));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'ShopPolicyUserError';
+        break;
+      case 'field':
+        result[key] = userError.field ? structuredClone(userError.field) : null;
+        break;
+      case 'message':
+        result[key] = userError.message;
+        break;
+      case 'code':
+        result[key] = userError.code;
+        break;
       default:
         result[key] = null;
     }
@@ -830,6 +907,203 @@ function serializeBusinessEntity(
   }
 
   return result;
+}
+
+function readShopPolicyInput(args: Record<string, unknown>): Record<string, unknown> {
+  const shopPolicy = args['shopPolicy'];
+  if (shopPolicy && typeof shopPolicy === 'object' && !Array.isArray(shopPolicy)) {
+    return shopPolicy as Record<string, unknown>;
+  }
+
+  const input = args['input'];
+  if (input && typeof input === 'object' && !Array.isArray(input)) {
+    return input as Record<string, unknown>;
+  }
+
+  return {};
+}
+
+function readNumericGidTail(id: string): string | null {
+  const tail = id.split('/').at(-1)?.split('?')[0] ?? '';
+  return /^\d+$/.test(tail) ? tail : null;
+}
+
+function buildShopPolicyUrl(shop: ShopRecord, policyId: string, type: string): string {
+  const shopTail = readNumericGidTail(shop.id);
+  const policyTail = readNumericGidTail(policyId);
+  if (shopTail && policyTail) {
+    return `https://checkout.shopify.com/${shopTail}/policies/${policyTail}.html?locale=en`;
+  }
+
+  return `${shop.url.replace(/\/$/, '')}/policies/${type.toLowerCase().replaceAll('_', '-')}`;
+}
+
+function compareShopPoliciesByType(left: ShopPolicyRecord, right: ShopPolicyRecord): number {
+  const leftIndex = SHOP_POLICY_TYPE_ORDER.indexOf(left.type as (typeof SHOP_POLICY_TYPE_ORDER)[number]);
+  const rightIndex = SHOP_POLICY_TYPE_ORDER.indexOf(right.type as (typeof SHOP_POLICY_TYPE_ORDER)[number]);
+  const normalizedLeftIndex = leftIndex === -1 ? SHOP_POLICY_TYPE_ORDER.length : leftIndex;
+  const normalizedRightIndex = rightIndex === -1 ? SHOP_POLICY_TYPE_ORDER.length : rightIndex;
+  return normalizedLeftIndex - normalizedRightIndex || left.type.localeCompare(right.type);
+}
+
+function validateShopPolicyInput(input: Record<string, unknown>): {
+  body: string | null;
+  type: string | null;
+  userErrors: ShopPolicyUserErrorRecord[];
+} {
+  const rawType = input['type'];
+  const rawBody = input['body'];
+  const type = typeof rawType === 'string' ? rawType : null;
+  const body = typeof rawBody === 'string' ? rawBody : null;
+  const userErrors: ShopPolicyUserErrorRecord[] = [];
+
+  if (!type || !SHOP_POLICY_TYPES.has(type)) {
+    userErrors.push({
+      field: ['shopPolicy', 'type'],
+      message: 'Type is invalid',
+      code: null,
+    });
+  }
+
+  if (body === null) {
+    userErrors.push({
+      field: ['shopPolicy', 'body'],
+      message: 'Body is required',
+      code: null,
+    });
+  } else if (Buffer.byteLength(body, 'utf8') > SHOP_POLICY_BODY_LIMIT_BYTES) {
+    userErrors.push({
+      field: ['shopPolicy', 'body'],
+      message: 'Body is too big (maximum is 512 KB)',
+      code: 'TOO_BIG',
+    });
+  }
+
+  return {
+    body,
+    type,
+    userErrors,
+  };
+}
+
+function stageShopPolicyUpdate(input: Record<string, unknown>): {
+  shopPolicy: ShopPolicyRecord | null;
+  userErrors: ShopPolicyUserErrorRecord[];
+} {
+  const validation = validateShopPolicyInput(input);
+  if (validation.userErrors.length > 0 || !validation.type || validation.body === null) {
+    return {
+      shopPolicy: null,
+      userErrors: validation.userErrors,
+    };
+  }
+
+  const shop = store.getEffectiveShop();
+  if (!shop) {
+    return {
+      shopPolicy: null,
+      userErrors: [
+        {
+          field: ['shopPolicy'],
+          message: 'Shop baseline is required to stage a shop policy update',
+          code: null,
+        },
+      ],
+    };
+  }
+
+  const existingPolicy = shop.shopPolicies.find((policy) => policy.type === validation.type) ?? null;
+  const now = makeSyntheticTimestamp();
+  const id = existingPolicy?.id ?? makeSyntheticGid('ShopPolicy');
+  const policy: ShopPolicyRecord = {
+    id,
+    title: existingPolicy?.title ?? SHOP_POLICY_TITLES_BY_TYPE[validation.type] ?? validation.type,
+    body: validation.body,
+    type: validation.type,
+    url: existingPolicy?.url ?? buildShopPolicyUrl(shop, id, validation.type),
+    createdAt: existingPolicy?.createdAt ?? now,
+    updatedAt: now,
+  };
+  const otherPolicies = shop.shopPolicies.filter((candidate) => candidate.type !== policy.type);
+  const updatedShop: ShopRecord = {
+    ...shop,
+    shopPolicies: [...otherPolicies, policy].sort(compareShopPoliciesByType),
+  };
+
+  store.stageShop(updatedShop);
+
+  return {
+    shopPolicy: policy,
+    userErrors: [],
+  };
+}
+
+function serializeShopPolicyUpdatePayload(
+  payload: { shopPolicy: ShopPolicyRecord | null; userErrors: ShopPolicyUserErrorRecord[] },
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'ShopPolicyUpdatePayload') {
+        continue;
+      }
+      Object.assign(result, serializeShopPolicyUpdatePayload(payload, selection.selectionSet.selections));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'ShopPolicyUpdatePayload';
+        break;
+      case 'shopPolicy':
+        result[key] = payload.shopPolicy
+          ? serializeShopPolicy(payload.shopPolicy, selection.selectionSet?.selections ?? [])
+          : null;
+        break;
+      case 'userErrors':
+        result[key] = payload.userErrors.map((userError) =>
+          serializeShopPolicyUserError(userError, selection.selectionSet?.selections ?? []),
+        );
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+export function handleStorePropertiesMutation(
+  document: string,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const fields = getRootFields(document);
+  const data: Record<string, unknown> = {};
+
+  for (const field of fields) {
+    const key = responseKey(field);
+    switch (field.name.value) {
+      case 'shopPolicyUpdate': {
+        const args = getFieldArguments(field, variables);
+        data[key] = serializeShopPolicyUpdatePayload(
+          stageShopPolicyUpdate(readShopPolicyInput(args)),
+          field.selectionSet?.selections ?? [],
+        );
+        break;
+      }
+      default:
+        data[key] = null;
+    }
+  }
+
+  return { data };
 }
 
 export function handleStorePropertiesQuery(
