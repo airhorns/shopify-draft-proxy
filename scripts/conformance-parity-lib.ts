@@ -604,11 +604,11 @@ async function executeGraphQLAgainstLocalProxy(
   const capability = getOperationCapability(parsed);
 
   if (parsed.type === 'mutation') {
-    const discountValidationBody = handleDiscountMutation(document, variables);
-    if (discountValidationBody) {
+    const discountMutation = handleDiscountMutation(document, variables);
+    if (discountMutation) {
       return {
         status: 200,
-        body: discountValidationBody,
+        body: discountMutation.response,
       };
     }
   }
@@ -1141,10 +1141,19 @@ function mergeCapturedDiscountRecord(existing: DiscountRecord, next: DiscountRec
 }
 
 function seedDiscountCatalogPreconditions(capture: unknown): boolean {
-  const responseData = readRecordField(readRecordField(capture as Record<string, unknown>, 'response'), 'data');
+  const responseContainer = readRecordField(capture as Record<string, unknown>, 'response');
+  const responseData =
+    readRecordField(responseContainer, 'data') ??
+    readRecordField(readRecordField(responseContainer, 'response'), 'data');
   const discountNodes = readRecordField(responseData, 'discountNodes');
+  const automaticDiscountNodes = readRecordField(responseData, 'automaticDiscountNodes');
   const capturedNodes = readArrayField(discountNodes, 'nodes').filter(isPlainObject);
   const capturedEdgeNodes = readArrayField(discountNodes, 'edges')
+    .filter(isPlainObject)
+    .map((edge) => readRecordField(edge, 'node'))
+    .filter((node): node is Record<string, unknown> => node !== null);
+  const capturedAutomaticNodes = readArrayField(automaticDiscountNodes, 'nodes').filter(isPlainObject);
+  const capturedAutomaticEdgeNodes = readArrayField(automaticDiscountNodes, 'edges')
     .filter(isPlainObject)
     .map((edge) => readRecordField(edge, 'node'))
     .filter((node): node is Record<string, unknown> => node !== null);
@@ -1157,7 +1166,14 @@ function seedDiscountCatalogPreconditions(capture: unknown): boolean {
   ].filter((node): node is Record<string, unknown> => node !== null);
   const discountsById = new Map<string, DiscountRecord>();
 
-  for (const node of [...capturedNodes, ...capturedEdgeNodes, ...singularNodes, ...seedNodes]) {
+  for (const node of [
+    ...capturedEdgeNodes,
+    ...capturedAutomaticEdgeNodes,
+    ...capturedNodes,
+    ...capturedAutomaticNodes,
+    ...singularNodes,
+    ...seedNodes,
+  ]) {
     const discount = readCapturedDiscountRecord(node);
     if (discount) {
       const existing = discountsById.get(discount.id);

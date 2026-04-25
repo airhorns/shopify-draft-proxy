@@ -185,19 +185,37 @@ export function createProxyRouter(config: AppConfig): Router {
     const primaryRootField = parsed.rootFields[0] ?? capability.operationName;
 
     if (parsed.type === 'mutation') {
-      const discountValidationResponse = handleDiscountMutation(body.query, variables);
-      if (discountValidationResponse) {
+      const discountMutation = handleDiscountMutation(body.query, variables);
+      if (discountMutation) {
         proxyLogger.debug(
           {
             operationName: capability.operationName,
             operationType: parsed.type,
             rootFields: parsed.rootFields,
           },
-          'returning captured discount validation response locally',
+          discountMutation.staged
+            ? 'staging supported discount mutation locally'
+            : 'returning captured discount validation response locally',
         );
 
+        if (discountMutation.staged) {
+          store.appendLog({
+            id: makeSyntheticGid('MutationLogEntry'),
+            receivedAt: makeSyntheticTimestamp(),
+            operationName: capability.operationName,
+            path: ctx.path,
+            query: body.query,
+            variables,
+            requestBody,
+            stagedResourceIds: discountMutation.stagedResourceIds,
+            status: 'staged',
+            interpreted: interpretMutationLogEntry(parsed, capability),
+            ...(discountMutation.notes ? { notes: discountMutation.notes } : {}),
+          });
+        }
+
         ctx.status = 200;
-        ctx.body = discountValidationResponse;
+        ctx.body = discountMutation.response;
         return;
       }
     }

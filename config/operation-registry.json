@@ -2193,9 +2193,9 @@
     "type": "query",
     "domain": "discounts",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["automaticDiscountNodes", "AutomaticDiscountNodes"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts"]
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/discount-automatic-basic-flow.test.ts"]
   },
   {
     "name": "automaticDiscountNode",
@@ -2342,19 +2342,21 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticBasicCreate", "DiscountAutomaticBasicCreate"],
-    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
-    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
+    "runtimeTests": [
+      "tests/integration/discount-mutation-validation.test.ts",
+      "tests/integration/discount-automatic-basic-flow.test.ts"
+    ]
   },
   {
     "name": "discountAutomaticBasicUpdate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticBasicUpdate", "DiscountAutomaticBasicUpdate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/discount-automatic-basic-flow.test.ts"]
   },
   {
     "name": "discountAutomaticBxgyCreate",
@@ -2399,27 +2401,27 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticActivate", "DiscountAutomaticActivate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/discount-automatic-basic-flow.test.ts"]
   },
   {
     "name": "discountAutomaticDeactivate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticDeactivate", "DiscountAutomaticDeactivate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/discount-automatic-basic-flow.test.ts"]
   },
   {
     "name": "discountAutomaticDelete",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticDelete", "DiscountAutomaticDelete"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/discount-automatic-basic-flow.test.ts"]
   },
   {
     "name": "discountAutomaticBulkDelete",
