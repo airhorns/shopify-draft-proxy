@@ -3,6 +3,21 @@
     "customers": {
       "edges": [
         {
+          "cursor": "eyJsYXN0X2lkIjo5MTAzNjY2NDc5MzM3LCJsYXN0X3ZhbHVlIjoxNzc3MTE2Nzk4MDAwfQ==",
+          "node": {
+            "id": "gid://shopify/Customer/9103666479337",
+            "displayName": "Merge Two",
+            "email": "hermes-merge-two-1777116797159@example.com",
+            "legacyResourceId": "9103666479337",
+            "verifiedEmail": true,
+            "state": "DISABLED",
+            "tags": ["merge-1777116797159", "merged"],
+            "defaultPhoneNumber": null,
+            "defaultAddress": null,
+            "updatedAt": "2026-04-25T11:33:18Z"
+          }
+        },
+        {
           "cursor": "eyJsYXN0X2lkIjo2MTU3NjU0NTU2OTA1LCJsYXN0X3ZhbHVlIjoxNzc3MDgwMjg4MDAwfQ==",
           "node": {
             "id": "gid://shopify/Customer/6157654556905",
@@ -25,28 +40,13 @@
             },
             "updatedAt": "2026-04-25T01:24:48Z"
           }
-        },
-        {
-          "cursor": "eyJsYXN0X2lkIjo5MDk2ODE2MDY2NzkzLCJsYXN0X3ZhbHVlIjoxNzc2OTAwNTQ1MDAwfQ==",
-          "node": {
-            "id": "gid://shopify/Customer/9096816066793",
-            "displayName": "HAR Customer",
-            "email": "har-120-rework-1776900542206@example.com",
-            "legacyResourceId": "9096816066793",
-            "verifiedEmail": true,
-            "state": "DISABLED",
-            "tags": [],
-            "defaultPhoneNumber": null,
-            "defaultAddress": null,
-            "updatedAt": "2026-04-22T23:29:05Z"
-          }
         }
       ],
       "pageInfo": {
         "hasNextPage": true,
         "hasPreviousPage": false,
-        "startCursor": "eyJsYXN0X2lkIjo2MTU3NjU0NTU2OTA1LCJsYXN0X3ZhbHVlIjoxNzc3MDgwMjg4MDAwfQ==",
-        "endCursor": "eyJsYXN0X2lkIjo5MDk2ODE2MDY2NzkzLCJsYXN0X3ZhbHVlIjoxNzc2OTAwNTQ1MDAwfQ=="
+        "startCursor": "eyJsYXN0X2lkIjo5MTAzNjY2NDc5MzM3LCJsYXN0X3ZhbHVlIjoxNzc3MTE2Nzk4MDAwfQ==",
+        "endCursor": "eyJsYXN0X2lkIjo2MTU3NjU0NTU2OTA1LCJsYXN0X3ZhbHVlIjoxNzc3MDgwMjg4MDAwfQ=="
       }
     }
   },
