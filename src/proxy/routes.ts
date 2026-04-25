@@ -155,6 +155,42 @@ export function createProxyRouter(config: AppConfig): Router {
       return;
     }
 
+    if (
+      capability.execution === 'stage-locally' &&
+      capability.domain === 'store-properties' &&
+      (primaryRootField === 'publishablePublish' || primaryRootField === 'publishableUnpublish')
+    ) {
+      proxyLogger.debug(
+        {
+          execution: capability.execution,
+          operationName: capability.operationName,
+          operationType: parsed.type,
+          rootFields: parsed.rootFields,
+        },
+        'staging supported publishable mutation locally',
+      );
+
+      const responseBody = handleProductMutation(body.query, variables, config.readMode);
+
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: ctx.path,
+        query: body.query,
+        variables,
+        requestBody,
+        stagedResourceIds: collectProxySyntheticGids(responseBody),
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        notes: 'Staged locally in the in-memory publishable draft store.',
+      });
+
+      ctx.status = 200;
+      ctx.body = responseBody;
+      return;
+    }
+
     if (capability.execution === 'stage-locally' && capability.domain === 'customers') {
       store.appendLog({
         id: makeSyntheticGid('MutationLogEntry'),
@@ -244,7 +280,10 @@ export function createProxyRouter(config: AppConfig): Router {
         hydrateCustomersFromUpstreamResponse(body.query, variables, upstreamBody);
 
         ctx.status = response.status;
-        ctx.body = store.hasBaseCustomers() ? handleCustomerQuery(body.query, variables) : upstreamBody;
+        ctx.body =
+          store.hasBaseCustomers() || store.hasStagedCustomers()
+            ? handleCustomerQuery(body.query, variables)
+            : upstreamBody;
         return;
       }
     }
@@ -308,6 +347,30 @@ export function createProxyRouter(config: AppConfig): Router {
       if (config.readMode === 'snapshot') {
         ctx.status = 200;
         ctx.body = handleStorePropertiesQuery(body.query, variables);
+        return;
+      }
+
+      if (config.readMode === 'live-hybrid') {
+        if (primaryRootField === 'shop' && store.getEffectiveShop() !== null) {
+          ctx.status = 200;
+          ctx.body = handleStorePropertiesQuery(body.query, variables);
+          return;
+        }
+
+        const response = await upstream.request({
+          path: ctx.path,
+          headers: {
+            'content-type': 'application/json',
+            'x-shopify-access-token': ctx.get('x-shopify-access-token'),
+          },
+          body: {
+            query: body.query,
+            variables,
+          },
+        });
+
+        ctx.status = response.status;
+        ctx.body = await response.json();
         return;
       }
     }

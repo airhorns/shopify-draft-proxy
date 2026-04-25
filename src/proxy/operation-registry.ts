@@ -9,6 +9,7 @@ export type CapabilityDomain =
   | 'store-properties'
   | 'discounts'
   | 'markets'
+  | 'metafields'
   | 'unknown';
 export type CapabilityExecution = 'overlay-read' | 'stage-locally' | 'passthrough';
 export type OperationType = 'query' | 'mutation';

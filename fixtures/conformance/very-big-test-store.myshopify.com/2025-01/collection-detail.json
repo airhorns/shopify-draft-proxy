@@ -5,7 +5,7 @@
       "legacyResourceId": "402476531945",
       "title": "Home page",
       "handle": "frontpage",
-      "updatedAt": "2026-04-17T12:52:37Z",
+      "updatedAt": "2026-04-24T21:10:53Z",
       "description": "",
       "descriptionHtml": "",
       "image": null,
@@ -50,7 +50,7 @@
       "legacyResourceId": "429826146537",
       "title": "VANS",
       "handle": "vans",
-      "updatedAt": "2026-04-17T12:52:37Z",
+      "updatedAt": "2026-04-24T21:10:53Z",
       "description": "Vans collection",
       "descriptionHtml": "Vans collection",
       "image": {
@@ -138,7 +138,7 @@
       "actualQueryCost": 15,
       "throttleStatus": {
         "maximumAvailable": 2000,
-        "currentlyAvailable": 1985,
+        "currentlyAvailable": 1965,
         "restoreRate": 100
       }
     }

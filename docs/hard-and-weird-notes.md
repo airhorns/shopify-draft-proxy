@@ -195,6 +195,15 @@ Current live findings on this host:
   - non-null `sourceName` is normalized to the captured installed app/channel identifier (`347082227713`) on the staged order instead of echoing the requested input string
   - non-null `paymentGatewayId` returns the captured `Invalid payment gateway` userError because the proxy has no local payment-gateway catalog yet
 - practical consequence: the repo still should not jump straight from "order roots exist in introspection" to speculative full draft-to-order staging code; keep the local completion slice limited to staged synthetic drafts until live Shopify happy-path evidence exists
+- refreshed draft-order family capture on this host settled four previously planned write scenarios:
+  - `draftOrderUpdate` accepts scalar/tag/custom-attribute/shipping-line updates on a live draft and returns the updated draft plus immediate downstream `draftOrder(id:)` visibility
+  - `draftOrderDuplicate` creates a new open, ready draft, allocates a new name/invoice URL/line-item IDs, copies customer/email/tags/custom attributes/addresses, but clears reserve inventory, shipping line, tax exemption, and discounts; totals recalculate from the undiscounted copied line items
+  - `draftOrderDelete` returns the deleted draft ID and downstream `draftOrder(id:)` returns `null`
+  - `draftOrderCreateFromOrder` can use an order produced by a setup `draftOrderComplete` flow and mirrors the duplicate-like clearing behavior for discounts/shipping while preserving the merchant-facing draft/order customer context
+- easy schema/request traps from promoting those scenarios:
+  - `DraftOrder.note` is not selectable on the current Admin GraphQL schema for these payloads, even though draft-order inputs can carry note-like data through local state
+  - `DraftOrderInput.shippingLine` does not accept a `code` field; live updates accepted title and price fields, and Shopify returned `code: "custom"` on the resulting `shippingLine`
+  - empty variant SKUs can stay as empty strings on draft-order line items while the completed regular order path normalizes empty SKUs to `null`
 
 Practical rule:
 
@@ -509,8 +518,13 @@ Current live findings on this host:
   - `orderEditBegin` clones a staged/local order into a synthetic `CalculatedOrder` session with synthetic `CalculatedLineItem` ids for the current editable line set
   - `orderEditAddVariant` can append a variant-derived calculated line item using the effective local product/variant graph
   - `orderEditSetQuantity` can update quantities on those synthetic calculated line items
-  - `orderEditCommit` can apply the edited line set back onto the staged synthetic order and optionally store the provided `staffNote` on `order.note`
+  - `orderEditCommit` can apply the edited line set back onto the staged synthetic order
   - keep this slice explicitly narrow: it is not proof of live Shopify unknown-id/session parity, only a useful local staging behavior for synthetic/local orders in snapshot mode and live-hybrid
+- fresh 2026-04 `write_order_edits` capture for HAR-115 changed the local-runtime target:
+  - `orderEditBegin` returns both `calculatedOrder.id` and `orderEditSession.id`; the session id uses the same numeric suffix with the `OrderEditSession` GID type
+  - `orderEditCommit` returned `successMessages: ["Order updated"]`, and the captured `staffNote` did not overwrite `order.note`
+  - `orderEditSetQuantity(... quantity: 0, restock: true)` on an existing line did not remove the historical line node from `order.lineItems`; downstream `quantity` stayed at the historical value while `currentQuantity` became `0`
+  - duplicate `orderEditAddVariant` with `allowDuplicates: false` still returned an added calculated line item and no `userErrors` in the captured branch, so do not model that argument as a blanket duplicate rejection
 
 ## 9. The first fulfillment root on this host is _not_ blocked the same way as the rest of the fulfillment lifecycle
 
@@ -1037,6 +1051,7 @@ The first staged media-write increment surfaced a few durable modeling constrain
 - the real root fields are `productCreateMedia`, `productUpdateMedia`, and `productDeleteMedia`
 - mutation payloads commonly ask for media node fields that the earlier read slice did not expose yet, especially `id`, `status`, and `... on MediaImage { image { url } }`
 - inline fragments on media nodes matter immediately because Shopify examples routinely request image URLs through `MediaImage.image.url`, not only through `preview.image.url`
+- product media reads should preserve polymorphic identity when selected; for the current image-backed slice that means returning `__typename: "MediaImage"` and applying `MediaImage` fragments, while broader non-image media subtypes need their own conformance evidence before deeper field modeling
 - newly created image media does **not** immediately expose those image urls in the mutation payload; live Shopify returned `status: UPLOADED` with both `preview.image` and `MediaImage.image` still `null`
 - the immediate downstream `product.media` read can already move that same asset into a null-url `PROCESSING` state before it later becomes `READY`
 - `productUpdateMedia` is not always immediately writable after create; Shopify returned `mediaUserErrors` (`Non-ready media cannot be updated.`) until the asset reached `READY`
@@ -1571,6 +1586,25 @@ Important distinction:
   family while preserving the original raw `fileDelete` mutation for commit
   replay
 
+The generic media update worklist item maps to `fileUpdate`, not
+`productUpdateMedia`.
+
+Important distinction:
+
+- `productUpdateMedia(productId, media)` updates media records already attached
+  to one product's `product.media` connection
+- `fileUpdate(files)` updates store-level Files API records and can add/remove
+  product references through `referencesToAdd` / `referencesToRemove`
+- current `FileUpdateInput` references currently accept product IDs, so adding
+  a reference should make the same file visible in the target product's
+  downstream `product.media` connection while preserving the source product
+  reference unless it is explicitly removed
+- updating a referenced MediaImage's alt/source through `fileUpdate` should
+  refresh all locally known product media references for that file ID
+- this first local slice models file metadata plus product-reference visibility;
+  richer Files API reads and ready-state locking still need dedicated capture
+  evidence before they should become stricter
+
 Practical rule:
 
 1. model `inventoryItemUpdate` as a product-backed staged mutation over the effective variant inventory-item record, not as a separate detached inventory-item table
@@ -1758,6 +1792,23 @@ Live evidence refreshed on this host:
 - both captured custom and smart collections currently return `sortOrder: BEST_SELLING`; the custom collection's blank description comes back as empty strings for both `description` and `descriptionHtml`, not `null`
 - the catalog fixture now selects the same rich metadata fields so `collections` parity covers the captured null/empty shapes alongside nested product connection shape
 
+### 45a. Collection catalog filters should run over the effective collection graph
+
+The catalog search/sort increment for `collections` exposed a familiar ordering trap: filtering has to happen against the merged standalone-collection plus product-membership view before cursor pagination.
+
+Current local rule:
+
+- top-level `collections` and nested `product.collections` apply supported `query`, `sortKey`, `reverse`, `first`/`after`/`last`/`before` in one pipeline: effective graph -> filters -> sort -> cursor window
+- supported local filters are default text, `title`, `handle`, `id`, `collection_type:custom|smart`, `product_id`, and `updated_at` ranges
+- publication-status filters run through the collection publication model when that state is present; `savedSearchId` is still not modeled because the proxy has no saved-search state yet
+- `sortKey: RELEVANCE` without a query falls back to deterministic ID order; with a query, local replay preserves the filtered order rather than inventing a fake relevance scorer
+- empty unmatched collection searches return a non-null connection with empty `edges`/`nodes`, false page booleans, and null cursors
+
+Live evidence refreshed on this host:
+
+- `collections-catalog.json` now captures title wildcard search, `collection_type:custom`, `collection_type:smart`, `UPDATED_AT` reverse sorting, `product_id` filtering, and an unmatched empty query
+- local parity replays those captured branches from the seeded snapshot graph; expected differences are limited to Shopify's opaque collection cursors versus local synthetic cursors
+
 ## 46. Customer-area registry coverage needs to separate likely local staging from side-effect roots
 
 An audit against the current Shopify Admin GraphQL customer docs showed that the first implemented slice (`customer`, `customers`, `customersCount`, `customerCreate`, `customerUpdate`, `customerDelete`) is only the beginning of the customer area. The registry now deliberately accounts for the missing roots future issues are likely to depend on without claiming runtime support.
@@ -1778,6 +1829,21 @@ Practical rule for the proxy:
 - side-effect email roots and customer merge should stay explicit passthrough/deferred until a product decision says whether to block, simulate, or proxy them with stronger observability
 - the protected-customer-data denial mode remains a real fallback path in `scripts/capture-customer-conformance.mts`, but current successful fixtures should not be overwritten by stale blocker notes unless the capture script reproduces the denial again
 
+### 46a. `customerByIdentifier` is an effective-customer lookup, with custom-id caveats
+
+Live `customerByIdentifier` capture on this host showed the safe read branches that should use the same normalized customer graph as `customer(id:)`:
+
+- `identifier: { id }`, `{ emailAddress }`, and `{ phoneNumber }` all returned the same customer when the captured values matched the live record
+- an unmatched email identifier returned `customerByIdentifier: null` with no top-level error
+- `customId` is not a generic local key/value lookup: without a unique metafield definition of type `id`, Shopify returned `data.customId: null` plus a top-level `NOT_FOUND` error saying that an id-type metafield definition is required
+- an empty identifier object failed variable validation before returning data: `CustomerIdentifierInput` requires exactly one argument
+
+Practical rule for the proxy:
+
+- resolve id/email/phone identifier reads against effective normalized customer state, so snapshot rows and staged `customerCreate` / `customerUpdate` rows are visible immediately
+- keep custom-id support limited to the captured Shopify-like error until customer metafield definitions and unique metafield values are modeled explicitly
+- classify `customerByIdentifier` by root field, because apps can use arbitrary or misleading GraphQL operation names
+
 ## 47. Store properties roots are deceptively broad for a "properties" category
 
 The first Store properties inventory for Admin GraphQL 2026-04 exposed several roots that should be tracked before runtime support, but should not be treated as harmless metadata reads/writes.
@@ -1786,7 +1852,7 @@ Current scaffold decision:
 
 - `shop`, `location`, `locationByIdentifier`, `businessEntities`, `businessEntity`, and `cashManagementLocationSummary` are registry-tracked as planned overlay reads, but they are not implemented runtime capabilities yet
 - `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, `locationDelete`, and `shopPolicyUpdate` are registry-tracked as planned local-staging mutations, but they remain unsupported at runtime
-- generic `publishable*` mutations now have a first product-scoped local staging slice; collection and other future `Publishable` targets still need their own evidence and model behavior
+- generic `publishablePublish` / `publishableUnpublish` now stage Product and Collection targets locally; `publishablePublishToCurrentChannel` / `publishableUnpublishToCurrentChannel` currently have product-scoped local staging only
 - the capture harness now records schema inventory plus safe read-only `shop` / `locations` / `location(id:)` baselines, while mutation validation probes are recorded as a plan instead of executed by default
 
 Safety traps:
@@ -1804,14 +1870,36 @@ Practical rule:
 
 The generic Store properties publication roots (`publishablePublish`, `publishablePublishToCurrentChannel`, `publishableUnpublish`, and `publishableUnpublishToCurrentChannel`) should not be collapsed into the existing product-specific publication handlers just because `Product` implements `Publishable`.
 
-Current HAR-177 decision:
+Current HAR-177 / HAR-163 decision:
 
 - keep `productPublish` / `productUnpublish` as the product-domain staged write path with their own captured parity fixtures
-- add a product-scoped local staging slice for the generic `publishable*` roots so known publication mutations do not escape to the real store
-- do not add collection or other `Publishable` support until that resource family has captured evidence and local model behavior
-- treat product and collection targets separately because the Shopify `Publishable` interface currently covers both resource families, and collection publication behavior should not inherit product assumptions without evidence
+- add a product-scoped local staging slice for the generic `publishable*` roots so known product publication mutations do not escape to the real store
+- add collection-scoped local staging for `publishablePublish` / `publishableUnpublish` only after collection-specific capture showed the aggregate publication path
+- keep `publishablePublishToCurrentChannel` / `publishableUnpublishToCurrentChannel` product-only until collection current-channel semantics have separate evidence
+- do not add other `Publishable` support until that resource family has captured evidence and local model behavior
+- treat product and collection targets separately because the Shopify `Publishable` interface covers both resource families, and collection publication behavior must not inherit product assumptions without evidence
 
-This keeps generic product publication mutations isolated from upstream Shopify while preventing duplicate or contradictory publication behavior from pretending that product evidence also settles collection publication semantics.
+This keeps generic product and collection publication mutations isolated from upstream Shopify while preventing duplicate or contradictory publication behavior from pretending that one resource family's evidence settles another's semantics.
+
+Collection-specific facts from the current capture:
+
+- `CollectionRecord.publicationIds` is the first normalized state for collection publication visibility
+- `collectionCreate` records start with an empty publication id list, so `publishedOnPublication`, `availablePublicationsCount`, and `resourcePublicationsCount` serialize as unpublished/zero until a publish mutation stages a target
+- captured Online Store publication writes leave `publishedOnCurrentPublication` false, so the local aggregate model does not treat "published somewhere" as "published on the app's current publication"
+- `collections(query: "published_status:published")` and `published_status:unpublished` filter against the same aggregate collection state in local reads
+- full `resourcePublications` / `resourcePublicationsV2` edge parity remains pending collection-specific live capture because the current safe local model only proves the aggregate publication fields and search visibility path
+
+### 47a. `collectionByIdentifier` and `collectionByHandle` are effective collection lookups
+
+Shopify Admin GraphQL 2026-04 exposes `collectionByIdentifier(identifier:)` and still exposes deprecated `collectionByHandle(handle:)`.
+The safe local branches mirror the existing effective collection graph:
+
+- `identifier: { id }` resolves the same collection as `collection(id:)`
+- `identifier: { handle }` and `collectionByHandle(handle:)` resolve by the current effective collection handle
+- unknown ids and handles return `null` for the singular lookup
+- locally staged `collectionCreate` and `collectionUpdate` records must be visible through both handle-based roots without sending supported collection writes upstream
+
+`CollectionIdentifierInput.customId` is deliberately not modeled as a generic key/value lookup yet. Until a live collection unique-metafield fixture exists, local `customId` lookups return `null` and the proxy does not claim support for positive custom-id matches.
 
 ## 48. Manual collection ordering is not the default collection write path
 
@@ -1838,7 +1926,55 @@ Practical rule:
 - do not synthesize balances, payouts, bank accounts, statement descriptors, disputes, or account opener details from Store properties reads
 - order and market attribution should treat `BusinessEntity` as an identity link for now; do not model Markets assignment or order attribution rules until there is separate captured evidence for those domains
 
-## 49. Markets reads are safe to capture, but writes are not harmless
+## 50. Shop baseline reads are broad, and some feature fields are access-gated
+
+The HAR-167 2026-04 shop baseline capture covers identity, domains, contact/currency/timezone/tax settings, `shopAddress`, `plan`, `resourceLimits`, safe `features`, `paymentSettings.supportedDigitalWallets`, and `shopPolicies`.
+
+`shop.shopPolicies` requires `read_legal_policies`; a token without that scope returns `ACCESS_DENIED` for the field. `ShopFeatures.usingShopifyBalance` also returned `ACCESS_DENIED` with the current conformance token even though nearby feature booleans were readable, so it is intentionally excluded from the baseline fixture and local serializer until separately captured.
+
+Practical rule:
+
+- snapshot mode should return `shop: null` when no normalized shop slice is present rather than inventing store identity
+- keep payment/account-sensitive shop feature fields out of the local baseline until the capture proves both access and shape
+
+## 51. Customer tax exemptions and metafields are part of customerUpdate, but not generic owner support yet
+
+The HAR-154 customer mutation capture added `taxExemptions`, `customer.metafield(...)`, and `customer.metafields(...)` to the existing customer CRUD parity fixture.
+
+Captured facts:
+
+- `customerUpdate(input.taxExemptions)` replaces the customer's applied tax exemption list independently from the boolean `taxExempt`
+- `CustomerInput.metafields` can create a customer-owned metafield and the immediate mutation payload plus downstream `customer(id:)` read expose it through both singular `metafield(namespace:, key:)` and the `metafields` connection
+- Shopify returns opaque cursors for `customer.metafields`; local replay should use stable synthetic cursors and keep only cursor values as expected differences
+- an invalid tax exemption string never reaches `userErrors`; Shopify rejects the GraphQL variable with `INVALID_VARIABLE` before mutation execution
+- an invalid customer metafield type returns `customer: null` with a `userErrors` entry at `['metafields', '0', 'type']`
+
+Practical rule:
+
+- model customer-owned metafields as a customer-scoped sub-model for `customerUpdate` before broadening shared `metafieldsSet` beyond the currently captured product owner slice
+- do not infer support for `customerAddTaxExemptions`, `customerRemoveTaxExemptions`, or `customerReplaceTaxExemptions` from this fixture; those roots still need their own local staging and conformance evidence
+
+## 52. Customer marketing consent moved under default contact methods
+
+HAR-153 live capture used Admin GraphQL 2026-04 because customer consent fields are not present on the configured store's 2025-01 `Customer` object. In 2026-04 introspection, the standalone consent state and update input types still exist, but selected customer read fields are exposed through the default contact objects:
+
+- `Customer.defaultEmailAddress.marketingState`, `marketingOptInLevel`, and `marketingUpdatedAt`
+- `Customer.defaultPhoneNumber.marketingState`, `marketingOptInLevel`, `marketingUpdatedAt`, and `marketingCollectedFrom`
+- `customerByIdentifier(identifier: { id | emailAddress | phoneNumber })` is available and returns the same selected customer contact consent fields as `customer(id:)`
+
+Captured mutation behavior:
+
+- `customerEmailMarketingConsentUpdate` maps input `consentUpdatedAt` to `defaultEmailAddress.marketingUpdatedAt`
+- `customerSmsMarketingConsentUpdate` maps input `consentUpdatedAt` to `defaultPhoneNumber.marketingUpdatedAt` and returns `marketingCollectedFrom: "OTHER"` for the captured Admin API update
+- an unknown email-consent customer id returns `userErrors: [{ field: ["input", "customerId"], message: "Customer not found", code: "INVALID" }]`
+- an unknown SMS-consent customer id returns `userErrors: [{ field: null, message: "Customer not found", code: null }]`
+
+Practical rule:
+
+- model the 2026-04 nested default contact fields as the conformance-backed read shape, and keep direct `emailMarketingConsent` / `smsMarketingConsent` serialization only as a compatibility branch for callers that still request the older field names
+- do not route either supported consent update mutation upstream during normal runtime; the local stage must update the normalized customer contact consent state and preserve the original raw mutation in the meta log for commit replay
+
+## 53. Markets reads are safe to capture, but writes are not harmless
 
 The first Shopify Markets inventory was captured against Admin GraphQL 2026-04 with `corepack pnpm conformance:capture-markets`.
 
@@ -1857,4 +1993,4 @@ Access-scope trap:
 Safety rule:
 
 - do not run successful live writes for market lifecycle, web presence, localization, backup-region, or currency-setting roots on the shared conformance store without a disposable market setup and cleanup story
-- current local Markets support is read-only snapshot replay for captured safe roots; mutation registry entries remain passthrough inventory and must not be read as local staging support
+- current local Markets support is read-only snapshot replay for captured safe roots; mutation registry entries are local-staging scaffolds with `implemented: false` and must not be read as runtime support

@@ -34,9 +34,32 @@ const customerSlice = `
   note
   verifiedEmail
   taxExempt
+  taxExemptions
   tags
   state
   canDelete
+  loyalty: metafield(namespace: "custom", key: "loyalty") {
+    id
+    namespace
+    key
+    type
+    value
+  }
+  metafields(first: 5) {
+    nodes {
+      id
+      namespace
+      key
+      type
+      value
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
   defaultEmailAddress { emailAddress }
   defaultPhoneNumber { phoneNumber }
   defaultAddress { address1 city province country zip formattedArea }
@@ -148,6 +171,15 @@ async function main() {
       note: 'customer update parity probe',
       tags: ['parity', 'updated'],
       taxExempt: false,
+      taxExemptions: ['CA_BC_RESELLER_EXEMPTION'],
+      metafields: [
+        {
+          namespace: 'custom',
+          key: 'loyalty',
+          type: 'single_line_text_field',
+          value: `gold-${stamp}`,
+        },
+      ],
     },
   };
 
@@ -160,6 +192,25 @@ async function main() {
   });
   assertNoTopLevelErrors(updateReadResult, 'customerUpdate downstream read');
 
+  const createValidation = await runGraphql(createMutation, { input: { email: '' } });
+  assertNoTopLevelErrors(createValidation, 'customerCreate validation');
+  const updateValidation = await runGraphql(updateMutation, {
+    input: { id: 'gid://shopify/Customer/999999999999999', firstName: 'Ghost' },
+  });
+  assertNoTopLevelErrors(updateValidation, 'customerUpdate validation');
+  const updateMetafieldValidation = await runGraphql(updateMutation, {
+    input: {
+      id: createdCustomerId,
+      metafields: [{ namespace: 'custom', key: 'bad_type', type: 'not_a_type', value: 'bad' }],
+    },
+  });
+  assertNoTopLevelErrors(updateMetafieldValidation, 'customerUpdate metafield validation');
+  const updateTaxExemptionValidation = await runGraphql(updateMutation, {
+    input: {
+      id: createdCustomerId,
+      taxExemptions: ['NOT_A_TAX_EXEMPTION'],
+    },
+  });
   const deleteVariables = {
     input: {
       id: createdCustomerId,
@@ -175,12 +226,6 @@ async function main() {
   });
   assertNoTopLevelErrors(deleteReadResult, 'customerDelete downstream read');
 
-  const createValidation = await runGraphql(createMutation, { input: { email: '' } });
-  assertNoTopLevelErrors(createValidation, 'customerCreate validation');
-  const updateValidation = await runGraphql(updateMutation, {
-    input: { id: 'gid://shopify/Customer/999999999999999', firstName: 'Ghost' },
-  });
-  assertNoTopLevelErrors(updateValidation, 'customerUpdate validation');
   const deleteValidation = await runGraphql(deleteMutation, {
     input: { id: 'gid://shopify/Customer/999999999999999' },
   });
@@ -207,6 +252,24 @@ async function main() {
     validation: {
       variables: { input: { id: 'gid://shopify/Customer/999999999999999', firstName: 'Ghost' } },
       response: updateValidation.payload,
+    },
+    metafieldValidation: {
+      variables: {
+        input: {
+          id: createdCustomerId,
+          metafields: [{ namespace: 'custom', key: 'bad_type', type: 'not_a_type', value: 'bad' }],
+        },
+      },
+      response: updateMetafieldValidation.payload,
+    },
+    taxExemptionValidation: {
+      variables: {
+        input: {
+          id: createdCustomerId,
+          taxExemptions: ['NOT_A_TAX_EXEMPTION'],
+        },
+      },
+      response: updateTaxExemptionValidation.payload,
     },
   };
 

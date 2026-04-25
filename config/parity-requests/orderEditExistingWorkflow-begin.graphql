@@ -1,0 +1,47 @@
+mutation OrderEditExistingWorkflowBegin($id: ID!) {
+  orderEditBegin(id: $id) {
+    calculatedOrder {
+      id
+      originalOrder {
+        id
+        name
+      }
+      lineItems(first: 10) {
+        nodes {
+          id
+          title
+          quantity
+          currentQuantity
+          sku
+          variant {
+            id
+          }
+          originalUnitPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+      addedLineItems(first: 10) {
+        nodes {
+          id
+          title
+          quantity
+          sku
+          variant {
+            id
+          }
+        }
+      }
+    }
+    orderEditSession {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

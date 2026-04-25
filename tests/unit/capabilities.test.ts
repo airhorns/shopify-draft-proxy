@@ -34,6 +34,50 @@ describe('getOperationCapability', () => {
       operationName: 'Collections',
       type: 'query',
     });
+
+    expect(
+      getOperationCapability({
+        type: 'query',
+        name: 'CollectionByIdentifier',
+        rootFields: ['collectionByIdentifier'],
+      }),
+    ).toEqual({
+      domain: 'products',
+      execution: 'overlay-read',
+      operationName: 'CollectionByIdentifier',
+      type: 'query',
+    });
+
+    expect(
+      getOperationCapability({
+        type: 'query',
+        name: 'CollectionByHandle',
+        rootFields: ['collectionByHandle'],
+      }),
+    ).toEqual({
+      domain: 'products',
+      execution: 'overlay-read',
+      operationName: 'CollectionByHandle',
+      type: 'query',
+    });
+  });
+
+  it('classifies collection identifier roots by root field when the operation name is misleading', () => {
+    expect(
+      getOperationCapability({ type: 'query', name: 'Collection', rootFields: ['collectionByIdentifier'] }),
+    ).toEqual({
+      domain: 'products',
+      execution: 'overlay-read',
+      operationName: 'collectionByIdentifier',
+      type: 'query',
+    });
+
+    expect(getOperationCapability({ type: 'query', name: 'Collection', rootFields: ['collectionByHandle'] })).toEqual({
+      domain: 'products',
+      execution: 'overlay-read',
+      operationName: 'collectionByHandle',
+      type: 'query',
+    });
   });
 
   it('marks customer queries and customersCount as overlay-capable reads', () => {
@@ -55,6 +99,24 @@ describe('getOperationCapability', () => {
       domain: 'customers',
       execution: 'overlay-read',
       operationName: 'CustomersCount',
+      type: 'query',
+    });
+
+    expect(
+      getOperationCapability({ type: 'query', name: 'CustomerByIdentifier', rootFields: ['customerByIdentifier'] }),
+    ).toEqual({
+      domain: 'customers',
+      execution: 'overlay-read',
+      operationName: 'CustomerByIdentifier',
+      type: 'query',
+    });
+  });
+
+  it('classifies customerByIdentifier by root field when the operation name is misleading', () => {
+    expect(getOperationCapability({ type: 'query', name: 'Customer', rootFields: ['customerByIdentifier'] })).toEqual({
+      domain: 'customers',
+      execution: 'overlay-read',
+      operationName: 'customerByIdentifier',
       type: 'query',
     });
   });
@@ -389,6 +451,13 @@ describe('getOperationCapability', () => {
       domain: 'media',
       execution: 'stage-locally',
       operationName: 'FileCreate',
+      type: 'mutation',
+    });
+
+    expect(getOperationCapability({ type: 'mutation', name: 'FileUpdate', rootFields: ['fileUpdate'] })).toEqual({
+      domain: 'media',
+      execution: 'stage-locally',
+      operationName: 'FileUpdate',
       type: 'mutation',
     });
 

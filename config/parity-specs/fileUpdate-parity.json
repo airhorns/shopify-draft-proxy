@@ -1,0 +1,44 @@
+{
+  "scenarioId": "file-update-live-parity",
+  "operationNames": ["fileUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/file-update-parity.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/fileCreateDelete-parity.graphql",
+    "variablesPath": null,
+    "variablesCapturePath": "$.setup.createMutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured live store-level Files API `fileUpdate` after the created MediaImage reached READY. This keeps generic Files API updates distinct from product-scoped `productUpdateMedia`.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.fileUpdate.files[0].id",
+        "matcher": "shopify-gid:MediaImage",
+        "reason": "The update target uses the local staged file id returned by the proxy create response; Shopify returns the live file id captured from the dev store."
+      }
+    ],
+    "targets": [
+      {
+        "name": "update-mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/fileUpdate-parity.graphql",
+          "variables": {
+            "files": [
+              {
+                "id": {
+                  "fromPrimaryProxyPath": "$.data.fileCreate.files[0].id"
+                },
+                "alt": "Hermes Files API updated alt"
+              }
+            ]
+          }
+        },
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

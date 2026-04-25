@@ -3,6 +3,24 @@
     "nameOrder": {
       "edges": [
         {
+          "cursor": "eyJsYXN0X2lkIjo5MDgwMjM5MDMwNTA1LCJsYXN0X3ZhbHVlIjoiLCAifQ==",
+          "node": {
+            "id": "gid://shopify/Customer/9080239030505",
+            "displayName": "order-update-live-probe@example.com",
+            "legacyResourceId": "9080239030505",
+            "defaultAddress": null
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjo5MDk2ODE0MzMwMDg5LCJsYXN0X3ZhbHVlIjoiLCAifQ==",
+          "node": {
+            "id": "gid://shopify/Customer/9096814330089",
+            "displayName": "har-120-invoice-1776900460748@example.com",
+            "legacyResourceId": "9096814330089",
+            "defaultAddress": null
+          }
+        },
+        {
           "cursor": "eyJsYXN0X2lkIjo3MjU0NDU2MjM4MzEzLCJsYXN0X3ZhbHVlIjoiYW5kZXJzb24sIGJhcnJ5In0=",
           "node": {
             "id": "gid://shopify/Customer/7254456238313",
@@ -43,41 +61,13 @@
               "formattedArea": "Benalla, Kyrgyzstan"
             }
           }
-        },
-        {
-          "cursor": "eyJsYXN0X2lkIjo2MTU3NjY1OTI3NDAxLCJsYXN0X3ZhbHVlIjoiYmFrZXIsIHVscmljIn0=",
-          "node": {
-            "id": "gid://shopify/Customer/6157665927401",
-            "displayName": "Ulric Baker",
-            "legacyResourceId": "6157665927401",
-            "defaultAddress": {
-              "country": "Slovenia",
-              "province": "Washington",
-              "city": "Vancouver",
-              "formattedArea": "Vancouver, Slovenia"
-            }
-          }
-        },
-        {
-          "cursor": "eyJsYXN0X2lkIjo2MTU3OTkwMjMyMjk3LCJsYXN0X3ZhbHVlIjoiYmVhY2gsIGdyYWhhbSJ9",
-          "node": {
-            "id": "gid://shopify/Customer/6157990232297",
-            "displayName": "Graham Beach",
-            "legacyResourceId": "6157990232297",
-            "defaultAddress": {
-              "country": "Jamaica",
-              "province": "Queensland",
-              "city": "Gold Coast",
-              "formattedArea": "Gold Coast, Jamaica"
-            }
-          }
         }
       ],
       "pageInfo": {
         "hasNextPage": true,
         "hasPreviousPage": false,
-        "startCursor": "eyJsYXN0X2lkIjo3MjU0NDU2MjM4MzEzLCJsYXN0X3ZhbHVlIjoiYW5kZXJzb24sIGJhcnJ5In0=",
-        "endCursor": "eyJsYXN0X2lkIjo2MTU3OTkwMjMyMjk3LCJsYXN0X3ZhbHVlIjoiYmVhY2gsIGdyYWhhbSJ9"
+        "startCursor": "eyJsYXN0X2lkIjo5MDgwMjM5MDMwNTA1LCJsYXN0X3ZhbHVlIjoiLCAifQ==",
+        "endCursor": "eyJsYXN0X2lkIjo2MTU3Njc0MTUyMTY5LCJsYXN0X3ZhbHVlIjoiYXZlcnksIHR5bGVyIn0="
       }
     },
     "idOrder": {
