@@ -260,7 +260,7 @@ const fixture = {
   apiVersion,
   safety: {
     successfulEnablementNotCaptured:
-      'Successful standardMetafieldDefinitionEnable calls create real metafield definitions, so this fixture only captures no-side-effect validation branches.',
+      'This fixture records validation branches only. Successful standardMetafieldDefinitionEnable calls create real metafield definitions and may be captured in a disposable test-shop setup with explicit cleanup evidence.',
   },
   schema,
   templateSample,

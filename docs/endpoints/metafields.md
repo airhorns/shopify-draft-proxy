@@ -41,12 +41,14 @@ Successful local enablement:
 - returns a Shopify-like `createdDefinition` payload
 - makes downstream `metafieldDefinition(identifier:)` and `metafieldDefinitions(...)` reads observe the staged definition
 
-HAR-257 captured safe no-side-effect validation behavior in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/standard-metafield-definition-enable-validation.json`:
+HAR-257 captured validation behavior in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/standard-metafield-definition-enable-validation.json`:
 
 - no `id` and no `namespace` / `key` returns `createdDefinition: null` with `TEMPLATE_NOT_FOUND`
 - an unknown template ID returns `field: ["id"]`, `TEMPLATE_NOT_FOUND`
 - an unknown namespace/key selector returns `field: null`, `TEMPLATE_NOT_FOUND`
 - template ID `1` with incompatible owner type `CUSTOMER` returns the same invalid-template-ID branch
+
+That fixture scope is not a rule against live success captures. Normal supported proxy runtime handling must not send this mutation to Shopify, but explicit conformance recording may create and clean up real standard definitions in a disposable test shop, and `__meta/commit` replay should let the queued raw mutation create its Shopify-side schema effect.
 
 ## Metafield definition pinning
 

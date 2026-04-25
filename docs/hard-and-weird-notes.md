@@ -2381,11 +2381,11 @@ Practical rule:
 
 - keep the local `customerSet` support boundary narrower than `customerUpdate`: support fixture-backed scalar replacement, tag/tax exemption replacement, id/email/phone resolution, synthetic create/upsert, and existing-customer address-list replacement; reject unmodeled fields locally instead of letting a now-supported root proxy upstream
 
-## 64. `standardMetafieldDefinitionEnable` is a schema write, even when the safe captures are validation-only
+## 64. `standardMetafieldDefinitionEnable` is a schema write, but test-shop side effects are allowed
 
-HAR-257 captured `standardMetafieldDefinitionEnable` on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com`. The important safety point is that successful standard enablement creates a real metafield definition; do not run happy-path captures without a disposable setup and cleanup plan.
+HAR-257 captured `standardMetafieldDefinitionEnable` on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com`. Successful standard enablement creates a real metafield definition. That must not happen during normal supported proxy runtime handling, but it is acceptable and useful during explicit conformance recording against disposable test-shop fixtures, and during `__meta/commit` replay of staged raw mutations.
 
-Captured no-side-effect branches:
+Captured validation branches:
 
 - the mutation is argument-based, not input-object-based: `ownerType` is non-null, while `id`, `namespace`, `key`, `pin`, `capabilities`, and `access` are optional arguments
 - the payload has `createdDefinition` and `userErrors`
@@ -2398,8 +2398,9 @@ Local support now uses the captured template slice as a bounded local catalog. S
 
 Practical rule:
 
-- keep support constrained to captured standard template IDs/namespaces until broader template catalog reads are modeled
-- validation-only live captures remain guardrails for error shapes; local success coverage comes from runtime tests because live success would create real Shopify schema state
+- keep proxy runtime support constrained to captured standard template IDs/namespaces until broader template catalog reads are modeled
+- when broader fidelity needs a success fixture, set up and clean up the disposable test shop instead of treating Shopify side effects as a capture blocker
+- commit replay should apply the original raw staged mutation to Shopify so the real schema side effect can happen at the intentional commit boundary
 - do not broaden create/update/delete/pin/unpin definition lifecycle support from this enablement slice
 
 ## 65. Discount redeem-code bulk support is narrow by design
