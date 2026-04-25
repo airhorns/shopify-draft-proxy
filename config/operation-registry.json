@@ -562,18 +562,18 @@
     "type": "mutation",
     "domain": "store-properties",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["locationAdd", "LocationAdd"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/location-query-shapes.test.ts"]
   },
   {
     "name": "locationEdit",
     "type": "mutation",
     "domain": "store-properties",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["locationEdit", "LocationEdit"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/location-query-shapes.test.ts"]
   },
   {
     "name": "locationActivate",
@@ -651,6 +651,56 @@
     "matchNames": ["shopPolicyUpdate", "ShopPolicyUpdate"],
     "runtimeTests": ["tests/integration/shop-policy-update-flow.test.ts"],
     "supportNotes": "HAR-173: stages legal policy updates locally by ShopPolicyType, preserves raw mutation requests for commit replay, and overlays downstream shop.shopPolicies reads without proxying supported requests upstream."
+  },
+  {
+    "name": "privacySettings",
+    "type": "query",
+    "domain": "privacy",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["privacySettings", "PrivacySettings"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-250 registry-only privacy read coverage. Keep unimplemented until captured privacySettings evidence and a local privacy settings overlay model exist."
+  },
+  {
+    "name": "consentPolicy",
+    "type": "query",
+    "domain": "privacy",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["consentPolicy", "ConsentPolicy"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-250 registry-only privacy read coverage. Keep unimplemented until captured consentPolicy evidence and a local consent policy overlay model exist."
+  },
+  {
+    "name": "consentPolicyRegions",
+    "type": "query",
+    "domain": "privacy",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["consentPolicyRegions", "ConsentPolicyRegions"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-250 registry-only privacy read coverage. Keep unimplemented until captured consentPolicyRegions evidence and a local consent policy region model exist."
+  },
+  {
+    "name": "consentPolicyUpdate",
+    "type": "mutation",
+    "domain": "privacy",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["consentPolicyUpdate", "ConsentPolicyUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-250 registry-only privacy mutation coverage. Keep unimplemented until live capture and a local consent policy staging model exist; registry presence must not make this a supported passthrough."
+  },
+  {
+    "name": "privacyFeaturesDisable",
+    "type": "mutation",
+    "domain": "privacy",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["privacyFeaturesDisable", "PrivacyFeaturesDisable"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-250 registry-only privacy mutation coverage. Keep unimplemented until live capture and a local privacy feature staging model exist; registry presence must not make this a supported passthrough."
   },
   {
     "name": "productOptionsCreate",
@@ -2646,30 +2696,30 @@
     "type": "mutation",
     "domain": "segments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["segmentCreate", "SegmentCreate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_customers and protected-customer-data captures for ShopifyQL validation, unique names, and downstream segment catalog reads."
+    "runtimeTests": ["tests/integration/segment-lifecycle-flow.test.ts"],
+    "supportNotes": "HAR-216 stages segment creation locally with synthetic IDs/timestamps, captured blank/invalid-query validation, Shopify-like duplicate-name suffixing, and downstream segment catalog/count/detail reads."
   },
   {
     "name": "segmentUpdate",
     "type": "mutation",
     "domain": "segments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["segmentUpdate", "SegmentUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_customers and protected-customer-data captures for ShopifyQL validation, rename behavior, and downstream member recalculation."
+    "runtimeTests": ["tests/integration/segment-lifecycle-flow.test.ts"],
+    "supportNotes": "HAR-216 stages segment updates locally with captured unknown-ID/validation userErrors, query/name replacement, duplicate-name suffixing, and read-after-write visibility."
   },
   {
     "name": "segmentDelete",
     "type": "mutation",
     "domain": "segments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["segmentDelete", "SegmentDelete"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_customers and protected-customer-data captures for deletion payloads, unknown IDs, and downstream absence behavior."
+    "runtimeTests": ["tests/integration/segment-lifecycle-flow.test.ts"],
+    "supportNotes": "HAR-216 stages segment deletion locally, returns captured unknown-ID userErrors, and removes deleted segments from downstream detail/catalog/count reads."
   },
   {
     "name": "market",
@@ -2780,6 +2830,45 @@
     ]
   },
   {
+    "name": "marketLocalizableResource",
+    "type": "query",
+    "domain": "markets",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["marketLocalizableResource", "MarketLocalizableResource"],
+    "runtimeTests": [
+      "tests/integration/markets-localization-flow.test.ts",
+      "tests/unit/conformance-parity-scenarios.test.ts"
+    ],
+    "supportNotes": "Supports product metafield-backed MarketLocalizableResource reads for the current 2026-04 METAFIELD resource type."
+  },
+  {
+    "name": "marketLocalizableResources",
+    "type": "query",
+    "domain": "markets",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["marketLocalizableResources", "MarketLocalizableResources"],
+    "runtimeTests": [
+      "tests/integration/markets-localization-flow.test.ts",
+      "tests/unit/conformance-parity-scenarios.test.ts"
+    ],
+    "supportNotes": "Supports resourceType: METAFIELD over product metafields; METAOBJECT returns the Shopify-like empty local slice until metaobject state exists."
+  },
+  {
+    "name": "marketLocalizableResourcesByIds",
+    "type": "query",
+    "domain": "markets",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["marketLocalizableResourcesByIds", "MarketLocalizableResourcesByIds"],
+    "runtimeTests": [
+      "tests/integration/markets-localization-flow.test.ts",
+      "tests/unit/conformance-parity-scenarios.test.ts"
+    ],
+    "supportNotes": "Supports product metafield resource IDs and ignores unknown IDs with Shopify-like empty connection behavior."
+  },
+  {
     "name": "marketCreate",
     "type": "mutation",
     "domain": "markets",
@@ -2874,18 +2963,20 @@
     "type": "mutation",
     "domain": "markets",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketLocalizationsRegister", "MarketLocalizationsRegister"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/markets-localization-flow.test.ts"],
+    "supportNotes": "Stages market-specific values for product metafield resources only; validates market ID, key, digest, blank value, and missing input without upstream writes."
   },
   {
     "name": "marketLocalizationsRemove",
     "type": "mutation",
     "domain": "markets",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketLocalizationsRemove", "MarketLocalizationsRemove"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/markets-localization-flow.test.ts"],
+    "supportNotes": "Removes staged market-specific product metafield values locally and returns removed localization payloads."
   },
   {
     "name": "fileCreate",

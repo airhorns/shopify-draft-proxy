@@ -28,6 +28,12 @@ const createProductMutation = `#graphql
       product {
         id
         title
+        variants(first: 1) {
+          nodes {
+            id
+            title
+          }
+        }
       }
       userErrors {
         field
@@ -41,6 +47,34 @@ const deleteProductMutation = `#graphql
   mutation ProductMetafieldConformanceDeleteProduct($input: ProductDeleteInput!) {
     productDelete(input: $input) {
       deletedProductId
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const createCollectionMutation = `#graphql
+  mutation ProductMetafieldConformanceCreateCollection($input: CollectionInput!) {
+    collectionCreate(input: $input) {
+      collection {
+        id
+        title
+        handle
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const deleteCollectionMutation = `#graphql
+  mutation ProductMetafieldConformanceDeleteCollection($input: CollectionDeleteInput!) {
+    collectionDelete(input: $input) {
+      deletedCollectionId
       userErrors {
         field
         message
@@ -229,11 +263,121 @@ const productMetafieldsReadQuery = `#graphql
   }
 `;
 
+const ownerExpansionDownstreamReadQuery = `#graphql
+  query MetafieldsSetOwnerExpansionDownstreamRead($productId: ID!, $variantId: ID!, $collectionId: ID!) {
+    product(id: $productId) {
+      id
+      title
+      variants(first: 1) {
+        nodes {
+          id
+          title
+          care: metafield(namespace: "custom", key: "variant_care") {
+            id
+            namespace
+            key
+            type
+            value
+            compareDigest
+            ownerType
+          }
+          metafields(first: 10) {
+            nodes {
+              id
+              namespace
+              key
+              type
+              value
+              compareDigest
+              ownerType
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+              startCursor
+              endCursor
+            }
+          }
+        }
+      }
+    }
+    productVariant(id: $variantId) {
+      id
+      title
+      care: metafield(namespace: "custom", key: "variant_care") {
+        id
+        namespace
+        key
+        type
+        value
+        compareDigest
+        ownerType
+      }
+      metafields(first: 10) {
+        nodes {
+          id
+          namespace
+          key
+          type
+          value
+          compareDigest
+          ownerType
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+    collection(id: $collectionId) {
+      id
+      title
+      handle
+      season: metafield(namespace: "custom", key: "collection_season") {
+        id
+        namespace
+        key
+        type
+        value
+        compareDigest
+        ownerType
+      }
+      metafields(first: 10) {
+        nodes {
+          id
+          namespace
+          key
+          type
+          value
+          compareDigest
+          ownerType
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+  }
+`;
+
 function buildCreateProductVariables(runId) {
   return {
     product: {
       title: `Hermes Product Metafield Conformance ${runId}`,
       status: 'DRAFT',
+    },
+  };
+}
+
+function buildCreateCollectionVariables(runId) {
+  return {
+    input: {
+      title: `Hermes Metafield Owner Collection ${runId}`,
     },
   };
 }
@@ -254,6 +398,27 @@ function buildMetafieldsSetVariables(productId) {
         key: 'origin',
         type: 'single_line_text_field',
         value: 'VN',
+      },
+    ],
+  };
+}
+
+function buildOwnerExpansionMetafieldsSetVariables(variantId, collectionId) {
+  return {
+    metafields: [
+      {
+        ownerId: variantId,
+        namespace: 'custom',
+        key: 'variant_care',
+        type: 'single_line_text_field',
+        value: 'Spot clean',
+      },
+      {
+        ownerId: collectionId,
+        namespace: 'custom',
+        key: 'collection_season',
+        type: 'single_line_text_field',
+        value: 'Winter',
       },
     ],
   };
@@ -518,12 +683,24 @@ await mkdir(outputDir, { recursive: true });
 const runId = `${Date.now()}`;
 const createProductVariables = buildCreateProductVariables(runId);
 let createdProductId = null;
+let createdCollectionId = null;
 
 try {
   const createProductResponse = await runGraphql(createProductMutation, createProductVariables);
   createdProductId = createProductResponse.data?.productCreate?.product?.id ?? null;
+  const createdVariantId = createProductResponse.data?.productCreate?.product?.variants?.nodes?.[0]?.id ?? null;
   if (!createdProductId) {
     throw new Error('Product metafield capture did not return a product id.');
+  }
+  if (!createdVariantId) {
+    throw new Error('Product metafield capture did not return a product variant id.');
+  }
+
+  const createCollectionVariables = buildCreateCollectionVariables(runId);
+  const createCollectionResponse = await runGraphql(createCollectionMutation, createCollectionVariables);
+  createdCollectionId = createCollectionResponse.data?.collectionCreate?.collection?.id ?? null;
+  if (!createdCollectionId) {
+    throw new Error('Product metafield capture did not return a collection id.');
   }
 
   const metafieldsSetVariables = buildMetafieldsSetVariables(createdProductId);
@@ -538,6 +715,18 @@ try {
     after: typeof firstMetafieldCursor === 'string' ? firstMetafieldCursor : null,
   };
   const productMetafieldsRead = await runGraphql(productMetafieldsReadQuery, productMetafieldsReadVariables);
+
+  const ownerExpansionVariables = buildOwnerExpansionMetafieldsSetVariables(createdVariantId, createdCollectionId);
+  const ownerExpansionResponse = await runGraphql(metafieldsSetMutation, ownerExpansionVariables);
+  const ownerExpansionDownstreamReadVariables = {
+    productId: createdProductId,
+    variantId: createdVariantId,
+    collectionId: createdCollectionId,
+  };
+  const ownerExpansionDownstreamRead = await runGraphql(
+    ownerExpansionDownstreamReadQuery,
+    ownerExpansionDownstreamReadVariables,
+  );
 
   const casSuccessVariables = buildCasSuccessVariables(createdProductId, materialCompareDigest);
   const casSuccessResponse = await runGraphql(metafieldsSetMutation, casSuccessVariables);
@@ -724,6 +913,26 @@ try {
     'utf8',
   );
 
+  const ownerExpansionCaptureFile = 'metafields-set-owner-expansion-parity.json';
+  await writeFile(
+    path.join(outputDir, ownerExpansionCaptureFile),
+    `${JSON.stringify(
+      {
+        seedProduct: createProductResponse.data?.productCreate?.product ?? null,
+        seedCollection: createCollectionResponse.data?.collectionCreate?.collection ?? null,
+        mutation: {
+          variables: ownerExpansionVariables,
+          response: ownerExpansionResponse,
+        },
+        downstreamReadVariables: ownerExpansionDownstreamReadVariables,
+        downstreamRead: ownerExpansionDownstreamRead,
+      },
+      null,
+      2,
+    )}\n`,
+    'utf8',
+  );
+
   console.log(
     JSON.stringify(
       {
@@ -741,8 +950,11 @@ try {
           ...missingRequiredResponses.map((response) => response.file),
           deleteCaptureFile,
           readCaptureFile,
+          ownerExpansionCaptureFile,
         ],
         productId: createdProductId,
+        variantId: createdVariantId,
+        collectionId: createdCollectionId,
       },
       null,
       2,
@@ -769,6 +981,25 @@ try {
 
   throw error;
 } finally {
+  if (createdCollectionId) {
+    try {
+      await runGraphql(deleteCollectionMutation, { input: { id: createdCollectionId } });
+    } catch (cleanupError) {
+      console.warn(
+        JSON.stringify(
+          {
+            ok: false,
+            cleanup: 'collectionDelete',
+            collectionId: createdCollectionId,
+            error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+          },
+          null,
+          2,
+        ),
+      );
+    }
+  }
+
   if (createdProductId) {
     try {
       await runGraphql(deleteProductMutation, { input: { id: createdProductId } });

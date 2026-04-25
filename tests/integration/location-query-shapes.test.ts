@@ -510,4 +510,248 @@ describe('location query shapes', () => {
       ],
     });
   });
+
+  it('stages locationAdd locally and exposes the new location through reads and meta state', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('locationAdd should stage locally in snapshot mode');
+    });
+    const app = createApp(config).callback();
+
+    const mutationResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation AddLocation($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location {
+              id
+              name
+              fulfillsOnlineOrders
+              address { countryCode zip }
+              metafield(namespace: "my_field", key: "delivery_type") { namespace key value type ownerType }
+              metafields(first: 3) { edges { cursor node { namespace key value type ownerType } } }
+            }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            name: 'Staged Warehouse',
+            address: { countryCode: 'US', zip: '10006' },
+            fulfillsOnlineOrders: false,
+            metafields: [
+              {
+                namespace: 'my_field',
+                key: 'delivery_type',
+                type: 'single_line_text_field',
+                value: 'local',
+              },
+            ],
+          },
+        },
+      });
+
+    const location = mutationResponse.body.data.locationAdd.location;
+    expect(mutationResponse.status).toBe(200);
+    expect(mutationResponse.body.data.locationAdd.userErrors).toEqual([]);
+    expect(location).toEqual({
+      id: 'gid://shopify/Location/1?shopify-draft-proxy=synthetic',
+      name: 'Staged Warehouse',
+      fulfillsOnlineOrders: false,
+      address: { countryCode: 'US', zip: '10006' },
+      metafield: {
+        namespace: 'my_field',
+        key: 'delivery_type',
+        value: 'local',
+        type: 'single_line_text_field',
+        ownerType: 'LOCATION',
+      },
+      metafields: {
+        edges: [
+          {
+            cursor: 'cursor:gid://shopify/Metafield/2',
+            node: {
+              namespace: 'my_field',
+              key: 'delivery_type',
+              value: 'local',
+              type: 'single_line_text_field',
+              ownerType: 'LOCATION',
+            },
+          },
+        ],
+      },
+    });
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ReadStagedLocation($id: ID!) {
+          location(id: $id) { id name fulfillsOnlineOrders address { countryCode zip } }
+          locationByIdentifier(identifier: { id: $id }) { id name }
+        }`,
+        variables: { id: location.id },
+      });
+
+    expect(readResponse.body.data).toEqual({
+      location: {
+        id: location.id,
+        name: 'Staged Warehouse',
+        fulfillsOnlineOrders: false,
+        address: { countryCode: 'US', zip: '10006' },
+      },
+      locationByIdentifier: {
+        id: location.id,
+        name: 'Staged Warehouse',
+      },
+    });
+
+    const catalogResponse = await request(app).post('/admin/api/2026-04/graphql.json').send({
+      query: 'query { locations(first: 5) { nodes { id name } } }',
+    });
+
+    expect(catalogResponse.body.data.locations.nodes).toEqual([{ id: location.id, name: 'Staged Warehouse' }]);
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(logResponse.body.entries).toMatchObject([
+      {
+        operationName: 'locationAdd',
+        status: 'staged',
+        stagedResourceIds: [location.id],
+        interpreted: {
+          primaryRootField: 'locationAdd',
+          capability: { domain: 'store-properties', execution: 'stage-locally' },
+        },
+      },
+    ]);
+
+    const stateResponse = await request(app).get('/__meta/state');
+    expect(stateResponse.body.stagedState.locations[location.id]).toMatchObject({
+      id: location.id,
+      name: 'Staged Warehouse',
+      fulfillsOnlineOrders: false,
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('stages locationEdit locally and downstream inventory location reads observe edits', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('locationEdit should stage locally in snapshot mode');
+    });
+    store.upsertBaseLocations([
+      {
+        id: 'gid://shopify/Location/1',
+        name: 'Alpha Warehouse',
+        fulfillsOnlineOrders: true,
+        address: {
+          address1: 'Old street',
+          address2: null,
+          city: null,
+          country: 'US',
+          countryCode: 'US',
+          formatted: ['Old street', 'US'],
+          latitude: null,
+          longitude: null,
+          phone: null,
+          province: null,
+          provinceCode: null,
+          zip: '10001',
+        },
+      },
+    ]);
+    const product = makeProduct('gid://shopify/Product/1', 'Alpha Product');
+    store.upsertBaseProducts([product]);
+    store.replaceBaseVariantsForProduct(product.id, [
+      makeVariant(product.id, 'gid://shopify/ProductVariant/1', 'gid://shopify/InventoryItem/1'),
+    ]);
+    const app = createApp(config).callback();
+
+    const mutationResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation EditLocation($id: ID!, $input: LocationEditInput!) {
+          locationEdit(id: $id, input: $input) {
+            location { id name fulfillsOnlineOrders address { address1 countryCode zip } }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          id: 'gid://shopify/Location/1',
+          input: {
+            name: 'Edited Warehouse',
+            address: { address1: 'New street', zip: '10002' },
+            fulfillsOnlineOrders: false,
+          },
+        },
+      });
+
+    expect(mutationResponse.body.data.locationEdit).toEqual({
+      location: {
+        id: 'gid://shopify/Location/1',
+        name: 'Edited Warehouse',
+        fulfillsOnlineOrders: false,
+        address: { address1: 'New street', countryCode: 'US', zip: '10002' },
+      },
+      userErrors: [],
+    });
+
+    const inventoryResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query($inventoryItemId: ID!) {
+          inventoryItem(id: $inventoryItemId) {
+            inventoryLevels(first: 5) { nodes { location { id name } } }
+          }
+        }`,
+        variables: { inventoryItemId: 'gid://shopify/InventoryItem/1' },
+      });
+
+    expect(inventoryResponse.body.data.inventoryItem.inventoryLevels.nodes[0].location).toEqual({
+      id: 'gid://shopify/Location/1',
+      name: 'Edited Warehouse',
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns captured locationAdd/locationEdit validation userErrors without staging changes', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('invalid location mutations should resolve locally in snapshot mode');
+    });
+    store.upsertBaseLocations([{ id: 'gid://shopify/Location/1', name: 'Alpha Warehouse' }]);
+    const app = createApp(config).callback();
+
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation {
+          blankAdd: locationAdd(input: { name: "", address: { countryCode: US } }) {
+            location { id }
+            userErrors { field message }
+          }
+          blankEdit: locationEdit(id: "gid://shopify/Location/1", input: { name: "" }) {
+            location { id }
+            userErrors { field message }
+          }
+          missingEdit: locationEdit(id: "gid://shopify/Location/999999999999", input: { name: "Nope" }) {
+            location { id }
+            userErrors { field message }
+          }
+        }`,
+      });
+
+    expect(response.body.data).toEqual({
+      blankAdd: {
+        location: null,
+        userErrors: [{ field: ['input', 'name'], message: 'Add a location name' }],
+      },
+      blankEdit: {
+        location: null,
+        userErrors: [{ field: ['input', 'name'], message: 'Add a location name' }],
+      },
+      missingEdit: {
+        location: null,
+        userErrors: [{ field: ['id'], message: 'Location not found.' }],
+      },
+    });
+    expect(store.listEffectiveLocations()).toEqual([{ id: 'gid://shopify/Location/1', name: 'Alpha Warehouse' }]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });
