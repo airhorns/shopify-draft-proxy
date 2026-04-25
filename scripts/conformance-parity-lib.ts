@@ -985,7 +985,10 @@ function readStringArrayField(value: Record<string, unknown> | null | undefined,
 
 function readCapturedDiscountRecord(source: Record<string, unknown> | null): DiscountRecord | null {
   const id = readStringField(source, 'id');
-  const discount = readRecordField(source, 'discount');
+  const discount =
+    readRecordField(source, 'discount') ??
+    readRecordField(source, 'codeDiscount') ??
+    readRecordField(source, 'automaticDiscount');
   const typeName = readStringField(discount, '__typename');
   const title = readStringField(discount, 'title');
   if (!id || !discount || !typeName || !title) {
@@ -997,6 +1000,36 @@ function readCapturedDiscountRecord(source: Record<string, unknown> | null): Dis
     .filter(isPlainObject)
     .map((codeNode) => readStringField(codeNode, 'code'))
     .filter((code): code is string => typeof code === 'string' && code.length > 0);
+  const redeemCodes = readArrayField(readRecordField(discount, 'codes'), 'nodes')
+    .filter(isPlainObject)
+    .map((codeNode) => {
+      const code = readStringField(codeNode, 'code');
+      const codeId = readStringField(codeNode, 'id');
+      if (!code || !codeId) {
+        return null;
+      }
+
+      return {
+        id: codeId,
+        code,
+        asyncUsageCount: readNumberField(codeNode, 'asyncUsageCount') ?? 0,
+      };
+    })
+    .filter((code): code is { id: string; code: string; asyncUsageCount: number } => code !== null);
+  const context = readRecordField(discount, 'context');
+  const customerGets = readRecordField(discount, 'customerGets');
+  const customerGetsValue = readRecordField(customerGets, 'value');
+  const customerGetsItems = readRecordField(customerGets, 'items');
+  const minimumRequirement = readRecordField(discount, 'minimumRequirement');
+  const minimumSubtotal = readRecordField(minimumRequirement, 'greaterThanOrEqualToSubtotal');
+  const valueAmount = readRecordField(customerGetsValue, 'amount');
+  const eventNodes = [
+    ...readArrayField(readRecordField(source, 'events'), 'nodes').filter(isPlainObject),
+    ...readArrayField(readRecordField(source, 'events'), 'edges')
+      .filter(isPlainObject)
+      .map((edge) => readRecordField(edge, 'node'))
+      .filter((node): node is Record<string, unknown> => node !== null),
+  ];
 
   return {
     id,
@@ -1017,6 +1050,88 @@ function readCapturedDiscountRecord(source: Record<string, unknown> | null): Dis
       shippingDiscounts: readBooleanField(combinesWith, 'shippingDiscounts') ?? false,
     },
     codes,
+    redeemCodes,
+    context: context
+      ? {
+          typeName: readStringField(context, '__typename') ?? 'DiscountBuyerSelectionAll',
+          all: readNullableStringField(context, 'all'),
+        }
+      : null,
+    customerGets:
+      customerGets && customerGetsValue && customerGetsItems
+        ? {
+            value: {
+              typeName: readStringField(customerGetsValue, '__typename') ?? 'DiscountPercentage',
+              percentage: readNullableNumberField(customerGetsValue, 'percentage'),
+              amount:
+                readStringField(valueAmount, 'amount') && readStringField(valueAmount, 'currencyCode')
+                  ? {
+                      amount: readStringField(valueAmount, 'amount') as string,
+                      currencyCode: readStringField(valueAmount, 'currencyCode') as string,
+                    }
+                  : null,
+              appliesOnEachItem: readBooleanField(customerGetsValue, 'appliesOnEachItem'),
+            },
+            items: {
+              typeName: readStringField(customerGetsItems, '__typename') ?? 'AllDiscountItems',
+              allItems: readBooleanField(customerGetsItems, 'allItems'),
+            },
+            appliesOnOneTimePurchase: readBooleanField(customerGets, 'appliesOnOneTimePurchase') ?? true,
+            appliesOnSubscription: readBooleanField(customerGets, 'appliesOnSubscription') ?? false,
+          }
+        : null,
+    minimumRequirement: minimumRequirement
+      ? {
+          typeName: readStringField(minimumRequirement, '__typename') ?? 'DiscountMinimumSubtotal',
+          greaterThanOrEqualToQuantity: readNullableStringField(minimumRequirement, 'greaterThanOrEqualToQuantity'),
+          greaterThanOrEqualToSubtotal:
+            readStringField(minimumSubtotal, 'amount') && readStringField(minimumSubtotal, 'currencyCode')
+              ? {
+                  amount: readStringField(minimumSubtotal, 'amount') as string,
+                  currencyCode: readStringField(minimumSubtotal, 'currencyCode') as string,
+                }
+              : null,
+        }
+      : null,
+    events: eventNodes
+      .map((eventNode) => {
+        const eventId = readStringField(eventNode, 'id');
+        if (!eventId) {
+          return null;
+        }
+
+        return {
+          id: eventId,
+          typeName: readStringField(eventNode, '__typename') ?? 'BasicEvent',
+          action: readNullableStringField(eventNode, 'action'),
+          message: readNullableStringField(eventNode, 'message'),
+          createdAt: readNullableStringField(eventNode, 'createdAt'),
+          subjectId: readNullableStringField(eventNode, 'subjectId'),
+          subjectType: readNullableStringField(eventNode, 'subjectType'),
+        };
+      })
+      .filter((event) => event !== null),
+  };
+}
+
+function mergeCapturedDiscountRecord(existing: DiscountRecord, next: DiscountRecord): DiscountRecord {
+  return {
+    ...existing,
+    ...next,
+    status: next.status ?? existing.status,
+    summary: next.summary ?? existing.summary,
+    startsAt: next.startsAt ?? existing.startsAt,
+    endsAt: next.endsAt ?? existing.endsAt,
+    createdAt: next.createdAt ?? existing.createdAt,
+    updatedAt: next.updatedAt ?? existing.updatedAt,
+    asyncUsageCount: next.asyncUsageCount ?? existing.asyncUsageCount,
+    discountClasses: next.discountClasses.length > 0 ? next.discountClasses : existing.discountClasses,
+    codes: next.codes.length > 0 ? next.codes : existing.codes,
+    redeemCodes: (next.redeemCodes ?? []).length > 0 ? next.redeemCodes : existing.redeemCodes,
+    context: next.context ?? existing.context,
+    customerGets: next.customerGets ?? existing.customerGets,
+    minimumRequirement: next.minimumRequirement ?? existing.minimumRequirement,
+    events: [...(existing.events ?? []), ...(next.events ?? [])],
   };
 }
 
@@ -1029,12 +1144,19 @@ function seedDiscountCatalogPreconditions(capture: unknown): boolean {
     .map((edge) => readRecordField(edge, 'node'))
     .filter((node): node is Record<string, unknown> => node !== null);
   const seedNodes = readArrayField(capture as Record<string, unknown>, 'seedDiscounts').filter(isPlainObject);
+  const singularNodes = [
+    readRecordField(responseData, 'codeDiscountNodeByCode'),
+    readRecordField(responseData, 'automaticDiscountNode'),
+    readRecordField(responseData, 'codeDiscountNode'),
+    readRecordField(responseData, 'discountNode'),
+  ].filter((node): node is Record<string, unknown> => node !== null);
   const discountsById = new Map<string, DiscountRecord>();
 
-  for (const node of [...capturedNodes, ...capturedEdgeNodes, ...seedNodes]) {
+  for (const node of [...capturedNodes, ...capturedEdgeNodes, ...singularNodes, ...seedNodes]) {
     const discount = readCapturedDiscountRecord(node);
     if (discount) {
-      discountsById.set(discount.id, discount);
+      const existing = discountsById.get(discount.id);
+      discountsById.set(discount.id, existing ? mergeCapturedDiscountRecord(existing, discount) : discount);
     }
   }
 
