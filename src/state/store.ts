@@ -70,6 +70,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedFileIds: {},
   deletedCollectionIds: {},
   deletedCustomerIds: {},
+  deletedSegmentIds: {},
   deletedDiscountIds: {},
   deletedMarketIds: {},
   mergedCustomerIds: {},
@@ -364,6 +365,8 @@ export class InMemoryStore {
 
   upsertBaseSegments(segments: SegmentRecord[]): void {
     for (const segment of segments) {
+      delete this.baseState.deletedSegmentIds[segment.id];
+      delete this.stagedState.deletedSegmentIds[segment.id];
       this.baseState.segments[segment.id] = structuredClone(segment);
     }
   }
@@ -380,6 +383,53 @@ export class InMemoryStore {
         (left, right) =>
           (left.creationDate ?? '').localeCompare(right.creationDate ?? '') || left.id.localeCompare(right.id),
       );
+  }
+
+  stageCreateSegment(segment: SegmentRecord): SegmentRecord {
+    delete this.stagedState.deletedSegmentIds[segment.id];
+    this.stagedState.segments[segment.id] = structuredClone(segment);
+    return structuredClone(segment);
+  }
+
+  stageUpdateSegment(segment: SegmentRecord): SegmentRecord {
+    delete this.stagedState.deletedSegmentIds[segment.id];
+    this.stagedState.segments[segment.id] = structuredClone(segment);
+    return structuredClone(segment);
+  }
+
+  stageDeleteSegment(segmentId: string): void {
+    delete this.stagedState.segments[segmentId];
+    this.stagedState.deletedSegmentIds[segmentId] = true;
+  }
+
+  getEffectiveSegmentById(segmentId: string): SegmentRecord | null {
+    if (this.stagedState.deletedSegmentIds[segmentId]) {
+      return null;
+    }
+
+    const segment = this.stagedState.segments[segmentId] ?? this.baseState.segments[segmentId] ?? null;
+    return segment ? structuredClone(segment) : null;
+  }
+
+  listEffectiveSegments(): SegmentRecord[] {
+    const mergedSegments = new Map<string, SegmentRecord>();
+    for (const segment of [...Object.values(this.baseState.segments), ...Object.values(this.stagedState.segments)]) {
+      if (this.stagedState.deletedSegmentIds[segment.id]) {
+        continue;
+      }
+      mergedSegments.set(segment.id, structuredClone(segment));
+    }
+
+    return Array.from(mergedSegments.values()).sort(
+      (left, right) =>
+        (left.creationDate ?? '').localeCompare(right.creationDate ?? '') || left.id.localeCompare(right.id),
+    );
+  }
+
+  hasStagedSegments(): boolean {
+    return (
+      Object.keys(this.stagedState.segments).length > 0 || Object.keys(this.stagedState.deletedSegmentIds).length > 0
+    );
   }
 
   upsertBaseDiscounts(discounts: DiscountRecord[]): void {

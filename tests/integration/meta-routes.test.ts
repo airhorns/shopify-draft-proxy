@@ -40,6 +40,7 @@ const emptySnapshot = {
   deletedFileIds: {},
   deletedCollectionIds: {},
   deletedCustomerIds: {},
+  deletedSegmentIds: {},
   deletedDiscountIds: {},
   deletedMarketIds: {},
   mergedCustomerIds: {},
