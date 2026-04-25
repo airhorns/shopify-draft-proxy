@@ -347,14 +347,45 @@ export const customerSmsMarketingConsentRecordSchema = z.strictObject({
 export type CustomerSmsMarketingConsentRecord = z.infer<typeof customerSmsMarketingConsentRecordSchema>;
 
 export const customerDefaultAddressRecordSchema = z.strictObject({
+  id: nullableStringSchema.optional(),
+  firstName: nullableStringSchema.optional(),
+  lastName: nullableStringSchema.optional(),
+  address2: nullableStringSchema.optional(),
   address1: nullableStringSchema,
   city: nullableStringSchema,
+  company: nullableStringSchema.optional(),
   province: nullableStringSchema,
+  provinceCode: nullableStringSchema.optional(),
   country: nullableStringSchema,
+  countryCodeV2: nullableStringSchema.optional(),
   zip: nullableStringSchema,
+  phone: nullableStringSchema.optional(),
+  name: nullableStringSchema.optional(),
   formattedArea: nullableStringSchema,
 });
 export type CustomerDefaultAddressRecord = z.infer<typeof customerDefaultAddressRecordSchema>;
+
+export const customerAddressRecordSchema = z.strictObject({
+  id: z.string(),
+  customerId: z.string(),
+  cursor: nullableStringSchema.optional(),
+  position: z.number(),
+  firstName: nullableStringSchema,
+  lastName: nullableStringSchema,
+  address1: nullableStringSchema,
+  address2: nullableStringSchema,
+  city: nullableStringSchema,
+  company: nullableStringSchema,
+  province: nullableStringSchema,
+  provinceCode: nullableStringSchema,
+  country: nullableStringSchema,
+  countryCodeV2: nullableStringSchema,
+  zip: nullableStringSchema,
+  phone: nullableStringSchema,
+  name: nullableStringSchema,
+  formattedArea: nullableStringSchema,
+});
+export type CustomerAddressRecord = z.infer<typeof customerAddressRecordSchema>;
 
 export const customerRecordSchema = z.strictObject({
   id: z.string(),
@@ -1059,6 +1090,7 @@ export const stateSnapshotSchema = z.strictObject({
   collections: z.record(z.string(), collectionRecordSchema),
   publications: z.record(z.string(), publicationRecordSchema).default({}),
   customers: z.record(z.string(), customerRecordSchema),
+  customerAddresses: z.record(z.string(), customerAddressRecordSchema).default({}),
   segments: z.record(z.string(), segmentRecordSchema).default({}),
   discounts: z.record(z.string(), discountRecordSchema).default({}),
   businessEntities: z.record(z.string(), businessEntityRecordSchema).default({}),
@@ -1079,6 +1111,7 @@ export const stateSnapshotSchema = z.strictObject({
   deletedFileIds: z.record(z.string(), z.literal(true)).default({}),
   deletedCollectionIds: z.record(z.string(), z.literal(true)),
   deletedCustomerIds: z.record(z.string(), z.literal(true)),
+  deletedCustomerAddressIds: z.record(z.string(), z.literal(true)).default({}),
   deletedSegmentIds: z.record(z.string(), z.literal(true)).default({}),
   deletedDiscountIds: z.record(z.string(), z.literal(true)).default({}),
   deletedMarketIds: z.record(z.string(), z.literal(true)).default({}),

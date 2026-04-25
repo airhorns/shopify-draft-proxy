@@ -241,21 +241,25 @@ export function createProxyRouter(config: AppConfig): Router {
     }
 
     if (capability.execution === 'stage-locally' && capability.domain === 'customers') {
+      const logEntryId = makeSyntheticGid('MutationLogEntry');
+      const receivedAt = makeSyntheticTimestamp();
+      const responseBody = handleCustomerMutation(body.query, variables);
       store.appendLog({
-        id: makeSyntheticGid('MutationLogEntry'),
-        receivedAt: makeSyntheticTimestamp(),
+        id: logEntryId,
+        receivedAt,
         operationName: capability.operationName,
         path: ctx.path,
         query: body.query,
         variables,
         requestBody,
+        stagedResourceIds: collectProxySyntheticGids(responseBody),
         status: 'staged',
         interpreted: interpretMutationLogEntry(parsed, capability),
         notes: 'Staged locally in the in-memory customer draft store.',
       });
 
       ctx.status = 200;
-      ctx.body = handleCustomerMutation(body.query, variables);
+      ctx.body = responseBody;
       return;
     }
 

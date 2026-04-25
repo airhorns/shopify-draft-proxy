@@ -3,6 +3,7 @@ import type {
   CalculatedOrderRecord,
   CatalogRecord,
   CollectionRecord,
+  CustomerAddressRecord,
   CustomerCatalogConnectionRecord,
   CustomerMergeRequestRecord,
   CustomerMetafieldRecord,
@@ -52,6 +53,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   collections: {},
   publications: {},
   customers: {},
+  customerAddresses: {},
   segments: {},
   discounts: {},
   businessEntities: {},
@@ -72,6 +74,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedFileIds: {},
   deletedCollectionIds: {},
   deletedCustomerIds: {},
+  deletedCustomerAddressIds: {},
   deletedSegmentIds: {},
   deletedDiscountIds: {},
   deletedMarketIds: {},
@@ -295,6 +298,10 @@ function mergeCustomerRecords(base: CustomerRecord | null, staged: CustomerRecor
   };
 }
 
+function compareCustomerAddresses(left: CustomerAddressRecord, right: CustomerAddressRecord): number {
+  return left.position - right.position || left.id.localeCompare(right.id);
+}
+
 export class InMemoryStore {
   private initialBaseState: StateSnapshot = cloneSnapshot(EMPTY_SNAPSHOT);
   private initialProductSearchConnections: Record<string, ProductCatalogConnectionRecord> = {};
@@ -415,6 +422,14 @@ export class InMemoryStore {
       delete this.baseState.mergedCustomerIds[customer.id];
       delete this.stagedState.mergedCustomerIds[customer.id];
       this.baseState.customers[customer.id] = structuredClone(customer);
+    }
+  }
+
+  upsertBaseCustomerAddresses(addresses: CustomerAddressRecord[]): void {
+    for (const address of addresses) {
+      delete this.baseState.deletedCustomerAddressIds[address.id];
+      delete this.stagedState.deletedCustomerAddressIds[address.id];
+      this.baseState.customerAddresses[address.id] = structuredClone(address);
     }
   }
 
@@ -891,9 +906,30 @@ export class InMemoryStore {
     return structuredClone(customer);
   }
 
+  stageUpsertCustomerAddress(address: CustomerAddressRecord): CustomerAddressRecord {
+    delete this.stagedState.deletedCustomerAddressIds[address.id];
+    this.stagedState.customerAddresses[address.id] = structuredClone(address);
+    return structuredClone(address);
+  }
+
+  stageDeleteCustomerAddress(addressId: string): void {
+    delete this.stagedState.customerAddresses[addressId];
+    this.stagedState.deletedCustomerAddressIds[addressId] = true;
+  }
+
   stageDeleteCustomer(customerId: string): void {
     delete this.stagedState.customers[customerId];
     delete this.stagedState.mergedCustomerIds[customerId];
+    for (const address of Object.values(this.stagedState.customerAddresses)) {
+      if (address.customerId === customerId) {
+        delete this.stagedState.customerAddresses[address.id];
+      }
+    }
+    for (const address of Object.values(this.baseState.customerAddresses)) {
+      if (address.customerId === customerId) {
+        this.stagedState.deletedCustomerAddressIds[address.id] = true;
+      }
+    }
     this.stagedState.deletedCustomerIds[customerId] = true;
   }
 
@@ -1455,6 +1491,41 @@ export class InMemoryStore {
     );
   }
 
+  getEffectiveCustomerAddressById(addressId: string): CustomerAddressRecord | null {
+    if (this.stagedState.deletedCustomerAddressIds[addressId]) {
+      return null;
+    }
+
+    const address =
+      this.stagedState.customerAddresses[addressId] ?? this.baseState.customerAddresses[addressId] ?? null;
+    return address ? structuredClone(address) : null;
+  }
+
+  listEffectiveCustomerAddresses(customerId: string): CustomerAddressRecord[] {
+    if (this.stagedState.deletedCustomerIds[customerId]) {
+      return [];
+    }
+
+    const addressIds = new Set([
+      ...Object.keys(this.baseState.customerAddresses),
+      ...Object.keys(this.stagedState.customerAddresses),
+    ]);
+    const addresses: CustomerAddressRecord[] = [];
+
+    for (const addressId of Array.from(addressIds)) {
+      if (this.stagedState.deletedCustomerAddressIds[addressId]) {
+        continue;
+      }
+
+      const address = this.stagedState.customerAddresses[addressId] ?? this.baseState.customerAddresses[addressId];
+      if (address?.customerId === customerId) {
+        addresses.push(structuredClone(address));
+      }
+    }
+
+    return addresses.sort(compareCustomerAddresses);
+  }
+
   listEffectiveCustomers(): CustomerRecord[] {
     const customerIds = new Set([...Object.keys(this.baseState.customers), ...Object.keys(this.stagedState.customers)]);
     const merged: CustomerRecord[] = [];
@@ -1501,8 +1572,10 @@ export class InMemoryStore {
   hasStagedCustomers(): boolean {
     return (
       Object.keys(this.stagedState.customers).length > 0 ||
+      Object.keys(this.stagedState.customerAddresses).length > 0 ||
       Object.keys(this.stagedState.customerMetafields).length > 0 ||
       Object.keys(this.stagedState.deletedCustomerIds).length > 0 ||
+      Object.keys(this.stagedState.deletedCustomerAddressIds).length > 0 ||
       Object.keys(this.stagedState.mergedCustomerIds).length > 0 ||
       Object.keys(this.stagedState.customerMergeRequests).length > 0
     );
