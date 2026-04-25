@@ -1,48 +1,16 @@
 {
-  "mutation": {
-    "variables": {
-      "metafields": [
-        {
-          "ownerId": "gid://shopify/Product/9264634331369",
-          "namespace": "custom",
-          "key": "material"
-        }
-      ]
-    },
-    "response": {
-      "data": {
-        "metafieldsDelete": {
-          "deletedMetafields": [
-            {
-              "key": "material",
-              "namespace": "custom",
-              "ownerId": "gid://shopify/Product/9264634331369"
-            }
-          ],
-          "userErrors": []
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 10,
-          "actualQueryCost": 10,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
-            "restoreRate": 100
-          }
-        }
-      }
-    }
-  },
-  "downstreamReadVariables": {
-    "id": "gid://shopify/Product/9264634331369"
-  },
-  "downstreamRead": {
+  "preconditionRead": {
     "data": {
       "product": {
         "id": "gid://shopify/Product/9264634331369",
-        "primarySpec": null,
+        "primarySpec": {
+          "id": "gid://shopify/Metafield/35330423423209",
+          "namespace": "custom",
+          "key": "material",
+          "type": "single_line_text_field",
+          "value": "Duplicate two",
+          "compareDigest": "5952dd0f37ffcaec42383c46cf932a085d1c5e8885b88435f988ebd547271318"
+        },
         "origin": {
           "id": "gid://shopify/Metafield/35330423455977",
           "namespace": "details",
@@ -61,6 +29,14 @@
         },
         "metafields": {
           "nodes": [
+            {
+              "id": "gid://shopify/Metafield/35330423423209",
+              "namespace": "custom",
+              "key": "material",
+              "type": "single_line_text_field",
+              "value": "Duplicate two",
+              "compareDigest": "5952dd0f37ffcaec42383c46cf932a085d1c5e8885b88435f988ebd547271318"
+            },
             {
               "id": "gid://shopify/Metafield/35330423455977",
               "namespace": "details",
@@ -89,7 +65,7 @@
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjozNTMzMDQyMzQ1NTk3NywibGFzdF92YWx1ZSI6IjM1MzMwNDIzNDU1OTc3In0=",
+            "startCursor": "eyJsYXN0X2lkIjozNTMzMDQyMzQyMzIwOSwibGFzdF92YWx1ZSI6IjM1MzMwNDIzNDIzMjA5In0=",
             "endCursor": "eyJsYXN0X2lkIjozNTMzMDQyMzYxOTgxNywibGFzdF92YWx1ZSI6IjM1MzMwNDIzNjE5ODE3In0="
           }
         }
@@ -105,6 +81,48 @@
           "restoreRate": 100
         }
       }
+    }
+  },
+  "mutation": {
+    "variables": {
+      "metafields": [
+        {
+          "namespace": "custom",
+          "key": "missing_owner",
+          "type": "single_line_text_field",
+          "value": "Missing owner"
+        }
+      ]
+    },
+    "response": {
+      "errors": [
+        {
+          "message": "Variable $metafields of type [MetafieldsSetInput!]! was provided invalid value for 0.ownerId (Expected value to not be null)",
+          "locations": [
+            {
+              "line": 2,
+              "column": 37
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": [
+              {
+                "namespace": "custom",
+                "key": "missing_owner",
+                "type": "single_line_text_field",
+                "value": "Missing owner"
+              }
+            ],
+            "problems": [
+              {
+                "path": [0, "ownerId"],
+                "explanation": "Expected value to not be null"
+              }
+            ]
+          }
+        }
+      ]
     }
   }
 }

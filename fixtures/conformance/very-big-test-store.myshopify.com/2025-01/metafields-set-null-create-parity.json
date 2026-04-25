@@ -1,0 +1,184 @@
+{
+  "preconditionRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/9264634331369",
+        "primarySpec": {
+          "id": "gid://shopify/Metafield/35330423423209",
+          "namespace": "custom",
+          "key": "material",
+          "type": "single_line_text_field",
+          "value": "Wool",
+          "compareDigest": "f55dea39da94d1715ee468a944c83b312a71b15194d2de449d2356c6f3ba3a22"
+        },
+        "origin": {
+          "id": "gid://shopify/Metafield/35330423455977",
+          "namespace": "details",
+          "key": "origin",
+          "type": "single_line_text_field",
+          "value": "VN",
+          "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3"
+        },
+        "season": null,
+        "metafields": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Metafield/35330423423209",
+              "namespace": "custom",
+              "key": "material",
+              "type": "single_line_text_field",
+              "value": "Wool",
+              "compareDigest": "f55dea39da94d1715ee468a944c83b312a71b15194d2de449d2356c6f3ba3a22"
+            },
+            {
+              "id": "gid://shopify/Metafield/35330423455977",
+              "namespace": "details",
+              "key": "origin",
+              "type": "single_line_text_field",
+              "value": "VN",
+              "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3"
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjozNTMzMDQyMzQyMzIwOSwibGFzdF92YWx1ZSI6IjM1MzMwNDIzNDIzMjA5In0=",
+            "endCursor": "eyJsYXN0X2lkIjozNTMzMDQyMzQ1NTk3NywibGFzdF92YWx1ZSI6IjM1MzMwNDIzNDU1OTc3In0="
+          }
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 10,
+        "actualQueryCost": 8,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1992,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "mutation": {
+    "variables": {
+      "metafields": [
+        {
+          "ownerId": "gid://shopify/Product/9264634331369",
+          "namespace": "details",
+          "key": "season",
+          "type": "single_line_text_field",
+          "value": "Summer",
+          "compareDigest": null
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "metafieldsSet": {
+          "metafields": [
+            {
+              "id": "gid://shopify/Metafield/35330423587049",
+              "namespace": "details",
+              "key": "season",
+              "type": "single_line_text_field",
+              "value": "Summer",
+              "compareDigest": "f1425e64410adace8ddc7c055fb7f8e45b07a3d25b99ed49e4d58230fa241899"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamReadVariables": {
+    "id": "gid://shopify/Product/9264634331369"
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/9264634331369",
+        "primarySpec": {
+          "id": "gid://shopify/Metafield/35330423423209",
+          "namespace": "custom",
+          "key": "material",
+          "type": "single_line_text_field",
+          "value": "Wool",
+          "compareDigest": "f55dea39da94d1715ee468a944c83b312a71b15194d2de449d2356c6f3ba3a22"
+        },
+        "origin": {
+          "id": "gid://shopify/Metafield/35330423455977",
+          "namespace": "details",
+          "key": "origin",
+          "type": "single_line_text_field",
+          "value": "VN",
+          "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3"
+        },
+        "season": {
+          "id": "gid://shopify/Metafield/35330423587049",
+          "namespace": "details",
+          "key": "season",
+          "type": "single_line_text_field",
+          "value": "Summer",
+          "compareDigest": "f1425e64410adace8ddc7c055fb7f8e45b07a3d25b99ed49e4d58230fa241899"
+        },
+        "metafields": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Metafield/35330423423209",
+              "namespace": "custom",
+              "key": "material",
+              "type": "single_line_text_field",
+              "value": "Wool",
+              "compareDigest": "f55dea39da94d1715ee468a944c83b312a71b15194d2de449d2356c6f3ba3a22"
+            },
+            {
+              "id": "gid://shopify/Metafield/35330423455977",
+              "namespace": "details",
+              "key": "origin",
+              "type": "single_line_text_field",
+              "value": "VN",
+              "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3"
+            },
+            {
+              "id": "gid://shopify/Metafield/35330423587049",
+              "namespace": "details",
+              "key": "season",
+              "type": "single_line_text_field",
+              "value": "Summer",
+              "compareDigest": "f1425e64410adace8ddc7c055fb7f8e45b07a3d25b99ed49e4d58230fa241899"
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjozNTMzMDQyMzQyMzIwOSwibGFzdF92YWx1ZSI6IjM1MzMwNDIzNDIzMjA5In0=",
+            "endCursor": "eyJsYXN0X2lkIjozNTMzMDQyMzU4NzA0OSwibGFzdF92YWx1ZSI6IjM1MzMwNDIzNTg3MDQ5In0="
+          }
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 10,
+        "actualQueryCost": 8,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1992,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

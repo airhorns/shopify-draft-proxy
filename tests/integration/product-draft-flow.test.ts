@@ -3512,6 +3512,196 @@ describe('product draft flow', () => {
     });
   });
 
+  it('rejects stale compareDigest metafieldsSet atomically against hydrated product metafields', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as { query?: string }) : {};
+      const query = body.query ?? '';
+
+      if (query.includes('product(id:')) {
+        if (query.includes('primarySpec:')) {
+          return new Response(
+            JSON.stringify({
+              data: {
+                product: {
+                  id: 'gid://shopify/Product/2',
+                  primarySpec: {
+                    value: 'Canvas',
+                    compareDigest: 'live-digest',
+                  },
+                  campaign: null,
+                  metafields: {
+                    nodes: [
+                      { namespace: 'custom', key: 'material', value: 'Canvas', compareDigest: 'live-digest' },
+                      { namespace: 'details', key: 'origin', value: 'VN', compareDigest: 'origin-digest' },
+                    ],
+                  },
+                },
+              },
+            }),
+            {
+              status: 200,
+              headers: { 'content-type': 'application/json' },
+            },
+          );
+        }
+
+        return new Response(
+          JSON.stringify({
+            data: {
+              product: {
+                id: 'gid://shopify/Product/2',
+                title: 'Hydrated Digest Hat',
+                handle: 'hydrated-digest-hat',
+                status: 'ACTIVE',
+                createdAt: '2024-01-01T00:00:00.000Z',
+                updatedAt: '2024-01-02T00:00:00.000Z',
+                metafields: {
+                  edges: [
+                    {
+                      node: {
+                        id: 'gid://shopify/Metafield/9001',
+                        namespace: 'custom',
+                        key: 'material',
+                        type: 'single_line_text_field',
+                        value: 'Canvas',
+                        compareDigest: 'live-digest',
+                        jsonValue: 'Canvas',
+                        createdAt: '2024-01-01T00:00:00.000Z',
+                        updatedAt: '2024-01-02T00:00:00.000Z',
+                        ownerType: 'PRODUCT',
+                      },
+                    },
+                    {
+                      node: {
+                        id: 'gid://shopify/Metafield/9002',
+                        namespace: 'details',
+                        key: 'origin',
+                        type: 'single_line_text_field',
+                        value: 'VN',
+                        compareDigest: 'origin-digest',
+                        jsonValue: 'VN',
+                        createdAt: '2024-01-01T00:00:00.000Z',
+                        updatedAt: '2024-01-02T00:00:00.000Z',
+                        ownerType: 'PRODUCT',
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        );
+      }
+
+      throw new Error(`Unexpected fetch during metafieldsSet compareDigest test: ${String(input)}`);
+    });
+
+    const app = createApp({ ...config, readMode: 'live-hybrid' }).callback();
+
+    const hydrateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query ($id: ID!) { product(id: $id) { id metafields(first: 10) { edges { node { id namespace key type value compareDigest jsonValue createdAt updatedAt ownerType } } } } }',
+        variables: { id: 'gid://shopify/Product/2' },
+      });
+
+    expect(hydrateResponse.status).toBe(200);
+    expect(hydrateResponse.body.data.product.metafields.edges[0].node.compareDigest).toBe('live-digest');
+    const fetchCountBeforeMutation = fetchSpy.mock.calls.length;
+
+    const mutationQuery =
+      'mutation SetMetafields($metafields: [MetafieldsSetInput!]!) { metafieldsSet(metafields: $metafields) { metafields { id namespace key type value compareDigest } userErrors { field message code elementIndex } } }';
+    const staleResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: mutationQuery,
+        variables: {
+          metafields: [
+            {
+              ownerId: 'gid://shopify/Product/2',
+              namespace: 'custom',
+              key: 'material',
+              type: 'single_line_text_field',
+              value: 'Wool',
+              compareDigest: 'stale-digest',
+            },
+            {
+              ownerId: 'gid://shopify/Product/2',
+              namespace: 'marketing',
+              key: 'campaign',
+              type: 'single_line_text_field',
+              value: 'Spring',
+            },
+          ],
+        },
+      });
+
+    expect(staleResponse.status).toBe(200);
+    expect(fetchSpy.mock.calls.length).toBe(fetchCountBeforeMutation);
+    expect(staleResponse.body.data.metafieldsSet).toEqual({
+      metafields: [],
+      userErrors: [
+        {
+          field: ['metafields', '0'],
+          message:
+            'The resource has been updated since it was loaded. Try again with an updated `compareDigest` value.',
+          code: 'STALE_OBJECT',
+          elementIndex: null,
+        },
+      ],
+    });
+
+    const overlayResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query ($id: ID!) { product(id: $id) { id primarySpec: metafield(namespace: "custom", key: "material") { value compareDigest } campaign: metafield(namespace: "marketing", key: "campaign") { value } metafields(first: 10) { nodes { namespace key value compareDigest } } } }',
+        variables: { id: 'gid://shopify/Product/2' },
+      });
+
+    expect(overlayResponse.status).toBe(200);
+    expect(overlayResponse.body.data.product.primarySpec).toEqual({
+      value: 'Canvas',
+      compareDigest: 'live-digest',
+    });
+    expect(overlayResponse.body.data.product.campaign).toBeNull();
+    expect(overlayResponse.body.data.product.metafields.nodes).toEqual([
+      { namespace: 'custom', key: 'material', value: 'Canvas', compareDigest: 'live-digest' },
+      { namespace: 'details', key: 'origin', value: 'VN', compareDigest: 'origin-digest' },
+    ]);
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(logResponse.status).toBe(200);
+    expect(logResponse.body.entries).toHaveLength(1);
+    expect(logResponse.body.entries[0].requestBody).toEqual({
+      query: mutationQuery,
+      variables: {
+        metafields: [
+          {
+            ownerId: 'gid://shopify/Product/2',
+            namespace: 'custom',
+            key: 'material',
+            type: 'single_line_text_field',
+            value: 'Wool',
+            compareDigest: 'stale-digest',
+          },
+          {
+            ownerId: 'gid://shopify/Product/2',
+            namespace: 'marketing',
+            key: 'campaign',
+            type: 'single_line_text_field',
+            value: 'Spring',
+          },
+        ],
+      },
+    });
+  });
+
   it('stages metafieldDelete locally against hydrated product metafields and removes the deleted metafield from downstream reads', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as { query?: string }) : {};

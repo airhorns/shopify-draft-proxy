@@ -2765,6 +2765,48 @@ function serializeMetafieldPayload(
   return metafields.map((metafield) => serializeMetafieldSelectionSet(metafield, field.selectionSet?.selections ?? []));
 }
 
+type MetafieldsSetUserError = {
+  field: string[];
+  message: string;
+  code: string | null;
+  elementIndex: number | null;
+};
+
+function serializeMetafieldsSetUserErrors(
+  field: FieldNode | null,
+  errors: MetafieldsSetUserError[],
+): Array<Record<string, unknown>> {
+  const selections = field?.selectionSet?.selections.filter(
+    (selection): selection is FieldNode => selection.kind === Kind.FIELD,
+  );
+  if (!selections || selections.length === 0) {
+    return errors.map((error) => ({
+      field: error.field,
+      message: error.message,
+    }));
+  }
+
+  return errors.map((error) =>
+    Object.fromEntries(
+      selections.map((selection) => {
+        const responseKey = selection.alias?.value ?? selection.name.value;
+        switch (selection.name.value) {
+          case 'field':
+            return [responseKey, error.field];
+          case 'message':
+            return [responseKey, error.message];
+          case 'code':
+            return [responseKey, error.code];
+          case 'elementIndex':
+            return [responseKey, error.elementIndex];
+          default:
+            return [responseKey, null];
+        }
+      }),
+    ),
+  );
+}
+
 type DeletedMetafieldIdentifierRecord = {
   ownerId: string;
   namespace: string;
@@ -2811,6 +2853,183 @@ function upsertMetafieldsForProduct(
   return upsertOwnerMetafields('productId', productId, inputs, store.getEffectiveMetafieldsByProductId(productId), {
     ownerType: 'PRODUCT',
   });
+}
+
+function readMetafieldsSetIdentity(input: Record<string, unknown>): {
+  ownerId: string | null;
+  namespace: string | null;
+  key: string | null;
+} {
+  const ownerId = typeof input['ownerId'] === 'string' ? input['ownerId'] : null;
+  const namespace =
+    typeof input['namespace'] === 'string' && input['namespace'].trim()
+      ? input['namespace']
+      : getDefaultAppMetafieldNamespace();
+  const key = typeof input['key'] === 'string' && input['key'].trim() ? input['key'] : null;
+  return { ownerId, namespace, key };
+}
+
+function makeMetafieldsSetUserError(
+  index: number | null,
+  fieldName: string | null,
+  message: string,
+  code: string,
+): MetafieldsSetUserError {
+  return {
+    field: index === null ? ['metafields'] : ['metafields', String(index), ...(fieldName ? [fieldName] : [])],
+    message,
+    code,
+    elementIndex: index,
+  };
+}
+
+function validateMetafieldsSetInputs(inputs: Record<string, unknown>[]): MetafieldsSetUserError[] {
+  const errors: MetafieldsSetUserError[] = [];
+
+  if (inputs.length === 0) {
+    return [makeMetafieldsSetUserError(null, null, 'At least one metafield input is required.', 'BLANK')];
+  }
+
+  if (inputs.length > 25) {
+    errors.push(
+      makeMetafieldsSetUserError(
+        null,
+        null,
+        'Exceeded the maximum metafields input limit of 25.',
+        'LESS_THAN_OR_EQUAL_TO',
+      ),
+    );
+  }
+
+  for (const [index, input] of inputs.entries()) {
+    const { ownerId, namespace, key } = readMetafieldsSetIdentity(input);
+
+    if (!ownerId) {
+      errors.push(makeMetafieldsSetUserError(index, 'ownerId', 'Owner id is required.', 'BLANK'));
+      continue;
+    }
+
+    const product = store.getEffectiveProductById(ownerId);
+    if (!product) {
+      errors.push(makeMetafieldsSetUserError(index, 'ownerId', 'Owner does not exist.', 'INVALID'));
+      continue;
+    }
+
+    if (!key) {
+      errors.push(makeMetafieldsSetUserError(index, 'key', 'Key is required.', 'BLANK'));
+      continue;
+    }
+
+    const effectiveMetafields = store.getEffectiveMetafieldsByProductId(ownerId);
+    const existing = effectiveMetafields.find(
+      (metafield) => metafield.namespace === namespace && metafield.key === key,
+    );
+    const type = typeof input['type'] === 'string' && input['type'].trim() ? input['type'] : existing?.type;
+    const value = typeof input['value'] === 'string' ? input['value'] : null;
+
+    if (!type) {
+      errors.push({
+        field: ['metafields', String(index), 'type'],
+        message: "Type can't be blank",
+        code: 'BLANK',
+        elementIndex: null,
+      });
+    }
+
+    if (value === null) {
+      errors.push(makeMetafieldsSetUserError(index, 'value', 'Value is required.', 'BLANK'));
+    }
+
+    if (!hasOwnField(input, 'compareDigest')) {
+      continue;
+    }
+
+    const compareDigest = input['compareDigest'];
+    if (compareDigest !== null && typeof compareDigest !== 'string') {
+      errors.push(
+        makeMetafieldsSetUserError(index, 'compareDigest', 'Compare digest is invalid.', 'INVALID_COMPARE_DIGEST'),
+      );
+      continue;
+    }
+
+    const currentCompareDigest = existing ? (existing.compareDigest ?? makeMetafieldCompareDigest(existing)) : null;
+    if (compareDigest !== currentCompareDigest) {
+      errors.push({
+        field: ['metafields', String(index)],
+        message: 'The resource has been updated since it was loaded. Try again with an updated `compareDigest` value.',
+        code: 'STALE_OBJECT',
+        elementIndex: null,
+      });
+    }
+  }
+
+  return errors;
+}
+
+function getDefaultAppMetafieldNamespace(): string {
+  const appId =
+    typeof process.env['SHOPIFY_CONFORMANCE_APP_ID'] === 'string' ? process.env['SHOPIFY_CONFORMANCE_APP_ID'] : null;
+  const appIdTail = appId?.split('/').at(-1);
+  return `app--${appIdTail && /^\d+$/u.test(appIdTail) ? appIdTail : '347082227713'}`;
+}
+
+function normalizeMetafieldsSetInput(input: Record<string, unknown>): Record<string, unknown> {
+  if (typeof input['namespace'] === 'string' && input['namespace'].trim()) {
+    return input;
+  }
+
+  return {
+    ...input,
+    namespace: getDefaultAppMetafieldNamespace(),
+  };
+}
+
+function getRootFieldArgumentVariableName(field: FieldNode, argumentName: string): string | null {
+  const argument = field.arguments?.find((candidate) => candidate.name.value === argumentName);
+  return argument?.value.kind === Kind.VARIABLE ? argument.value.name.value : null;
+}
+
+function buildMetafieldsSetInvalidVariableError(
+  document: string,
+  variableName: string,
+  inputs: Record<string, unknown>[],
+  index: number,
+  fieldName: string,
+): Record<string, unknown> {
+  return {
+    errors: [
+      {
+        message: `Variable $${variableName} of type [MetafieldsSetInput!]! was provided invalid value for ${index}.${fieldName} (Expected value to not be null)`,
+        locations: getVariableDefinitionLocation(document, variableName),
+        extensions: {
+          code: 'INVALID_VARIABLE',
+          value: structuredClone(inputs),
+          problems: [{ path: [index, fieldName], explanation: 'Expected value to not be null' }],
+        },
+      },
+    ],
+  };
+}
+
+function validateMetafieldsSetRequiredVariables(
+  document: string,
+  field: FieldNode,
+  inputs: Record<string, unknown>[],
+): Record<string, unknown> | null {
+  const variableName = getRootFieldArgumentVariableName(field, 'metafields');
+  if (!variableName) {
+    return null;
+  }
+
+  for (const [index, input] of inputs.entries()) {
+    for (const fieldName of ['ownerId', 'key', 'value']) {
+      if (!hasOwnField(input, fieldName) || input[fieldName] === null) {
+        return buildMetafieldsSetInvalidVariableError(document, variableName, inputs, index, fieldName);
+      }
+    }
+  }
+
+  return null;
 }
 
 function findMetafieldById(metafieldId: string): ProductMetafieldRecord | null {
@@ -8313,56 +8532,19 @@ export function handleProductMutation(
     }
     case 'metafieldsSet': {
       const inputs = readMetafieldInputObjects(args['metafields']);
-      if (inputs.length === 0) {
-        return {
-          data: {
-            [responseKey]: {
-              metafields: [],
-              userErrors: [{ field: ['metafields'], message: 'At least one metafield input is required' }],
-            },
-          },
-        };
+      const invalidVariableResponse = validateMetafieldsSetRequiredVariables(document, field, inputs);
+      if (invalidVariableResponse) {
+        return invalidVariableResponse;
       }
 
-      const firstInvalidInput = inputs.find((input) => {
-        const ownerId = input['ownerId'];
-        const namespace = input['namespace'];
-        const key = input['key'];
-        return (
-          typeof ownerId !== 'string' ||
-          !store.getEffectiveProductById(ownerId) ||
-          typeof namespace !== 'string' ||
-          !namespace.trim() ||
-          typeof key !== 'string' ||
-          !key.trim()
-        );
-      });
-      if (firstInvalidInput) {
-        const ownerId = firstInvalidInput['ownerId'];
-        const namespace = firstInvalidInput['namespace'];
-        const key = firstInvalidInput['key'];
-        const fieldName =
-          typeof ownerId !== 'string'
-            ? 'ownerId'
-            : !store.getEffectiveProductById(ownerId)
-              ? 'ownerId'
-              : typeof namespace !== 'string' || !namespace.trim()
-                ? 'namespace'
-                : 'key';
-        const message =
-          typeof ownerId !== 'string'
-            ? 'Product ownerId is required'
-            : !store.getEffectiveProductById(ownerId)
-              ? 'Product not found'
-              : typeof namespace !== 'string' || !namespace.trim()
-                ? 'Metafield namespace is required'
-                : 'Metafield key is required';
+      const userErrors = validateMetafieldsSetInputs(inputs);
 
+      if (userErrors.length > 0) {
         return {
           data: {
             [responseKey]: {
-              metafields: [],
-              userErrors: [{ field: ['metafields', fieldName], message }],
+              metafields: userErrors.some((error) => error.code === 'LESS_THAN_OR_EQUAL_TO') ? null : [],
+              userErrors: serializeMetafieldsSetUserErrors(getChildField(field, 'userErrors'), userErrors),
             },
           },
         };
@@ -8372,7 +8554,7 @@ export function handleProductMutation(
       for (const input of inputs) {
         const ownerId = input['ownerId'] as string;
         const productInputs = inputsByProductId.get(ownerId) ?? [];
-        productInputs.push(input);
+        productInputs.push(normalizeMetafieldsSetInput(input));
         inputsByProductId.set(ownerId, productInputs);
       }
 

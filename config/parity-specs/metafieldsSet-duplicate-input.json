@@ -1,29 +1,20 @@
 {
-  "scenarioId": "metafields-set-live-parity",
+  "scenarioId": "metafields-set-duplicate-input",
   "operationNames": ["metafieldsSet"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
-  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/metafields-set-parity.json"],
+  "assertionKinds": ["payload-shape", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/metafields-set-duplicate-input-parity.json"
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/metafieldsSet-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/metafieldsSet-parity-plan.variables.json",
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executed by the conformance parity runner against the local staged `metafieldsSet` path with live fixture variables. The comparison covers mutation data plus immediate downstream `product.metafield(...)` and `product.metafields` visibility for product-owned metafields.",
+  "notes": "Duplicate namespace/key inputs are accepted sequentially by Shopify; the final downstream value reflects the later input while the mutation payload includes both update results.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
-      {
-        "path": "$.product.metafields.pageInfo.startCursor",
-        "matcher": "non-empty-string",
-        "reason": "Shopify returns opaque base64 cursors while the local serializer uses stable synthetic cursors for staged metafields."
-      },
-      {
-        "path": "$.product.metafields.pageInfo.endCursor",
-        "matcher": "non-empty-string",
-        "reason": "Shopify returns opaque base64 cursors while the local serializer uses stable synthetic cursors for staged metafields."
-      },
       {
         "path": "$.metafieldsSet.metafields[*].compareDigest",
         "matcher": "non-empty-string",
@@ -35,14 +26,19 @@
         "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
       },
       {
-        "path": "$.product.origin.compareDigest",
+        "path": "$.product.metafields.nodes[0].compareDigest",
         "matcher": "non-empty-string",
         "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
       },
       {
-        "path": "$.product.metafields.nodes[*].compareDigest",
+        "path": "$.product.metafields.pageInfo.startCursor",
         "matcher": "non-empty-string",
-        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
+        "reason": "Shopify connection cursors are opaque while local replay uses stable synthetic metafield cursors."
+      },
+      {
+        "path": "$.product.metafields.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify connection cursors are opaque while local replay uses stable synthetic metafield cursors."
       }
     ],
     "targets": [
