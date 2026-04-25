@@ -2,6 +2,15 @@ import { Kind, type FieldNode, type ObjectValueNode } from 'graphql';
 
 import type { ReadMode } from '../config.js';
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
+import {
+  buildSyntheticCursor,
+  getFieldResponseKey,
+  getSelectedChildFields as getGraphQLSelectedChildFields,
+  readNullableIntArgument,
+  readNullableStringArgument,
+  serializeConnectionPageInfo,
+  serializeEmptyConnectionPageInfo as serializePageInfo,
+} from './graphql-helpers.js';
 import { store } from '../state/store.js';
 import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import type {
@@ -33,24 +42,8 @@ import type {
   OrderTransactionRecord,
 } from '../state/types.js';
 
-function getFieldResponseKey(field: FieldNode): string {
-  return field.alias?.value ?? field.name.value;
-}
-
 function getSelectedChildFields(field: FieldNode): FieldNode[] {
-  return (field.selectionSet?.selections ?? []).flatMap((selection) => {
-    if (selection.kind === Kind.FIELD) {
-      return [selection];
-    }
-
-    if (selection.kind === Kind.INLINE_FRAGMENT) {
-      return selection.selectionSet.selections.filter(
-        (inlineSelection): inlineSelection is FieldNode => inlineSelection.kind === Kind.FIELD,
-      );
-    }
-
-    return [];
-  });
+  return getGraphQLSelectedChildFields(field, { includeInlineFragments: true });
 }
 
 function normalizeMoney(amount: string | null, currencyCode: string | null): MoneyV2Record {
@@ -2067,51 +2060,6 @@ function serializeDraftOrderNode(field: FieldNode, draftOrder: DraftOrderRecord)
   return result;
 }
 
-function readNullableIntArgument(
-  field: FieldNode,
-  argumentName: string,
-  variables: Record<string, unknown>,
-): number | null {
-  const argument = field.arguments?.find((candidate) => candidate.name.value === argumentName);
-  if (!argument) {
-    return null;
-  }
-
-  if (argument.value.kind === Kind.INT) {
-    const parsed = Number.parseInt(argument.value.value, 10);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-
-  if (argument.value.kind === Kind.VARIABLE) {
-    const rawValue = variables[argument.value.name.value];
-    return typeof rawValue === 'number' && Number.isFinite(rawValue) ? rawValue : null;
-  }
-
-  return null;
-}
-
-function readNullableStringArgument(
-  field: FieldNode,
-  argumentName: string,
-  variables: Record<string, unknown>,
-): string | null {
-  const argument = field.arguments?.find((candidate) => candidate.name.value === argumentName);
-  if (!argument) {
-    return null;
-  }
-
-  if (argument.value.kind === Kind.STRING) {
-    return argument.value.value;
-  }
-
-  if (argument.value.kind === Kind.VARIABLE) {
-    const rawValue = variables[argument.value.name.value];
-    return typeof rawValue === 'string' ? rawValue : null;
-  }
-
-  return null;
-}
-
 type OrderSearchExtensionEntry = {
   path: string[];
   query: string;
@@ -2125,10 +2073,6 @@ type OrderSearchExtensionEntry = {
     code: string;
   }>;
 };
-
-function buildSyntheticCursor(id: string): string {
-  return `cursor:${id}`;
-}
 
 function buildDraftOrderInvalidSearchExtension(rawQuery: unknown, path: string[]): OrderSearchExtensionEntry | null {
   if (typeof rawQuery !== 'string') {
@@ -2508,27 +2452,13 @@ function serializeDraftOrdersConnection(
         result[key] = visibleRecords.map((draftOrder) => serializeDraftOrderNode(selection, draftOrder));
         break;
       case 'pageInfo':
-        result[key] = Object.fromEntries(
-          getSelectedChildFields(selection).map((pageInfoSelection) => {
-            const pageInfoKey = getFieldResponseKey(pageInfoSelection);
-            switch (pageInfoSelection.name.value) {
-              case 'hasNextPage':
-                return [pageInfoKey, hasNextPage];
-              case 'hasPreviousPage':
-                return [pageInfoKey, hasPreviousPage];
-              case 'startCursor':
-                return [pageInfoKey, visibleRecords[0] ? buildSyntheticCursor(visibleRecords[0].id) : null];
-              case 'endCursor':
-                return [
-                  pageInfoKey,
-                  visibleRecords.length > 0
-                    ? buildSyntheticCursor(visibleRecords[visibleRecords.length - 1]!.id)
-                    : null,
-                ];
-              default:
-                return [pageInfoKey, null];
-            }
-          }),
+        result[key] = serializeConnectionPageInfo(
+          selection,
+          visibleRecords,
+          hasNextPage,
+          hasPreviousPage,
+          (draftOrder) => buildSyntheticCursor(draftOrder.id),
+          { prefixCursors: false, includeInlineFragments: true },
         );
         break;
       default:
@@ -3773,29 +3703,6 @@ function serializeOrderCount(field: FieldNode, count = 0): Record<string, unknow
   return result;
 }
 
-function serializePageInfo(field: FieldNode): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'hasNextPage':
-      case 'hasPreviousPage':
-        result[key] = false;
-        break;
-      case 'startCursor':
-      case 'endCursor':
-        result[key] = null;
-        break;
-      default:
-        result[key] = null;
-        break;
-    }
-  }
-
-  return result;
-}
-
 function serializeOrdersConnection(
   field: FieldNode,
   orders: OrderRecord[],
@@ -3834,25 +3741,13 @@ function serializeOrdersConnection(
         result[key] = visibleOrders.map((order) => serializeOrderNode(selection, order));
         break;
       case 'pageInfo':
-        result[key] = Object.fromEntries(
-          getSelectedChildFields(selection).map((pageInfoSelection) => {
-            const pageInfoKey = getFieldResponseKey(pageInfoSelection);
-            switch (pageInfoSelection.name.value) {
-              case 'hasNextPage':
-                return [pageInfoKey, hasNextPage];
-              case 'hasPreviousPage':
-                return [pageInfoKey, hasPreviousPage];
-              case 'startCursor':
-                return [pageInfoKey, visibleOrders[0] ? `cursor:${visibleOrders[0].id}` : null];
-              case 'endCursor':
-                return [
-                  pageInfoKey,
-                  visibleOrders.length > 0 ? `cursor:${visibleOrders[visibleOrders.length - 1]!.id}` : null,
-                ];
-              default:
-                return [pageInfoKey, null];
-            }
-          }),
+        result[key] = serializeConnectionPageInfo(
+          selection,
+          visibleOrders,
+          hasNextPage,
+          hasPreviousPage,
+          (order) => buildSyntheticCursor(order.id),
+          { prefixCursors: false, includeInlineFragments: true },
         );
         break;
       default:
