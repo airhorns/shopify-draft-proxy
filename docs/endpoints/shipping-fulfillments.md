@@ -27,6 +27,24 @@ Delete support covers unknown-id userErrors and inventory actions at the local s
 
 Callback, stock fetch, tracking fetch, and fulfillment-order notification endpoints are never invoked by local staging. The proxy records callback URL and capability flags only as Shopify-like service metadata.
 
+Carrier service reads and lifecycle writes are implemented as a shipping/fulfillments slice because they affect checkout rate-provider configuration:
+
+- `carrierService`
+- `carrierServices`
+- `carrierServiceCreate`
+- `carrierServiceUpdate`
+- `carrierServiceDelete`
+
+Live Admin GraphQL 2026-04 schema introspection confirmed the top-level read roots, create/update roots, and `carrierServiceDelete`; `availableCarrierServices` also exists but remains registry-only until its location/availability shape is modeled. The local state stores carrier services as `DeliveryCarrierService` records with `name`, `formattedName`, `callbackUrl`, `active`, `supportsServiceDiscovery`, and internal created/updated timestamps for local sorting.
+
+Snapshot reads return Shopify-like no-data structures: `carrierService(id:)` returns `null` for a missing service, and `carrierServices(...)` returns an empty connection with empty `nodes`/`edges`, false page booleans, and null cursors. Catalog support covers the captured slice for `query: "active:true|false"` and `query: "id:<numeric id or gid>"`, `sortKey: ID|CREATED_AT|UPDATED_AT`, `reverse`, and standard cursor pagination through the shared connection helpers.
+
+Create/update support covers `input.name`, `input.callbackUrl`, `input.active`, and `input.supportsServiceDiscovery`. Captured behavior showed Shopify returning `formattedName` as `<name> (Rates provided by app)` for an app carrier service, update-time downstream visibility through both detail and catalog roots, blank-name create as `userErrors[{ field: null, message: "Shipping rate provider name can't be blank" }]`, unknown update as `field: null`, and unknown delete as `field: ["id"]` with `The carrier or app could not be found.`.
+
+Delete support is enabled because the 2026-04 schema exposes `carrierServiceDelete(id:)` and the live lifecycle capture verified `deletedId` plus downstream detail/catalog absence after cleanup. Local delete only removes the staged/local record; it does not call Shopify or any external callback.
+
+Carrier-service callback URLs and service-discovery flags are recorded only as Shopify-like metadata for read-after-write behavior. Local staging never invokes rate callbacks, service-discovery callbacks, or any checkout-rate side effects.
+
 ## Registry-only coverage map
 
 These roots are known Admin GraphQL shipping/fulfillment surface area, but they are not locally implemented. They are registered with `implemented: false` as explicit future local-model commitments, not as supported passthrough behavior.
@@ -68,11 +86,6 @@ Fulfillment-order mutations:
 Carrier services:
 
 - `availableCarrierServices`
-- `carrierService`
-- `carrierServices`
-- `carrierServiceCreate`
-- `carrierServiceDelete`
-- `carrierServiceUpdate`
 
 Delivery profiles:
 
@@ -97,7 +110,7 @@ Shipping-line order-edit roots:
 - Fulfillment-order visibility is scope-sensitive. `assignedFulfillmentOrders`, `fulfillmentOrders`, and `Order.fulfillmentOrders` can return different subsets depending on assigned, merchant-managed, third-party, and marketplace fulfillment-order scopes.
 - Fulfillment-order lifecycle mutations can create replacement orders, split or merge line items, change assigned locations, add/release holds, change deadlines, and update request status. Do not model one of these as a simple status patch without captured downstream reads.
 - Fulfillment-service mutations couple service records to locations. Creation automatically creates a location, update does not replace `LocationEdit` for service-managed location details, and deletion has inventory/location disposition semantics. HAR-236 covers the first local service/location lifecycle slice; broader inventory transfer fidelity still needs dedicated inventory-level captures.
-- Carrier-service support depends on app ownership, `write_shipping` access, plan eligibility, callback URL behavior, active/service-discovery flags, and active-only catalog behavior.
+- Broader carrier-service support still depends on app ownership, `write_shipping` access, plan eligibility, available-service/location pairing, and service-discovery callback semantics outside the locally staged catalog/lifecycle slice.
 - Delivery profiles are nested shipping-rate configuration, not just scalar profile records. Local support needs location groups, zones, method definitions, conditions, variant assignments, selling-plan associations, default profile behavior, and asynchronous removal job semantics.
 - Shipping lines and delivery methods are nested under orders, draft orders, calculated orders, fulfillment orders, and delivery profiles. A root-level registry entry can only cover the mutation/query root; nested field fidelity still needs scenario-specific fixtures and downstream read assertions.
 
@@ -105,6 +118,8 @@ Shipping-line order-edit roots:
 
 - Implemented order-scoped fulfillments: `tests/integration/order-fulfillment-flow.test.ts`
 - Implemented fulfillment services: `tests/integration/fulfillment-service-flow.test.ts`
+- Implemented carrier services: `tests/integration/carrier-service-flow.test.ts`
 - Existing fulfillment parity specs and requests: `config/parity-specs/fulfillment*.json` and matching files under `config/parity-requests/`
+- Carrier-service capture/parity metadata: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/carrier-service-lifecycle.json` and `config/parity-specs/carrier-service-lifecycle.json`
 - Existing order docs for fulfilled order read-after-write behavior: `docs/endpoints/orders.md`
 - Registry/coverage tests: `tests/unit/operation-registry.test.ts`, `tests/integration/proxy-capability-classification.test.ts`

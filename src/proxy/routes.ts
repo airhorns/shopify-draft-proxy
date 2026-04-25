@@ -41,6 +41,12 @@ const FULFILLMENT_SERVICE_MUTATION_ROOTS = new Set([
   'fulfillmentServiceDelete',
 ]);
 
+const CARRIER_SERVICE_MUTATION_ROOTS = new Set([
+  'carrierServiceCreate',
+  'carrierServiceUpdate',
+  'carrierServiceDelete',
+]);
+
 function readVariables(raw: unknown): Record<string, unknown> {
   return typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
 }
@@ -294,8 +300,9 @@ export function createProxyRouter(config: AppConfig): Router {
       capability.execution === 'stage-locally' &&
       capability.domain === 'shipping-fulfillments' &&
       primaryRootField &&
-      FULFILLMENT_SERVICE_MUTATION_ROOTS.has(primaryRootField)
+      (FULFILLMENT_SERVICE_MUTATION_ROOTS.has(primaryRootField) || CARRIER_SERVICE_MUTATION_ROOTS.has(primaryRootField))
     ) {
+      const isCarrierServiceMutation = CARRIER_SERVICE_MUTATION_ROOTS.has(primaryRootField);
       proxyLogger.debug(
         {
           execution: capability.execution,
@@ -303,7 +310,9 @@ export function createProxyRouter(config: AppConfig): Router {
           operationType: parsed.type,
           rootFields: parsed.rootFields,
         },
-        'staging supported fulfillment service mutation locally',
+        isCarrierServiceMutation
+          ? 'staging supported carrier service mutation locally'
+          : 'staging supported fulfillment service mutation locally',
       );
 
       const responseBody = handleStorePropertiesMutation(body.query, variables);
@@ -319,8 +328,9 @@ export function createProxyRouter(config: AppConfig): Router {
         stagedResourceIds: collectProxySyntheticGids(responseBody),
         status: 'staged',
         interpreted: interpretMutationLogEntry(parsed, capability),
-        notes:
-          'Staged locally in the in-memory fulfillment service draft store; callback, inventory, tracking, and fulfillment-order notification endpoints are not invoked.',
+        notes: isCarrierServiceMutation
+          ? 'Staged locally in the in-memory carrier service draft store; callback URL and service-discovery endpoints are not invoked.'
+          : 'Staged locally in the in-memory fulfillment service draft store; callback, inventory, tracking, and fulfillment-order notification endpoints are not invoked.',
       });
 
       ctx.status = 200;
@@ -654,9 +664,13 @@ export function createProxyRouter(config: AppConfig): Router {
 
       if (
         config.readMode === 'live-hybrid' &&
-        primaryRootField === 'fulfillmentService' &&
-        typeof variables['id'] === 'string' &&
-        store.getEffectiveFulfillmentServiceById(variables['id']) !== null
+        ((primaryRootField === 'fulfillmentService' &&
+          typeof variables['id'] === 'string' &&
+          store.getEffectiveFulfillmentServiceById(variables['id']) !== null) ||
+          (primaryRootField === 'carrierService' &&
+            typeof variables['id'] === 'string' &&
+            store.getEffectiveCarrierServiceById(variables['id']) !== null) ||
+          (primaryRootField === 'carrierServices' && store.hasStagedCarrierServices()))
       ) {
         ctx.status = 200;
         ctx.body = handleStorePropertiesQuery(body.query, variables);

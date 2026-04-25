@@ -1,0 +1,330 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-04-25T20:54:06Z",
+  "notes": [
+    "Admin GraphQL 2026-04 schema introspection exposed carrierService, carrierServices, availableCarrierServices, carrierServiceCreate, carrierServiceUpdate, and carrierServiceDelete; carrierServiceDelete is present in the current schema.",
+    "The successful lifecycle capture created the service inactive first, updated it active for downstream read/filter evidence, then deleted it during the same capture so the live dev store returned to an empty carrier-service catalog.",
+    "Callback URLs were recorded as scalar carrier-service metadata only; no rate callback or service-discovery endpoint was invoked by this capture or by local staging."
+  ],
+  "interactions": [
+    {
+      "name": "empty-catalog-and-missing-detail",
+      "request": {
+        "query": "query CarrierServiceReadProbe($id: ID!, $first: Int!, $query: String) { carrierService(id: $id) { id name formattedName callbackUrl active supportsServiceDiscovery } carrierServices(first: $first, query: $query, sortKey: ID) { edges { cursor node { id name formattedName callbackUrl active supportsServiceDiscovery } } nodes { id name active } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }",
+        "variables": {
+          "id": "gid://shopify/DeliveryCarrierService/999999999999",
+          "first": 5,
+          "query": null
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "carrierService": null,
+            "carrierServices": {
+              "edges": [],
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "empty-active-filter",
+      "request": {
+        "query": "query CarrierServiceReadProbe($id: ID!, $first: Int!, $query: String) { carrierService(id: $id) { id name formattedName callbackUrl active supportsServiceDiscovery } carrierServices(first: $first, query: $query, sortKey: ID) { edges { cursor node { id name formattedName callbackUrl active supportsServiceDiscovery } } nodes { id name active } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }",
+        "variables": {
+          "id": "gid://shopify/DeliveryCarrierService/999999999999",
+          "first": 5,
+          "query": "active:true"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "carrierService": null,
+            "carrierServices": {
+              "edges": [],
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create-inactive",
+      "request": {
+        "query": "mutation CarrierServiceCreateProbe($input: DeliveryCarrierServiceCreateInput!) { carrierServiceCreate(input: $input) { carrierService { id name formattedName callbackUrl active supportsServiceDiscovery } userErrors { field message } } }",
+        "variables": {
+          "input": {
+            "name": "Hermes Carrier 1777150371199",
+            "callbackUrl": "https://mock.shop/carrier-service-rates",
+            "supportsServiceDiscovery": true,
+            "active": false
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "carrierServiceCreate": {
+              "carrierService": {
+                "id": "gid://shopify/DeliveryCarrierService/102656770354",
+                "name": "Hermes Carrier 1777150371199",
+                "formattedName": "Hermes Carrier 1777150371199 (Rates provided by app)",
+                "callbackUrl": "https://mock.shop/carrier-service-rates",
+                "active": false,
+                "supportsServiceDiscovery": true
+              },
+              "userErrors": []
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "update-active",
+      "request": {
+        "query": "mutation CarrierServiceUpdateProbe($input: DeliveryCarrierServiceUpdateInput!) { carrierServiceUpdate(input: $input) { carrierService { id name formattedName callbackUrl active supportsServiceDiscovery } userErrors { field message } } }",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/DeliveryCarrierService/102656770354",
+            "name": "Hermes Carrier Updated",
+            "callbackUrl": "https://mock.shop/carrier-service-rates-updated",
+            "supportsServiceDiscovery": false,
+            "active": true
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "carrierServiceUpdate": {
+              "carrierService": {
+                "id": "gid://shopify/DeliveryCarrierService/102656770354",
+                "name": "Hermes Carrier Updated",
+                "formattedName": "Hermes Carrier Updated (Rates provided by app)",
+                "callbackUrl": "https://mock.shop/carrier-service-rates-updated",
+                "active": true,
+                "supportsServiceDiscovery": false
+              },
+              "userErrors": []
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "downstream-active-and-id-filters",
+      "request": {
+        "query": "query CarrierServiceAfterUpdate($id: ID!, $first: Int!, $activeQuery: String, $idQuery: String) { carrierService(id: $id) { id name formattedName callbackUrl active supportsServiceDiscovery } active: carrierServices(first: $first, query: $activeQuery, sortKey: ID) { nodes { id name formattedName callbackUrl active supportsServiceDiscovery } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } byId: carrierServices(first: $first, query: $idQuery, sortKey: ID) { edges { cursor node { id name formattedName callbackUrl active supportsServiceDiscovery } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }",
+        "variables": {
+          "id": "gid://shopify/DeliveryCarrierService/102656770354",
+          "first": 5,
+          "activeQuery": "active:true",
+          "idQuery": "id:102656770354"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "carrierService": {
+              "id": "gid://shopify/DeliveryCarrierService/102656770354",
+              "name": "Hermes Carrier Updated",
+              "formattedName": "Hermes Carrier Updated (Rates provided by app)",
+              "callbackUrl": "https://mock.shop/carrier-service-rates-updated",
+              "active": true,
+              "supportsServiceDiscovery": false
+            },
+            "active": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/DeliveryCarrierService/102656770354",
+                  "name": "Hermes Carrier Updated",
+                  "formattedName": "Hermes Carrier Updated (Rates provided by app)",
+                  "callbackUrl": "https://mock.shop/carrier-service-rates-updated",
+                  "active": true,
+                  "supportsServiceDiscovery": false
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMDI2NTY3NzAzNTQsImxhc3RfdmFsdWUiOiIxMDI2NTY3NzAzNTQifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxMDI2NTY3NzAzNTQsImxhc3RfdmFsdWUiOiIxMDI2NTY3NzAzNTQifQ=="
+              }
+            },
+            "byId": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMDI2NTY3NzAzNTQsImxhc3RfdmFsdWUiOiIxMDI2NTY3NzAzNTQifQ==",
+                  "node": {
+                    "id": "gid://shopify/DeliveryCarrierService/102656770354",
+                    "name": "Hermes Carrier Updated",
+                    "formattedName": "Hermes Carrier Updated (Rates provided by app)",
+                    "callbackUrl": "https://mock.shop/carrier-service-rates-updated",
+                    "active": true,
+                    "supportsServiceDiscovery": false
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMDI2NTY3NzAzNTQsImxhc3RfdmFsdWUiOiIxMDI2NTY3NzAzNTQifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxMDI2NTY3NzAzNTQsImxhc3RfdmFsdWUiOiIxMDI2NTY3NzAzNTQifQ=="
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "delete",
+      "request": {
+        "query": "mutation CarrierServiceDeleteProbe($id: ID!) { carrierServiceDelete(id: $id) { deletedId userErrors { field message } } }",
+        "variables": {
+          "id": "gid://shopify/DeliveryCarrierService/102656770354"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "carrierServiceDelete": {
+              "deletedId": "gid://shopify/DeliveryCarrierService/102656770354",
+              "userErrors": []
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "after-delete",
+      "request": {
+        "query": "query CarrierAfterDelete($id: ID!) { carrierService(id: $id) { id } carrierServices(first: 5, query: \"id:102656770354\") { nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }",
+        "variables": {
+          "id": "gid://shopify/DeliveryCarrierService/102656770354"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "carrierService": null,
+            "carrierServices": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "blank-name",
+      "request": {
+        "query": "mutation InvalidCarrierServiceCreate($input: DeliveryCarrierServiceCreateInput!) { carrierServiceCreate(input: $input) { carrierService { id } userErrors { field message } } }",
+        "variables": {
+          "input": {
+            "name": "",
+            "callbackUrl": "https://mock.shop/carrier-service-rates",
+            "supportsServiceDiscovery": true,
+            "active": false
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "carrierServiceCreate": {
+              "carrierService": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Shipping rate provider name can't be blank"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "update-unknown",
+      "request": {
+        "query": "mutation UnknownCarrierServiceUpdate($input: DeliveryCarrierServiceUpdateInput!) { carrierServiceUpdate(input: $input) { carrierService { id } userErrors { field message } } }",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/DeliveryCarrierService/999999999999",
+            "name": "Nope"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "carrierServiceUpdate": {
+              "carrierService": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "The carrier or app could not be found."
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "delete-unknown",
+      "request": {
+        "query": "mutation UnknownCarrierServiceDelete($id: ID!) { carrierServiceDelete(id: $id) { deletedId userErrors { field message } } }",
+        "variables": {
+          "id": "gid://shopify/DeliveryCarrierService/999999999999"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "carrierServiceDelete": {
+              "deletedId": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "The carrier or app could not be found."
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
+}

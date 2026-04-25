@@ -158,6 +158,18 @@ export const fulfillmentServiceRecordSchema = z.strictObject({
 });
 export type FulfillmentServiceRecord = z.infer<typeof fulfillmentServiceRecordSchema>;
 
+export const carrierServiceRecordSchema = z.strictObject({
+  id: z.string(),
+  name: nullableStringSchema,
+  formattedName: nullableStringSchema,
+  callbackUrl: nullableStringSchema,
+  active: z.boolean(),
+  supportsServiceDiscovery: z.boolean(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type CarrierServiceRecord = z.infer<typeof carrierServiceRecordSchema>;
+
 export const locationMetafieldRecordSchema = z.strictObject({
   id: z.string(),
   locationId: z.string(),
@@ -1192,6 +1204,8 @@ export const stateSnapshotSchema = z.strictObject({
   locationOrder: z.array(z.string()).default([]),
   fulfillmentServices: z.record(z.string(), fulfillmentServiceRecordSchema).default({}),
   fulfillmentServiceOrder: z.array(z.string()).default([]),
+  carrierServices: z.record(z.string(), carrierServiceRecordSchema).default({}),
+  carrierServiceOrder: z.array(z.string()).default([]),
   collections: z.record(z.string(), collectionRecordSchema),
   publications: z.record(z.string(), publicationRecordSchema).default({}),
   customers: z.record(z.string(), customerRecordSchema),
@@ -1221,6 +1235,7 @@ export const stateSnapshotSchema = z.strictObject({
   deletedCollectionIds: z.record(z.string(), z.literal(true)),
   deletedLocationIds: z.record(z.string(), z.literal(true)).default({}),
   deletedFulfillmentServiceIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedCarrierServiceIds: z.record(z.string(), z.literal(true)).default({}),
   deletedCustomerIds: z.record(z.string(), z.literal(true)),
   deletedCustomerAddressIds: z.record(z.string(), z.literal(true)).default({}),
   deletedSegmentIds: z.record(z.string(), z.literal(true)).default({}),
