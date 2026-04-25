@@ -3244,17 +3244,22 @@ function seedInventoryItemUpdatePreconditions(capture: unknown): boolean {
 }
 
 function seedMetafieldsSetOwnerProducts(capture: unknown, variables: Record<string, unknown>): void {
+  const preconditionProduct = readRecordField(
+    readRecordField(readRecordField(capture as Record<string, unknown>, 'preconditionRead'), 'data'),
+    'product',
+  );
   const downstreamProduct = readRecordField(
     readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data'),
     'product',
   );
+  const productSource = preconditionProduct ?? downstreamProduct;
   for (const input of readArrayField(variables, 'metafields').filter(isPlainObject)) {
     const ownerId = readStringField(input, 'ownerId');
     if (!ownerId?.startsWith('gid://shopify/Product/') || store.getEffectiveProductById(ownerId)) {
       continue;
     }
 
-    const source = readStringField(downstreamProduct, 'id') === ownerId ? downstreamProduct : null;
+    const source = readStringField(productSource, 'id') === ownerId ? productSource : null;
     store.upsertBaseProducts([makeSeedProduct(ownerId, source)]);
     if (source) {
       store.replaceBaseMetafieldsForProduct(ownerId, readCapturedProductMetafields(ownerId, source));
