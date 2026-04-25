@@ -847,6 +847,13 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'overlay-read' && capability.domain === 'payments') {
+    return {
+      status: 200,
+      body: handleStorePropertiesQuery(document, variables),
+    };
+  }
+
   if (capability.execution === 'overlay-read' && capability.domain === 'markets') {
     if (upstreamPayload !== undefined) {
       hydrateMarketsFromUpstreamResponse(document, variables, upstreamPayload);

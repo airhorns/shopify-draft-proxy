@@ -12,6 +12,21 @@ Local staged mutations currently live under the orders group because they operat
 
 Those roots are implemented in `tests/integration/order-fulfillment-flow.test.ts` and covered by `config/parity-specs/fulfillment*.json`. HAR-122/HAR-187 provide the evidence-backed fulfillment lifecycle slices; this document does not duplicate those request/fixture details.
 
+Fulfillment service reads and lifecycle writes are implemented as a shipping/fulfillments slice because they create and mutate service-managed locations:
+
+- `fulfillmentService`
+- `fulfillmentServiceCreate`
+- `fulfillmentServiceUpdate`
+- `fulfillmentServiceDelete`
+
+The current 2026-04 schema exposes detail lookup through top-level `fulfillmentService(id:)`; the list/catalog surface is `shop.fulfillmentServices`, not a separate top-level list root. Local staging stores fulfillment services in normalized state, creates an associated `Location` for new third-party services, keeps `Location.fulfillmentService` linked to the service record, and makes downstream `fulfillmentService(id:)`, `shop.fulfillmentServices`, `location(id:)`, and meta state/log reads observe the staged graph.
+
+Create/update support covers `name`, `callbackUrl`, `trackingSupport`, `inventoryManagement`, and `requiresShippingMethod`. Captured behavior showed create-time handle normalization from the service name and update-time handle stability when the name changes; the associated location name follows the updated service name. The local model accepts no callback URL or the captured app-safe `https://mock.shop/...` URL family and returns the captured `Callback url is not allowed` userError for other callback URLs.
+
+Delete support covers unknown-id userErrors and inventory actions at the local state level. `DELETE` and `TRANSFER` remove the fulfillment-service location from local reads; `KEEP` converts the associated location to merchant-managed by clearing `fulfillmentService` and `isFulfillmentService`. Inventory movement itself remains local bookkeeping only until inventory-level transfer fixtures exist.
+
+Callback, stock fetch, tracking fetch, and fulfillment-order notification endpoints are never invoked by local staging. The proxy records callback URL and capability flags only as Shopify-like service metadata.
+
 ## Registry-only coverage map
 
 These roots are known Admin GraphQL shipping/fulfillment surface area, but they are not locally implemented. They are registered with `implemented: false` as explicit future local-model commitments, not as supported passthrough behavior.
@@ -50,13 +65,6 @@ Fulfillment-order mutations:
 - `fulfillmentOrderSubmitCancellationRequest`
 - `fulfillmentOrderSubmitFulfillmentRequest`
 
-Fulfillment services:
-
-- `fulfillmentService`
-- `fulfillmentServiceCreate`
-- `fulfillmentServiceDelete`
-- `fulfillmentServiceUpdate`
-
 Carrier services:
 
 - `availableCarrierServices`
@@ -88,7 +96,7 @@ Shipping-line order-edit roots:
 - Fulfillment orders are created by Shopify after order routing, not by a direct create mutation. Local support needs to model fulfillment-order generation from order/draft-order creation, location assignment, line-item grouping, status/requestStatus, holds, merchant requests, and delivery methods.
 - Fulfillment-order visibility is scope-sensitive. `assignedFulfillmentOrders`, `fulfillmentOrders`, and `Order.fulfillmentOrders` can return different subsets depending on assigned, merchant-managed, third-party, and marketplace fulfillment-order scopes.
 - Fulfillment-order lifecycle mutations can create replacement orders, split or merge line items, change assigned locations, add/release holds, change deadlines, and update request status. Do not model one of these as a simple status patch without captured downstream reads.
-- Fulfillment-service mutations couple service records to locations. Creation automatically creates a location, update does not replace `LocationEdit` for service-managed location details, and deletion has inventory/location disposition semantics.
+- Fulfillment-service mutations couple service records to locations. Creation automatically creates a location, update does not replace `LocationEdit` for service-managed location details, and deletion has inventory/location disposition semantics. HAR-236 covers the first local service/location lifecycle slice; broader inventory transfer fidelity still needs dedicated inventory-level captures.
 - Carrier-service support depends on app ownership, `write_shipping` access, plan eligibility, callback URL behavior, active/service-discovery flags, and active-only catalog behavior.
 - Delivery profiles are nested shipping-rate configuration, not just scalar profile records. Local support needs location groups, zones, method definitions, conditions, variant assignments, selling-plan associations, default profile behavior, and asynchronous removal job semantics.
 - Shipping lines and delivery methods are nested under orders, draft orders, calculated orders, fulfillment orders, and delivery profiles. A root-level registry entry can only cover the mutation/query root; nested field fidelity still needs scenario-specific fixtures and downstream read assertions.
@@ -96,6 +104,7 @@ Shipping-line order-edit roots:
 ## Validation anchors
 
 - Implemented order-scoped fulfillments: `tests/integration/order-fulfillment-flow.test.ts`
+- Implemented fulfillment services: `tests/integration/fulfillment-service-flow.test.ts`
 - Existing fulfillment parity specs and requests: `config/parity-specs/fulfillment*.json` and matching files under `config/parity-requests/`
 - Existing order docs for fulfilled order read-after-write behavior: `docs/endpoints/orders.md`
 - Registry/coverage tests: `tests/unit/operation-registry.test.ts`, `tests/integration/proxy-capability-classification.test.ts`

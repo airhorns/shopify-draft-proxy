@@ -11,6 +11,7 @@ import type {
   DiscountRecord,
   DraftOrderRecord,
   FileRecord,
+  FulfillmentServiceRecord,
   LocationRecord,
   MarketLocalizationRecord,
   MarketRecord,
@@ -54,6 +55,8 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   productOptions: {},
   locations: {},
   locationOrder: [],
+  fulfillmentServices: {},
+  fulfillmentServiceOrder: [],
   collections: {},
   publications: {},
   customers: {},
@@ -80,6 +83,8 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedProductIds: {},
   deletedFileIds: {},
   deletedCollectionIds: {},
+  deletedLocationIds: {},
+  deletedFulfillmentServiceIds: {},
   deletedCustomerIds: {},
   deletedCustomerAddressIds: {},
   deletedSegmentIds: {},
@@ -207,6 +212,17 @@ function mergeLocationRecords(base: LocationRecord | null, staged: LocationRecor
     suggestedAddresses: staged.suggestedAddresses ?? base.suggestedAddresses,
     metafields: staged.metafields ?? base.metafields,
   });
+}
+
+function mergeFulfillmentServiceRecords(
+  base: FulfillmentServiceRecord | null,
+  staged: FulfillmentServiceRecord | null,
+): FulfillmentServiceRecord | null {
+  if (!base && !staged) {
+    return null;
+  }
+
+  return structuredClone(staged ?? base);
 }
 
 function collectionFromMembership(membership: ProductCollectionRecord): CollectionRecord {
@@ -538,9 +554,22 @@ export class InMemoryStore {
 
   upsertBaseLocations(locations: LocationRecord[]): void {
     for (const location of locations) {
+      delete this.baseState.deletedLocationIds[location.id];
+      delete this.stagedState.deletedLocationIds[location.id];
       this.baseState.locations[location.id] = structuredClone(location);
       if (!this.baseState.locationOrder.includes(location.id)) {
         this.baseState.locationOrder.push(location.id);
+      }
+    }
+  }
+
+  upsertBaseFulfillmentServices(services: FulfillmentServiceRecord[]): void {
+    for (const service of services) {
+      delete this.baseState.deletedFulfillmentServiceIds[service.id];
+      delete this.stagedState.deletedFulfillmentServiceIds[service.id];
+      this.baseState.fulfillmentServices[service.id] = structuredClone(service);
+      if (!this.baseState.fulfillmentServiceOrder.includes(service.id)) {
+        this.baseState.fulfillmentServiceOrder.push(service.id);
       }
     }
   }
@@ -549,20 +578,27 @@ export class InMemoryStore {
     const orderedIds = new Set(this.baseState.locationOrder);
     const orderedLocations = this.baseState.locationOrder
       .map((id) => this.baseState.locations[id] ?? null)
-      .filter((location): location is LocationRecord => location !== null);
+      .filter(
+        (location): location is LocationRecord => location !== null && !this.baseState.deletedLocationIds[location.id],
+      );
     const unorderedLocations = Object.values(this.baseState.locations)
-      .filter((location) => !orderedIds.has(location.id))
+      .filter((location) => !orderedIds.has(location.id) && !this.baseState.deletedLocationIds[location.id])
       .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
 
     return structuredClone([...orderedLocations, ...unorderedLocations]);
   }
 
   getBaseLocationById(locationId: string): LocationRecord | null {
+    if (this.baseState.deletedLocationIds[locationId]) {
+      return null;
+    }
+
     const location = this.baseState.locations[locationId] ?? null;
     return location ? structuredClone(location) : null;
   }
 
   stageCreateLocation(location: LocationRecord): LocationRecord {
+    delete this.stagedState.deletedLocationIds[location.id];
     this.stagedState.locations[location.id] = structuredClone(location);
     if (!this.stagedState.locationOrder.includes(location.id)) {
       this.stagedState.locationOrder.push(location.id);
@@ -571,6 +607,7 @@ export class InMemoryStore {
   }
 
   stageUpdateLocation(location: LocationRecord): LocationRecord {
+    delete this.stagedState.deletedLocationIds[location.id];
     this.stagedState.locations[location.id] = structuredClone(location);
     if (!this.baseState.locationOrder.includes(location.id) && !this.stagedState.locationOrder.includes(location.id)) {
       this.stagedState.locationOrder.push(location.id);
@@ -578,7 +615,16 @@ export class InMemoryStore {
     return structuredClone(location);
   }
 
+  stageDeleteLocation(locationId: string): void {
+    delete this.stagedState.locations[locationId];
+    this.stagedState.deletedLocationIds[locationId] = true;
+  }
+
   getEffectiveLocationById(locationId: string): LocationRecord | null {
+    if (this.stagedState.deletedLocationIds[locationId] || this.baseState.deletedLocationIds[locationId]) {
+      return null;
+    }
+
     return mergeLocationRecords(
       this.baseState.locations[locationId] ?? null,
       this.stagedState.locations[locationId] ?? null,
@@ -597,6 +643,73 @@ export class InMemoryStore {
       .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
 
     return structuredClone([...orderedLocations, ...unorderedLocations]);
+  }
+
+  stageCreateFulfillmentService(service: FulfillmentServiceRecord): FulfillmentServiceRecord {
+    delete this.stagedState.deletedFulfillmentServiceIds[service.id];
+    this.stagedState.fulfillmentServices[service.id] = structuredClone(service);
+    if (!this.stagedState.fulfillmentServiceOrder.includes(service.id)) {
+      this.stagedState.fulfillmentServiceOrder.push(service.id);
+    }
+    return structuredClone(service);
+  }
+
+  stageUpdateFulfillmentService(service: FulfillmentServiceRecord): FulfillmentServiceRecord {
+    delete this.stagedState.deletedFulfillmentServiceIds[service.id];
+    this.stagedState.fulfillmentServices[service.id] = structuredClone(service);
+    if (
+      !this.baseState.fulfillmentServiceOrder.includes(service.id) &&
+      !this.stagedState.fulfillmentServiceOrder.includes(service.id)
+    ) {
+      this.stagedState.fulfillmentServiceOrder.push(service.id);
+    }
+    return structuredClone(service);
+  }
+
+  stageDeleteFulfillmentService(serviceId: string): void {
+    delete this.stagedState.fulfillmentServices[serviceId];
+    this.stagedState.deletedFulfillmentServiceIds[serviceId] = true;
+  }
+
+  getEffectiveFulfillmentServiceById(serviceId: string): FulfillmentServiceRecord | null {
+    if (
+      this.stagedState.deletedFulfillmentServiceIds[serviceId] ||
+      this.baseState.deletedFulfillmentServiceIds[serviceId]
+    ) {
+      return null;
+    }
+
+    return mergeFulfillmentServiceRecords(
+      this.baseState.fulfillmentServices[serviceId] ?? null,
+      this.stagedState.fulfillmentServices[serviceId] ?? null,
+    );
+  }
+
+  listEffectiveFulfillmentServices(): FulfillmentServiceRecord[] {
+    const orderedIds = new Set([
+      ...this.baseState.fulfillmentServiceOrder,
+      ...this.stagedState.fulfillmentServiceOrder,
+    ]);
+    const orderedServices = [...orderedIds]
+      .map((id) => this.getEffectiveFulfillmentServiceById(id))
+      .filter((service): service is FulfillmentServiceRecord => service !== null);
+    const unorderedServices = Object.values({
+      ...this.baseState.fulfillmentServices,
+      ...this.stagedState.fulfillmentServices,
+    })
+      .filter((service) => !orderedIds.has(service.id))
+      .map((service) => this.getEffectiveFulfillmentServiceById(service.id))
+      .filter((service): service is FulfillmentServiceRecord => service !== null)
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
+
+    return structuredClone([...orderedServices, ...unorderedServices]);
+  }
+
+  hasStagedFulfillmentServices(): boolean {
+    return (
+      Object.keys(this.stagedState.fulfillmentServices).length > 0 ||
+      Object.keys(this.stagedState.deletedFulfillmentServiceIds).length > 0
+    );
   }
 
   stageShop(shop: ShopRecord): ShopRecord {

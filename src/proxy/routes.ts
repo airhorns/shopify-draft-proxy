@@ -35,6 +35,12 @@ const APP_DISCOUNT_MUTATION_ROOTS = new Set([
 
 const ORDER_PAYMENT_MUTATION_ROOTS = new Set(['orderCapture', 'transactionVoid', 'orderCreateMandatePayment']);
 
+const FULFILLMENT_SERVICE_MUTATION_ROOTS = new Set([
+  'fulfillmentServiceCreate',
+  'fulfillmentServiceUpdate',
+  'fulfillmentServiceDelete',
+]);
+
 function readVariables(raw: unknown): Record<string, unknown> {
   return typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
 }
@@ -243,6 +249,44 @@ export function createProxyRouter(config: AppConfig): Router {
       return;
     }
 
+    if (
+      capability.execution === 'stage-locally' &&
+      capability.domain === 'shipping-fulfillments' &&
+      primaryRootField &&
+      FULFILLMENT_SERVICE_MUTATION_ROOTS.has(primaryRootField)
+    ) {
+      proxyLogger.debug(
+        {
+          execution: capability.execution,
+          operationName: capability.operationName,
+          operationType: parsed.type,
+          rootFields: parsed.rootFields,
+        },
+        'staging supported fulfillment service mutation locally',
+      );
+
+      const responseBody = handleStorePropertiesMutation(body.query, variables);
+
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: ctx.path,
+        query: body.query,
+        variables,
+        requestBody,
+        stagedResourceIds: collectProxySyntheticGids(responseBody),
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        notes:
+          'Staged locally in the in-memory fulfillment service draft store; callback, inventory, tracking, and fulfillment-order notification endpoints are not invoked.',
+      });
+
+      ctx.status = 200;
+      ctx.body = responseBody;
+      return;
+    }
+
     if (capability.execution === 'stage-locally' && capability.domain === 'customers') {
       const logEntryId = makeSyntheticGid('MutationLogEntry');
       const receivedAt = makeSyntheticTimestamp();
@@ -370,7 +414,7 @@ export function createProxyRouter(config: AppConfig): Router {
           operationType: parsed.type,
           rootFields: parsed.rootFields,
         },
-        'staging supported shop policy mutation locally',
+        'staging supported store properties mutation locally',
       );
 
       const responseBody = handleStorePropertiesMutation(body.query, variables);
@@ -554,6 +598,52 @@ export function createProxyRouter(config: AppConfig): Router {
         ctx.status = response.status;
         ctx.body = await response.json();
         return;
+      }
+    }
+
+    if (capability.execution === 'overlay-read' && capability.domain === 'shipping-fulfillments') {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleStorePropertiesQuery(body.query, variables);
+        return;
+      }
+
+      if (
+        config.readMode === 'live-hybrid' &&
+        primaryRootField === 'fulfillmentService' &&
+        typeof variables['id'] === 'string' &&
+        store.getEffectiveFulfillmentServiceById(variables['id']) !== null
+      ) {
+        ctx.status = 200;
+        ctx.body = handleStorePropertiesQuery(body.query, variables);
+        return;
+      }
+    }
+
+    if (
+      capability.execution === 'overlay-read' &&
+      capability.domain === 'payments' &&
+      primaryRootField === 'shopifyPaymentsAccount'
+    ) {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleStorePropertiesQuery(body.query, variables);
+        return;
+      }
+
+      if (config.readMode === 'live-hybrid') {
+        const primaryBusinessEntity = store.getPrimaryBusinessEntity();
+        const hasLocalShopifyPaymentsAccount =
+          Boolean(primaryBusinessEntity?.shopifyPaymentsAccount) ||
+          store
+            .listEffectiveBusinessEntities()
+            .some((businessEntity) => businessEntity.shopifyPaymentsAccount !== null);
+
+        if (hasLocalShopifyPaymentsAccount) {
+          ctx.status = 200;
+          ctx.body = handleStorePropertiesQuery(body.query, variables);
+          return;
+        }
       }
     }
 

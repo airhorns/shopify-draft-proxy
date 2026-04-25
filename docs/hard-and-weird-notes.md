@@ -556,6 +556,24 @@ Practical rule:
 - once order creation/editing scaffolding exists, do not leave those broader fulfillment roots as free-text notes only; add them to `config/operation-registry.json`, captured validation fixtures, and explicit parity-request/spec files so convention-discovered conformance reports show both the landed validation progress and the remaining blockers honestly
 - keep the fulfillment lifecycle blocker machine-readable in parity-spec blocker details and HAR-187, including the split between `fulfillmentTrackingInfoUpdate`'s scope+permission gate and `fulfillmentCancel`'s still-generic `ACCESS_DENIED` payload on this host after the pre-access validation branches are exhausted
 
+### 9a. Fulfillment services couple tightly to locations, but their handles do not follow renames
+
+HAR-236 live probes against Admin GraphQL 2026-04 on `harry-test-heelo.myshopify.com` settled several service-specific traps:
+
+- the top-level current-schema roots are `fulfillmentService`, `fulfillmentServiceCreate`, `fulfillmentServiceUpdate`, and `fulfillmentServiceDelete`; the catalog/list surface is nested at `shop.fulfillmentServices`, not a top-level query root
+- `fulfillmentService(id:)` returns `null` for an unknown ID
+- `fulfillmentServiceCreate` with `callbackUrl: "https://example.com/..."` returned `userErrors[{ field: ["callbackUrl"], message: "Callback url is not allowed" }]` under the current app credential; omitting `callbackUrl` succeeded
+- a blank create name returned `userErrors[{ field: ["name"], message: "Name can't be blank" }]`
+- creation automatically created an associated `Location` with `isFulfillmentService: true`, `fulfillsOnlineOrders: true`, and `shipsInventory: false`
+- `fulfillmentServiceUpdate(name:)` changed `serviceName` and the associated location name, but kept the original handle stable
+- `fulfillmentServiceDelete(inventoryAction: DELETE)` returned `deletedId` without the `?id=true` query suffix even when the service `id` contained that suffix, and downstream `fulfillmentService(id:)` plus `location(id:)` both returned `null`
+
+Practical rule:
+
+- model fulfillment-service writes as service-plus-location state changes, not as a service scalar patch
+- preserve the original service handle on update unless a broader capture proves a handle-changing input exists
+- do not invoke callback, stock fetch, tracking fetch, or fulfillment-order notification endpoints while staging locally; capture only enough metadata to make downstream reads coherent
+
 ## 10. Pagination and sorting are going to get gnarly fast
 
 Current `products(first: N)` support no longer stops at the default `createdAt desc` order. Overlay reads now also cover an explicit sort-key slice including:
@@ -1979,7 +1997,9 @@ Captured shape for the first local slice:
 Practical rule:
 
 - local business entity snapshots can fixture safe account scalars only when they were explicitly captured
-- do not synthesize balances, payouts, bank accounts, statement descriptors, disputes, or account opener details from Store properties reads
+- direct `shopifyPaymentsAccount` snapshot reads share the same normalized safe account fixture as `BusinessEntity.shopifyPaymentsAccount`; if no account fixture is present, the root returns `null` rather than inventing account data
+- `payouts`, `disputes`, and `balanceTransactions` are modeled only as empty no-data connections until non-empty Shopify Payments account activity is captured with account-level scopes
+- do not synthesize balances, bank accounts, statement descriptors, payout schedules, or account opener details from Store properties reads
 - order and market attribution should treat `BusinessEntity` as an identity link for now; do not model Markets assignment or order attribution rules until there is separate captured evidence for those domains
 
 ## 50. Shop baseline reads are broad, and some feature fields are access-gated
@@ -2183,6 +2203,7 @@ Observed current-version surface:
 - the current store returned an empty `paymentCustomizations` connection, an empty `tenderTransactions` connection, an empty Shop Pay receipt connection, and the standard payment-terms template catalog
 - `shopifyPaymentsAccount` still returns field-level `ACCESS_DENIED`; Shopify requires `read_shopify_payments` or `read_shopify_payments_accounts`, and the refreshed app scopes only include dispute/payout sub-scopes
 - `customerPaymentMethod(id:)` still returns field-level `ACCESS_DENIED`; Shopify requires `read_customers` plus `read_customer_payment_methods`, and the refreshed app scopes still lack `read_customer_payment_methods`
+- HAR-220 re-ran the direct `shopifyPaymentsAccount` probe with the configured `harry-test-heelo.myshopify.com` 2025-01 credential on 2026-04-25. It still returned `shopifyPaymentsAccount: null` with `ACCESS_DENIED`, so the checked-in parity scenario compares only the null data branch while targeted runtime tests cover fixture-backed safe scalar and empty connection behavior.
 
 Capture prerequisites and safety constraints:
 
