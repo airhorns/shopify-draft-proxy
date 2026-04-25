@@ -71,6 +71,12 @@ App -> Koa server -> operation classifier
 - identify operation type and operation name
 - eventually map known operations to capability records
 
+### `src/search-query-parser.ts`
+
+- parse Shopify-style Admin search query strings into shared typed terms and expression trees
+- preserve endpoint-specific grammar choices, such as boolean grouping support, quote handling, and simple term-list searches
+- provide reusable term metadata (`field`, comparator, value, negation) so product, customer, order, and draft-order filters do not maintain separate query parsers
+
 ### `src/state/`
 
 - define normalized object graph
