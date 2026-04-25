@@ -21,6 +21,10 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 3. **Do not send supported mutations to Shopify at runtime**
    - Supported mutations must stage locally.
    - Unsupported mutations may proxy through, but must be visible in logs/observability.
+   - This runtime rule does not prohibit intentional Shopify writes in other
+     phases. `__meta/commit` is expected to replay the original staged
+     mutations to Shopify, and live conformance work may deliberately mutate
+     disposable test shops to record faithful fixtures.
    - Do not register operations as permanent passthrough capabilities. A
      registered operation is a commitment to model it locally before it is
      considered supported; passthrough is only the unknown/unsupported escape
@@ -59,6 +63,9 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
   real Shopify evidence, agents may modify those test shops deeply as needed
   to create, update, activate, delete, and clean up realistic fixtures; do not
   avoid necessary live setup just because it changes test-shop data.
+- Do not limit conformance captures to validation-only branches solely because
+  the success path has Shopify side effects. If the store and credentials are
+  suitable, capture the success path with explicit setup and cleanup evidence.
 - Do not add tests that only reassert self-evident properties of checked-in
   metadata, such as exact fields in registry or parity-spec JSON files. Test
   executable behavior, schema validation, discovery semantics, or comparison

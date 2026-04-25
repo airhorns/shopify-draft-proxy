@@ -2420,7 +2420,29 @@ Practical rule:
 
 - keep the local `customerSet` support boundary narrower than `customerUpdate`: support fixture-backed scalar replacement, tag/tax exemption replacement, id/email/phone resolution, synthetic create/upsert, and existing-customer address-list replacement; reject unmodeled fields locally instead of letting a now-supported root proxy upstream
 
-## 64. Discount redeem-code bulk support is narrow by design
+## 64. `standardMetafieldDefinitionEnable` is a schema write, but test-shop side effects are allowed
+
+HAR-257 captured `standardMetafieldDefinitionEnable` on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com`. Successful standard enablement creates a real metafield definition. That must not happen during normal supported proxy runtime handling, but it is acceptable and useful during explicit conformance recording against disposable test-shop fixtures, and during `__meta/commit` replay of staged raw mutations.
+
+Captured validation branches:
+
+- the mutation is argument-based, not input-object-based: `ownerType` is non-null, while `id`, `namespace`, `key`, `pin`, `capabilities`, and `access` are optional arguments
+- the payload has `createdDefinition` and `userErrors`
+- no selector (`ownerType` only) returns `createdDefinition: null`, `field: null`, `code: TEMPLATE_NOT_FOUND`, and message `A namespace and key or standard metafield definition template id must be provided.`
+- unknown template ID returns `field: ["id"]`, `code: TEMPLATE_NOT_FOUND`, and message `Id is not a valid standard metafield definition template id`
+- unknown namespace/key returns `field: null`, `code: TEMPLATE_NOT_FOUND`, and message `A standard definition wasn't found for the specified owner type, namespace, and key.`
+- using template ID `1` with owner type `CUSTOMER` also returns the invalid-template-ID branch, because the sampled template is product/product-variant scoped
+
+Local support now uses the captured template slice as a bounded local catalog. Successful proxy calls stage a normalized `MetafieldDefinition` record, honor the selected owner type/access/capability/pin inputs that are represented in the local model, and make downstream definition reads observe the staged record without a live Shopify write.
+
+Practical rule:
+
+- keep proxy runtime support constrained to captured standard template IDs/namespaces until broader template catalog reads are modeled
+- when broader fidelity needs a success fixture, set up and clean up the disposable test shop instead of treating Shopify side effects as a capture blocker
+- commit replay should apply the original raw staged mutation to Shopify so the real schema side effect can happen at the intentional commit boundary
+- do not broaden create/update/delete/pin/unpin definition lifecycle support from this enablement slice
+
+## 65. Discount redeem-code bulk support is narrow by design
 
 HAR-197 added a safe local model for code-basic redeem-code bulk operations without promoting broad discount bulk lifecycle roots.
 
