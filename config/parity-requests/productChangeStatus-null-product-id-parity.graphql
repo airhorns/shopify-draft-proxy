@@ -1,0 +1,14 @@
+#graphql
+mutation ProductChangeStatusNullLiteralConformance {
+  productChangeStatus(productId: null, status: ARCHIVED) {
+    product {
+      id
+      status
+      updatedAt
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

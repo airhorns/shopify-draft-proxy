@@ -1,6 +1,7 @@
-import { getLocation, Kind, type FieldNode, type SelectionNode } from 'graphql';
+import { getLocation, Kind, parse, type ASTNode, type FieldNode, type SelectionNode } from 'graphql';
 import type { ReadMode } from '../config.js';
 import { getFieldArguments, getRootField, getRootFieldArguments, getRootFields } from '../graphql/root-field.js';
+import { parseSearchQuery, type SearchQueryNode, type SearchQueryTerm } from '../search-query-parser.js';
 import { paginateConnectionItems, serializeConnectionPageInfo } from './graphql-helpers.js';
 import {
   normalizeOwnerMetafield,
@@ -32,6 +33,42 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function hasOwnField(value: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+type GraphqlErrorLocation = { line: number; column: number };
+
+function getNodeLocation(node: ASTNode): GraphqlErrorLocation[] {
+  const token = node.loc?.startToken;
+  return token ? [{ line: token.line, column: token.column }] : [];
+}
+
+function getVariableDefinitionLocation(document: string, variableName: string): GraphqlErrorLocation[] {
+  const ast = parse(document);
+  for (const definition of ast.definitions) {
+    if (definition.kind !== Kind.OPERATION_DEFINITION) {
+      continue;
+    }
+
+    const variableDefinition = definition.variableDefinitions?.find(
+      (candidate) => candidate.variable.name.value === variableName,
+    );
+    if (variableDefinition) {
+      return getNodeLocation(variableDefinition);
+    }
+  }
+
+  return [];
+}
+
+function getOperationPathLabel(document: string): string {
+  const ast = parse(document);
+  const operation = ast.definitions.find((definition) => definition.kind === Kind.OPERATION_DEFINITION);
+  if (!operation || operation.kind !== Kind.OPERATION_DEFINITION) {
+    return 'mutation';
+  }
+
+  const operationType = operation.operation;
+  return operation.name ? `${operationType} ${operation.name.value}` : operationType;
 }
 
 function normalizeHandleParts(value: string): string {
@@ -1962,9 +1999,13 @@ function buildInventoryAdjustmentStaffMemberAccessDeniedError(
   };
 }
 
-function buildNullProductChangeStatusArgumentError(): {
+function buildNullProductChangeStatusArgumentError(
+  locations: GraphqlErrorLocation[],
+  operationPathLabel: string,
+): {
   errors: Array<{
     message: string;
+    locations: GraphqlErrorLocation[];
     path: string[];
     extensions: {
       code: 'argumentLiteralsIncompatible';
@@ -1978,7 +2019,8 @@ function buildNullProductChangeStatusArgumentError(): {
       {
         message:
           "Argument 'productId' on Field 'productChangeStatus' has an invalid value (null). Expected type 'ID!'.",
-        path: ['mutation', 'productChangeStatus', 'productId'],
+        locations,
+        path: [operationPathLabel, 'productChangeStatus', 'productId'],
         extensions: {
           code: 'argumentLiteralsIncompatible',
           typeName: 'Field',
@@ -1989,9 +2031,13 @@ function buildNullProductChangeStatusArgumentError(): {
   };
 }
 
-function buildProductDeleteInvalidVariableError(input: Record<string, unknown>): {
+function buildProductDeleteInvalidVariableError(
+  input: Record<string, unknown>,
+  locations: GraphqlErrorLocation[],
+): {
   errors: Array<{
     message: string;
+    locations: GraphqlErrorLocation[];
     extensions: {
       code: 'INVALID_VARIABLE';
       value: Record<string, unknown>;
@@ -2004,6 +2050,7 @@ function buildProductDeleteInvalidVariableError(input: Record<string, unknown>):
       {
         message:
           'Variable $input of type ProductDeleteInput! was provided invalid value for id (Expected value to not be null)',
+        locations,
         extensions: {
           code: 'INVALID_VARIABLE',
           value: structuredClone(input),
@@ -2014,9 +2061,10 @@ function buildProductDeleteInvalidVariableError(input: Record<string, unknown>):
   };
 }
 
-function buildMissingProductDeleteInputIdArgumentError(): {
+function buildMissingProductDeleteInputIdArgumentError(locations: GraphqlErrorLocation[]): {
   errors: Array<{
     message: string;
+    locations: GraphqlErrorLocation[];
     path: string[];
     extensions: {
       code: 'missingRequiredInputObjectAttribute';
@@ -2030,6 +2078,7 @@ function buildMissingProductDeleteInputIdArgumentError(): {
     errors: [
       {
         message: "Argument 'id' on InputObject 'ProductDeleteInput' is required. Expected type ID!",
+        locations,
         path: ['mutation', 'productDelete', 'input', 'id'],
         extensions: {
           code: 'missingRequiredInputObjectAttribute',
@@ -2042,9 +2091,10 @@ function buildMissingProductDeleteInputIdArgumentError(): {
   };
 }
 
-function buildNullProductDeleteInputIdArgumentError(): {
+function buildNullProductDeleteInputIdArgumentError(locations: GraphqlErrorLocation[]): {
   errors: Array<{
     message: string;
+    locations: GraphqlErrorLocation[];
     path: string[];
     extensions: {
       code: 'argumentLiteralsIncompatible';
@@ -2057,6 +2107,7 @@ function buildNullProductDeleteInputIdArgumentError(): {
     errors: [
       {
         message: "Argument 'id' on InputObject 'ProductDeleteInput' has an invalid value (null). Expected type 'ID!'.",
+        locations,
         path: ['mutation', 'productDelete', 'input', 'id'],
         extensions: {
           code: 'argumentLiteralsIncompatible',
@@ -5267,174 +5318,6 @@ function matchesNullableProductTimestampTerm(productValue: string | null, rawVal
   return productValue === null ? false : matchesProductTimestampTerm(productValue, normalizedValue);
 }
 
-type ProductsQueryToken =
-  | { type: 'term'; value: string }
-  | { type: 'or' }
-  | { type: 'lparen' }
-  | { type: 'rparen' }
-  | { type: 'not' };
-
-type ProductsQueryNode =
-  | { type: 'term'; value: string }
-  | { type: 'and'; children: ProductsQueryNode[] }
-  | { type: 'or'; children: ProductsQueryNode[] }
-  | { type: 'not'; child: ProductsQueryNode };
-
-function tokenizeProductsQuery(query: string): ProductsQueryToken[] {
-  const tokens: ProductsQueryToken[] = [];
-  let current = '';
-  let quoteCharacter: '"' | "'" | null = null;
-
-  const flushCurrent = (): void => {
-    const value = current.trim();
-    if (!value) {
-      current = '';
-      return;
-    }
-
-    if (value.toUpperCase() === 'OR') {
-      tokens.push({ type: 'or' });
-    } else if (value === 'NOT') {
-      tokens.push({ type: 'not' });
-    } else {
-      tokens.push({ type: 'term', value });
-    }
-    current = '';
-  };
-
-  const canStartQuotedValue = (): boolean => {
-    if (!current) {
-      return true;
-    }
-
-    return /:(?:<=|>=|<|>|=)?$/u.test(current);
-  };
-
-  for (let index = 0; index < query.length; index += 1) {
-    const character = query[index] ?? '';
-
-    if (
-      (character === '"' || character === "'") &&
-      (quoteCharacter === character || (quoteCharacter === null && canStartQuotedValue()))
-    ) {
-      quoteCharacter = quoteCharacter === character ? null : character;
-      continue;
-    }
-
-    if (quoteCharacter === null && /\s/.test(character)) {
-      flushCurrent();
-      continue;
-    }
-
-    if (quoteCharacter === null && character === '(') {
-      flushCurrent();
-      tokens.push({ type: 'lparen' });
-      continue;
-    }
-
-    if (quoteCharacter === null && character === ')') {
-      flushCurrent();
-      tokens.push({ type: 'rparen' });
-      continue;
-    }
-
-    if (quoteCharacter === null && character === '-' && !current) {
-      const nextCharacter = query[index + 1] ?? '';
-      if (nextCharacter === '(') {
-        tokens.push({ type: 'not' });
-        continue;
-      }
-    }
-
-    current += character;
-  }
-
-  flushCurrent();
-  return tokens;
-}
-
-function parseProductsQuery(query: string): ProductsQueryNode | null {
-  const tokens = tokenizeProductsQuery(query);
-  if (tokens.length === 0) {
-    return null;
-  }
-
-  let index = 0;
-
-  const parseOrExpression = (): ProductsQueryNode | null => {
-    const firstChild = parseAndExpression();
-    if (!firstChild) {
-      return null;
-    }
-
-    const children: ProductsQueryNode[] = [firstChild];
-    while (tokens[index]?.type === 'or') {
-      index += 1;
-      const nextChild = parseAndExpression();
-      if (!nextChild) {
-        break;
-      }
-      children.push(nextChild);
-    }
-
-    return children.length === 1 ? (children[0] ?? null) : { type: 'or', children };
-  };
-
-  const parseAndExpression = (): ProductsQueryNode | null => {
-    const children: ProductsQueryNode[] = [];
-
-    while (index < tokens.length) {
-      const token = tokens[index];
-      if (!token || token.type === 'or' || token.type === 'rparen') {
-        break;
-      }
-
-      const child = parseUnaryExpression();
-      if (!child) {
-        break;
-      }
-      children.push(child);
-    }
-
-    if (children.length === 0) {
-      return null;
-    }
-
-    return children.length === 1 ? (children[0] ?? null) : { type: 'and', children };
-  };
-
-  const parseUnaryExpression = (): ProductsQueryNode | null => {
-    const token = tokens[index];
-    if (!token) {
-      return null;
-    }
-
-    if (token.type === 'not') {
-      index += 1;
-      const child = parseUnaryExpression();
-      return child ? { type: 'not', child } : null;
-    }
-
-    if (token.type === 'term') {
-      index += 1;
-      return { type: 'term', value: token.value };
-    }
-
-    if (token.type === 'lparen') {
-      index += 1;
-      const child = parseOrExpression();
-      if (tokens[index]?.type === 'rparen') {
-        index += 1;
-      }
-      return child;
-    }
-
-    return null;
-  };
-
-  return parseOrExpression();
-}
-
 function isPrefixPattern(rawValue: string): boolean {
   return rawValue.endsWith('*');
 }
@@ -5503,14 +5386,17 @@ function matchesProductSearchText(product: ProductRecord, rawValue: string): boo
   return searchableValues.some((candidate) => matchesStringValue(candidate, rawValue, 'includes'));
 }
 
-function matchesPositiveProductQueryTerm(product: ProductRecord, term: string): boolean {
-  const separatorIndex = term.indexOf(':');
-  if (separatorIndex === -1) {
-    return matchesProductSearchText(product, term);
+function searchTermValue(term: SearchQueryTerm): string {
+  return term.comparator === null ? term.value : `${term.comparator}${term.value}`;
+}
+
+function matchesPositiveProductQueryTerm(product: ProductRecord, term: SearchQueryTerm): boolean {
+  if (term.field === null) {
+    return matchesProductSearchText(product, term.value);
   }
 
-  const field = term.slice(0, separatorIndex).toLowerCase();
-  const value = term.slice(separatorIndex + 1);
+  const field = term.field.toLowerCase();
+  const value = searchTermValue(term);
 
   switch (field) {
     case 'title':
@@ -5573,26 +5459,23 @@ function matchesPositiveProductQueryTerm(product: ProductRecord, term: string): 
   }
 }
 
-function matchesProductQueryTerm(product: ProductRecord, rawTerm: string): boolean {
-  const term = rawTerm.trim();
-  if (!term) {
+function matchesProductQueryTerm(product: ProductRecord, term: SearchQueryTerm): boolean {
+  if (!term.raw) {
     return true;
   }
 
-  const isNegated = term.startsWith('-');
-  const normalizedTerm = isNegated ? term.slice(1).trim() : term;
-  if (!normalizedTerm) {
+  if (term.negated && !term.value && term.field === null) {
     return true;
   }
 
-  const matches = matchesPositiveProductQueryTerm(product, normalizedTerm);
-  return isNegated ? !matches : matches;
+  const matches = matchesPositiveProductQueryTerm(product, term);
+  return term.negated ? !matches : matches;
 }
 
-function matchesProductsQueryNode(product: ProductRecord, node: ProductsQueryNode): boolean {
+function matchesProductsQueryNode(product: ProductRecord, node: SearchQueryNode): boolean {
   switch (node.type) {
     case 'term':
-      return matchesProductQueryTerm(product, node.value);
+      return matchesProductQueryTerm(product, node.term);
     case 'and':
       return node.children.every((child) => matchesProductsQueryNode(product, child));
     case 'or':
@@ -5609,7 +5492,7 @@ function applyProductsQuery(products: ProductRecord[], rawQuery: unknown): Produ
     return products;
   }
 
-  const parsedQuery = parseProductsQuery(rawQuery);
+  const parsedQuery = parseSearchQuery(rawQuery, { recognizeNotKeyword: true });
   if (!parsedQuery) {
     return products;
   }
@@ -5692,15 +5575,14 @@ function matchesCollectionSearchText(
 
 function matchesPositiveCollectionQueryTerm(
   collection: CollectionRecord | ProductCollectionRecord,
-  term: string,
+  term: SearchQueryTerm,
 ): boolean {
-  const separatorIndex = term.indexOf(':');
-  if (separatorIndex === -1) {
-    return matchesCollectionSearchText(collection, term);
+  if (term.field === null) {
+    return matchesCollectionSearchText(collection, term.value);
   }
 
-  const field = term.slice(0, separatorIndex).toLowerCase();
-  const value = term.slice(separatorIndex + 1);
+  const field = term.field.toLowerCase();
+  const value = searchTermValue(term);
 
   switch (field) {
     case 'title':
@@ -5733,29 +5615,29 @@ function matchesPositiveCollectionQueryTerm(
   }
 }
 
-function matchesCollectionQueryTerm(collection: CollectionRecord | ProductCollectionRecord, rawTerm: string): boolean {
-  const term = rawTerm.trim();
-  if (!term) {
+function matchesCollectionQueryTerm(
+  collection: CollectionRecord | ProductCollectionRecord,
+  term: SearchQueryTerm,
+): boolean {
+  if (!term.raw) {
     return true;
   }
 
-  const isNegated = term.startsWith('-');
-  const normalizedTerm = isNegated ? term.slice(1).trim() : term;
-  if (!normalizedTerm) {
+  if (term.negated && !term.value && term.field === null) {
     return true;
   }
 
-  const matches = matchesPositiveCollectionQueryTerm(collection, normalizedTerm);
-  return isNegated ? !matches : matches;
+  const matches = matchesPositiveCollectionQueryTerm(collection, term);
+  return term.negated ? !matches : matches;
 }
 
 function matchesCollectionsQueryNode(
   collection: CollectionRecord | ProductCollectionRecord,
-  node: ProductsQueryNode,
+  node: SearchQueryNode,
 ): boolean {
   switch (node.type) {
     case 'term':
-      return matchesCollectionQueryTerm(collection, node.value);
+      return matchesCollectionQueryTerm(collection, node.term);
     case 'and':
       return node.children.every((child) => matchesCollectionsQueryNode(collection, child));
     case 'or':
@@ -5775,7 +5657,7 @@ function applyCollectionsQuery<T extends CollectionRecord | ProductCollectionRec
     return collections;
   }
 
-  const parsedQuery = parseProductsQuery(rawQuery);
+  const parsedQuery = parseSearchQuery(rawQuery, { recognizeNotKeyword: true });
   if (!parsedQuery) {
     return collections;
   }
@@ -6720,18 +6602,21 @@ export function handleProductMutation(
       if (inputArg?.value.kind === Kind.VARIABLE) {
         const rawVariableInput = readProductInput(variables[inputArg.value.name.value]);
         if (!hasOwnField(rawVariableInput, 'id') || rawVariableInput['id'] === null) {
-          return buildProductDeleteInvalidVariableError(rawVariableInput);
+          return buildProductDeleteInvalidVariableError(
+            rawVariableInput,
+            getVariableDefinitionLocation(document, inputArg.value.name.value),
+          );
         }
       }
 
       if (inputArg?.value.kind === Kind.OBJECT) {
         const idField = inputArg.value.fields.find((objectField) => objectField.name.value === 'id') ?? null;
         if (!idField) {
-          return buildMissingProductDeleteInputIdArgumentError();
+          return buildMissingProductDeleteInputIdArgumentError(getNodeLocation(inputArg.value));
         }
 
         if (idField.value.kind === Kind.NULL) {
-          return buildNullProductDeleteInputIdArgumentError();
+          return buildNullProductDeleteInputIdArgumentError(getNodeLocation(inputArg.value));
         }
       }
 
@@ -6740,7 +6625,7 @@ export function handleProductMutation(
       const argId = args['id'];
       const id = typeof inputId === 'string' ? inputId : typeof argId === 'string' ? argId : null;
       if (!id) {
-        return buildProductDeleteInvalidVariableError(input);
+        return buildProductDeleteInvalidVariableError(input, []);
       }
 
       const existing = store.getEffectiveProductById(id);
@@ -6938,7 +6823,7 @@ export function handleProductMutation(
     case 'productChangeStatus': {
       const rawProductId = args['productId'];
       if (rawProductId === null) {
-        return buildNullProductChangeStatusArgumentError();
+        return buildNullProductChangeStatusArgumentError(getNodeLocation(field), getOperationPathLabel(document));
       }
 
       const productId = typeof rawProductId === 'string' ? rawProductId : null;
