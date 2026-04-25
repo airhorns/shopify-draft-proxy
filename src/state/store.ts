@@ -12,6 +12,7 @@ import type {
   DraftOrderRecord,
   FileRecord,
   LocationRecord,
+  MarketLocalizationRecord,
   MarketRecord,
   MutationLogEntry,
   NormalizedStateSnapshotFile,
@@ -59,6 +60,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   businessEntityOrder: [],
   markets: {},
   marketOrder: [],
+  marketLocalizations: {},
   catalogs: {},
   catalogOrder: [],
   priceLists: {},
@@ -73,6 +75,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedCollectionIds: {},
   deletedCustomerIds: {},
   deletedCustomerAddressIds: {},
+  deletedSegmentIds: {},
   deletedDiscountIds: {},
   deletedMarketIds: {},
   mergedCustomerIds: {},
@@ -124,6 +127,12 @@ function buildCollectionStorageKey(collection: ProductCollectionRecord): string 
   return `${collection.productId}::${collection.id}`;
 }
 
+function marketLocalizationStorageKey(
+  localization: Pick<MarketLocalizationRecord, 'resourceId' | 'marketId' | 'key'>,
+): string {
+  return `${localization.resourceId}::${localization.marketId}::${localization.key}`;
+}
+
 function readCollectionPosition(collection: ProductCollectionRecord): number | null {
   return typeof collection.position === 'number' && Number.isFinite(collection.position) ? collection.position : null;
 }
@@ -147,9 +156,56 @@ function mergeCollectionRecords(
   return structuredClone(staged);
 }
 
+function mergeLocationRecords(base: LocationRecord | null, staged: LocationRecord | null): LocationRecord | null {
+  if (!base && !staged) {
+    return null;
+  }
+
+  if (!base) {
+    return staged ? structuredClone(staged) : null;
+  }
+
+  if (!staged) {
+    return structuredClone(base);
+  }
+
+  return structuredClone({
+    ...base,
+    ...staged,
+    address:
+      staged.address === undefined
+        ? base.address
+        : staged.address === null
+          ? null
+          : {
+              ...(base.address ?? {
+                address1: null,
+                address2: null,
+                city: null,
+                country: null,
+                countryCode: null,
+                formatted: [],
+                latitude: null,
+                longitude: null,
+                phone: null,
+                province: null,
+                provinceCode: null,
+                zip: null,
+              }),
+              ...staged.address,
+            },
+    suggestedAddresses: staged.suggestedAddresses ?? base.suggestedAddresses,
+    metafields: staged.metafields ?? base.metafields,
+  });
+}
+
 function collectionFromMembership(membership: ProductCollectionRecord): CollectionRecord {
   const { productId: _productId, position: _position, ...collection } = membership;
   return structuredClone(collection);
+}
+
+function readProductMetafieldOwnerId(metafield: ProductMetafieldRecord): string | null {
+  return metafield.ownerId ?? metafield.productId ?? null;
 }
 
 function mergePublicationRecord(base: PublicationRecord | null): PublicationRecord | null {
@@ -379,6 +435,8 @@ export class InMemoryStore {
 
   upsertBaseSegments(segments: SegmentRecord[]): void {
     for (const segment of segments) {
+      delete this.baseState.deletedSegmentIds[segment.id];
+      delete this.stagedState.deletedSegmentIds[segment.id];
       this.baseState.segments[segment.id] = structuredClone(segment);
     }
   }
@@ -395,6 +453,53 @@ export class InMemoryStore {
         (left, right) =>
           (left.creationDate ?? '').localeCompare(right.creationDate ?? '') || left.id.localeCompare(right.id),
       );
+  }
+
+  stageCreateSegment(segment: SegmentRecord): SegmentRecord {
+    delete this.stagedState.deletedSegmentIds[segment.id];
+    this.stagedState.segments[segment.id] = structuredClone(segment);
+    return structuredClone(segment);
+  }
+
+  stageUpdateSegment(segment: SegmentRecord): SegmentRecord {
+    delete this.stagedState.deletedSegmentIds[segment.id];
+    this.stagedState.segments[segment.id] = structuredClone(segment);
+    return structuredClone(segment);
+  }
+
+  stageDeleteSegment(segmentId: string): void {
+    delete this.stagedState.segments[segmentId];
+    this.stagedState.deletedSegmentIds[segmentId] = true;
+  }
+
+  getEffectiveSegmentById(segmentId: string): SegmentRecord | null {
+    if (this.stagedState.deletedSegmentIds[segmentId]) {
+      return null;
+    }
+
+    const segment = this.stagedState.segments[segmentId] ?? this.baseState.segments[segmentId] ?? null;
+    return segment ? structuredClone(segment) : null;
+  }
+
+  listEffectiveSegments(): SegmentRecord[] {
+    const mergedSegments = new Map<string, SegmentRecord>();
+    for (const segment of [...Object.values(this.baseState.segments), ...Object.values(this.stagedState.segments)]) {
+      if (this.stagedState.deletedSegmentIds[segment.id]) {
+        continue;
+      }
+      mergedSegments.set(segment.id, structuredClone(segment));
+    }
+
+    return Array.from(mergedSegments.values()).sort(
+      (left, right) =>
+        (left.creationDate ?? '').localeCompare(right.creationDate ?? '') || left.id.localeCompare(right.id),
+    );
+  }
+
+  hasStagedSegments(): boolean {
+    return (
+      Object.keys(this.stagedState.segments).length > 0 || Object.keys(this.stagedState.deletedSegmentIds).length > 0
+    );
   }
 
   upsertBaseDiscounts(discounts: DiscountRecord[]): void {
@@ -442,6 +547,43 @@ export class InMemoryStore {
   getBaseLocationById(locationId: string): LocationRecord | null {
     const location = this.baseState.locations[locationId] ?? null;
     return location ? structuredClone(location) : null;
+  }
+
+  stageCreateLocation(location: LocationRecord): LocationRecord {
+    this.stagedState.locations[location.id] = structuredClone(location);
+    if (!this.stagedState.locationOrder.includes(location.id)) {
+      this.stagedState.locationOrder.push(location.id);
+    }
+    return structuredClone(location);
+  }
+
+  stageUpdateLocation(location: LocationRecord): LocationRecord {
+    this.stagedState.locations[location.id] = structuredClone(location);
+    if (!this.baseState.locationOrder.includes(location.id) && !this.stagedState.locationOrder.includes(location.id)) {
+      this.stagedState.locationOrder.push(location.id);
+    }
+    return structuredClone(location);
+  }
+
+  getEffectiveLocationById(locationId: string): LocationRecord | null {
+    return mergeLocationRecords(
+      this.baseState.locations[locationId] ?? null,
+      this.stagedState.locations[locationId] ?? null,
+    );
+  }
+
+  listEffectiveLocations(): LocationRecord[] {
+    const orderedIds = new Set([...this.baseState.locationOrder, ...this.stagedState.locationOrder]);
+    const orderedLocations = [...orderedIds]
+      .map((id) => this.getEffectiveLocationById(id))
+      .filter((location): location is LocationRecord => location !== null);
+    const unorderedLocations = Object.values({ ...this.baseState.locations, ...this.stagedState.locations })
+      .filter((location) => !orderedIds.has(location.id))
+      .map((location) => this.getEffectiveLocationById(location.id))
+      .filter((location): location is LocationRecord => location !== null)
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
+
+    return structuredClone([...orderedLocations, ...unorderedLocations]);
   }
 
   stageShop(shop: ShopRecord): ShopRecord {
@@ -706,7 +848,38 @@ export class InMemoryStore {
 
   hasStagedMarkets(): boolean {
     return (
-      Object.keys(this.stagedState.markets).length > 0 || Object.keys(this.stagedState.deletedMarketIds).length > 0
+      Object.keys(this.stagedState.markets).length > 0 ||
+      Object.keys(this.stagedState.deletedMarketIds).length > 0 ||
+      Object.keys(this.stagedState.marketLocalizations).length > 0
+    );
+  }
+
+  stageMarketLocalization(localization: MarketLocalizationRecord): MarketLocalizationRecord {
+    this.stagedState.marketLocalizations[marketLocalizationStorageKey(localization)] = structuredClone(localization);
+    return structuredClone(localization);
+  }
+
+  removeMarketLocalization(resourceId: string, marketId: string, key: string): MarketLocalizationRecord | null {
+    const storageKey = marketLocalizationStorageKey({ resourceId, marketId, key });
+    const existing = this.stagedState.marketLocalizations[storageKey] ?? this.baseState.marketLocalizations[storageKey];
+    delete this.stagedState.marketLocalizations[storageKey];
+    return existing ? structuredClone(existing) : null;
+  }
+
+  listEffectiveMarketLocalizations(resourceId: string, marketId: string): MarketLocalizationRecord[] {
+    const merged = new Map<string, MarketLocalizationRecord>();
+    for (const localization of Object.values(this.baseState.marketLocalizations)) {
+      if (localization.resourceId === resourceId && localization.marketId === marketId) {
+        merged.set(marketLocalizationStorageKey(localization), structuredClone(localization));
+      }
+    }
+    for (const localization of Object.values(this.stagedState.marketLocalizations)) {
+      if (localization.resourceId === resourceId && localization.marketId === marketId) {
+        merged.set(marketLocalizationStorageKey(localization), structuredClone(localization));
+      }
+    }
+    return Array.from(merged.values()).sort(
+      (left, right) => left.key.localeCompare(right.key) || left.updatedAt.localeCompare(right.updatedAt),
     );
   }
 
@@ -975,6 +1148,11 @@ export class InMemoryStore {
         delete this.baseState.productCollections[storageKey];
       }
     }
+    for (const metafield of Object.values(this.stagedState.productMetafields)) {
+      if (readProductMetafieldOwnerId(metafield) === collectionId) {
+        delete this.stagedState.productMetafields[metafield.id];
+      }
+    }
     this.stagedState.deletedCollectionIds[collectionId] = true;
   }
 
@@ -1133,9 +1311,9 @@ export class InMemoryStore {
     );
   }
 
-  replaceBaseMetafieldsForProduct(productId: string, metafields: ProductMetafieldRecord[]): void {
+  replaceBaseMetafieldsForOwner(ownerId: string, metafields: ProductMetafieldRecord[]): void {
     for (const metafield of Object.values(this.baseState.productMetafields)) {
-      if (metafield.productId === productId) {
+      if (readProductMetafieldOwnerId(metafield) === ownerId) {
         delete this.baseState.productMetafields[metafield.id];
       }
     }
@@ -1145,9 +1323,13 @@ export class InMemoryStore {
     }
   }
 
-  replaceStagedMetafieldsForProduct(productId: string, metafields: ProductMetafieldRecord[]): void {
+  replaceBaseMetafieldsForProduct(productId: string, metafields: ProductMetafieldRecord[]): void {
+    this.replaceBaseMetafieldsForOwner(productId, metafields);
+  }
+
+  replaceStagedMetafieldsForOwner(ownerId: string, metafields: ProductMetafieldRecord[]): void {
     for (const metafield of Object.values(this.stagedState.productMetafields)) {
-      if (metafield.productId === productId) {
+      if (readProductMetafieldOwnerId(metafield) === ownerId) {
         delete this.stagedState.productMetafields[metafield.id];
       }
     }
@@ -1155,6 +1337,10 @@ export class InMemoryStore {
     for (const metafield of metafields) {
       this.stagedState.productMetafields[metafield.id] = structuredClone(metafield);
     }
+  }
+
+  replaceStagedMetafieldsForProduct(productId: string, metafields: ProductMetafieldRecord[]): void {
+    this.replaceStagedMetafieldsForOwner(productId, metafields);
   }
 
   replaceBaseMetafieldsForCustomer(customerId: string, metafields: CustomerMetafieldRecord[]): void {
@@ -1195,6 +1381,11 @@ export class InMemoryStore {
 
   stageDeleteProduct(productId: string): void {
     delete this.stagedState.products[productId];
+    const variantIds = new Set(
+      [...Object.values(this.baseState.productVariants), ...Object.values(this.stagedState.productVariants)]
+        .filter((variant) => variant.productId === productId)
+        .map((variant) => variant.id),
+    );
     for (const variant of Object.values(this.stagedState.productVariants)) {
       if (variant.productId === productId) {
         delete this.stagedState.productVariants[variant.id];
@@ -1216,7 +1407,8 @@ export class InMemoryStore {
       }
     }
     for (const metafield of Object.values(this.stagedState.productMetafields)) {
-      if (metafield.productId === productId) {
+      const ownerId = readProductMetafieldOwnerId(metafield);
+      if (ownerId === productId || (ownerId ? variantIds.has(ownerId) : false)) {
         delete this.stagedState.productMetafields[metafield.id];
       }
     }
@@ -1631,20 +1823,20 @@ export class InMemoryStore {
     return sourceMedia.sort((left, right) => left.position - right.position || left.key.localeCompare(right.key));
   }
 
-  getEffectiveMetafieldsByProductId(productId: string): ProductMetafieldRecord[] {
-    if (this.stagedState.deletedProductIds[productId]) {
+  getEffectiveMetafieldsByOwnerId(ownerId: string): ProductMetafieldRecord[] {
+    if (this.stagedState.deletedProductIds[ownerId] || this.stagedState.deletedCollectionIds[ownerId]) {
       return [];
     }
 
     const stagedMetafields = Object.values(this.stagedState.productMetafields)
-      .filter((metafield) => metafield.productId === productId)
+      .filter((metafield) => readProductMetafieldOwnerId(metafield) === ownerId)
       .map((metafield) => structuredClone(metafield));
 
     const sourceMetafields =
       stagedMetafields.length > 0
         ? stagedMetafields
         : Object.values(this.baseState.productMetafields)
-            .filter((metafield) => metafield.productId === productId)
+            .filter((metafield) => readProductMetafieldOwnerId(metafield) === ownerId)
             .map((metafield) => structuredClone(metafield));
 
     return sourceMetafields.sort((left, right) => {
@@ -1660,6 +1852,10 @@ export class InMemoryStore {
         left.id.localeCompare(right.id)
       );
     });
+  }
+
+  getEffectiveMetafieldsByProductId(productId: string): ProductMetafieldRecord[] {
+    return this.getEffectiveMetafieldsByOwnerId(productId);
   }
 
   getEffectiveMetafieldsByCustomerId(customerId: string): CustomerMetafieldRecord[] {

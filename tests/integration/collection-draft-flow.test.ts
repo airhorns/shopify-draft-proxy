@@ -101,6 +101,130 @@ describe('collection draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('stages metafields for collection owners and exposes set and delete effects through collection reads', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const app = createApp(config).callback();
+
+    const createResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation CreateCollection($input: CollectionInput!) { collectionCreate(input: $input) { collection { id title handle metafield(namespace: "custom", key: "season") { id } metafields(first: 10) { nodes { id } pageInfo { hasNextPage hasPreviousPage } } } userErrors { field message } } }',
+        variables: {
+          input: {
+            title: 'Collection Metafield Hats',
+          },
+        },
+      });
+
+    expect(createResponse.status).toBe(200);
+    expect(createResponse.body.data.collectionCreate.userErrors).toEqual([]);
+    const collection = createResponse.body.data.collectionCreate.collection as {
+      id: string;
+      metafield: unknown;
+      metafields: { nodes: unknown[]; pageInfo: { hasNextPage: boolean; hasPreviousPage: boolean } };
+    };
+    expect(collection.metafield).toBeNull();
+    expect(collection.metafields).toEqual({
+      nodes: [],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+    });
+
+    const setResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation SetCollectionMetafield($metafields: [MetafieldsSetInput!]!) { metafieldsSet(metafields: $metafields) { metafields { id namespace key type value ownerType compareDigest } userErrors { field message code elementIndex } } }',
+        variables: {
+          metafields: [
+            {
+              ownerId: collection.id,
+              namespace: 'custom',
+              key: 'season',
+              type: 'single_line_text_field',
+              value: 'Winter',
+            },
+          ],
+        },
+      });
+
+    expect(setResponse.status).toBe(200);
+    expect(setResponse.body.data.metafieldsSet.userErrors).toEqual([]);
+    expect(setResponse.body.data.metafieldsSet.metafields).toEqual([
+      {
+        id: expect.stringMatching(/^gid:\/\/shopify\/Metafield\//),
+        namespace: 'custom',
+        key: 'season',
+        type: 'single_line_text_field',
+        value: 'Winter',
+        ownerType: 'COLLECTION',
+        compareDigest: expect.stringMatching(/^draft:/),
+      },
+    ]);
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'query CollectionMetafields($id: ID!) { collection(id: $id) { id season: metafield(namespace: "custom", key: "season") { id namespace key value ownerType } metafields(first: 10) { nodes { id namespace key value ownerType } pageInfo { hasNextPage hasPreviousPage } } } }',
+        variables: {
+          id: collection.id,
+        },
+      });
+
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body.data.collection.season).toMatchObject({
+      namespace: 'custom',
+      key: 'season',
+      value: 'Winter',
+      ownerType: 'COLLECTION',
+    });
+    expect(readResponse.body.data.collection.metafields.nodes).toEqual([readResponse.body.data.collection.season]);
+
+    const deleteResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation DeleteCollectionMetafield($metafields: [MetafieldIdentifierInput!]!) { metafieldsDelete(metafields: $metafields) { deletedMetafields { ownerId namespace key } userErrors { field message } } }',
+        variables: {
+          metafields: [{ ownerId: collection.id, namespace: 'custom', key: 'season' }],
+        },
+      });
+
+    expect(deleteResponse.status).toBe(200);
+    expect(deleteResponse.body.data.metafieldsDelete).toEqual({
+      deletedMetafields: [{ ownerId: collection.id, namespace: 'custom', key: 'season' }],
+      userErrors: [],
+    });
+
+    const deletedReadResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'query CollectionMetafieldsDeleted($id: ID!) { collection(id: $id) { id season: metafield(namespace: "custom", key: "season") { id } metafields(first: 10) { nodes { id } pageInfo { hasNextPage hasPreviousPage } } } }',
+        variables: {
+          id: collection.id,
+        },
+      });
+
+    expect(deletedReadResponse.status).toBe(200);
+    expect(deletedReadResponse.body.data.collection).toEqual({
+      id: collection.id,
+      season: null,
+      metafields: {
+        nodes: [],
+        pageInfo: {
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('overlays staged collection handle lookups in live-hybrid mode when Shopify has no match yet', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ data: { byHandle: null, byIdentifier: null } }), {

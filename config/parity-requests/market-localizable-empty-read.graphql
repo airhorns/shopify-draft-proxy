@@ -1,0 +1,65 @@
+#graphql
+query MarketLocalizableEmptyRead($resourceId: ID!, $resourceIds: [ID!]!, $first: Int!, $marketId: ID!) {
+  marketLocalizableResource(resourceId: $resourceId) {
+    resourceId
+    marketLocalizableContent {
+      key
+      value
+      digest
+    }
+    marketLocalizations(marketId: $marketId) {
+      key
+      value
+      updatedAt
+      outdated
+      market {
+        id
+        name
+      }
+    }
+  }
+  marketLocalizableResources(first: $first, resourceType: METAFIELD) {
+    edges {
+      cursor
+      node {
+        resourceId
+        marketLocalizableContent {
+          key
+          value
+          digest
+        }
+      }
+    }
+    nodes {
+      resourceId
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  marketLocalizableResourcesByIds(first: $first, resourceIds: $resourceIds) {
+    edges {
+      cursor
+      node {
+        resourceId
+        marketLocalizableContent {
+          key
+          value
+          digest
+        }
+      }
+    }
+    nodes {
+      resourceId
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}
