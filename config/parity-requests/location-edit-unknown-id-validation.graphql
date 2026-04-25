@@ -1,0 +1,13 @@
+#graphql
+mutation LocationEditUnknownId($id: ID!, $input: LocationEditInput!) {
+  locationEdit(id: $id, input: $input) {
+    location {
+      id
+      name
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

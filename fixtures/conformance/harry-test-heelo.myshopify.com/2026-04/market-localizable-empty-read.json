@@ -1,0 +1,51 @@
+{
+  "capturedAt": "2026-04-25T16:19:30.000Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "query": "#graphql\nquery MarketLocalizableEmptyRead($resourceId: ID!, $resourceIds: [ID!]!, $first: Int!, $marketId: ID!) {\n  marketLocalizableResource(resourceId: $resourceId) {\n    resourceId\n    marketLocalizableContent { key value digest }\n    marketLocalizations(marketId: $marketId) { key value updatedAt outdated market { id name } }\n  }\n  marketLocalizableResources(first: $first, resourceType: METAFIELD) {\n    edges { cursor node { resourceId marketLocalizableContent { key value digest } } }\n    nodes { resourceId }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  marketLocalizableResourcesByIds(first: $first, resourceIds: $resourceIds) {\n    edges { cursor node { resourceId marketLocalizableContent { key value digest } } }\n    nodes { resourceId }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}",
+  "variables": {
+    "resourceId": "gid://shopify/Metafield/999999999999",
+    "resourceIds": ["gid://shopify/Metafield/999999999999"],
+    "first": 5,
+    "marketId": "gid://shopify/Market/92276719922"
+  },
+  "response": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "marketLocalizableResource": null,
+        "marketLocalizableResources": {
+          "edges": [],
+          "nodes": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+          }
+        },
+        "marketLocalizableResourcesByIds": {
+          "edges": [],
+          "nodes": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 26,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

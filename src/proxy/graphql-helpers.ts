@@ -28,7 +28,8 @@ export type SerializeConnectionOptions<T> = {
   hasNextPage: boolean;
   hasPreviousPage: boolean;
   getCursorValue: (item: T, index: number) => string;
-  serializeNode: (item: T, field: FieldNode, index: number) => unknown;
+  serializeNode: (item: T, field: FieldNode, index: number, context: { path: string[] }) => unknown;
+  serializePageInfo?: (field: FieldNode) => Record<string, unknown> | undefined;
   serializeUnknownField?: (field: FieldNode) => unknown;
   selectedFieldOptions?: SelectedFieldOptions;
   pageInfoOptions?: ConnectionPageInfoOptions;
@@ -134,7 +135,7 @@ export function paginateConnectionItems<T>(
   items: T[],
   field: FieldNode,
   variables: Record<string, unknown>,
-  getCursorValue: (item: T) => string,
+  getCursorValue: (item: T, index: number) => string,
   options: ConnectionWindowOptions = {},
 ): ConnectionWindow<T> {
   const args = getFieldArguments(field, variables);
@@ -145,8 +146,9 @@ export function paginateConnectionItems<T>(
   const before =
     typeof args['before'] === 'string' ? parseCursor(args['before']) : readConnectionCursor(args['before']);
 
-  const startIndex = after === null ? 0 : items.findIndex((item) => getCursorValue(item) === after) + 1;
-  const beforeIndex = before === null ? items.length : items.findIndex((item) => getCursorValue(item) === before);
+  const startIndex = after === null ? 0 : items.findIndex((item, index) => getCursorValue(item, index) === after) + 1;
+  const beforeIndex =
+    before === null ? items.length : items.findIndex((item, index) => getCursorValue(item, index) === before);
   const windowStart = Math.max(0, startIndex);
   const windowEnd = Math.max(windowStart, beforeIndex >= 0 ? beforeIndex : items.length);
   const paginatedItems = items.slice(windowStart, windowEnd);
@@ -228,6 +230,7 @@ export function serializeConnection<T>(
     hasPreviousPage,
     getCursorValue,
     serializeNode,
+    serializePageInfo,
     serializeUnknownField,
     selectedFieldOptions = {},
     pageInfoOptions = selectedFieldOptions,
@@ -239,7 +242,7 @@ export function serializeConnection<T>(
     const key = getFieldResponseKey(selection);
     switch (selection.name.value) {
       case 'nodes':
-        result[key] = items.map((item, index) => serializeNode(item, selection, index));
+        result[key] = items.map((item, index) => serializeNode(item, selection, index, { path: [key, String(index)] }));
         break;
       case 'edges':
         result[key] = items.map((item, index) => {
@@ -251,7 +254,7 @@ export function serializeConnection<T>(
                 edge[edgeKey] = formatConnectionCursor(item, index, getCursorValue, pageInfoOptions);
                 break;
               case 'node':
-                edge[edgeKey] = serializeNode(item, edgeSelection, index);
+                edge[edgeKey] = serializeNode(item, edgeSelection, index, { path: [key, String(index), edgeKey] });
                 break;
               default:
                 edge[edgeKey] = null;
@@ -262,10 +265,12 @@ export function serializeConnection<T>(
         });
         break;
       case 'pageInfo':
-        result[key] = serializeConnectionPageInfo(selection, items, hasNextPage, hasPreviousPage, getCursorValue, {
-          ...selectedFieldOptions,
-          ...pageInfoOptions,
-        });
+        result[key] =
+          serializePageInfo?.(selection) ??
+          serializeConnectionPageInfo(selection, items, hasNextPage, hasPreviousPage, getCursorValue, {
+            ...selectedFieldOptions,
+            ...pageInfoOptions,
+          });
         break;
       default:
         result[key] = serializeUnknownField ? serializeUnknownField(selection) : null;

@@ -495,7 +495,7 @@ describe('getOperationCapability', () => {
     });
   });
 
-  it('routes implemented discount catalog roots and leaves other discount roots in passthrough', () => {
+  it('routes implemented discount catalog and singular roots through the local overlay', () => {
     expect(getOperationCapability({ type: 'query', name: 'DiscountNodes', rootFields: ['discountNodes'] })).toEqual({
       domain: 'discounts',
       execution: 'overlay-read',
@@ -523,9 +523,22 @@ describe('getOperationCapability', () => {
         rootFields: ['codeDiscountNodeByCode'],
       }),
     ).toEqual({
-      domain: 'unknown',
-      execution: 'passthrough',
+      domain: 'discounts',
+      execution: 'overlay-read',
       operationName: 'CodeDiscountNodeByCode',
+      type: 'query',
+    });
+
+    expect(
+      getOperationCapability({
+        type: 'query',
+        name: 'AutomaticDiscountNode',
+        rootFields: ['automaticDiscountNode'],
+      }),
+    ).toEqual({
+      domain: 'discounts',
+      execution: 'overlay-read',
+      operationName: 'AutomaticDiscountNode',
       type: 'query',
     });
 
@@ -603,6 +616,34 @@ describe('getOperationCapability', () => {
       domain: 'unknown',
       execution: 'passthrough',
       operationName: null,
+      type: 'query',
+    });
+  });
+
+  it('routes implemented metafield definition read roots through the local overlay', () => {
+    expect(
+      getOperationCapability({
+        type: 'query',
+        name: 'MetafieldDefinitions',
+        rootFields: ['metafieldDefinitions'],
+      }),
+    ).toEqual({
+      domain: 'metafields',
+      execution: 'overlay-read',
+      operationName: 'MetafieldDefinitions',
+      type: 'query',
+    });
+
+    expect(
+      getOperationCapability({
+        type: 'query',
+        name: 'MetafieldDefinition',
+        rootFields: ['metafieldDefinition'],
+      }),
+    ).toEqual({
+      domain: 'metafields',
+      execution: 'overlay-read',
+      operationName: 'MetafieldDefinition',
       type: 'query',
     });
   });

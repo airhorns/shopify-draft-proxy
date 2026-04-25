@@ -52,6 +52,13 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
   metadata, such as exact fields in registry or parity-spec JSON files. Test
   executable behavior, schema validation, discovery semantics, or comparison
   contracts instead.
+- For coverage-map-only registry work, do not add tests whose only signal is
+  that specific roots exist in `config/operation-registry.json`, have a
+  particular `domain`, `implemented: false`, empty `runtimeTests`, or also
+  appear in the checked-in root introspection fixture. Those assertions are
+  just restating the edited JSON. Use existing schema/conformance discovery
+  checks unless the change introduces executable behavior or a real discovery
+  contract.
 - Do not add new planned-only or blocked-only parity scenarios as a way to
   reserve future coverage. Add checked-in parity specs only when they are backed
   by a captured interaction and can run as working evidence; otherwise keep the

@@ -273,6 +273,200 @@ describe('business entity query shapes', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('returns null for direct Shopify Payments account reads when snapshot state has no account', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('empty Shopify Payments account reads should resolve locally in snapshot mode');
+    });
+
+    const app = createApp(config).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query EmptyShopifyPaymentsAccount {
+          shopifyPaymentsAccount {
+            id
+            activated
+          }
+        }`,
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        shopifyPaymentsAccount: null,
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('serves direct Shopify Payments account safe fields and empty account activity connections', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('direct Shopify Payments account reads should resolve locally in snapshot mode');
+    });
+
+    store.upsertBaseBusinessEntities([
+      makeBusinessEntity('gid://shopify/BusinessEntity/100', {
+        primary: true,
+        shopifyPaymentsAccount: {
+          id: 'gid://shopify/ShopifyPaymentsAccount/100',
+          activated: true,
+          country: 'CA',
+          defaultCurrency: 'CAD',
+          onboardable: false,
+        },
+      }),
+    ]);
+
+    const app = createApp(config).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query DirectShopifyPaymentsAccount($first: Int!, $last: Int!) {
+          direct: shopifyPaymentsAccount {
+            id
+            activated
+            country
+            defaultCurrency
+            onboardable
+            payouts(first: $first) {
+              edges {
+                cursor
+                node {
+                  id
+                }
+              }
+              nodes {
+                id
+              }
+              pageInfo {
+                hasNextPage
+                hasPreviousPage
+                startCursor
+                endCursor
+              }
+            }
+            disputes(last: $last, before: "cursor:missing") {
+              edges {
+                node {
+                  id
+                }
+              }
+              pageInfo {
+                hasNextPage
+                hasPreviousPage
+                startCursor
+                endCursor
+              }
+            }
+            balanceTransactions(first: $first, after: "cursor:missing") {
+              nodes {
+                id
+              }
+              pageInfo {
+                hasNextPage
+                hasPreviousPage
+                startCursor
+                endCursor
+              }
+            }
+            balance {
+              amount
+              currencyCode
+            }
+            bankAccounts(first: 1) {
+              nodes {
+                id
+              }
+            }
+            payoutStatementDescriptor
+          }
+          businessEntity {
+            shopifyPaymentsAccount {
+              id
+            }
+          }
+        }`,
+        variables: {
+          first: 1,
+          last: 2,
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual({
+      direct: {
+        id: 'gid://shopify/ShopifyPaymentsAccount/100',
+        activated: true,
+        country: 'CA',
+        defaultCurrency: 'CAD',
+        onboardable: false,
+        payouts: {
+          edges: [],
+          nodes: [],
+          pageInfo: {
+            hasNextPage: false,
+            hasPreviousPage: false,
+            startCursor: null,
+            endCursor: null,
+          },
+        },
+        disputes: {
+          edges: [],
+          pageInfo: {
+            hasNextPage: false,
+            hasPreviousPage: false,
+            startCursor: null,
+            endCursor: null,
+          },
+        },
+        balanceTransactions: {
+          nodes: [],
+          pageInfo: {
+            hasNextPage: false,
+            hasPreviousPage: false,
+            startCursor: null,
+            endCursor: null,
+          },
+        },
+        balance: null,
+        bankAccounts: null,
+        payoutStatementDescriptor: null,
+      },
+      businessEntity: {
+        shopifyPaymentsAccount: {
+          id: 'gid://shopify/ShopifyPaymentsAccount/100',
+        },
+      },
+    });
+    expect(response.body.errors).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining('ShopifyPaymentsAccount.balance'),
+        path: ['direct', 'balance'],
+        extensions: {
+          code: 'UNSUPPORTED_FIELD',
+          reason: 'shopify-payments-account-sensitive-field',
+        },
+      }),
+      expect.objectContaining({
+        message: expect.stringContaining('ShopifyPaymentsAccount.bankAccounts'),
+        path: ['direct', 'bankAccounts'],
+        extensions: {
+          code: 'UNSUPPORTED_FIELD',
+          reason: 'shopify-payments-account-sensitive-field',
+        },
+      }),
+      expect.objectContaining({
+        message: expect.stringContaining('ShopifyPaymentsAccount.payoutStatementDescriptor'),
+        path: ['direct', 'payoutStatementDescriptor'],
+        extensions: {
+          code: 'UNSUPPORTED_FIELD',
+          reason: 'shopify-payments-account-sensitive-field',
+        },
+      }),
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('exposes only safe Shopify Payments account fixture fields and reports sensitive fields', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('businessEntity payment account reads should resolve locally in snapshot mode');

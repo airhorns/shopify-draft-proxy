@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { jsonValueSchema } from '../json-schemas.js';
+import { jsonObjectSchema, jsonValueSchema } from '../json-schemas.js';
 
 const nullableStringSchema = z.string().nullable();
 const nullableNumberSchema = z.number().nullable();
@@ -139,6 +139,21 @@ export const locationFulfillmentServiceRecordSchema = z.strictObject({
 });
 export type LocationFulfillmentServiceRecord = z.infer<typeof locationFulfillmentServiceRecordSchema>;
 
+export const locationMetafieldRecordSchema = z.strictObject({
+  id: z.string(),
+  locationId: z.string(),
+  namespace: z.string(),
+  key: z.string(),
+  type: nullableStringSchema,
+  value: nullableStringSchema,
+  compareDigest: nullableStringSchema.optional(),
+  jsonValue: jsonValueSchema.optional(),
+  createdAt: nullableStringSchema.optional(),
+  updatedAt: nullableStringSchema.optional(),
+  ownerType: nullableStringSchema.optional(),
+});
+export type LocationMetafieldRecord = z.infer<typeof locationMetafieldRecordSchema>;
+
 export const locationRecordSchema = z.strictObject({
   id: z.string(),
   name: nullableStringSchema,
@@ -159,6 +174,7 @@ export const locationRecordSchema = z.strictObject({
   updatedAt: nullableStringSchema.optional(),
   address: locationAddressRecordSchema.nullable().optional(),
   suggestedAddresses: z.array(locationSuggestedAddressRecordSchema).optional(),
+  metafields: z.array(locationMetafieldRecordSchema).optional(),
 });
 export type LocationRecord = z.infer<typeof locationRecordSchema>;
 
@@ -271,7 +287,8 @@ export type FileRecord = z.infer<typeof fileRecordSchema>;
 
 export const productMetafieldRecordSchema = z.strictObject({
   id: z.string(),
-  productId: z.string(),
+  productId: z.string().optional(),
+  ownerId: z.string().optional(),
   namespace: z.string(),
   key: z.string(),
   type: nullableStringSchema,
@@ -283,6 +300,60 @@ export const productMetafieldRecordSchema = z.strictObject({
   ownerType: nullableStringSchema.optional(),
 });
 export type ProductMetafieldRecord = z.infer<typeof productMetafieldRecordSchema>;
+
+export const metafieldDefinitionCapabilityRecordSchema = z.strictObject({
+  enabled: z.boolean(),
+  eligible: z.boolean(),
+  status: nullableStringSchema.optional(),
+});
+export type MetafieldDefinitionCapabilityRecord = z.infer<typeof metafieldDefinitionCapabilityRecordSchema>;
+
+export const metafieldDefinitionCapabilitiesRecordSchema = z.strictObject({
+  adminFilterable: metafieldDefinitionCapabilityRecordSchema,
+  smartCollectionCondition: metafieldDefinitionCapabilityRecordSchema,
+  uniqueValues: metafieldDefinitionCapabilityRecordSchema,
+});
+export type MetafieldDefinitionCapabilitiesRecord = z.infer<typeof metafieldDefinitionCapabilitiesRecordSchema>;
+
+export const metafieldDefinitionConstraintValueRecordSchema = z.strictObject({
+  value: z.string(),
+});
+export type MetafieldDefinitionConstraintValueRecord = z.infer<typeof metafieldDefinitionConstraintValueRecordSchema>;
+
+export const metafieldDefinitionConstraintsRecordSchema = z.strictObject({
+  key: nullableStringSchema,
+  values: z.array(metafieldDefinitionConstraintValueRecordSchema),
+});
+export type MetafieldDefinitionConstraintsRecord = z.infer<typeof metafieldDefinitionConstraintsRecordSchema>;
+
+export const metafieldDefinitionTypeRecordSchema = z.strictObject({
+  name: z.string(),
+  category: nullableStringSchema.optional(),
+});
+export type MetafieldDefinitionTypeRecord = z.infer<typeof metafieldDefinitionTypeRecordSchema>;
+
+export const metafieldDefinitionValidationRecordSchema = z.strictObject({
+  name: z.string(),
+  value: nullableStringSchema,
+});
+export type MetafieldDefinitionValidationRecord = z.infer<typeof metafieldDefinitionValidationRecordSchema>;
+
+export const metafieldDefinitionRecordSchema = z.strictObject({
+  id: z.string(),
+  name: z.string(),
+  namespace: z.string(),
+  key: z.string(),
+  ownerType: z.string(),
+  type: metafieldDefinitionTypeRecordSchema,
+  description: nullableStringSchema,
+  validations: z.array(metafieldDefinitionValidationRecordSchema),
+  access: z.record(z.string(), jsonValueSchema),
+  capabilities: metafieldDefinitionCapabilitiesRecordSchema,
+  constraints: metafieldDefinitionConstraintsRecordSchema.nullable(),
+  pinnedPosition: nullableNumberSchema,
+  validationStatus: z.string(),
+});
+export type MetafieldDefinitionRecord = z.infer<typeof metafieldDefinitionRecordSchema>;
 
 export const customerMetafieldRecordSchema = z.strictObject({
   id: z.string(),
@@ -330,14 +401,45 @@ export const customerSmsMarketingConsentRecordSchema = z.strictObject({
 export type CustomerSmsMarketingConsentRecord = z.infer<typeof customerSmsMarketingConsentRecordSchema>;
 
 export const customerDefaultAddressRecordSchema = z.strictObject({
+  id: nullableStringSchema.optional(),
+  firstName: nullableStringSchema.optional(),
+  lastName: nullableStringSchema.optional(),
+  address2: nullableStringSchema.optional(),
   address1: nullableStringSchema,
   city: nullableStringSchema,
+  company: nullableStringSchema.optional(),
   province: nullableStringSchema,
+  provinceCode: nullableStringSchema.optional(),
   country: nullableStringSchema,
+  countryCodeV2: nullableStringSchema.optional(),
   zip: nullableStringSchema,
+  phone: nullableStringSchema.optional(),
+  name: nullableStringSchema.optional(),
   formattedArea: nullableStringSchema,
 });
 export type CustomerDefaultAddressRecord = z.infer<typeof customerDefaultAddressRecordSchema>;
+
+export const customerAddressRecordSchema = z.strictObject({
+  id: z.string(),
+  customerId: z.string(),
+  cursor: nullableStringSchema.optional(),
+  position: z.number(),
+  firstName: nullableStringSchema,
+  lastName: nullableStringSchema,
+  address1: nullableStringSchema,
+  address2: nullableStringSchema,
+  city: nullableStringSchema,
+  company: nullableStringSchema,
+  province: nullableStringSchema,
+  provinceCode: nullableStringSchema,
+  country: nullableStringSchema,
+  countryCodeV2: nullableStringSchema,
+  zip: nullableStringSchema,
+  phone: nullableStringSchema,
+  name: nullableStringSchema,
+  formattedArea: nullableStringSchema,
+});
+export type CustomerAddressRecord = z.infer<typeof customerAddressRecordSchema>;
 
 export const customerRecordSchema = z.strictObject({
   id: z.string(),
@@ -442,6 +544,84 @@ export const discountCombinesWithRecordSchema = z.strictObject({
 });
 export type DiscountCombinesWithRecord = z.infer<typeof discountCombinesWithRecordSchema>;
 
+export const discountMoneyRecordSchema = z.strictObject({
+  amount: z.string(),
+  currencyCode: z.string(),
+});
+export type DiscountMoneyRecord = z.infer<typeof discountMoneyRecordSchema>;
+
+export const discountRedeemCodeRecordSchema = z.strictObject({
+  id: z.string(),
+  code: z.string(),
+  asyncUsageCount: nullableNumberSchema.default(0),
+});
+export type DiscountRedeemCodeRecord = z.infer<typeof discountRedeemCodeRecordSchema>;
+
+export const discountContextRecordSchema = z.strictObject({
+  typeName: z.string(),
+  all: nullableStringSchema.optional(),
+  customerIds: z.array(z.string()).optional(),
+  customerSegmentIds: z.array(z.string()).optional(),
+});
+export type DiscountContextRecord = z.infer<typeof discountContextRecordSchema>;
+
+export const discountItemsRecordSchema = z.strictObject({
+  typeName: z.string(),
+  allItems: nullableBooleanSchema.optional(),
+  productIds: z.array(z.string()).optional(),
+  productVariantIds: z.array(z.string()).optional(),
+  collectionIds: z.array(z.string()).optional(),
+});
+export type DiscountItemsRecord = z.infer<typeof discountItemsRecordSchema>;
+
+export const discountValueRecordSchema = z.strictObject({
+  typeName: z.string(),
+  percentage: nullableNumberSchema.optional(),
+  amount: discountMoneyRecordSchema.nullable().optional(),
+  appliesOnEachItem: nullableBooleanSchema.optional(),
+});
+export type DiscountValueRecord = z.infer<typeof discountValueRecordSchema>;
+
+export const discountCustomerGetsRecordSchema = z.strictObject({
+  value: discountValueRecordSchema,
+  items: discountItemsRecordSchema,
+  appliesOnOneTimePurchase: z.boolean(),
+  appliesOnSubscription: z.boolean(),
+});
+export type DiscountCustomerGetsRecord = z.infer<typeof discountCustomerGetsRecordSchema>;
+
+export const discountMinimumRequirementRecordSchema = z.strictObject({
+  typeName: z.string(),
+  greaterThanOrEqualToQuantity: nullableStringSchema.optional(),
+  greaterThanOrEqualToSubtotal: discountMoneyRecordSchema.nullable().optional(),
+});
+export type DiscountMinimumRequirementRecord = z.infer<typeof discountMinimumRequirementRecordSchema>;
+
+export const discountMetafieldRecordSchema = z.strictObject({
+  id: z.string(),
+  namespace: z.string(),
+  key: z.string(),
+  type: z.string(),
+  value: z.string(),
+  compareDigest: nullableStringSchema.optional(),
+  jsonValue: jsonValueSchema.optional(),
+  createdAt: nullableStringSchema.optional(),
+  updatedAt: nullableStringSchema.optional(),
+  ownerType: nullableStringSchema.optional(),
+});
+export type DiscountMetafieldRecord = z.infer<typeof discountMetafieldRecordSchema>;
+
+export const discountEventRecordSchema = z.strictObject({
+  id: z.string(),
+  typeName: z.string(),
+  action: nullableStringSchema.optional(),
+  message: nullableStringSchema.optional(),
+  createdAt: nullableStringSchema.optional(),
+  subjectId: nullableStringSchema.optional(),
+  subjectType: nullableStringSchema.optional(),
+});
+export type DiscountEventRecord = z.infer<typeof discountEventRecordSchema>;
+
 export const discountRecordSchema = z.strictObject({
   id: z.string(),
   typeName: z.string(),
@@ -457,8 +637,18 @@ export const discountRecordSchema = z.strictObject({
   discountClasses: z.array(z.string()),
   combinesWith: discountCombinesWithRecordSchema,
   codes: z.array(z.string()).default([]),
+  redeemCodes: z.array(discountRedeemCodeRecordSchema).optional(),
+  context: discountContextRecordSchema.nullable().optional(),
+  customerGets: discountCustomerGetsRecordSchema.nullable().optional(),
+  minimumRequirement: discountMinimumRequirementRecordSchema.nullable().optional(),
+  metafields: z.array(discountMetafieldRecordSchema).optional(),
+  events: z.array(discountEventRecordSchema).optional(),
   discountType: nullableStringSchema.optional(),
   appId: nullableStringSchema.optional(),
+  appDiscountType: jsonObjectSchema.optional(),
+  discountId: nullableStringSchema.optional(),
+  errorHistory: jsonValueSchema.optional(),
+  unsupportedAppFieldNames: z.array(z.string()).optional(),
 });
 export type DiscountRecord = z.infer<typeof discountRecordSchema>;
 
@@ -915,6 +1105,37 @@ export const marketRecordSchema = z.strictObject({
 });
 export type MarketRecord = z.infer<typeof marketRecordSchema>;
 
+export const webPresenceRecordSchema = z.strictObject({
+  id: z.string(),
+  cursor: nullableStringSchema.optional(),
+  data: z.record(z.string(), jsonValueSchema),
+});
+export type WebPresenceRecord = z.infer<typeof webPresenceRecordSchema>;
+
+export const marketLocalizationRecordSchema = z.strictObject({
+  resourceId: z.string(),
+  marketId: z.string(),
+  key: z.string(),
+  value: z.string(),
+  updatedAt: z.string(),
+  outdated: z.boolean(),
+});
+export type MarketLocalizationRecord = z.infer<typeof marketLocalizationRecordSchema>;
+
+export const catalogRecordSchema = z.strictObject({
+  id: z.string(),
+  cursor: nullableStringSchema.optional(),
+  data: z.record(z.string(), jsonValueSchema),
+});
+export type CatalogRecord = z.infer<typeof catalogRecordSchema>;
+
+export const priceListRecordSchema = z.strictObject({
+  id: z.string(),
+  cursor: nullableStringSchema.optional(),
+  data: z.record(z.string(), jsonValueSchema),
+});
+export type PriceListRecord = z.infer<typeof priceListRecordSchema>;
+
 export const calculatedOrderRecordSchema = orderRecordSchema.extend({
   originalOrderId: z.string(),
 });
@@ -930,22 +1151,35 @@ export const stateSnapshotSchema = z.strictObject({
   collections: z.record(z.string(), collectionRecordSchema),
   publications: z.record(z.string(), publicationRecordSchema).default({}),
   customers: z.record(z.string(), customerRecordSchema),
+  customerAddresses: z.record(z.string(), customerAddressRecordSchema).default({}),
   segments: z.record(z.string(), segmentRecordSchema).default({}),
   discounts: z.record(z.string(), discountRecordSchema).default({}),
   businessEntities: z.record(z.string(), businessEntityRecordSchema).default({}),
   businessEntityOrder: z.array(z.string()).default([]),
   markets: z.record(z.string(), marketRecordSchema).default({}),
   marketOrder: z.array(z.string()).default([]),
+  webPresences: z.record(z.string(), webPresenceRecordSchema).default({}),
+  webPresenceOrder: z.array(z.string()).default([]),
+  marketLocalizations: z.record(z.string(), marketLocalizationRecordSchema).default({}),
+  catalogs: z.record(z.string(), catalogRecordSchema).default({}),
+  catalogOrder: z.array(z.string()).default([]),
+  priceLists: z.record(z.string(), priceListRecordSchema).default({}),
+  priceListOrder: z.array(z.string()).default([]),
   productCollections: z.record(z.string(), productCollectionRecordSchema),
   productMedia: z.record(z.string(), productMediaRecordSchema),
   files: z.record(z.string(), fileRecordSchema).default({}),
   productMetafields: z.record(z.string(), productMetafieldRecordSchema),
+  metafieldDefinitions: z.record(z.string(), metafieldDefinitionRecordSchema).default({}),
   customerMetafields: z.record(z.string(), customerMetafieldRecordSchema).default({}),
   deletedProductIds: z.record(z.string(), z.literal(true)),
   deletedFileIds: z.record(z.string(), z.literal(true)).default({}),
   deletedCollectionIds: z.record(z.string(), z.literal(true)),
   deletedCustomerIds: z.record(z.string(), z.literal(true)),
+  deletedCustomerAddressIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedSegmentIds: z.record(z.string(), z.literal(true)).default({}),
   deletedDiscountIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedMarketIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedWebPresenceIds: z.record(z.string(), z.literal(true)).default({}),
   mergedCustomerIds: z.record(z.string(), z.string()).default({}),
   customerMergeRequests: z.record(z.string(), customerMergeRequestRecordSchema).default({}),
 });
@@ -969,6 +1203,18 @@ export interface MutationLogInterpretedMetadata {
     operationName: string | null;
     domain: string;
     execution: string;
+  };
+  registeredOperation?: {
+    name: string;
+    domain: string;
+    execution: string;
+    implemented: boolean;
+    supportNotes?: string;
+  };
+  safety?: {
+    classification: string;
+    wouldProxyToShopify: boolean;
+    reason: string;
   };
 }
 

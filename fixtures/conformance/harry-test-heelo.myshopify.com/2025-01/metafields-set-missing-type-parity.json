@@ -1,0 +1,211 @@
+{
+  "preconditionRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/10170511687986",
+        "primarySpec": {
+          "id": "gid://shopify/Metafield/42952770224434",
+          "namespace": "custom",
+          "key": "material",
+          "type": "single_line_text_field",
+          "value": "Duplicate two",
+          "compareDigest": "5952dd0f37ffcaec42383c46cf932a085d1c5e8885b88435f988ebd547271318"
+        },
+        "origin": {
+          "id": "gid://shopify/Metafield/42952770257202",
+          "namespace": "details",
+          "key": "origin",
+          "type": "single_line_text_field",
+          "value": "VN",
+          "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3"
+        },
+        "season": {
+          "id": "gid://shopify/Metafield/42952770453810",
+          "namespace": "details",
+          "key": "season",
+          "type": "single_line_text_field",
+          "value": "Summer",
+          "compareDigest": "f1425e64410adace8ddc7c055fb7f8e45b07a3d25b99ed49e4d58230fa241899"
+        },
+        "metafields": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Metafield/42952770224434",
+              "namespace": "custom",
+              "key": "material",
+              "type": "single_line_text_field",
+              "value": "Duplicate two",
+              "compareDigest": "5952dd0f37ffcaec42383c46cf932a085d1c5e8885b88435f988ebd547271318"
+            },
+            {
+              "id": "gid://shopify/Metafield/42952770257202",
+              "namespace": "details",
+              "key": "origin",
+              "type": "single_line_text_field",
+              "value": "VN",
+              "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3"
+            },
+            {
+              "id": "gid://shopify/Metafield/42952770453810",
+              "namespace": "details",
+              "key": "season",
+              "type": "single_line_text_field",
+              "value": "Summer",
+              "compareDigest": "f1425e64410adace8ddc7c055fb7f8e45b07a3d25b99ed49e4d58230fa241899"
+            },
+            {
+              "id": "gid://shopify/Metafield/42952770486578",
+              "namespace": "app--347082227713",
+              "key": "missing_namespace",
+              "type": "single_line_text_field",
+              "value": "Missing namespace",
+              "compareDigest": "8b44f77a2de6d8a5950e0e21ee04f7a8542d18911b5a7c4336c1476bf4c934ec"
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo0Mjk1Mjc3MDIyNDQzNCwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMjI0NDM0In0=",
+            "endCursor": "eyJsYXN0X2lkIjo0Mjk1Mjc3MDQ4NjU3OCwibGFzdF92YWx1ZSI6IjQyOTUyNzcwNDg2NTc4In0="
+          }
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 10,
+        "actualQueryCost": 8,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1992,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "mutation": {
+    "variables": {
+      "metafields": [
+        {
+          "ownerId": "gid://shopify/Product/10170511687986",
+          "namespace": "custom",
+          "key": "missing_type",
+          "value": "Missing type"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "metafieldsSet": {
+          "metafields": [],
+          "userErrors": [
+            {
+              "field": ["metafields", "0", "type"],
+              "message": "Type can't be blank",
+              "code": "BLANK",
+              "elementIndex": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamReadVariables": {
+    "id": "gid://shopify/Product/10170511687986"
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/10170511687986",
+        "primarySpec": {
+          "id": "gid://shopify/Metafield/42952770224434",
+          "namespace": "custom",
+          "key": "material",
+          "type": "single_line_text_field",
+          "value": "Duplicate two",
+          "compareDigest": "5952dd0f37ffcaec42383c46cf932a085d1c5e8885b88435f988ebd547271318"
+        },
+        "origin": {
+          "id": "gid://shopify/Metafield/42952770257202",
+          "namespace": "details",
+          "key": "origin",
+          "type": "single_line_text_field",
+          "value": "VN",
+          "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3"
+        },
+        "season": {
+          "id": "gid://shopify/Metafield/42952770453810",
+          "namespace": "details",
+          "key": "season",
+          "type": "single_line_text_field",
+          "value": "Summer",
+          "compareDigest": "f1425e64410adace8ddc7c055fb7f8e45b07a3d25b99ed49e4d58230fa241899"
+        },
+        "metafields": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Metafield/42952770224434",
+              "namespace": "custom",
+              "key": "material",
+              "type": "single_line_text_field",
+              "value": "Duplicate two",
+              "compareDigest": "5952dd0f37ffcaec42383c46cf932a085d1c5e8885b88435f988ebd547271318"
+            },
+            {
+              "id": "gid://shopify/Metafield/42952770257202",
+              "namespace": "details",
+              "key": "origin",
+              "type": "single_line_text_field",
+              "value": "VN",
+              "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3"
+            },
+            {
+              "id": "gid://shopify/Metafield/42952770453810",
+              "namespace": "details",
+              "key": "season",
+              "type": "single_line_text_field",
+              "value": "Summer",
+              "compareDigest": "f1425e64410adace8ddc7c055fb7f8e45b07a3d25b99ed49e4d58230fa241899"
+            },
+            {
+              "id": "gid://shopify/Metafield/42952770486578",
+              "namespace": "app--347082227713",
+              "key": "missing_namespace",
+              "type": "single_line_text_field",
+              "value": "Missing namespace",
+              "compareDigest": "8b44f77a2de6d8a5950e0e21ee04f7a8542d18911b5a7c4336c1476bf4c934ec"
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo0Mjk1Mjc3MDIyNDQzNCwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMjI0NDM0In0=",
+            "endCursor": "eyJsYXN0X2lkIjo0Mjk1Mjc3MDQ4NjU3OCwibGFzdF92YWx1ZSI6IjQyOTUyNzcwNDg2NTc4In0="
+          }
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 10,
+        "actualQueryCost": 8,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1991,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

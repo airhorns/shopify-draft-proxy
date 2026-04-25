@@ -1,0 +1,158 @@
+query DiscountCodeDetailRead($id: ID!, $code: String!) {
+  discountNode(id: $id) {
+    id
+    discount {
+      __typename
+      ... on DiscountCodeBasic {
+        title
+        status
+        summary
+        startsAt
+        endsAt
+        createdAt
+        updatedAt
+        asyncUsageCount
+        discountClasses
+        combinesWith {
+          productDiscounts
+          orderDiscounts
+          shippingDiscounts
+        }
+        codes(first: 2) {
+          nodes {
+            id
+            code
+            asyncUsageCount
+          }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+            startCursor
+            endCursor
+          }
+        }
+        context {
+          __typename
+          ... on DiscountBuyerSelectionAll {
+            all
+          }
+        }
+        customerGets {
+          value {
+            __typename
+            ... on DiscountPercentage {
+              percentage
+            }
+            ... on DiscountAmount {
+              amount {
+                amount
+                currencyCode
+              }
+              appliesOnEachItem
+            }
+          }
+          items {
+            __typename
+            ... on AllDiscountItems {
+              allItems
+            }
+          }
+          appliesOnOneTimePurchase
+          appliesOnSubscription
+        }
+        minimumRequirement {
+          __typename
+          ... on DiscountMinimumSubtotal {
+            greaterThanOrEqualToSubtotal {
+              amount
+              currencyCode
+            }
+          }
+          ... on DiscountMinimumQuantity {
+            greaterThanOrEqualToQuantity
+          }
+        }
+      }
+    }
+    metafield(namespace: "custom", key: "har192_missing") {
+      id
+    }
+    metafields(first: 2) {
+      nodes {
+        id
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    events(first: 2) {
+      edges {
+        cursor
+        node {
+          __typename
+          ... on BasicEvent {
+            id
+            action
+            message
+            createdAt
+            subjectId
+            subjectType
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+  codeDiscountNode(id: $id) {
+    id
+    codeDiscount {
+      __typename
+      ... on DiscountCodeBasic {
+        title
+        status
+        summary
+        startsAt
+        endsAt
+        createdAt
+        updatedAt
+        asyncUsageCount
+        discountClasses
+        combinesWith {
+          productDiscounts
+          orderDiscounts
+          shippingDiscounts
+        }
+        codes(first: 2) {
+          nodes {
+            id
+            code
+            asyncUsageCount
+          }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+            startCursor
+            endCursor
+          }
+        }
+      }
+    }
+  }
+  codeDiscountNodeByCode(code: $code) {
+    id
+    codeDiscount {
+      __typename
+      ... on DiscountCodeBasic {
+        title
+      }
+    }
+  }
+}
