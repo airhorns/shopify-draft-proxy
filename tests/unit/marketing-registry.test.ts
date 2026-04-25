@@ -14,6 +14,7 @@ import { getOperationCapability } from '../../src/proxy/capabilities.js';
 const repoRoot = resolve(import.meta.dirname, '../..');
 
 const marketingQueryRoots = ['marketingActivities', 'marketingActivity', 'marketingEvent', 'marketingEvents'] as const;
+const implementedMarketingQueryRoots = marketingQueryRoots;
 const marketingMutationRoots = [
   'marketingActivityCreate',
   'marketingActivityUpdate',
@@ -62,7 +63,7 @@ const segmentMutationRoots = [
 const marketingRoots = [...marketingQueryRoots, ...marketingMutationRoots] as const;
 const segmentRoots = [...segmentQueryRoots, ...segmentMutationRoots] as const;
 const scaffoldOnlyMarketingAndSegmentRoots = [
-  ...marketingRoots,
+  ...marketingMutationRoots,
   ...scaffoldOnlySegmentQueryRoots,
   ...segmentMutationRoots,
 ] as const;
@@ -145,6 +146,14 @@ describe('Marketing and segment registry scaffold', () => {
         'tests/integration/segment-query-shapes.test.ts',
       );
     }
+
+    for (const root of implementedMarketingQueryRoots) {
+      const entry = entriesByName.get(root);
+      expect(entry?.implemented, `${root} should be enabled by HAR-212 marketing read coverage`).toBe(true);
+      expect(entry?.runtimeTests, `${root} should claim runtime marketing read coverage`).toContain(
+        'tests/integration/marketing-query-shapes.test.ts',
+      );
+    }
   });
 
   it('records local-staging intent for known future mutations without registering passthrough support', () => {
@@ -169,8 +178,8 @@ describe('Marketing and segment registry scaffold', () => {
     expect(
       getOperationCapability({ type: 'query', name: 'MarketingActivities', rootFields: ['marketingActivities'] }),
     ).toEqual({
-      domain: 'unknown',
-      execution: 'passthrough',
+      domain: 'marketing',
+      execution: 'overlay-read',
       operationName: 'MarketingActivities',
       type: 'query',
     });
@@ -223,6 +232,11 @@ describe('Marketing and segment registry scaffold', () => {
 
     for (const root of implementedSegmentQueryRoots) {
       expect(scenarioOperations.has(root), `${root} should have executable segment parity coverage`).toBe(true);
+      expect(statusDocument.implementedOperations.some((entry) => entry.name === root)).toBe(true);
+    }
+
+    for (const root of implementedMarketingQueryRoots) {
+      expect(scenarioOperations.has(root), `${root} should have captured marketing read evidence`).toBe(true);
       expect(statusDocument.implementedOperations.some((entry) => entry.name === root)).toBe(true);
     }
   });
