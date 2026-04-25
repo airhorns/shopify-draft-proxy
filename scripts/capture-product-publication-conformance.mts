@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { runAdminGraphql, runAdminGraphqlRequest } from './conformance-graphql-client.mjs';
+import { runAdminGraphql, runAdminGraphqlRequest } from './conformance-graphql-client.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 import {

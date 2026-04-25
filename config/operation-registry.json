@@ -1341,6 +1341,123 @@
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
   },
   {
+    "name": "market",
+    "type": "query",
+    "domain": "markets",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["market", "Market"],
+    "runtimeTests": []
+  },
+  {
+    "name": "markets",
+    "type": "query",
+    "domain": "markets",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["markets", "Markets"],
+    "runtimeTests": []
+  },
+  {
+    "name": "catalogs",
+    "type": "query",
+    "domain": "markets",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["catalogs", "Catalogs"],
+    "runtimeTests": []
+  },
+  {
+    "name": "webPresences",
+    "type": "query",
+    "domain": "markets",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["webPresences", "WebPresences"],
+    "runtimeTests": []
+  },
+  {
+    "name": "marketsResolvedValues",
+    "type": "query",
+    "domain": "markets",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["marketsResolvedValues", "MarketsResolvedValues"],
+    "runtimeTests": []
+  },
+  {
+    "name": "marketCreate",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["marketCreate", "MarketCreate"],
+    "runtimeTests": []
+  },
+  {
+    "name": "marketUpdate",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["marketUpdate", "MarketUpdate"],
+    "runtimeTests": []
+  },
+  {
+    "name": "marketDelete",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["marketDelete", "MarketDelete"],
+    "runtimeTests": []
+  },
+  {
+    "name": "webPresenceCreate",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["webPresenceCreate", "WebPresenceCreate"],
+    "runtimeTests": []
+  },
+  {
+    "name": "webPresenceUpdate",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["webPresenceUpdate", "WebPresenceUpdate"],
+    "runtimeTests": []
+  },
+  {
+    "name": "webPresenceDelete",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["webPresenceDelete", "WebPresenceDelete"],
+    "runtimeTests": []
+  },
+  {
+    "name": "marketLocalizationsRegister",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["marketLocalizationsRegister", "MarketLocalizationsRegister"],
+    "runtimeTests": []
+  },
+  {
+    "name": "marketLocalizationsRemove",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "passthrough",
+    "implemented": false,
+    "matchNames": ["marketLocalizationsRemove", "MarketLocalizationsRemove"],
+    "runtimeTests": []
+  },
+  {
     "name": "fileCreate",
     "type": "mutation",
     "domain": "media",

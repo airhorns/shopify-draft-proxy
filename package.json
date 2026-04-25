@@ -36,6 +36,7 @@
     "conformance:capture-product-graph-mutations": "tsx ./scripts/capture-product-graph-mutation-conformance.mts",
     "conformance:capture-product-inventory-reads": "tsx ./scripts/capture-product-inventory-read-conformance.mts",
     "conformance:capture-inventory-adjustments": "tsx ./scripts/capture-inventory-adjustment-conformance.mts",
+    "conformance:capture-markets": "tsx ./scripts/capture-market-conformance.mts",
     "conformance:capture-collections": "tsx ./scripts/capture-collection-conformance.mts",
     "conformance:capture-collection-mutations": "tsx ./scripts/capture-collection-mutation-conformance.mts",
     "conformance:capture-locations": "tsx ./scripts/capture-location-conformance.mts",

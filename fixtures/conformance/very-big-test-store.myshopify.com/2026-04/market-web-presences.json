@@ -1,0 +1,64 @@
+{
+  "data": {
+    "webPresences": {
+      "edges": [
+        {
+          "cursor": "eyJsYXN0X2lkIjozMzEzMTkyMTY0MSwibGFzdF92YWx1ZSI6IjMzMTMxOTIxNjQxIn0=",
+          "node": {
+            "id": "gid://shopify/MarketWebPresence/33131921641",
+            "subfolderSuffix": null,
+            "domain": {
+              "id": "gid://shopify/Domain/93049946345",
+              "host": "very-big-test-store.myshopify.com",
+              "url": "https://very-big-test-store.myshopify.com",
+              "sslEnabled": true
+            },
+            "rootUrls": [
+              {
+                "locale": "en",
+                "url": "https://very-big-test-store.myshopify.com/"
+              }
+            ],
+            "markets": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjozNTUzMjMwODcxMywibGFzdF92YWx1ZSI6MzU1MzIzMDg3MTN9",
+                  "node": {
+                    "id": "gid://shopify/Market/35532308713",
+                    "name": "Conformance US",
+                    "handle": "conformance-us",
+                    "status": "ACTIVE",
+                    "type": "REGION"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjozNTUzMjMwODcxMywibGFzdF92YWx1ZSI6MzU1MzIzMDg3MTN9",
+                "endCursor": "eyJsYXN0X2lkIjozNTUzMjMwODcxMywibGFzdF92YWx1ZSI6MzU1MzIzMDg3MTN9"
+              }
+            }
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": "eyJsYXN0X2lkIjozMzEzMTkyMTY0MSwibGFzdF92YWx1ZSI6IjMzMTMxOTIxNjQxIn0=",
+        "endCursor": "eyJsYXN0X2lkIjozMzEzMTkyMTY0MSwibGFzdF92YWx1ZSI6IjMzMTMxOTIxNjQxIn0="
+      }
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 18,
+      "actualQueryCost": 8,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1936,
+        "restoreRate": 100
+      }
+    }
+  }
+}

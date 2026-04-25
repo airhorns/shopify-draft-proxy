@@ -1,0 +1,21 @@
+{
+  "scenarioId": "market-catalogs-read",
+  "operationNames": ["catalogs"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "pagination-shape", "market-catalog-interface"],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2026-04/market-catalogs.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/market-catalogs-read.graphql",
+    "variablesPath": "config/parity-requests/market-catalogs-read.variables.json"
+  },
+  "comparisonMode": "capture-only",
+  "notes": "Live `catalogs(type: MARKET)` capture for Admin GraphQL 2026-04. The selected slice covers the Catalog interface fields and MarketCatalog.markets back-reference without mutating catalog state.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "blocker": {
+    "kind": "explicit-comparison-targets-needed",
+    "blockerPath": null
+  }
+}

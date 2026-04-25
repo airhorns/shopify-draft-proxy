@@ -1,0 +1,117 @@
+fragment MarketReadFields on Market {
+  id
+  name
+  handle
+  status
+  type
+  conditions {
+    conditionTypes
+    regionsCondition {
+      applicationLevel
+      regions(first: 10) {
+        edges {
+          cursor
+          node {
+            __typename
+            id
+            name
+            ... on MarketRegionCountry {
+              code
+              currency {
+                currencyCode
+                currencyName
+                enabled
+              }
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+  }
+  currencySettings {
+    baseCurrency {
+      currencyCode
+      currencyName
+      enabled
+    }
+    localCurrencies
+    roundingEnabled
+  }
+  priceInclusions {
+    inclusiveDutiesPricingStrategy
+    inclusiveTaxPricingStrategy
+  }
+  catalogs(first: 5) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        status
+        publication {
+          id
+          autoPublish
+        }
+        priceList {
+          id
+          name
+          currency
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  webPresences(first: 5) {
+    edges {
+      cursor
+      node {
+        id
+        subfolderSuffix
+        domain {
+          id
+          host
+          url
+          sslEnabled
+        }
+        rootUrls {
+          locale
+          url
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}
+
+query MarketsCatalogRead($first: Int!) {
+  markets(first: $first) {
+    edges {
+      cursor
+      node {
+        ...MarketReadFields
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

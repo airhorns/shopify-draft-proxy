@@ -1794,3 +1794,24 @@ Safety traps:
 Practical rule:
 
 - keep Store properties registry inventory separate from runtime support; do not flip these roots to implemented until there is captured fixture evidence plus local model behavior for the specific root family
+
+## 48. Markets reads are safe to capture, but locale fields and writes are not harmless
+
+The first Shopify Markets inventory was captured against Admin GraphQL 2026-04 with `corepack pnpm conformance:capture-markets`.
+
+Observed current-version surface:
+
+- schema inventory confirms read roots for `market`, `markets`, `catalogs`, `webPresences`, and `marketsResolvedValues`
+- schema inventory confirms current mutation roots for `marketCreate`, `marketUpdate`, `marketDelete`, `webPresenceCreate`, `webPresenceUpdate`, `webPresenceDelete`, `marketLocalizationsRegister`, and `marketLocalizationsRemove`
+- `marketsResolvedValues(buyerSignal: { countryCode: US })` is present in 2026-04 and returned resolved currency/price-inclusivity data on this store, but an empty resolved catalog connection for the captured buyer signal
+- top-level `webPresences` can be captured safely with `id`, `subfolderSuffix`, `domain`, `rootUrls`, and linked `markets`, but selecting locale object fields is separately gated
+
+Access-scope trap:
+
+- selecting `MarketWebPresence.defaultLocale` or `MarketWebPresence.alternateLocales` failed on this credential with `Access denied for defaultLocale field. Required access: read_locales access scope or read_markets_home access scope.`
+- keep those locale fields out of baseline parity requests unless the credential is expanded; the blocked probe is preserved in `fixtures/conformance/very-big-test-store.myshopify.com/2026-04/markets-baseline.json`
+
+Safety rule:
+
+- do not run successful live writes for market lifecycle, web presence, localization, backup-region, or currency-setting roots on the shared conformance store without a disposable market setup and cleanup story
+- until local Markets modeling exists, registry entries and parity specs are inventory/capture evidence only; they must not be read as runtime support

@@ -1,0 +1,1896 @@
+{
+  "capturedAt": "2026-04-25T00:23:38.030Z",
+  "storeDomain": "very-big-test-store.myshopify.com",
+  "apiVersion": "2026-04",
+  "schemaInventory": {
+    "queryRoots": [
+      {
+        "name": "availableBackupRegions",
+        "args": [],
+        "type": {
+          "kind": "NON_NULL",
+          "name": null,
+          "ofType": {
+            "kind": "LIST",
+            "name": null,
+            "ofType": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "INTERFACE",
+                "name": "MarketRegion",
+                "ofType": null
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "backupRegion",
+        "args": [],
+        "type": {
+          "kind": "NON_NULL",
+          "name": null,
+          "ofType": {
+            "kind": "INTERFACE",
+            "name": "MarketRegion",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "catalog",
+        "args": [
+          {
+            "name": "id",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            }
+          }
+        ],
+        "type": {
+          "kind": "INTERFACE",
+          "name": "Catalog",
+          "ofType": null
+        }
+      },
+      {
+        "name": "catalogs",
+        "args": [
+          {
+            "name": "type",
+            "type": {
+              "kind": "ENUM",
+              "name": "CatalogType",
+              "ofType": null
+            }
+          },
+          {
+            "name": "first",
+            "type": {
+              "kind": "SCALAR",
+              "name": "Int",
+              "ofType": null
+            }
+          },
+          {
+            "name": "after",
+            "type": {
+              "kind": "SCALAR",
+              "name": "String",
+              "ofType": null
+            }
+          },
+          {
+            "name": "last",
+            "type": {
+              "kind": "SCALAR",
+              "name": "Int",
+              "ofType": null
+            }
+          },
+          {
+            "name": "before",
+            "type": {
+              "kind": "SCALAR",
+              "name": "String",
+              "ofType": null
+            }
+          },
+          {
+            "name": "reverse",
+            "type": {
+              "kind": "SCALAR",
+              "name": "Boolean",
+              "ofType": null
+            }
+          },
+          {
+            "name": "sortKey",
+            "type": {
+              "kind": "ENUM",
+              "name": "CatalogSortKeys",
+              "ofType": null
+            }
+          },
+          {
+            "name": "query",
+            "type": {
+              "kind": "SCALAR",
+              "name": "String",
+              "ofType": null
+            }
+          }
+        ],
+        "type": {
+          "kind": "NON_NULL",
+          "name": null,
+          "ofType": {
+            "kind": "OBJECT",
+            "name": "CatalogConnection",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "catalogsCount",
+        "args": [
+          {
+            "name": "type",
+            "type": {
+              "kind": "ENUM",
+              "name": "CatalogType",
+              "ofType": null
+            }
+          },
+          {
+            "name": "query",
+            "type": {
+              "kind": "SCALAR",
+              "name": "String",
+              "ofType": null
+            }
+          },
+          {
+            "name": "limit",
+            "type": {
+              "kind": "SCALAR",
+              "name": "Int",
+              "ofType": null
+            }
+          }
+        ],
+        "type": {
+          "kind": "OBJECT",
+          "name": "Count",
+          "ofType": null
+        }
+      },
+      {
+        "name": "market",
+        "args": [
+          {
+            "name": "id",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            }
+          }
+        ],
+        "type": {
+          "kind": "OBJECT",
+          "name": "Market",
+          "ofType": null
+        }
+      },
+      {
+        "name": "marketLocalizableResource",
+        "args": [
+          {
+            "name": "resourceId",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            }
+          }
+        ],
+        "type": {
+          "kind": "OBJECT",
+          "name": "MarketLocalizableResource",
+          "ofType": null
+        }
+      },
+      {
+        "name": "marketLocalizableResources",
+        "args": [
+          {
+            "name": "resourceType",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "ENUM",
+                "name": "MarketLocalizableResourceType",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "first",
+            "type": {
+              "kind": "SCALAR",
+              "name": "Int",
+              "ofType": null
+            }
+          },
+          {
+            "name": "after",
+            "type": {
+              "kind": "SCALAR",
+              "name": "String",
+              "ofType": null
+            }
+          },
+          {
+            "name": "last",
+            "type": {
+              "kind": "SCALAR",
+              "name": "Int",
+              "ofType": null
+            }
+          },
+          {
+            "name": "before",
+            "type": {
+              "kind": "SCALAR",
+              "name": "String",
+              "ofType": null
+            }
+          },
+          {
+            "name": "reverse",
+            "type": {
+              "kind": "SCALAR",
+              "name": "Boolean",
+              "ofType": null
+            }
+          }
+        ],
+        "type": {
+          "kind": "NON_NULL",
+          "name": null,
+          "ofType": {
+            "kind": "OBJECT",
+            "name": "MarketLocalizableResourceConnection",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "marketLocalizableResourcesByIds",
+        "args": [
+          {
+            "name": "resourceIds",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "LIST",
+                "name": null,
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "SCALAR",
+                    "name": "ID",
+                    "ofType": null
+                  }
+                }
+              }
+            }
+          },
+          {
+            "name": "first",
+            "type": {
+              "kind": "SCALAR",
+              "name": "Int",
+              "ofType": null
+            }
+          },
+          {
+            "name": "after",
+            "type": {
+              "kind": "SCALAR",
+              "name": "String",
+              "ofType": null
+            }
+          },
+          {
+            "name": "last",
+            "type": {
+              "kind": "SCALAR",
+              "name": "Int",
+              "ofType": null
+            }
+          },
+          {
+            "name": "before",
+            "type": {
+              "kind": "SCALAR",
+              "name": "String",
+              "ofType": null
+            }
+          },
+          {
+            "name": "reverse",
+            "type": {
+              "kind": "SCALAR",
+              "name": "Boolean",
+              "ofType": null
+            }
+          }
+        ],
+        "type": {
+          "kind": "NON_NULL",
+          "name": null,
+          "ofType": {
+            "kind": "OBJECT",
+            "name": "MarketLocalizableResourceConnection",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "markets",
+        "args": [
+          {
+            "name": "type",
+            "type": {
+              "kind": "ENUM",
+              "name": "MarketType",
+              "ofType": null
+            }
+          },
+          {
+            "name": "first",
+            "type": {
+              "kind": "SCALAR",
+              "name": "Int",
+              "ofType": null
+            }
+          },
+          {
+            "name": "after",
+            "type": {
+              "kind": "SCALAR",
+              "name": "String",
+              "ofType": null
+            }
+          },
+          {
+            "name": "last",
+            "type": {
+              "kind": "SCALAR",
+              "name": "Int",
+              "ofType": null
+            }
+          },
+          {
+            "name": "before",
+            "type": {
+              "kind": "SCALAR",
+              "name": "String",
+              "ofType": null
+            }
+          },
+          {
+            "name": "reverse",
+            "type": {
+              "kind": "SCALAR",
+              "name": "Boolean",
+              "ofType": null
+            }
+          },
+          {
+            "name": "sortKey",
+            "type": {
+              "kind": "ENUM",
+              "name": "MarketsSortKeys",
+              "ofType": null
+            }
+          },
+          {
+            "name": "query",
+            "type": {
+              "kind": "SCALAR",
+              "name": "String",
+              "ofType": null
+            }
+          }
+        ],
+        "type": {
+          "kind": "NON_NULL",
+          "name": null,
+          "ofType": {
+            "kind": "OBJECT",
+            "name": "MarketConnection",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "marketsResolvedValues",
+        "args": [
+          {
+            "name": "buyerSignal",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "INPUT_OBJECT",
+                "name": "BuyerSignalInput",
+                "ofType": null
+              }
+            }
+          }
+        ],
+        "type": {
+          "kind": "NON_NULL",
+          "name": null,
+          "ofType": {
+            "kind": "OBJECT",
+            "name": "MarketsResolvedValues",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "webPresences",
+        "args": [
+          {
+            "name": "first",
+            "type": {
+              "kind": "SCALAR",
+              "name": "Int",
+              "ofType": null
+            }
+          },
+          {
+            "name": "after",
+            "type": {
+              "kind": "SCALAR",
+              "name": "String",
+              "ofType": null
+            }
+          },
+          {
+            "name": "last",
+            "type": {
+              "kind": "SCALAR",
+              "name": "Int",
+              "ofType": null
+            }
+          },
+          {
+            "name": "before",
+            "type": {
+              "kind": "SCALAR",
+              "name": "String",
+              "ofType": null
+            }
+          },
+          {
+            "name": "reverse",
+            "type": {
+              "kind": "SCALAR",
+              "name": "Boolean",
+              "ofType": null
+            }
+          }
+        ],
+        "type": {
+          "kind": "OBJECT",
+          "name": "MarketWebPresenceConnection",
+          "ofType": null
+        }
+      }
+    ],
+    "mutationRoots": [
+      {
+        "name": "backupRegionUpdate",
+        "args": [
+          {
+            "name": "region",
+            "type": {
+              "kind": "INPUT_OBJECT",
+              "name": "BackupRegionUpdateInput",
+              "ofType": null
+            }
+          }
+        ],
+        "type": {
+          "kind": "OBJECT",
+          "name": "BackupRegionUpdatePayload",
+          "ofType": null
+        }
+      },
+      {
+        "name": "marketCreate",
+        "args": [
+          {
+            "name": "input",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "INPUT_OBJECT",
+                "name": "MarketCreateInput",
+                "ofType": null
+              }
+            }
+          }
+        ],
+        "type": {
+          "kind": "OBJECT",
+          "name": "MarketCreatePayload",
+          "ofType": null
+        }
+      },
+      {
+        "name": "marketDelete",
+        "args": [
+          {
+            "name": "id",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            }
+          }
+        ],
+        "type": {
+          "kind": "OBJECT",
+          "name": "MarketDeletePayload",
+          "ofType": null
+        }
+      },
+      {
+        "name": "marketLocalizationsRegister",
+        "args": [
+          {
+            "name": "resourceId",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "marketLocalizations",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "LIST",
+                "name": null,
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "INPUT_OBJECT",
+                    "name": "MarketLocalizationRegisterInput",
+                    "ofType": null
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "type": {
+          "kind": "OBJECT",
+          "name": "MarketLocalizationsRegisterPayload",
+          "ofType": null
+        }
+      },
+      {
+        "name": "marketLocalizationsRemove",
+        "args": [
+          {
+            "name": "resourceId",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "marketLocalizationKeys",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "LIST",
+                "name": null,
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "SCALAR",
+                    "name": "String",
+                    "ofType": null
+                  }
+                }
+              }
+            }
+          },
+          {
+            "name": "marketIds",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "LIST",
+                "name": null,
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "SCALAR",
+                    "name": "ID",
+                    "ofType": null
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "type": {
+          "kind": "OBJECT",
+          "name": "MarketLocalizationsRemovePayload",
+          "ofType": null
+        }
+      },
+      {
+        "name": "marketUpdate",
+        "args": [
+          {
+            "name": "id",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "input",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "INPUT_OBJECT",
+                "name": "MarketUpdateInput",
+                "ofType": null
+              }
+            }
+          }
+        ],
+        "type": {
+          "kind": "OBJECT",
+          "name": "MarketUpdatePayload",
+          "ofType": null
+        }
+      },
+      {
+        "name": "webPresenceCreate",
+        "args": [
+          {
+            "name": "input",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "INPUT_OBJECT",
+                "name": "WebPresenceCreateInput",
+                "ofType": null
+              }
+            }
+          }
+        ],
+        "type": {
+          "kind": "OBJECT",
+          "name": "WebPresenceCreatePayload",
+          "ofType": null
+        }
+      },
+      {
+        "name": "webPresenceDelete",
+        "args": [
+          {
+            "name": "id",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            }
+          }
+        ],
+        "type": {
+          "kind": "OBJECT",
+          "name": "WebPresenceDeletePayload",
+          "ofType": null
+        }
+      },
+      {
+        "name": "webPresenceUpdate",
+        "args": [
+          {
+            "name": "id",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "input",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "INPUT_OBJECT",
+                "name": "WebPresenceUpdateInput",
+                "ofType": null
+              }
+            }
+          }
+        ],
+        "type": {
+          "kind": "OBJECT",
+          "name": "WebPresenceUpdatePayload",
+          "ofType": null
+        }
+      }
+    ],
+    "objectTypes": {
+      "market": {
+        "fields": [
+          {
+            "name": "assignedCustomization",
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "catalogs",
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "MarketCatalogConnection",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "catalogsCount",
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "type": {
+              "kind": "OBJECT",
+              "name": "Count",
+              "ofType": null
+            }
+          },
+          {
+            "name": "conditions",
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "type": {
+              "kind": "OBJECT",
+              "name": "MarketConditions",
+              "ofType": null
+            }
+          },
+          {
+            "name": "currencySettings",
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "type": {
+              "kind": "OBJECT",
+              "name": "MarketCurrencySettings",
+              "ofType": null
+            }
+          },
+          {
+            "name": "handle",
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "id",
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "metafield",
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "type": {
+              "kind": "OBJECT",
+              "name": "Metafield",
+              "ofType": null
+            }
+          },
+          {
+            "name": "metafields",
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "MetafieldConnection",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "name",
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "priceInclusions",
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "type": {
+              "kind": "OBJECT",
+              "name": "MarketPriceInclusions",
+              "ofType": null
+            }
+          },
+          {
+            "name": "status",
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "ENUM",
+                "name": "MarketStatus",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "type",
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "ENUM",
+                "name": "MarketType",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "webPresences",
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "MarketWebPresenceConnection",
+                "ofType": null
+              }
+            }
+          }
+        ]
+      },
+      "marketConditions": {
+        "fields": [
+          {
+            "name": "companyLocationsCondition",
+            "type": {
+              "kind": "OBJECT",
+              "name": "CompanyLocationsCondition",
+              "ofType": null
+            }
+          },
+          {
+            "name": "conditionTypes",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "LIST",
+                "name": null,
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "ENUM",
+                    "name": "MarketConditionType",
+                    "ofType": null
+                  }
+                }
+              }
+            }
+          },
+          {
+            "name": "locationsCondition",
+            "type": {
+              "kind": "OBJECT",
+              "name": "LocationsCondition",
+              "ofType": null
+            }
+          },
+          {
+            "name": "regionsCondition",
+            "type": {
+              "kind": "OBJECT",
+              "name": "RegionsCondition",
+              "ofType": null
+            }
+          }
+        ]
+      },
+      "marketCatalog": {
+        "fields": [
+          {
+            "name": "id",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "markets",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "MarketConnection",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "marketsCount",
+            "type": {
+              "kind": "OBJECT",
+              "name": "Count",
+              "ofType": null
+            }
+          },
+          {
+            "name": "operations",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "LIST",
+                "name": null,
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "INTERFACE",
+                    "name": "ResourceOperation",
+                    "ofType": null
+                  }
+                }
+              }
+            }
+          },
+          {
+            "name": "priceList",
+            "type": {
+              "kind": "OBJECT",
+              "name": "PriceList",
+              "ofType": null
+            }
+          },
+          {
+            "name": "publication",
+            "type": {
+              "kind": "OBJECT",
+              "name": "Publication",
+              "ofType": null
+            }
+          },
+          {
+            "name": "status",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "ENUM",
+                "name": "CatalogStatus",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "title",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            }
+          }
+        ]
+      },
+      "marketWebPresence": {
+        "fields": [
+          {
+            "name": "alternateLocales",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "LIST",
+                "name": null,
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "OBJECT",
+                    "name": "ShopLocale",
+                    "ofType": null
+                  }
+                }
+              }
+            }
+          },
+          {
+            "name": "defaultLocale",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "ShopLocale",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "domain",
+            "type": {
+              "kind": "OBJECT",
+              "name": "Domain",
+              "ofType": null
+            }
+          },
+          {
+            "name": "id",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "markets",
+            "type": {
+              "kind": "OBJECT",
+              "name": "MarketConnection",
+              "ofType": null
+            }
+          },
+          {
+            "name": "rootUrls",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "LIST",
+                "name": null,
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "OBJECT",
+                    "name": "MarketWebPresenceRootUrl",
+                    "ofType": null
+                  }
+                }
+              }
+            }
+          },
+          {
+            "name": "subfolderSuffix",
+            "type": {
+              "kind": "SCALAR",
+              "name": "String",
+              "ofType": null
+            }
+          }
+        ]
+      },
+      "marketsResolvedValues": {
+        "fields": [
+          {
+            "name": "catalogs",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "MarketCatalogConnection",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "currencyCode",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "ENUM",
+                "name": "CurrencyCode",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "priceInclusivity",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "ResolvedPriceInclusivity",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "webPresences",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "MarketWebPresenceConnection",
+                "ofType": null
+              }
+            }
+          }
+        ]
+      },
+      "buyerSignalInput": {
+        "inputFields": [
+          {
+            "name": "countryCode",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "ENUM",
+                "name": "CountryCode",
+                "ofType": null
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "readOnlyBaselines": {
+    "markets": {
+      "data": {
+        "markets": {
+          "edges": [
+            {
+              "cursor": "eyJsYXN0X2lkIjo3MTg4MjUwODU3LCJsYXN0X3ZhbHVlIjoiQ2FuYWRhIn0=",
+              "node": {
+                "id": "gid://shopify/Market/7188250857",
+                "name": "Canada",
+                "handle": "ca",
+                "status": "ACTIVE",
+                "type": "REGION",
+                "conditions": {
+                  "conditionTypes": [
+                    "REGION"
+                  ],
+                  "regionsCondition": {
+                    "applicationLevel": "SPECIFIED",
+                    "regions": {
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo5Nzc1MTU2NDUyMSwibGFzdF92YWx1ZSI6Ijk3NzUxNTY0NTIxIn0=",
+                          "node": {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/454909493481",
+                            "name": "Canada",
+                            "code": "CA",
+                            "currency": {
+                              "currencyCode": "CAD",
+                              "currencyName": "Canadian Dollar",
+                              "enabled": true
+                            }
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo5Nzc1MTU2NDUyMSwibGFzdF92YWx1ZSI6Ijk3NzUxNTY0NTIxIn0=",
+                        "endCursor": "eyJsYXN0X2lkIjo5Nzc1MTU2NDUyMSwibGFzdF92YWx1ZSI6Ijk3NzUxNTY0NTIxIn0="
+                      }
+                    }
+                  }
+                },
+                "currencySettings": {
+                  "baseCurrency": {
+                    "currencyCode": "CAD",
+                    "currencyName": "Canadian Dollar",
+                    "enabled": true
+                  },
+                  "localCurrencies": false,
+                  "roundingEnabled": true
+                },
+                "priceInclusions": null,
+                "catalogs": {
+                  "edges": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": null,
+                    "endCursor": null
+                  }
+                },
+                "webPresences": {
+                  "edges": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": null,
+                    "endCursor": null
+                  }
+                }
+              }
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjozNTUzMjMwODcxMywibGFzdF92YWx1ZSI6IkNvbmZvcm1hbmNlIFVTIn0=",
+              "node": {
+                "id": "gid://shopify/Market/35532308713",
+                "name": "Conformance US",
+                "handle": "conformance-us",
+                "status": "ACTIVE",
+                "type": "REGION",
+                "conditions": {
+                  "conditionTypes": [
+                    "REGION"
+                  ],
+                  "regionsCondition": {
+                    "applicationLevel": "SPECIFIED",
+                    "regions": {
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjoxMjcyMjM3ODgzNjI1LCJsYXN0X3ZhbHVlIjoiMTI3MjIzNzg4MzYyNSJ9",
+                          "node": {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/454910378217",
+                            "name": "United States",
+                            "code": "US",
+                            "currency": {
+                              "currencyCode": "CAD",
+                              "currencyName": "Canadian Dollar",
+                              "enabled": true
+                            }
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjoxMjcyMjM3ODgzNjI1LCJsYXN0X3ZhbHVlIjoiMTI3MjIzNzg4MzYyNSJ9",
+                        "endCursor": "eyJsYXN0X2lkIjoxMjcyMjM3ODgzNjI1LCJsYXN0X3ZhbHVlIjoiMTI3MjIzNzg4MzYyNSJ9"
+                      }
+                    }
+                  }
+                },
+                "currencySettings": null,
+                "priceInclusions": null,
+                "catalogs": {
+                  "edges": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": null,
+                    "endCursor": null
+                  }
+                },
+                "webPresences": {
+                  "edges": [
+                    {
+                      "cursor": "eyJsYXN0X2lkIjozMzEzMTkyMTY0MSwibGFzdF92YWx1ZSI6MzMxMzE5MjE2NDF9",
+                      "node": {
+                        "id": "gid://shopify/MarketWebPresence/33131921641",
+                        "subfolderSuffix": null,
+                        "domain": {
+                          "id": "gid://shopify/Domain/93049946345",
+                          "host": "very-big-test-store.myshopify.com",
+                          "url": "https://very-big-test-store.myshopify.com",
+                          "sslEnabled": true
+                        },
+                        "rootUrls": [
+                          {
+                            "locale": "en",
+                            "url": "https://very-big-test-store.myshopify.com/"
+                          }
+                        ]
+                      }
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "eyJsYXN0X2lkIjozMzEzMTkyMTY0MSwibGFzdF92YWx1ZSI6MzMxMzE5MjE2NDF9",
+                    "endCursor": "eyJsYXN0X2lkIjozMzEzMTkyMTY0MSwibGFzdF92YWx1ZSI6MzMxMzE5MjE2NDF9"
+                  }
+                }
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo3MTg4MjUwODU3LCJsYXN0X3ZhbHVlIjoiQ2FuYWRhIn0=",
+            "endCursor": "eyJsYXN0X2lkIjozNTUzMjMwODcxMywibGFzdF92YWx1ZSI6IkNvbmZvcm1hbmNlIFVTIn0="
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 78,
+          "actualQueryCost": 24,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1922,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "market": {
+      "data": {
+        "market": {
+          "id": "gid://shopify/Market/7188250857",
+          "name": "Canada",
+          "handle": "ca",
+          "status": "ACTIVE",
+          "type": "REGION",
+          "conditions": {
+            "conditionTypes": [
+              "REGION"
+            ],
+            "regionsCondition": {
+              "applicationLevel": "SPECIFIED",
+              "regions": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo5Nzc1MTU2NDUyMSwibGFzdF92YWx1ZSI6Ijk3NzUxNTY0NTIxIn0=",
+                    "node": {
+                      "__typename": "MarketRegionCountry",
+                      "id": "gid://shopify/MarketRegionCountry/454909493481",
+                      "name": "Canada",
+                      "code": "CA",
+                      "currency": {
+                        "currencyCode": "CAD",
+                        "currencyName": "Canadian Dollar",
+                        "enabled": true
+                      }
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo5Nzc1MTU2NDUyMSwibGFzdF92YWx1ZSI6Ijk3NzUxNTY0NTIxIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjo5Nzc1MTU2NDUyMSwibGFzdF92YWx1ZSI6Ijk3NzUxNTY0NTIxIn0="
+                }
+              }
+            }
+          },
+          "currencySettings": {
+            "baseCurrency": {
+              "currencyCode": "CAD",
+              "currencyName": "Canadian Dollar",
+              "enabled": true
+            },
+            "localCurrencies": false,
+            "roundingEnabled": true
+          },
+          "priceInclusions": null,
+          "catalogs": {
+            "edges": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          },
+          "webPresences": {
+            "edges": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 38,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1929,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "catalogs": {
+      "data": {
+        "catalogs": {
+          "edges": [
+            {
+              "cursor": "eyJsYXN0X2lkIjo2MTgyOTI1MTMwNSwibGFzdF92YWx1ZSI6IjYxODI5MjUxMzA1In0=",
+              "node": {
+                "__typename": "MarketCatalog",
+                "id": "gid://shopify/MarketCatalog/61829251305",
+                "title": "Catalog A",
+                "status": "ACTIVE",
+                "priceList": {
+                  "id": "gid://shopify/PriceList/20526563561",
+                  "name": "Catalog A - 869533f9-cf53-4696-a021-2e4191f79ca1",
+                  "currency": "CAD"
+                },
+                "publication": {
+                  "id": "gid://shopify/Publication/159055151337",
+                  "autoPublish": true
+                },
+                "markets": {
+                  "edges": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": null,
+                    "endCursor": null
+                  }
+                }
+              }
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjo2MTgyOTI4NDA3MywibGFzdF92YWx1ZSI6IjYxODI5Mjg0MDczIn0=",
+              "node": {
+                "__typename": "MarketCatalog",
+                "id": "gid://shopify/MarketCatalog/61829284073",
+                "title": "Catalog B",
+                "status": "ACTIVE",
+                "priceList": {
+                  "id": "gid://shopify/PriceList/20526596329",
+                  "name": "Catalog B - 322db436-ecec-4e31-b890-6fdd682acb37",
+                  "currency": "CAD"
+                },
+                "publication": {
+                  "id": "gid://shopify/Publication/159055184105",
+                  "autoPublish": true
+                },
+                "markets": {
+                  "edges": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": null,
+                    "endCursor": null
+                  }
+                }
+              }
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjo2MTgyOTMxNjg0MSwibGFzdF92YWx1ZSI6IjYxODI5MzE2ODQxIn0=",
+              "node": {
+                "__typename": "MarketCatalog",
+                "id": "gid://shopify/MarketCatalog/61829316841",
+                "title": "Catalog C",
+                "status": "ACTIVE",
+                "priceList": {
+                  "id": "gid://shopify/PriceList/20526629097",
+                  "name": "Catalog C - 468271f5-05a0-4467-a53c-d0f714d21af9",
+                  "currency": "CAD"
+                },
+                "publication": {
+                  "id": "gid://shopify/Publication/159055216873",
+                  "autoPublish": true
+                },
+                "markets": {
+                  "edges": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": null,
+                    "endCursor": null
+                  }
+                }
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo2MTgyOTI1MTMwNSwibGFzdF92YWx1ZSI6IjYxODI5MjUxMzA1In0=",
+            "endCursor": "eyJsYXN0X2lkIjo2MTgyOTMxNjg0MSwibGFzdF92YWx1ZSI6IjYxODI5MzE2ODQxIn0="
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 18,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1933,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "webPresences": {
+      "data": {
+        "webPresences": {
+          "edges": [
+            {
+              "cursor": "eyJsYXN0X2lkIjozMzEzMTkyMTY0MSwibGFzdF92YWx1ZSI6IjMzMTMxOTIxNjQxIn0=",
+              "node": {
+                "id": "gid://shopify/MarketWebPresence/33131921641",
+                "subfolderSuffix": null,
+                "domain": {
+                  "id": "gid://shopify/Domain/93049946345",
+                  "host": "very-big-test-store.myshopify.com",
+                  "url": "https://very-big-test-store.myshopify.com",
+                  "sslEnabled": true
+                },
+                "rootUrls": [
+                  {
+                    "locale": "en",
+                    "url": "https://very-big-test-store.myshopify.com/"
+                  }
+                ],
+                "markets": {
+                  "edges": [
+                    {
+                      "cursor": "eyJsYXN0X2lkIjozNTUzMjMwODcxMywibGFzdF92YWx1ZSI6MzU1MzIzMDg3MTN9",
+                      "node": {
+                        "id": "gid://shopify/Market/35532308713",
+                        "name": "Conformance US",
+                        "handle": "conformance-us",
+                        "status": "ACTIVE",
+                        "type": "REGION"
+                      }
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "eyJsYXN0X2lkIjozNTUzMjMwODcxMywibGFzdF92YWx1ZSI6MzU1MzIzMDg3MTN9",
+                    "endCursor": "eyJsYXN0X2lkIjozNTUzMjMwODcxMywibGFzdF92YWx1ZSI6MzU1MzIzMDg3MTN9"
+                  }
+                }
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjozMzEzMTkyMTY0MSwibGFzdF92YWx1ZSI6IjMzMTMxOTIxNjQxIn0=",
+            "endCursor": "eyJsYXN0X2lkIjozMzEzMTkyMTY0MSwibGFzdF92YWx1ZSI6IjMzMTMxOTIxNjQxIn0="
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 18,
+          "actualQueryCost": 8,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1936,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "marketsResolvedValues": {
+      "data": {
+        "marketsResolvedValues": {
+          "currencyCode": "CAD",
+          "priceInclusivity": {
+            "dutiesIncluded": false,
+            "taxesIncluded": false
+          },
+          "catalogs": {
+            "edges": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          },
+          "webPresences": {
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjozMzEzMTkyMTY0MSwibGFzdF92YWx1ZSI6MzMxMzE5MjE2NDF9",
+                "node": {
+                  "id": "gid://shopify/MarketWebPresence/33131921641",
+                  "subfolderSuffix": null,
+                  "domain": {
+                    "id": "gid://shopify/Domain/93049946345",
+                    "host": "very-big-test-store.myshopify.com",
+                    "url": "https://very-big-test-store.myshopify.com",
+                    "sslEnabled": true
+                  },
+                  "rootUrls": [
+                    {
+                      "locale": "en",
+                      "url": "https://very-big-test-store.myshopify.com/"
+                    }
+                  ],
+                  "markets": {
+                    "edges": [
+                      {
+                        "cursor": "eyJsYXN0X2lkIjozNTUzMjMwODcxMywibGFzdF92YWx1ZSI6MzU1MzIzMDg3MTN9",
+                        "node": {
+                          "id": "gid://shopify/Market/35532308713",
+                          "name": "Conformance US",
+                          "handle": "conformance-us",
+                          "status": "ACTIVE",
+                          "type": "REGION"
+                        }
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjozNTUzMjMwODcxMywibGFzdF92YWx1ZSI6MzU1MzIzMDg3MTN9",
+                      "endCursor": "eyJsYXN0X2lkIjozNTUzMjMwODcxMywibGFzdF92YWx1ZSI6MzU1MzIzMDg3MTN9"
+                    }
+                  }
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjozMzEzMTkyMTY0MSwibGFzdF92YWx1ZSI6MzMxMzE5MjE2NDF9",
+              "endCursor": "eyJsYXN0X2lkIjozMzEzMTkyMTY0MSwibGFzdF92YWx1ZSI6MzMxMzE5MjE2NDF9"
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 38,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1938,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "accessScopeProbes": {
+    "marketWebPresenceLocaleFields": {
+      "query": "MarketWebPresence.defaultLocale and MarketWebPresence.alternateLocales",
+      "expectedAccess": "`read_locales` access scope or `read_markets_home` access scope",
+      "result": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Access denied for defaultLocale field. Required access: `read_locales` access scope or `read_markets_home` access scope.",
+              "locations": [
+                {
+                  "line": 7,
+                  "column": 11
+                }
+              ],
+              "extensions": {
+                "code": "ACCESS_DENIED",
+                "documentation": "https://shopify.dev/api/usage/access-scopes",
+                "requiredAccess": "`read_locales` access scope or `read_markets_home` access scope."
+              },
+              "path": [
+                "webPresences",
+                "edges",
+                0,
+                "node",
+                "defaultLocale"
+              ]
+            }
+          ],
+          "data": {
+            "webPresences": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 8,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1948,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "mutationValidationProbePlan": [
+    {
+      "root": "market lifecycle",
+      "operations": [
+        "marketCreate",
+        "marketUpdate",
+        "marketDelete"
+      ],
+      "requiredScopes": [
+        "read_markets",
+        "write_markets"
+      ],
+      "safety": "side-effect-heavy; can create, mutate, activate, or delete buyer-facing market configuration",
+      "recommendedProbe": "schema and invalid-ID/input validation only until a disposable market fixture is available"
+    },
+    {
+      "root": "market web presences",
+      "operations": [
+        "webPresenceCreate",
+        "webPresenceUpdate",
+        "webPresenceDelete"
+      ],
+      "requiredScopes": [
+        "read_markets",
+        "write_markets"
+      ],
+      "safety": "side-effect-heavy; can change buyer-facing market domains, subfolders, and SEO routing",
+      "recommendedProbe": "schema and invalid-ID/input validation only; avoid success-path writes on shared stores"
+    },
+    {
+      "root": "market localizations",
+      "operations": [
+        "marketLocalizationsRegister",
+        "marketLocalizationsRemove"
+      ],
+      "requiredScopes": [
+        "read_markets",
+        "write_markets"
+      ],
+      "safety": "side-effect-heavy; changes market-specific localized resource values",
+      "recommendedProbe": "schema and invalid resource/localization payload validation before any live write capture"
+    },
+    {
+      "root": "backup regions and currency settings",
+      "operations": [
+        "backupRegionUpdate",
+        "marketCurrencySettingsUpdate"
+      ],
+      "requiredScopes": [
+        "read_markets",
+        "write_markets"
+      ],
+      "safety": "side-effect-heavy; changes fallback regions or pricing/currency behavior for markets",
+      "recommendedProbe": "schema and invalid-ID/input validation only unless a disposable shop capability is prepared"
+    }
+  ]
+}
