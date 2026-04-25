@@ -45,6 +45,15 @@ Delete support is enabled because the 2026-04 schema exposes `carrierServiceDele
 
 Carrier-service callback URLs and service-discovery flags are recorded only as Shopify-like metadata for read-after-write behavior. Local staging never invokes rate callbacks, service-discovery callbacks, or any checkout-rate side effects.
 
+Delivery-profile reads are implemented as fixture-backed snapshot reads:
+
+- `deliveryProfiles` returns a local connection from normalized `deliveryProfiles` snapshot state and supports `first`, `last`, `after`, `before`, `reverse`, and `merchantOwnedOnly` without contacting upstream Shopify.
+- `deliveryProfile(id:)` returns the normalized profile detail when present and `null` for a missing id.
+- Snapshot mode does not invent shipping profiles. With no normalized delivery-profile fixtures, `deliveryProfiles` returns an empty connection and `deliveryProfile(id:)` returns `null`.
+- Nested profile detail serializes captured scalar counts, profile items, product/variant associations, profile location groups, locations, countries/provinces, zones, method definitions, rate providers, method conditions, selling-plan group connections, and unassigned locations when those fields exist in the normalized fixture.
+- Product, variant, and location associations are stored as ids and projected from the existing product/location state. A delivery profile fixture should not duplicate full product, variant, or location blobs.
+- Live read evidence for 2026-04 is checked in at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/delivery-profiles-read.json`. The capture used `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm conformance:capture-delivery-profiles`; no access-scope or manage-delivery-settings blocker was encountered for the current conformance credential.
+
 ## Registry-only coverage map
 
 These roots are known Admin GraphQL shipping/fulfillment surface area, but they are not locally implemented. They are registered with `implemented: false` as explicit future local-model commitments, not as supported passthrough behavior.
@@ -89,8 +98,6 @@ Carrier services:
 
 Delivery profiles:
 
-- `deliveryProfile`
-- `deliveryProfiles`
 - `locationsAvailableForDeliveryProfilesConnection`
 - `deliveryProfileCreate`
 - `deliveryProfileRemove`
@@ -111,7 +118,7 @@ Shipping-line order-edit roots:
 - Fulfillment-order lifecycle mutations can create replacement orders, split or merge line items, change assigned locations, add/release holds, change deadlines, and update request status. Do not model one of these as a simple status patch without captured downstream reads.
 - Fulfillment-service mutations couple service records to locations. Creation automatically creates a location, update does not replace `LocationEdit` for service-managed location details, and deletion has inventory/location disposition semantics. HAR-236 covers the first local service/location lifecycle slice; broader inventory transfer fidelity still needs dedicated inventory-level captures.
 - Broader carrier-service support still depends on app ownership, `write_shipping` access, plan eligibility, available-service/location pairing, and service-discovery callback semantics outside the locally staged catalog/lifecycle slice.
-- Delivery profiles are nested shipping-rate configuration, not just scalar profile records. Local support needs location groups, zones, method definitions, conditions, variant assignments, selling-plan associations, default profile behavior, and asynchronous removal job semantics.
+- Delivery-profile write support still needs local modeling for nested profile/location-group/zone/rate validation, variant reassignment, selling-plan associations, default profile behavior, and asynchronous removal job semantics before any delivery-profile mutation can be marked supported.
 - Shipping lines and delivery methods are nested under orders, draft orders, calculated orders, fulfillment orders, and delivery profiles. A root-level registry entry can only cover the mutation/query root; nested field fidelity still needs scenario-specific fixtures and downstream read assertions.
 
 ## Validation anchors
@@ -119,7 +126,9 @@ Shipping-line order-edit roots:
 - Implemented order-scoped fulfillments: `tests/integration/order-fulfillment-flow.test.ts`
 - Implemented fulfillment services: `tests/integration/fulfillment-service-flow.test.ts`
 - Implemented carrier services: `tests/integration/carrier-service-flow.test.ts`
+- Implemented delivery-profile reads: `tests/integration/delivery-profile-query-shapes.test.ts`
 - Existing fulfillment parity specs and requests: `config/parity-specs/fulfillment*.json` and matching files under `config/parity-requests/`
 - Carrier-service capture/parity metadata: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/carrier-service-lifecycle.json` and `config/parity-specs/carrier-service-lifecycle.json`
+- Delivery-profile read capture: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/delivery-profiles-read.json`
 - Existing order docs for fulfilled order read-after-write behavior: `docs/endpoints/orders.md`
 - Registry/coverage tests: `tests/unit/operation-registry.test.ts`, `tests/integration/proxy-capability-classification.test.ts`

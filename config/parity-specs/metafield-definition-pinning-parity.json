@@ -1,0 +1,113 @@
+{
+  "scenarioId": "metafield-definition-pinning-parity",
+  "operationNames": [
+    "metafieldDefinitionPin",
+    "metafieldDefinitionUnpin",
+    "metafieldDefinition",
+    "metafieldDefinitions"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "read-after-write", "connection-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafield-definition-pinning-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafieldDefinitionPin-by-identifier.graphql",
+    "variablesCapturePath": "$.pinByIdentifier.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable strict snapshot parity for product-owned metafield definition pin/unpin. The fixture captures identifier and id argument forms plus downstream pinnedStatus and PINNED_POSITION catalog effects.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.metafieldDefinitions.pageInfo.startCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify returns opaque cursors while the local definition catalog connection uses stable synthetic definition cursors."
+      },
+      {
+        "path": "$.metafieldDefinitions.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify returns opaque cursors while the local definition catalog connection uses stable synthetic definition cursors."
+      }
+    ],
+    "targets": [
+      {
+        "name": "metafield-definition-pin-by-identifier",
+        "capturePath": "$.pinByIdentifier.response.data.metafieldDefinitionPin",
+        "proxyPath": "$.data.metafieldDefinitionPin",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "metafield-definition-after-pin-by-identifier-read",
+        "capturePath": "$.afterPinByIdentifierRead.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definition-pinning-read.graphql",
+          "variablesCapturePath": "$.downstreamReadVariables"
+        }
+      },
+      {
+        "name": "metafield-definition-pin-by-id",
+        "capturePath": "$.pinById.response.data.metafieldDefinitionPin",
+        "proxyPath": "$.data.metafieldDefinitionPin",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafieldDefinitionPin-by-id.graphql",
+          "variablesCapturePath": "$.pinById.variables"
+        }
+      },
+      {
+        "name": "metafield-definition-after-pin-by-id-read",
+        "capturePath": "$.afterPinByIdRead.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definition-pinning-read.graphql",
+          "variablesCapturePath": "$.downstreamReadVariables"
+        }
+      },
+      {
+        "name": "metafield-definition-unpin-by-identifier",
+        "capturePath": "$.unpinByIdentifier.response.data.metafieldDefinitionUnpin",
+        "proxyPath": "$.data.metafieldDefinitionUnpin",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafieldDefinitionUnpin-by-identifier.graphql",
+          "variablesCapturePath": "$.unpinByIdentifier.variables"
+        }
+      },
+      {
+        "name": "metafield-definition-after-unpin-by-identifier-read",
+        "capturePath": "$.afterUnpinByIdentifierRead.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definition-pinning-read.graphql",
+          "variablesCapturePath": "$.downstreamReadVariables"
+        }
+      },
+      {
+        "name": "metafield-definition-unpin-by-id",
+        "capturePath": "$.unpinById.response.data.metafieldDefinitionUnpin",
+        "proxyPath": "$.data.metafieldDefinitionUnpin",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafieldDefinitionUnpin-by-id.graphql",
+          "variablesCapturePath": "$.unpinById.variables"
+        }
+      },
+      {
+        "name": "metafield-definition-after-unpin-by-id-read",
+        "capturePath": "$.afterUnpinByIdRead.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definition-pinning-read.graphql",
+          "variablesCapturePath": "$.downstreamReadVariables"
+        }
+      }
+    ]
+  }
+}

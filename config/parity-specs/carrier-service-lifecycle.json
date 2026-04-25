@@ -10,6 +10,7 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/carrier-service-lifecycle.json"],
+  "runtimeTestFiles": ["tests/integration/carrier-service-flow.test.ts"],
   "comparisonMode": "captured-fixture",
   "notes": "Captured evidence covers Admin GraphQL 2026-04 DeliveryCarrierService empty catalog/detail reads, active/id query filters, current-schema delete root presence, create/update/delete lifecycle payloads, blank-name and unknown-id userErrors, and downstream carrierService/carrierServices visibility. Runtime parity is covered by integration tests while the generic parity runner lacks multi-step mutation chaining for this carrier-service lifecycle fixture.",
   "comparison": {

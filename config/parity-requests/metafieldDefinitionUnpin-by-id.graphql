@@ -1,0 +1,60 @@
+mutation MetafieldDefinitionUnpinById($definitionId: ID!) {
+  metafieldDefinitionUnpin(definitionId: $definitionId) {
+    unpinnedDefinition {
+      id
+      name
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      description
+      validations {
+        name
+        value
+      }
+      access {
+        admin
+        storefront
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+      constraints {
+        key
+        values(first: 10) {
+          nodes {
+            value
+          }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+            startCursor
+            endCursor
+          }
+        }
+      }
+      pinnedPosition
+      validationStatus
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
