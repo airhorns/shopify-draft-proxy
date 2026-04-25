@@ -2256,19 +2256,21 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountCodeFreeShippingCreate", "DiscountCodeFreeShippingCreate"],
-    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
-    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
+    "runtimeTests": [
+      "tests/integration/discount-mutation-validation.test.ts",
+      "tests/integration/discount-free-shipping-lifecycle-flow.test.ts"
+    ]
   },
   {
     "name": "discountCodeFreeShippingUpdate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountCodeFreeShippingUpdate", "DiscountCodeFreeShippingUpdate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-free-shipping-lifecycle-flow.test.ts"]
   },
   {
     "name": "discountCodeActivate",
@@ -2388,19 +2390,21 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticFreeShippingCreate", "DiscountAutomaticFreeShippingCreate"],
-    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
-    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
+    "runtimeTests": [
+      "tests/integration/discount-mutation-validation.test.ts",
+      "tests/integration/discount-free-shipping-lifecycle-flow.test.ts"
+    ]
   },
   {
     "name": "discountAutomaticFreeShippingUpdate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticFreeShippingUpdate", "DiscountAutomaticFreeShippingUpdate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-free-shipping-lifecycle-flow.test.ts"]
   },
   {
     "name": "discountAutomaticActivate",

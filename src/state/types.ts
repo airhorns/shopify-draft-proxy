@@ -623,6 +623,14 @@ export const discountMinimumRequirementRecordSchema = z.strictObject({
 });
 export type DiscountMinimumRequirementRecord = z.infer<typeof discountMinimumRequirementRecordSchema>;
 
+export const discountDestinationSelectionRecordSchema = z.strictObject({
+  typeName: z.string(),
+  allCountries: nullableBooleanSchema.optional(),
+  countries: z.array(z.string()).optional(),
+  includeRestOfWorld: nullableBooleanSchema.optional(),
+});
+export type DiscountDestinationSelectionRecord = z.infer<typeof discountDestinationSelectionRecordSchema>;
+
 export const discountMetafieldRecordSchema = z.strictObject({
   id: z.string(),
   namespace: z.string(),
@@ -667,6 +675,13 @@ export const discountRecordSchema = z.strictObject({
   context: discountContextRecordSchema.nullable().optional(),
   customerGets: discountCustomerGetsRecordSchema.nullable().optional(),
   minimumRequirement: discountMinimumRequirementRecordSchema.nullable().optional(),
+  destinationSelection: discountDestinationSelectionRecordSchema.nullable().optional(),
+  maximumShippingPrice: discountMoneyRecordSchema.nullable().optional(),
+  appliesOncePerCustomer: nullableBooleanSchema.optional(),
+  appliesOnOneTimePurchase: nullableBooleanSchema.optional(),
+  appliesOnSubscription: nullableBooleanSchema.optional(),
+  recurringCycleLimit: nullableNumberSchema.optional(),
+  usageLimit: nullableNumberSchema.optional(),
   metafields: z.array(discountMetafieldRecordSchema).optional(),
   events: z.array(discountEventRecordSchema).optional(),
   discountType: nullableStringSchema.optional(),

@@ -2253,6 +2253,29 @@ Practical rule:
 - preserve original raw mutation bodies for commit replay, and rely on the existing synthetic ID mapper so create responses map staged `DiscountCodeNode` IDs before later update/activate/deactivate/delete replays
 - continue using captured `DiscountUserError` branches for known invalid input rather than proxying those requests upstream
 
+## 62. Free-shipping discounts are a shipping model, not amount-off `customerGets`
+
+HAR-196 captured native code and automatic free-shipping lifecycle behavior against Admin GraphQL 2026-04.
+
+Captured shape:
+
+- `DiscountCodeFreeShippingInput.maximumShippingPrice` and `DiscountAutomaticFreeShippingInput.maximumShippingPrice` are `Decimal` scalars, but response fields serialize as nullable `MoneyV2` objects.
+- response objects expose `destinationSelection`, not `destination`; `destination: { all: true }` becomes `DiscountCountryAll { allCountries: true }`.
+- `destination: { countries: { add: ['US', 'CA'], includeRestOfWorld: false } }` came back as `DiscountCountries { countries: ['CA', 'US'], includeRestOfWorld: false }`.
+- free-shipping discount records use `discountClasses: ['SHIPPING']` and do not expose amount-off `customerGets`.
+- code free shipping has `appliesOncePerCustomer`, `usageLimit`, redeem-code connection fields, one-time/subscription applicability, and nullable `recurringCycleLimit`.
+- automatic free shipping has one-time/subscription applicability and non-null `recurringCycleLimit`, but no redeem-code connection, `usageLimit`, or `appliesOncePerCustomer`.
+
+Captured validation quirks:
+
+- setting both minimum subtotal and minimum quantity on a free-shipping update returns two mutation-scoped `CONFLICT` user errors, one for each requirement branch.
+- on the current conformance store, setting `countries.includeRestOfWorld: true` while selecting countries produced a top-level `NOT_FOUND` error: `Could not find rest of the world in shipping zones defined for the shop`.
+
+Practical rule:
+
+- model free-shipping Admin visibility through destination/minimum/max-shipping/applicability fields and keep checkout shipping-rate application out of scope until a separate capture proves that behavior.
+- do not broaden destination or money validation beyond captured branches without another live fixture; store-specific shipping-zone setup can change destination error behavior.
+
 Observed current-version surface:
 
 - read roots: `customerPaymentMethod`, `orderPaymentStatus`, `paymentCustomization`, `paymentCustomizations`, `paymentTermsTemplates`, `shopPayPaymentRequestReceipt`, `shopPayPaymentRequestReceipts`, `shopifyPaymentsAccount`, and `tenderTransactions`
