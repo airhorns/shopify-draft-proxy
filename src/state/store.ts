@@ -3,6 +3,7 @@ import type {
   CalculatedOrderRecord,
   CollectionRecord,
   CustomerCatalogConnectionRecord,
+  CustomerMetafieldRecord,
   CustomerRecord,
   DraftOrderRecord,
   FileRecord,
@@ -44,6 +45,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   productMedia: {},
   files: {},
   productMetafields: {},
+  customerMetafields: {},
   deletedProductIds: {},
   deletedFileIds: {},
   deletedCollectionIds: {},
@@ -197,6 +199,7 @@ function mergeCustomerRecords(base: CustomerRecord | null, staged: CustomerRecor
     canDelete: staged.canDelete ?? base.canDelete,
     verifiedEmail: staged.verifiedEmail ?? base.verifiedEmail,
     taxExempt: staged.taxExempt ?? base.taxExempt,
+    taxExemptions: structuredClone(staged.taxExemptions ?? base.taxExemptions ?? []),
     state: staged.state ?? base.state,
     tags: structuredClone(staged.tags),
     numberOfOrders: staged.numberOfOrders ?? base.numberOfOrders,
@@ -745,6 +748,30 @@ export class InMemoryStore {
     }
   }
 
+  replaceBaseMetafieldsForCustomer(customerId: string, metafields: CustomerMetafieldRecord[]): void {
+    for (const metafield of Object.values(this.baseState.customerMetafields)) {
+      if (metafield.customerId === customerId) {
+        delete this.baseState.customerMetafields[metafield.id];
+      }
+    }
+
+    for (const metafield of metafields) {
+      this.baseState.customerMetafields[metafield.id] = structuredClone(metafield);
+    }
+  }
+
+  replaceStagedMetafieldsForCustomer(customerId: string, metafields: CustomerMetafieldRecord[]): void {
+    for (const metafield of Object.values(this.stagedState.customerMetafields)) {
+      if (metafield.customerId === customerId) {
+        delete this.stagedState.customerMetafields[metafield.id];
+      }
+    }
+
+    for (const metafield of metafields) {
+      this.stagedState.customerMetafields[metafield.id] = structuredClone(metafield);
+    }
+  }
+
   stageCreateProduct(product: ProductRecord): ProductRecord {
     delete this.stagedState.deletedProductIds[product.id];
     this.stagedState.products[product.id] = structuredClone(product);
@@ -890,7 +917,9 @@ export class InMemoryStore {
 
   hasStagedCustomers(): boolean {
     return (
-      Object.keys(this.stagedState.customers).length > 0 || Object.keys(this.stagedState.deletedCustomerIds).length > 0
+      Object.keys(this.stagedState.customers).length > 0 ||
+      Object.keys(this.stagedState.customerMetafields).length > 0 ||
+      Object.keys(this.stagedState.deletedCustomerIds).length > 0
     );
   }
 
@@ -1140,6 +1169,30 @@ export class InMemoryStore {
         ? stagedMetafields
         : Object.values(this.baseState.productMetafields)
             .filter((metafield) => metafield.productId === productId)
+            .map((metafield) => structuredClone(metafield));
+
+    return sourceMetafields.sort(
+      (left, right) =>
+        left.namespace.localeCompare(right.namespace) ||
+        left.key.localeCompare(right.key) ||
+        left.id.localeCompare(right.id),
+    );
+  }
+
+  getEffectiveMetafieldsByCustomerId(customerId: string): CustomerMetafieldRecord[] {
+    if (this.stagedState.deletedCustomerIds[customerId]) {
+      return [];
+    }
+
+    const stagedMetafields = Object.values(this.stagedState.customerMetafields)
+      .filter((metafield) => metafield.customerId === customerId)
+      .map((metafield) => structuredClone(metafield));
+
+    const sourceMetafields =
+      stagedMetafields.length > 0
+        ? stagedMetafields
+        : Object.values(this.baseState.customerMetafields)
+            .filter((metafield) => metafield.customerId === customerId)
             .map((metafield) => structuredClone(metafield));
 
     return sourceMetafields.sort(
