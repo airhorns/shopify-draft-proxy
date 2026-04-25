@@ -91,8 +91,17 @@ const discountMutationArgumentTypes: Record<string, Record<string, string>> = {
     basicCodeDiscount: 'DiscountCodeBasicInput!',
     id: 'ID!',
   },
+  discountCodeActivate: {
+    id: 'ID!',
+  },
   discountCodeBxgyCreate: {
     bxgyCodeDiscount: 'DiscountCodeBxgyInput!',
+  },
+  discountCodeDeactivate: {
+    id: 'ID!',
+  },
+  discountCodeDelete: {
+    id: 'ID!',
   },
   discountCodeFreeShippingCreate: {
     freeShippingCodeDiscount: 'DiscountCodeFreeShippingInput!',
@@ -108,7 +117,9 @@ const discountMutationNodeFieldByRoot: Record<string, string> = {
   discountAutomaticFreeShippingCreate: 'automaticDiscountNode',
   discountCodeBasicCreate: 'codeDiscountNode',
   discountCodeBasicUpdate: 'codeDiscountNode',
+  discountCodeActivate: 'codeDiscountNode',
   discountCodeBxgyCreate: 'codeDiscountNode',
+  discountCodeDeactivate: 'codeDiscountNode',
   discountCodeFreeShippingCreate: 'codeDiscountNode',
 };
 
@@ -130,7 +141,9 @@ function readStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 }
 
-function readString(value: unknown, fallback: string): string {
+function readString(value: unknown, fallback: string): string;
+function readString(value: unknown, fallback?: string | null): string | null;
+function readString(value: unknown, fallback: string | null = null): string | null {
   return typeof value === 'string' ? value : fallback;
 }
 
@@ -255,19 +268,113 @@ function serializeDiscountMutationPayload(
   field: FieldNode,
   nodeField: string | null,
   userErrors: DiscountMutationUserError[],
+  discount: DiscountRecord | null = null,
+  deletedCodeDiscountId: string | null = null,
 ): Record<string, unknown> {
   const payload: Record<string, unknown> = {};
+  const context: DiscountSerializationContext = { errors: [], path: [getFieldResponseKey(field)] };
   for (const selection of getSelectedChildFields(field)) {
     const key = getFieldResponseKey(selection);
     if (selection.name.value === 'userErrors') {
       payload[key] = serializeDiscountMutationUserErrors(selection, userErrors);
     } else if (selection.name.value === nodeField || selection.name.value === 'job') {
-      payload[key] = null;
+      payload[key] =
+        userErrors.length === 0 && discount && nodeField === 'codeDiscountNode'
+          ? serializeDiscountOwnerNode(discount, selection, {}, 'DiscountCodeNode', 'codeDiscount', {
+              ...context,
+              path: [key],
+            })
+          : null;
+    } else if (selection.name.value === 'deletedCodeDiscountId') {
+      payload[key] = userErrors.length === 0 ? deletedCodeDiscountId : null;
     } else {
       payload[key] = null;
     }
   }
   return payload;
+}
+
+function readMoneyAmount(value: unknown): string | null {
+  if (typeof value === 'string' && value.length > 0) {
+    return value;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value.toFixed(2);
+  }
+
+  return null;
+}
+
+function readDiscountCode(input: Record<string, unknown> | null, fallback: string | null = null): string {
+  const code = readString(input?.['code']) ?? fallback ?? 'DISCOUNT';
+  return code.trim().length > 0 ? code.trim() : 'DISCOUNT';
+}
+
+function readDiscountTitle(input: Record<string, unknown> | null, fallback: string | null = null): string {
+  const title = readString(input?.['title']) ?? fallback ?? readDiscountCode(input);
+  return title.trim().length > 0 ? title.trim() : readDiscountCode(input);
+}
+
+function inferDiscountClasses(customerGets: DiscountCustomerGetsRecord | null): string[] {
+  const itemTypeName = customerGets?.items.typeName;
+  return itemTypeName === 'DiscountProducts' || itemTypeName === 'DiscountCollections' ? ['PRODUCT'] : ['ORDER'];
+}
+
+function buildDiscountSummary(
+  customerGets: DiscountCustomerGetsRecord | null,
+  minimumRequirement: DiscountMinimumRequirementRecord | null,
+): string | null {
+  const value = customerGets?.value ?? null;
+  if (!value) {
+    return null;
+  }
+
+  let baseSummary: string | null = null;
+  if (value.typeName === 'DiscountPercentage' && typeof value.percentage === 'number') {
+    baseSummary = `${Math.round(value.percentage * 100)}% off entire order`;
+  } else if (value.typeName === 'DiscountAmount' && value.amount?.amount) {
+    baseSummary = `${value.amount.amount} ${value.amount.currencyCode} off entire order`;
+  }
+
+  if (!baseSummary) {
+    return null;
+  }
+
+  if (minimumRequirement?.typeName === 'DiscountMinimumSubtotal') {
+    const amount = minimumRequirement.greaterThanOrEqualToSubtotal?.amount;
+    return amount ? `${baseSummary} - Minimum purchase of $${amount}` : baseSummary;
+  }
+
+  if (minimumRequirement?.typeName === 'DiscountMinimumQuantity') {
+    const quantity = minimumRequirement.greaterThanOrEqualToQuantity;
+    return quantity ? `${baseSummary} - Minimum quantity of ${quantity}` : baseSummary;
+  }
+
+  return baseSummary;
+}
+
+function computeDiscountStatus(
+  discount: Pick<DiscountRecord, 'startsAt' | 'endsAt' | 'status'>,
+  nowIso: string,
+): string {
+  if (discount.status === 'EXPIRED') {
+    return 'EXPIRED';
+  }
+
+  const now = Date.parse(nowIso);
+  const startsAt = discount.startsAt ? Date.parse(discount.startsAt) : null;
+  const endsAt = discount.endsAt ? Date.parse(discount.endsAt) : null;
+
+  if (endsAt !== null && !Number.isNaN(endsAt) && endsAt <= now) {
+    return 'EXPIRED';
+  }
+
+  if (startsAt !== null && !Number.isNaN(startsAt) && startsAt > now) {
+    return 'SCHEDULED';
+  }
+
+  return 'ACTIVE';
 }
 
 function serializeAutomaticDiscountMutationPayload(
@@ -521,6 +628,239 @@ function validateDiscountCodeBasicUpdate(
       extraInfo: null,
     },
   ];
+}
+
+function validateKnownCodeDiscountId(id: unknown): DiscountMutationUserError[] | null {
+  if (
+    typeof id === 'string' &&
+    store.listEffectiveDiscounts().some((discount) => discount.id === id && discount.method === 'code')
+  ) {
+    return null;
+  }
+
+  return [
+    {
+      field: ['id'],
+      message: 'Discount does not exist',
+      code: null,
+      extraInfo: null,
+    },
+  ];
+}
+
+function normalizeDiscountCombinesWith(
+  input: Record<string, unknown> | null,
+  fallback?: DiscountRecord['combinesWith'],
+) {
+  const combinesWith = readNestedRecord(input, 'combinesWith');
+  return {
+    productDiscounts: readBoolean(combinesWith?.['productDiscounts'], fallback?.productDiscounts ?? false),
+    orderDiscounts: readBoolean(combinesWith?.['orderDiscounts'], fallback?.orderDiscounts ?? false),
+    shippingDiscounts: readBoolean(combinesWith?.['shippingDiscounts'], fallback?.shippingDiscounts ?? false),
+  };
+}
+
+function normalizeDiscountContext(
+  input: Record<string, unknown> | null,
+  fallback?: DiscountContextRecord | null,
+): DiscountContextRecord {
+  const context = readNestedRecord(input, 'context');
+  const customers = readNestedRecord(context, 'customers');
+  const customerSegments = readNestedRecord(context, 'customerSegments');
+  const customerIds = readStringArray(customers?.['add']);
+  const customerSegmentIds = readStringArray(customerSegments?.['add']);
+
+  if (customerIds.length > 0) {
+    return {
+      typeName: 'DiscountCustomers',
+      customerIds,
+    };
+  }
+
+  if (customerSegmentIds.length > 0) {
+    return {
+      typeName: 'DiscountCustomerSegments',
+      customerSegmentIds,
+    };
+  }
+
+  return fallback ?? { typeName: 'DiscountBuyerSelectionAll', all: 'ALL' };
+}
+
+function normalizeDiscountItems(
+  input: Record<string, unknown> | null,
+  fallback?: DiscountItemsRecord | null,
+): DiscountItemsRecord {
+  const customerGets = readNestedRecord(input, 'customerGets');
+  const items = readNestedRecord(customerGets, 'items');
+  const products = readNestedRecord(items, 'products');
+  const collections = readNestedRecord(items, 'collections');
+  const productIds = readStringArray(products?.['productsToAdd']);
+  const productVariantIds = readStringArray(products?.['productVariantsToAdd']);
+  const collectionIds = readStringArray(collections?.['add']);
+
+  if (collectionIds.length > 0) {
+    return {
+      typeName: 'DiscountCollections',
+      collectionIds,
+    };
+  }
+
+  if (productIds.length > 0 || productVariantIds.length > 0) {
+    return {
+      typeName: 'DiscountProducts',
+      productIds,
+      productVariantIds,
+    };
+  }
+
+  return fallback ?? { typeName: 'AllDiscountItems', allItems: true };
+}
+
+function normalizeDiscountValue(
+  input: Record<string, unknown> | null,
+  fallback?: DiscountValueRecord | null,
+): DiscountValueRecord {
+  const customerGets = readNestedRecord(input, 'customerGets');
+  const value = readNestedRecord(customerGets, 'value');
+  const percentage = readNumber(value?.['percentage']);
+  if (percentage !== null) {
+    return {
+      typeName: 'DiscountPercentage',
+      percentage,
+    };
+  }
+
+  const fixedAmount = readNestedRecord(value, 'fixedAmount');
+  const amount = readMoneyAmount(fixedAmount?.['amount']);
+  if (amount !== null) {
+    return {
+      typeName: 'DiscountAmount',
+      amount: {
+        amount,
+        currencyCode: readString(fixedAmount?.['currencyCode']) ?? 'USD',
+      },
+      appliesOnEachItem: readBoolean(fixedAmount?.['appliesOnEachItem'], false),
+    };
+  }
+
+  return fallback ?? { typeName: 'DiscountPercentage', percentage: 0 };
+}
+
+function normalizeCustomerGets(
+  input: Record<string, unknown> | null,
+  fallback?: DiscountCustomerGetsRecord | null,
+): DiscountCustomerGetsRecord {
+  const customerGets = readNestedRecord(input, 'customerGets');
+  return {
+    value: normalizeDiscountValue(input, fallback?.value),
+    items: normalizeDiscountItems(input, fallback?.items),
+    appliesOnOneTimePurchase: readBoolean(
+      customerGets?.['appliesOnOneTimePurchase'],
+      fallback?.appliesOnOneTimePurchase ?? true,
+    ),
+    appliesOnSubscription: readBoolean(
+      customerGets?.['appliesOnSubscription'],
+      fallback?.appliesOnSubscription ?? false,
+    ),
+  };
+}
+
+function normalizeMinimumRequirement(
+  input: Record<string, unknown> | null,
+  fallback?: DiscountMinimumRequirementRecord | null,
+): DiscountMinimumRequirementRecord | null {
+  const minimumRequirement = readNestedRecord(input, 'minimumRequirement');
+  const subtotal = readNestedRecord(minimumRequirement, 'subtotal');
+  const subtotalAmount = readMoneyAmount(subtotal?.['greaterThanOrEqualToSubtotal']);
+  if (subtotalAmount !== null) {
+    return {
+      typeName: 'DiscountMinimumSubtotal',
+      greaterThanOrEqualToSubtotal: {
+        amount: subtotalAmount,
+        currencyCode: readString(subtotal?.['currencyCode']) ?? 'USD',
+      },
+    };
+  }
+
+  const quantity = readNestedRecord(minimumRequirement, 'quantity');
+  const minimumQuantity = readString(quantity?.['greaterThanOrEqualToQuantity']);
+  if (minimumQuantity !== null) {
+    return {
+      typeName: 'DiscountMinimumQuantity',
+      greaterThanOrEqualToQuantity: minimumQuantity,
+    };
+  }
+
+  return fallback ?? null;
+}
+
+function buildCodeBasicDiscount(
+  input: Record<string, unknown>,
+  existing: DiscountRecord | null = null,
+): DiscountRecord {
+  const now = makeSyntheticTimestamp();
+  const code = readDiscountCode(input, existing?.codes[0] ?? existing?.redeemCodes?.[0]?.code ?? null);
+  const customerGets = normalizeCustomerGets(input, existing?.customerGets ?? null);
+  const minimumRequirement = normalizeMinimumRequirement(input, existing?.minimumRequirement ?? null);
+  const discount: DiscountRecord = {
+    id: existing?.id ?? makeProxySyntheticGid('DiscountCodeNode'),
+    typeName: 'DiscountCodeBasic',
+    method: 'code',
+    title: readDiscountTitle(input, existing?.title ?? null),
+    status: existing?.status ?? null,
+    summary: null,
+    startsAt: readString(input['startsAt']) ?? existing?.startsAt ?? now,
+    endsAt: input['endsAt'] === null ? null : (readString(input['endsAt']) ?? existing?.endsAt ?? null),
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: existing ? now : now,
+    asyncUsageCount: existing?.asyncUsageCount ?? 0,
+    discountClasses: inferDiscountClasses(customerGets),
+    combinesWith: normalizeDiscountCombinesWith(input, existing?.combinesWith),
+    codes: [code],
+    redeemCodes: [
+      {
+        id: existing?.redeemCodes?.[0]?.id ?? makeProxySyntheticGid('DiscountRedeemCode'),
+        code,
+        asyncUsageCount: existing?.redeemCodes?.[0]?.asyncUsageCount ?? 0,
+      },
+    ],
+    context: normalizeDiscountContext(input, existing?.context ?? null),
+    customerGets,
+    minimumRequirement,
+    metafields: existing?.metafields ?? [],
+    events: existing?.events ?? [],
+    discountType: customerGets.value.typeName === 'DiscountAmount' ? 'fixed_amount' : 'percentage',
+    appId: existing?.appId ?? null,
+  };
+
+  discount.summary = buildDiscountSummary(customerGets, minimumRequirement);
+  discount.status = computeDiscountStatus(discount, now);
+  return discount;
+}
+
+function stageCodeBasicCreate(input: Record<string, unknown>): DiscountRecord {
+  return store.stageCreateDiscount(buildCodeBasicDiscount(input));
+}
+
+function stageCodeBasicUpdate(id: string, input: Record<string, unknown>): DiscountRecord {
+  const existing = store.listEffectiveDiscounts().find((discount) => discount.id === id && discount.method === 'code');
+  return store.stageCreateDiscount(buildCodeBasicDiscount(input, existing ?? null));
+}
+
+function stageCodeStatus(id: string, status: 'ACTIVE' | 'EXPIRED'): DiscountRecord {
+  const existing = store.listEffectiveDiscounts().find((discount) => discount.id === id && discount.method === 'code');
+  if (!existing) {
+    throw new Error(`Cannot stage status for unknown code discount ${id}`);
+  }
+
+  const now = makeSyntheticTimestamp();
+  const updated: DiscountRecord = {
+    ...structuredClone(existing),
+    status,
+    updatedAt: now,
+  } as DiscountRecord;
+  return store.stageCreateDiscount(updated);
 }
 
 function validateBulkSelectorConflict(
@@ -2109,8 +2449,21 @@ export function handleDiscountMutation(
     const args = getFieldArguments(field, variables);
     const nodeField = discountMutationNodeFieldByRoot[rootName] ?? null;
     let userErrors: DiscountMutationUserError[] | null = null;
+    let discount: DiscountRecord | null = null;
+    let deletedCodeDiscountId: string | null = null;
 
     switch (rootName) {
+      case 'discountCodeBasicCreate': {
+        const input = readRecord(args['basicCodeDiscount']);
+        userErrors = validateDiscountCodeBasicCreate(input);
+        if (input && userErrors === null) {
+          discount = stageCodeBasicCreate(input);
+          staged = true;
+          stagedResourceIds.push(discount.id);
+          userErrors = [];
+        }
+        break;
+      }
       case 'discountAutomaticBasicCreate':
         userErrors = validateDiscountAutomaticBasicCreate(readRecord(args['automaticBasicDiscount']));
         if (userErrors === null) {
@@ -2163,11 +2516,44 @@ export function handleDiscountMutation(
           data[key] = serializeAutomaticDiscountDeletePayload(field, args['id'], []);
         }
         break;
-      case 'discountCodeBasicCreate':
-        userErrors = validateDiscountCodeBasicCreate(readRecord(args['basicCodeDiscount']));
+      case 'discountCodeBasicUpdate': {
+        const input = readRecord(args['basicCodeDiscount']);
+        userErrors = validateDiscountCodeBasicUpdate(args['id'], input);
+        if (typeof args['id'] === 'string' && input && userErrors === null) {
+          discount = stageCodeBasicUpdate(args['id'], input);
+          staged = true;
+          stagedResourceIds.push(discount.id);
+          userErrors = [];
+        }
         break;
-      case 'discountCodeBasicUpdate':
-        userErrors = validateDiscountCodeBasicUpdate(args['id'], readRecord(args['basicCodeDiscount']));
+      }
+      case 'discountCodeActivate':
+        userErrors = validateKnownCodeDiscountId(args['id']);
+        if (typeof args['id'] === 'string' && userErrors === null) {
+          discount = stageCodeStatus(args['id'], 'ACTIVE');
+          staged = true;
+          stagedResourceIds.push(discount.id);
+          userErrors = [];
+        }
+        break;
+      case 'discountCodeDeactivate':
+        userErrors = validateKnownCodeDiscountId(args['id']);
+        if (typeof args['id'] === 'string' && userErrors === null) {
+          discount = stageCodeStatus(args['id'], 'EXPIRED');
+          staged = true;
+          stagedResourceIds.push(discount.id);
+          userErrors = [];
+        }
+        break;
+      case 'discountCodeDelete':
+        userErrors = validateKnownCodeDiscountId(args['id']);
+        if (typeof args['id'] === 'string' && userErrors === null) {
+          store.stageDeleteDiscount(args['id']);
+          deletedCodeDiscountId = args['id'];
+          staged = true;
+          stagedResourceIds.push(args['id']);
+          userErrors = [];
+        }
         break;
       case 'discountCodeBxgyCreate':
         userErrors = validateDiscountBxgyCreate(readRecord(args['bxgyCodeDiscount']), 'bxgyCodeDiscount');
@@ -2215,7 +2601,7 @@ export function handleDiscountMutation(
     ) {
       data[key] = serializeAutomaticDiscountMutationPayload(field, variables, null, userErrors);
     } else {
-      data[key] = serializeDiscountMutationPayload(field, nodeField, userErrors);
+      data[key] = serializeDiscountMutationPayload(field, nodeField, userErrors, discount, deletedCodeDiscountId);
     }
   }
 
@@ -2224,7 +2610,7 @@ export function handleDiscountMutation(
         response: { data },
         stagedResourceIds,
         notes: staged
-          ? 'Staged automatic discount lifecycle locally in the in-memory discount graph.'
+          ? 'Staged locally in the in-memory discount draft store.'
           : 'Returned captured discount validation response locally.',
         staged,
       }
