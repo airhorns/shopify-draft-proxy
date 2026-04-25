@@ -1786,7 +1786,7 @@ Current scaffold decision:
 
 - `shop`, `location`, `locationByIdentifier`, `businessEntities`, `businessEntity`, and `cashManagementLocationSummary` are registry-tracked as planned overlay reads, but they are not implemented runtime capabilities yet
 - `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, `locationDelete`, and `shopPolicyUpdate` are registry-tracked as planned local-staging mutations, but they remain unsupported at runtime
-- generic `publishable*` mutations now have a first product-scoped local staging slice; collection and other future `Publishable` targets still need their own evidence and model behavior
+- generic `publishablePublish` / `publishableUnpublish` now stage Product and Collection targets locally; `publishablePublishToCurrentChannel` / `publishableUnpublishToCurrentChannel` currently have product-scoped local staging only
 - the capture harness now records schema inventory plus safe read-only `shop` / `locations` / `location(id:)` baselines, while mutation validation probes are recorded as a plan instead of executed by default
 
 Safety traps:
@@ -1804,16 +1804,35 @@ Practical rule:
 
 The generic Store properties publication roots (`publishablePublish`, `publishablePublishToCurrentChannel`, `publishableUnpublish`, and `publishableUnpublishToCurrentChannel`) should not be collapsed into the existing product-specific publication handlers just because `Product` implements `Publishable`.
 
-Current HAR-177 decision:
+Current HAR-177 / HAR-163 decision:
 
 - keep `productPublish` / `productUnpublish` as the product-domain staged write path with their own captured parity fixtures
-- add a product-scoped local staging slice for the generic `publishable*` roots so known publication mutations do not escape to the real store
-- do not add collection or other `Publishable` support until that resource family has captured evidence and local model behavior
-- treat product and collection targets separately because the Shopify `Publishable` interface currently covers both resource families, and collection publication behavior should not inherit product assumptions without evidence
+- add a product-scoped local staging slice for the generic `publishable*` roots so known product publication mutations do not escape to the real store
+- add collection-scoped local staging for `publishablePublish` / `publishableUnpublish` only after collection-specific capture showed the aggregate publication path
+- keep `publishablePublishToCurrentChannel` / `publishableUnpublishToCurrentChannel` product-only until collection current-channel semantics have separate evidence
+- do not add other `Publishable` support until that resource family has captured evidence and local model behavior
+- treat product and collection targets separately because the Shopify `Publishable` interface covers both resource families, and collection publication behavior must not inherit product assumptions without evidence
 
-This keeps generic product publication mutations isolated from upstream Shopify while preventing duplicate or contradictory publication behavior from pretending that product evidence also settles collection publication semantics.
+This keeps generic product and collection publication mutations isolated from upstream Shopify while preventing duplicate or contradictory publication behavior from pretending that one resource family's evidence settles another's semantics.
 
-## 48. Business entity Store properties reads expose payments-adjacent data
+Collection-specific facts from the current capture:
+
+- `CollectionRecord.publicationIds` is the first normalized state for collection publication visibility
+- `collectionCreate` records start with an empty publication id list, so `publishedOnPublication`, `availablePublicationsCount`, and `resourcePublicationsCount` serialize as unpublished/zero until a publish mutation stages a target
+- captured Online Store publication writes leave `publishedOnCurrentPublication` false, so the local aggregate model does not treat "published somewhere" as "published on the app's current publication"
+- `collections(query: "published_status:published")` and `published_status:unpublished` filter against the same aggregate collection state in local reads
+- full `resourcePublications` / `resourcePublicationsV2` edge parity remains pending collection-specific live capture because the current safe local model only proves the aggregate publication fields and search visibility path
+
+## 48. Manual collection ordering is not the default collection write path
+
+Live collection capture for `collectionReorderProducts` exposed two easy traps:
+
+- a freshly-created collection is not reorderable unless it is explicitly created with `sortOrder: MANUAL`
+- `collectionAddProducts` on a manual collection preserves the request `productIds` order in the immediate collection product connection
+
+`collectionReorderProducts` itself returns an async `Job` payload with `done: false` on success, and downstream `collection.products(sortKey: COLLECTION_DEFAULT)` plus `sortKey: MANUAL` both reflected the reordered manual order in the captured two-product slice. Reorder parity should therefore seed a manual collection baseline before staging moves, and should treat only the opaque job id as nondeterministic.
+
+## 49. Business entity Store properties reads expose payments-adjacent data
 
 The first `businessEntities` / `businessEntity` capture for Admin GraphQL 2026-04 showed a single primary entity on the conformance store. `businessEntity` without an `id` returned that primary entity, and an unknown `gid://shopify/BusinessEntity/...` returned `null`.
 

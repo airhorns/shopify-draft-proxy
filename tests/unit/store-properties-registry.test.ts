@@ -55,6 +55,7 @@ const storePropertiesRoots = [
   ...implementedStorePropertiesQueryRoots,
   ...storePropertiesMutationRoots,
 ] as const;
+const collectionSupportedPublishableRoots = ['publishablePublish', 'publishableUnpublish'] as const;
 
 function readText(relativePath: string): string {
   return readFileSync(resolve(repoRoot, relativePath), 'utf8');
@@ -117,6 +118,15 @@ describe('Store properties registry scaffold', () => {
       );
       expect(entriesByName.get(root)?.supportNotes, `${root} should explain the product-scoped support`).toEqual(
         expect.stringContaining('Product'),
+      );
+    }
+
+    for (const root of collectionSupportedPublishableRoots) {
+      expect(entriesByName.get(root)?.runtimeTests, `${root} should declare collection runtime coverage`).toContain(
+        'tests/integration/collection-draft-flow.test.ts',
+      );
+      expect(entriesByName.get(root)?.supportNotes, `${root} should explain the collection-scoped support`).toEqual(
+        expect.stringContaining('Collection'),
       );
     }
   });

@@ -1,0 +1,25 @@
+mutation CollectionPublishablePublish($id: ID!, $input: [PublicationInput!]!, $publicationId: ID!) {
+  publishablePublish(id: $id, input: $input) {
+    publishable {
+      ... on Collection {
+        id
+        title
+        handle
+        publishedOnCurrentPublication
+        publishedOnPublication(publicationId: $publicationId)
+        availablePublicationsCount {
+          count
+          precision
+        }
+        resourcePublicationsCount {
+          count
+          precision
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "rules": {
+    "import/extensions": [
+      "error",
+      "ignorePackages",
+      {
+        "cts": "never",
+        "mts": "never",
+        "ts": "never"
+      }
+    ]
+  }
+}
