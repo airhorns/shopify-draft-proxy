@@ -1,0 +1,43 @@
+{
+  "scenarioId": "marketing-baseline-read",
+  "operationNames": ["marketingActivities", "marketingActivity", "marketingEvents", "marketingEvent"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "pagination-shape", "filter-shape", "missing-id-null"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/marketing-baseline-read.json",
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/marketing-invalid-id-read.json",
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/marketing-schema-inventory.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/marketing-baseline-read.graphql",
+    "variablesPath": "config/parity-requests/marketing-baseline-read.variables.json"
+  },
+  "comparisonMode": "capture-only",
+  "notes": "HAR-212 marketing read capture reached Shopify but the configured dev-store credential lacks `read_marketing_events`; the baseline fixture records the access-denied response, the invalid-ID fixture records Shopify's INVALID_VARIABLE shape, and local snapshot behavior is covered by runtime tests without inventing marketing records.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "marketing-baseline-data",
+        "capturePath": "$.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "marketing-baseline-errors",
+        "capturePath": "$.errors",
+        "proxyPath": "$.errors"
+      }
+    ]
+  },
+  "blocker": {
+    "kind": "missing-shopify-access-scope",
+    "blockerPath": "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/marketing-baseline-read.json",
+    "details": {
+      "requiredScopes": ["read_marketing_events"],
+      "probeRoots": ["marketingActivities", "marketingActivity", "marketingEvents", "marketingEvent"],
+      "failingMessage": "Access denied for marketingActivities field.",
+      "docsUrl": "https://shopify.dev/docs/api/admin-graphql/latest/objects/MarketingActivity"
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "errors": [
+    {
+      "message": "Access denied for marketingActivities field.",
+      "locations": [
+        {
+          "line": 8,
+          "column": 3
+        }
+      ],
+      "extensions": {
+        "code": "ACCESS_DENIED",
+        "documentation": "https://shopify.dev/api/usage/access-scopes"
+      },
+      "path": [
+        "marketingActivities"
+      ]
+    }
+  ],
+  "data": null,
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 30,
+      "actualQueryCost": 10,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1990,
+        "restoreRate": 100
+      }
+    }
+  }
+}
