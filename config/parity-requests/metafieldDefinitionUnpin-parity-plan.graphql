@@ -1,0 +1,15 @@
+mutation MetafieldDefinitionUnpinParityPlan($identifier: MetafieldDefinitionIdentifierInput!) {
+  metafieldDefinitionUnpin(identifier: $identifier) {
+    unpinnedDefinition {
+      id
+      namespace
+      key
+      ownerType
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

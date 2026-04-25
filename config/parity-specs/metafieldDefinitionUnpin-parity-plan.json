@@ -1,0 +1,24 @@
+{
+  "scenarioId": "metafield-definition-unpin-live-parity",
+  "operationNames": ["metafieldDefinitionUnpin"],
+  "scenarioStatus": "planned",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafieldDefinitionUnpin-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/metafieldDefinitionUnpin-parity-plan.variables.json"
+  },
+  "comparisonMode": "planned",
+  "notes": "Unpinning clears or changes pinned position and affects pinned catalog ordering. This scaffold pairs with `metafieldDefinitionPin` but remains blocked on capture and local ordering semantics.",
+  "blocker": {
+    "kind": "missing-live-metafield-definition-unpin-capture",
+    "blockerPath": null,
+    "details": {
+      "requiredScopes": ["write_products"],
+      "probeRoots": ["metafieldDefinitionUnpin", "metafieldDefinitions"],
+      "blockedMutations": ["metafieldDefinitionUnpin"],
+      "missingComparisonTargets": ["mutation payload", "unpinned definition catalog ordering"],
+      "missingLocalRuntimeModeling": ["pinnedPosition removal", "pinned catalog ordering"]
+    }
+  }
+}

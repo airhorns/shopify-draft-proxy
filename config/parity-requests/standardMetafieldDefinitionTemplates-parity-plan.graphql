@@ -1,0 +1,21 @@
+query StandardMetafieldDefinitionTemplatesParityPlan($first: Int = 10) {
+  standardMetafieldDefinitionTemplates(first: $first) {
+    nodes {
+      id
+      name
+      namespace
+      key
+      description
+      ownerTypes
+      type {
+        name
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

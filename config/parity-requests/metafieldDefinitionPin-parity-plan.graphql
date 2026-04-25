@@ -1,0 +1,15 @@
+mutation MetafieldDefinitionPinParityPlan($identifier: MetafieldDefinitionIdentifierInput!) {
+  metafieldDefinitionPin(identifier: $identifier) {
+    pinnedDefinition {
+      id
+      namespace
+      key
+      ownerType
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

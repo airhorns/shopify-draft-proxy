@@ -1,0 +1,41 @@
+query MetafieldDefinitionParityPlan(
+  $ownerType: MetafieldOwnerType!
+  $namespace: String!
+  $key: String!
+  $firstMetafields: Int = 5
+) {
+  metafieldDefinition(identifier: { ownerType: $ownerType, namespace: $namespace, key: $key }) {
+    id
+    name
+    namespace
+    key
+    ownerType
+    pinnedPosition
+    useAsCollectionCondition
+    validationStatus
+    type {
+      name
+    }
+    validations {
+      name
+      value
+    }
+    metafields(first: $firstMetafields) {
+      nodes {
+        id
+        namespace
+        key
+        type
+        value
+        ownerType
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    metafieldsCount
+  }
+}

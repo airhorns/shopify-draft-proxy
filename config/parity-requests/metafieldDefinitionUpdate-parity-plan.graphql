@@ -1,0 +1,26 @@
+mutation MetafieldDefinitionUpdateParityPlan($definition: MetafieldDefinitionUpdateInput!) {
+  metafieldDefinitionUpdate(definition: $definition) {
+    updatedDefinition {
+      id
+      name
+      namespace
+      key
+      ownerType
+      description
+      type {
+        name
+      }
+      validations {
+        name
+        value
+      }
+    }
+    validationJob {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

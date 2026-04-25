@@ -1,0 +1,27 @@
+{
+  "scenarioId": "metafield-definitions-read-live-parity",
+  "operationNames": ["metafieldDefinitions"],
+  "scenarioStatus": "planned",
+  "assertionKinds": ["payload-shape", "selected-fields", "connection-shape"],
+  "liveCaptureFiles": [],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafieldDefinitions-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/metafieldDefinitions-parity-plan.variables.json"
+  },
+  "comparisonMode": "planned",
+  "notes": "Admin GraphQL 2026-04 exposes `metafieldDefinitions` as the owner-type-scoped definition catalog. This scaffold records the intended request shape only; no comparison is enabled until live catalog capture and local catalog modeling exist.",
+  "blocker": {
+    "kind": "missing-live-metafield-definitions-catalog-capture",
+    "blockerPath": null,
+    "details": {
+      "requiredScopes": ["read_products"],
+      "probeRoots": ["metafieldDefinitions"],
+      "missingComparisonTargets": [
+        "definition connection ordering",
+        "pagination cursors",
+        "owner-type and namespace filters"
+      ],
+      "missingLocalRuntimeModeling": ["owner-type-scoped metafield definition catalog"]
+    }
+  }
+}

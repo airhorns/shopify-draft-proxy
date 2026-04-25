@@ -1,0 +1,17 @@
+mutation MetafieldDefinitionDeleteParityPlan(
+  $identifier: MetafieldDefinitionIdentifierInput!
+  $deleteAllAssociatedMetafields: Boolean = false
+) {
+  metafieldDefinitionDelete(identifier: $identifier, deleteAllAssociatedMetafields: $deleteAllAssociatedMetafields) {
+    deletedDefinition {
+      namespace
+      key
+      ownerType
+    }
+    deletedDefinitionId
+    userErrors {
+      field
+      message
+    }
+  }
+}

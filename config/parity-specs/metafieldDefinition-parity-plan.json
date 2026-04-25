@@ -1,0 +1,24 @@
+{
+  "scenarioId": "metafield-definition-read-live-parity",
+  "operationNames": ["metafieldDefinition"],
+  "scenarioStatus": "planned",
+  "assertionKinds": ["payload-shape", "selected-fields", "connection-shape"],
+  "liveCaptureFiles": [],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafieldDefinition-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/metafieldDefinition-parity-plan.variables.json"
+  },
+  "comparisonMode": "planned",
+  "notes": "Admin GraphQL 2026-04 exposes `metafieldDefinition` for owner-type, namespace, and key lookups. This planned scaffold is blocked on live capture, explicit comparison targets, and local metafield-definition state modeling.",
+  "blocker": {
+    "kind": "missing-live-metafield-definition-read-capture",
+    "blockerPath": null,
+    "details": {
+      "requiredScopes": ["read_products"],
+      "probeRoots": ["metafieldDefinition"],
+      "blockedFields": ["metafieldDefinition.metafields"],
+      "missingComparisonTargets": ["definition data", "definition-owned metafields connection"],
+      "missingLocalRuntimeModeling": ["metafield definition catalog", "definition-to-metafield linkage"]
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "scenarioId": "metafield-definition-delete-live-parity",
+  "operationNames": ["metafieldDefinitionDelete"],
+  "scenarioStatus": "planned",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafieldDefinitionDelete-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/metafieldDefinitionDelete-parity-plan.variables.json"
+  },
+  "comparisonMode": "planned",
+  "notes": "Definition deletion has optional associated-metafield deletion behavior. This scaffold separates that lifecycle root from the already captured product value-delete specs for `metafieldsDelete` and `metafieldDelete`.",
+  "blocker": {
+    "kind": "missing-live-metafield-definition-delete-capture",
+    "blockerPath": null,
+    "details": {
+      "requiredScopes": ["write_products"],
+      "probeRoots": ["metafieldDefinitionDelete", "metafieldDefinition", "metafieldDefinitions"],
+      "blockedMutations": ["metafieldDefinitionDelete"],
+      "missingComparisonTargets": [
+        "mutation payload",
+        "deleted definition lookup",
+        "associated metafield deletion behavior"
+      ],
+      "missingLocalRuntimeModeling": [
+        "definition removal",
+        "deleteAllAssociatedMetafields semantics",
+        "asynchronous associated value deletion"
+      ]
+    }
+  }
+}

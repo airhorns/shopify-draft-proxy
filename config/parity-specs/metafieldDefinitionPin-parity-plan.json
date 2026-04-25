@@ -1,0 +1,24 @@
+{
+  "scenarioId": "metafield-definition-pin-live-parity",
+  "operationNames": ["metafieldDefinitionPin"],
+  "scenarioStatus": "planned",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafieldDefinitionPin-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/metafieldDefinitionPin-parity-plan.variables.json"
+  },
+  "comparisonMode": "planned",
+  "notes": "Pinning affects the definition's pinned position and catalog ordering. This planned scaffold records the lifecycle root without claiming local pin ordering support.",
+  "blocker": {
+    "kind": "missing-live-metafield-definition-pin-capture",
+    "blockerPath": null,
+    "details": {
+      "requiredScopes": ["write_products"],
+      "probeRoots": ["metafieldDefinitionPin", "metafieldDefinitions"],
+      "blockedMutations": ["metafieldDefinitionPin"],
+      "missingComparisonTargets": ["mutation payload", "pinned definition catalog ordering"],
+      "missingLocalRuntimeModeling": ["pinnedPosition allocation", "pinned catalog ordering"]
+    }
+  }
+}
