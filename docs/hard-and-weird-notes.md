@@ -2218,6 +2218,22 @@ Practical rule:
 
 HAR-219 refreshed the payment-area root inventory against the checked-in 2025-01 Admin root introspection fixture and the 2026-04 `latest` Admin docs. The registry now declares the roots as coverage scaffolds without registering permanent passthrough support or adding planned-only parity specs.
 
+## 61. Native code-basic discounts are the first locally staged discount write slice
+
+HAR-193 promotes only the native `DiscountCodeBasic` lifecycle roots from validation-only guardrails to supported local staging:
+
+- `discountCodeBasicCreate`
+- `discountCodeBasicUpdate`
+- `discountCodeActivate`
+- `discountCodeDeactivate`
+- `discountCodeDelete`
+
+Practical rule:
+
+- keep the implementation constrained to native code-basic discounts until separate conformance evidence exists for BXGY, free-shipping, automatic, app-discount, and bulk-job happy paths
+- preserve original raw mutation bodies for commit replay, and rely on the existing synthetic ID mapper so create responses map staged `DiscountCodeNode` IDs before later update/activate/deactivate/delete replays
+- continue using captured `DiscountUserError` branches for known invalid input rather than proxying those requests upstream
+
 Observed current-version surface:
 
 - read roots: `customerPaymentMethod`, `orderPaymentStatus`, `paymentCustomization`, `paymentCustomizations`, `paymentTermsTemplates`, `shopPayPaymentRequestReceipt`, `shopPayPaymentRequestReceipts`, `shopifyPaymentsAccount`, and `tenderTransactions`

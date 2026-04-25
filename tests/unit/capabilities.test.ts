@@ -545,9 +545,9 @@ describe('getOperationCapability', () => {
     expect(
       getOperationCapability({ type: 'mutation', name: 'CreateDiscount', rootFields: ['discountCodeBasicCreate'] }),
     ).toEqual({
-      domain: 'unknown',
-      execution: 'passthrough',
-      operationName: 'CreateDiscount',
+      domain: 'discounts',
+      execution: 'stage-locally',
+      operationName: 'discountCodeBasicCreate',
       type: 'mutation',
     });
 

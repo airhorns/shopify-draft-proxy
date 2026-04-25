@@ -182,7 +182,10 @@ export function createProxyRouter(config: AppConfig): Router {
     const capability = getOperationCapability(parsed);
     const primaryRootField = parsed.rootFields[0] ?? capability.operationName;
 
-    if (parsed.type === 'mutation') {
+    if (
+      parsed.type === 'mutation' &&
+      !(capability.execution === 'stage-locally' && capability.domain === 'discounts')
+    ) {
       const discountValidationResponse = handleDiscountMutation(body.query, variables);
       if (discountValidationResponse) {
         proxyLogger.debug(
@@ -196,6 +199,29 @@ export function createProxyRouter(config: AppConfig): Router {
 
         ctx.status = 200;
         ctx.body = discountValidationResponse;
+        return;
+      }
+    }
+
+    if (capability.execution === 'stage-locally' && capability.domain === 'discounts') {
+      const responseBody = handleDiscountMutation(body.query, variables, { stageCodeBasicLifecycle: true });
+      if (responseBody) {
+        store.appendLog({
+          id: makeSyntheticGid('MutationLogEntry'),
+          receivedAt: makeSyntheticTimestamp(),
+          operationName: capability.operationName,
+          path: ctx.path,
+          query: body.query,
+          variables,
+          requestBody,
+          stagedResourceIds: collectProxySyntheticGids(responseBody),
+          status: 'staged',
+          interpreted: interpretMutationLogEntry(parsed, capability),
+          notes: 'Staged locally in the in-memory discount draft store.',
+        });
+
+        ctx.status = 200;
+        ctx.body = responseBody;
         return;
       }
     }

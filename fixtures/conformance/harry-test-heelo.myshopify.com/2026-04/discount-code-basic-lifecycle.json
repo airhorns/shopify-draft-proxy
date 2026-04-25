@@ -1,0 +1,623 @@
+{
+  "variables": {
+    "id": "gid://shopify/DiscountCodeNode/1638459277618",
+    "initialCode": "HAR193LIFE1777147714998",
+    "updatedCode": "HAR193LIVE1777147714998"
+  },
+  "requests": {
+    "create": {
+      "query": "#graphql\n  mutation DiscountCodeBasicLifecycleCreate($input: DiscountCodeBasicInput!) {\n    discountCodeBasicCreate(basicCodeDiscount: $input) {\n      #graphql\n  codeDiscountNode {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        status\n        summary\n        startsAt\n        endsAt\n        createdAt\n        updatedAt\n        asyncUsageCount\n        discountClasses\n        combinesWith {\n          productDiscounts\n          orderDiscounts\n          shippingDiscounts\n        }\n        codes(first: 2) {\n          nodes {\n            id\n            code\n            asyncUsageCount\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n        context {\n          __typename\n          ... on DiscountBuyerSelectionAll {\n            all\n          }\n        }\n        customerGets {\n          value {\n            __typename\n            ... on DiscountPercentage {\n              percentage\n            }\n            ... on DiscountAmount {\n              amount {\n                amount\n                currencyCode\n              }\n              appliesOnEachItem\n            }\n          }\n          items {\n            __typename\n            ... on AllDiscountItems {\n              allItems\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n        minimumRequirement {\n          __typename\n          ... on DiscountMinimumSubtotal {\n            greaterThanOrEqualToSubtotal {\n              amount\n              currencyCode\n            }\n          }\n          ... on DiscountMinimumQuantity {\n            greaterThanOrEqualToQuantity\n          }\n        }\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "title": "HAR-193 lifecycle 1777147714998",
+          "code": "HAR193LIFE1777147714998",
+          "startsAt": "2026-04-25T20:07:34.998Z",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "minimumRequirement": {
+            "subtotal": {
+              "greaterThanOrEqualToSubtotal": "1.00"
+            }
+          },
+          "customerGets": {
+            "value": {
+              "percentage": 0.1
+            },
+            "items": {
+              "all": true
+            }
+          }
+        }
+      }
+    },
+    "update": {
+      "query": "#graphql\n  mutation DiscountCodeBasicLifecycleUpdate($id: ID!, $input: DiscountCodeBasicInput!) {\n    discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) {\n      #graphql\n  codeDiscountNode {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        status\n        summary\n        startsAt\n        endsAt\n        createdAt\n        updatedAt\n        asyncUsageCount\n        discountClasses\n        combinesWith {\n          productDiscounts\n          orderDiscounts\n          shippingDiscounts\n        }\n        codes(first: 2) {\n          nodes {\n            id\n            code\n            asyncUsageCount\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n        context {\n          __typename\n          ... on DiscountBuyerSelectionAll {\n            all\n          }\n        }\n        customerGets {\n          value {\n            __typename\n            ... on DiscountPercentage {\n              percentage\n            }\n            ... on DiscountAmount {\n              amount {\n                amount\n                currencyCode\n              }\n              appliesOnEachItem\n            }\n          }\n          items {\n            __typename\n            ... on AllDiscountItems {\n              allItems\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n        minimumRequirement {\n          __typename\n          ... on DiscountMinimumSubtotal {\n            greaterThanOrEqualToSubtotal {\n              amount\n              currencyCode\n            }\n          }\n          ... on DiscountMinimumQuantity {\n            greaterThanOrEqualToQuantity\n          }\n        }\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1638459277618",
+        "input": {
+          "title": "HAR-193 lifecycle updated 1777147714998",
+          "code": "HAR193LIVE1777147714998",
+          "startsAt": "2026-04-25T20:07:34.998Z",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "minimumRequirement": {
+            "quantity": {
+              "greaterThanOrEqualToQuantity": "2"
+            }
+          },
+          "customerGets": {
+            "value": {
+              "fixedAmount": {
+                "amount": "5.00",
+                "appliesOnEachItem": false
+              }
+            },
+            "items": {
+              "all": true
+            }
+          }
+        }
+      }
+    },
+    "deactivate": {
+      "query": "#graphql\n  mutation DiscountCodeBasicLifecycleDeactivate($id: ID!) {\n    discountCodeDeactivate(id: $id) {\n      #graphql\n  codeDiscountNode {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        status\n        summary\n        startsAt\n        endsAt\n        createdAt\n        updatedAt\n        asyncUsageCount\n        discountClasses\n        combinesWith {\n          productDiscounts\n          orderDiscounts\n          shippingDiscounts\n        }\n        codes(first: 2) {\n          nodes {\n            id\n            code\n            asyncUsageCount\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n        context {\n          __typename\n          ... on DiscountBuyerSelectionAll {\n            all\n          }\n        }\n        customerGets {\n          value {\n            __typename\n            ... on DiscountPercentage {\n              percentage\n            }\n            ... on DiscountAmount {\n              amount {\n                amount\n                currencyCode\n              }\n              appliesOnEachItem\n            }\n          }\n          items {\n            __typename\n            ... on AllDiscountItems {\n              allItems\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n        minimumRequirement {\n          __typename\n          ... on DiscountMinimumSubtotal {\n            greaterThanOrEqualToSubtotal {\n              amount\n              currencyCode\n            }\n          }\n          ... on DiscountMinimumQuantity {\n            greaterThanOrEqualToQuantity\n          }\n        }\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1638459277618"
+      }
+    },
+    "activate": {
+      "query": "#graphql\n  mutation DiscountCodeBasicLifecycleActivate($id: ID!) {\n    discountCodeActivate(id: $id) {\n      #graphql\n  codeDiscountNode {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        status\n        summary\n        startsAt\n        endsAt\n        createdAt\n        updatedAt\n        asyncUsageCount\n        discountClasses\n        combinesWith {\n          productDiscounts\n          orderDiscounts\n          shippingDiscounts\n        }\n        codes(first: 2) {\n          nodes {\n            id\n            code\n            asyncUsageCount\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n        context {\n          __typename\n          ... on DiscountBuyerSelectionAll {\n            all\n          }\n        }\n        customerGets {\n          value {\n            __typename\n            ... on DiscountPercentage {\n              percentage\n            }\n            ... on DiscountAmount {\n              amount {\n                amount\n                currencyCode\n              }\n              appliesOnEachItem\n            }\n          }\n          items {\n            __typename\n            ... on AllDiscountItems {\n              allItems\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n        minimumRequirement {\n          __typename\n          ... on DiscountMinimumSubtotal {\n            greaterThanOrEqualToSubtotal {\n              amount\n              currencyCode\n            }\n          }\n          ... on DiscountMinimumQuantity {\n            greaterThanOrEqualToQuantity\n          }\n        }\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1638459277618"
+      }
+    },
+    "delete": {
+      "query": "#graphql\n  mutation DiscountCodeBasicLifecycleDelete($id: ID!) {\n    discountCodeDelete(id: $id) {\n      deletedCodeDiscountId\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1638459277618"
+      }
+    },
+    "read": {
+      "query": "#graphql\n  query DiscountCodeBasicLifecycleRead($id: ID!, $code: String!) {\n    discountNode(id: $id) {\n      id\n      discount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n        }\n      }\n    }\n    codeDiscountNodeByCode(code: $code) {\n      id\n    }\n    discountNodes(first: 5, query: \"status:active\") {\n      nodes {\n        id\n      }\n    }\n    discountNodesCount(query: \"status:active\") {\n      count\n      precision\n    }\n  }\n"
+    }
+  },
+  "scopeProbe": {
+    "availableScopes": [
+      "read_assigned_fulfillment_orders",
+      "read_cash_tracking",
+      "read_content",
+      "read_customer_merge",
+      "read_customers",
+      "read_discounts",
+      "read_draft_orders",
+      "read_files",
+      "read_fulfillments",
+      "read_inventory",
+      "read_legal_policies",
+      "read_locales",
+      "read_locations",
+      "read_marketing_events",
+      "read_markets",
+      "read_merchant_managed_fulfillment_orders",
+      "read_metaobject_definitions",
+      "read_metaobjects",
+      "read_order_edits",
+      "read_orders",
+      "read_payment_customizations",
+      "read_payment_terms",
+      "read_product_listings",
+      "read_products",
+      "read_publications",
+      "read_returns",
+      "read_shipping",
+      "read_shopify_payments_disputes",
+      "read_shopify_payments_payouts",
+      "read_store_credit_account_transactions",
+      "read_store_credit_accounts",
+      "read_themes",
+      "read_third_party_fulfillment_orders",
+      "read_translations",
+      "write_assigned_fulfillment_orders",
+      "write_content",
+      "write_customer_merge",
+      "write_customers",
+      "write_discounts",
+      "write_draft_orders",
+      "write_files",
+      "write_fulfillments",
+      "write_inventory",
+      "write_legal_policies",
+      "write_locales",
+      "write_locations",
+      "write_markets",
+      "write_merchant_managed_fulfillment_orders",
+      "write_metaobject_definitions",
+      "write_metaobjects",
+      "write_order_edits",
+      "write_orders",
+      "write_payment_customizations",
+      "write_payment_terms",
+      "write_products",
+      "write_publications",
+      "write_returns",
+      "write_shipping",
+      "write_store_credit_account_transactions",
+      "write_third_party_fulfillment_orders",
+      "write_translations"
+    ],
+    "requiredScopes": [
+      {
+        "handle": "read_discounts",
+        "present": true
+      },
+      {
+        "handle": "write_discounts",
+        "present": true
+      }
+    ],
+    "missingScopes": [],
+    "hasRequiredScopes": true
+  },
+  "create": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountCodeBasicCreate": {
+          "codeDiscountNode": {
+            "id": "gid://shopify/DiscountCodeNode/1638459277618",
+            "codeDiscount": {
+              "__typename": "DiscountCodeBasic",
+              "title": "HAR-193 lifecycle 1777147714998",
+              "status": "ACTIVE",
+              "summary": "10% off one-time purchase products • Minimum purchase of $1.00",
+              "startsAt": "2026-04-25T20:07:34Z",
+              "endsAt": null,
+              "createdAt": "2026-04-25T20:08:35Z",
+              "updatedAt": "2026-04-25T20:08:35Z",
+              "asyncUsageCount": 0,
+              "discountClasses": ["ORDER"],
+              "combinesWith": {
+                "productDiscounts": false,
+                "orderDiscounts": true,
+                "shippingDiscounts": false
+              },
+              "codes": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/DiscountRedeemCode/21507739320626",
+                    "code": "HAR193LIFE1777147714998",
+                    "asyncUsageCount": 0
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoyMTUwNzczOTMyMDYyNiwibGFzdF92YWx1ZSI6IjIxNTA3NzM5MzIwNjI2In0=",
+                  "endCursor": "eyJsYXN0X2lkIjoyMTUwNzczOTMyMDYyNiwibGFzdF92YWx1ZSI6IjIxNTA3NzM5MzIwNjI2In0="
+                }
+              },
+              "context": {
+                "__typename": "DiscountBuyerSelectionAll",
+                "all": "ALL"
+              },
+              "customerGets": {
+                "value": {
+                  "__typename": "DiscountPercentage",
+                  "percentage": 0.1
+                },
+                "items": {
+                  "__typename": "AllDiscountItems",
+                  "allItems": true
+                },
+                "appliesOnOneTimePurchase": true,
+                "appliesOnSubscription": false
+              },
+              "minimumRequirement": {
+                "__typename": "DiscountMinimumSubtotal",
+                "greaterThanOrEqualToSubtotal": {
+                  "amount": "1.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "update": {
+    "status": 200,
+    "payload": {
+      "errors": [
+        {
+          "message": "Variable $input of type DiscountCodeBasicInput! was provided invalid value for customerGets.value.fixedAmount (Field is not defined on DiscountCustomerGetsValueInput)",
+          "locations": [
+            {
+              "line": 2,
+              "column": 55
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": {
+              "title": "HAR-193 lifecycle updated 1777147714998",
+              "code": "HAR193LIVE1777147714998",
+              "startsAt": "2026-04-25T20:07:34.998Z",
+              "combinesWith": {
+                "productDiscounts": false,
+                "orderDiscounts": true,
+                "shippingDiscounts": false
+              },
+              "context": {
+                "all": "ALL"
+              },
+              "minimumRequirement": {
+                "quantity": {
+                  "greaterThanOrEqualToQuantity": "2"
+                }
+              },
+              "customerGets": {
+                "value": {
+                  "fixedAmount": {
+                    "amount": "5.00",
+                    "appliesOnEachItem": false
+                  }
+                },
+                "items": {
+                  "all": true
+                }
+              }
+            },
+            "problems": [
+              {
+                "path": ["customerGets", "value", "fixedAmount"],
+                "explanation": "Field is not defined on DiscountCustomerGetsValueInput"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "readAfterUpdate": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountNode": {
+          "id": "gid://shopify/DiscountCodeNode/1638459277618",
+          "discount": {
+            "__typename": "DiscountCodeBasic",
+            "title": "HAR-193 lifecycle 1777147714998",
+            "status": "ACTIVE"
+          }
+        },
+        "codeDiscountNodeByCode": null,
+        "discountNodes": {
+          "nodes": [
+            {
+              "id": "gid://shopify/DiscountCodeNode/1638459277618"
+            }
+          ]
+        },
+        "discountNodesCount": {
+          "count": 1,
+          "precision": "EXACT"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 18,
+          "actualQueryCost": 17,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1983,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "deactivate": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountCodeDeactivate": {
+          "codeDiscountNode": {
+            "id": "gid://shopify/DiscountCodeNode/1638459277618",
+            "codeDiscount": {
+              "__typename": "DiscountCodeBasic",
+              "title": "HAR-193 lifecycle 1777147714998",
+              "status": "EXPIRED",
+              "summary": "10% off one-time purchase products • Minimum purchase of $1.00",
+              "startsAt": "2026-04-25T20:07:34Z",
+              "endsAt": "2026-04-25T20:08:35Z",
+              "createdAt": "2026-04-25T20:08:35Z",
+              "updatedAt": "2026-04-25T20:08:35Z",
+              "asyncUsageCount": 0,
+              "discountClasses": ["ORDER"],
+              "combinesWith": {
+                "productDiscounts": false,
+                "orderDiscounts": true,
+                "shippingDiscounts": false
+              },
+              "codes": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/DiscountRedeemCode/21507739320626",
+                    "code": "HAR193LIFE1777147714998",
+                    "asyncUsageCount": 0
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoyMTUwNzczOTMyMDYyNiwibGFzdF92YWx1ZSI6IjIxNTA3NzM5MzIwNjI2In0=",
+                  "endCursor": "eyJsYXN0X2lkIjoyMTUwNzczOTMyMDYyNiwibGFzdF92YWx1ZSI6IjIxNTA3NzM5MzIwNjI2In0="
+                }
+              },
+              "context": {
+                "__typename": "DiscountBuyerSelectionAll",
+                "all": "ALL"
+              },
+              "customerGets": {
+                "value": {
+                  "__typename": "DiscountPercentage",
+                  "percentage": 0.1
+                },
+                "items": {
+                  "__typename": "AllDiscountItems",
+                  "allItems": true
+                },
+                "appliesOnOneTimePurchase": true,
+                "appliesOnSubscription": false
+              },
+              "minimumRequirement": {
+                "__typename": "DiscountMinimumSubtotal",
+                "greaterThanOrEqualToSubtotal": {
+                  "amount": "1.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1974,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterDeactivate": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountNode": {
+          "id": "gid://shopify/DiscountCodeNode/1638459277618",
+          "discount": {
+            "__typename": "DiscountCodeBasic",
+            "title": "HAR-193 lifecycle 1777147714998",
+            "status": "EXPIRED"
+          }
+        },
+        "codeDiscountNodeByCode": null,
+        "discountNodes": {
+          "nodes": []
+        },
+        "discountNodesCount": {
+          "count": 0,
+          "precision": "EXACT"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 18,
+          "actualQueryCost": 18,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1972,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "activate": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountCodeActivate": {
+          "codeDiscountNode": {
+            "id": "gid://shopify/DiscountCodeNode/1638459277618",
+            "codeDiscount": {
+              "__typename": "DiscountCodeBasic",
+              "title": "HAR-193 lifecycle 1777147714998",
+              "status": "ACTIVE",
+              "summary": "10% off one-time purchase products • Minimum purchase of $1.00",
+              "startsAt": "2026-04-25T20:07:34Z",
+              "endsAt": null,
+              "createdAt": "2026-04-25T20:08:35Z",
+              "updatedAt": "2026-04-25T20:08:35Z",
+              "asyncUsageCount": 0,
+              "discountClasses": ["ORDER"],
+              "combinesWith": {
+                "productDiscounts": false,
+                "orderDiscounts": true,
+                "shippingDiscounts": false
+              },
+              "codes": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/DiscountRedeemCode/21507739320626",
+                    "code": "HAR193LIFE1777147714998",
+                    "asyncUsageCount": 0
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoyMTUwNzczOTMyMDYyNiwibGFzdF92YWx1ZSI6IjIxNTA3NzM5MzIwNjI2In0=",
+                  "endCursor": "eyJsYXN0X2lkIjoyMTUwNzczOTMyMDYyNiwibGFzdF92YWx1ZSI6IjIxNTA3NzM5MzIwNjI2In0="
+                }
+              },
+              "context": {
+                "__typename": "DiscountBuyerSelectionAll",
+                "all": "ALL"
+              },
+              "customerGets": {
+                "value": {
+                  "__typename": "DiscountPercentage",
+                  "percentage": 0.1
+                },
+                "items": {
+                  "__typename": "AllDiscountItems",
+                  "allItems": true
+                },
+                "appliesOnOneTimePurchase": true,
+                "appliesOnSubscription": false
+              },
+              "minimumRequirement": {
+                "__typename": "DiscountMinimumSubtotal",
+                "greaterThanOrEqualToSubtotal": {
+                  "amount": "1.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1966,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterActivate": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountNode": {
+          "id": "gid://shopify/DiscountCodeNode/1638459277618",
+          "discount": {
+            "__typename": "DiscountCodeBasic",
+            "title": "HAR-193 lifecycle 1777147714998",
+            "status": "ACTIVE"
+          }
+        },
+        "codeDiscountNodeByCode": null,
+        "discountNodes": {
+          "nodes": [
+            {
+              "id": "gid://shopify/DiscountCodeNode/1638459277618"
+            }
+          ]
+        },
+        "discountNodesCount": {
+          "count": 1,
+          "precision": "EXACT"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 18,
+          "actualQueryCost": 17,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1965,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountCodeDelete": {
+          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1638459277618",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1969,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterDelete": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountNode": null,
+        "codeDiscountNodeByCode": null,
+        "discountNodes": {
+          "nodes": []
+        },
+        "discountNodesCount": {
+          "count": 0,
+          "precision": "EXACT"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 18,
+          "actualQueryCost": 17,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1971,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

@@ -51,6 +51,7 @@
     "conformance:capture-orders": "tsx ./scripts/capture-order-conformance.mts",
     "conformance:capture-draft-order-family": "tsx ./scripts/capture-draft-order-family-conformance.mts",
     "conformance:capture-discounts": "tsx ./scripts/capture-discount-conformance.ts",
+    "conformance:capture-discount-lifecycle": "SHOPIFY_CONFORMANCE_API_VERSION=2026-04 tsx ./scripts/capture-discount-code-basic-lifecycle-conformance.ts",
     "conformance:capture-discount-validation": "tsx ./scripts/capture-discount-validation-conformance.ts",
     "conformance:capture-order-refunds": "tsx ./scripts/capture-order-refund-conformance.mts"
   },

@@ -2200,20 +2200,26 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountCodeBasicCreate", "DiscountCodeBasicCreate"],
-    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
-    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
+    "runtimeTests": [
+      "tests/integration/discount-code-basic-lifecycle-flow.test.ts",
+      "tests/integration/discount-mutation-validation.test.ts"
+    ],
+    "supportNotes": "HAR-193 stages native code-basic create locally with downstream discount reads and commit replay ID mapping. BXGY, free-shipping, automatic, and app-discount writes remain outside this support slice."
   },
   {
     "name": "discountCodeBasicUpdate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountCodeBasicUpdate", "DiscountCodeBasicUpdate"],
-    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
-    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
+    "runtimeTests": [
+      "tests/integration/discount-code-basic-lifecycle-flow.test.ts",
+      "tests/integration/discount-mutation-validation.test.ts"
+    ],
+    "supportNotes": "HAR-193 stages native code-basic updates locally for existing local discount records and preserves captured unknown-id DiscountUserError behavior."
   },
   {
     "name": "discountCodeBxgyCreate",
@@ -2258,27 +2264,27 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountCodeActivate", "DiscountCodeActivate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-code-basic-lifecycle-flow.test.ts"]
   },
   {
     "name": "discountCodeDeactivate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountCodeDeactivate", "DiscountCodeDeactivate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-code-basic-lifecycle-flow.test.ts"]
   },
   {
     "name": "discountCodeDelete",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountCodeDelete", "DiscountCodeDelete"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-code-basic-lifecycle-flow.test.ts"]
   },
   {
     "name": "discountCodeBulkActivate",
