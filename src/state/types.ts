@@ -157,6 +157,7 @@ export const collectionRecordSchema = z.strictObject({
   legacyResourceId: nullableStringSchema.optional(),
   title: z.string(),
   handle: z.string(),
+  publicationIds: z.array(z.string()).optional(),
   updatedAt: nullableStringSchema.optional(),
   description: nullableStringSchema.optional(),
   descriptionHtml: nullableStringSchema.optional(),

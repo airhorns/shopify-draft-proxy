@@ -1,6 +1,7 @@
 import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
+import { getFieldResponseKey, getSelectedChildFields, serializeConnectionPageInfo } from './graphql-helpers.js';
 import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type { CustomerCatalogConnectionRecord, CustomerCatalogPageInfoRecord, CustomerRecord } from '../state/types.js';
@@ -11,16 +12,6 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function hasOwnField(value: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(value, key);
-}
-
-function getFieldResponseKey(field: FieldNode): string {
-  return field.alias?.value ?? field.name.value;
-}
-
-function getSelectedChildFields(field: FieldNode): FieldNode[] {
-  return (field.selectionSet?.selections ?? []).filter(
-    (selection): selection is FieldNode => selection.kind === Kind.FIELD,
-  );
 }
 
 function normalizeStringField(
@@ -418,29 +409,6 @@ function serializeCustomerSelection(customer: CustomerRecord, field: FieldNode):
   }
 
   return result;
-}
-
-function serializePageInfo(field: FieldNode): Record<string, boolean | string | null> {
-  const pageInfo: Record<string, boolean | string | null> = {};
-
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'hasNextPage':
-      case 'hasPreviousPage':
-        pageInfo[key] = false;
-        break;
-      case 'startCursor':
-      case 'endCursor':
-        pageInfo[key] = null;
-        break;
-      default:
-        pageInfo[key] = null;
-        break;
-    }
-  }
-
-  return pageInfo;
 }
 
 function buildSyntheticCustomerCursor(customerId: string): string {
@@ -936,35 +904,18 @@ function buildCatalogPageInfo(
   catalogConnection: CustomerCatalogConnectionRecord | null,
   options: { preserveBaselinePageInfo: boolean },
 ): Record<string, boolean | string | null> {
-  const pageInfo = serializePageInfo(field);
-  for (const pageInfoSelection of getSelectedChildFields(field)) {
-    const pageInfoKey = getFieldResponseKey(pageInfoSelection);
-    switch (pageInfoSelection.name.value) {
-      case 'hasNextPage':
-        pageInfo[pageInfoKey] = hasNextPage;
-        break;
-      case 'hasPreviousPage':
-        pageInfo[pageInfoKey] = hasPreviousPage;
-        break;
-      case 'startCursor':
-        pageInfo[pageInfoKey] = visibleCustomers[0]
-          ? resolveCatalogCustomerCursor(visibleCustomers[0].id, catalogConnection)
-          : options.preserveBaselinePageInfo
-            ? (catalogConnection?.pageInfo.startCursor ?? null)
-            : null;
-        break;
-      case 'endCursor':
-        pageInfo[pageInfoKey] =
-          visibleCustomers.length > 0
-            ? resolveCatalogCustomerCursor(visibleCustomers[visibleCustomers.length - 1]!.id, catalogConnection)
-            : options.preserveBaselinePageInfo
-              ? (catalogConnection?.pageInfo.endCursor ?? null)
-              : null;
-        break;
-    }
-  }
-
-  return pageInfo;
+  return serializeConnectionPageInfo(
+    field,
+    visibleCustomers,
+    hasNextPage,
+    hasPreviousPage,
+    (customer) => resolveCatalogCustomerCursor(customer.id, catalogConnection),
+    {
+      prefixCursors: false,
+      fallbackStartCursor: options.preserveBaselinePageInfo ? (catalogConnection?.pageInfo.startCursor ?? null) : null,
+      fallbackEndCursor: options.preserveBaselinePageInfo ? (catalogConnection?.pageInfo.endCursor ?? null) : null,
+    },
+  ) as Record<string, boolean | string | null>;
 }
 
 function serializeCustomersConnection(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {

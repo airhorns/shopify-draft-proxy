@@ -1,4 +1,71 @@
-query ProductVariantsRead($variantId: ID!, $inventoryItemId: ID!) {
+query ProductVariantsRead($productId: ID!, $variantId: ID!, $inventoryItemId: ID!) {
+  product(id: $productId) {
+    id
+    title
+    variants(first: 5) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          sku
+          barcode
+          price
+          compareAtPrice
+          taxable
+          inventoryPolicy
+          inventoryQuantity
+          selectedOptions {
+            name
+            value
+          }
+          inventoryItem {
+            id
+            tracked
+            requiresShipping
+            measurement {
+              weight {
+                unit
+                value
+              }
+            }
+            countryCodeOfOrigin
+            provinceCodeOfOrigin
+            harmonizedSystemCode
+            inventoryLevels(first: 5) {
+              edges {
+                cursor
+                node {
+                  id
+                  location {
+                    id
+                    name
+                  }
+                  quantities(names: ["available", "on_hand", "incoming"]) {
+                    name
+                    quantity
+                    updatedAt
+                  }
+                }
+              }
+              pageInfo {
+                hasNextPage
+                hasPreviousPage
+                startCursor
+                endCursor
+              }
+            }
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
   variant: productVariant(id: $variantId) {
     id
     title

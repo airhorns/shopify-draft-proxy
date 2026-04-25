@@ -60,6 +60,11 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
   difference because clients must not depend on their internal encoding.
 - Repo scripts must be TypeScript files executed with `tsx` or similar, not
   `.mjs` files. Do not add `.mjs` files anywhere in this repository.
+- Relative TypeScript import specifiers must use the emitted JavaScript
+  extension that TypeScript expects for NodeNext output (`.js` for `.ts`, `.mjs`
+  for `.mts`, `.cjs` for `.cts`). Do not import local modules with source
+  extensions such as `.ts`, `.mts`, or `.cts`; `pnpm lint` enforces this with
+  oxlint's `import/extensions` rule.
 
 ## GitHub repository
 
@@ -90,12 +95,14 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 
 1. Read `docs/original-intent.md`.
 2. Read `docs/architecture.md`.
-3. Know that `docs/hard-and-weird-notes.md` exists; search or read the
+3. Know that `docs/helpers.md` exists; read it before adding or duplicating
+   shared proxy/helper utilities.
+4. Know that `docs/hard-and-weird-notes.md` exists; search or read the
    relevant parts when fidelity assumptions or unusual Shopify behavior matter,
    and add to it when new hard/weird behavior is discovered.
-4. Check Linear for the next operation to implement.
-5. Add/adjust tests before implementation.
-6. Update docs after shipping behavior.
+5. Check Linear for the next operation to implement.
+6. Add/adjust tests before implementation.
+7. Update docs after shipping behavior.
 
 ## Repo status note
 
