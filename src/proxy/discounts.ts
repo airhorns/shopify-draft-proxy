@@ -1,7 +1,14 @@
 import { Kind, type FieldNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
-import { parseSearchQueryTerms, type SearchQueryTerm } from '../search-query-parser.js';
+import {
+  matchesSearchQueryDate,
+  matchesSearchQueryNumber,
+  normalizeSearchQueryValue,
+  parseSearchQueryTerms,
+  type SearchQueryTerm,
+} from '../search-query-parser.js';
+import { compareNullableStrings, compareShopifyResourceIds } from '../shopify/resource-ids.js';
 import { store } from '../state/store.js';
 import type { DiscountRecord } from '../state/types.js';
 import {
@@ -11,84 +18,14 @@ import {
   serializeConnectionPageInfo,
 } from './graphql-helpers.js';
 
-function normalizeSearchValue(value: string): string {
-  return value
-    .trim()
-    .replace(/^['"]|['"]$/g, '')
-    .toLowerCase();
-}
-
 function parseDiscountQuery(rawQuery: unknown): SearchQueryTerm[] {
   if (typeof rawQuery !== 'string' || rawQuery.trim().length === 0) {
     return [];
   }
 
   return parseSearchQueryTerms(rawQuery.trim(), { ignoredKeywords: ['AND'] }).filter(
-    (term) => normalizeSearchValue(term.value).length > 0,
+    (term) => normalizeSearchQueryValue(term.value).length > 0,
   );
-}
-
-function compareNullableStrings(left: string | null | undefined, right: string | null | undefined): number {
-  if (left === right) return 0;
-  if (!left) return 1;
-  if (!right) return -1;
-  return left.localeCompare(right);
-}
-
-function compareResourceIds(leftId: string, rightId: string): number {
-  const leftTail = Number.parseInt(leftId.split('/').at(-1) ?? '', 10);
-  const rightTail = Number.parseInt(rightId.split('/').at(-1) ?? '', 10);
-  if (Number.isFinite(leftTail) && Number.isFinite(rightTail)) {
-    return leftTail - rightTail;
-  }
-
-  return leftId.localeCompare(rightId);
-}
-
-function compareNumber(value: number | null, term: SearchQueryTerm): boolean {
-  const expected = Number.parseFloat(normalizeSearchValue(term.value));
-  if (!Number.isFinite(expected) || value === null) {
-    return false;
-  }
-
-  switch (term.comparator ?? '=') {
-    case '>':
-      return value > expected;
-    case '>=':
-      return value >= expected;
-    case '<':
-      return value < expected;
-    case '<=':
-      return value <= expected;
-    case '=':
-      return value === expected;
-  }
-}
-
-function compareDate(value: string | null | undefined, term: SearchQueryTerm): boolean {
-  if (!value) {
-    return false;
-  }
-
-  const actualDate = Date.parse(value);
-  const expectedValue = normalizeSearchValue(term.value);
-  const expectedDate = expectedValue === 'now' ? Date.now() : Date.parse(expectedValue);
-  if (Number.isNaN(actualDate) || Number.isNaN(expectedDate)) {
-    return false;
-  }
-
-  switch (term.comparator ?? '=') {
-    case '>':
-      return actualDate > expectedDate;
-    case '>=':
-      return actualDate >= expectedDate;
-    case '<':
-      return actualDate < expectedDate;
-    case '<=':
-      return actualDate <= expectedDate;
-    case '=':
-      return actualDate === expectedDate;
-  }
 }
 
 function inferDiscountType(discount: DiscountRecord): string | null {
@@ -113,7 +50,7 @@ function inferDiscountType(discount: DiscountRecord): string | null {
 
 function matchesPositiveDiscountTerm(discount: DiscountRecord, term: SearchQueryTerm): boolean {
   const field = term.field?.toLowerCase() ?? 'default';
-  const value = normalizeSearchValue(term.value);
+  const value = normalizeSearchQueryValue(term.value);
 
   switch (field) {
     case 'default':
@@ -142,15 +79,15 @@ function matchesPositiveDiscountTerm(discount: DiscountRecord, term: SearchQuery
     case 'status':
       return discount.status?.toLowerCase() === value;
     case 'starts_at':
-      return compareDate(discount.startsAt, term);
+      return matchesSearchQueryDate(discount.startsAt, term);
     case 'ends_at':
-      return compareDate(discount.endsAt, term);
+      return matchesSearchQueryDate(discount.endsAt, term);
     case 'created_at':
-      return compareDate(discount.createdAt, term);
+      return matchesSearchQueryDate(discount.createdAt, term);
     case 'updated_at':
-      return compareDate(discount.updatedAt, term);
+      return matchesSearchQueryDate(discount.updatedAt, term);
     case 'times_used':
-      return compareNumber(discount.asyncUsageCount, term);
+      return matchesSearchQueryNumber(discount.asyncUsageCount, term);
     case 'app_id':
       return discount.appId?.toLowerCase() === value;
     case 'id':
@@ -183,19 +120,19 @@ function sortDiscounts(discounts: DiscountRecord[], rawSortKey: unknown, rawReve
   const sorted = [...discounts].sort((left, right) => {
     switch (sortKey) {
       case 'CREATED_AT':
-        return compareNullableStrings(left.createdAt, right.createdAt) || compareResourceIds(left.id, right.id);
+        return compareNullableStrings(left.createdAt, right.createdAt) || compareShopifyResourceIds(left.id, right.id);
       case 'ENDS_AT':
-        return compareNullableStrings(left.endsAt, right.endsAt) || compareResourceIds(left.id, right.id);
+        return compareNullableStrings(left.endsAt, right.endsAt) || compareShopifyResourceIds(left.id, right.id);
       case 'STARTS_AT':
-        return compareNullableStrings(left.startsAt, right.startsAt) || compareResourceIds(left.id, right.id);
+        return compareNullableStrings(left.startsAt, right.startsAt) || compareShopifyResourceIds(left.id, right.id);
       case 'TITLE':
       case 'RELEVANCE':
-        return left.title.localeCompare(right.title) || compareResourceIds(left.id, right.id);
+        return left.title.localeCompare(right.title) || compareShopifyResourceIds(left.id, right.id);
       case 'UPDATED_AT':
-        return compareNullableStrings(left.updatedAt, right.updatedAt) || compareResourceIds(left.id, right.id);
+        return compareNullableStrings(left.updatedAt, right.updatedAt) || compareShopifyResourceIds(left.id, right.id);
       case 'ID':
       default:
-        return compareResourceIds(left.id, right.id);
+        return compareShopifyResourceIds(left.id, right.id);
     }
   });
 

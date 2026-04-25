@@ -24,6 +24,7 @@ import type {
   ShopRecord,
   StateSnapshot,
 } from './types.js';
+import { compareShopifyResourceIds } from '../shopify/resource-ids.js';
 
 type MetaStateSnapshot = StateSnapshot & {
   orders: Record<string, OrderRecord>;
@@ -89,16 +90,6 @@ function compareProductsNewestFirst(left: ProductRecord, right: ProductRecord): 
 
 function compareCustomersNewestFirst(left: CustomerRecord, right: CustomerRecord): number {
   return (right.updatedAt ?? '').localeCompare(left.updatedAt ?? '') || right.id.localeCompare(left.id);
-}
-
-function compareResourceIds(leftId: string, rightId: string): number {
-  const leftTail = Number.parseInt(leftId.split('/').at(-1) ?? '', 10);
-  const rightTail = Number.parseInt(rightId.split('/').at(-1) ?? '', 10);
-  if (Number.isFinite(leftTail) && Number.isFinite(rightTail)) {
-    return leftTail - rightTail;
-  }
-
-  return leftId.localeCompare(rightId);
 }
 
 function ensureUpdatedAtAfterBase(baseUpdatedAt: string, stagedUpdatedAt: string): string {
@@ -396,7 +387,7 @@ export class InMemoryStore {
       .filter((location): location is LocationRecord => location !== null);
     const unorderedLocations = Object.values(this.baseState.locations)
       .filter((location) => !orderedIds.has(location.id))
-      .sort((left, right) => compareResourceIds(left.id, right.id));
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
 
     return structuredClone([...orderedLocations, ...unorderedLocations]);
   }
@@ -541,7 +532,7 @@ export class InMemoryStore {
     }
 
     return Array.from(mergedOrders.values()).sort(
-      (left, right) => right.createdAt.localeCompare(left.createdAt) || compareResourceIds(right.id, left.id),
+      (left, right) => right.createdAt.localeCompare(left.createdAt) || compareShopifyResourceIds(right.id, left.id),
     );
   }
 
@@ -591,7 +582,9 @@ export class InMemoryStore {
   getDraftOrders(): DraftOrderRecord[] {
     return Object.values(this.stagedDraftOrders)
       .map((draftOrder) => structuredClone(draftOrder))
-      .sort((left, right) => right.createdAt.localeCompare(left.createdAt) || compareResourceIds(right.id, left.id));
+      .sort(
+        (left, right) => right.createdAt.localeCompare(left.createdAt) || compareShopifyResourceIds(right.id, left.id),
+      );
   }
 
   hasDraftOrders(): boolean {
@@ -1172,7 +1165,9 @@ export class InMemoryStore {
             .filter((option) => option.productId === productId)
             .map((option) => structuredClone(option));
 
-    return sourceOptions.sort((left, right) => left.position - right.position || compareResourceIds(left.id, right.id));
+    return sourceOptions.sort(
+      (left, right) => left.position - right.position || compareShopifyResourceIds(left.id, right.id),
+    );
   }
 
   getEffectiveCollectionById(collectionId: string): CollectionRecord | null {
@@ -1222,7 +1217,7 @@ export class InMemoryStore {
     }
 
     return Array.from(collectionsById.values()).sort(
-      (left, right) => left.title.localeCompare(right.title) || compareResourceIds(left.id, right.id),
+      (left, right) => left.title.localeCompare(right.title) || compareShopifyResourceIds(left.id, right.id),
     );
   }
 
@@ -1258,7 +1253,7 @@ export class InMemoryStore {
       }
     }
 
-    return Array.from(publicationsById.values()).sort((left, right) => compareResourceIds(left.id, right.id));
+    return Array.from(publicationsById.values()).sort((left, right) => compareShopifyResourceIds(left.id, right.id));
   }
 
   getEffectiveCollectionsByProductId(productId: string): ProductCollectionRecord[] {
@@ -1296,7 +1291,7 @@ export class InMemoryStore {
       });
 
     return visibleCollections.sort(
-      (left, right) => left.title.localeCompare(right.title) || compareResourceIds(left.id, right.id),
+      (left, right) => left.title.localeCompare(right.title) || compareShopifyResourceIds(left.id, right.id),
     );
   }
 
