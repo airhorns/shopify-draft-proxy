@@ -2410,7 +2410,7 @@ Practical rule:
 
 ## 62. Admin customer address roots use MailingAddress payloads and split validation styles
 
-HAR-152 captured customer address lifecycle evidence on Admin GraphQL 2025-01 with `corepack pnpm conformance:capture-customer-addresses`.
+HAR-152 captured customer address lifecycle evidence on Admin GraphQL 2025-01 with `corepack pnpm conformance:capture-customer-addresses`. HAR-283 expanded the same fixture with address validation, normalization, ownership, default-address, and bounded maximum-address probes.
 
 Captured facts:
 
@@ -2420,12 +2420,18 @@ Captured facts:
 - `MailingAddressInput` accepts `countryCode` and `provinceCode`; the response expands those to full `country` / `province` strings plus `countryCodeV2` / `provinceCode`
 - unknown customer ids on address create return payload `userErrors` with `field: ["customerId"]` and message `Customer does not exist`
 - unknown address ids on update, delete, and default-address selection return top-level GraphQL errors with message `invalid id`, extension code `RESOURCE_NOT_FOUND`, and `data.<root>: null`
+- address ids that exist but belong to a different customer are not top-level errors: update returns `address: null`, delete returns `deletedAddressId: null`, and default-address selection returns the unchanged customer; all three carry payload `userErrors[{ field: ["addressId"], message: "Address does not exist" }]`
+- `{}` creates a blank address and inherits the owning customer's first/last names; explicit empty address strings normalize to `null`
+- invalid `countryCode` and invalid Canadian `provinceCode` return payload userErrors at `["address", "country"]` and `["address", "province"]`; arbitrary postal text is accepted in the captured Canadian branch
+- duplicate `customerAddressCreate` returns payload `userErrors[{ field: ["address"], message: "Address already exists" }]`
+- deleting the default address promotes the remaining address to `Customer.defaultAddress`; omitted/null `setAsDefault` does not replace an existing default
+- the bounded maximum-address probe successfully created 105 addresses without a Shopify failure, so local staging should not enforce a lower artificial limit
 
 Practical rule:
 
 - locally stage address lifecycle roots against a normalized customer-owned address graph and keep `Customer.defaultAddress` synchronized from the selected address row
-- use fixture-backed top-level errors for unknown address ids instead of turning those branches into payload `userErrors`
-- keep broader address validation, normalization, and territory-specific postal validation out of local support until new fixtures capture those branches
+- keep unknown-address-id top-level errors distinct from cross-customer ownership userErrors
+- model only fixture-backed address validation/normalization branches locally; do not invent postal validation or a smaller maximum-address cap without new evidence
 
 ## 63. `customerSet` uses its own identifier input and replaces address lists
 
