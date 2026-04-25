@@ -306,6 +306,9 @@ function normalizeDefaultEmailAddress(
 
   return {
     emailAddress: normalizeStringField(raw, 'emailAddress'),
+    marketingState: normalizeStringField(raw, 'marketingState', fallback?.marketingState ?? null),
+    marketingOptInLevel: normalizeStringField(raw, 'marketingOptInLevel', fallback?.marketingOptInLevel ?? null),
+    marketingUpdatedAt: normalizeStringField(raw, 'marketingUpdatedAt', fallback?.marketingUpdatedAt ?? null),
   };
 }
 
@@ -323,6 +326,82 @@ function normalizeDefaultPhoneNumber(
 
   return {
     phoneNumber: normalizeStringField(raw, 'phoneNumber'),
+    marketingState: normalizeStringField(raw, 'marketingState', fallback?.marketingState ?? null),
+    marketingOptInLevel: normalizeStringField(raw, 'marketingOptInLevel', fallback?.marketingOptInLevel ?? null),
+    marketingUpdatedAt: normalizeStringField(raw, 'marketingUpdatedAt', fallback?.marketingUpdatedAt ?? null),
+    marketingCollectedFrom: normalizeStringField(
+      raw,
+      'marketingCollectedFrom',
+      fallback?.marketingCollectedFrom ?? null,
+    ),
+  };
+}
+
+function normalizeEmailMarketingConsent(
+  raw: unknown,
+  fallback: CustomerRecord['emailMarketingConsent'] = null,
+): CustomerRecord['emailMarketingConsent'] {
+  if (raw === undefined) {
+    return fallback ?? null;
+  }
+
+  if (!isObject(raw)) {
+    return null;
+  }
+
+  return {
+    marketingState: normalizeStringField(raw, 'marketingState', fallback?.marketingState ?? null),
+    marketingOptInLevel: normalizeStringField(raw, 'marketingOptInLevel', fallback?.marketingOptInLevel ?? null),
+    consentUpdatedAt: normalizeStringField(raw, 'consentUpdatedAt', fallback?.consentUpdatedAt ?? null),
+  };
+}
+
+function normalizeSmsMarketingConsent(
+  raw: unknown,
+  fallback: CustomerRecord['smsMarketingConsent'] = null,
+): CustomerRecord['smsMarketingConsent'] {
+  if (raw === undefined) {
+    return fallback ?? null;
+  }
+
+  if (!isObject(raw)) {
+    return null;
+  }
+
+  return {
+    marketingState: normalizeStringField(raw, 'marketingState', fallback?.marketingState ?? null),
+    marketingOptInLevel: normalizeStringField(raw, 'marketingOptInLevel', fallback?.marketingOptInLevel ?? null),
+    consentUpdatedAt: normalizeStringField(raw, 'consentUpdatedAt', fallback?.consentUpdatedAt ?? null),
+    consentCollectedFrom: normalizeStringField(raw, 'consentCollectedFrom', fallback?.consentCollectedFrom ?? null),
+  };
+}
+
+function emailConsentFromDefaultAddress(
+  defaultEmailAddress: CustomerRecord['defaultEmailAddress'],
+): CustomerRecord['emailMarketingConsent'] {
+  if (!defaultEmailAddress?.marketingState) {
+    return null;
+  }
+
+  return {
+    marketingState: defaultEmailAddress.marketingState,
+    marketingOptInLevel: defaultEmailAddress.marketingOptInLevel ?? null,
+    consentUpdatedAt: defaultEmailAddress.marketingUpdatedAt ?? null,
+  };
+}
+
+function smsConsentFromDefaultPhoneNumber(
+  defaultPhoneNumber: CustomerRecord['defaultPhoneNumber'],
+): CustomerRecord['smsMarketingConsent'] {
+  if (!defaultPhoneNumber?.marketingState) {
+    return null;
+  }
+
+  return {
+    marketingState: defaultPhoneNumber.marketingState,
+    marketingOptInLevel: defaultPhoneNumber.marketingOptInLevel ?? null,
+    consentUpdatedAt: defaultPhoneNumber.marketingUpdatedAt ?? null,
+    consentCollectedFrom: defaultPhoneNumber.marketingCollectedFrom ?? null,
   };
 }
 
@@ -359,6 +438,26 @@ function normalizeCustomer(raw: unknown): CustomerRecord | null {
   }
 
   const existing = store.getEffectiveCustomerById(id);
+  const defaultEmailAddress = normalizeDefaultEmailAddress(
+    hasOwnField(raw, 'defaultEmailAddress') ? raw['defaultEmailAddress'] : undefined,
+    existing?.defaultEmailAddress ?? null,
+  );
+  const defaultPhoneNumber = normalizeDefaultPhoneNumber(
+    hasOwnField(raw, 'defaultPhoneNumber') ? raw['defaultPhoneNumber'] : undefined,
+    existing?.defaultPhoneNumber ?? null,
+  );
+  const emailMarketingConsent = normalizeEmailMarketingConsent(
+    hasOwnField(raw, 'emailMarketingConsent') ? raw['emailMarketingConsent'] : undefined,
+    hasOwnField(raw, 'defaultEmailAddress')
+      ? emailConsentFromDefaultAddress(defaultEmailAddress)
+      : (existing?.emailMarketingConsent ?? emailConsentFromDefaultAddress(defaultEmailAddress)),
+  );
+  const smsMarketingConsent = normalizeSmsMarketingConsent(
+    hasOwnField(raw, 'smsMarketingConsent') ? raw['smsMarketingConsent'] : undefined,
+    hasOwnField(raw, 'defaultPhoneNumber')
+      ? smsConsentFromDefaultPhoneNumber(defaultPhoneNumber)
+      : (existing?.smsMarketingConsent ?? smsConsentFromDefaultPhoneNumber(defaultPhoneNumber)),
+  );
 
   return {
     id,
@@ -380,14 +479,10 @@ function normalizeCustomer(raw: unknown): CustomerRecord | null {
       hasOwnField(raw, 'amountSpent') ? raw['amountSpent'] : undefined,
       existing?.amountSpent ?? null,
     ),
-    defaultEmailAddress: normalizeDefaultEmailAddress(
-      hasOwnField(raw, 'defaultEmailAddress') ? raw['defaultEmailAddress'] : undefined,
-      existing?.defaultEmailAddress ?? null,
-    ),
-    defaultPhoneNumber: normalizeDefaultPhoneNumber(
-      hasOwnField(raw, 'defaultPhoneNumber') ? raw['defaultPhoneNumber'] : undefined,
-      existing?.defaultPhoneNumber ?? null,
-    ),
+    defaultEmailAddress,
+    defaultPhoneNumber,
+    emailMarketingConsent,
+    smsMarketingConsent,
     defaultAddress: normalizeDefaultAddress(
       hasOwnField(raw, 'defaultAddress') ? raw['defaultAddress'] : undefined,
       existing?.defaultAddress ?? null,
@@ -460,6 +555,18 @@ function serializeDefaultEmailSelection(
       case 'emailAddress':
         result[key] = value.emailAddress;
         break;
+      case 'marketingState':
+        result[key] = value.marketingState ?? null;
+        break;
+      case 'marketingOptInLevel':
+        result[key] = value.marketingOptInLevel ?? null;
+        break;
+      case 'marketingUpdatedAt':
+        result[key] = value.marketingUpdatedAt ?? null;
+        break;
+      case 'sourceLocation':
+        result[key] = null;
+        break;
       default:
         result[key] = null;
         break;
@@ -482,6 +589,21 @@ function serializeDefaultPhoneNumberSelection(
     switch (selection.name.value) {
       case 'phoneNumber':
         result[key] = value.phoneNumber;
+        break;
+      case 'marketingState':
+        result[key] = value.marketingState ?? null;
+        break;
+      case 'marketingOptInLevel':
+        result[key] = value.marketingOptInLevel ?? null;
+        break;
+      case 'marketingUpdatedAt':
+        result[key] = value.marketingUpdatedAt ?? null;
+        break;
+      case 'marketingCollectedFrom':
+        result[key] = value.marketingCollectedFrom ?? null;
+        break;
+      case 'sourceLocation':
+        result[key] = null;
         break;
       default:
         result[key] = null;
@@ -681,6 +803,12 @@ function serializeCustomerSelection(
       case 'defaultPhoneNumber':
         result[key] = serializeDefaultPhoneNumberSelection(selection, customer.defaultPhoneNumber);
         break;
+      case 'emailMarketingConsent':
+        result[key] = serializeEmailMarketingConsentSelection(selection, customer.emailMarketingConsent ?? null);
+        break;
+      case 'smsMarketingConsent':
+        result[key] = serializeSmsMarketingConsentSelection(selection, customer.smsMarketingConsent ?? null);
+        break;
       case 'defaultAddress':
         result[key] = serializeDefaultAddressSelection(selection, customer.defaultAddress);
         break;
@@ -712,6 +840,73 @@ function serializeCustomerSelection(
     }
   }
 
+  return result;
+}
+
+function serializeEmailMarketingConsentSelection(
+  field: FieldNode,
+  value: CustomerRecord['emailMarketingConsent'],
+): Record<string, unknown> | null {
+  if (!value) {
+    return null;
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'marketingState':
+        result[key] = value.marketingState;
+        break;
+      case 'marketingOptInLevel':
+        result[key] = value.marketingOptInLevel;
+        break;
+      case 'consentUpdatedAt':
+        result[key] = value.consentUpdatedAt;
+        break;
+      case 'sourceLocation':
+        result[key] = null;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeSmsMarketingConsentSelection(
+  field: FieldNode,
+  value: CustomerRecord['smsMarketingConsent'],
+): Record<string, unknown> | null {
+  if (!value) {
+    return null;
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'marketingState':
+        result[key] = value.marketingState;
+        break;
+      case 'marketingOptInLevel':
+        result[key] = value.marketingOptInLevel;
+        break;
+      case 'consentUpdatedAt':
+        result[key] = value.consentUpdatedAt;
+        break;
+      case 'consentCollectedFrom':
+        result[key] = value.consentCollectedFrom;
+        break;
+      case 'sourceLocation':
+        result[key] = null;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
   return result;
 }
 
@@ -1641,6 +1836,7 @@ function collectCustomerSearchConnections(
 type CustomerMutationUserError = {
   field: string[] | null;
   message: string;
+  code?: string | null;
 };
 
 function serializeCustomerMutationUserErrors(
@@ -1657,6 +1853,9 @@ function serializeCustomerMutationUserErrors(
           break;
         case 'message':
           result[key] = userError.message;
+          break;
+        case 'code':
+          result[key] = userError.code ?? null;
           break;
         default:
           result[key] = null;
@@ -1851,8 +2050,38 @@ function buildCreatedCustomer(input: Record<string, unknown>): CustomerRecord {
     tags,
     numberOfOrders: 0,
     amountSpent: null,
-    defaultEmailAddress: email ? { emailAddress: email } : null,
-    defaultPhoneNumber: phone ? { phoneNumber: maskPhoneNumber(phone) } : null,
+    defaultEmailAddress: email
+      ? {
+          emailAddress: email,
+          marketingState: 'NOT_SUBSCRIBED',
+          marketingOptInLevel: 'SINGLE_OPT_IN',
+          marketingUpdatedAt: null,
+        }
+      : null,
+    defaultPhoneNumber: phone
+      ? {
+          phoneNumber: maskPhoneNumber(phone),
+          marketingState: 'NOT_SUBSCRIBED',
+          marketingOptInLevel: 'SINGLE_OPT_IN',
+          marketingUpdatedAt: null,
+          marketingCollectedFrom: null,
+        }
+      : null,
+    emailMarketingConsent: email
+      ? {
+          marketingState: 'NOT_SUBSCRIBED',
+          marketingOptInLevel: 'SINGLE_OPT_IN',
+          consentUpdatedAt: null,
+        }
+      : null,
+    smsMarketingConsent: phone
+      ? {
+          marketingState: 'NOT_SUBSCRIBED',
+          marketingOptInLevel: 'SINGLE_OPT_IN',
+          consentUpdatedAt: null,
+          consentCollectedFrom: null,
+        }
+      : null,
     defaultAddress: null,
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -1882,8 +2111,31 @@ function buildUpdatedCustomer(existing: CustomerRecord, input: Record<string, un
     taxExempt: typeof input['taxExempt'] === 'boolean' ? input['taxExempt'] : existing.taxExempt,
     taxExemptions: normalizeCustomerTaxExemptions(input['taxExemptions'], existing.taxExemptions ?? []),
     tags: normalizeCustomerTags(input['tags'], existing.tags),
-    defaultEmailAddress: email ? { emailAddress: email } : null,
-    defaultPhoneNumber: phone ? { phoneNumber: maskPhoneNumber(phone) } : null,
+    defaultEmailAddress: email
+      ? {
+          emailAddress: email,
+          marketingState:
+            existing.defaultEmailAddress?.marketingState ?? existing.emailMarketingConsent?.marketingState,
+          marketingOptInLevel:
+            existing.defaultEmailAddress?.marketingOptInLevel ?? existing.emailMarketingConsent?.marketingOptInLevel,
+          marketingUpdatedAt:
+            existing.defaultEmailAddress?.marketingUpdatedAt ?? existing.emailMarketingConsent?.consentUpdatedAt,
+        }
+      : null,
+    defaultPhoneNumber: phone
+      ? {
+          phoneNumber: maskPhoneNumber(phone),
+          marketingState: existing.defaultPhoneNumber?.marketingState ?? existing.smsMarketingConsent?.marketingState,
+          marketingOptInLevel:
+            existing.defaultPhoneNumber?.marketingOptInLevel ?? existing.smsMarketingConsent?.marketingOptInLevel,
+          marketingUpdatedAt:
+            existing.defaultPhoneNumber?.marketingUpdatedAt ?? existing.smsMarketingConsent?.consentUpdatedAt,
+          marketingCollectedFrom:
+            existing.defaultPhoneNumber?.marketingCollectedFrom ?? existing.smsMarketingConsent?.consentCollectedFrom,
+        }
+      : null,
+    emailMarketingConsent: email ? existing.emailMarketingConsent : null,
+    smsMarketingConsent: phone ? existing.smsMarketingConsent : null,
     updatedAt: makeSyntheticTimestamp(),
   };
 }
@@ -1898,6 +2150,109 @@ function validateCustomerCreateInput(input: Record<string, unknown>): CustomerMu
   }
 
   return [{ field: null, message: 'A name, phone number, or email address must be present' }];
+}
+
+function readConsentPayload(input: Record<string, unknown>, key: string): Record<string, unknown> {
+  const value = input[key];
+  return isObject(value) ? value : {};
+}
+
+function validateMarketingState(
+  input: Record<string, unknown>,
+  consentKey: string,
+  acceptedStates: string[],
+): CustomerMutationUserError[] {
+  const consent = readConsentPayload(input, consentKey);
+  const marketingState = consent['marketingState'];
+  if (typeof marketingState !== 'string' || !acceptedStates.includes(marketingState)) {
+    return [
+      {
+        field: ['input', consentKey, 'marketingState'],
+        message: 'Marketing state is invalid',
+        code: 'INVALID',
+      },
+    ];
+  }
+
+  return [];
+}
+
+function buildEmailMarketingConsentUpdatedCustomer(
+  existing: CustomerRecord,
+  input: Record<string, unknown>,
+): CustomerRecord {
+  const consent = readConsentPayload(input, 'emailMarketingConsent');
+  const consentUpdatedAt =
+    typeof consent['consentUpdatedAt'] === 'string' && consent['consentUpdatedAt'].trim().length > 0
+      ? consent['consentUpdatedAt']
+      : makeSyntheticTimestamp();
+  const marketingState = typeof consent['marketingState'] === 'string' ? consent['marketingState'] : 'NOT_SUBSCRIBED';
+  const marketingOptInLevel =
+    typeof consent['marketingOptInLevel'] === 'string'
+      ? consent['marketingOptInLevel']
+      : (existing.emailMarketingConsent?.marketingOptInLevel ??
+        existing.defaultEmailAddress?.marketingOptInLevel ??
+        'SINGLE_OPT_IN');
+  const emailAddress = existing.defaultEmailAddress?.emailAddress ?? existing.email;
+
+  return {
+    ...existing,
+    defaultEmailAddress: emailAddress
+      ? {
+          ...(existing.defaultEmailAddress ?? { emailAddress }),
+          emailAddress,
+          marketingState,
+          marketingOptInLevel,
+          marketingUpdatedAt: consentUpdatedAt,
+        }
+      : null,
+    emailMarketingConsent: {
+      marketingState,
+      marketingOptInLevel,
+      consentUpdatedAt,
+    },
+    updatedAt: makeSyntheticTimestamp(),
+  };
+}
+
+function buildSmsMarketingConsentUpdatedCustomer(
+  existing: CustomerRecord,
+  input: Record<string, unknown>,
+): CustomerRecord {
+  const consent = readConsentPayload(input, 'smsMarketingConsent');
+  const consentUpdatedAt =
+    typeof consent['consentUpdatedAt'] === 'string' && consent['consentUpdatedAt'].trim().length > 0
+      ? consent['consentUpdatedAt']
+      : makeSyntheticTimestamp();
+  const marketingState = typeof consent['marketingState'] === 'string' ? consent['marketingState'] : 'NOT_SUBSCRIBED';
+  const marketingOptInLevel =
+    typeof consent['marketingOptInLevel'] === 'string'
+      ? consent['marketingOptInLevel']
+      : (existing.smsMarketingConsent?.marketingOptInLevel ??
+        existing.defaultPhoneNumber?.marketingOptInLevel ??
+        'SINGLE_OPT_IN');
+  const phoneNumber = existing.defaultPhoneNumber?.phoneNumber ?? null;
+
+  return {
+    ...existing,
+    defaultPhoneNumber: phoneNumber
+      ? {
+          ...(existing.defaultPhoneNumber ?? { phoneNumber }),
+          phoneNumber,
+          marketingState,
+          marketingOptInLevel,
+          marketingUpdatedAt: consentUpdatedAt,
+          marketingCollectedFrom: 'OTHER',
+        }
+      : null,
+    smsMarketingConsent: {
+      marketingState,
+      marketingOptInLevel,
+      consentUpdatedAt,
+      consentCollectedFrom: 'OTHER',
+    },
+    updatedAt: makeSyntheticTimestamp(),
+  };
 }
 
 function serializeCustomerMutationPayload(
@@ -2002,6 +2357,73 @@ export function handleCustomerMutation(
           upsertMetafieldsForCustomer(customer.id, metafieldInputs),
         );
       }
+      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
+      continue;
+    }
+
+    if (field.name.value === 'customerEmailMarketingConsentUpdate') {
+      const input = readCustomerInput(args['input']);
+      const customerId = typeof input['customerId'] === 'string' ? input['customerId'] : null;
+      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      if (!existingCustomer) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customer: null,
+            userErrors: [{ field: ['input', 'customerId'], message: 'Customer not found', code: 'INVALID' }],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      const userErrors = validateMarketingState(input, 'emailMarketingConsent', [
+        'NOT_SUBSCRIBED',
+        'PENDING',
+        'SUBSCRIBED',
+        'UNSUBSCRIBED',
+        'REDACTED',
+        'INVALID',
+      ]);
+      if (userErrors.length > 0) {
+        data[key] = serializeCustomerMutationPayload(field, { customer: null, userErrors }, variables);
+        continue;
+      }
+
+      const customer = store.stageUpdateCustomer(buildEmailMarketingConsentUpdatedCustomer(existingCustomer, input));
+      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
+      continue;
+    }
+
+    if (field.name.value === 'customerSmsMarketingConsentUpdate') {
+      const input = readCustomerInput(args['input']);
+      const customerId = typeof input['customerId'] === 'string' ? input['customerId'] : null;
+      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      if (!existingCustomer) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customer: null,
+            userErrors: [{ field: null, message: 'Customer not found', code: null }],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      const userErrors = validateMarketingState(input, 'smsMarketingConsent', [
+        'NOT_SUBSCRIBED',
+        'PENDING',
+        'SUBSCRIBED',
+        'UNSUBSCRIBED',
+        'REDACTED',
+      ]);
+      if (userErrors.length > 0) {
+        data[key] = serializeCustomerMutationPayload(field, { customer: null, userErrors }, variables);
+        continue;
+      }
+
+      const customer = store.stageUpdateCustomer(buildSmsMarketingConsentUpdatedCustomer(existingCustomer, input));
       data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
       continue;
     }
@@ -2118,7 +2540,7 @@ export function handleCustomerQuery(
       }
 
       const customer = findCustomerByIdentifier(identifier);
-      data[key] = customer ? serializeCustomerSelection(customer, field) : null;
+      data[key] = customer ? serializeCustomerSelection(customer, field, variables) : null;
       continue;
     }
 

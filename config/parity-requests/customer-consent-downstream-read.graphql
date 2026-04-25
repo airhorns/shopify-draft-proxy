@@ -1,0 +1,68 @@
+query CustomerConsentDownstream($id: ID!, $identifier: CustomerIdentifierInput!, $query: String!, $first: Int!) {
+  customer(id: $id) {
+    id
+    firstName
+    lastName
+    displayName
+    email
+    defaultEmailAddress {
+      emailAddress
+      marketingState
+      marketingOptInLevel
+      marketingUpdatedAt
+    }
+    defaultPhoneNumber {
+      phoneNumber
+      marketingState
+      marketingOptInLevel
+      marketingUpdatedAt
+      marketingCollectedFrom
+    }
+  }
+  customerByIdentifier(identifier: $identifier) {
+    id
+    firstName
+    lastName
+    displayName
+    email
+    defaultEmailAddress {
+      emailAddress
+      marketingState
+      marketingOptInLevel
+      marketingUpdatedAt
+    }
+    defaultPhoneNumber {
+      phoneNumber
+      marketingState
+      marketingOptInLevel
+      marketingUpdatedAt
+      marketingCollectedFrom
+    }
+  }
+  customers(first: $first, query: $query, sortKey: UPDATED_AT, reverse: true) {
+    nodes {
+      id
+      firstName
+      lastName
+      displayName
+      email
+      defaultEmailAddress {
+        emailAddress
+        marketingState
+        marketingOptInLevel
+        marketingUpdatedAt
+      }
+      defaultPhoneNumber {
+        phoneNumber
+        marketingState
+        marketingOptInLevel
+        marketingUpdatedAt
+        marketingCollectedFrom
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+}

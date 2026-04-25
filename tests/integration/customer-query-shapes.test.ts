@@ -101,8 +101,30 @@ describe('customer query shapes', () => {
         tags: ['vip'],
         numberOfOrders: 0,
         amountSpent: null,
-        defaultEmailAddress: { emailAddress: 'ada@example.com' },
-        defaultPhoneNumber: { phoneNumber: '+15550101' },
+        defaultEmailAddress: {
+          emailAddress: 'ada@example.com',
+          marketingState: 'SUBSCRIBED',
+          marketingOptInLevel: 'SINGLE_OPT_IN',
+          marketingUpdatedAt: '2026-04-25T01:00:00Z',
+        },
+        defaultPhoneNumber: {
+          phoneNumber: '+15550101',
+          marketingState: 'SUBSCRIBED',
+          marketingOptInLevel: 'CONFIRMED_OPT_IN',
+          marketingUpdatedAt: '2026-04-25T01:05:00Z',
+          marketingCollectedFrom: 'OTHER',
+        },
+        emailMarketingConsent: {
+          marketingState: 'SUBSCRIBED',
+          marketingOptInLevel: 'SINGLE_OPT_IN',
+          consentUpdatedAt: '2026-04-25T01:00:00Z',
+        },
+        smsMarketingConsent: {
+          marketingState: 'SUBSCRIBED',
+          marketingOptInLevel: 'CONFIRMED_OPT_IN',
+          consentUpdatedAt: '2026-04-25T01:05:00Z',
+          consentCollectedFrom: 'OTHER',
+        },
         defaultAddress: null,
         createdAt: '2024-01-01T00:00:00.000Z',
         updatedAt: '2024-01-02T00:00:00.000Z',
@@ -125,11 +147,33 @@ describe('customer query shapes', () => {
           byId: customerByIdentifier(identifier: $idIdentifier) { id email }
           byEmail: customerByIdentifier(identifier: $emailIdentifier) {
             id
-            defaultEmailAddress { emailAddress }
+            defaultEmailAddress {
+              emailAddress
+              marketingState
+              marketingOptInLevel
+              marketingUpdatedAt
+            }
+            emailMarketingConsent {
+              marketingState
+              marketingOptInLevel
+              consentUpdatedAt
+            }
           }
           byPhone: customerByIdentifier(identifier: $phoneIdentifier) {
             id
-            defaultPhoneNumber { phoneNumber }
+            defaultPhoneNumber {
+              phoneNumber
+              marketingState
+              marketingOptInLevel
+              marketingUpdatedAt
+              marketingCollectedFrom
+            }
+            smsMarketingConsent {
+              marketingState
+              marketingOptInLevel
+              consentUpdatedAt
+              consentCollectedFrom
+            }
           }
           missing: customerByIdentifier(identifier: $missingIdentifier) { id }
         }`,
@@ -150,11 +194,33 @@ describe('customer query shapes', () => {
         },
         byEmail: {
           id: 'gid://shopify/Customer/301',
-          defaultEmailAddress: { emailAddress: 'ada@example.com' },
+          defaultEmailAddress: {
+            emailAddress: 'ada@example.com',
+            marketingState: 'SUBSCRIBED',
+            marketingOptInLevel: 'SINGLE_OPT_IN',
+            marketingUpdatedAt: '2026-04-25T01:00:00Z',
+          },
+          emailMarketingConsent: {
+            marketingState: 'SUBSCRIBED',
+            marketingOptInLevel: 'SINGLE_OPT_IN',
+            consentUpdatedAt: '2026-04-25T01:00:00Z',
+          },
         },
         byPhone: {
           id: 'gid://shopify/Customer/301',
-          defaultPhoneNumber: { phoneNumber: '+15550101' },
+          defaultPhoneNumber: {
+            phoneNumber: '+15550101',
+            marketingState: 'SUBSCRIBED',
+            marketingOptInLevel: 'CONFIRMED_OPT_IN',
+            marketingUpdatedAt: '2026-04-25T01:05:00Z',
+            marketingCollectedFrom: 'OTHER',
+          },
+          smsMarketingConsent: {
+            marketingState: 'SUBSCRIBED',
+            marketingOptInLevel: 'CONFIRMED_OPT_IN',
+            consentUpdatedAt: '2026-04-25T01:05:00Z',
+            consentCollectedFrom: 'OTHER',
+          },
         },
         missing: null,
       },

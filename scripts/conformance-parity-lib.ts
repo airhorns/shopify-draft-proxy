@@ -958,6 +958,40 @@ function readCustomerDefaultAddress(
   };
 }
 
+function readCustomerDefaultEmailAddress(
+  customer: Record<string, unknown> | null | undefined,
+): CustomerRecord['defaultEmailAddress'] {
+  const email = readStringField(customer, 'email');
+  const defaultEmailAddress = readRecordField(customer, 'defaultEmailAddress');
+  if (!defaultEmailAddress && !email) {
+    return null;
+  }
+
+  return {
+    emailAddress: readStringField(defaultEmailAddress, 'emailAddress') ?? email,
+    marketingState: readStringField(defaultEmailAddress, 'marketingState'),
+    marketingOptInLevel: readStringField(defaultEmailAddress, 'marketingOptInLevel'),
+    marketingUpdatedAt: readStringField(defaultEmailAddress, 'marketingUpdatedAt'),
+  };
+}
+
+function readCustomerDefaultPhoneNumber(
+  customer: Record<string, unknown> | null | undefined,
+): CustomerRecord['defaultPhoneNumber'] {
+  const defaultPhoneNumber = readRecordField(customer, 'defaultPhoneNumber');
+  if (!defaultPhoneNumber) {
+    return null;
+  }
+
+  return {
+    phoneNumber: readStringField(defaultPhoneNumber, 'phoneNumber'),
+    marketingState: readStringField(defaultPhoneNumber, 'marketingState'),
+    marketingOptInLevel: readStringField(defaultPhoneNumber, 'marketingOptInLevel'),
+    marketingUpdatedAt: readStringField(defaultPhoneNumber, 'marketingUpdatedAt'),
+    marketingCollectedFrom: readStringField(defaultPhoneNumber, 'marketingCollectedFrom'),
+  };
+}
+
 function makeSeedCustomer(customerId: string, source: Record<string, unknown> | null = null): CustomerRecord {
   const email = readStringField(source, 'email');
   const firstName = readStringField(source, 'firstName');
@@ -965,7 +999,8 @@ function makeSeedCustomer(customerId: string, source: Record<string, unknown> | 
   const nameFromParts = [firstName, lastName]
     .filter((part): part is string => typeof part === 'string' && part.length > 0)
     .join(' ');
-  const defaultEmailAddress = readRecordField(source, 'defaultEmailAddress');
+  const defaultEmailAddress = readCustomerDefaultEmailAddress(source);
+  const defaultPhoneNumber = readCustomerDefaultPhoneNumber(source);
 
   return {
     id: customerId,
@@ -983,12 +1018,22 @@ function makeSeedCustomer(customerId: string, source: Record<string, unknown> | 
     tags: readArrayField(source, 'tags').filter((tag): tag is string => typeof tag === 'string'),
     numberOfOrders: readNumberField(source, 'numberOfOrders') ?? readStringField(source, 'numberOfOrders') ?? 0,
     amountSpent: readCustomerMoneyField(source, 'amountSpent'),
-    defaultEmailAddress:
-      defaultEmailAddress || email
-        ? { emailAddress: readStringField(defaultEmailAddress, 'emailAddress') ?? email }
-        : null,
-    defaultPhoneNumber: readRecordField(source, 'defaultPhoneNumber')
-      ? { phoneNumber: readStringField(readRecordField(source, 'defaultPhoneNumber'), 'phoneNumber') }
+    defaultEmailAddress,
+    defaultPhoneNumber,
+    emailMarketingConsent: defaultEmailAddress?.marketingState
+      ? {
+          marketingState: defaultEmailAddress.marketingState,
+          marketingOptInLevel: defaultEmailAddress.marketingOptInLevel ?? null,
+          consentUpdatedAt: defaultEmailAddress.marketingUpdatedAt ?? null,
+        }
+      : null,
+    smsMarketingConsent: defaultPhoneNumber?.marketingState
+      ? {
+          marketingState: defaultPhoneNumber.marketingState,
+          marketingOptInLevel: defaultPhoneNumber.marketingOptInLevel ?? null,
+          consentUpdatedAt: defaultPhoneNumber.marketingUpdatedAt ?? null,
+          consentCollectedFrom: defaultPhoneNumber.marketingCollectedFrom ?? null,
+        }
       : null,
     defaultAddress: readCustomerDefaultAddress(source),
     createdAt: readStringField(source, 'createdAt') ?? '2024-01-01T00:00:00.000Z',
@@ -1016,6 +1061,8 @@ function makePlaceholderCustomer(index: number): CustomerRecord {
     amountSpent: null,
     defaultEmailAddress: { emailAddress: `customer-baseline-${index}@example.invalid` },
     defaultPhoneNumber: null,
+    emailMarketingConsent: null,
+    smsMarketingConsent: null,
     defaultAddress: null,
     createdAt: '2024-01-01T00:00:00.000Z',
     updatedAt: '2024-01-01T00:00:00.000Z',
@@ -1028,22 +1075,32 @@ function seedCustomerMutationPreconditions(
   mutationName: string | null,
   payload: Record<string, unknown> | null,
 ): boolean {
-  if (mutationName !== 'customerCreate' && mutationName !== 'customerUpdate' && mutationName !== 'customerDelete') {
+  if (
+    mutationName !== 'customerCreate' &&
+    mutationName !== 'customerUpdate' &&
+    mutationName !== 'customerDelete' &&
+    mutationName !== 'customerEmailMarketingConsentUpdate' &&
+    mutationName !== 'customerSmsMarketingConsentUpdate'
+  ) {
     return false;
   }
 
   const input = readRecordField(variables, 'input');
   const customerPayload = readRecordField(payload, 'customer');
+  const preconditionPayload = firstObjectValue(readJsonPath(capture, '$.precondition.response.data'));
+  const preconditionCustomerPayload = readRecordField(preconditionPayload, 'customer');
   const downstreamData = readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data');
   const downstreamCount = readNumberField(readRecordField(downstreamData, 'customersCount'), 'count');
   const targetCustomerId =
     readStringField(input, 'id') ??
+    readStringField(input, 'customerId') ??
     readStringField(customerPayload, 'id') ??
+    readStringField(preconditionCustomerPayload, 'id') ??
     readStringField(payload, 'deletedCustomerId');
   const seedCustomers: CustomerRecord[] = [];
 
   if (targetCustomerId && mutationName !== 'customerCreate') {
-    seedCustomers.push(makeSeedCustomer(targetCustomerId, customerPayload));
+    seedCustomers.push(makeSeedCustomer(targetCustomerId, preconditionCustomerPayload ?? customerPayload));
   }
 
   if (downstreamCount !== null) {
