@@ -1,0 +1,84 @@
+query FulfillmentTopLevelCatalog($first: Int!, $after: String, $query: String) {
+  openFulfillmentOrders: fulfillmentOrders(first: $first, sortKey: ID) {
+    nodes {
+      id
+      status
+      requestStatus
+      assignedLocation {
+        name
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  allFulfillmentOrders: fulfillmentOrders(
+    first: $first
+    after: $after
+    includeClosed: true
+    sortKey: ID
+    reverse: false
+    query: $query
+  ) {
+    nodes {
+      id
+      status
+      requestStatus
+      assignedLocation {
+        name
+      }
+      lineItems(first: 5) {
+        nodes {
+          id
+          totalQuantity
+          remainingQuantity
+          lineItem {
+            id
+            title
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  reversedFulfillmentOrders: fulfillmentOrders(first: $first, includeClosed: true, sortKey: ID, reverse: true) {
+    nodes {
+      id
+      status
+      requestStatus
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  manualHoldsFulfillmentOrders(first: $first) {
+    nodes {
+      id
+      status
+      requestStatus
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

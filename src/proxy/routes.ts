@@ -680,9 +680,42 @@ export function createProxyRouter(config: AppConfig): Router {
     }
 
     if (capability.execution === 'overlay-read' && capability.domain === 'shipping-fulfillments') {
+      const orderBackedFulfillmentRoots = new Set([
+        'fulfillment',
+        'fulfillmentOrder',
+        'fulfillmentOrders',
+        'assignedFulfillmentOrders',
+        'manualHoldsFulfillmentOrders',
+      ]);
+
       if (config.readMode === 'snapshot') {
         ctx.status = 200;
-        ctx.body = handleStorePropertiesQuery(body.query, variables);
+        ctx.body =
+          primaryRootField !== null && orderBackedFulfillmentRoots.has(primaryRootField)
+            ? handleOrderQuery(body.query, variables)
+            : handleStorePropertiesQuery(body.query, variables);
+        return;
+      }
+
+      if (
+        config.readMode === 'live-hybrid' &&
+        primaryRootField !== null &&
+        orderBackedFulfillmentRoots.has(primaryRootField)
+      ) {
+        const response = await upstream.request({
+          path: ctx.path,
+          headers: {
+            'content-type': 'application/json',
+            'x-shopify-access-token': ctx.get('x-shopify-access-token'),
+          },
+          body: {
+            query: body.query,
+            variables,
+          },
+        });
+
+        ctx.status = response.status;
+        ctx.body = await response.json();
         return;
       }
 

@@ -895,6 +895,22 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'overlay-read' && capability.domain === 'shipping-fulfillments') {
+    const parsed = parseOperation(document);
+    const primaryRootField = parsed.rootFields[0] ?? capability.operationName;
+    if (primaryRootField === 'fulfillmentService') {
+      return {
+        status: 200,
+        body: handleStorePropertiesQuery(document, variables),
+      };
+    }
+
+    return {
+      status: 200,
+      body: handleOrderQuery(document, variables),
+    };
+  }
+
   if (capability.execution === 'overlay-read' && capability.domain === 'payments') {
     return {
       status: 200,
