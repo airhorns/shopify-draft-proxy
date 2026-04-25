@@ -8,14 +8,18 @@
     "documentPath": "config/parity-requests/product-metafields-read.graphql",
     "variablesPath": "config/parity-requests/product-metafields-read.variables.json"
   },
-  "comparisonMode": "capture-only",
-  "notes": "Live product metafields capture now has a concrete proxy request scaffold covering both singular `metafield(namespace:, key:)` lookup and the owner-scoped `metafields` connection slice used by the current overlay serializer. Comparator wiring can reuse this request scaffold once proxy-vs-Shopify comparison is implemented.",
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity coverage for the product metafields connection slice backed by the captured owner-scoped Shopify response; the singular metafield probe remains documented in the fixture until a combined live response is captured.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "product-metafields-connection-data",
+        "capturePath": "$.connection.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.connection"
+      }
+    ]
   }
 }

@@ -5,30 +5,18 @@ import 'dotenv/config';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { runAdminGraphqlRequest } from './conformance-graphql-client.js';
+import { createAdminGraphqlClient } from './conformance-graphql-client.js';
+import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
-const requiredVars = ['SHOPIFY_CONFORMANCE_STORE_DOMAIN', 'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
-
-const missingVars = requiredVars.filter((name) => !process.env[name]);
-if (missingVars.length > 0) {
-  console.error(`Missing required environment variables: ${missingVars.join(', ')}`);
-  process.exit(1);
-}
-
-const storeDomain = process.env['SHOPIFY_CONFORMANCE_STORE_DOMAIN'];
-const adminOrigin = process.env['SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
+const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
-const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || '2025-01';
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
-
-async function runGraphql(query, variables = {}) {
-  return runAdminGraphqlRequest(
-    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(adminAccessToken) },
-    query,
-    variables,
-  );
-}
+const { runGraphqlRequest: runGraphql } = createAdminGraphqlClient({
+  adminOrigin,
+  apiVersion,
+  headers: buildAdminAuthHeaders(adminAccessToken),
+});
 
 function assertNoTopLevelErrors(result, context) {
   if (result.status < 200 || result.status >= 300 || result.payload?.errors) {
@@ -46,9 +34,32 @@ const customerSlice = `
   note
   verifiedEmail
   taxExempt
+  taxExemptions
   tags
   state
   canDelete
+  loyalty: metafield(namespace: "custom", key: "loyalty") {
+    id
+    namespace
+    key
+    type
+    value
+  }
+  metafields(first: 5) {
+    nodes {
+      id
+      namespace
+      key
+      type
+      value
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
   defaultEmailAddress { emailAddress }
   defaultPhoneNumber { phoneNumber }
   defaultAddress { address1 city province country zip formattedArea }
@@ -160,6 +171,15 @@ async function main() {
       note: 'customer update parity probe',
       tags: ['parity', 'updated'],
       taxExempt: false,
+      taxExemptions: ['CA_BC_RESELLER_EXEMPTION'],
+      metafields: [
+        {
+          namespace: 'custom',
+          key: 'loyalty',
+          type: 'single_line_text_field',
+          value: `gold-${stamp}`,
+        },
+      ],
     },
   };
 
@@ -172,6 +192,25 @@ async function main() {
   });
   assertNoTopLevelErrors(updateReadResult, 'customerUpdate downstream read');
 
+  const createValidation = await runGraphql(createMutation, { input: { email: '' } });
+  assertNoTopLevelErrors(createValidation, 'customerCreate validation');
+  const updateValidation = await runGraphql(updateMutation, {
+    input: { id: 'gid://shopify/Customer/999999999999999', firstName: 'Ghost' },
+  });
+  assertNoTopLevelErrors(updateValidation, 'customerUpdate validation');
+  const updateMetafieldValidation = await runGraphql(updateMutation, {
+    input: {
+      id: createdCustomerId,
+      metafields: [{ namespace: 'custom', key: 'bad_type', type: 'not_a_type', value: 'bad' }],
+    },
+  });
+  assertNoTopLevelErrors(updateMetafieldValidation, 'customerUpdate metafield validation');
+  const updateTaxExemptionValidation = await runGraphql(updateMutation, {
+    input: {
+      id: createdCustomerId,
+      taxExemptions: ['NOT_A_TAX_EXEMPTION'],
+    },
+  });
   const deleteVariables = {
     input: {
       id: createdCustomerId,
@@ -187,12 +226,6 @@ async function main() {
   });
   assertNoTopLevelErrors(deleteReadResult, 'customerDelete downstream read');
 
-  const createValidation = await runGraphql(createMutation, { input: { email: '' } });
-  assertNoTopLevelErrors(createValidation, 'customerCreate validation');
-  const updateValidation = await runGraphql(updateMutation, {
-    input: { id: 'gid://shopify/Customer/999999999999999', firstName: 'Ghost' },
-  });
-  assertNoTopLevelErrors(updateValidation, 'customerUpdate validation');
   const deleteValidation = await runGraphql(deleteMutation, {
     input: { id: 'gid://shopify/Customer/999999999999999' },
   });
@@ -219,6 +252,24 @@ async function main() {
     validation: {
       variables: { input: { id: 'gid://shopify/Customer/999999999999999', firstName: 'Ghost' } },
       response: updateValidation.payload,
+    },
+    metafieldValidation: {
+      variables: {
+        input: {
+          id: createdCustomerId,
+          metafields: [{ namespace: 'custom', key: 'bad_type', type: 'not_a_type', value: 'bad' }],
+        },
+      },
+      response: updateMetafieldValidation.payload,
+    },
+    taxExemptionValidation: {
+      variables: {
+        input: {
+          id: createdCustomerId,
+          taxExemptions: ['NOT_A_TAX_EXEMPTION'],
+        },
+      },
+      response: updateTaxExemptionValidation.payload,
     },
   };
 

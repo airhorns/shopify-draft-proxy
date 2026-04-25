@@ -1,0 +1,2005 @@
+{
+  "capturedAt": "2026-04-25T01:25:08.696Z",
+  "storeDomain": "very-big-test-store.myshopify.com",
+  "apiVersion": "2026-04",
+  "schemaInventory": {
+    "queryRoots": [
+      {
+        "name": "businessEntities",
+        "args": [],
+        "type": {
+          "kind": "NON_NULL",
+          "name": null,
+          "ofType": {
+            "kind": "LIST",
+            "name": null,
+            "ofType": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "BusinessEntity",
+                "ofType": null
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "businessEntity",
+        "args": [
+          {
+            "name": "id",
+            "type": {
+              "kind": "SCALAR",
+              "name": "ID",
+              "ofType": null
+            }
+          }
+        ],
+        "type": {
+          "kind": "OBJECT",
+          "name": "BusinessEntity",
+          "ofType": null
+        }
+      },
+      {
+        "name": "cashManagementLocationSummary",
+        "args": [
+          {
+            "name": "locationId",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "startDate",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "Date",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "endDate",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "Date",
+                "ofType": null
+              }
+            }
+          }
+        ],
+        "type": {
+          "kind": "NON_NULL",
+          "name": null,
+          "ofType": {
+            "kind": "OBJECT",
+            "name": "CashManagementSummary",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "location",
+        "args": [
+          {
+            "name": "id",
+            "type": {
+              "kind": "SCALAR",
+              "name": "ID",
+              "ofType": null
+            }
+          }
+        ],
+        "type": {
+          "kind": "OBJECT",
+          "name": "Location",
+          "ofType": null
+        }
+      },
+      {
+        "name": "locationByIdentifier",
+        "args": [
+          {
+            "name": "identifier",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "INPUT_OBJECT",
+                "name": "LocationIdentifierInput",
+                "ofType": null
+              }
+            }
+          }
+        ],
+        "type": {
+          "kind": "OBJECT",
+          "name": "Location",
+          "ofType": null
+        }
+      },
+      {
+        "name": "shop",
+        "args": [],
+        "type": {
+          "kind": "NON_NULL",
+          "name": null,
+          "ofType": {
+            "kind": "OBJECT",
+            "name": "Shop",
+            "ofType": null
+          }
+        }
+      }
+    ],
+    "mutationRoots": [
+      {
+        "name": "locationActivate",
+        "args": [
+          {
+            "name": "locationId",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            }
+          }
+        ],
+        "type": {
+          "kind": "OBJECT",
+          "name": "LocationActivatePayload",
+          "ofType": null
+        }
+      },
+      {
+        "name": "locationAdd",
+        "args": [
+          {
+            "name": "input",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "INPUT_OBJECT",
+                "name": "LocationAddInput",
+                "ofType": null
+              }
+            }
+          }
+        ],
+        "type": {
+          "kind": "OBJECT",
+          "name": "LocationAddPayload",
+          "ofType": null
+        }
+      },
+      {
+        "name": "locationDeactivate",
+        "args": [
+          {
+            "name": "locationId",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "destinationLocationId",
+            "type": {
+              "kind": "SCALAR",
+              "name": "ID",
+              "ofType": null
+            }
+          }
+        ],
+        "type": {
+          "kind": "OBJECT",
+          "name": "LocationDeactivatePayload",
+          "ofType": null
+        }
+      },
+      {
+        "name": "locationDelete",
+        "args": [
+          {
+            "name": "locationId",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            }
+          }
+        ],
+        "type": {
+          "kind": "OBJECT",
+          "name": "LocationDeletePayload",
+          "ofType": null
+        }
+      },
+      {
+        "name": "locationEdit",
+        "args": [
+          {
+            "name": "id",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "input",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "INPUT_OBJECT",
+                "name": "LocationEditInput",
+                "ofType": null
+              }
+            }
+          }
+        ],
+        "type": {
+          "kind": "OBJECT",
+          "name": "LocationEditPayload",
+          "ofType": null
+        }
+      },
+      {
+        "name": "publishablePublish",
+        "args": [
+          {
+            "name": "id",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "input",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "LIST",
+                "name": null,
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "INPUT_OBJECT",
+                    "name": "PublicationInput",
+                    "ofType": null
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "type": {
+          "kind": "OBJECT",
+          "name": "PublishablePublishPayload",
+          "ofType": null
+        }
+      },
+      {
+        "name": "publishableUnpublish",
+        "args": [
+          {
+            "name": "id",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "input",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "LIST",
+                "name": null,
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "INPUT_OBJECT",
+                    "name": "PublicationInput",
+                    "ofType": null
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "type": {
+          "kind": "OBJECT",
+          "name": "PublishableUnpublishPayload",
+          "ofType": null
+        }
+      },
+      {
+        "name": "shopPolicyUpdate",
+        "args": [
+          {
+            "name": "shopPolicy",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "INPUT_OBJECT",
+                "name": "ShopPolicyInput",
+                "ofType": null
+              }
+            }
+          }
+        ],
+        "type": {
+          "kind": "OBJECT",
+          "name": "ShopPolicyUpdatePayload",
+          "ofType": null
+        }
+      }
+    ],
+    "objectTypes": {
+      "shop": {
+        "fields": [
+          {
+            "name": "accountOwner",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "StaffMember",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "alerts",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "LIST",
+                "name": null,
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "OBJECT",
+                    "name": "ShopAlert",
+                    "ofType": null
+                  }
+                }
+              }
+            }
+          },
+          {
+            "name": "allProductCategoriesList",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "LIST",
+                "name": null,
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "OBJECT",
+                    "name": "TaxonomyCategory",
+                    "ofType": null
+                  }
+                }
+              }
+            }
+          },
+          {
+            "name": "availableChannelApps",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "AppConnection",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "channelDefinitionsForInstalledChannels",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "LIST",
+                "name": null,
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "OBJECT",
+                    "name": "AvailableChannelDefinitionsByChannel",
+                    "ofType": null
+                  }
+                }
+              }
+            }
+          },
+          {
+            "name": "checkoutApiSupported",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "contactEmail",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "countriesInShippingZones",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "CountriesInShippingZones",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "createdAt",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "DateTime",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "currencyCode",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "ENUM",
+                "name": "CurrencyCode",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "currencyFormats",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "CurrencyFormats",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "currencySettings",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "CurrencySettingConnection",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "customerAccounts",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "ENUM",
+                "name": "ShopCustomerAccountsSetting",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "customerAccountsV2",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "CustomerAccountsV2",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "customerTags",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "StringConnection",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "description",
+            "type": {
+              "kind": "SCALAR",
+              "name": "String",
+              "ofType": null
+            }
+          },
+          {
+            "name": "draftOrderTags",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "StringConnection",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "email",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "enabledPresentmentCurrencies",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "LIST",
+                "name": null,
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "ENUM",
+                    "name": "CurrencyCode",
+                    "ofType": null
+                  }
+                }
+              }
+            }
+          },
+          {
+            "name": "entitlements",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "EntitlementsType",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "features",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "ShopFeatures",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "fulfillmentServices",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "LIST",
+                "name": null,
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "OBJECT",
+                    "name": "FulfillmentService",
+                    "ofType": null
+                  }
+                }
+              }
+            }
+          },
+          {
+            "name": "ianaTimezone",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "id",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "marketingSmsConsentEnabledAtCheckout",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "merchantApprovalSignals",
+            "type": {
+              "kind": "OBJECT",
+              "name": "MerchantApprovalSignals",
+              "ofType": null
+            }
+          },
+          {
+            "name": "metafield",
+            "type": {
+              "kind": "OBJECT",
+              "name": "Metafield",
+              "ofType": null
+            }
+          },
+          {
+            "name": "metafields",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "MetafieldConnection",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "myshopifyDomain",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "name",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "navigationSettings",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "LIST",
+                "name": null,
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "OBJECT",
+                    "name": "NavigationItem",
+                    "ofType": null
+                  }
+                }
+              }
+            }
+          },
+          {
+            "name": "orderNumberFormatPrefix",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "orderNumberFormatSuffix",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "orderTags",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "StringConnection",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "paymentSettings",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "PaymentSettings",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "plan",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "ShopPlan",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "primaryDomain",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "Domain",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "resourceLimits",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "ShopResourceLimits",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "richTextEditorUrl",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "URL",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "search",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "SearchResultConnection",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "searchFilters",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "SearchFilterOptions",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "setupRequired",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "shipsToCountries",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "LIST",
+                "name": null,
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "ENUM",
+                    "name": "CountryCode",
+                    "ofType": null
+                  }
+                }
+              }
+            }
+          },
+          {
+            "name": "shopAddress",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "ShopAddress",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "shopOwnerName",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "shopPolicies",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "LIST",
+                "name": null,
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "OBJECT",
+                    "name": "ShopPolicy",
+                    "ofType": null
+                  }
+                }
+              }
+            }
+          },
+          {
+            "name": "storefrontAccessTokens",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "StorefrontAccessTokenConnection",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "taxShipping",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "taxesIncluded",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "timezoneAbbreviation",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "timezoneOffset",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "timezoneOffsetMinutes",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "transactionalSmsDisabled",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "translations",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "LIST",
+                "name": null,
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "OBJECT",
+                    "name": "Translation",
+                    "ofType": null
+                  }
+                }
+              }
+            }
+          },
+          {
+            "name": "unitSystem",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "ENUM",
+                "name": "UnitSystem",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "updatedAt",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "DateTime",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "url",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "URL",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "weightUnit",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "ENUM",
+                "name": "WeightUnit",
+                "ofType": null
+              }
+            }
+          }
+        ]
+      },
+      "location": {
+        "fields": [
+          {
+            "name": "activatable",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "address",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "LocationAddress",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "addressVerified",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "createdAt",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "DateTime",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "deactivatable",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "deactivatedAt",
+            "type": {
+              "kind": "SCALAR",
+              "name": "String",
+              "ofType": null
+            }
+          },
+          {
+            "name": "deletable",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "fulfillmentService",
+            "type": {
+              "kind": "OBJECT",
+              "name": "FulfillmentService",
+              "ofType": null
+            }
+          },
+          {
+            "name": "fulfillsOnlineOrders",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "hasActiveInventory",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "hasUnfulfilledOrders",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "id",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "inventoryLevel",
+            "type": {
+              "kind": "OBJECT",
+              "name": "InventoryLevel",
+              "ofType": null
+            }
+          },
+          {
+            "name": "inventoryLevels",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "InventoryLevelConnection",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "isActive",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "isFulfillmentService",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "legacyResourceId",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "UnsignedInt64",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "localPickupSettingsV2",
+            "type": {
+              "kind": "OBJECT",
+              "name": "DeliveryLocalPickupSettings",
+              "ofType": null
+            }
+          },
+          {
+            "name": "metafield",
+            "type": {
+              "kind": "OBJECT",
+              "name": "Metafield",
+              "ofType": null
+            }
+          },
+          {
+            "name": "metafields",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "MetafieldConnection",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "name",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "shipsInventory",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "suggestedAddresses",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "LIST",
+                "name": null,
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "OBJECT",
+                    "name": "LocationSuggestedAddress",
+                    "ofType": null
+                  }
+                }
+              }
+            }
+          },
+          {
+            "name": "updatedAt",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "DateTime",
+                "ofType": null
+              }
+            }
+          }
+        ]
+      },
+      "businessEntity": {
+        "fields": [
+          {
+            "name": "address",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "BusinessEntityAddress",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "archived",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "companyName",
+            "type": {
+              "kind": "SCALAR",
+              "name": "String",
+              "ofType": null
+            }
+          },
+          {
+            "name": "displayName",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "id",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "primary",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "shopifyPaymentsAccount",
+            "type": {
+              "kind": "OBJECT",
+              "name": "ShopifyPaymentsAccount",
+              "ofType": null
+            }
+          }
+        ]
+      },
+      "cashManagementLocationSummary": null,
+      "shopPolicy": {
+        "fields": [
+          {
+            "name": "body",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "HTML",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "createdAt",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "DateTime",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "id",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "title",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "translations",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "LIST",
+                "name": null,
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "OBJECT",
+                    "name": "Translation",
+                    "ofType": null
+                  }
+                }
+              }
+            }
+          },
+          {
+            "name": "type",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "ENUM",
+                "name": "ShopPolicyType",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "updatedAt",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "DateTime",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "url",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "URL",
+                "ofType": null
+              }
+            }
+          }
+        ]
+      },
+      "publishable": {
+        "fields": [
+          {
+            "name": "availablePublicationsCount",
+            "type": {
+              "kind": "OBJECT",
+              "name": "Count",
+              "ofType": null
+            }
+          },
+          {
+            "name": "publishedOnPublication",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "resourcePublications",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "ResourcePublicationConnection",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "resourcePublicationsCount",
+            "type": {
+              "kind": "OBJECT",
+              "name": "Count",
+              "ofType": null
+            }
+          },
+          {
+            "name": "resourcePublicationsV2",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "ResourcePublicationV2Connection",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "unpublishedPublications",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "PublicationConnection",
+                "ofType": null
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "readOnlyBaselines": {
+    "shop": {
+      "data": {
+        "shop": {
+          "id": "gid://shopify/Shop/63755419881",
+          "name": "very-big-test-store",
+          "myshopifyDomain": "very-big-test-store.myshopify.com",
+          "url": "https://very-big-test-store.myshopify.com",
+          "primaryDomain": {
+            "id": "gid://shopify/Domain/93049946345",
+            "host": "very-big-test-store.myshopify.com",
+            "url": "https://very-big-test-store.myshopify.com",
+            "sslEnabled": true
+          },
+          "contactEmail": "shopify@gadget.dev",
+          "email": "shopify@gadget.dev",
+          "currencyCode": "CAD",
+          "enabledPresentmentCurrencies": ["CAD"],
+          "ianaTimezone": "America/Toronto",
+          "timezoneAbbreviation": "EDT",
+          "timezoneOffset": "-0400",
+          "timezoneOffsetMinutes": -240,
+          "taxesIncluded": false,
+          "taxShipping": false,
+          "unitSystem": "METRIC_SYSTEM",
+          "weightUnit": "KILOGRAMS",
+          "shopAddress": {
+            "id": "gid://shopify/ShopAddress/63755419881",
+            "address1": "103 ossington",
+            "address2": null,
+            "city": "Ottawa",
+            "company": null,
+            "coordinatesValidated": false,
+            "country": "Canada",
+            "countryCodeV2": "CA",
+            "formatted": ["103 ossington", "Ottawa ON k1s3b7", "Canada"],
+            "formattedArea": "Ottawa ON, Canada",
+            "latitude": 45.389817,
+            "longitude": -75.68692920000001,
+            "phone": "",
+            "province": "Ontario",
+            "provinceCode": "ON",
+            "zip": "k1s3b7"
+          },
+          "plan": {
+            "partnerDevelopment": true,
+            "publicDisplayName": "Development",
+            "shopifyPlus": false
+          },
+          "resourceLimits": {
+            "locationLimit": 1000,
+            "maxProductOptions": 3,
+            "maxProductVariants": 2048,
+            "redirectLimitReached": false
+          },
+          "features": {
+            "avalaraAvatax": false,
+            "branding": "SHOPIFY",
+            "bundles": {
+              "eligibleForBundles": true,
+              "ineligibilityReason": null,
+              "sellsBundles": false
+            },
+            "captcha": true,
+            "cartTransform": {
+              "eligibleOperations": {
+                "expandOperation": true,
+                "mergeOperation": true,
+                "updateOperation": true
+              }
+            },
+            "dynamicRemarketing": false,
+            "eligibleForSubscriptionMigration": false,
+            "eligibleForSubscriptions": false,
+            "giftCards": true,
+            "harmonizedSystemCode": true,
+            "legacySubscriptionGatewayEnabled": false,
+            "liveView": true,
+            "paypalExpressSubscriptionGatewayStatus": "DISABLED",
+            "reports": true,
+            "sellsSubscriptions": false,
+            "showMetrics": true,
+            "storefront": true,
+            "unifiedMarkets": true
+          },
+          "paymentSettings": {
+            "supportedDigitalWallets": []
+          },
+          "shopPolicies": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1942,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "locationsCatalog": {
+      "data": {
+        "locations": {
+          "edges": [
+            {
+              "cursor": "eyJsYXN0X2lkIjo2ODUwOTE3MTk0NSwibGFzdF92YWx1ZSI6IjEwMyBvc3Npbmd0b24ifQ==",
+              "node": {
+                "id": "gid://shopify/Location/68509171945",
+                "name": "103 ossington"
+              }
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjo4OTAyNjkyMDY4MSwibGFzdF92YWx1ZSI6Ikhlcm1lcyBDb25mb3JtYW5jZSBBbm5leCJ9",
+              "node": {
+                "id": "gid://shopify/Location/89026920681",
+                "name": "Hermes Conformance Annex"
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo2ODUwOTE3MTk0NSwibGFzdF92YWx1ZSI6IjEwMyBvc3Npbmd0b24ifQ==",
+            "endCursor": "eyJsYXN0X2lkIjo4OTAyNjkyMDY4MSwibGFzdF92YWx1ZSI6Ikhlcm1lcyBDb25mb3JtYW5jZSBBbm5leCJ9"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 6,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1955,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "location": {
+      "data": {
+        "location": {
+          "id": "gid://shopify/Location/68509171945",
+          "name": "103 ossington"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 1,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1963,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "businessEntitiesCatalog": {
+      "errors": [
+        {
+          "message": "Access denied for shopifyPaymentsAccount field. Required access: the `read_shopify_payments` or the `read_shopify_payments_accounts` access scope.",
+          "locations": [
+            {
+              "line": 17,
+              "column": 5
+            }
+          ],
+          "extensions": {
+            "code": "ACCESS_DENIED",
+            "documentation": "https://shopify.dev/api/usage/access-scopes",
+            "requiredAccess": "the `read_shopify_payments` or the `read_shopify_payments_accounts` access scope."
+          },
+          "path": ["businessEntities", 0, "shopifyPaymentsAccount"]
+        }
+      ],
+      "data": {
+        "businessEntities": [
+          {
+            "id": "gid://shopify/BusinessEntity/MTYzNzU1NDE5ODgx",
+            "displayName": "very-big-test-store Admin",
+            "companyName": null,
+            "primary": true,
+            "archived": false,
+            "address": {
+              "address1": "103 ossington",
+              "address2": null,
+              "city": "Ottawa",
+              "countryCode": "CA",
+              "province": "Ontario",
+              "zip": "k1s3b7"
+            },
+            "shopifyPaymentsAccount": null
+          }
+        ]
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1970,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "businessEntityFallbacks": {
+      "errors": [
+        {
+          "message": "Access denied for shopifyPaymentsAccount field. Required access: the `read_shopify_payments` or the `read_shopify_payments_accounts` access scope.",
+          "locations": [
+            {
+              "line": 17,
+              "column": 5
+            }
+          ],
+          "extensions": {
+            "code": "ACCESS_DENIED",
+            "documentation": "https://shopify.dev/api/usage/access-scopes",
+            "requiredAccess": "the `read_shopify_payments` or the `read_shopify_payments_accounts` access scope."
+          },
+          "path": ["primary", "shopifyPaymentsAccount"]
+        },
+        {
+          "message": "Access denied for shopifyPaymentsAccount field. Required access: the `read_shopify_payments` or the `read_shopify_payments_accounts` access scope.",
+          "locations": [
+            {
+              "line": 17,
+              "column": 5
+            }
+          ],
+          "extensions": {
+            "code": "ACCESS_DENIED",
+            "documentation": "https://shopify.dev/api/usage/access-scopes",
+            "requiredAccess": "the `read_shopify_payments` or the `read_shopify_payments_accounts` access scope."
+          },
+          "path": ["known", "shopifyPaymentsAccount"]
+        }
+      ],
+      "data": {
+        "primary": {
+          "id": "gid://shopify/BusinessEntity/MTYzNzU1NDE5ODgx",
+          "displayName": "very-big-test-store Admin",
+          "companyName": null,
+          "primary": true,
+          "archived": false,
+          "address": {
+            "address1": "103 ossington",
+            "address2": null,
+            "city": "Ottawa",
+            "countryCode": "CA",
+            "province": "Ontario",
+            "zip": "k1s3b7"
+          },
+          "shopifyPaymentsAccount": null
+        },
+        "known": {
+          "id": "gid://shopify/BusinessEntity/MTYzNzU1NDE5ODgx",
+          "displayName": "very-big-test-store Admin",
+          "companyName": null,
+          "primary": true,
+          "archived": false,
+          "address": {
+            "address1": "103 ossington",
+            "address2": null,
+            "city": "Ottawa",
+            "countryCode": "CA",
+            "province": "Ontario",
+            "zip": "k1s3b7"
+          },
+          "shopifyPaymentsAccount": null
+        },
+        "unknown": null
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 7,
+          "actualQueryCost": 7,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1972,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "mutationValidationProbePlan": [
+    {
+      "root": "location lifecycle",
+      "operations": ["locationAdd", "locationEdit", "locationActivate", "locationDeactivate", "locationDelete"],
+      "safety": "side-effect-heavy; do not run happy paths against shared conformance stores",
+      "recommendedProbe": "schema/variable validation only with deliberately invalid IDs or missing required input"
+    },
+    {
+      "root": "generic publishable mutations",
+      "operations": [
+        "publishablePublish",
+        "publishablePublishToCurrentChannel",
+        "publishableUnpublish",
+        "publishableUnpublishToCurrentChannel"
+      ],
+      "safety": "can alter publication/channel visibility for any Publishable implementer",
+      "recommendedProbe": "invalid Publishable ID and missing publication/channel arguments before any success-path capture"
+    },
+    {
+      "root": "shopPolicyUpdate",
+      "operations": ["shopPolicyUpdate"],
+      "safety": "updates merchant legal policy content",
+      "recommendedProbe": "input validation only until a disposable dev store policy fixture is available"
+    }
+  ]
+}

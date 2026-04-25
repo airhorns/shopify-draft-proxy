@@ -9,9 +9,32 @@ query CustomerMutationDownstream($id: ID!, $query: String!, $first: Int!) {
     note
     verifiedEmail
     taxExempt
+    taxExemptions
     tags
     state
     canDelete
+    loyalty: metafield(namespace: "custom", key: "loyalty") {
+      id
+      namespace
+      key
+      type
+      value
+    }
+    metafields(first: 5) {
+      nodes {
+        id
+        namespace
+        key
+        type
+        value
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
     defaultEmailAddress {
       emailAddress
     }
@@ -40,9 +63,32 @@ query CustomerMutationDownstream($id: ID!, $query: String!, $first: Int!) {
       note
       verifiedEmail
       taxExempt
+      taxExemptions
       tags
       state
       canDelete
+      loyalty: metafield(namespace: "custom", key: "loyalty") {
+        id
+        namespace
+        key
+        type
+        value
+      }
+      metafields(first: 5) {
+        nodes {
+          id
+          namespace
+          key
+          type
+          value
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
       defaultEmailAddress {
         emailAddress
       }

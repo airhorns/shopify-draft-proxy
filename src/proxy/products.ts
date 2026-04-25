@@ -1,6 +1,8 @@
-import { Kind, type FieldNode, type SelectionNode } from 'graphql';
+import { getLocation, Kind, parse, type ASTNode, type FieldNode, type SelectionNode } from 'graphql';
 import type { ReadMode } from '../config.js';
 import { getFieldArguments, getRootField, getRootFieldArguments, getRootFields } from '../graphql/root-field.js';
+import { parseSearchQuery, type SearchQueryNode, type SearchQueryTerm } from '../search-query-parser.js';
+import { paginateConnectionItems, serializeConnectionPageInfo } from './graphql-helpers.js';
 import { makeProxySyntheticGid, makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type {
@@ -24,6 +26,42 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function hasOwnField(value: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+type GraphqlErrorLocation = { line: number; column: number };
+
+function getNodeLocation(node: ASTNode): GraphqlErrorLocation[] {
+  const token = node.loc?.startToken;
+  return token ? [{ line: token.line, column: token.column }] : [];
+}
+
+function getVariableDefinitionLocation(document: string, variableName: string): GraphqlErrorLocation[] {
+  const ast = parse(document);
+  for (const definition of ast.definitions) {
+    if (definition.kind !== Kind.OPERATION_DEFINITION) {
+      continue;
+    }
+
+    const variableDefinition = definition.variableDefinitions?.find(
+      (candidate) => candidate.variable.name.value === variableName,
+    );
+    if (variableDefinition) {
+      return getNodeLocation(variableDefinition);
+    }
+  }
+
+  return [];
+}
+
+function getOperationPathLabel(document: string): string {
+  const ast = parse(document);
+  const operation = ast.definitions.find((definition) => definition.kind === Kind.OPERATION_DEFINITION);
+  if (!operation || operation.kind !== Kind.OPERATION_DEFINITION) {
+    return 'mutation';
+  }
+
+  const operationType = operation.operation;
+  return operation.name ? `${operationType} ${operation.name.value}` : operationType;
 }
 
 function normalizeHandleParts(value: string): string {
@@ -178,6 +216,24 @@ function findEffectiveCollectionById(collectionId: string): CollectionRecord | n
   return store.getEffectiveCollectionById(collectionId);
 }
 
+function findEffectiveCollectionByHandle(handle: string): CollectionRecord | null {
+  return listEffectiveCollections().find((collection) => collection.handle === handle) ?? null;
+}
+
+function findEffectiveCollectionByIdentifier(identifier: Record<string, unknown>): CollectionRecord | null {
+  const rawId = identifier['id'];
+  if (typeof rawId === 'string') {
+    return findEffectiveCollectionById(rawId);
+  }
+
+  const rawHandle = identifier['handle'];
+  if (typeof rawHandle === 'string') {
+    return findEffectiveCollectionByHandle(rawHandle);
+  }
+
+  return null;
+}
+
 function listEffectiveCollections(): CollectionRecord[] {
   return store.listEffectiveCollections();
 }
@@ -237,6 +293,14 @@ function listEffectiveProductsForCollection(collectionId: string): ProductRecord
     .map((entry) => entry.product);
 }
 
+function getCollectionPublicationIds(collection: CollectionRecord | ProductCollectionRecord): string[] {
+  return structuredClone(collection.publicationIds ?? []);
+}
+
+function isPublishedCollection(collection: CollectionRecord | ProductCollectionRecord): boolean {
+  return getCollectionPublicationIds(collection).length > 0;
+}
+
 function makeProductCollectionRecord(
   productId: string,
   collection: CollectionRecord,
@@ -248,6 +312,154 @@ function makeProductCollectionRecord(
     title: collection.title,
     handle: collection.handle,
     ...(typeof position === 'number' ? { position } : {}),
+  };
+}
+
+interface CollectionMembershipEntry {
+  product: ProductRecord;
+  membership: ProductCollectionRecord;
+}
+
+interface CollectionProductMove {
+  id: string;
+  newPosition: number;
+}
+
+type CollectionReorderUserError = { field: string[]; message: string };
+
+function listEffectiveCollectionMembershipEntries(collectionId: string): CollectionMembershipEntry[] {
+  return store
+    .listEffectiveProducts()
+    .map((product) => ({
+      product,
+      membership:
+        store.getEffectiveCollectionsByProductId(product.id).find((collection) => collection.id === collectionId) ??
+        null,
+    }))
+    .filter((entry): entry is CollectionMembershipEntry => entry.membership !== null)
+    .sort((left, right) => {
+      const leftPosition =
+        typeof left.membership.position === 'number' ? left.membership.position : Number.POSITIVE_INFINITY;
+      const rightPosition =
+        typeof right.membership.position === 'number' ? right.membership.position : Number.POSITIVE_INFINITY;
+      return leftPosition - rightPosition || left.product.id.localeCompare(right.product.id);
+    });
+}
+
+function readCollectionReorderPosition(rawPosition: unknown): number | null {
+  if (typeof rawPosition === 'number' && Number.isFinite(rawPosition)) {
+    return Math.max(0, Math.floor(rawPosition));
+  }
+
+  if (typeof rawPosition !== 'string' || !/^\d+$/u.test(rawPosition.trim())) {
+    return null;
+  }
+
+  return Number.parseInt(rawPosition, 10);
+}
+
+function readCollectionProductMoves(rawMoves: unknown): {
+  moves: CollectionProductMove[];
+  userErrors: CollectionReorderUserError[];
+} {
+  const rawMoveList = Array.isArray(rawMoves) ? rawMoves : isObject(rawMoves) ? [rawMoves] : [];
+  const moves: CollectionProductMove[] = [];
+  const userErrors: CollectionReorderUserError[] = [];
+
+  if (rawMoveList.length === 0) {
+    return {
+      moves,
+      userErrors: [{ field: ['moves'], message: 'At least one move is required' }],
+    };
+  }
+
+  if (rawMoveList.length > 250) {
+    userErrors.push({ field: ['moves'], message: 'Too many moves were provided' });
+  }
+
+  for (const [index, rawMove] of rawMoveList.entries()) {
+    if (!isObject(rawMove)) {
+      userErrors.push({ field: ['moves', `${index}`], message: 'Move is invalid' });
+      continue;
+    }
+
+    const productId = typeof rawMove['id'] === 'string' ? rawMove['id'] : null;
+    const newPosition = readCollectionReorderPosition(rawMove['newPosition']);
+
+    if (!productId) {
+      userErrors.push({ field: ['moves', `${index}`, 'id'], message: 'Product id is required' });
+    }
+    if (newPosition === null) {
+      userErrors.push({ field: ['moves', `${index}`, 'newPosition'], message: 'Position is invalid' });
+    }
+    if (productId && newPosition !== null) {
+      moves.push({ id: productId, newPosition });
+    }
+  }
+
+  return { moves, userErrors };
+}
+
+function reorderCollectionProducts(
+  collection: CollectionRecord,
+  rawMoves: unknown,
+): { job: { id: string; done: boolean } | null; userErrors: CollectionReorderUserError[] } {
+  if (
+    collection.isSmart ||
+    (collection.sortOrder !== undefined && collection.sortOrder !== null && collection.sortOrder !== 'MANUAL')
+  ) {
+    return {
+      job: null,
+      userErrors: [{ field: ['id'], message: "Can't reorder products unless collection is manually sorted" }],
+    };
+  }
+
+  const { moves, userErrors } = readCollectionProductMoves(rawMoves);
+  const orderedEntries = listEffectiveCollectionMembershipEntries(collection.id);
+  const productIdsInCollection = new Set(orderedEntries.map((entry) => entry.product.id));
+
+  for (const [index, move] of moves.entries()) {
+    if (!store.getEffectiveProductById(move.id)) {
+      userErrors.push({ field: ['moves', `${index}`, 'id'], message: 'Product does not exist' });
+    } else if (!productIdsInCollection.has(move.id)) {
+      userErrors.push({ field: ['moves', `${index}`, 'id'], message: 'Product is not in the collection' });
+    }
+  }
+
+  if (userErrors.length > 0) {
+    return { job: null, userErrors };
+  }
+
+  for (const move of moves) {
+    const currentIndex = orderedEntries.findIndex((entry) => entry.product.id === move.id);
+    if (currentIndex < 0) {
+      continue;
+    }
+
+    const [entry] = orderedEntries.splice(currentIndex, 1);
+    if (!entry) {
+      continue;
+    }
+
+    const nextIndex = Math.min(move.newPosition, orderedEntries.length);
+    orderedEntries.splice(nextIndex, 0, entry);
+  }
+
+  for (const [position, entry] of orderedEntries.entries()) {
+    const nextCollections = store.getEffectiveCollectionsByProductId(entry.product.id).map((membership) =>
+      membership.id === collection.id
+        ? {
+            ...membership,
+            position,
+          }
+        : membership,
+    );
+    store.replaceStagedCollectionsForProduct(entry.product.id, nextCollections);
+  }
+
+  return {
+    job: { id: makeSyntheticGid('Job'), done: false },
+    userErrors: [],
   };
 }
 
@@ -300,7 +512,7 @@ function addProductsToCollection(
   for (const [index, productId] of existingProductIds.entries()) {
     const nextCollections = [
       ...store.getEffectiveCollectionsByProductId(productId),
-      makeProductCollectionRecord(productId, collection, firstPosition + (addedCount - index - 1)),
+      makeProductCollectionRecord(productId, collection, firstPosition + index),
     ];
     store.replaceStagedCollectionsForProduct(productId, nextCollections);
   }
@@ -454,6 +666,8 @@ function isUnknownPublicationId(publicationId: string): boolean {
   return publicationId.startsWith('__unknown_publication__');
 }
 
+const currentPublicationPlaceholderId = '__current_publication__';
+
 function readPublicationIds(raw: unknown, fallback: string[] = []): string[] {
   if (!Array.isArray(raw)) {
     return structuredClone(fallback);
@@ -463,12 +677,13 @@ function readPublicationIds(raw: unknown, fallback: string[] = []): string[] {
 }
 
 function readPublicationTargets(raw: unknown): string[] {
-  if (!Array.isArray(raw)) {
+  const entries = Array.isArray(raw) ? raw : isObject(raw) ? [raw] : [];
+  if (entries.length === 0) {
     return [];
   }
 
   const targets: string[] = [];
-  for (const entry of raw) {
+  for (const entry of entries) {
     if (!isObject(entry)) {
       continue;
     }
@@ -550,6 +765,10 @@ function removePublicationTargets(existing: string[], removals: string[]): strin
   }
 
   return next;
+}
+
+function getPublishableProductId(rawId: unknown): string | null {
+  return typeof rawId === 'string' && rawId.startsWith('gid://shopify/Product/') ? rawId : null;
 }
 
 function serializeCountValue(field: FieldNode, count: number): Record<string, unknown> {
@@ -740,6 +959,7 @@ function makeCollectionRecord(input: Record<string, unknown>, existing?: Collect
       typeof rawHandle === 'string' && rawHandle.trim()
         ? rawHandle
         : (existing?.handle ?? slugifyHandle(title).replace(/product$/u, 'collection')),
+    publicationIds: readPublicationIds(input['publicationIds'], existing?.publicationIds ?? []),
     updatedAt: now,
     description:
       typeof input['description'] === 'string'
@@ -1723,6 +1943,9 @@ interface InventoryLevelTargetRecord {
   level: NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']>[number];
 }
 
+const INVENTORY_ADJUSTMENT_STAFF_MEMBER_REQUIRED_ACCESS =
+  '`read_users` access scope. Also: The app must be a finance embedded app or installed on a Shopify Plus or Advanced store. Contact Shopify Support to enable this scope for your app.';
+
 function buildInventoryAdjustInvalidVariableError(
   fieldPath: string,
   value: Record<string, unknown>,
@@ -1751,9 +1974,31 @@ function buildInventoryAdjustInvalidVariableError(
   };
 }
 
-function buildNullProductChangeStatusArgumentError(): {
+function buildInventoryAdjustmentStaffMemberAccessDeniedError(
+  rootField: FieldNode,
+  groupField: FieldNode,
+  staffMemberField: FieldNode,
+): Record<string, unknown> {
+  const location = staffMemberField.loc ? getLocation(staffMemberField.loc.source, staffMemberField.loc.start) : null;
+  return {
+    message: `Access denied for staffMember field. Required access: ${INVENTORY_ADJUSTMENT_STAFF_MEMBER_REQUIRED_ACCESS}`,
+    ...(location ? { locations: [{ line: location.line, column: location.column }] } : {}),
+    extensions: {
+      code: 'ACCESS_DENIED',
+      documentation: 'https://shopify.dev/api/usage/access-scopes',
+      requiredAccess: INVENTORY_ADJUSTMENT_STAFF_MEMBER_REQUIRED_ACCESS,
+    },
+    path: [getResponseKey(rootField), getResponseKey(groupField), getResponseKey(staffMemberField)],
+  };
+}
+
+function buildNullProductChangeStatusArgumentError(
+  locations: GraphqlErrorLocation[],
+  operationPathLabel: string,
+): {
   errors: Array<{
     message: string;
+    locations: GraphqlErrorLocation[];
     path: string[];
     extensions: {
       code: 'argumentLiteralsIncompatible';
@@ -1767,7 +2012,8 @@ function buildNullProductChangeStatusArgumentError(): {
       {
         message:
           "Argument 'productId' on Field 'productChangeStatus' has an invalid value (null). Expected type 'ID!'.",
-        path: ['mutation', 'productChangeStatus', 'productId'],
+        locations,
+        path: [operationPathLabel, 'productChangeStatus', 'productId'],
         extensions: {
           code: 'argumentLiteralsIncompatible',
           typeName: 'Field',
@@ -1778,9 +2024,13 @@ function buildNullProductChangeStatusArgumentError(): {
   };
 }
 
-function buildProductDeleteInvalidVariableError(input: Record<string, unknown>): {
+function buildProductDeleteInvalidVariableError(
+  input: Record<string, unknown>,
+  locations: GraphqlErrorLocation[],
+): {
   errors: Array<{
     message: string;
+    locations: GraphqlErrorLocation[];
     extensions: {
       code: 'INVALID_VARIABLE';
       value: Record<string, unknown>;
@@ -1793,6 +2043,7 @@ function buildProductDeleteInvalidVariableError(input: Record<string, unknown>):
       {
         message:
           'Variable $input of type ProductDeleteInput! was provided invalid value for id (Expected value to not be null)',
+        locations,
         extensions: {
           code: 'INVALID_VARIABLE',
           value: structuredClone(input),
@@ -1803,9 +2054,10 @@ function buildProductDeleteInvalidVariableError(input: Record<string, unknown>):
   };
 }
 
-function buildMissingProductDeleteInputIdArgumentError(): {
+function buildMissingProductDeleteInputIdArgumentError(locations: GraphqlErrorLocation[]): {
   errors: Array<{
     message: string;
+    locations: GraphqlErrorLocation[];
     path: string[];
     extensions: {
       code: 'missingRequiredInputObjectAttribute';
@@ -1819,6 +2071,7 @@ function buildMissingProductDeleteInputIdArgumentError(): {
     errors: [
       {
         message: "Argument 'id' on InputObject 'ProductDeleteInput' is required. Expected type ID!",
+        locations,
         path: ['mutation', 'productDelete', 'input', 'id'],
         extensions: {
           code: 'missingRequiredInputObjectAttribute',
@@ -1831,9 +2084,10 @@ function buildMissingProductDeleteInputIdArgumentError(): {
   };
 }
 
-function buildNullProductDeleteInputIdArgumentError(): {
+function buildNullProductDeleteInputIdArgumentError(locations: GraphqlErrorLocation[]): {
   errors: Array<{
     message: string;
+    locations: GraphqlErrorLocation[];
     path: string[];
     extensions: {
       code: 'argumentLiteralsIncompatible';
@@ -1846,6 +2100,7 @@ function buildNullProductDeleteInputIdArgumentError(): {
     errors: [
       {
         message: "Argument 'id' on InputObject 'ProductDeleteInput' has an invalid value (null). Expected type 'ID!'.",
+        locations,
         path: ['mutation', 'productDelete', 'input', 'id'],
         extensions: {
           code: 'argumentLiteralsIncompatible',
@@ -2931,6 +3186,12 @@ function normalizeCollectionFields(
     legacyResourceId: typeof rawLegacyResourceId === 'string' ? rawLegacyResourceId : readLegacyResourceIdFromGid(id),
     title,
     handle,
+    publicationIds: makeUnknownPublicationIds(
+      Math.max(
+        readPublicationCount(value['availablePublicationsCount']),
+        readPublicationCount(value['resourcePublicationsCount']),
+      ),
+    ),
     updatedAt: typeof rawUpdatedAt === 'string' ? rawUpdatedAt : null,
     description:
       typeof rawDescription === 'string'
@@ -3233,6 +3494,75 @@ function serializeProductMutationPayload(
   const productField = getChildField(field, 'product');
   if (productField) {
     result[getResponseKey(productField)] = serializeProduct(payload.product, productField, variables);
+  }
+
+  const userErrorsField = getChildField(field, 'userErrors');
+  if (userErrorsField) {
+    result[getResponseKey(userErrorsField)] = payload.userErrors;
+  }
+
+  return result;
+}
+
+function serializePublishableSelectionSet(
+  publishable: ProductRecord | CollectionRecord | null,
+  selections: readonly SelectionNode[],
+  variables: Record<string, unknown>,
+): Record<string, unknown> | null {
+  if (!publishable) {
+    return null;
+  }
+
+  if (publishable.id.startsWith('gid://shopify/Product/')) {
+    return serializeSelectionSet(publishable as ProductRecord, selections, variables);
+  }
+
+  return serializeCollectionObject(publishable as CollectionRecord, selections, variables);
+}
+
+function serializeShopSelectionSet(selections: readonly SelectionNode[]): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = selection.alias?.value ?? selection.name.value;
+    switch (selection.name.value) {
+      case 'publicationCount':
+        result[key] = listEffectivePublications().length;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializePublishableMutationPayload(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  payload: {
+    publishable: ProductRecord | CollectionRecord | null;
+    userErrors: Array<{ field: string[]; message: string }>;
+  },
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  const publishableField = getChildField(field, 'publishable');
+  if (publishableField) {
+    result[getResponseKey(publishableField)] = serializePublishableSelectionSet(
+      payload.publishable,
+      publishableField.selectionSet?.selections ?? [],
+      variables,
+    );
+  }
+
+  const shopField = getChildField(field, 'shop');
+  if (shopField) {
+    result[getResponseKey(shopField)] = serializeShopSelectionSet(shopField.selectionSet?.selections ?? []);
   }
 
   const userErrorsField = getChildField(field, 'userErrors');
@@ -3847,96 +4177,6 @@ function serializeOptionSelectionSet(
   return result;
 }
 
-function readConnectionSizeArgument(raw: unknown): number | null {
-  return typeof raw === 'number' && Number.isInteger(raw) && raw >= 0 ? raw : null;
-}
-
-function readConnectionCursor(raw: unknown): string | null {
-  if (typeof raw !== 'string') {
-    return null;
-  }
-
-  if (raw.startsWith('cursor:')) {
-    const cursorValue = raw.slice('cursor:'.length);
-    return cursorValue.length > 0 ? cursorValue : null;
-  }
-
-  return raw.length > 0 ? raw : null;
-}
-
-function paginateConnectionItems<T>(
-  items: T[],
-  field: FieldNode,
-  variables: Record<string, unknown>,
-  getCursorValue: (item: T) => string,
-): { items: T[]; hasNextPage: boolean; hasPreviousPage: boolean } {
-  const args = getFieldArguments(field, variables);
-  const first = readConnectionSizeArgument(args['first']);
-  const last = readConnectionSizeArgument(args['last']);
-  const after = readConnectionCursor(args['after']);
-  const before = readConnectionCursor(args['before']);
-
-  const startIndex = after === null ? 0 : items.findIndex((item) => getCursorValue(item) === after) + 1;
-  const beforeIndex = before === null ? items.length : items.findIndex((item) => getCursorValue(item) === before);
-  const windowStart = Math.max(0, startIndex);
-  const windowEnd = Math.max(windowStart, beforeIndex >= 0 ? beforeIndex : items.length);
-  const paginatedItems = items.slice(windowStart, windowEnd);
-
-  let limitedItems = paginatedItems;
-  let hasNextPage = windowEnd < items.length;
-  let hasPreviousPage = windowStart > 0;
-
-  if (first !== null) {
-    hasNextPage = hasNextPage || paginatedItems.length > first;
-    limitedItems = limitedItems.slice(0, first);
-  }
-
-  if (last !== null) {
-    hasPreviousPage = hasPreviousPage || limitedItems.length > last;
-    limitedItems = limitedItems.slice(Math.max(0, limitedItems.length - last));
-  }
-
-  return {
-    items: limitedItems,
-    hasNextPage,
-    hasPreviousPage,
-  };
-}
-
-function serializeConnectionPageInfo<T>(
-  selection: FieldNode,
-  items: T[],
-  hasNextPage: boolean,
-  hasPreviousPage: boolean,
-  getCursorValue: (item: T) => string,
-  options: { prefixCursors?: boolean } = {},
-): Record<string, unknown> {
-  const formatCursor = (item: T): string => {
-    const cursor = getCursorValue(item);
-    return options.prefixCursors === false ? cursor : `cursor:${cursor}`;
-  };
-
-  return Object.fromEntries(
-    (selection.selectionSet?.selections ?? [])
-      .filter((pageInfoSelection): pageInfoSelection is FieldNode => pageInfoSelection.kind === Kind.FIELD)
-      .map((pageInfoSelection) => {
-        const pageInfoKey = pageInfoSelection.alias?.value ?? pageInfoSelection.name.value;
-        switch (pageInfoSelection.name.value) {
-          case 'hasNextPage':
-            return [pageInfoKey, hasNextPage];
-          case 'hasPreviousPage':
-            return [pageInfoKey, hasPreviousPage];
-          case 'startCursor':
-            return [pageInfoKey, items[0] ? formatCursor(items[0]) : null];
-          case 'endCursor':
-            return [pageInfoKey, items.length > 0 ? formatCursor(items[items.length - 1]!) : null];
-          default:
-            return [pageInfoKey, null];
-        }
-      }),
-  );
-}
-
 function serializeVariantsConnection(
   productId: string,
   field: FieldNode,
@@ -4152,7 +4392,11 @@ function serializeCollectionField(
   field: FieldNode,
   variables: Record<string, unknown>,
 ): unknown {
+  const publicationIds = getCollectionPublicationIds(collection);
+
   switch (field.name.value) {
+    case '__typename':
+      return 'Collection';
     case 'id':
       return collection.id;
     case 'legacyResourceId':
@@ -4161,6 +4405,23 @@ function serializeCollectionField(
       return collection.title;
     case 'handle':
       return collection.handle;
+    case 'publishedOnCurrentPublication':
+    case 'publishedOnCurrentChannel':
+      return false;
+    case 'publishedOnPublication': {
+      const args = getFieldArguments(field, variables);
+      const publicationId = typeof args['publicationId'] === 'string' ? args['publicationId'] : null;
+      return publicationId ? publicationIds.includes(publicationId) : false;
+    }
+    case 'publishedOnChannel': {
+      const args = getFieldArguments(field, variables);
+      const channelId = typeof args['channelId'] === 'string' ? args['channelId'] : null;
+      return channelId ? publicationIds.includes(channelId) : false;
+    }
+    case 'availablePublicationsCount':
+    case 'resourcePublicationsCount':
+    case 'publicationCount':
+      return serializeCountValue(field, publicationIds.length);
     case 'updatedAt':
       return collection.updatedAt ?? null;
     case 'description': {
@@ -4208,6 +4469,16 @@ function serializeCollectionObject(
   const result: Record<string, unknown> = {};
 
   for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      const typeName = selection.typeCondition?.name.value;
+      if (typeName && typeName !== 'Collection' && typeName !== 'Publishable' && typeName !== 'Node') {
+        continue;
+      }
+
+      Object.assign(result, serializeCollectionObject(collection, selection.selectionSet.selections, variables));
+      continue;
+    }
+
     if (selection.kind !== Kind.FIELD) {
       continue;
     }
@@ -4248,7 +4519,13 @@ function serializeCollectionsConnection(
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const allCollections = store.getEffectiveCollectionsByProductId(productId);
+  const args = getFieldArguments(field, variables);
+  const allCollections = sortCollections(
+    applyCollectionsQuery(store.getEffectiveCollectionsByProductId(productId), args['query']),
+    args['sortKey'],
+    args['reverse'],
+    args['query'],
+  );
   const {
     items: collections,
     hasNextPage,
@@ -4312,11 +4589,48 @@ function serializeCollectionsConnection(
   return result;
 }
 
+function readCollectionPublishedStatus(rawQuery: unknown): 'published' | 'unpublished' | 'any' | null {
+  if (typeof rawQuery !== 'string') {
+    return null;
+  }
+
+  const match = rawQuery.match(/(?:^|\s)published_status:\s*(?:"([^"]+)"|'([^']+)'|(\S+))/iu);
+  const value = (match?.[1] ?? match?.[2] ?? match?.[3] ?? '').toLowerCase();
+  if (value === 'published' || value === 'visible') {
+    return 'published';
+  }
+  if (value === 'unpublished' || value === 'hidden') {
+    return 'unpublished';
+  }
+  if (value === 'any') {
+    return 'any';
+  }
+
+  return null;
+}
+
+function filterCollectionsByQuery(collections: CollectionRecord[], rawQuery: unknown): CollectionRecord[] {
+  const publishedStatus = readCollectionPublishedStatus(rawQuery);
+  if (!publishedStatus || publishedStatus === 'any') {
+    return collections;
+  }
+
+  return collections.filter((collection) =>
+    publishedStatus === 'published' ? isPublishedCollection(collection) : !isPublishedCollection(collection),
+  );
+}
+
 function serializeTopLevelCollectionsConnection(
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const allCollections = listEffectiveCollections();
+  const args = getFieldArguments(field, variables);
+  const allCollections = sortCollections(
+    applyCollectionsQuery(filterCollectionsByQuery(listEffectiveCollections(), args['query']), args['query']),
+    args['sortKey'],
+    args['reverse'],
+    args['query'],
+  );
   const {
     items: collections,
     hasNextPage,
@@ -4633,6 +4947,25 @@ function serializeMediaImageSelectionSet(
   return result;
 }
 
+function getProductMediaTypename(media: ProductMediaRecord): string {
+  switch (media.mediaContentType) {
+    case 'IMAGE':
+      return 'MediaImage';
+    case 'VIDEO':
+      return 'Video';
+    case 'EXTERNAL_VIDEO':
+      return 'ExternalVideo';
+    case 'MODEL_3D':
+      return 'Model3d';
+    default:
+      return 'Media';
+  }
+}
+
+function mediaInlineFragmentApplies(media: ProductMediaRecord, typeName: string): boolean {
+  return typeName === 'Media' || typeName === getProductMediaTypename(media);
+}
+
 function serializeMediaSelectionSet(
   media: ProductMediaRecord,
   selections: readonly SelectionNode[],
@@ -4641,27 +4974,12 @@ function serializeMediaSelectionSet(
 
   for (const selection of selections) {
     if (selection.kind === Kind.INLINE_FRAGMENT) {
-      if (selection.typeCondition?.name.value !== 'MediaImage') {
+      const typeName = selection.typeCondition?.name.value;
+      if (!typeName || !mediaInlineFragmentApplies(media, typeName)) {
         continue;
       }
 
-      for (const fragmentSelection of selection.selectionSet.selections) {
-        if (fragmentSelection.kind !== Kind.FIELD) {
-          continue;
-        }
-
-        const fragmentKey = fragmentSelection.alias?.value ?? fragmentSelection.name.value;
-        switch (fragmentSelection.name.value) {
-          case 'image':
-            result[fragmentKey] = serializeMediaImageSelectionSet(
-              media.imageUrl ?? media.previewImageUrl,
-              fragmentSelection.selectionSet?.selections ?? [],
-            );
-            break;
-          default:
-            result[fragmentKey] = null;
-        }
-      }
+      Object.assign(result, serializeMediaSelectionSet(media, selection.selectionSet.selections));
       continue;
     }
 
@@ -4671,6 +4989,9 @@ function serializeMediaSelectionSet(
 
     const key = selection.alias?.value ?? selection.name.value;
     switch (selection.name.value) {
+      case '__typename':
+        result[key] = getProductMediaTypename(media);
+        break;
       case 'id':
         result[key] = media.id ?? null;
         break;
@@ -4702,6 +5023,12 @@ function serializeMediaSelectionSet(
                   return [previewKey, null];
               }
             }),
+        );
+        break;
+      case 'image':
+        result[key] = serializeMediaImageSelectionSet(
+          media.imageUrl ?? media.previewImageUrl,
+          selection.selectionSet?.selections ?? [],
         );
         break;
       default:
@@ -4901,6 +5228,8 @@ function serializeProductField(product: ProductRecord, field: FieldNode, variabl
   const visiblePublicationCount = product.status === 'ACTIVE' ? product.publicationIds.length : 0;
 
   switch (field.name.value) {
+    case '__typename':
+      return 'Product';
     case 'id':
       return product.id;
     case 'legacyResourceId':
@@ -4914,10 +5243,19 @@ function serializeProductField(product: ProductRecord, field: FieldNode, variabl
     case 'publishedOnCurrentPublication':
     case 'publishedOnCurrentChannel':
       return visiblePublicationCount > 0;
+    case 'publishedOnPublication': {
+      const args = getFieldArguments(field, variables);
+      const publicationId = typeof args['publicationId'] === 'string' ? args['publicationId'] : null;
+      if (!publicationId || product.status !== 'ACTIVE') {
+        return false;
+      }
+
+      return product.publicationIds.includes(publicationId);
+    }
     case 'publishedOnChannel': {
       const args = getFieldArguments(field, variables);
       const channelId = typeof args['channelId'] === 'string' ? args['channelId'] : null;
-      if (!channelId) {
+      if (!channelId || product.status !== 'ACTIVE') {
         return false;
       }
 
@@ -5144,174 +5482,6 @@ function matchesNullableProductTimestampTerm(productValue: string | null, rawVal
   return productValue === null ? false : matchesProductTimestampTerm(productValue, normalizedValue);
 }
 
-type ProductsQueryToken =
-  | { type: 'term'; value: string }
-  | { type: 'or' }
-  | { type: 'lparen' }
-  | { type: 'rparen' }
-  | { type: 'not' };
-
-type ProductsQueryNode =
-  | { type: 'term'; value: string }
-  | { type: 'and'; children: ProductsQueryNode[] }
-  | { type: 'or'; children: ProductsQueryNode[] }
-  | { type: 'not'; child: ProductsQueryNode };
-
-function tokenizeProductsQuery(query: string): ProductsQueryToken[] {
-  const tokens: ProductsQueryToken[] = [];
-  let current = '';
-  let quoteCharacter: '"' | "'" | null = null;
-
-  const flushCurrent = (): void => {
-    const value = current.trim();
-    if (!value) {
-      current = '';
-      return;
-    }
-
-    if (value.toUpperCase() === 'OR') {
-      tokens.push({ type: 'or' });
-    } else if (value === 'NOT') {
-      tokens.push({ type: 'not' });
-    } else {
-      tokens.push({ type: 'term', value });
-    }
-    current = '';
-  };
-
-  const canStartQuotedValue = (): boolean => {
-    if (!current) {
-      return true;
-    }
-
-    return /:(?:<=|>=|<|>|=)?$/u.test(current);
-  };
-
-  for (let index = 0; index < query.length; index += 1) {
-    const character = query[index] ?? '';
-
-    if (
-      (character === '"' || character === "'") &&
-      (quoteCharacter === character || (quoteCharacter === null && canStartQuotedValue()))
-    ) {
-      quoteCharacter = quoteCharacter === character ? null : character;
-      continue;
-    }
-
-    if (quoteCharacter === null && /\s/.test(character)) {
-      flushCurrent();
-      continue;
-    }
-
-    if (quoteCharacter === null && character === '(') {
-      flushCurrent();
-      tokens.push({ type: 'lparen' });
-      continue;
-    }
-
-    if (quoteCharacter === null && character === ')') {
-      flushCurrent();
-      tokens.push({ type: 'rparen' });
-      continue;
-    }
-
-    if (quoteCharacter === null && character === '-' && !current) {
-      const nextCharacter = query[index + 1] ?? '';
-      if (nextCharacter === '(') {
-        tokens.push({ type: 'not' });
-        continue;
-      }
-    }
-
-    current += character;
-  }
-
-  flushCurrent();
-  return tokens;
-}
-
-function parseProductsQuery(query: string): ProductsQueryNode | null {
-  const tokens = tokenizeProductsQuery(query);
-  if (tokens.length === 0) {
-    return null;
-  }
-
-  let index = 0;
-
-  const parseOrExpression = (): ProductsQueryNode | null => {
-    const firstChild = parseAndExpression();
-    if (!firstChild) {
-      return null;
-    }
-
-    const children: ProductsQueryNode[] = [firstChild];
-    while (tokens[index]?.type === 'or') {
-      index += 1;
-      const nextChild = parseAndExpression();
-      if (!nextChild) {
-        break;
-      }
-      children.push(nextChild);
-    }
-
-    return children.length === 1 ? (children[0] ?? null) : { type: 'or', children };
-  };
-
-  const parseAndExpression = (): ProductsQueryNode | null => {
-    const children: ProductsQueryNode[] = [];
-
-    while (index < tokens.length) {
-      const token = tokens[index];
-      if (!token || token.type === 'or' || token.type === 'rparen') {
-        break;
-      }
-
-      const child = parseUnaryExpression();
-      if (!child) {
-        break;
-      }
-      children.push(child);
-    }
-
-    if (children.length === 0) {
-      return null;
-    }
-
-    return children.length === 1 ? (children[0] ?? null) : { type: 'and', children };
-  };
-
-  const parseUnaryExpression = (): ProductsQueryNode | null => {
-    const token = tokens[index];
-    if (!token) {
-      return null;
-    }
-
-    if (token.type === 'not') {
-      index += 1;
-      const child = parseUnaryExpression();
-      return child ? { type: 'not', child } : null;
-    }
-
-    if (token.type === 'term') {
-      index += 1;
-      return { type: 'term', value: token.value };
-    }
-
-    if (token.type === 'lparen') {
-      index += 1;
-      const child = parseOrExpression();
-      if (tokens[index]?.type === 'rparen') {
-        index += 1;
-      }
-      return child;
-    }
-
-    return null;
-  };
-
-  return parseOrExpression();
-}
-
 function isPrefixPattern(rawValue: string): boolean {
   return rawValue.endsWith('*');
 }
@@ -5380,14 +5550,17 @@ function matchesProductSearchText(product: ProductRecord, rawValue: string): boo
   return searchableValues.some((candidate) => matchesStringValue(candidate, rawValue, 'includes'));
 }
 
-function matchesPositiveProductQueryTerm(product: ProductRecord, term: string): boolean {
-  const separatorIndex = term.indexOf(':');
-  if (separatorIndex === -1) {
-    return matchesProductSearchText(product, term);
+function searchTermValue(term: SearchQueryTerm): string {
+  return term.comparator === null ? term.value : `${term.comparator}${term.value}`;
+}
+
+function matchesPositiveProductQueryTerm(product: ProductRecord, term: SearchQueryTerm): boolean {
+  if (term.field === null) {
+    return matchesProductSearchText(product, term.value);
   }
 
-  const field = term.slice(0, separatorIndex).toLowerCase();
-  const value = term.slice(separatorIndex + 1);
+  const field = term.field.toLowerCase();
+  const value = searchTermValue(term);
 
   switch (field) {
     case 'title':
@@ -5450,26 +5623,23 @@ function matchesPositiveProductQueryTerm(product: ProductRecord, term: string): 
   }
 }
 
-function matchesProductQueryTerm(product: ProductRecord, rawTerm: string): boolean {
-  const term = rawTerm.trim();
-  if (!term) {
+function matchesProductQueryTerm(product: ProductRecord, term: SearchQueryTerm): boolean {
+  if (!term.raw) {
     return true;
   }
 
-  const isNegated = term.startsWith('-');
-  const normalizedTerm = isNegated ? term.slice(1).trim() : term;
-  if (!normalizedTerm) {
+  if (term.negated && !term.value && term.field === null) {
     return true;
   }
 
-  const matches = matchesPositiveProductQueryTerm(product, normalizedTerm);
-  return isNegated ? !matches : matches;
+  const matches = matchesPositiveProductQueryTerm(product, term);
+  return term.negated ? !matches : matches;
 }
 
-function matchesProductsQueryNode(product: ProductRecord, node: ProductsQueryNode): boolean {
+function matchesProductsQueryNode(product: ProductRecord, node: SearchQueryNode): boolean {
   switch (node.type) {
     case 'term':
-      return matchesProductQueryTerm(product, node.value);
+      return matchesProductQueryTerm(product, node.term);
     case 'and':
       return node.children.every((child) => matchesProductsQueryNode(product, child));
     case 'or':
@@ -5486,12 +5656,228 @@ function applyProductsQuery(products: ProductRecord[], rawQuery: unknown): Produ
     return products;
   }
 
-  const parsedQuery = parseProductsQuery(rawQuery);
+  const parsedQuery = parseSearchQuery(rawQuery, { recognizeNotKeyword: true });
   if (!parsedQuery) {
     return products;
   }
 
   return products.filter((product) => matchesProductsQueryNode(product, parsedQuery));
+}
+
+function collectionIsSmart(collection: CollectionRecord | ProductCollectionRecord): boolean {
+  return collection.isSmart === true || Boolean(collection.ruleSet);
+}
+
+function matchesResourceIdValue(resourceId: string, rawValue: string): boolean {
+  const normalizedValue = stripSearchValueQuotes(rawValue).trim();
+  if (!normalizedValue) {
+    return true;
+  }
+
+  if (normalizedValue.startsWith('gid://')) {
+    return resourceId === normalizedValue;
+  }
+
+  return readLegacyResourceIdFromGid(resourceId) === normalizedValue;
+}
+
+function matchesResourceIdRange(resourceId: string, rawValue: string): boolean {
+  const match = rawValue.match(/^(<=|>=|<|>|=)?\s*(.+)$/);
+  if (!match) {
+    return matchesResourceIdValue(resourceId, rawValue);
+  }
+
+  const operator = match[1] ?? '=';
+  const thresholdValue = stripSearchValueQuotes(match[2]?.trim() ?? '');
+  if (!thresholdValue) {
+    return true;
+  }
+
+  if (operator === '=') {
+    return matchesResourceIdValue(resourceId, thresholdValue);
+  }
+
+  const resourceNumericId = Number.parseInt(resourceId.split('/').at(-1) ?? '', 10);
+  const thresholdNumericId = Number.parseInt(thresholdValue.split('/').at(-1) ?? thresholdValue, 10);
+  if (!Number.isFinite(resourceNumericId) || !Number.isFinite(thresholdNumericId)) {
+    return true;
+  }
+
+  switch (operator) {
+    case '<=':
+      return resourceNumericId <= thresholdNumericId;
+    case '>=':
+      return resourceNumericId >= thresholdNumericId;
+    case '<':
+      return resourceNumericId < thresholdNumericId;
+    case '>':
+      return resourceNumericId > thresholdNumericId;
+    default:
+      return true;
+  }
+}
+
+function collectionHasProduct(collection: CollectionRecord | ProductCollectionRecord, rawValue: string): boolean {
+  return listEffectiveProductsForCollection(collection.id).some((product) =>
+    matchesResourceIdValue(product.id, rawValue),
+  );
+}
+
+function matchesCollectionSearchText(
+  collection: CollectionRecord | ProductCollectionRecord,
+  rawValue: string,
+): boolean {
+  const searchableValues = [
+    collection.title,
+    collection.handle,
+    collection.description ?? '',
+    collection.descriptionHtml ? stripHtmlToDescription(collection.descriptionHtml) : '',
+  ];
+
+  return searchableValues.some((candidate) => matchesStringValue(candidate, rawValue, 'includes'));
+}
+
+function matchesPositiveCollectionQueryTerm(
+  collection: CollectionRecord | ProductCollectionRecord,
+  term: SearchQueryTerm,
+): boolean {
+  if (term.field === null) {
+    return matchesCollectionSearchText(collection, term.value);
+  }
+
+  const field = term.field.toLowerCase();
+  const value = searchTermValue(term);
+
+  switch (field) {
+    case 'title':
+      return matchesStringValue(collection.title, value, 'includes');
+    case 'handle':
+      return matchesStringValue(collection.handle, value, 'exact');
+    case 'collection_type': {
+      const normalizedValue = stripSearchValueQuotes(value).trim().toLowerCase();
+      if (normalizedValue === 'smart') {
+        return collectionIsSmart(collection);
+      }
+      if (normalizedValue === 'custom') {
+        return !collectionIsSmart(collection);
+      }
+      return true;
+    }
+    case 'id':
+      return matchesResourceIdRange(collection.id, value);
+    case 'product_id':
+      return collectionHasProduct(collection, value);
+    case 'updated_at':
+      return matchesNullableProductTimestampTerm(collection.updatedAt ?? null, value);
+    case 'product_publication_status':
+    case 'publishable_status':
+    case 'published_at':
+    case 'published_status':
+      return true;
+    default:
+      return true;
+  }
+}
+
+function matchesCollectionQueryTerm(
+  collection: CollectionRecord | ProductCollectionRecord,
+  term: SearchQueryTerm,
+): boolean {
+  if (!term.raw) {
+    return true;
+  }
+
+  if (term.negated && !term.value && term.field === null) {
+    return true;
+  }
+
+  const matches = matchesPositiveCollectionQueryTerm(collection, term);
+  return term.negated ? !matches : matches;
+}
+
+function matchesCollectionsQueryNode(
+  collection: CollectionRecord | ProductCollectionRecord,
+  node: SearchQueryNode,
+): boolean {
+  switch (node.type) {
+    case 'term':
+      return matchesCollectionQueryTerm(collection, node.term);
+    case 'and':
+      return node.children.every((child) => matchesCollectionsQueryNode(collection, child));
+    case 'or':
+      return node.children.some((child) => matchesCollectionsQueryNode(collection, child));
+    case 'not':
+      return !matchesCollectionsQueryNode(collection, node.child);
+    default:
+      return true;
+  }
+}
+
+function applyCollectionsQuery<T extends CollectionRecord | ProductCollectionRecord>(
+  collections: T[],
+  rawQuery: unknown,
+): T[] {
+  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
+    return collections;
+  }
+
+  const parsedQuery = parseSearchQuery(rawQuery, { recognizeNotKeyword: true });
+  if (!parsedQuery) {
+    return collections;
+  }
+
+  return collections.filter((collection) => matchesCollectionsQueryNode(collection, parsedQuery));
+}
+
+function compareCollectionIds(leftId: string, rightId: string): number {
+  const leftTail = Number.parseInt(leftId.split('/').at(-1) ?? '', 10);
+  const rightTail = Number.parseInt(rightId.split('/').at(-1) ?? '', 10);
+
+  if (Number.isFinite(leftTail) && Number.isFinite(rightTail)) {
+    return leftTail - rightTail;
+  }
+
+  return leftId.localeCompare(rightId);
+}
+
+function compareCollectionsBySortKey<T extends CollectionRecord | ProductCollectionRecord>(
+  left: T,
+  right: T,
+  rawSortKey: unknown,
+): number {
+  switch (rawSortKey) {
+    case 'TITLE':
+      return (
+        left.title.localeCompare(right.title) ||
+        compareCollectionIds(left.id, right.id) ||
+        left.id.localeCompare(right.id)
+      );
+    case 'UPDATED_AT':
+      return (
+        (left.updatedAt ?? '').localeCompare(right.updatedAt ?? '') ||
+        compareCollectionIds(left.id, right.id) ||
+        left.id.localeCompare(right.id)
+      );
+    case 'ID':
+    default:
+      return compareCollectionIds(left.id, right.id) || left.id.localeCompare(right.id);
+  }
+}
+
+function sortCollections<T extends CollectionRecord | ProductCollectionRecord>(
+  collections: T[],
+  rawSortKey: unknown,
+  rawReverse: unknown,
+  rawQuery: unknown,
+): T[] {
+  const hasQuery = typeof rawQuery === 'string' && rawQuery.trim().length > 0;
+  const effectiveSortKey = rawSortKey === 'RELEVANCE' && hasQuery ? null : rawSortKey;
+  const sortedCollections =
+    effectiveSortKey === null
+      ? [...collections]
+      : [...collections].sort((left, right) => compareCollectionsBySortKey(left, right, effectiveSortKey));
+
+  return rawReverse === true ? sortedCollections.reverse() : sortedCollections;
 }
 
 function buildProductSearchConnectionKey(rawQuery: unknown, rawSortKey: unknown, rawReverse: unknown): string | null {
@@ -6031,8 +6417,23 @@ export function hydrateProductsFromUpstreamResponse(
   };
 
   hydrateCollection(rawData['collection']);
+  hydrateCollection(rawData['collectionByIdentifier']);
+  hydrateCollection(rawData['collectionByHandle']);
   for (const collection of readCollectionNodes(rawData['collections'])) {
     hydrateCollection(collection);
+  }
+
+  for (const field of getRootFields(document)) {
+    if (
+      field.name.value !== 'collection' &&
+      field.name.value !== 'collectionByIdentifier' &&
+      field.name.value !== 'collectionByHandle'
+    ) {
+      continue;
+    }
+
+    const responseKey = field.alias?.value ?? field.name.value;
+    hydrateCollection(rawData[responseKey]);
   }
 
   const rawProducts = rawData['products'];
@@ -6365,18 +6766,21 @@ export function handleProductMutation(
       if (inputArg?.value.kind === Kind.VARIABLE) {
         const rawVariableInput = readProductInput(variables[inputArg.value.name.value]);
         if (!hasOwnField(rawVariableInput, 'id') || rawVariableInput['id'] === null) {
-          return buildProductDeleteInvalidVariableError(rawVariableInput);
+          return buildProductDeleteInvalidVariableError(
+            rawVariableInput,
+            getVariableDefinitionLocation(document, inputArg.value.name.value),
+          );
         }
       }
 
       if (inputArg?.value.kind === Kind.OBJECT) {
         const idField = inputArg.value.fields.find((objectField) => objectField.name.value === 'id') ?? null;
         if (!idField) {
-          return buildMissingProductDeleteInputIdArgumentError();
+          return buildMissingProductDeleteInputIdArgumentError(getNodeLocation(inputArg.value));
         }
 
         if (idField.value.kind === Kind.NULL) {
-          return buildNullProductDeleteInputIdArgumentError();
+          return buildNullProductDeleteInputIdArgumentError(getNodeLocation(inputArg.value));
         }
       }
 
@@ -6385,7 +6789,7 @@ export function handleProductMutation(
       const argId = args['id'];
       const id = typeof inputId === 'string' ? inputId : typeof argId === 'string' ? argId : null;
       if (!id) {
-        return buildProductDeleteInvalidVariableError(input);
+        return buildProductDeleteInvalidVariableError(input, []);
       }
 
       const existing = store.getEffectiveProductById(id);
@@ -6583,7 +6987,7 @@ export function handleProductMutation(
     case 'productChangeStatus': {
       const rawProductId = args['productId'];
       if (rawProductId === null) {
-        return buildNullProductChangeStatusArgumentError();
+        return buildNullProductChangeStatusArgumentError(getNodeLocation(field), getOperationPathLabel(document));
       }
 
       const productId = typeof rawProductId === 'string' ? rawProductId : null;
@@ -6722,6 +7126,223 @@ export function handleProductMutation(
         data: {
           [responseKey]: serializeProductMutationPayload(field, variables, {
             product,
+            userErrors: [],
+          }),
+        },
+      };
+    }
+    case 'publishablePublish':
+    case 'publishableUnpublish': {
+      const publishableId = typeof args['id'] === 'string' ? args['id'] : null;
+      if (!publishableId) {
+        return {
+          data: {
+            [responseKey]: serializePublishableMutationPayload(field, variables, {
+              publishable: null,
+              userErrors: [{ field: ['id'], message: 'Publishable id is required' }],
+            }),
+          },
+        };
+      }
+
+      const isPublish = field.name.value === 'publishablePublish';
+      const publicationTargets = readPublicationTargets(args['input']);
+      const existingProduct = store.getEffectiveProductById(publishableId);
+      if (existingProduct) {
+        if (publicationTargets.length === 0) {
+          return {
+            data: {
+              [responseKey]: serializePublishableMutationPayload(field, variables, {
+                publishable: existingProduct,
+                userErrors: [{ field: ['input'], message: 'Publication target is required' }],
+              }),
+            },
+          };
+        }
+
+        const nextPublicationIds = isPublish
+          ? mergePublicationTargets(existingProduct.publicationIds, publicationTargets)
+          : removePublicationTargets(existingProduct.publicationIds, publicationTargets);
+        store.stageUpdateProduct(
+          makeProductRecord({ id: publishableId, publicationIds: nextPublicationIds }, existingProduct),
+        );
+
+        return {
+          data: {
+            [responseKey]: serializePublishableMutationPayload(field, variables, {
+              publishable: store.getEffectiveProductById(publishableId),
+              userErrors: [],
+            }),
+          },
+        };
+      }
+
+      if (publishableId.startsWith('gid://shopify/Product/')) {
+        return {
+          data: {
+            [responseKey]: serializePublishableMutationPayload(field, variables, {
+              publishable: null,
+              userErrors: [{ field: ['id'], message: 'Product not found' }],
+            }),
+          },
+        };
+      }
+
+      const existingCollection = findEffectiveCollectionById(publishableId);
+      if (existingCollection) {
+        if (publicationTargets.length === 0) {
+          return {
+            data: {
+              [responseKey]: serializePublishableMutationPayload(field, variables, {
+                publishable: existingCollection,
+                userErrors: [{ field: ['input'], message: 'Publication target is required' }],
+              }),
+            },
+          };
+        }
+
+        const nextPublicationIds = isPublish
+          ? mergePublicationTargets(existingCollection.publicationIds ?? [], publicationTargets)
+          : removePublicationTargets(existingCollection.publicationIds ?? [], publicationTargets);
+        store.stageUpdateCollection(
+          makeCollectionRecord({ id: publishableId, publicationIds: nextPublicationIds }, existingCollection),
+        );
+
+        return {
+          data: {
+            [responseKey]: serializePublishableMutationPayload(field, variables, {
+              publishable: findEffectiveCollectionById(publishableId),
+              userErrors: [],
+            }),
+          },
+        };
+      }
+
+      if (publishableId.startsWith('gid://shopify/Collection/')) {
+        return {
+          data: {
+            [responseKey]: serializePublishableMutationPayload(field, variables, {
+              publishable: null,
+              userErrors: [{ field: ['id'], message: 'Collection not found' }],
+            }),
+          },
+        };
+      }
+
+      return {
+        data: {
+          [responseKey]: serializePublishableMutationPayload(field, variables, {
+            publishable: null,
+            userErrors: [
+              { field: ['id'], message: 'Only Product and Collection publishable IDs are supported locally' },
+            ],
+          }),
+        },
+      };
+    }
+    case 'publishablePublishToCurrentChannel': {
+      const rawPublishableId = args['id'];
+      const productId = getPublishableProductId(rawPublishableId);
+      if (!productId) {
+        return {
+          data: {
+            [responseKey]: serializePublishableMutationPayload(field, variables, {
+              publishable: null,
+              userErrors: [{ field: ['id'], message: 'Only Product publishable IDs are supported locally' }],
+            }),
+          },
+        };
+      }
+
+      const existing = store.getEffectiveProductById(productId);
+      if (!existing) {
+        return {
+          data: {
+            [responseKey]: serializePublishableMutationPayload(field, variables, {
+              publishable: null,
+              userErrors: [{ field: ['id'], message: 'Product not found' }],
+            }),
+          },
+        };
+      }
+
+      const publicationTargets =
+        field.name.value === 'publishablePublishToCurrentChannel'
+          ? [currentPublicationPlaceholderId]
+          : readPublicationTargets(args['input']);
+      if (publicationTargets.length === 0) {
+        return {
+          data: {
+            [responseKey]: serializePublishableMutationPayload(field, variables, {
+              publishable: existing,
+              userErrors: [{ field: ['input'], message: 'Publication target is required' }],
+            }),
+          },
+        };
+      }
+
+      const nextPublicationIds = mergePublicationTargets(existing.publicationIds, publicationTargets);
+      store.stageUpdateProduct(makeProductRecord({ id: productId, publicationIds: nextPublicationIds }, existing));
+      const product = store.getEffectiveProductById(productId);
+
+      return {
+        data: {
+          [responseKey]: serializePublishableMutationPayload(field, variables, {
+            publishable: product,
+            userErrors: [],
+          }),
+        },
+      };
+    }
+    case 'publishableUnpublishToCurrentChannel': {
+      const rawPublishableId = args['id'];
+      const productId = getPublishableProductId(rawPublishableId);
+      if (!productId) {
+        return {
+          data: {
+            [responseKey]: serializePublishableMutationPayload(field, variables, {
+              publishable: null,
+              userErrors: [{ field: ['id'], message: 'Only Product publishable IDs are supported locally' }],
+            }),
+          },
+        };
+      }
+
+      const existing = store.getEffectiveProductById(productId);
+      if (!existing) {
+        return {
+          data: {
+            [responseKey]: serializePublishableMutationPayload(field, variables, {
+              publishable: null,
+              userErrors: [{ field: ['id'], message: 'Product not found' }],
+            }),
+          },
+        };
+      }
+
+      const publicationTargets =
+        field.name.value === 'publishableUnpublishToCurrentChannel'
+          ? [currentPublicationPlaceholderId]
+          : readPublicationTargets(args['input']);
+      if (publicationTargets.length === 0) {
+        return {
+          data: {
+            [responseKey]: serializePublishableMutationPayload(field, variables, {
+              publishable: existing,
+              userErrors: [{ field: ['input'], message: 'Publication target is required' }],
+            }),
+          },
+        };
+      }
+
+      const nextPublicationIds = removePublicationTargets(existing.publicationIds, publicationTargets);
+      store.stageUpdateProduct(makeProductRecord({ id: productId, publicationIds: nextPublicationIds }, existing));
+      const product = store.getEffectiveProductById(productId);
+
+      return {
+        data: {
+          [responseKey]: serializePublishableMutationPayload(field, variables, {
+            publishable: product,
             userErrors: [],
           }),
         },
@@ -7106,6 +7727,44 @@ export function handleProductMutation(
         },
       };
     }
+    case 'collectionReorderProducts': {
+      const rawCollectionId = args['id'];
+      const collectionId = typeof rawCollectionId === 'string' ? rawCollectionId : null;
+      if (!collectionId) {
+        return {
+          data: {
+            [responseKey]: {
+              job: null,
+              userErrors: [{ field: ['id'], message: 'Collection id is required' }],
+            },
+          },
+        };
+      }
+
+      const existing = findEffectiveCollectionById(collectionId);
+      if (!existing) {
+        return {
+          data: {
+            [responseKey]: {
+              job: null,
+              userErrors: [{ field: ['id'], message: 'Collection not found' }],
+            },
+          },
+        };
+      }
+
+      const result = reorderCollectionProducts(existing, args['moves']);
+      return {
+        data: {
+          [responseKey]: {
+            job: result.job
+              ? serializeJobSelectionSet(result.job, getChildField(field, 'job')?.selectionSet?.selections ?? [])
+              : null,
+            userErrors: result.userErrors,
+          },
+        },
+      };
+    }
     case 'productCreateMedia': {
       const rawProductId = args['productId'];
       const productId = typeof rawProductId === 'string' ? rawProductId : null;
@@ -7361,17 +8020,25 @@ export function handleProductMutation(
       }
 
       const result = applyInventoryAdjustQuantities(input);
-      return {
+      const inventoryAdjustmentGroupField = getChildField(field, 'inventoryAdjustmentGroup');
+      const staffMemberField = inventoryAdjustmentGroupField
+        ? getChildField(inventoryAdjustmentGroupField, 'staffMember')
+        : null;
+      const response: Record<string, unknown> = {
         data: {
           [responseKey]: {
-            inventoryAdjustmentGroup: serializeInventoryAdjustmentGroup(
-              result.group,
-              getChildField(field, 'inventoryAdjustmentGroup'),
-            ),
+            inventoryAdjustmentGroup: serializeInventoryAdjustmentGroup(result.group, inventoryAdjustmentGroupField),
             userErrors: result.userErrors,
           },
         },
       };
+      if (result.group && inventoryAdjustmentGroupField && staffMemberField) {
+        response['errors'] = [
+          buildInventoryAdjustmentStaffMemberAccessDeniedError(field, inventoryAdjustmentGroupField, staffMemberField),
+        ];
+      }
+
+      return response;
     }
     case 'inventoryActivate': {
       const rawInventoryItemId = args['inventoryItemId'];
@@ -8123,6 +8790,23 @@ export function handleProductQuery(
         const rawId = args['id'];
         const id = typeof rawId === 'string' ? rawId : null;
         const collection = id ? findEffectiveCollectionById(id) : null;
+        data[responseKey] = collection
+          ? serializeCollectionObject(collection, field.selectionSet?.selections ?? [], variables)
+          : null;
+        break;
+      }
+      case 'collectionByIdentifier': {
+        const identifier = readProductInput(args['identifier']);
+        const collection = findEffectiveCollectionByIdentifier(identifier);
+        data[responseKey] = collection
+          ? serializeCollectionObject(collection, field.selectionSet?.selections ?? [], variables)
+          : null;
+        break;
+      }
+      case 'collectionByHandle': {
+        const rawHandle = args['handle'];
+        const handle = typeof rawHandle === 'string' ? rawHandle : null;
+        const collection = handle ? findEffectiveCollectionByHandle(handle) : null;
         data[responseKey] = collection
           ? serializeCollectionObject(collection, field.selectionSet?.selections ?? [], variables)
           : null;

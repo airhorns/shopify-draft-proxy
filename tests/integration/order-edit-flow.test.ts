@@ -149,6 +149,7 @@ describe('order edit flow', () => {
               field
               message
             }
+            successMessages
           }
         }`,
         variables: {},
@@ -189,6 +190,7 @@ describe('order edit flow', () => {
               field
               message
             }
+            successMessages
           }
         }`,
         variables: {},
@@ -231,6 +233,7 @@ describe('order edit flow', () => {
               field
               message
             }
+            successMessages
           }
         }`,
         variables: {
@@ -277,6 +280,7 @@ describe('order edit flow', () => {
               field
               message
             }
+            successMessages
           }
         }`,
         variables: {
@@ -322,6 +326,7 @@ describe('order edit flow', () => {
               field
               message
             }
+            successMessages
           }
         }`,
         variables: {
@@ -1473,6 +1478,7 @@ describe('order edit flow', () => {
               field
               message
             }
+            successMessages
           }
         }`,
         variables: {
@@ -1484,10 +1490,11 @@ describe('order edit flow', () => {
 
     expect(commitResponse.status).toBe(200);
     expect(commitResponse.body.data.orderEditCommit.userErrors).toEqual([]);
+    expect(commitResponse.body.data.orderEditCommit.successMessages).toEqual(['Order updated']);
     expect(commitResponse.body.data.orderEditCommit.order).toEqual({
       id: orderId,
       name: '#1',
-      note: 'committed local order edit',
+      note: 'pre-edit order',
       lineItems: {
         nodes: [
           {
@@ -1527,7 +1534,7 @@ describe('order edit flow', () => {
       });
 
     expect(orderReadResponse.status).toBe(200);
-    expect(orderReadResponse.body.data.order.note).toBe('committed local order edit');
+    expect(orderReadResponse.body.data.order.note).toBe('pre-edit order');
     expect(orderReadResponse.body.data.order.lineItems.nodes).toEqual([
       {
         title: 'Original staged line item',
@@ -1567,6 +1574,7 @@ describe('order edit flow', () => {
               field
               message
             }
+            successMessages
           }
         }`,
         variables: { id: orderId },
@@ -1645,6 +1653,7 @@ describe('order edit flow', () => {
               field
               message
             }
+            successMessages
           }
         }`,
         variables: {
@@ -1656,9 +1665,10 @@ describe('order edit flow', () => {
 
     expect(commitResponse.status).toBe(200);
     expect(commitResponse.body.data.orderEditCommit.userErrors).toEqual([]);
+    expect(commitResponse.body.data.orderEditCommit.successMessages).toEqual(['Order updated']);
     expect(commitResponse.body.data.orderEditCommit.order).toEqual({
       id: orderId,
-      note: 'live-hybrid commit',
+      note: 'pre-edit order',
     });
     expect(fetchSpy).not.toHaveBeenCalled();
   });

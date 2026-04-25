@@ -342,6 +342,7 @@ describe('product draft flow', () => {
       {
         message:
           'Variable $input of type ProductDeleteInput! was provided invalid value for id (Expected value to not be null)',
+        locations: [{ line: expect.any(Number), column: expect.any(Number) }],
         extensions: {
           code: 'INVALID_VARIABLE',
           value: {},
@@ -362,6 +363,7 @@ describe('product draft flow', () => {
     expect(response.body.errors).toEqual([
       {
         message: "Argument 'id' on InputObject 'ProductDeleteInput' is required. Expected type ID!",
+        locations: [{ line: expect.any(Number), column: expect.any(Number) }],
         path: ['mutation', 'productDelete', 'input', 'id'],
         extensions: {
           code: 'missingRequiredInputObjectAttribute',
@@ -384,6 +386,7 @@ describe('product draft flow', () => {
     expect(response.body.errors).toEqual([
       {
         message: "Argument 'id' on InputObject 'ProductDeleteInput' has an invalid value (null). Expected type 'ID!'.",
+        locations: [{ line: expect.any(Number), column: expect.any(Number) }],
         path: ['mutation', 'productDelete', 'input', 'id'],
         extensions: {
           code: 'argumentLiteralsIncompatible',
@@ -1801,6 +1804,206 @@ describe('product draft flow', () => {
     expect(unpublishedQueryResponse.status).toBe(200);
     expect(unpublishedQueryResponse.body.data.product).toEqual(unpublishResponse.body.data.productUnpublish.product);
     expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('stages generic publishable product roots locally without upstream writes', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('generic publishable product mutations should stage locally');
+    });
+
+    const app = createApp(config).callback();
+
+    const createResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Generic Publishable Hat", status: ACTIVE }) { product { id } userErrors { field message } } }',
+    });
+    const productId = createResponse.body.data.productCreate.product.id as string;
+
+    const publishResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `#graphql
+          mutation PublishGeneric($id: ID!, $input: [PublicationInput!]!) {
+            publishablePublish(id: $id, input: $input) {
+              publishable {
+                ... on Product {
+                  id
+                  publishedOnCurrentPublication
+                  availablePublicationsCount {
+                    count
+                    precision
+                  }
+                }
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+        variables: {
+          id: productId,
+          input: [{ publicationId: 'gid://shopify/Publication/1' }],
+        },
+      });
+
+    expect(publishResponse.status).toBe(200);
+    expect(publishResponse.body.data.publishablePublish).toEqual({
+      publishable: {
+        id: productId,
+        publishedOnCurrentPublication: true,
+        availablePublicationsCount: {
+          count: 1,
+          precision: 'EXACT',
+        },
+      },
+      userErrors: [],
+    });
+
+    const unpublishResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `#graphql
+          mutation UnpublishGeneric($id: ID!, $input: [PublicationInput!]!) {
+            publishableUnpublish(id: $id, input: $input) {
+              publishable {
+                ... on Product {
+                  id
+                  publishedOnCurrentPublication
+                  availablePublicationsCount {
+                    count
+                    precision
+                  }
+                }
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+        variables: {
+          id: productId,
+          input: [{ publicationId: 'gid://shopify/Publication/1' }],
+        },
+      });
+
+    expect(unpublishResponse.status).toBe(200);
+    expect(unpublishResponse.body.data.publishableUnpublish).toEqual({
+      publishable: {
+        id: productId,
+        publishedOnCurrentPublication: false,
+        availablePublicationsCount: {
+          count: 0,
+          precision: 'EXACT',
+        },
+      },
+      userErrors: [],
+    });
+
+    const currentChannelPublishResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `#graphql
+          mutation PublishCurrentGeneric($id: ID!) {
+            publishablePublishToCurrentChannel(id: $id) {
+              publishable {
+                ... on Product {
+                  id
+                  publishedOnCurrentPublication
+                }
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+        variables: { id: productId },
+      });
+
+    expect(currentChannelPublishResponse.status).toBe(200);
+    expect(currentChannelPublishResponse.body.data.publishablePublishToCurrentChannel).toEqual({
+      publishable: {
+        id: productId,
+        publishedOnCurrentPublication: true,
+      },
+      userErrors: [],
+    });
+
+    const currentChannelUnpublishResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `#graphql
+          mutation UnpublishCurrentGeneric($id: ID!) {
+            publishableUnpublishToCurrentChannel(id: $id) {
+              publishable {
+                ... on Product {
+                  id
+                  publishedOnCurrentPublication
+                }
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+        variables: { id: productId },
+      });
+
+    expect(currentChannelUnpublishResponse.status).toBe(200);
+    expect(currentChannelUnpublishResponse.body.data.publishableUnpublishToCurrentChannel).toEqual({
+      publishable: {
+        id: productId,
+        publishedOnCurrentPublication: false,
+      },
+      userErrors: [],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('rejects unsupported generic publishable targets locally instead of proxying upstream', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('unsupported generic publishable targets should not proxy upstream');
+    });
+
+    const app = createApp(config).callback();
+
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `#graphql
+          mutation PublishUnsupportedGeneric($id: ID!, $input: [PublicationInput!]!) {
+            publishablePublish(id: $id, input: $input) {
+              publishable {
+                ... on Product {
+                  id
+                }
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+        variables: {
+          id: 'gid://shopify/Article/1',
+          input: [{ publicationId: 'gid://shopify/Publication/1' }],
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.publishablePublish).toEqual({
+      publishable: null,
+      userErrors: [{ field: ['id'], message: 'Only Product and Collection publishable IDs are supported locally' }],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('matches minimal productUnpublish payload selections without leaking unselected product fields', async () => {
@@ -5012,6 +5215,128 @@ describe('product draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('returns the captured staffMember access error while preserving inventoryAdjustQuantities payload data', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('inventoryAdjustQuantities should not hit upstream fetch');
+    });
+
+    store.upsertBaseProducts([
+      {
+        id: 'gid://shopify/Product/809',
+        legacyResourceId: '809',
+        title: 'Inventory Staff Audit Tee',
+        handle: 'inventory-staff-audit-tee',
+        status: 'ACTIVE',
+        publicationIds: [],
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-02T00:00:00.000Z',
+        vendor: 'ACME',
+        productType: 'APPAREL',
+        tags: ['inventory'],
+        totalInventory: 6,
+        tracksInventory: true,
+        descriptionHtml: null,
+        onlineStorePreviewUrl: null,
+        templateSuffix: null,
+        seo: { title: null, description: null },
+        category: null,
+      },
+    ]);
+    store.replaceBaseVariantsForProduct('gid://shopify/Product/809', [
+      {
+        id: 'gid://shopify/ProductVariant/8091',
+        productId: 'gid://shopify/Product/809',
+        title: 'Default Title',
+        sku: 'INV-STAFF',
+        barcode: null,
+        price: '25.00',
+        compareAtPrice: null,
+        taxable: true,
+        inventoryPolicy: 'DENY',
+        inventoryQuantity: 6,
+        selectedOptions: [],
+        inventoryItem: {
+          id: 'gid://shopify/InventoryItem/8091',
+          tracked: true,
+          requiresShipping: true,
+          measurement: null,
+          countryCodeOfOrigin: null,
+          provinceCodeOfOrigin: null,
+          harmonizedSystemCode: null,
+        },
+      },
+    ]);
+
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation AdjustInventory($input: InventoryAdjustQuantitiesInput!) {
+          inventoryAdjustQuantities(input: $input) {
+            inventoryAdjustmentGroup {
+              staffMember { id }
+              changes { name delta item { id } location { id } }
+            }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            name: 'available',
+            reason: 'correction',
+            changes: [
+              {
+                inventoryItemId: 'gid://shopify/InventoryItem/8091',
+                locationId: 'gid://shopify/Location/1',
+                delta: 1,
+              },
+            ],
+          },
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      errors: [
+        {
+          message:
+            'Access denied for staffMember field. Required access: `read_users` access scope. Also: The app must be a finance embedded app or installed on a Shopify Plus or Advanced store. Contact Shopify Support to enable this scope for your app.',
+          locations: [{ line: 4, column: 15 }],
+          extensions: {
+            code: 'ACCESS_DENIED',
+            documentation: 'https://shopify.dev/api/usage/access-scopes',
+            requiredAccess:
+              '`read_users` access scope. Also: The app must be a finance embedded app or installed on a Shopify Plus or Advanced store. Contact Shopify Support to enable this scope for your app.',
+          },
+          path: ['inventoryAdjustQuantities', 'inventoryAdjustmentGroup', 'staffMember'],
+        },
+      ],
+      data: {
+        inventoryAdjustQuantities: {
+          inventoryAdjustmentGroup: {
+            staffMember: null,
+            changes: [
+              {
+                name: 'available',
+                delta: 1,
+                item: { id: 'gid://shopify/InventoryItem/8091' },
+                location: { id: 'gid://shopify/Location/1' },
+              },
+              {
+                name: 'on_hand',
+                delta: 1,
+                item: { id: 'gid://shopify/InventoryItem/8091' },
+                location: { id: 'gid://shopify/Location/1' },
+              },
+            ],
+          },
+          userErrors: [],
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('stages inventoryItemUpdate locally and keeps downstream inventory item reads aligned', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('inventoryItemUpdate should not hit upstream fetch');
@@ -5409,6 +5734,162 @@ describe('product draft flow', () => {
             ],
           },
         },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('stages all captured non-available inventory quantity names with downstream level visibility', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('inventoryAdjustQuantities should not hit upstream fetch');
+    });
+
+    store.upsertBaseProducts([
+      {
+        id: 'gid://shopify/Product/810',
+        legacyResourceId: '810',
+        title: 'Inventory Ledger Tee',
+        handle: 'inventory-ledger-tee',
+        status: 'ACTIVE',
+        publicationIds: [],
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-02T00:00:00.000Z',
+        vendor: 'ACME',
+        productType: 'APPAREL',
+        tags: ['inventory'],
+        totalInventory: 6,
+        tracksInventory: true,
+        descriptionHtml: null,
+        onlineStorePreviewUrl: null,
+        templateSuffix: null,
+        seo: { title: null, description: null },
+        category: null,
+      },
+    ]);
+    store.replaceBaseVariantsForProduct('gid://shopify/Product/810', [
+      {
+        id: 'gid://shopify/ProductVariant/8101',
+        productId: 'gid://shopify/Product/810',
+        title: 'Default Title',
+        sku: 'INV-LEDGER',
+        barcode: null,
+        price: '20.00',
+        compareAtPrice: null,
+        taxable: true,
+        inventoryPolicy: 'DENY',
+        inventoryQuantity: 6,
+        selectedOptions: [],
+        inventoryItem: {
+          id: 'gid://shopify/InventoryItem/8101',
+          tracked: true,
+          requiresShipping: true,
+          measurement: null,
+          countryCodeOfOrigin: null,
+          provinceCodeOfOrigin: null,
+          harmonizedSystemCode: null,
+        },
+      },
+    ]);
+
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+    const quantityNames = ['damaged', 'quality_control', 'reserved', 'safety_stock'];
+    for (const [index, name] of quantityNames.entries()) {
+      const response = await request(app)
+        .post('/admin/api/2025-01/graphql.json')
+        .send({
+          query:
+            'mutation AdjustInventory($input: InventoryAdjustQuantitiesInput!) { inventoryAdjustQuantities(input: $input) { inventoryAdjustmentGroup { changes { name delta ledgerDocumentUri item { id } location { id } } } userErrors { field message } } }',
+          variables: {
+            input: {
+              name,
+              reason: 'correction',
+              referenceDocumentUri: `logistics://ledger/${name}`,
+              changes: [
+                {
+                  inventoryItemId: 'gid://shopify/InventoryItem/8101',
+                  locationId: 'gid://shopify/Location/1',
+                  ledgerDocumentUri: `ledger://${name}/8101`,
+                  delta: index + 1,
+                },
+              ],
+            },
+          },
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        data: {
+          inventoryAdjustQuantities: {
+            inventoryAdjustmentGroup: {
+              changes: [
+                {
+                  name,
+                  delta: index + 1,
+                  ledgerDocumentUri: `ledger://${name}/8101`,
+                  item: { id: 'gid://shopify/InventoryItem/8101' },
+                  location: { id: 'gid://shopify/Location/1' },
+                },
+              ],
+            },
+            userErrors: [],
+          },
+        },
+      });
+    }
+
+    const queryResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query ($productId: ID!, $variantId: ID!, $inventoryItemId: ID!) { product(id: $productId) { id totalInventory variants(first: 10) { nodes { id inventoryQuantity inventoryItem { id inventoryLevels(first: 5) { nodes { quantities(names: ["available", "damaged", "quality_control", "reserved", "safety_stock", "on_hand"]) { name quantity updatedAt } } } } } } } variant: productVariant(id: $variantId) { id inventoryQuantity inventoryItem { id inventoryLevels(first: 5) { nodes { quantities(names: ["available", "damaged", "quality_control", "reserved", "safety_stock", "on_hand"]) { name quantity updatedAt } } } } } stock: inventoryItem(id: $inventoryItemId) { id inventoryLevels(first: 5) { nodes { quantities(names: ["available", "damaged", "quality_control", "reserved", "safety_stock", "on_hand"]) { name quantity updatedAt } } } } matching: products(first: 10, query: "inventory_total:>=7") { nodes { id totalInventory } } matchingCount: productsCount(query: "inventory_total:>=7") { count precision } }',
+        variables: {
+          productId: 'gid://shopify/Product/810',
+          variantId: 'gid://shopify/ProductVariant/8101',
+          inventoryItemId: 'gid://shopify/InventoryItem/8101',
+        },
+      });
+
+    const expectedQuantities = [
+      { name: 'available', quantity: 6, updatedAt: expect.any(String) },
+      { name: 'damaged', quantity: 1, updatedAt: expect.any(String) },
+      { name: 'quality_control', quantity: 2, updatedAt: expect.any(String) },
+      { name: 'reserved', quantity: 3, updatedAt: expect.any(String) },
+      { name: 'safety_stock', quantity: 4, updatedAt: expect.any(String) },
+      { name: 'on_hand', quantity: 6, updatedAt: null },
+    ];
+    expect(queryResponse.status).toBe(200);
+    expect(queryResponse.body).toEqual({
+      data: {
+        product: {
+          id: 'gid://shopify/Product/810',
+          totalInventory: 6,
+          variants: {
+            nodes: [
+              {
+                id: 'gid://shopify/ProductVariant/8101',
+                inventoryQuantity: 6,
+                inventoryItem: {
+                  id: 'gid://shopify/InventoryItem/8101',
+                  inventoryLevels: { nodes: [{ quantities: expectedQuantities }] },
+                },
+              },
+            ],
+          },
+        },
+        variant: {
+          id: 'gid://shopify/ProductVariant/8101',
+          inventoryQuantity: 6,
+          inventoryItem: {
+            id: 'gid://shopify/InventoryItem/8101',
+            inventoryLevels: { nodes: [{ quantities: expectedQuantities }] },
+          },
+        },
+        stock: {
+          id: 'gid://shopify/InventoryItem/8101',
+          inventoryLevels: { nodes: [{ quantities: expectedQuantities }] },
+        },
+        matching: { nodes: [] },
+        matchingCount: { count: 0, precision: 'EXACT' },
       },
     });
     expect(fetchSpy).not.toHaveBeenCalled();

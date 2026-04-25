@@ -4,6 +4,8 @@ import 'dotenv/config';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { readConformanceScriptConfig } from './conformance-script-config.js';
+
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 import {
   assertDiscountConformanceScopes,
@@ -11,21 +13,10 @@ import {
   probeDiscountConformanceScopes,
 } from './discount-conformance-lib.js';
 
-const requiredVars = ['SHOPIFY_CONFORMANCE_STORE_DOMAIN', 'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
-const missingVars = requiredVars.filter((name) => !process.env[name]);
-if (missingVars.length > 0) {
-  console.error(`Missing required environment variables: ${missingVars.join(', ')}`);
-  process.exit(1);
-}
-
-const storeDomain = process.env['SHOPIFY_CONFORMANCE_STORE_DOMAIN'];
-const adminOrigin = process.env['SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
-const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || '2026-04';
-
-if (!storeDomain || !adminOrigin) {
-  console.error(`Missing required environment variables: ${missingVars.join(', ')}`);
-  process.exit(1);
-}
+const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
+  defaultApiVersion: '2026-04',
+  exitOnMissing: true,
+});
 
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });

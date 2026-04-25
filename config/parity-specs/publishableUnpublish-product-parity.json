@@ -1,0 +1,29 @@
+{
+  "scenarioId": "publishableUnpublish-product-parity",
+  "operationNames": ["publishableUnpublish"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-unpublish-parity.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/publishableUnpublish-product-parity.graphql",
+    "variablesPath": "config/parity-requests/publishableUnpublish-product-parity.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Product-scoped generic `publishableUnpublish` support is backed by the captured product unpublication aggregate fixture. The generic root returns `publishable`, but the compared product aggregate fields and userErrors are the same product publication slice captured from Shopify.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "publishable product aggregate payload",
+        "capturePath": "$.aggregateSelection.response.payload.data.productUnpublish.product",
+        "proxyPath": "$.data.publishableUnpublish.publishable"
+      },
+      {
+        "name": "user errors",
+        "capturePath": "$.aggregateSelection.response.payload.data.productUnpublish.userErrors",
+        "proxyPath": "$.data.publishableUnpublish.userErrors"
+      }
+    ]
+  }
+}

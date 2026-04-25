@@ -5,7 +5,7 @@
         {
           "contentType": "IMAGE",
           "originalSource": "https://placehold.co/600x400/png",
-          "alt": "Hermes Files API conformance 1777064718787"
+          "alt": "Hermes Files API conformance 1777081543067"
         }
       ]
     },
@@ -14,9 +14,9 @@
         "fileCreate": {
           "files": [
             {
-              "id": "gid://shopify/MediaImage/39514533134569",
-              "alt": "Hermes Files API conformance 1777064718787",
-              "createdAt": "2026-04-24T21:05:18Z",
+              "id": "gid://shopify/MediaImage/39516006121705",
+              "alt": "Hermes Files API conformance 1777081543067",
+              "createdAt": "2026-04-25T01:45:43Z",
               "fileStatus": "UPLOADED",
               "image": null
             }
@@ -39,12 +39,12 @@
   },
   "deleteMutation": {
     "variables": {
-      "fileIds": ["gid://shopify/MediaImage/39514533134569"]
+      "fileIds": ["gid://shopify/MediaImage/39516006121705"]
     },
     "response": {
       "data": {
         "fileDelete": {
-          "deletedFileIds": ["gid://shopify/MediaImage/39514533134569"],
+          "deletedFileIds": ["gid://shopify/MediaImage/39516006121705"],
           "userErrors": []
         }
       },
@@ -54,7 +54,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1985,
+            "currentlyAvailable": 1990,
             "restoreRate": 100
           }
         }

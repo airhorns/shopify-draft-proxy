@@ -21,6 +21,10 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 3. **Do not send supported mutations to Shopify at runtime**
    - Supported mutations must stage locally.
    - Unsupported mutations may proxy through, but must be visible in logs/observability.
+   - Do not register operations as permanent passthrough capabilities. A
+     registered operation is a commitment to model it locally before it is
+     considered supported; passthrough is only the unknown/unsupported escape
+     hatch, not an intended execution posture for a known operation.
 
 4. **Keep original raw mutations for commit**
    - Commit should replay original mutations in original order.
@@ -49,6 +53,9 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
   reserve future coverage. Add checked-in parity specs only when they are backed
   by a captured interaction and can run as working evidence; otherwise keep the
   gap in Linear/workpad notes instead of repository scenario files.
+  Ticket-specific requests for scaffold files do not override this rule; for
+  coverage-map-only work, update the operation registry and the Linear/workpad
+  notes without adding parity spec or parity request placeholders.
 - Conformance parity scenarios are discovered by convention from `config/parity-specs/*.json` and executed by the single vitest suite at `tests/unit/conformance-parity-scenarios.test.ts` (also exposed as `pnpm conformance:parity`). Do not add per-scenario `it(...)` blocks that re-run one scenario — the iterator already covers it. Encode scenario-specific expectations in the parity spec.
 - Treat conformance `expectedDifferences` as a last resort after modeling or
   fixture seeding has been exhausted; do not add them merely to make parity
@@ -56,6 +63,11 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
   difference because clients must not depend on their internal encoding.
 - Repo scripts must be TypeScript files executed with `tsx` or similar, not
   `.mjs` files. Do not add `.mjs` files anywhere in this repository.
+- Relative TypeScript import specifiers must use the emitted JavaScript
+  extension that TypeScript expects for NodeNext output (`.js` for `.ts`, `.mjs`
+  for `.mts`, `.cjs` for `.cts`). Do not import local modules with source
+  extensions such as `.ts`, `.mts`, or `.cts`; `pnpm lint` enforces this with
+  oxlint's `import/extensions` rule.
 
 ## GitHub repository
 
@@ -86,12 +98,14 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 
 1. Read `docs/original-intent.md`.
 2. Read `docs/architecture.md`.
-3. Know that `docs/hard-and-weird-notes.md` exists; search or read the
+3. Know that `docs/helpers.md` exists; read it before adding or duplicating
+   shared proxy/helper utilities.
+4. Know that `docs/hard-and-weird-notes.md` exists; search or read the
    relevant parts when fidelity assumptions or unusual Shopify behavior matter,
    and add to it when new hard/weird behavior is discovered.
-4. Check Linear for the next operation to implement.
-5. Add/adjust tests before implementation.
-6. Update docs after shipping behavior.
+5. Check Linear for the next operation to implement.
+6. Add/adjust tests before implementation.
+7. Update docs after shipping behavior.
 
 ## Repo status note
 

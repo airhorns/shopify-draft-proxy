@@ -4,35 +4,22 @@ import 'dotenv/config';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { runAdminGraphql } from './conformance-graphql-client.js';
+import { createAdminGraphqlClient } from './conformance-graphql-client.js';
+import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 import { parseWriteScopeBlocker, renderWriteScopeBlockerNote } from './product-mutation-conformance-lib.mjs';
 
-const requiredVars = ['SHOPIFY_CONFORMANCE_STORE_DOMAIN', 'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
-
-const missingVars = requiredVars.filter((name) => !process.env[name]);
-if (missingVars.length > 0) {
-  // oxlint-disable-next-line no-console -- CLI error output is intentionally written to stderr.
-  console.error(`Missing required environment variables: ${missingVars.join(', ')}`);
-  process.exit(1);
-}
-
-const storeDomain = process.env['SHOPIFY_CONFORMANCE_STORE_DOMAIN'];
-const adminOrigin = process.env['SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
-const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || '2025-01';
+const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
 const pendingDir = 'pending';
 const blockerPath = path.join(pendingDir, 'collection-mutation-conformance-scope-blocker.md');
-
-async function runGraphql(query, variables = {}) {
-  return runAdminGraphql(
-    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(adminAccessToken) },
-    query,
-    variables,
-  );
-}
+const { runGraphql } = createAdminGraphqlClient({
+  adminOrigin,
+  apiVersion,
+  headers: buildAdminAuthHeaders(adminAccessToken),
+});
 
 function pickSeedProducts(payload) {
   const edges = payload?.data?.products?.edges;
@@ -83,6 +70,17 @@ const seedProductsQuery = `#graphql
   }
 `;
 
+const seedPublicationsQuery = `#graphql
+  query CollectionPublicationSeed {
+    publications(first: 10) {
+      nodes {
+        id
+        name
+      }
+    }
+  }
+`;
+
 const collectionListSlice = `
   nodes {
     id
@@ -116,6 +114,28 @@ const collectionDetailSlice = `
       hasNextPage
       hasPreviousPage
     }
+  }
+`;
+
+const collectionPublicationDetailSlice = `
+  id
+  title
+  handle
+  publishedOnCurrentPublication
+  publishedOnPublication(publicationId: $publicationId)
+  availablePublicationsCount {
+    count
+    precision
+  }
+  resourcePublicationsCount {
+    count
+    precision
+  }
+`;
+
+const collectionPublicationListSlice = `
+  nodes {
+    ${collectionPublicationDetailSlice}
   }
 `;
 
@@ -203,6 +223,21 @@ const removeProductsMutation = `#graphql
   }
 `;
 
+const reorderProductsMutation = `#graphql
+  mutation CollectionReorderProductsConformance($id: ID!, $moves: [MoveInput!]!) {
+    collectionReorderProducts(id: $id, moves: $moves) {
+      job {
+        id
+        done
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
 const postCreateReadQuery = `#graphql
   query CollectionCreateDownstream($collectionId: ID!) {
     collection(id: $collectionId) {
@@ -214,10 +249,94 @@ const postCreateReadQuery = `#graphql
   }
 `;
 
+const publicationReadQuery = `#graphql
+  query CollectionPublicationRead($collectionId: ID!, $publicationId: ID!) {
+    collection(id: $collectionId) {
+      ${collectionPublicationDetailSlice}
+    }
+    publishedCollections: collections(first: 5, query: "published_status:published") {
+      ${collectionPublicationListSlice}
+    }
+    unpublishedCollections: collections(first: 5, query: "published_status:unpublished") {
+      ${collectionPublicationListSlice}
+    }
+  }
+`;
+
+const publishablePublishMutation = `#graphql
+  mutation CollectionPublishablePublish($id: ID!, $input: [PublicationInput!]!, $publicationId: ID!) {
+    publishablePublish(id: $id, input: $input) {
+      publishable {
+        ... on Collection {
+          ${collectionPublicationDetailSlice}
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const publishableUnpublishMutation = `#graphql
+  mutation CollectionPublishableUnpublish($id: ID!, $input: [PublicationInput!]!, $publicationId: ID!) {
+    publishableUnpublish(id: $id, input: $input) {
+      publishable {
+        ... on Collection {
+          ${collectionPublicationDetailSlice}
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
 const postAddReadQuery = `#graphql
   query CollectionAddProductsDownstream($collectionId: ID!, $firstProductId: ID!, $secondProductId: ID!) {
     collection(id: $collectionId) {
       ${collectionDetailSlice}
+    }
+    first: product(id: $firstProductId) {
+      ${productCollectionsSlice}
+    }
+    second: product(id: $secondProductId) {
+      ${productCollectionsSlice}
+    }
+  }
+`;
+
+const postReorderReadQuery = `#graphql
+  query CollectionReorderProductsDownstream($collectionId: ID!, $firstProductId: ID!, $secondProductId: ID!) {
+    collection(id: $collectionId) {
+      id
+      title
+      handle
+      defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) {
+        nodes {
+          id
+          title
+          handle
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+        }
+      }
+      manualProducts: products(first: 10, sortKey: MANUAL) {
+        nodes {
+          id
+          title
+          handle
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+        }
+      }
     }
     first: product(id: $firstProductId) {
       ${productCollectionsSlice}
@@ -276,7 +395,25 @@ function buildCreateVariables(runId) {
   return {
     input: {
       title: `Hermes Collection Conformance ${runId}`,
+      sortOrder: 'MANUAL',
     },
+  };
+}
+
+function pickPublication(payload) {
+  const publications = payload?.data?.publications?.nodes;
+  if (!Array.isArray(publications)) {
+    throw new Error('Could not find publication nodes in collection publication seed payload.');
+  }
+
+  const publication = publications.find((node) => typeof node?.id === 'string');
+  if (!publication) {
+    throw new Error('Need at least one live publication to capture collection publication parity.');
+  }
+
+  return {
+    id: publication.id,
+    name: typeof publication.name === 'string' ? publication.name : null,
   };
 }
 
@@ -302,6 +439,7 @@ async function writeScopeBlocker(blocker) {
       'collectionDelete',
       'collectionAddProducts',
       'collectionRemoveProducts',
+      'collectionReorderProducts',
     ],
     blocker,
     whyBlocked:
@@ -322,10 +460,15 @@ await mkdir(outputDir, { recursive: true });
 const runId = `${Date.now()}`;
 const seedProductsResponse = await runGraphql(seedProductsQuery);
 const [firstProduct, secondProduct] = pickSeedProducts(seedProductsResponse);
+const seedPublicationsResponse = await runGraphql(seedPublicationsQuery);
+const publication = pickPublication(seedPublicationsResponse);
 const createVariables = buildCreateVariables(runId);
 let createdCollectionId = null;
 let createResponse = null;
+let publishResponse = null;
+let unpublishResponse = null;
 let addResponse = null;
+let reorderResponse = null;
 let updateResponse = null;
 let removeResponse = null;
 let deleteResponse = null;
@@ -338,6 +481,27 @@ try {
   }
 
   const postCreateRead = await runGraphql(postCreateReadQuery, { collectionId: createdCollectionId });
+  const postCreatePublicationRead = await runGraphql(publicationReadQuery, {
+    collectionId: createdCollectionId,
+    publicationId: publication.id,
+  });
+
+  const publicationVariables = {
+    id: createdCollectionId,
+    input: [{ publicationId: publication.id }],
+    publicationId: publication.id,
+  };
+  publishResponse = await runGraphql(publishablePublishMutation, publicationVariables);
+  const postPublishRead = await runGraphql(publicationReadQuery, {
+    collectionId: createdCollectionId,
+    publicationId: publication.id,
+  });
+
+  unpublishResponse = await runGraphql(publishableUnpublishMutation, publicationVariables);
+  const postUnpublishRead = await runGraphql(publicationReadQuery, {
+    collectionId: createdCollectionId,
+    publicationId: publication.id,
+  });
 
   addResponse = await runGraphql(addProductsMutation, {
     id: createdCollectionId,
@@ -349,6 +513,23 @@ try {
     secondProductId: secondProduct.id,
   };
   const postAddRead = await runGraphql(postAddReadQuery, postAddReadVariables);
+
+  const reorderVariables = {
+    id: createdCollectionId,
+    moves: [
+      {
+        id: secondProduct.id,
+        newPosition: '0',
+      },
+    ],
+  };
+  reorderResponse = await runGraphql(reorderProductsMutation, reorderVariables);
+  const postReorderReadVariables = {
+    collectionId: createdCollectionId,
+    firstProductId: firstProduct.id,
+    secondProductId: secondProduct.id,
+  };
+  const postReorderRead = await runGraphql(postReorderReadQuery, postReorderReadVariables);
 
   const updateVariables = buildUpdateVariables(createdCollectionId, runId);
   updateResponse = await runGraphql(updateMutation, updateVariables);
@@ -377,14 +558,35 @@ try {
   const captures = {
     'collection-create-parity.json': {
       seedProducts: [firstProduct, secondProduct],
+      seedPublication: publication,
       mutation: {
         variables: createVariables,
         response: createResponse,
       },
       downstreamRead: postCreateRead,
     },
+    'collection-publication-parity.json': {
+      seedProducts: [firstProduct, secondProduct],
+      seedPublication: publication,
+      mutation: {
+        variables: publicationVariables,
+        response: publishResponse,
+      },
+      publishMutation: {
+        variables: publicationVariables,
+        response: publishResponse,
+      },
+      postCreatePublicationRead,
+      postPublishRead,
+      unpublishMutation: {
+        variables: publicationVariables,
+        response: unpublishResponse,
+      },
+      postUnpublishRead,
+    },
     'collection-add-products-parity.json': {
       seedProducts: [firstProduct, secondProduct],
+      seedPublication: publication,
       mutation: {
         variables: {
           id: addResponse.data?.collectionAddProducts?.collection?.id ?? createdCollectionId,
@@ -395,8 +597,19 @@ try {
       downstreamReadVariables: postAddReadVariables,
       downstreamRead: postAddRead,
     },
+    'collection-reorder-products-parity.json': {
+      seedProducts: [firstProduct, secondProduct],
+      initialCollectionRead: postAddRead,
+      mutation: {
+        variables: reorderVariables,
+        response: reorderResponse,
+      },
+      downstreamReadVariables: postReorderReadVariables,
+      downstreamRead: postReorderRead,
+    },
     'collection-update-parity.json': {
       seedProducts: [firstProduct, secondProduct],
+      seedPublication: publication,
       mutation: {
         variables: updateVariables,
         response: updateResponse,
@@ -405,6 +618,7 @@ try {
     },
     'collection-remove-products-parity.json': {
       seedProducts: [firstProduct, secondProduct],
+      seedPublication: publication,
       mutation: {
         variables: {
           id:
@@ -419,6 +633,7 @@ try {
     },
     'collection-delete-parity.json': {
       seedProducts: [firstProduct, secondProduct],
+      seedPublication: publication,
       mutation: {
         variables: {
           input: { id: deleteResponse.data?.collectionDelete?.deletedCollectionId ?? updateVariables.input.id },
@@ -441,6 +656,7 @@ try {
         outputDir,
         files: Object.keys(captures),
         collectionId: deleteResponse.data?.collectionDelete?.deletedCollectionId ?? null,
+        seedPublication: publication,
         seedProducts: [firstProduct, secondProduct],
       },
       null,

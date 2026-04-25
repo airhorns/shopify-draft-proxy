@@ -5,31 +5,30 @@ import 'dotenv/config';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { runAdminGraphql } from './conformance-graphql-client.js';
+import { createAdminGraphqlClient } from './conformance-graphql-client.js';
+import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
-const requiredVars = ['SHOPIFY_CONFORMANCE_STORE_DOMAIN', 'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
-
-const missingVars = requiredVars.filter((name) => !process.env[name]);
-if (missingVars.length > 0) {
-  console.error(`Missing required environment variables: ${missingVars.join(', ')}`);
-  process.exit(1);
-}
-
-const storeDomain = process.env['SHOPIFY_CONFORMANCE_STORE_DOMAIN'];
-const adminOrigin = process.env['SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
-const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || '2025-01';
+const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
+  defaultApiVersion: '2026-04',
+  exitOnMissing: true,
+});
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
 const storePropertiesOutputPath = path.join(outputDir, 'store-properties-baseline.json');
 const locationsCatalogOutputPath = path.join(outputDir, 'locations-catalog.json');
+const businessEntitiesCatalogOutputPath = path.join(outputDir, 'business-entities-catalog.json');
+const businessEntityFallbacksOutputPath = path.join(outputDir, 'business-entity-fallbacks.json');
 
-async function runGraphql(query, variables = {}) {
-  return runAdminGraphql(
-    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(adminAccessToken) },
-    query,
-    variables,
-  );
+const { runGraphql, runGraphqlRequest } = createAdminGraphqlClient({
+  adminOrigin,
+  apiVersion,
+  headers: buildAdminAuthHeaders(adminAccessToken),
+});
+
+async function runGraphqlCapture(query, variables = {}) {
+  const result = await runGraphqlRequest(query, variables);
+  return result.payload;
 }
 
 const locationsCatalogQuery = `#graphql
@@ -58,6 +57,96 @@ const shopBaselineQuery = `#graphql
       id
       name
       myshopifyDomain
+      url
+      primaryDomain {
+        id
+        host
+        url
+        sslEnabled
+      }
+      contactEmail
+      email
+      currencyCode
+      enabledPresentmentCurrencies
+      ianaTimezone
+      timezoneAbbreviation
+      timezoneOffset
+      timezoneOffsetMinutes
+      taxesIncluded
+      taxShipping
+      unitSystem
+      weightUnit
+      shopAddress {
+        id
+        address1
+        address2
+        city
+        company
+        coordinatesValidated
+        country
+        countryCodeV2
+        formatted
+        formattedArea
+        latitude
+        longitude
+        phone
+        province
+        provinceCode
+        zip
+      }
+      plan {
+        partnerDevelopment
+        publicDisplayName
+        shopifyPlus
+      }
+      resourceLimits {
+        locationLimit
+        maxProductOptions
+        maxProductVariants
+        redirectLimitReached
+      }
+      features {
+        avalaraAvatax
+        branding
+        bundles {
+          eligibleForBundles
+          ineligibilityReason
+          sellsBundles
+        }
+        captcha
+        cartTransform {
+          eligibleOperations {
+            expandOperation
+            mergeOperation
+            updateOperation
+          }
+        }
+        dynamicRemarketing
+        eligibleForSubscriptionMigration
+        eligibleForSubscriptions
+        giftCards
+        harmonizedSystemCode
+        legacySubscriptionGatewayEnabled
+        liveView
+        paypalExpressSubscriptionGatewayStatus
+        reports
+        sellsSubscriptions
+        showMetrics
+        storefront
+        unifiedMarkets
+      }
+      paymentSettings {
+        supportedDigitalWallets
+      }
+      shopPolicies {
+        id
+        title
+        body
+        type
+        url
+        createdAt
+        updatedAt
+      }
     }
   }
 `;
@@ -67,6 +156,57 @@ const locationByIdQuery = `#graphql
     location(id: $id) {
       id
       name
+    }
+  }
+`;
+
+const businessEntityFields = `#graphql
+  fragment StorePropertiesBusinessEntityFields on BusinessEntity {
+    id
+    displayName
+    companyName
+    primary
+    archived
+    address {
+      address1
+      address2
+      city
+      countryCode
+      province
+      zip
+    }
+    shopifyPaymentsAccount {
+      id
+      activated
+      country
+      defaultCurrency
+      onboardable
+    }
+  }
+`;
+
+const businessEntitiesCatalogQuery = `#graphql
+  ${businessEntityFields}
+
+  query StorePropertiesBusinessEntitiesCatalog {
+    businessEntities {
+      ...StorePropertiesBusinessEntityFields
+    }
+  }
+`;
+
+const businessEntityFallbacksQuery = `#graphql
+  ${businessEntityFields}
+
+  query StorePropertiesBusinessEntityFallbacks($knownId: ID!, $unknownId: ID!) {
+    primary: businessEntity {
+      ...StorePropertiesBusinessEntityFields
+    }
+    known: businessEntity(id: $knownId) {
+      ...StorePropertiesBusinessEntityFields
+    }
+    unknown: businessEntity(id: $unknownId) {
+      id
     }
   }
 `;
@@ -239,6 +379,15 @@ const locationBaseline =
   typeof firstLocationId === 'string' && firstLocationId.length > 0
     ? await runGraphql(locationByIdQuery, { id: firstLocationId })
     : null;
+const businessEntitiesCatalog = await runGraphqlCapture(businessEntitiesCatalogQuery);
+const firstBusinessEntityId = businessEntitiesCatalog.data?.businessEntities?.[0]?.id ?? null;
+const businessEntityFallbacks =
+  typeof firstBusinessEntityId === 'string' && firstBusinessEntityId.length > 0
+    ? await runGraphqlCapture(businessEntityFallbacksQuery, {
+        knownId: firstBusinessEntityId,
+        unknownId: 'gid://shopify/BusinessEntity/999999999999999999',
+      })
+    : null;
 
 const storePropertiesBaseline = {
   capturedAt: new Date().toISOString(),
@@ -260,11 +409,17 @@ const storePropertiesBaseline = {
     shop: shopBaseline,
     locationsCatalog,
     location: locationBaseline,
+    businessEntitiesCatalog,
+    businessEntityFallbacks,
   },
   mutationValidationProbePlan: mutationValidationProbePlan(),
 };
 
 await writeFile(locationsCatalogOutputPath, `${JSON.stringify(locationsCatalog, null, 2)}\n`, 'utf8');
+await writeFile(businessEntitiesCatalogOutputPath, `${JSON.stringify(businessEntitiesCatalog, null, 2)}\n`, 'utf8');
+if (businessEntityFallbacks) {
+  await writeFile(businessEntityFallbacksOutputPath, `${JSON.stringify(businessEntityFallbacks, null, 2)}\n`, 'utf8');
+}
 await writeFile(storePropertiesOutputPath, `${JSON.stringify(storePropertiesBaseline, null, 2)}\n`, 'utf8');
 
 console.log(
@@ -272,7 +427,12 @@ console.log(
     {
       ok: true,
       outputDir,
-      files: ['locations-catalog.json', 'store-properties-baseline.json'],
+      files: [
+        'locations-catalog.json',
+        'business-entities-catalog.json',
+        ...(businessEntityFallbacks ? ['business-entity-fallbacks.json'] : []),
+        'store-properties-baseline.json',
+      ],
       first,
     },
     null,

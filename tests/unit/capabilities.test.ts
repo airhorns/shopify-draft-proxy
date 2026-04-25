@@ -34,6 +34,50 @@ describe('getOperationCapability', () => {
       operationName: 'Collections',
       type: 'query',
     });
+
+    expect(
+      getOperationCapability({
+        type: 'query',
+        name: 'CollectionByIdentifier',
+        rootFields: ['collectionByIdentifier'],
+      }),
+    ).toEqual({
+      domain: 'products',
+      execution: 'overlay-read',
+      operationName: 'CollectionByIdentifier',
+      type: 'query',
+    });
+
+    expect(
+      getOperationCapability({
+        type: 'query',
+        name: 'CollectionByHandle',
+        rootFields: ['collectionByHandle'],
+      }),
+    ).toEqual({
+      domain: 'products',
+      execution: 'overlay-read',
+      operationName: 'CollectionByHandle',
+      type: 'query',
+    });
+  });
+
+  it('classifies collection identifier roots by root field when the operation name is misleading', () => {
+    expect(
+      getOperationCapability({ type: 'query', name: 'Collection', rootFields: ['collectionByIdentifier'] }),
+    ).toEqual({
+      domain: 'products',
+      execution: 'overlay-read',
+      operationName: 'collectionByIdentifier',
+      type: 'query',
+    });
+
+    expect(getOperationCapability({ type: 'query', name: 'Collection', rootFields: ['collectionByHandle'] })).toEqual({
+      domain: 'products',
+      execution: 'overlay-read',
+      operationName: 'collectionByHandle',
+      type: 'query',
+    });
   });
 
   it('marks customer queries and customersCount as overlay-capable reads', () => {
@@ -55,6 +99,24 @@ describe('getOperationCapability', () => {
       domain: 'customers',
       execution: 'overlay-read',
       operationName: 'CustomersCount',
+      type: 'query',
+    });
+
+    expect(
+      getOperationCapability({ type: 'query', name: 'CustomerByIdentifier', rootFields: ['customerByIdentifier'] }),
+    ).toEqual({
+      domain: 'customers',
+      execution: 'overlay-read',
+      operationName: 'CustomerByIdentifier',
+      type: 'query',
+    });
+  });
+
+  it('classifies customerByIdentifier by root field when the operation name is misleading', () => {
+    expect(getOperationCapability({ type: 'query', name: 'Customer', rootFields: ['customerByIdentifier'] })).toEqual({
+      domain: 'customers',
+      execution: 'overlay-read',
+      operationName: 'customerByIdentifier',
       type: 'query',
     });
   });
@@ -340,6 +402,19 @@ describe('getOperationCapability', () => {
       operationName: 'CollectionDelete',
       type: 'mutation',
     });
+
+    expect(
+      getOperationCapability({
+        type: 'mutation',
+        name: 'CollectionReorderProducts',
+        rootFields: ['collectionReorderProducts'],
+      }),
+    ).toEqual({
+      domain: 'products',
+      execution: 'stage-locally',
+      operationName: 'CollectionReorderProducts',
+      type: 'mutation',
+    });
   });
 
   it('marks product media mutations as locally staged mutations', () => {
@@ -379,6 +454,13 @@ describe('getOperationCapability', () => {
       type: 'mutation',
     });
 
+    expect(getOperationCapability({ type: 'mutation', name: 'FileUpdate', rootFields: ['fileUpdate'] })).toEqual({
+      domain: 'media',
+      execution: 'stage-locally',
+      operationName: 'FileUpdate',
+      type: 'mutation',
+    });
+
     expect(getOperationCapability({ type: 'mutation', name: 'FileDelete', rootFields: ['fileDelete'] })).toEqual({
       domain: 'media',
       execution: 'stage-locally',
@@ -413,9 +495,9 @@ describe('getOperationCapability', () => {
     });
   });
 
-  it('tracks discounts roots as explicit passthrough until local staging exists', () => {
+  it('keeps registry-only discounts roots out of capability routing until implemented', () => {
     expect(getOperationCapability({ type: 'query', name: 'DiscountNodes', rootFields: ['discountNodes'] })).toEqual({
-      domain: 'discounts',
+      domain: 'unknown',
       execution: 'passthrough',
       operationName: 'DiscountNodes',
       type: 'query',
@@ -428,7 +510,7 @@ describe('getOperationCapability', () => {
         rootFields: ['codeDiscountNodeByCode'],
       }),
     ).toEqual({
-      domain: 'discounts',
+      domain: 'unknown',
       execution: 'passthrough',
       operationName: 'CodeDiscountNodeByCode',
       type: 'query',
@@ -441,9 +523,9 @@ describe('getOperationCapability', () => {
         rootFields: ['discountCodeBasicCreate'],
       }),
     ).toEqual({
-      domain: 'discounts',
+      domain: 'unknown',
       execution: 'passthrough',
-      operationName: 'discountCodeBasicCreate',
+      operationName: 'CreateDiscount',
       type: 'mutation',
     });
 
@@ -454,9 +536,9 @@ describe('getOperationCapability', () => {
         rootFields: ['discountAutomaticBulkDelete'],
       }),
     ).toEqual({
-      domain: 'discounts',
+      domain: 'unknown',
       execution: 'passthrough',
-      operationName: 'discountAutomaticBulkDelete',
+      operationName: 'DeleteAutomaticDiscounts',
       type: 'mutation',
     });
   });

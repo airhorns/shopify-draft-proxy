@@ -4,33 +4,20 @@ import 'dotenv/config';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { runAdminGraphql } from './conformance-graphql-client.js';
+import { createAdminGraphqlClient } from './conformance-graphql-client.js';
+import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 import { pickCollectionCaptureSeed } from './collection-conformance-lib.mjs';
 
-const requiredVars = ['SHOPIFY_CONFORMANCE_STORE_DOMAIN', 'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
-
-const missingVars = requiredVars.filter((name) => !process.env[name]);
-if (missingVars.length > 0) {
-  // oxlint-disable-next-line no-console -- CLI error output is intentionally written to stderr.
-  console.error(`Missing required environment variables: ${missingVars.join(', ')}`);
-  process.exit(1);
-}
-
-const storeDomain = process.env['SHOPIFY_CONFORMANCE_STORE_DOMAIN'];
-const adminOrigin = process.env['SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
-const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || '2025-01';
+const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
-
-async function runGraphql(query, variables = {}) {
-  return runAdminGraphql(
-    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(adminAccessToken) },
-    query,
-    variables,
-  );
-}
+const { runGraphql } = createAdminGraphqlClient({
+  adminOrigin,
+  apiVersion,
+  headers: buildAdminAuthHeaders(adminAccessToken),
+});
 
 const collectionSeedQuery = `#graphql
   query CollectionSeedCatalog {
@@ -196,8 +183,17 @@ const collectionDetailQuery = `#graphql
 `;
 
 const collectionsCatalogQuery = `#graphql
-  query CollectionsCatalogRead($first: Int!) {
-    collections(first: $first) {
+  query CollectionsCatalogRead(
+    $catalogFirst: Int!
+    $first: Int!
+    $titleWildcardQuery: String!
+    $customTypeQuery: String!
+    $smartTypeQuery: String!
+    $updatedSortQuery: String!
+    $emptyQuery: String!
+    $productMembershipQuery: String!
+  ) {
+    collections(first: $catalogFirst) {
       edges {
         cursor
         node {
@@ -259,6 +255,114 @@ const collectionsCatalogQuery = `#graphql
         endCursor
       }
     }
+    titleWildcard: collections(first: $first, query: $titleWildcardQuery, sortKey: TITLE) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          handle
+          updatedAt
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    customCollections: collections(first: $first, query: $customTypeQuery, sortKey: ID) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          handle
+          ruleSet {
+            appliedDisjunctively
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    smartCollections: collections(first: $first, query: $smartTypeQuery, sortKey: TITLE) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          handle
+          ruleSet {
+            appliedDisjunctively
+            rules {
+              column
+              relation
+              condition
+            }
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    updatedNewest: collections(first: $first, query: $updatedSortQuery, sortKey: UPDATED_AT, reverse: true) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          handle
+          updatedAt
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    productMembership: collections(first: $first, query: $productMembershipQuery, sortKey: ID) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          handle
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    emptyUnmatched: collections(first: $first, query: $emptyQuery) {
+      edges {
+        cursor
+        node {
+          id
+          title
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
   }
 `;
 
@@ -297,7 +401,18 @@ const collectionDetail = await runGraphql(collectionDetailQuery, {
   smartCollectionId: smartCollection.id,
   productId,
 });
-const collectionsCatalog = await runGraphql(collectionsCatalogQuery, { first: 3 });
+const smartCollectionProductId = smartCollection.products.edges[0]?.node?.id ?? productId;
+const smartCollectionProductLegacyId = smartCollectionProductId.split('/').at(-1) ?? smartCollectionProductId;
+const collectionsCatalog = await runGraphql(collectionsCatalogQuery, {
+  catalogFirst: 20,
+  first: 3,
+  titleWildcardQuery: `title:${smartCollection.title.slice(0, 3)}*`,
+  customTypeQuery: 'collection_type:custom',
+  smartTypeQuery: 'collection_type:smart',
+  updatedSortQuery: 'collection_type:smart',
+  emptyQuery: 'title:No collection should match this 157*',
+  productMembershipQuery: `product_id:${smartCollectionProductLegacyId}`,
+});
 
 const captures = {
   'collection-detail.json': collectionDetail,
@@ -326,6 +441,8 @@ console.log(
         handle: smartCollection.handle,
       },
       productId,
+      smartCollectionProductId,
+      smartCollectionProductLegacyId,
       files: Object.keys(captures),
     },
     null,

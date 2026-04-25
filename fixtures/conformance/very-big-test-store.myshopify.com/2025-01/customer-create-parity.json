@@ -2,13 +2,13 @@
   "mutation": {
     "variables": {
       "input": {
-        "email": "hermes-customer-create-1776550630836@example.com",
+        "email": "hermes-customer-create-1777081266467@example.com",
         "firstName": "Hermes",
         "lastName": "Create",
         "locale": "en",
         "note": "customer create parity probe",
         "phone": "+14155550123",
-        "tags": ["parity", "create-1776550630836"],
+        "tags": ["parity", "create-1777081266467"],
         "taxExempt": true
       }
     },
@@ -16,38 +16,49 @@
       "data": {
         "customerCreate": {
           "customer": {
-            "id": "gid://shopify/Customer/9079716675817",
+            "id": "gid://shopify/Customer/9102966915305",
             "firstName": "Hermes",
             "lastName": "Create",
             "displayName": "Hermes Create",
-            "email": "hermes-customer-create-1776550630836@example.com",
+            "email": "hermes-customer-create-1777081266467@example.com",
             "locale": "en",
             "note": "customer create parity probe",
             "verifiedEmail": true,
             "taxExempt": true,
-            "tags": ["create-1776550630836", "parity"],
+            "taxExemptions": [],
+            "tags": ["create-1777081266467", "parity"],
             "state": "DISABLED",
             "canDelete": true,
+            "loyalty": null,
+            "metafields": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
             "defaultEmailAddress": {
-              "emailAddress": "hermes-customer-create-1776550630836@example.com"
+              "emailAddress": "hermes-customer-create-1777081266467@example.com"
             },
             "defaultPhoneNumber": {
               "phoneNumber": "+14155550123"
             },
             "defaultAddress": null,
-            "createdAt": "2026-04-18T22:17:10Z",
-            "updatedAt": "2026-04-18T22:17:10Z"
+            "createdAt": "2026-04-25T01:41:06Z",
+            "updatedAt": "2026-04-25T01:41:06Z"
           },
           "userErrors": []
         }
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 12,
-          "actualQueryCost": 12,
+          "requestedQueryCost": 18,
+          "actualQueryCost": 18,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1988,
+            "currentlyAvailable": 1982,
             "restoreRate": 100
           }
         }
@@ -57,27 +68,38 @@
   "downstreamRead": {
     "data": {
       "customer": {
-        "id": "gid://shopify/Customer/9079716675817",
+        "id": "gid://shopify/Customer/9102966915305",
         "firstName": "Hermes",
         "lastName": "Create",
         "displayName": "Hermes Create",
-        "email": "hermes-customer-create-1776550630836@example.com",
+        "email": "hermes-customer-create-1777081266467@example.com",
         "locale": "en",
         "note": "customer create parity probe",
         "verifiedEmail": true,
         "taxExempt": true,
-        "tags": ["create-1776550630836", "parity"],
+        "taxExemptions": [],
+        "tags": ["create-1777081266467", "parity"],
         "state": "DISABLED",
         "canDelete": true,
+        "loyalty": null,
+        "metafields": {
+          "nodes": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+          }
+        },
         "defaultEmailAddress": {
-          "emailAddress": "hermes-customer-create-1776550630836@example.com"
+          "emailAddress": "hermes-customer-create-1777081266467@example.com"
         },
         "defaultPhoneNumber": {
           "phoneNumber": "+14155550123"
         },
         "defaultAddress": null,
-        "createdAt": "2026-04-18T22:17:10Z",
-        "updatedAt": "2026-04-18T22:17:10Z"
+        "createdAt": "2026-04-25T01:41:06Z",
+        "updatedAt": "2026-04-25T01:41:06Z"
       },
       "customers": {
         "nodes": [],
@@ -87,17 +109,17 @@
         }
       },
       "customersCount": {
-        "count": 73,
+        "count": 177,
         "precision": "EXACT"
       }
     },
     "extensions": {
       "cost": {
-        "requestedQueryCost": 24,
-        "actualQueryCost": 18,
+        "requestedQueryCost": 48,
+        "actualQueryCost": 24,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1982,
+          "currentlyAvailable": 1976,
           "restoreRate": 100
         }
       }
@@ -123,11 +145,11 @@
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 12,
+          "requestedQueryCost": 18,
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1985,
+            "currentlyAvailable": 1982,
             "restoreRate": 100
           }
         }

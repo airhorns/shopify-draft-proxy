@@ -6,7 +6,8 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { runAdminGraphql, runAdminGraphqlRequest } from './conformance-graphql-client.js';
+import { createAdminGraphqlClient } from './conformance-graphql-client.js';
+import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 import {
@@ -32,18 +33,8 @@ import {
   renderWriteScopeBlockerNote,
 } from './product-mutation-conformance-lib.mjs';
 
-const requiredVars = ['SHOPIFY_CONFORMANCE_STORE_DOMAIN', 'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
-
-const missingVars = requiredVars.filter((name) => !process.env[name]);
-if (missingVars.length > 0) {
-  console.error(`Missing required environment variables: ${missingVars.join(', ')}`);
-  process.exit(1);
-}
-
-const storeDomain = process.env['SHOPIFY_CONFORMANCE_STORE_DOMAIN'];
-const adminOrigin = process.env['SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
+const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const conformanceAppHandle = process.env['SHOPIFY_CONFORMANCE_APP_HANDLE'] || null;
-const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || '2025-01';
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
 const manualStoreAuthTokenPath = path.resolve('.manual-store-auth-token.json');
@@ -86,19 +77,11 @@ function describeCredentialObservation(token) {
 }
 
 function buildGraphqlClient(token) {
-  return {
-    async runGraphql(query, variables = {}) {
-      return runAdminGraphql({ adminOrigin, apiVersion, headers: buildAdminAuthHeaders(token) }, query, variables);
-    },
-
-    async runGraphqlRaw(query, variables = {}) {
-      return runAdminGraphqlRequest(
-        { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(token) },
-        query,
-        variables,
-      );
-    },
-  };
+  return createAdminGraphqlClient({
+    adminOrigin,
+    apiVersion,
+    headers: buildAdminAuthHeaders(token),
+  });
 }
 
 const productSeedQuery = `#graphql

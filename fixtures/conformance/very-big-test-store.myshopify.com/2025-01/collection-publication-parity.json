@@ -1,0 +1,566 @@
+{
+  "seedProducts": [
+    {
+      "id": "gid://shopify/Product/8971842846953",
+      "title": "Test Product - 6635",
+      "handle": "test-product-ge91cbbd6",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "gid://shopify/Product/8397257572585",
+      "title": "ADIDAS | CLASSIC BACKPACK | LEGEND INK MULTICOLOUR",
+      "handle": "adidas-classic-backpack-legend-ink-multicolour",
+      "status": "ACTIVE"
+    }
+  ],
+  "seedPublication": {
+    "id": "gid://shopify/Publication/82090459369",
+    "name": "Online Store"
+  },
+  "mutation": {
+    "variables": {
+      "id": "gid://shopify/Collection/468787757289",
+      "input": [
+        {
+          "publicationId": "gid://shopify/Publication/82090459369"
+        }
+      ],
+      "publicationId": "gid://shopify/Publication/82090459369"
+    },
+    "response": {
+      "data": {
+        "publishablePublish": {
+          "publishable": {
+            "id": "gid://shopify/Collection/468787757289",
+            "title": "Hermes Collection Conformance 1777078204269",
+            "handle": "hermes-collection-conformance-1777078204269",
+            "publishedOnCurrentPublication": false,
+            "publishedOnPublication": true,
+            "availablePublicationsCount": {
+              "count": 1,
+              "precision": "EXACT"
+            },
+            "resourcePublicationsCount": {
+              "count": 1,
+              "precision": "EXACT"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1971,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "publishMutation": {
+    "variables": {
+      "id": "gid://shopify/Collection/468787757289",
+      "input": [
+        {
+          "publicationId": "gid://shopify/Publication/82090459369"
+        }
+      ],
+      "publicationId": "gid://shopify/Publication/82090459369"
+    },
+    "response": {
+      "data": {
+        "publishablePublish": {
+          "publishable": {
+            "id": "gid://shopify/Collection/468787757289",
+            "title": "Hermes Collection Conformance 1777078204269",
+            "handle": "hermes-collection-conformance-1777078204269",
+            "publishedOnCurrentPublication": false,
+            "publishedOnPublication": true,
+            "availablePublicationsCount": {
+              "count": 1,
+              "precision": "EXACT"
+            },
+            "resourcePublicationsCount": {
+              "count": 1,
+              "precision": "EXACT"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1971,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "postCreatePublicationRead": {
+    "data": {
+      "collection": {
+        "id": "gid://shopify/Collection/468787757289",
+        "title": "Hermes Collection Conformance 1777078204269",
+        "handle": "hermes-collection-conformance-1777078204269",
+        "publishedOnCurrentPublication": false,
+        "publishedOnPublication": false,
+        "availablePublicationsCount": {
+          "count": 0,
+          "precision": "EXACT"
+        },
+        "resourcePublicationsCount": {
+          "count": 0,
+          "precision": "EXACT"
+        }
+      },
+      "publishedCollections": {
+        "nodes": [
+          {
+            "id": "gid://shopify/Collection/402476531945",
+            "title": "Home page",
+            "handle": "frontpage",
+            "publishedOnCurrentPublication": true,
+            "publishedOnPublication": true,
+            "availablePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            },
+            "resourcePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            }
+          },
+          {
+            "id": "gid://shopify/Collection/429826146537",
+            "title": "VANS",
+            "handle": "vans",
+            "publishedOnCurrentPublication": true,
+            "publishedOnPublication": true,
+            "availablePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            },
+            "resourcePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            }
+          },
+          {
+            "id": "gid://shopify/Collection/429826179305",
+            "title": "ADIDAS",
+            "handle": "adidas",
+            "publishedOnCurrentPublication": true,
+            "publishedOnPublication": true,
+            "availablePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            },
+            "resourcePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            }
+          },
+          {
+            "id": "gid://shopify/Collection/429826212073",
+            "title": "NIKE",
+            "handle": "nike",
+            "publishedOnCurrentPublication": true,
+            "publishedOnPublication": true,
+            "availablePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            },
+            "resourcePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            }
+          },
+          {
+            "id": "gid://shopify/Collection/429826244841",
+            "title": "CONVERSE",
+            "handle": "converse",
+            "publishedOnCurrentPublication": true,
+            "publishedOnPublication": true,
+            "availablePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            },
+            "resourcePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            }
+          }
+        ]
+      },
+      "unpublishedCollections": {
+        "nodes": [
+          {
+            "id": "gid://shopify/Collection/468031340777",
+            "title": "Hermes Graph Collection 1776313707276",
+            "handle": "hermes-graph-collection-1776313707276",
+            "publishedOnCurrentPublication": false,
+            "publishedOnPublication": false,
+            "availablePublicationsCount": {
+              "count": 1,
+              "precision": "EXACT"
+            },
+            "resourcePublicationsCount": {
+              "count": 1,
+              "precision": "EXACT"
+            }
+          },
+          {
+            "id": "gid://shopify/Collection/468787757289",
+            "title": "Hermes Collection Conformance 1777078204269",
+            "handle": "hermes-collection-conformance-1777078204269",
+            "publishedOnCurrentPublication": false,
+            "publishedOnPublication": false,
+            "availablePublicationsCount": {
+              "count": 0,
+              "precision": "EXACT"
+            },
+            "resourcePublicationsCount": {
+              "count": 0,
+              "precision": "EXACT"
+            }
+          }
+        ]
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 25,
+        "actualQueryCost": 20,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1968,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "postPublishRead": {
+    "data": {
+      "collection": {
+        "id": "gid://shopify/Collection/468787757289",
+        "title": "Hermes Collection Conformance 1777078204269",
+        "handle": "hermes-collection-conformance-1777078204269",
+        "publishedOnCurrentPublication": false,
+        "publishedOnPublication": true,
+        "availablePublicationsCount": {
+          "count": 1,
+          "precision": "EXACT"
+        },
+        "resourcePublicationsCount": {
+          "count": 1,
+          "precision": "EXACT"
+        }
+      },
+      "publishedCollections": {
+        "nodes": [
+          {
+            "id": "gid://shopify/Collection/402476531945",
+            "title": "Home page",
+            "handle": "frontpage",
+            "publishedOnCurrentPublication": true,
+            "publishedOnPublication": true,
+            "availablePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            },
+            "resourcePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            }
+          },
+          {
+            "id": "gid://shopify/Collection/429826146537",
+            "title": "VANS",
+            "handle": "vans",
+            "publishedOnCurrentPublication": true,
+            "publishedOnPublication": true,
+            "availablePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            },
+            "resourcePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            }
+          },
+          {
+            "id": "gid://shopify/Collection/429826179305",
+            "title": "ADIDAS",
+            "handle": "adidas",
+            "publishedOnCurrentPublication": true,
+            "publishedOnPublication": true,
+            "availablePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            },
+            "resourcePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            }
+          },
+          {
+            "id": "gid://shopify/Collection/429826212073",
+            "title": "NIKE",
+            "handle": "nike",
+            "publishedOnCurrentPublication": true,
+            "publishedOnPublication": true,
+            "availablePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            },
+            "resourcePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            }
+          },
+          {
+            "id": "gid://shopify/Collection/429826244841",
+            "title": "CONVERSE",
+            "handle": "converse",
+            "publishedOnCurrentPublication": true,
+            "publishedOnPublication": true,
+            "availablePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            },
+            "resourcePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            }
+          }
+        ]
+      },
+      "unpublishedCollections": {
+        "nodes": [
+          {
+            "id": "gid://shopify/Collection/468031340777",
+            "title": "Hermes Graph Collection 1776313707276",
+            "handle": "hermes-graph-collection-1776313707276",
+            "publishedOnCurrentPublication": false,
+            "publishedOnPublication": false,
+            "availablePublicationsCount": {
+              "count": 1,
+              "precision": "EXACT"
+            },
+            "resourcePublicationsCount": {
+              "count": 1,
+              "precision": "EXACT"
+            }
+          }
+        ]
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 25,
+        "actualQueryCost": 19,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1971,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "unpublishMutation": {
+    "variables": {
+      "id": "gid://shopify/Collection/468787757289",
+      "input": [
+        {
+          "publicationId": "gid://shopify/Publication/82090459369"
+        }
+      ],
+      "publicationId": "gid://shopify/Publication/82090459369"
+    },
+    "response": {
+      "data": {
+        "publishableUnpublish": {
+          "publishable": {
+            "id": "gid://shopify/Collection/468787757289",
+            "title": "Hermes Collection Conformance 1777078204269",
+            "handle": "hermes-collection-conformance-1777078204269",
+            "publishedOnCurrentPublication": false,
+            "publishedOnPublication": false,
+            "availablePublicationsCount": {
+              "count": 0,
+              "precision": "EXACT"
+            },
+            "resourcePublicationsCount": {
+              "count": 0,
+              "precision": "EXACT"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1972,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "postUnpublishRead": {
+    "data": {
+      "collection": {
+        "id": "gid://shopify/Collection/468787757289",
+        "title": "Hermes Collection Conformance 1777078204269",
+        "handle": "hermes-collection-conformance-1777078204269",
+        "publishedOnCurrentPublication": false,
+        "publishedOnPublication": false,
+        "availablePublicationsCount": {
+          "count": 0,
+          "precision": "EXACT"
+        },
+        "resourcePublicationsCount": {
+          "count": 0,
+          "precision": "EXACT"
+        }
+      },
+      "publishedCollections": {
+        "nodes": [
+          {
+            "id": "gid://shopify/Collection/402476531945",
+            "title": "Home page",
+            "handle": "frontpage",
+            "publishedOnCurrentPublication": true,
+            "publishedOnPublication": true,
+            "availablePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            },
+            "resourcePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            }
+          },
+          {
+            "id": "gid://shopify/Collection/429826146537",
+            "title": "VANS",
+            "handle": "vans",
+            "publishedOnCurrentPublication": true,
+            "publishedOnPublication": true,
+            "availablePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            },
+            "resourcePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            }
+          },
+          {
+            "id": "gid://shopify/Collection/429826179305",
+            "title": "ADIDAS",
+            "handle": "adidas",
+            "publishedOnCurrentPublication": true,
+            "publishedOnPublication": true,
+            "availablePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            },
+            "resourcePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            }
+          },
+          {
+            "id": "gid://shopify/Collection/429826212073",
+            "title": "NIKE",
+            "handle": "nike",
+            "publishedOnCurrentPublication": true,
+            "publishedOnPublication": true,
+            "availablePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            },
+            "resourcePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            }
+          },
+          {
+            "id": "gid://shopify/Collection/429826244841",
+            "title": "CONVERSE",
+            "handle": "converse",
+            "publishedOnCurrentPublication": true,
+            "publishedOnPublication": true,
+            "availablePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            },
+            "resourcePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            }
+          }
+        ]
+      },
+      "unpublishedCollections": {
+        "nodes": [
+          {
+            "id": "gid://shopify/Collection/468031340777",
+            "title": "Hermes Graph Collection 1776313707276",
+            "handle": "hermes-graph-collection-1776313707276",
+            "publishedOnCurrentPublication": false,
+            "publishedOnPublication": false,
+            "availablePublicationsCount": {
+              "count": 1,
+              "precision": "EXACT"
+            },
+            "resourcePublicationsCount": {
+              "count": 1,
+              "precision": "EXACT"
+            }
+          },
+          {
+            "id": "gid://shopify/Collection/468787757289",
+            "title": "Hermes Collection Conformance 1777078204269",
+            "handle": "hermes-collection-conformance-1777078204269",
+            "publishedOnCurrentPublication": false,
+            "publishedOnPublication": false,
+            "availablePublicationsCount": {
+              "count": 0,
+              "precision": "EXACT"
+            },
+            "resourcePublicationsCount": {
+              "count": 0,
+              "precision": "EXACT"
+            }
+          }
+        ]
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 25,
+        "actualQueryCost": 20,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1970,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

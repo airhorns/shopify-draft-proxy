@@ -5,36 +5,24 @@ import 'dotenv/config';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { runAdminGraphql, runAdminGraphqlRequest } from './conformance-graphql-client.js';
+import { createAdminGraphqlClient } from './conformance-graphql-client.js';
+import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
-const requiredVars = ['SHOPIFY_CONFORMANCE_STORE_DOMAIN', 'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
-
-const missingVars = requiredVars.filter((name) => !process.env[name]);
-if (missingVars.length > 0) {
-  console.error(`Missing required environment variables: ${missingVars.join(', ')}`);
-  process.exit(1);
-}
-
-const storeDomain = process.env['SHOPIFY_CONFORMANCE_STORE_DOMAIN'];
-const adminOrigin = process.env['SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
+const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
-const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || '2025-01';
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
 const pendingDir = path.join('pending');
 const blockerPath = path.join(pendingDir, 'customer-conformance-protected-data-blocker.md');
 const protectedCustomerDataDocsUrl = 'https://shopify.dev/docs/apps/launch/protected-customer-data';
+const { runGraphql, runGraphqlRequest } = createAdminGraphqlClient({
+  adminOrigin,
+  apiVersion,
+  headers: buildAdminAuthHeaders(adminAccessToken),
+});
 
 async function clearBlocker() {
   await rm(blockerPath, { force: true });
-}
-
-async function runGraphql(query, variables = {}) {
-  return runAdminGraphql(
-    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(adminAccessToken) },
-    query,
-    variables,
-  );
 }
 
 const accessScopesQuery = `#graphql
@@ -133,6 +121,174 @@ const customerDetailQuery = `#graphql
       }
       createdAt
       updatedAt
+    }
+  }
+`;
+
+const customerNestedSubresourcesQuery = `#graphql
+  query CustomerNestedSubresourcesConformance($id: ID!) {
+    customer(id: $id) {
+      id
+      addresses {
+        address1
+        city
+      }
+      addressesV2(first: 2) {
+        nodes {
+          address1
+          city
+        }
+        edges {
+          cursor
+          node {
+            address1
+            city
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+      companyContactProfiles {
+        id
+      }
+      orders(first: 2) {
+        nodes {
+          id
+        }
+        edges {
+          cursor
+          node {
+            id
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+      events(first: 2) {
+        nodes {
+          id
+        }
+        edges {
+          cursor
+          node {
+            id
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+      metafield(namespace: "custom", key: "tier") {
+        id
+        namespace
+        key
+      }
+      metafields(first: 2) {
+        nodes {
+          id
+          namespace
+          key
+        }
+        edges {
+          cursor
+          node {
+            id
+            namespace
+            key
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+      lastOrder {
+        id
+      }
+    }
+  }
+`;
+
+const customerByIdentifierQuery = `#graphql
+  query CustomerByIdentifierConformance(
+    $idIdentifier: CustomerIdentifierInput!
+    $emailIdentifier: CustomerIdentifierInput!
+    $phoneIdentifier: CustomerIdentifierInput!
+    $missingIdentifier: CustomerIdentifierInput!
+  ) {
+    byId: customerByIdentifier(identifier: $idIdentifier) {
+      id
+      firstName
+      lastName
+      displayName
+      email
+      legacyResourceId
+      locale
+      note
+      canDelete
+      verifiedEmail
+      taxExempt
+      state
+      tags
+      numberOfOrders
+      amountSpent {
+        amount
+        currencyCode
+      }
+      defaultEmailAddress {
+        emailAddress
+      }
+      defaultPhoneNumber {
+        phoneNumber
+      }
+      defaultAddress {
+        address1
+        city
+        province
+        country
+        zip
+        formattedArea
+      }
+      createdAt
+      updatedAt
+    }
+    byEmail: customerByIdentifier(identifier: $emailIdentifier) {
+      id
+      email
+      defaultEmailAddress {
+        emailAddress
+      }
+    }
+    byPhone: customerByIdentifier(identifier: $phoneIdentifier) {
+      id
+      defaultPhoneNumber {
+        phoneNumber
+      }
+    }
+    missingEmail: customerByIdentifier(identifier: $missingIdentifier) {
+      id
+      email
+    }
+  }
+`;
+
+const customerByCustomIdentifierQuery = `#graphql
+  query CustomerByCustomIdentifierConformance($identifier: CustomerIdentifierInput!) {
+    customId: customerByIdentifier(identifier: $identifier) {
+      id
     }
   }
 `;
@@ -396,11 +552,7 @@ function isProtectedCustomerDataError(result) {
 }
 
 async function runGraphqlResult(query, variables = {}) {
-  const result = await runAdminGraphqlRequest(
-    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(adminAccessToken) },
-    query,
-    variables,
-  );
+  const result = await runGraphqlRequest(query, variables);
 
   return {
     ok: result.status >= 200 && result.status < 300 && !result.payload?.errors,
@@ -456,7 +608,7 @@ function renderProtectedCustomerDataBlocker({ message, accessScopeHandles, custo
   ].join('\n');
 }
 
-try {
+{
   await mkdir(outputDir, { recursive: true });
   await mkdir(pendingDir, { recursive: true });
 
@@ -505,6 +657,40 @@ try {
   }
 
   const detail = await runGraphql(customerDetailQuery, { id: firstCustomerId });
+  const nestedSubresources = await runGraphql(customerNestedSubresourcesQuery, { id: firstCustomerId });
+  const detailCustomer = detail.data?.customer;
+  const firstCustomerEmail = detailCustomer?.email ?? detailCustomer?.defaultEmailAddress?.emailAddress;
+  const firstCustomerPhone = detailCustomer?.defaultPhoneNumber?.phoneNumber;
+  if (typeof firstCustomerEmail !== 'string' || !firstCustomerEmail) {
+    throw new Error('Customer detail capture returned no email for customerByIdentifier capture.');
+  }
+  if (typeof firstCustomerPhone !== 'string' || !firstCustomerPhone) {
+    throw new Error('Customer detail capture returned no default phone for customerByIdentifier capture.');
+  }
+
+  const customerByIdentifierVariables = {
+    idIdentifier: { id: firstCustomerId },
+    emailIdentifier: { emailAddress: firstCustomerEmail },
+    phoneIdentifier: { phoneNumber: firstCustomerPhone },
+    missingIdentifier: { emailAddress: 'missing-har-150@example.com' },
+  };
+  const customerByIdentifier = {
+    proxyVariables: customerByIdentifierVariables,
+    positiveAndMissing: await runGraphql(customerByIdentifierQuery, customerByIdentifierVariables),
+    customIdMissing: await runGraphqlResult(customerByCustomIdentifierQuery, {
+      identifier: {
+        customId: {
+          namespace: 'custom',
+          key: 'har_150_missing',
+          value: 'missing',
+        },
+      },
+    }),
+    emptyIdentifier: await runGraphqlResult(customerByIdentifierQuery, {
+      ...customerByIdentifierVariables,
+      idIdentifier: {},
+    }),
+  };
   const search = await runGraphql(customersSearchQuery, { first: 2, query: 'state:DISABLED' });
   const advancedSearch = await runGraphql(customersAdvancedSearchQuery, {
     prefixQuery: 'How*',
@@ -520,6 +706,16 @@ try {
 
   await writeFile(path.join(outputDir, 'customers-catalog.json'), `${JSON.stringify(catalog, null, 2)}\n`, 'utf8');
   await writeFile(path.join(outputDir, 'customer-detail.json'), `${JSON.stringify(detail, null, 2)}\n`, 'utf8');
+  await writeFile(
+    path.join(outputDir, 'customer-nested-subresources.json'),
+    `${JSON.stringify(nestedSubresources, null, 2)}\n`,
+    'utf8',
+  );
+  await writeFile(
+    path.join(outputDir, 'customer-by-identifier.json'),
+    `${JSON.stringify(customerByIdentifier, null, 2)}\n`,
+    'utf8',
+  );
   await writeFile(path.join(outputDir, 'customers-search.json'), `${JSON.stringify(search, null, 2)}\n`, 'utf8');
   await writeFile(
     path.join(outputDir, 'customers-advanced-search.json'),
@@ -543,6 +739,8 @@ try {
         files: [
           'customers-catalog.json',
           'customer-detail.json',
+          'customer-nested-subresources.json',
+          'customer-by-identifier.json',
           'customers-search.json',
           'customers-advanced-search.json',
           'customers-sort-keys.json',
@@ -555,6 +753,4 @@ try {
       2,
     ),
   );
-} catch (error) {
-  throw error;
 }

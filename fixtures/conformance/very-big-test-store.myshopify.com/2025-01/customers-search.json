@@ -3,55 +3,50 @@
     "customers": {
       "edges": [
         {
-          "cursor": "eyJsYXN0X2lkIjo5MDc5NzAwNTIxMTkzLCJsYXN0X3ZhbHVlIjoxNzc2NTQ5ODc1MDAwfQ==",
+          "cursor": "eyJsYXN0X2lkIjo5MTAzNjY2NDc5MzM3LCJsYXN0X3ZhbHVlIjoxNzc3MTE2Nzk4MDAwfQ==",
           "node": {
-            "id": "gid://shopify/Customer/9079700521193",
-            "displayName": "Hermes Operator",
-            "email": "hermes-order-parity-manual-1776549874815@example.com",
-            "legacyResourceId": "9079700521193",
+            "id": "gid://shopify/Customer/9103666479337",
+            "displayName": "Merge Two",
+            "email": "hermes-merge-two-1777116797159@example.com",
+            "legacyResourceId": "9103666479337",
             "verifiedEmail": true,
             "state": "DISABLED",
-            "tags": [],
+            "tags": ["merge-1777116797159", "merged"],
             "defaultPhoneNumber": null,
-            "defaultAddress": {
-              "address1": "123 Queen St W",
-              "city": "Toronto",
-              "province": "Ontario",
-              "country": "Canada",
-              "zip": "M5H 2M9",
-              "formattedArea": "Toronto ON, Canada"
-            },
-            "updatedAt": "2026-04-18T22:04:35Z"
+            "defaultAddress": null,
+            "updatedAt": "2026-04-25T11:33:18Z"
           }
         },
         {
-          "cursor": "eyJsYXN0X2lkIjo5MDc5NjgzNDQ5MDY1LCJsYXN0X3ZhbHVlIjoxNzc2NTQ5MTMyMDAwfQ==",
+          "cursor": "eyJsYXN0X2lkIjo2MTU3NjU0NTU2OTA1LCJsYXN0X3ZhbHVlIjoxNzc3MDgwMjg4MDAwfQ==",
           "node": {
-            "id": "gid://shopify/Customer/9079683449065",
-            "displayName": "Hermes Operator",
-            "email": "hermes-order-probe-1776549129247@example.com",
-            "legacyResourceId": "9079683449065",
+            "id": "gid://shopify/Customer/6157654556905",
+            "displayName": "Henry Short",
+            "email": "egnition_sample_29@egnition.com",
+            "legacyResourceId": "6157654556905",
             "verifiedEmail": true,
             "state": "DISABLED",
-            "tags": [],
-            "defaultPhoneNumber": null,
-            "defaultAddress": {
-              "address1": "123 Queen St W",
-              "city": "Toronto",
-              "province": "Ontario",
-              "country": "Canada",
-              "zip": "M5H 2M9",
-              "formattedArea": "Toronto ON, Canada"
+            "tags": ["egnition-sample-data", "referral"],
+            "defaultPhoneNumber": {
+              "phoneNumber": "+2911120123"
             },
-            "updatedAt": "2026-04-18T21:52:12Z"
+            "defaultAddress": {
+              "address1": "Ap #147-5705 Nonummy Street",
+              "city": "Maubeuge",
+              "province": null,
+              "country": "Eritrea",
+              "zip": "7759",
+              "formattedArea": "Maubeuge, Eritrea"
+            },
+            "updatedAt": "2026-04-25T01:24:48Z"
           }
         }
       ],
       "pageInfo": {
         "hasNextPage": true,
         "hasPreviousPage": false,
-        "startCursor": "eyJsYXN0X2lkIjo5MDc5NzAwNTIxMTkzLCJsYXN0X3ZhbHVlIjoxNzc2NTQ5ODc1MDAwfQ==",
-        "endCursor": "eyJsYXN0X2lkIjo5MDc5NjgzNDQ5MDY1LCJsYXN0X3ZhbHVlIjoxNzc2NTQ5MTMyMDAwfQ=="
+        "startCursor": "eyJsYXN0X2lkIjo5MTAzNjY2NDc5MzM3LCJsYXN0X3ZhbHVlIjoxNzc3MTE2Nzk4MDAwfQ==",
+        "endCursor": "eyJsYXN0X2lkIjo2MTU3NjU0NTU2OTA1LCJsYXN0X3ZhbHVlIjoxNzc3MDgwMjg4MDAwfQ=="
       }
     }
   },

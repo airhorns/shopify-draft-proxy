@@ -7,7 +7,6 @@ mutation DraftOrderUpdateParityPlan($id: ID!, $input: DraftOrderInput!) {
       status
       ready
       email
-      note
       tags
       customAttributes {
         key

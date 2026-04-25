@@ -1,0 +1,25 @@
+{
+  "scenarioId": "business-entity-fallbacks-read",
+  "operationNames": ["businessEntity"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "primary-fallback", "unknown-id-null"],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2026-04/business-entity-fallbacks.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/business-entity-fallbacks-read.graphql",
+    "variablesPath": "config/parity-requests/business-entity-fallbacks-read.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict data comparison covers omitted-id primary fallback, known-id lookup, and unknown-id null behavior for the first Store properties business entity slice.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "business-entity-fallback-data",
+        "capturePath": "$.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}
