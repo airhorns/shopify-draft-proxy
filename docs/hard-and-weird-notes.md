@@ -2097,3 +2097,16 @@ Practical rule:
 
 - keep `discountNodes` code-filter behavior modeled from capture evidence; do not assume it matches `codeDiscountNodes`
 - keep `codeDiscountNodes` as a separate compatibility root until its node-specific connection and filtering behavior are captured and modeled directly
+
+## 57. Singular discount roots reject IDs from the wrong discount family
+
+HAR-192 detail capture against Admin GraphQL 2026-04 showed that singular discount roots are family-specific even though `discountNode(id:)` spans both code and automatic discounts.
+
+Captured fact:
+
+- passing a `gid://shopify/DiscountCodeNode/...` ID to `automaticDiscountNode(id:)` returned a top-level `RESOURCE_NOT_FOUND` GraphQL error with `automaticDiscountNode: null`, rather than a quiet null-only response
+
+Practical rule:
+
+- use `discountNode(id:)` for family-agnostic detail reads
+- keep parity scenarios for `codeDiscountNode(id:)` and `automaticDiscountNode(id:)` on matching ID families; do not use mismatched-family calls as ordinary null-read evidence
