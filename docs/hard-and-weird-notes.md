@@ -2185,7 +2185,36 @@ Credential and fixture limitation:
 - capture app-discount read fixtures only when a safe existing app discount or disposable Function-backed setup is available, and document the exact `appDiscountType` shape captured
 - supporting app-discount writes later must stage locally without invoking external Shopify Function logic during normal proxy runtime
 
-## 59. Payment-area roots are mostly sensitive scaffolds, not runtime support
+## 59. Discount validation splits between GraphQL errors and `DiscountUserError`
+
+HAR-198 captured representative discount mutation validation branches against Admin GraphQL 2026-04.
+
+Captured GraphQL-validation branches:
+
+- omitting required `$input` for `discountCodeBasicCreate` returns a top-level `INVALID_VARIABLE` error before resolver execution
+- inline `discountCodeBasicCreate(basicCodeDiscount: null)` returns top-level `argumentLiteralsIncompatible`, not mutation-scoped `userErrors`
+
+Captured mutation-scoped `DiscountUserError` branches:
+
+- duplicate native code discounts return `field: ['basicCodeDiscount', 'code']`, `code: 'TAKEN'`, and message `Code must be unique. Please try a different code.`
+- invalid automatic basic date ranges return `field: ['automaticBasicDiscount', 'endsAt']` and message `Ends at needs to be after starts_at`
+- combining collection entitlements with product/product-variant entitlements returns a `CONFLICT` error on `['basicCodeDiscount', 'customerGets', 'items', 'collections', 'add']`, while invalid product and variant GIDs also return separate `INVALID` entries
+- BXGY roots reject all-items customer-get/customer-buy payloads and blank titles with root-specific field prefixes (`bxgyCodeDiscount` vs `automaticBxgyDiscount`)
+- free-shipping roots reject all discount-class combinesWith flags; code free shipping also reported blank title, while the captured automatic free-shipping branch only reported invalid combinesWith for the same blank-title payload
+- unknown `discountCodeBasicUpdate` IDs return `field: ['id']`, message `Discount does not exist`, and `code: null`
+- code and automatic bulk roots use different wording for mutually exclusive selector errors even though both use `code: 'TOO_MANY_ARGUMENTS'`
+
+Access-scope note:
+
+- the live capture includes a `currentAppInstallation.accessScopes` probe with both `read_discounts` and `write_discounts`; a no-discount-scope token was not available in-session, so no `ACCESS_DENIED` discount fixture was captured
+- do not treat that as permission to fake successful discount staging for access failures; future no-scope captures should be preserved as top-level failures and documented here
+
+Practical rule:
+
+- locally short-circuit only the captured validation branches until full discount lifecycle staging exists
+- do not proxy obviously captured invalid discount requests upstream, and do not invent happy-path discount mutation success for broader unmodeled inputs
+
+## 60. Payment-area roots are mostly sensitive scaffolds, not runtime support
 
 HAR-219 refreshed the payment-area root inventory against the checked-in 2025-01 Admin root introspection fixture and the 2026-04 `latest` Admin docs. The registry now declares the roots as coverage scaffolds without registering permanent passthrough support or adding planned-only parity specs.
 

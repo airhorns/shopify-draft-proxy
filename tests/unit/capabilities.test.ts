@@ -543,11 +543,7 @@ describe('getOperationCapability', () => {
     });
 
     expect(
-      getOperationCapability({
-        type: 'mutation',
-        name: 'CreateDiscount',
-        rootFields: ['discountCodeBasicCreate'],
-      }),
+      getOperationCapability({ type: 'mutation', name: 'CreateDiscount', rootFields: ['discountCodeBasicCreate'] }),
     ).toEqual({
       domain: 'unknown',
       execution: 'passthrough',
