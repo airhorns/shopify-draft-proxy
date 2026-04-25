@@ -18,6 +18,7 @@ import type {
   ProductRecord,
   ProductVariantRecord,
   PublicationRecord,
+  ShopRecord,
   StateSnapshot,
 } from './types.js';
 
@@ -33,6 +34,7 @@ interface MetaRuntimeState {
 }
 
 const EMPTY_SNAPSHOT: StateSnapshot = {
+  shop: null,
   products: {},
   productVariants: {},
   productOptions: {},
@@ -137,6 +139,14 @@ function collectionFromMembership(membership: ProductCollectionRecord): Collecti
 
 function mergePublicationRecord(base: PublicationRecord | null): PublicationRecord | null {
   return base ? structuredClone(base) : null;
+}
+
+function mergeShopRecords(base: ShopRecord | null, staged: ShopRecord | null): ShopRecord | null {
+  if (!base && !staged) {
+    return null;
+  }
+
+  return structuredClone(staged ?? base);
 }
 
 function mergeProductRecords(base: ProductRecord | null, staged: ProductRecord | null): ProductRecord | null {
@@ -339,6 +349,19 @@ export class InMemoryStore {
         this.baseState.businessEntityOrder.push(businessEntity.id);
       }
     }
+  }
+
+  upsertBaseShop(shop: ShopRecord): void {
+    this.baseState.shop = structuredClone(shop);
+  }
+
+  stageShop(shop: ShopRecord): ShopRecord {
+    this.stagedState.shop = structuredClone(shop);
+    return structuredClone(shop);
+  }
+
+  getEffectiveShop(): ShopRecord | null {
+    return mergeShopRecords(this.baseState.shop, this.stagedState.shop);
   }
 
   listEffectiveBusinessEntities(): BusinessEntityRecord[] {

@@ -12,12 +12,14 @@ const config: AppConfig = {
 };
 
 const emptySnapshot = {
+  shop: null,
   products: {},
   productVariants: {},
   productOptions: {},
   collections: {},
   publications: {},
   customers: {},
+  customerMetafields: {},
   businessEntities: {},
   businessEntityOrder: [],
   productCollections: {},
