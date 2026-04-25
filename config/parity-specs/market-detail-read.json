@@ -2,7 +2,12 @@
   "scenarioId": "market-detail-read",
   "operationNames": ["market"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "selected-fields", "nested-catalogs-connection", "nested-web-presences-connection"],
+  "assertionKinds": [
+    "payload-shape",
+    "selected-fields",
+    "nested-catalogs-connection",
+    "nested-web-presences-connection"
+  ],
   "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2026-04/market-detail.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/market-detail-read.graphql",

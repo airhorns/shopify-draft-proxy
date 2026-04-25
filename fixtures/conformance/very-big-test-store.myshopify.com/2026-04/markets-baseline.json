@@ -1292,9 +1292,7 @@
                 "status": "ACTIVE",
                 "type": "REGION",
                 "conditions": {
-                  "conditionTypes": [
-                    "REGION"
-                  ],
+                  "conditionTypes": ["REGION"],
                   "regionsCondition": {
                     "applicationLevel": "SPECIFIED",
                     "regions": {
@@ -1362,9 +1360,7 @@
                 "status": "ACTIVE",
                 "type": "REGION",
                 "conditions": {
-                  "conditionTypes": [
-                    "REGION"
-                  ],
+                  "conditionTypes": ["REGION"],
                   "regionsCondition": {
                     "applicationLevel": "SPECIFIED",
                     "regions": {
@@ -1465,9 +1461,7 @@
           "status": "ACTIVE",
           "type": "REGION",
           "conditions": {
-            "conditionTypes": [
-              "REGION"
-            ],
+            "conditionTypes": ["REGION"],
             "regionsCondition": {
               "applicationLevel": "SPECIFIED",
               "regions": {
@@ -1810,13 +1804,7 @@
                 "documentation": "https://shopify.dev/api/usage/access-scopes",
                 "requiredAccess": "`read_locales` access scope or `read_markets_home` access scope."
               },
-              "path": [
-                "webPresences",
-                "edges",
-                0,
-                "node",
-                "defaultLocale"
-              ]
+              "path": ["webPresences", "edges", 0, "node", "defaultLocale"]
             }
           ],
           "data": {
@@ -1840,55 +1828,29 @@
   "mutationValidationProbePlan": [
     {
       "root": "market lifecycle",
-      "operations": [
-        "marketCreate",
-        "marketUpdate",
-        "marketDelete"
-      ],
-      "requiredScopes": [
-        "read_markets",
-        "write_markets"
-      ],
+      "operations": ["marketCreate", "marketUpdate", "marketDelete"],
+      "requiredScopes": ["read_markets", "write_markets"],
       "safety": "side-effect-heavy; can create, mutate, activate, or delete buyer-facing market configuration",
       "recommendedProbe": "schema and invalid-ID/input validation only until a disposable market fixture is available"
     },
     {
       "root": "market web presences",
-      "operations": [
-        "webPresenceCreate",
-        "webPresenceUpdate",
-        "webPresenceDelete"
-      ],
-      "requiredScopes": [
-        "read_markets",
-        "write_markets"
-      ],
+      "operations": ["webPresenceCreate", "webPresenceUpdate", "webPresenceDelete"],
+      "requiredScopes": ["read_markets", "write_markets"],
       "safety": "side-effect-heavy; can change buyer-facing market domains, subfolders, and SEO routing",
       "recommendedProbe": "schema and invalid-ID/input validation only; avoid success-path writes on shared stores"
     },
     {
       "root": "market localizations",
-      "operations": [
-        "marketLocalizationsRegister",
-        "marketLocalizationsRemove"
-      ],
-      "requiredScopes": [
-        "read_markets",
-        "write_markets"
-      ],
+      "operations": ["marketLocalizationsRegister", "marketLocalizationsRemove"],
+      "requiredScopes": ["read_markets", "write_markets"],
       "safety": "side-effect-heavy; changes market-specific localized resource values",
       "recommendedProbe": "schema and invalid resource/localization payload validation before any live write capture"
     },
     {
       "root": "backup regions and currency settings",
-      "operations": [
-        "backupRegionUpdate",
-        "marketCurrencySettingsUpdate"
-      ],
-      "requiredScopes": [
-        "read_markets",
-        "write_markets"
-      ],
+      "operations": ["backupRegionUpdate", "marketCurrencySettingsUpdate"],
+      "requiredScopes": ["read_markets", "write_markets"],
       "safety": "side-effect-heavy; changes fallback regions or pricing/currency behavior for markets",
       "recommendedProbe": "schema and invalid-ID/input validation only unless a disposable shop capability is prepared"
     }

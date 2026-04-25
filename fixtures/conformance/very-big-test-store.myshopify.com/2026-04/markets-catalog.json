@@ -11,9 +11,7 @@
             "status": "ACTIVE",
             "type": "REGION",
             "conditions": {
-              "conditionTypes": [
-                "REGION"
-              ],
+              "conditionTypes": ["REGION"],
               "regionsCondition": {
                 "applicationLevel": "SPECIFIED",
                 "regions": {
@@ -81,9 +79,7 @@
             "status": "ACTIVE",
             "type": "REGION",
             "conditions": {
-              "conditionTypes": [
-                "REGION"
-              ],
+              "conditionTypes": ["REGION"],
               "regionsCondition": {
                 "applicationLevel": "SPECIFIED",
                 "regions": {
