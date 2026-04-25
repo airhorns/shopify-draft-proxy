@@ -56,6 +56,10 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
   difference because clients must not depend on their internal encoding.
 - Repo scripts must be TypeScript files executed with `tsx` or similar, not
   `.mjs` files. Do not add `.mjs` files anywhere in this repository.
+- Relative TypeScript import specifiers must use the emitted JavaScript
+  extension that TypeScript expects for NodeNext output (`.js` for `.ts`, `.mjs`
+  for `.mts`, `.cjs` for `.cts`). Do not import local modules with source
+  extensions such as `.ts`, `.mts`, or `.cts`; `pnpm lint` enforces this.
 
 ## GitHub repository
 
