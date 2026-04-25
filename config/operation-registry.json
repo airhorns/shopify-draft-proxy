@@ -832,6 +832,156 @@
     "supportNotes": "Registry-only declared gap for future local staging. Requires standard template catalog modeling plus created-definition semantics before support."
   },
   {
+    "name": "metaobject",
+    "type": "query",
+    "domain": "metaobjects",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["metaobject", "Metaobject"],
+    "runtimeTests": [],
+    "supportNotes": "Admin GraphQL 2026-04 entry read root. Registry-only declared gap until live capture proves ID lookup nullability, selected field shape, capabilities, references, and empty/no-data behavior."
+  },
+  {
+    "name": "metaobjectByHandle",
+    "type": "query",
+    "domain": "metaobjects",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["metaobjectByHandle", "MetaobjectByHandle"],
+    "runtimeTests": [],
+    "supportNotes": "Admin GraphQL 2026-04 handle lookup root. Registry-only declared gap until type-plus-handle identity, missing-handle nullability, and app-owned type behavior are captured."
+  },
+  {
+    "name": "metaobjects",
+    "type": "query",
+    "domain": "metaobjects",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["metaobjects", "Metaobjects"],
+    "runtimeTests": [],
+    "supportNotes": "Admin GraphQL 2026-04 entry connection root. Registry-only declared gap until type-scoped empty connections, pagination, search filters, sorting, and field-value query semantics are captured."
+  },
+  {
+    "name": "metaobjectDefinition",
+    "type": "query",
+    "domain": "metaobjects",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["metaobjectDefinition", "MetaobjectDefinition"],
+    "runtimeTests": [],
+    "supportNotes": "Admin GraphQL 2026-04 definition read root. Registry-only declared gap until ID lookup nullability, field definition ordering, capabilities, access settings, and empty/no-data behavior are captured."
+  },
+  {
+    "name": "metaobjectDefinitionByType",
+    "type": "query",
+    "domain": "metaobjects",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["metaobjectDefinitionByType", "MetaobjectDefinitionByType"],
+    "runtimeTests": [],
+    "supportNotes": "Admin GraphQL 2026-04 definition type lookup root. Registry-only declared gap until type identity, app-reserved type handling, and missing-type nullability are captured."
+  },
+  {
+    "name": "metaobjectDefinitions",
+    "type": "query",
+    "domain": "metaobjects",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["metaobjectDefinitions", "MetaobjectDefinitions"],
+    "runtimeTests": [],
+    "supportNotes": "Admin GraphQL 2026-04 definition catalog root. Registry-only declared gap until definition pagination, ordering, type filtering, standard-template metadata, and empty connection behavior are captured."
+  },
+  {
+    "name": "metaobjectCreate",
+    "type": "mutation",
+    "domain": "metaobjects",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["metaobjectCreate", "MetaobjectCreate"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until field validation, handle generation, capabilities, and downstream read visibility are modeled."
+  },
+  {
+    "name": "metaobjectUpdate",
+    "type": "mutation",
+    "domain": "metaobjects",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["metaobjectUpdate", "MetaobjectUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until field patching, validation, capability changes, and read-after-write behavior are modeled."
+  },
+  {
+    "name": "metaobjectUpsert",
+    "type": "mutation",
+    "domain": "metaobjects",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["metaobjectUpsert", "MetaobjectUpsert"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until create-vs-update identity, handle conflicts, and downstream catalog behavior are modeled."
+  },
+  {
+    "name": "metaobjectDelete",
+    "type": "mutation",
+    "domain": "metaobjects",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["metaobjectDelete", "MetaobjectDelete"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until delete payloads, unknown IDs, references, and downstream absence behavior are modeled."
+  },
+  {
+    "name": "metaobjectBulkDelete",
+    "type": "mutation",
+    "domain": "metaobjects",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["metaobjectBulkDelete", "MetaobjectBulkDelete"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until bulk selection, partial failures, async job shape, and downstream absence behavior are modeled."
+  },
+  {
+    "name": "metaobjectDefinitionCreate",
+    "type": "mutation",
+    "domain": "metaobjects",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["metaobjectDefinitionCreate", "MetaobjectDefinitionCreate"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until definition schema validation, capabilities, access, and entry catalog side effects are modeled."
+  },
+  {
+    "name": "metaobjectDefinitionUpdate",
+    "type": "mutation",
+    "domain": "metaobjects",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["metaobjectDefinitionUpdate", "MetaobjectDefinitionUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until field definition migrations, validation jobs, access changes, and downstream entry effects are modeled."
+  },
+  {
+    "name": "metaobjectDefinitionDelete",
+    "type": "mutation",
+    "domain": "metaobjects",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["metaobjectDefinitionDelete", "MetaobjectDefinitionDelete"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until associated entry deletion, unknown-type behavior, and downstream definition absence are modeled."
+  },
+  {
+    "name": "standardMetaobjectDefinitionEnable",
+    "type": "mutation",
+    "domain": "metaobjects",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["standardMetaobjectDefinitionEnable", "StandardMetaobjectDefinitionEnable"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until standard template catalog capture, enable validation, and created-definition semantics are modeled."
+  },
+  {
     "name": "collectionCreate",
     "type": "mutation",
     "domain": "products",
@@ -1905,13 +2055,34 @@
     "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"]
   },
   {
+    "name": "discountCodeAppCreate",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["discountCodeAppCreate", "DiscountCodeAppCreate"],
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registry-only app-managed discount safety gap. Unsupported runtime requests still use the generic passthrough escape hatch, which would hit Shopify, because Shopify Functions app-discount staging requires captured appDiscountType/functionId fixtures and a local model that does not execute external Function logic."
+  },
+  {
     "name": "discountCodeAppUpdate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeAppUpdate", "DiscountCodeAppUpdate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registry-only app-managed discount safety gap. Unsupported runtime requests still use the generic passthrough escape hatch, which would hit Shopify, because Shopify Functions app-discount staging requires captured appDiscountType/functionId fixtures and a local model that does not execute external Function logic."
+  },
+  {
+    "name": "discountAutomaticAppCreate",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["discountAutomaticAppCreate", "DiscountAutomaticAppCreate"],
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registry-only app-managed discount safety gap. Unsupported runtime requests still use the generic passthrough escape hatch, which would hit Shopify, because Shopify Functions app-discount staging requires captured appDiscountType/functionId fixtures and a local model that does not execute external Function logic."
   },
   {
     "name": "discountAutomaticAppUpdate",
@@ -1920,7 +2091,8 @@
     "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountAutomaticAppUpdate", "DiscountAutomaticAppUpdate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registry-only app-managed discount safety gap. Unsupported runtime requests still use the generic passthrough escape hatch, which would hit Shopify, because Shopify Functions app-discount staging requires captured appDiscountType/functionId fixtures and a local model that does not execute external Function logic."
   },
   {
     "name": "marketingActivities",

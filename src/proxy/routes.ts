@@ -8,6 +8,7 @@ import type { MutationLogInterpretedMetadata } from '../state/types.js';
 import type { AppConfig } from '../config.js';
 import { createUpstreamGraphQLClient } from '../shopify/upstream-client.js';
 import { getOperationCapability, type OperationCapability } from './capabilities.js';
+import { findOperationRegistryEntry } from './operation-registry.js';
 import { handleMediaMutation } from './media.js';
 import { handleCustomerMutation, handleCustomerQuery, hydrateCustomersFromUpstreamResponse } from './customers.js';
 import { handleDiscountMutation, handleDiscountQuery } from './discounts.js';
@@ -23,6 +24,13 @@ interface GraphQLBody {
   operationName?: unknown;
   extensions?: unknown;
 }
+
+const APP_DISCOUNT_MUTATION_ROOTS = new Set([
+  'discountCodeAppCreate',
+  'discountCodeAppUpdate',
+  'discountAutomaticAppCreate',
+  'discountAutomaticAppUpdate',
+]);
 
 function readVariables(raw: unknown): Record<string, unknown> {
   return typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
@@ -93,6 +101,45 @@ function interpretMutationLogEntry(
       execution: capability.execution,
     },
   };
+}
+
+function buildUnsupportedMutationObservability(parsed: ParsedOperation): Partial<MutationLogInterpretedMetadata> {
+  const registryEntry = findOperationRegistryEntry(parsed.type, [...parsed.rootFields, parsed.name]);
+  if (!registryEntry || registryEntry.implemented) {
+    return {};
+  }
+
+  const primaryRootField = parsed.rootFields[0] ?? registryEntry.name;
+  const registeredOperation = {
+    name: registryEntry.name,
+    domain: registryEntry.domain,
+    execution: registryEntry.execution,
+    implemented: registryEntry.implemented,
+    ...(registryEntry.supportNotes ? { supportNotes: registryEntry.supportNotes } : {}),
+  };
+
+  if (APP_DISCOUNT_MUTATION_ROOTS.has(primaryRootField)) {
+    return {
+      registeredOperation,
+      safety: {
+        classification: 'unsupported-app-discount-function-mutation',
+        wouldProxyToShopify: true,
+        reason:
+          'App-managed discount mutations are backed by Shopify Functions and external function IDs; local staging requires captured fixtures and an explicit model that does not execute external Function logic at runtime.',
+      },
+    };
+  }
+
+  return { registeredOperation };
+}
+
+function unsupportedMutationNotes(parsed: ParsedOperation): string {
+  const primaryRootField = parsed.rootFields[0] ?? null;
+  if (primaryRootField && APP_DISCOUNT_MUTATION_ROOTS.has(primaryRootField)) {
+    return 'Unsupported app-managed discount mutation would be proxied to Shopify. Shopify Functions app-discount roots require conformance-backed local staging before they can be supported without executing external Function logic.';
+  }
+
+  return 'Mutation passthrough placeholder until supported local staging is implemented.';
 }
 
 function isProductLocalMutationCapability(capability: OperationCapability): boolean {
@@ -666,12 +713,15 @@ export function createProxyRouter(config: AppConfig): Router {
     }
 
     if (parsed.type === 'mutation') {
+      const unsupportedObservability = buildUnsupportedMutationObservability(parsed);
       proxyLogger.warn(
         {
           execution: capability.execution,
           operationName: capability.operationName,
           operationType: parsed.type,
           rootFields: parsed.rootFields,
+          registeredOperation: unsupportedObservability.registeredOperation,
+          safety: unsupportedObservability.safety,
         },
         'proxying unsupported mutation upstream',
       );
@@ -685,8 +735,11 @@ export function createProxyRouter(config: AppConfig): Router {
         variables,
         requestBody,
         status: 'proxied',
-        interpreted: interpretMutationLogEntry(parsed, capability),
-        notes: 'Mutation passthrough placeholder until supported local staging is implemented.',
+        interpreted: {
+          ...interpretMutationLogEntry(parsed, capability),
+          ...unsupportedObservability,
+        },
+        notes: unsupportedMutationNotes(parsed),
       });
     }
 
