@@ -1,0 +1,128 @@
+{
+  "capturedAt": "2026-04-25T20:31:12.295Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "functionCatalog": {
+    "nodes": []
+  },
+  "variables": {
+    "badCreate": {
+      "title": "Hermes invalid payment customization",
+      "enabled": true,
+      "functionId": "gid://shopify/ShopifyFunction/0"
+    },
+    "missingFunction": {
+      "title": "Hermes missing function",
+      "enabled": true
+    },
+    "missingTitle": {
+      "enabled": true,
+      "functionId": "gid://shopify/ShopifyFunction/0"
+    },
+    "missingEnabled": {
+      "title": "Hermes missing enabled",
+      "functionId": "gid://shopify/ShopifyFunction/0"
+    },
+    "unknownId": "gid://shopify/PaymentCustomization/0",
+    "badUpdate": {
+      "title": "Hermes unknown update",
+      "enabled": false,
+      "functionId": "gid://shopify/ShopifyFunction/0"
+    },
+    "activationIds": ["gid://shopify/PaymentCustomization/0"],
+    "emptyActivationIds": [],
+    "enabled": true
+  },
+  "response": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "badCreate": {
+          "paymentCustomization": null,
+          "userErrors": [
+            {
+              "field": ["paymentCustomization", "functionId"],
+              "message": "Function gid://shopify/ShopifyFunction/0 not found. Ensure that it is released in the current app (347082227713), and that the app is installed.",
+              "code": "FUNCTION_NOT_FOUND"
+            }
+          ]
+        },
+        "missingFunction": {
+          "paymentCustomization": null,
+          "userErrors": [
+            {
+              "field": ["paymentCustomization", "functionId"],
+              "message": "Required input field must be present.",
+              "code": "REQUIRED_INPUT_FIELD"
+            }
+          ]
+        },
+        "missingTitle": {
+          "paymentCustomization": null,
+          "userErrors": [
+            {
+              "field": ["paymentCustomization", "title"],
+              "message": "Required input field must be present.",
+              "code": "REQUIRED_INPUT_FIELD"
+            }
+          ]
+        },
+        "missingEnabled": {
+          "paymentCustomization": null,
+          "userErrors": [
+            {
+              "field": ["paymentCustomization", "enabled"],
+              "message": "Required input field must be present.",
+              "code": "REQUIRED_INPUT_FIELD"
+            }
+          ]
+        },
+        "unknownUpdate": {
+          "paymentCustomization": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Could not find PaymentCustomization with id: gid://shopify/PaymentCustomization/0",
+              "code": "PAYMENT_CUSTOMIZATION_NOT_FOUND"
+            }
+          ]
+        },
+        "unknownActivation": {
+          "ids": [],
+          "userErrors": [
+            {
+              "field": ["ids"],
+              "message": "Could not find payment customizations with IDs: gid://shopify/PaymentCustomization/0",
+              "code": "PAYMENT_CUSTOMIZATION_NOT_FOUND"
+            }
+          ]
+        },
+        "emptyActivation": {
+          "ids": [],
+          "userErrors": []
+        },
+        "unknownDelete": {
+          "deletedId": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Could not find PaymentCustomization with id: gid://shopify/PaymentCustomization/0",
+              "code": "PAYMENT_CUSTOMIZATION_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 80,
+          "actualQueryCost": 80,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1920,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}
