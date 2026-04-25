@@ -138,6 +138,49 @@ function mergeCollectionRecords(
   return structuredClone(staged);
 }
 
+function mergeLocationRecords(base: LocationRecord | null, staged: LocationRecord | null): LocationRecord | null {
+  if (!base && !staged) {
+    return null;
+  }
+
+  if (!base) {
+    return staged ? structuredClone(staged) : null;
+  }
+
+  if (!staged) {
+    return structuredClone(base);
+  }
+
+  return structuredClone({
+    ...base,
+    ...staged,
+    address:
+      staged.address === undefined
+        ? base.address
+        : staged.address === null
+          ? null
+          : {
+              ...(base.address ?? {
+                address1: null,
+                address2: null,
+                city: null,
+                country: null,
+                countryCode: null,
+                formatted: [],
+                latitude: null,
+                longitude: null,
+                phone: null,
+                province: null,
+                provinceCode: null,
+                zip: null,
+              }),
+              ...staged.address,
+            },
+    suggestedAddresses: staged.suggestedAddresses ?? base.suggestedAddresses,
+    metafields: staged.metafields ?? base.metafields,
+  });
+}
+
 function collectionFromMembership(membership: ProductCollectionRecord): CollectionRecord {
   const { productId: _productId, position: _position, ...collection } = membership;
   return structuredClone(collection);
@@ -421,6 +464,43 @@ export class InMemoryStore {
   getBaseLocationById(locationId: string): LocationRecord | null {
     const location = this.baseState.locations[locationId] ?? null;
     return location ? structuredClone(location) : null;
+  }
+
+  stageCreateLocation(location: LocationRecord): LocationRecord {
+    this.stagedState.locations[location.id] = structuredClone(location);
+    if (!this.stagedState.locationOrder.includes(location.id)) {
+      this.stagedState.locationOrder.push(location.id);
+    }
+    return structuredClone(location);
+  }
+
+  stageUpdateLocation(location: LocationRecord): LocationRecord {
+    this.stagedState.locations[location.id] = structuredClone(location);
+    if (!this.baseState.locationOrder.includes(location.id) && !this.stagedState.locationOrder.includes(location.id)) {
+      this.stagedState.locationOrder.push(location.id);
+    }
+    return structuredClone(location);
+  }
+
+  getEffectiveLocationById(locationId: string): LocationRecord | null {
+    return mergeLocationRecords(
+      this.baseState.locations[locationId] ?? null,
+      this.stagedState.locations[locationId] ?? null,
+    );
+  }
+
+  listEffectiveLocations(): LocationRecord[] {
+    const orderedIds = new Set([...this.baseState.locationOrder, ...this.stagedState.locationOrder]);
+    const orderedLocations = [...orderedIds]
+      .map((id) => this.getEffectiveLocationById(id))
+      .filter((location): location is LocationRecord => location !== null);
+    const unorderedLocations = Object.values({ ...this.baseState.locations, ...this.stagedState.locations })
+      .filter((location) => !orderedIds.has(location.id))
+      .map((location) => this.getEffectiveLocationById(location.id))
+      .filter((location): location is LocationRecord => location !== null)
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
+
+    return structuredClone([...orderedLocations, ...unorderedLocations]);
   }
 
   stageShop(shop: ShopRecord): ShopRecord {

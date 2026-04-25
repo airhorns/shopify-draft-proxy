@@ -1,0 +1,61 @@
+{
+  "capturedAt": "2026-04-25T16:51:33.077Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "cases": [
+    {
+      "name": "locationAddBlankName",
+      "query": "#graphql\nmutation LocationAddBlankName($input: LocationAddInput!) {\n  locationAdd(input: $input) {\n    location { id name }\n    userErrors { field message }\n  }\n}",
+      "variables": {
+        "input": {
+          "name": "",
+          "address": {
+            "countryCode": "US"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationAdd": {
+              "location": null,
+              "userErrors": [
+                {
+                  "field": ["input", "name"],
+                  "message": "Add a location name"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "locationEditUnknownId",
+      "query": "#graphql\nmutation LocationEditUnknownId($id: ID!, $input: LocationEditInput!) {\n  locationEdit(id: $id, input: $input) {\n    location { id name }\n    userErrors { field message }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/Location/999999999999",
+        "input": {
+          "name": "Nope"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationEdit": {
+              "location": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Location not found."
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -17,6 +17,7 @@ import type {
   CollectionRecord,
   CollectionRuleSetRecord,
   InventoryLevelRecord,
+  LocationRecord,
   ProductCatalogConnectionRecord,
   ProductCollectionRecord,
   ProductMediaRecord,
@@ -295,14 +296,13 @@ function listEffectiveCollections(): CollectionRecord[] {
   return store.listEffectiveCollections();
 }
 
-interface LocationRecord {
-  id: string;
-  name: string | null;
-}
-
 function listEffectiveLocations(): LocationRecord[] {
-  const locations: LocationRecord[] = [];
+  const locations: LocationRecord[] = store.listEffectiveLocations();
   const seenLocationIds = new Set<string>();
+
+  for (const location of locations) {
+    seenLocationIds.add(location.id);
+  }
 
   for (const product of store.listEffectiveProducts()) {
     for (const variant of store.getEffectiveVariantsByProductId(product.id)) {
@@ -313,15 +313,27 @@ function listEffectiveLocations(): LocationRecord[] {
         }
 
         seenLocationIds.add(locationId);
+        const effectiveLocation = store.getEffectiveLocationById(locationId);
         locations.push({
+          ...effectiveLocation,
           id: locationId,
-          name: level.location?.name ?? null,
+          name: effectiveLocation?.name ?? level.location?.name ?? null,
         });
       }
     }
   }
 
   return locations;
+}
+
+function readEffectiveInventoryLevelLocation(
+  location: NonNullable<InventoryLevelRecord['location']>,
+): NonNullable<InventoryLevelRecord['location']> {
+  const effectiveLocation = store.getEffectiveLocationById(location.id);
+  return {
+    id: location.id,
+    name: effectiveLocation?.name ?? location.name,
+  };
 }
 
 function listEffectivePublications(): PublicationRecord[] {
@@ -3854,6 +3866,7 @@ function serializeInventoryLevelsConnection(
                   nodeResult[levelKey] = null;
                   break;
                 }
+                const effectiveLocation = readEffectiveInventoryLevelLocation(level.location);
                 const locationResult: Record<string, unknown> = {};
                 for (const locationSelection of levelSelection.selectionSet?.selections ?? []) {
                   if (locationSelection.kind !== Kind.FIELD) {
@@ -3862,10 +3875,10 @@ function serializeInventoryLevelsConnection(
                   const locationKey = locationSelection.alias?.value ?? locationSelection.name.value;
                   switch (locationSelection.name.value) {
                     case 'id':
-                      locationResult[locationKey] = level.location.id;
+                      locationResult[locationKey] = effectiveLocation.id;
                       break;
                     case 'name':
-                      locationResult[locationKey] = level.location.name;
+                      locationResult[locationKey] = effectiveLocation.name;
                       break;
                     default:
                       locationResult[locationKey] = null;
@@ -3914,6 +3927,7 @@ function serializeInventoryLevelsConnection(
                         nodeResult[levelKey] = null;
                         break;
                       }
+                      const effectiveLocation = readEffectiveInventoryLevelLocation(level.location);
                       const locationResult: Record<string, unknown> = {};
                       for (const locationSelection of levelSelection.selectionSet?.selections ?? []) {
                         if (locationSelection.kind !== Kind.FIELD) {
@@ -3922,10 +3936,10 @@ function serializeInventoryLevelsConnection(
                         const locationKey = locationSelection.alias?.value ?? locationSelection.name.value;
                         switch (locationSelection.name.value) {
                           case 'id':
-                            locationResult[locationKey] = level.location.id;
+                            locationResult[locationKey] = effectiveLocation.id;
                             break;
                           case 'name':
-                            locationResult[locationKey] = level.location.name;
+                            locationResult[locationKey] = effectiveLocation.name;
                             break;
                           default:
                             locationResult[locationKey] = null;
@@ -4030,6 +4044,7 @@ function serializeInventoryLevelObject(
           result[key] = null;
           break;
         }
+        const effectiveLocation = readEffectiveInventoryLevelLocation(level.location);
         const locationResult: Record<string, unknown> = {};
         for (const locationSelection of selection.selectionSet?.selections ?? []) {
           if (locationSelection.kind !== Kind.FIELD) {
@@ -4038,10 +4053,10 @@ function serializeInventoryLevelObject(
           const locationKey = locationSelection.alias?.value ?? locationSelection.name.value;
           switch (locationSelection.name.value) {
             case 'id':
-              locationResult[locationKey] = level.location.id;
+              locationResult[locationKey] = effectiveLocation.id;
               break;
             case 'name':
-              locationResult[locationKey] = level.location.name;
+              locationResult[locationKey] = effectiveLocation.name;
               break;
             default:
               locationResult[locationKey] = null;
