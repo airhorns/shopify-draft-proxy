@@ -56,7 +56,7 @@ describe('proxy capability classification', () => {
     });
   });
 
-  it('logs registry-only discounts mutations through the generic unsupported passthrough path', async () => {
+  it('logs unmodeled discount happy paths through the generic unsupported passthrough path', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -105,7 +105,7 @@ describe('proxy capability classification', () => {
     expect(response.status).toBe(200);
     expect(store.getLog()).toHaveLength(1);
     expect(store.getLog()[0]).toMatchObject({
-      operationName: 'CreateDiscount',
+      operationName: 'discountCodeBasicCreate',
       status: 'proxied',
       interpreted: {
         operationType: 'mutation',
@@ -113,9 +113,9 @@ describe('proxy capability classification', () => {
         rootFields: ['discountCodeBasicCreate'],
         primaryRootField: 'discountCodeBasicCreate',
         capability: {
-          operationName: 'CreateDiscount',
-          domain: 'unknown',
-          execution: 'passthrough',
+          operationName: 'discountCodeBasicCreate',
+          domain: 'discounts',
+          execution: 'stage-locally',
         },
       },
       notes: 'Mutation passthrough placeholder until supported local staging is implemented.',

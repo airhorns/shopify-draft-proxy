@@ -549,9 +549,9 @@ describe('getOperationCapability', () => {
         rootFields: ['discountCodeBasicCreate'],
       }),
     ).toEqual({
-      domain: 'unknown',
-      execution: 'passthrough',
-      operationName: 'CreateDiscount',
+      domain: 'discounts',
+      execution: 'stage-locally',
+      operationName: 'discountCodeBasicCreate',
       type: 'mutation',
     });
 
@@ -562,9 +562,9 @@ describe('getOperationCapability', () => {
         rootFields: ['discountAutomaticBulkDelete'],
       }),
     ).toEqual({
-      domain: 'unknown',
-      execution: 'passthrough',
-      operationName: 'DeleteAutomaticDiscounts',
+      domain: 'discounts',
+      execution: 'stage-locally',
+      operationName: 'discountAutomaticBulkDelete',
       type: 'mutation',
     });
   });
