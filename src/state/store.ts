@@ -201,6 +201,10 @@ function collectionFromMembership(membership: ProductCollectionRecord): Collecti
   return structuredClone(collection);
 }
 
+function readProductMetafieldOwnerId(metafield: ProductMetafieldRecord): string | null {
+  return metafield.ownerId ?? metafield.productId ?? null;
+}
+
 function mergePublicationRecord(base: PublicationRecord | null): PublicationRecord | null {
   return base ? structuredClone(base) : null;
 }
@@ -1108,6 +1112,11 @@ export class InMemoryStore {
         delete this.baseState.productCollections[storageKey];
       }
     }
+    for (const metafield of Object.values(this.stagedState.productMetafields)) {
+      if (readProductMetafieldOwnerId(metafield) === collectionId) {
+        delete this.stagedState.productMetafields[metafield.id];
+      }
+    }
     this.stagedState.deletedCollectionIds[collectionId] = true;
   }
 
@@ -1266,9 +1275,9 @@ export class InMemoryStore {
     );
   }
 
-  replaceBaseMetafieldsForProduct(productId: string, metafields: ProductMetafieldRecord[]): void {
+  replaceBaseMetafieldsForOwner(ownerId: string, metafields: ProductMetafieldRecord[]): void {
     for (const metafield of Object.values(this.baseState.productMetafields)) {
-      if (metafield.productId === productId) {
+      if (readProductMetafieldOwnerId(metafield) === ownerId) {
         delete this.baseState.productMetafields[metafield.id];
       }
     }
@@ -1278,9 +1287,13 @@ export class InMemoryStore {
     }
   }
 
-  replaceStagedMetafieldsForProduct(productId: string, metafields: ProductMetafieldRecord[]): void {
+  replaceBaseMetafieldsForProduct(productId: string, metafields: ProductMetafieldRecord[]): void {
+    this.replaceBaseMetafieldsForOwner(productId, metafields);
+  }
+
+  replaceStagedMetafieldsForOwner(ownerId: string, metafields: ProductMetafieldRecord[]): void {
     for (const metafield of Object.values(this.stagedState.productMetafields)) {
-      if (metafield.productId === productId) {
+      if (readProductMetafieldOwnerId(metafield) === ownerId) {
         delete this.stagedState.productMetafields[metafield.id];
       }
     }
@@ -1288,6 +1301,10 @@ export class InMemoryStore {
     for (const metafield of metafields) {
       this.stagedState.productMetafields[metafield.id] = structuredClone(metafield);
     }
+  }
+
+  replaceStagedMetafieldsForProduct(productId: string, metafields: ProductMetafieldRecord[]): void {
+    this.replaceStagedMetafieldsForOwner(productId, metafields);
   }
 
   replaceBaseMetafieldsForCustomer(customerId: string, metafields: CustomerMetafieldRecord[]): void {
@@ -1328,6 +1345,11 @@ export class InMemoryStore {
 
   stageDeleteProduct(productId: string): void {
     delete this.stagedState.products[productId];
+    const variantIds = new Set(
+      [...Object.values(this.baseState.productVariants), ...Object.values(this.stagedState.productVariants)]
+        .filter((variant) => variant.productId === productId)
+        .map((variant) => variant.id),
+    );
     for (const variant of Object.values(this.stagedState.productVariants)) {
       if (variant.productId === productId) {
         delete this.stagedState.productVariants[variant.id];
@@ -1349,7 +1371,8 @@ export class InMemoryStore {
       }
     }
     for (const metafield of Object.values(this.stagedState.productMetafields)) {
-      if (metafield.productId === productId) {
+      const ownerId = readProductMetafieldOwnerId(metafield);
+      if (ownerId === productId || (ownerId ? variantIds.has(ownerId) : false)) {
         delete this.stagedState.productMetafields[metafield.id];
       }
     }
@@ -1727,20 +1750,20 @@ export class InMemoryStore {
     return sourceMedia.sort((left, right) => left.position - right.position || left.key.localeCompare(right.key));
   }
 
-  getEffectiveMetafieldsByProductId(productId: string): ProductMetafieldRecord[] {
-    if (this.stagedState.deletedProductIds[productId]) {
+  getEffectiveMetafieldsByOwnerId(ownerId: string): ProductMetafieldRecord[] {
+    if (this.stagedState.deletedProductIds[ownerId] || this.stagedState.deletedCollectionIds[ownerId]) {
       return [];
     }
 
     const stagedMetafields = Object.values(this.stagedState.productMetafields)
-      .filter((metafield) => metafield.productId === productId)
+      .filter((metafield) => readProductMetafieldOwnerId(metafield) === ownerId)
       .map((metafield) => structuredClone(metafield));
 
     const sourceMetafields =
       stagedMetafields.length > 0
         ? stagedMetafields
         : Object.values(this.baseState.productMetafields)
-            .filter((metafield) => metafield.productId === productId)
+            .filter((metafield) => readProductMetafieldOwnerId(metafield) === ownerId)
             .map((metafield) => structuredClone(metafield));
 
     return sourceMetafields.sort((left, right) => {
@@ -1756,6 +1779,10 @@ export class InMemoryStore {
         left.id.localeCompare(right.id)
       );
     });
+  }
+
+  getEffectiveMetafieldsByProductId(productId: string): ProductMetafieldRecord[] {
+    return this.getEffectiveMetafieldsByOwnerId(productId);
   }
 
   getEffectiveMetafieldsByCustomerId(customerId: string): CustomerMetafieldRecord[] {

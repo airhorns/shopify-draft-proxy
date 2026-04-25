@@ -1202,6 +1202,7 @@ function duplicateMetafieldRecord(metafield: ProductMetafieldRecord, productId: 
   const duplicated: ProductMetafieldRecord = {
     id: makeSyntheticGid('Metafield'),
     productId,
+    ownerId: productId,
     namespace: metafield.namespace,
     key: metafield.key,
     type: metafield.type,
@@ -2815,6 +2816,13 @@ type MetafieldsSetUserError = {
   elementIndex: number | null;
 };
 
+type ProductMetafieldOwnerType = 'PRODUCT' | 'PRODUCTVARIANT' | 'COLLECTION';
+
+type ProductMetafieldOwner = {
+  id: string;
+  ownerType: ProductMetafieldOwnerType;
+};
+
 function serializeMetafieldsSetUserErrors(
   field: FieldNode | null,
   errors: MetafieldsSetUserError[],
@@ -2899,13 +2907,73 @@ function serializeDeletedMetafieldIdentifiers(
   });
 }
 
-function upsertMetafieldsForProduct(
-  productId: string,
+function resolveProductMetafieldOwner(ownerId: string): ProductMetafieldOwner | null {
+  if (store.getEffectiveProductById(ownerId)) {
+    return { id: ownerId, ownerType: 'PRODUCT' };
+  }
+
+  if (store.getEffectiveVariantById(ownerId)) {
+    return { id: ownerId, ownerType: 'PRODUCTVARIANT' };
+  }
+
+  if (store.getEffectiveCollectionById(ownerId)) {
+    return { id: ownerId, ownerType: 'COLLECTION' };
+  }
+
+  return null;
+}
+
+function getProductMetafieldOwnerId(metafield: ProductMetafieldRecord): string {
+  return metafield.ownerId ?? metafield.productId ?? '';
+}
+
+function getEffectiveMetafieldsForOwner(ownerId: string): Array<ProductMetafieldRecord & { ownerId: string }> {
+  return store.getEffectiveMetafieldsByOwnerId(ownerId).map((metafield) => ({
+    ...metafield,
+    ownerId,
+  }));
+}
+
+function replaceStagedMetafieldsForOwner(ownerId: string, metafields: ProductMetafieldRecord[]): void {
+  store.replaceStagedMetafieldsForOwner(ownerId, metafields);
+}
+
+function replaceBaseMetafieldsForHydratedProduct(productId: string, metafields: ProductMetafieldRecord[]): void {
+  const groupedByOwnerId = new Map<string, ProductMetafieldRecord[]>();
+  groupedByOwnerId.set(productId, []);
+
+  for (const metafield of metafields) {
+    const ownerId = getProductMetafieldOwnerId(metafield);
+    if (!ownerId) {
+      continue;
+    }
+
+    const ownerMetafields = groupedByOwnerId.get(ownerId) ?? [];
+    ownerMetafields.push(metafield);
+    groupedByOwnerId.set(ownerId, ownerMetafields);
+  }
+
+  for (const [ownerId, ownerMetafields] of groupedByOwnerId.entries()) {
+    store.replaceBaseMetafieldsForOwner(ownerId, ownerMetafields);
+  }
+}
+
+function upsertMetafieldsForOwner(
+  owner: ProductMetafieldOwner,
   inputs: Record<string, unknown>[],
 ): { metafields: ProductMetafieldRecord[]; createdOrUpdated: ProductMetafieldRecord[] } {
-  return upsertOwnerMetafields('productId', productId, inputs, store.getEffectiveMetafieldsByProductId(productId), {
-    ownerType: 'PRODUCT',
+  const result = upsertOwnerMetafields('ownerId', owner.id, inputs, getEffectiveMetafieldsForOwner(owner.id), {
+    ownerType: owner.ownerType,
   });
+
+  if (owner.ownerType !== 'PRODUCT') {
+    return result;
+  }
+
+  return {
+    metafields: result.metafields.map((metafield) => ({ ...metafield, productId: owner.id })),
+    createdOrUpdated: result.createdOrUpdated.map((metafield) => ({ ...metafield, productId: owner.id })),
+  };
 }
 
 function readMetafieldsSetIdentity(input: Record<string, unknown>): {
@@ -2962,8 +3030,8 @@ function validateMetafieldsSetInputs(inputs: Record<string, unknown>[]): Metafie
       continue;
     }
 
-    const product = store.getEffectiveProductById(ownerId);
-    if (!product) {
+    const owner = resolveProductMetafieldOwner(ownerId);
+    if (!owner) {
       errors.push(makeMetafieldsSetUserError(index, 'ownerId', 'Owner does not exist.', 'INVALID'));
       continue;
     }
@@ -2973,7 +3041,7 @@ function validateMetafieldsSetInputs(inputs: Record<string, unknown>[]): Metafie
       continue;
     }
 
-    const effectiveMetafields = store.getEffectiveMetafieldsByProductId(ownerId);
+    const effectiveMetafields = getEffectiveMetafieldsForOwner(owner.id);
     const existing = effectiveMetafields.find(
       (metafield) => metafield.namespace === namespace && metafield.key === key,
     );
@@ -3087,9 +3155,23 @@ function validateMetafieldsSetRequiredVariables(
 
 function findMetafieldById(metafieldId: string): ProductMetafieldRecord | null {
   for (const product of store.listEffectiveProducts()) {
-    const metafield = store
-      .getEffectiveMetafieldsByProductId(product.id)
-      .find((candidate) => candidate.id === metafieldId);
+    const metafield = getEffectiveMetafieldsForOwner(product.id).find((candidate) => candidate.id === metafieldId);
+    if (metafield) {
+      return metafield;
+    }
+
+    for (const variant of store.getEffectiveVariantsByProductId(product.id)) {
+      const variantMetafield = getEffectiveMetafieldsForOwner(variant.id).find(
+        (candidate) => candidate.id === metafieldId,
+      );
+      if (variantMetafield) {
+        return variantMetafield;
+      }
+    }
+  }
+
+  for (const collection of store.listEffectiveCollections()) {
+    const metafield = getEffectiveMetafieldsForOwner(collection.id).find((candidate) => candidate.id === metafieldId);
     if (metafield) {
       return metafield;
     }
@@ -3135,7 +3217,7 @@ function deleteMetafieldsByIdentifiers(inputs: Record<string, unknown>[]): {
     };
   }
 
-  const effectiveMetafieldsByProductId = new Map<string, ProductMetafieldRecord[]>();
+  const effectiveMetafieldsByOwnerId = new Map<string, ProductMetafieldRecord[]>();
   const deletedMetafields: DeletedMetafieldIdentifierPayload[] = [];
   const userErrors: Array<{ field: string[]; message: string }> = [];
 
@@ -3159,8 +3241,7 @@ function deleteMetafieldsByIdentifiers(inputs: Record<string, unknown>[]): {
       continue;
     }
 
-    const effectiveMetafields =
-      effectiveMetafieldsByProductId.get(ownerId) ?? store.getEffectiveMetafieldsByProductId(ownerId);
+    const effectiveMetafields = effectiveMetafieldsByOwnerId.get(ownerId) ?? getEffectiveMetafieldsForOwner(ownerId);
     const metafieldExists = effectiveMetafields.some(
       (metafield) => metafield.namespace === namespace && metafield.key === key,
     );
@@ -3172,7 +3253,7 @@ function deleteMetafieldsByIdentifiers(inputs: Record<string, unknown>[]): {
     const remainingMetafields = effectiveMetafields.filter(
       (metafield) => metafield.namespace !== namespace || metafield.key !== key,
     );
-    effectiveMetafieldsByProductId.set(ownerId, remainingMetafields);
+    effectiveMetafieldsByOwnerId.set(ownerId, remainingMetafields);
     deletedMetafields.push({ ownerId, namespace, key });
   }
 
@@ -3183,8 +3264,8 @@ function deleteMetafieldsByIdentifiers(inputs: Record<string, unknown>[]): {
     };
   }
 
-  for (const [productId, metafields] of effectiveMetafieldsByProductId.entries()) {
-    store.replaceStagedMetafieldsForProduct(productId, metafields);
+  for (const [ownerId, metafields] of effectiveMetafieldsByOwnerId.entries()) {
+    replaceStagedMetafieldsForOwner(ownerId, metafields);
   }
 
   return {
@@ -3228,8 +3309,9 @@ function buildProductSetMetafieldRecords(productId: string, rawMetafields: unkno
         : makeSyntheticTimestamp()
       : createdAt;
     const metafield: ProductMetafieldRecord = {
-      id: existing?.productId === productId ? existing.id : makeSyntheticGid('Metafield'),
+      id: existing && getProductMetafieldOwnerId(existing) === productId ? existing.id : makeSyntheticGid('Metafield'),
       productId,
+      ownerId: productId,
       namespace: typeof input['namespace'] === 'string' ? input['namespace'] : (existing?.namespace ?? ''),
       key: typeof input['key'] === 'string' ? input['key'] : (existing?.key ?? ''),
       type,
@@ -3623,8 +3705,48 @@ function normalizeUpstreamProductImage(productId: string, value: unknown, positi
   };
 }
 
-function normalizeUpstreamMetafield(productId: string, value: unknown): ProductMetafieldRecord | null {
-  return normalizeOwnerMetafield('productId', productId, value, { ownerType: 'PRODUCT' });
+function normalizeUpstreamMetafield(
+  ownerId: string,
+  value: unknown,
+  ownerType: ProductMetafieldOwnerType = 'PRODUCT',
+): ProductMetafieldRecord | null {
+  const metafield = normalizeOwnerMetafield('ownerId', ownerId, value, { ownerType });
+  if (!metafield) {
+    return null;
+  }
+
+  return ownerType === 'PRODUCT'
+    ? {
+        ...metafield,
+        productId: ownerId,
+      }
+    : metafield;
+}
+
+function normalizeUpstreamMetafieldsForOwner(
+  ownerId: string,
+  value: Record<string, unknown>,
+  ownerType: ProductMetafieldOwnerType,
+): ProductMetafieldRecord[] {
+  const metafieldsById = new Map<string, ProductMetafieldRecord>();
+  const singularMetafield = normalizeUpstreamMetafield(ownerId, value['metafield'], ownerType);
+  if (singularMetafield) {
+    metafieldsById.set(singularMetafield.id, singularMetafield);
+  }
+
+  for (const metafieldNode of readMetafieldNodes(value['metafields'])) {
+    const metafield = normalizeUpstreamMetafield(ownerId, metafieldNode, ownerType);
+    if (metafield) {
+      metafieldsById.set(metafield.id, metafield);
+    }
+  }
+
+  return Array.from(metafieldsById.values()).sort(
+    (left, right) =>
+      left.namespace.localeCompare(right.namespace) ||
+      left.key.localeCompare(right.key) ||
+      left.id.localeCompare(right.id),
+  );
 }
 
 function readVariantNodes(value: unknown): unknown[] {
@@ -4466,6 +4588,30 @@ function serializeVariantSelectionSet(
         result[key] = serializeProduct(product, selection, {});
         break;
       }
+      case 'metafield': {
+        const args = getFieldArguments(selection, variables);
+        const namespace = typeof args['namespace'] === 'string' ? args['namespace'] : null;
+        const metafieldKey = typeof args['key'] === 'string' ? args['key'] : null;
+        if (!namespace || !metafieldKey) {
+          result[key] = null;
+          break;
+        }
+
+        const metafield = getEffectiveMetafieldsForOwner(variant.id).find(
+          (candidate) => candidate.namespace === namespace && candidate.key === metafieldKey,
+        );
+        result[key] = metafield
+          ? serializeMetafieldSelectionSet(metafield, selection.selectionSet?.selections ?? [])
+          : null;
+        break;
+      }
+      case 'metafields':
+        result[key] = serializeOwnerMetafieldsConnection(
+          getEffectiveMetafieldsForOwner(variant.id),
+          selection,
+          variables,
+        );
+        break;
       default:
         result[key] = null;
     }
@@ -4814,6 +4960,21 @@ function serializeCollectionField(
       return serializeCollectionSeo(collection.seo, field.selectionSet?.selections ?? []);
     case 'ruleSet':
       return serializeCollectionRuleSet(collection.ruleSet, field.selectionSet?.selections ?? []);
+    case 'metafield': {
+      const args = getFieldArguments(field, variables);
+      const namespace = typeof args['namespace'] === 'string' ? args['namespace'] : null;
+      const key = typeof args['key'] === 'string' ? args['key'] : null;
+      if (!namespace || !key) {
+        return null;
+      }
+
+      const metafield = getEffectiveMetafieldsForOwner(collection.id).find(
+        (candidate) => candidate.namespace === namespace && candidate.key === key,
+      );
+      return metafield ? serializeMetafieldSelectionSet(metafield, field.selectionSet?.selections ?? []) : null;
+    }
+    case 'metafields':
+      return serializeOwnerMetafieldsConnection(getEffectiveMetafieldsForOwner(collection.id), field, variables);
     default:
       return null;
   }
@@ -5727,12 +5888,12 @@ function serializeProductField(product: ProductRecord, field: FieldNode, variabl
       }
 
       const metafield = store
-        .getEffectiveMetafieldsByProductId(product.id)
+        .getEffectiveMetafieldsByOwnerId(product.id)
         .find((candidate) => candidate.namespace === namespace && candidate.key === key);
       return metafield ? serializeMetafieldSelectionSet(metafield, field.selectionSet?.selections ?? []) : null;
     }
     case 'metafields':
-      return serializeOwnerMetafieldsConnection(store.getEffectiveMetafieldsByProductId(product.id), field, variables);
+      return serializeOwnerMetafieldsConnection(getEffectiveMetafieldsForOwner(product.id), field, variables);
     default:
       return null;
   }
@@ -6633,13 +6794,20 @@ function normalizeUpstreamProduct(value: unknown): {
   const hasCollections = hasOwnField(value, 'collections');
   const hasMedia = hasOwnField(value, 'media');
   const hasImages = hasOwnField(value, 'images');
-  const hasMetafields = hasOwnField(value, 'metafields') || hasOwnField(value, 'metafield');
+  const hasMetafields =
+    hasOwnField(value, 'metafields') ||
+    hasOwnField(value, 'metafield') ||
+    readVariantNodes(value['variants']).some(
+      (variantNode) =>
+        isObject(variantNode) && (hasOwnField(variantNode, 'metafields') || hasOwnField(variantNode, 'metafield')),
+    );
   const options = Array.isArray(value['options'])
     ? value['options']
         .map((option) => normalizeUpstreamOption(rawId, option))
         .filter((option): option is ProductOptionRecord => option !== null)
     : [];
-  const variants = readVariantNodes(value['variants'])
+  const rawVariantNodes = readVariantNodes(value['variants']);
+  const variants = rawVariantNodes
     .map((variant) => normalizeUpstreamVariant(rawId, variant))
     .filter((variant): variant is ProductVariantRecord => variant !== null);
   const collections = readCollectionNodes(value['collections'])
@@ -6651,23 +6819,14 @@ function normalizeUpstreamProduct(value: unknown): {
   const imageMedia = readConnectionNodeEntries(value['images'])
     .map((entry) => normalizeUpstreamProductImage(rawId, entry.node, entry.position))
     .filter((mediaRecord): mediaRecord is ProductMediaRecord => mediaRecord !== null);
-  const metafieldsById = new Map<string, ProductMetafieldRecord>();
-  const singularMetafield = normalizeUpstreamMetafield(rawId, value['metafield']);
-  if (singularMetafield) {
-    metafieldsById.set(singularMetafield.id, singularMetafield);
-  }
-  for (const metafieldNode of readMetafieldNodes(value['metafields'])) {
-    const metafield = normalizeUpstreamMetafield(rawId, metafieldNode);
-    if (metafield) {
-      metafieldsById.set(metafield.id, metafield);
+  const metafields = normalizeUpstreamMetafieldsForOwner(rawId, value, 'PRODUCT');
+  for (const variantNode of rawVariantNodes) {
+    if (!isObject(variantNode) || typeof variantNode['id'] !== 'string') {
+      continue;
     }
+
+    metafields.push(...normalizeUpstreamMetafieldsForOwner(variantNode['id'], variantNode, 'PRODUCTVARIANT'));
   }
-  const metafields = Array.from(metafieldsById.values()).sort(
-    (left, right) =>
-      left.namespace.localeCompare(right.namespace) ||
-      left.key.localeCompare(right.key) ||
-      left.id.localeCompare(right.id),
-  );
   const publicationCount = Math.max(
     readPublicationCount(rawAvailablePublicationsCount),
     readPublicationCount(rawResourcePublicationsCount),
@@ -6761,7 +6920,7 @@ export function hydrateProductsFromUpstreamResponse(
       store.replaceBaseMediaForProduct(maybeProduct.product.id, maybeProduct.media);
     }
     if (maybeProduct.hasMetafields) {
-      store.replaceBaseMetafieldsForProduct(maybeProduct.product.id, maybeProduct.metafields);
+      replaceBaseMetafieldsForHydratedProduct(maybeProduct.product.id, maybeProduct.metafields);
     }
   }
 
@@ -6772,6 +6931,12 @@ export function hydrateProductsFromUpstreamResponse(
     }
 
     store.upsertBaseCollections([collection]);
+    if (hasOwnField(value, 'metafields') || hasOwnField(value, 'metafield')) {
+      store.replaceBaseMetafieldsForOwner(
+        collection.id,
+        normalizeUpstreamMetafieldsForOwner(collection.id, value, 'COLLECTION'),
+      );
+    }
 
     const productEntries = readConnectionNodeEntries(value['products']);
     for (const productEntry of productEntries) {
@@ -6791,7 +6956,7 @@ export function hydrateProductsFromUpstreamResponse(
         store.replaceBaseMediaForProduct(normalizedProduct.product.id, normalizedProduct.media);
       }
       if (normalizedProduct.hasMetafields) {
-        store.replaceBaseMetafieldsForProduct(normalizedProduct.product.id, normalizedProduct.metafields);
+        replaceBaseMetafieldsForHydratedProduct(normalizedProduct.product.id, normalizedProduct.metafields);
       }
 
       const nextCollections = [
@@ -6867,7 +7032,7 @@ export function hydrateProductsFromUpstreamResponse(
         store.replaceBaseMediaForProduct(entry.product.id, entry.media);
       }
       if (entry.hasMetafields) {
-        store.replaceBaseMetafieldsForProduct(entry.product.id, entry.metafields);
+        replaceBaseMetafieldsForHydratedProduct(entry.product.id, entry.metafields);
       }
     }
   }
@@ -6919,7 +7084,7 @@ export function hydrateProductsFromUpstreamResponse(
         store.replaceBaseMediaForProduct(entry.product.id, entry.media);
       }
       if (entry.hasMetafields) {
-        store.replaceBaseMetafieldsForProduct(entry.product.id, entry.metafields);
+        replaceBaseMetafieldsForHydratedProduct(entry.product.id, entry.metafields);
       }
     }
   }
@@ -8632,18 +8797,23 @@ export function handleProductMutation(
         };
       }
 
-      const inputsByProductId = new Map<string, Record<string, unknown>[]>();
+      const inputsByOwnerId = new Map<string, Record<string, unknown>[]>();
       for (const input of inputs) {
         const ownerId = input['ownerId'] as string;
-        const productInputs = inputsByProductId.get(ownerId) ?? [];
-        productInputs.push(normalizeMetafieldsSetInput(input));
-        inputsByProductId.set(ownerId, productInputs);
+        const ownerInputs = inputsByOwnerId.get(ownerId) ?? [];
+        ownerInputs.push(normalizeMetafieldsSetInput(input));
+        inputsByOwnerId.set(ownerId, ownerInputs);
       }
 
       const createdOrUpdated: ProductMetafieldRecord[] = [];
-      for (const [productId, productInputs] of inputsByProductId.entries()) {
-        const updateResult = upsertMetafieldsForProduct(productId, productInputs);
-        store.replaceStagedMetafieldsForProduct(productId, updateResult.metafields);
+      for (const [ownerId, ownerInputs] of inputsByOwnerId.entries()) {
+        const owner = resolveProductMetafieldOwner(ownerId);
+        if (!owner) {
+          continue;
+        }
+
+        const updateResult = upsertMetafieldsForOwner(owner, ownerInputs);
+        replaceStagedMetafieldsForOwner(owner.id, updateResult.metafields);
         createdOrUpdated.push(...updateResult.createdOrUpdated);
       }
 
@@ -8714,7 +8884,7 @@ export function handleProductMutation(
 
       const deleteResult = deleteMetafieldsByIdentifiers([
         {
-          ownerId: existingMetafield.productId,
+          ownerId: getProductMetafieldOwnerId(existingMetafield),
           namespace: existingMetafield.namespace,
           key: existingMetafield.key,
         },
