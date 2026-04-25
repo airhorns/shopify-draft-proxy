@@ -41,8 +41,9 @@ const storePropertiesLocalStagingMutationRoots = [
   'locationActivate',
   'locationDeactivate',
   'locationDelete',
-  'shopPolicyUpdate',
 ] as const;
+
+const implementedStorePropertiesLocalStagingMutationRoots = ['shopPolicyUpdate'] as const;
 
 const genericPublishableMutationRoots = [
   'publishablePublish',
@@ -103,6 +104,16 @@ describe('Store properties registry scaffold', () => {
       expect(entriesByName.get(root)?.runtimeTests, `${root} should not claim runtime coverage`).toEqual([]);
     }
 
+    for (const root of implementedStorePropertiesLocalStagingMutationRoots) {
+      expect(entriesByName.get(root)?.execution, `${root} should be a supported local staging mutation`).toBe(
+        'stage-locally',
+      );
+      expect(entriesByName.get(root)?.implemented, `${root} should now have runtime support`).toBe(true);
+      expect(entriesByName.get(root)?.runtimeTests, `${root} should declare targeted integration coverage`).toContain(
+        'tests/integration/shop-policy-update-flow.test.ts',
+      );
+    }
+
     for (const root of implementedStorePropertiesQueryRoots) {
       expect(entriesByName.get(root)?.execution, `${root} should be a supported overlay read`).toBe('overlay-read');
     }
@@ -152,12 +163,10 @@ describe('Store properties registry scaffold', () => {
       type: 'mutation',
     });
 
-    expect(
-      getOperationCapability({ type: 'mutation', name: 'ShopPolicyUpdate', rootFields: ['shopPolicyUpdate'] }),
-    ).toEqual({
+    expect(getOperationCapability({ type: 'mutation', name: 'LocationAdd', rootFields: ['locationAdd'] })).toEqual({
       domain: 'unknown',
       execution: 'passthrough',
-      operationName: 'ShopPolicyUpdate',
+      operationName: 'LocationAdd',
       type: 'mutation',
     });
   });
@@ -171,6 +180,17 @@ describe('Store properties registry scaffold', () => {
         type: 'mutation',
       });
     }
+  });
+
+  it('routes implemented shopPolicyUpdate as Store properties local staging', () => {
+    expect(
+      getOperationCapability({ type: 'mutation', name: 'ShopPolicyUpdate', rootFields: ['shopPolicyUpdate'] }),
+    ).toEqual({
+      domain: 'store-properties',
+      execution: 'stage-locally',
+      operationName: 'ShopPolicyUpdate',
+      type: 'mutation',
+    });
   });
 
   it('routes implemented Store properties reads through the overlay', () => {
@@ -234,6 +254,11 @@ describe('Store properties registry scaffold', () => {
 
     for (const root of implementedStorePropertiesQueryRoots) {
       expect(scenarioOperations.has(root), `${root} should now have captured business entity evidence`).toBe(true);
+      expect(statusDocument.implementedOperations.some((entry) => entry.name === root)).toBe(true);
+    }
+
+    for (const root of implementedStorePropertiesLocalStagingMutationRoots) {
+      expect(scenarioOperations.has(root), `${root} should now have captured mutation evidence`).toBe(true);
       expect(statusDocument.implementedOperations.some((entry) => entry.name === root)).toBe(true);
     }
 

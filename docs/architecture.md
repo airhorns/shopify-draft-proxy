@@ -74,8 +74,7 @@ App -> Koa server -> operation classifier
 ### `src/search-query-parser.ts`
 
 - parse Shopify-style Admin search query strings into shared typed terms and expression trees
-- preserve endpoint-specific grammar choices, such as boolean grouping support, quote handling, and simple term-list searches
-- provide reusable term metadata (`field`, comparator, value, negation) so product, customer, order, and draft-order filters do not maintain separate query parsers
+- provide reusable term metadata (`field`, comparator, value, negation) so endpoint groups do not maintain separate query parsers
 
 ### `src/state/`
 
@@ -123,14 +122,6 @@ App -> Koa server -> operation classifier
 - compares captured Shopify payload slices to proxy payload slices with strict JSON semantics
 - allows nondeterministic values only through explicit path-scoped rules in parity specs
 
-### `scripts/capture-discount-conformance.ts`
-
-- probes the live conformance app's Admin access scopes through `currentAppInstallation.accessScopes`
-- records `read_discounts` / `write_discounts` availability before attempting discount catalog captures
-- obtains tokens only through `scripts/shopify-conformance-auth.mts`; repo `.env` files must not contain Admin access tokens
-- fails before discount reads or writes when either required discount scope is missing
-- writes discount capture files using the `discount-*` conformance naming convention only after scope checks pass
-
 ## State model
 
 The runtime should use a normalized object graph rather than raw GraphQL blobs.
@@ -161,13 +152,6 @@ Initial normalized entities should include at least:
 
 The architecture should be open to later domains without making products special in the core engine.
 
-Current customer-domain state deliberately stays narrower than the product model, but it is still normalized:
-
-- `CustomerRecord` carries scalar/detail fields plus `taxExemptions` as a separate list from the boolean `taxExempt`
-- customer-owned metafields live in a customer-scoped `customerMetafields` bucket instead of reusing product metafield storage or broadening `metafieldsSet` owner support without separate evidence
-- staged `customerUpdate(input.metafields)` computes against the effective customer metafield set and replaces the staged customer-owned set, so downstream `customer.metafield(...)` and `customer.metafields(...)` reads stay consistent
-- staged `customerMerge` updates the normalized resulting customer row, marks the source customer deleted, records the source-to-result customer id redirect in `mergedCustomerIds`, and records the observed merge job/result shape in `customerMergeRequests`
-
 ## Mutation handling strategy
 
 Mutation handling should eventually have four steps:
@@ -182,16 +166,6 @@ This allows:
 - deterministic testing
 - commit replay from original raw mutation documents
 - future conformance instrumentation per command type
-
-Current implementation note:
-
-- order fulfillment mutations include local snapshot-mode staging for
-  `fulfillmentCreate` validation slices plus happy-path
-  `fulfillmentTrackingInfoUpdate` and `fulfillmentCancel`; the tracking/cancel
-  flows update seeded fulfillment records locally, return Shopify-shaped
-  `userErrors`, and expose the staged state through immediate downstream order
-  fulfillment reads without sending those supported mutations to Shopify at
-  runtime
 
 ## Response overlay strategy
 
@@ -217,12 +191,9 @@ Current implementation note:
 
 - `createApp()` now reads `config.snapshotPath` eagerly when it is set
 - the current supported on-disk format is a normalized snapshot JSON file containing `baseState` plus optional product search connection baselines and customer catalog/search connection baselines
-- `baseState` includes a nullable normalized `shop` slice for Store properties reads; snapshot mode returns `shop: null` when no shop slice is present rather than inventing store identity, while live-hybrid can serve a locally staged shop overlay when one exists
 - normalized snapshot JSON is parsed through Zod schemas at the file boundary; the same schemas derive the runtime snapshot TypeScript types
 - loading that file seeds the in-memory base state before the server handles requests
 - `POST /__meta/reset` restores that startup snapshot baseline, including captured connection cursor/pageInfo baselines, rather than wiping snapshot mode back to an empty store
-- customer identifier reads resolve `customerByIdentifier(identifier:)` from the same effective normalized customer graph as `customer(id:)` and `customers`, including staged customer creates/updates and hydrated live-hybrid customers
-- customer merge reads resolve `customerMergePreview` and `customerMergeJobStatus` from normalized customer/merge-request state; the first local merge slice supports customers already present in staged state or hydrated base state and does not fetch unknown customer ids during the supported mutation path
 
 Snapshot misses should return the same kind of empty/null structure Shopify returns when the backing store has no matching data.
 
@@ -244,24 +215,6 @@ Current implementation notes:
 - `GET /__meta/config` returns the active `port`, `shopifyAdminOrigin`, `readMode`, and `snapshotPath`
 - `GET /__meta/state` returns cloned `baseState` / `stagedState` buckets for debug inspection, including runtime-only object graph maps such as staged orders, draft orders, and calculated orders that are not part of the normalized snapshot file schema
 - mutation-log entries retain the original GraphQL route path as well as the raw request body, so commit replay can preserve the original versioned Admin API endpoint and GraphQL request fields such as `operationName`
-- `POST /__meta/commit` replays pending locally `staged` mutations against upstream Shopify in original log order using the caller-provided `X-Shopify-Access-Token`; `proxied` unsupported mutations are intentionally not replayed because they already went upstream at runtime
-- commit replay tracks proxy-created resource IDs returned by local staging and, after a successful upstream replay returns authoritative Shopify IDs, rewrites later staged mutation inputs from the proxy synthetic IDs to the real IDs before sending them upstream
-- commit replay persists per-entry `committed` / `failed` statuses back into the in-memory log and stops at the first upstream transport or GraphQL failure
-- commit reports include `ok`, `stopIndex`, and ordered `attempts`; each attempt includes explicit `success`, log `status`, `upstreamStatus`, `upstreamBody` when Shopify returned one, and `upstreamError` when replay failed before an upstream body was available
-
-Collection publication implementation note:
-
-- collection records carry aggregate publication target ids alongside product publication ids
-- staged `collectionCreate` starts with no publication ids, so collection publication counts and `publishedOnPublication(publicationId:)` serialize as unpublished until a local `publishablePublish` mutation adds a target
-- `publishedOnCurrentPublication` is not inferred from aggregate publication count for collections; captured Online Store publishable writes leave it false when the app's current publication is not the target
-- local `publishablePublish` / `publishableUnpublish` currently stages Product and Collection publishables only; broader publishable implementers remain unsupported passthrough
-- top-level `collections(query: "published_status:...")` applies the locally modeled aggregate collection publication state for staged/snapshot reads
-
-Store properties location implementation note:
-
-- snapshot `location` / `locationByIdentifier` detail reads are served by the Store properties overlay, using a narrow normalized location metadata slice for captured address/lifecycle scalars while still deriving nested inventory-level connections from the same effective inventory-level graph that powers top-level `locations`
-- the first location detail slice supports primary-location fallback when `location(id:)` omits `id`, identifier lookup by `LocationIdentifierInput.id`, unknown-location null behavior, address and lifecycle scalar shapes, empty metafield/suggested-address structures, and nested `inventoryLevel` / `inventoryLevels` selections
-- location creation/update/deletion remains unsupported runtime scope; location metadata is read-only baseline state and staged inventory remains the source of truth for read-after-write inventory visibility
 
 Commit response should include:
 
@@ -287,6 +240,12 @@ For supported operations, the proxy should aim to preserve:
 Unsupported mutations proxy through by explicit product decision. This is dangerous in tests because it can create real side effects. The system should therefore expose clear indicators that a mutation was proxied instead of staged.
 
 Operation registry entries must not encode permanent passthrough as an intended posture. A registered mutation should either be locally staged once supported or remain unimplemented until a local model exists; upstream passthrough is the unknown/unsupported escape hatch, not a target state for known write roots.
+
+## Endpoint group docs
+
+High-level runtime architecture belongs in this file. Endpoint-specific behavior, coverage boundaries, quirks, conformance capture details, and fixture-backed implementation notes belong under `docs/endpoints/<group>.md`.
+
+Fully implemented endpoint groups should have enough detail for future agents to understand supported roots, local staging behavior, read-after-write expectations, and validation entry points without crowding this architecture overview.
 
 ## Conformance framework design
 
