@@ -1,8 +1,10 @@
-import { Kind, parse, type FieldNode, type FragmentDefinitionNode, type SelectionNode } from 'graphql';
+import type { FieldNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import {
   matchesSearchQueryDate,
+  matchesSearchQueryNumber,
+  matchesSearchQueryText,
   normalizeSearchQueryValue,
   parseSearchQuery,
   type SearchQueryNode,
@@ -12,12 +14,16 @@ import { store } from '../state/store.js';
 import type { MarketingRecord } from '../state/types.js';
 import {
   buildSyntheticCursor,
+  getDocumentFragments,
   getFieldResponseKey,
-  getSelectedChildFields,
+  isPlainObject,
   paginateConnectionItems,
+  projectGraphqlValue,
+  readGraphqlDataResponsePayload,
+  serializeConnection,
+  type FragmentMap,
 } from './graphql-helpers.js';
 
-type FragmentMap = Map<string, FragmentDefinitionNode>;
 type MarketingKind = 'activity' | 'event';
 
 type MarketingConnectionItem = {
@@ -28,102 +34,6 @@ type MarketingConnectionItem = {
 
 const ACTIVITY_ID_PREFIX = 'gid://shopify/MarketingActivity/';
 const EVENT_ID_PREFIX = 'gid://shopify/MarketingEvent/';
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function responseKey(selection: FieldNode): string {
-  return selection.alias?.value ?? selection.name.value;
-}
-
-function shouldApplyTypeCondition(source: Record<string, unknown>, typeCondition: string | undefined): boolean {
-  if (!typeCondition) {
-    return true;
-  }
-
-  const sourceTypename = typeof source['__typename'] === 'string' ? source['__typename'] : null;
-  return !sourceTypename || sourceTypename === typeCondition;
-}
-
-function projectValue(value: unknown, selections: readonly SelectionNode[], fragments: FragmentMap): unknown {
-  if (Array.isArray(value)) {
-    return value.map((item) => projectValue(item, selections, fragments));
-  }
-
-  if (!isPlainObject(value)) {
-    return value ?? null;
-  }
-
-  return projectObject(value, selections, fragments);
-}
-
-function projectObject(
-  source: Record<string, unknown>,
-  selections: readonly SelectionNode[],
-  fragments: FragmentMap,
-): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-
-  for (const selection of selections) {
-    if (selection.kind === Kind.INLINE_FRAGMENT) {
-      const typeCondition = selection.typeCondition?.name.value;
-      if (shouldApplyTypeCondition(source, typeCondition)) {
-        Object.assign(result, projectObject(source, selection.selectionSet.selections, fragments));
-      }
-      continue;
-    }
-
-    if (selection.kind === Kind.FRAGMENT_SPREAD) {
-      const fragment = fragments.get(selection.name.value);
-      if (fragment && shouldApplyTypeCondition(source, fragment.typeCondition.name.value)) {
-        Object.assign(result, projectObject(source, fragment.selectionSet.selections, fragments));
-      }
-      continue;
-    }
-
-    if (selection.kind !== Kind.FIELD) {
-      continue;
-    }
-
-    const fieldName = selection.name.value;
-    const key = responseKey(selection);
-    if (fieldName === '__typename') {
-      result[key] = source['__typename'] ?? null;
-      continue;
-    }
-
-    let value = source[fieldName];
-    if (fieldName === 'nodes' && value === undefined && Array.isArray(source['edges'])) {
-      value = source['edges']
-        .filter((edge): edge is Record<string, unknown> => isPlainObject(edge))
-        .map((edge) => edge['node'] ?? null);
-    }
-
-    result[key] = selection.selectionSet
-      ? projectValue(value, selection.selectionSet.selections, fragments)
-      : (value ?? null);
-  }
-
-  return result;
-}
-
-function getFragments(document: string): FragmentMap {
-  const ast = parse(document);
-  return new Map(
-    ast.definitions
-      .filter((definition): definition is FragmentDefinitionNode => definition.kind === Kind.FRAGMENT_DEFINITION)
-      .map((definition) => [definition.name.value, definition]),
-  );
-}
-
-function readRootPayload(upstreamPayload: unknown, responseKeyValue: string): unknown {
-  if (!isPlainObject(upstreamPayload) || !isPlainObject(upstreamPayload['data'])) {
-    return null;
-  }
-
-  return upstreamPayload['data'][responseKeyValue] ?? null;
-}
 
 function collectConnectionCandidates(value: unknown): Array<{ data: unknown; cursor?: string | null }> {
   if (!isPlainObject(value) || !Array.isArray(value['edges'])) {
@@ -196,7 +106,7 @@ export function hydrateMarketingFromUpstreamResponse(
 
   for (const field of getRootFields(document)) {
     const rootField = field.name.value;
-    const payload = readRootPayload(upstreamPayload, responseKey(field));
+    const payload = readGraphqlDataResponsePayload(upstreamPayload, getFieldResponseKey(field));
 
     const collected = collectMarketingNodes(payload);
     if (rootField === 'marketingActivities') {
@@ -230,35 +140,11 @@ function idNumber(id: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function matchesStringTerm(actual: string | null, term: SearchQueryTerm): boolean {
-  if (actual === null) {
-    return false;
-  }
-
-  return actual.toLowerCase().includes(normalizeSearchQueryValue(term.value));
-}
-
 function matchesIdTerm(id: string, term: SearchQueryTerm): boolean {
   const expected = normalizeSearchQueryValue(term.value);
   const numericId = idNumber(id);
   if (term.comparator && numericId !== null) {
-    const expectedNumber = Number.parseInt(expected, 10);
-    if (!Number.isFinite(expectedNumber)) {
-      return false;
-    }
-
-    switch (term.comparator) {
-      case '>':
-        return numericId > expectedNumber;
-      case '>=':
-        return numericId >= expectedNumber;
-      case '<':
-        return numericId < expectedNumber;
-      case '<=':
-        return numericId <= expectedNumber;
-      case '=':
-        return numericId === expectedNumber;
-    }
+    return matchesSearchQueryNumber(numericId, term);
   }
 
   return id.toLowerCase().includes(expected) || String(numericId ?? '').includes(expected);
@@ -274,12 +160,12 @@ function matchesActivityTerm(source: Record<string, unknown>, term: SearchQueryT
   switch (field) {
     case 'default':
       return (
-        matchesStringTerm(readString(source, 'title'), term) ||
-        matchesStringTerm(readString(source, 'sourceAndMedium'), term) ||
-        matchesStringTerm(appName(source), term)
+        matchesSearchQueryText(readString(source, 'title'), term) ||
+        matchesSearchQueryText(readString(source, 'sourceAndMedium'), term) ||
+        matchesSearchQueryText(appName(source), term)
       );
     case 'app_name':
-      return matchesStringTerm(appName(source), term);
+      return matchesSearchQueryText(appName(source), term);
     case 'created_at':
       return matchesSearchQueryDate(readString(source, 'createdAt'), term);
     case 'id':
@@ -291,7 +177,7 @@ function matchesActivityTerm(source: Record<string, unknown>, term: SearchQueryT
     case 'tactic':
       return normalizeSearchQueryValue(readString(source, 'tactic') ?? '') === normalizeSearchQueryValue(term.value);
     case 'title':
-      return matchesStringTerm(readString(source, 'title'), term);
+      return matchesSearchQueryText(readString(source, 'title'), term);
     case 'updated_at':
       return matchesSearchQueryDate(readString(source, 'updatedAt'), term);
     default:
@@ -304,12 +190,12 @@ function matchesEventTerm(source: Record<string, unknown>, term: SearchQueryTerm
   switch (field) {
     case 'default':
       return (
-        matchesStringTerm(readString(source, 'description'), term) ||
-        matchesStringTerm(readString(source, 'sourceAndMedium'), term) ||
-        matchesStringTerm(readString(source, 'remoteId'), term)
+        matchesSearchQueryText(readString(source, 'description'), term) ||
+        matchesSearchQueryText(readString(source, 'sourceAndMedium'), term) ||
+        matchesSearchQueryText(readString(source, 'remoteId'), term)
       );
     case 'description':
-      return matchesStringTerm(readString(source, 'description'), term);
+      return matchesSearchQueryText(readString(source, 'description'), term);
     case 'id':
       return matchesIdTerm(String(source['id'] ?? ''), term);
     case 'started_at':
@@ -428,77 +314,17 @@ function buildConnection(
 ): Record<string, unknown> {
   const items = connectionItems(records);
   const window = paginateConnectionItems(items, field, variables, (item) => item.paginationCursor);
-  const result: Record<string, unknown> = {};
-
-  for (const childSelection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(childSelection);
-    switch (childSelection.name.value) {
-      case 'nodes':
-        result[key] = window.items.map((item) =>
-          projectValue(item.node, childSelection.selectionSet?.selections ?? [], fragments),
-        );
-        break;
-      case 'edges':
-        result[key] = window.items.map((item) => projectEdge(item, childSelection, fragments));
-        break;
-      case 'pageInfo':
-        result[key] = projectPageInfo(
-          itemCursorPageInfo(window.items, window.hasNextPage, window.hasPreviousPage),
-          childSelection,
-        );
-        break;
-      default:
-        result[key] = null;
-    }
-  }
-
-  return result;
-}
-
-function itemCursorPageInfo(
-  items: MarketingConnectionItem[],
-  hasNextPage: boolean,
-  hasPreviousPage: boolean,
-): Record<string, unknown> {
-  return {
-    hasNextPage,
-    hasPreviousPage,
-    startCursor: items[0]?.outputCursor ?? null,
-    endCursor: items.at(-1)?.outputCursor ?? null,
-  };
-}
-
-function projectPageInfo(pageInfo: Record<string, unknown>, selection: FieldNode): Record<string, unknown> {
-  return Object.fromEntries(
-    getSelectedChildFields(selection).map((pageInfoSelection) => [
-      responseKey(pageInfoSelection),
-      pageInfo[pageInfoSelection.name.value] ?? null,
-    ]),
-  );
-}
-
-function projectEdge(
-  item: MarketingConnectionItem,
-  selection: FieldNode,
-  fragments: FragmentMap,
-): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-
-  for (const edgeSelection of getSelectedChildFields(selection)) {
-    const key = responseKey(edgeSelection);
-    switch (edgeSelection.name.value) {
-      case 'cursor':
-        result[key] = item.outputCursor;
-        break;
-      case 'node':
-        result[key] = projectValue(item.node, edgeSelection.selectionSet?.selections ?? [], fragments);
-        break;
-      default:
-        result[key] = null;
-    }
-  }
-
-  return result;
+  return serializeConnection(field, {
+    items: window.items,
+    hasNextPage: window.hasNextPage,
+    hasPreviousPage: window.hasPreviousPage,
+    getCursorValue: (item) => item.outputCursor,
+    serializeNode: (item, selection) =>
+      projectGraphqlValue(item.node, selection.selectionSet?.selections ?? [], fragments),
+    pageInfoOptions: {
+      prefixCursors: false,
+    },
+  });
 }
 
 function rootPayloadForField(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
@@ -539,12 +365,14 @@ export function handleMarketingQuery(
   data: Record<string, unknown>;
 } {
   const data: Record<string, unknown> = {};
-  const fragments = getFragments(document);
+  const fragments = getDocumentFragments(document);
 
   for (const field of getRootFields(document)) {
-    const key = responseKey(field);
+    const key = getFieldResponseKey(field);
     const rootPayload = rootPayloadForField(field, variables, fragments);
-    data[key] = field.selectionSet ? projectValue(rootPayload, field.selectionSet.selections, fragments) : rootPayload;
+    data[key] = field.selectionSet
+      ? projectGraphqlValue(rootPayload, field.selectionSet.selections, fragments)
+      : rootPayload;
   }
 
   return { data };

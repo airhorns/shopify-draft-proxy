@@ -74,7 +74,7 @@ App -> Koa server -> operation classifier
 ### `src/search-query-parser.ts`
 
 - parse Shopify-style Admin search query strings into shared typed terms and expression trees
-- provide reusable term metadata (`field`, comparator, value, negation) so endpoint groups do not maintain separate query parsers
+- provide reusable term metadata (`field`, comparator, value, negation) and common text/number/date match helpers so endpoint groups do not maintain separate query parsers or comparator implementations
 
 ### `src/state/`
 
