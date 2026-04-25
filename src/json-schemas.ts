@@ -106,6 +106,14 @@ export const comparisonContractSchema = z.strictObject({
 });
 export type ComparisonContract = z.infer<typeof comparisonContractSchema>;
 
+export const parityComparisonModeSchema = z.enum([
+  'planned',
+  'captured-vs-proxy-request',
+  'captured-compatibility-wrapper',
+  'captured-fixture',
+]);
+export type ParityComparisonMode = z.infer<typeof parityComparisonModeSchema>;
+
 export const blockerDetailsSchema = z
   .object({
     requiredApproval: z.string().optional(),
@@ -147,10 +155,11 @@ export const paritySpecSchema = z.strictObject({
   operationNames: z.array(z.string()).optional(),
   scenarioStatus: z.string().optional(),
   assertionKinds: z.array(z.string()).optional(),
-  comparisonMode: z.string().optional(),
+  comparisonMode: parityComparisonModeSchema.optional(),
   proxyRequest: parityProxyRequestSpecSchema.optional(),
   comparison: comparisonContractSchema.optional(),
   liveCaptureFiles: z.array(z.string()).optional(),
+  runtimeTestFiles: z.array(z.string()).optional(),
   notes: z.string().optional(),
   blocker: z
     .strictObject({

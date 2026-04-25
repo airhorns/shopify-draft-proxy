@@ -73,6 +73,11 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
   Ticket-specific requests for scaffold files do not override this rule; for
   coverage-map-only work, update the operation registry and the Linear/workpad
   notes without adding parity spec or parity request placeholders.
+- Do not add `comparisonMode: "capture-only"` parity specs. Captured scenarios
+  checked into `config/parity-specs` must be executable evidence: either a
+  proxy request with strict comparison targets that runs in the
+  `conformance:parity` script, or an explicitly runtime-test-backed fixture
+  mode for multi-step flows the generic parity runner cannot yet replay.
 - Conformance parity scenarios are discovered by convention from `config/parity-specs/*.json` and executed by the single vitest suite at `tests/unit/conformance-parity-scenarios.test.ts` (also exposed as `pnpm conformance:parity`). Do not add per-scenario `it(...)` blocks that re-run one scenario — the iterator already covers it. Encode scenario-specific expectations in the parity spec.
 - Treat conformance `expectedDifferences` as a last resort after modeling or
   fixture seeding has been exhausted; do not add them merely to make parity
