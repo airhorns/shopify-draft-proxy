@@ -56,6 +56,7 @@ const emptySnapshot = {
   deletedWebPresenceIds: {},
   mergedCustomerIds: {},
   customerMergeRequests: {},
+  orderMandatePayments: {},
   orders: {},
   draftOrders: {},
   calculatedOrders: {},

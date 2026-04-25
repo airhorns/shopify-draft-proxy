@@ -1,0 +1,13 @@
+{
+  "scenarioId": "order-payment-transaction-local-staging",
+  "operationNames": ["orderCapture", "transactionVoid", "orderCreateMandatePayment"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "downstream-read-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/order-payment-transaction-local-staging.json"],
+  "comparisonMode": "capture-only",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "notes": "Runtime evidence for HAR-226 local order payment staging. The covered happy paths intentionally use synthetic/local order transactions rather than live gateway-affecting captures, voids, or mandate payments; permission-specific and Plus-only live branches remain documented as future conformance expansion."
+}

@@ -18,6 +18,7 @@ import type {
   MetafieldDefinitionRecord,
   MutationLogEntry,
   NormalizedStateSnapshotFile,
+  OrderMandatePaymentRecord,
   OrderRecord,
   ProductCatalogConnectionRecord,
   ProductCollectionRecord,
@@ -39,6 +40,7 @@ type MetaStateSnapshot = StateSnapshot & {
   orders: Record<string, OrderRecord>;
   draftOrders: Record<string, DraftOrderRecord>;
   calculatedOrders: Record<string, CalculatedOrderRecord>;
+  orderMandatePayments: Record<string, OrderMandatePaymentRecord>;
 };
 
 interface MetaRuntimeState {
@@ -103,6 +105,7 @@ function buildMetaStateSnapshot(
     orders?: Record<string, OrderRecord>;
     draftOrders?: Record<string, DraftOrderRecord>;
     calculatedOrders?: Record<string, CalculatedOrderRecord>;
+    orderMandatePayments?: Record<string, OrderMandatePaymentRecord>;
   } = {},
 ): MetaStateSnapshot {
   return {
@@ -110,6 +113,7 @@ function buildMetaStateSnapshot(
     orders: structuredClone(extraState.orders ?? {}),
     draftOrders: structuredClone(extraState.draftOrders ?? {}),
     calculatedOrders: structuredClone(extraState.calculatedOrders ?? {}),
+    orderMandatePayments: structuredClone(extraState.orderMandatePayments ?? {}),
   };
 }
 
@@ -169,6 +173,10 @@ function mergeCollectionRecords(
 
 function mergeLocationRecords(base: LocationRecord | null, staged: LocationRecord | null): LocationRecord | null {
   if (!base && !staged) {
+    return null;
+  }
+
+  if (staged?.deleted === true) {
     return null;
   }
 
@@ -347,6 +355,7 @@ export class InMemoryStore {
   private stagedOrders: Record<string, OrderRecord> = {};
   private calculatedOrders: Record<string, CalculatedOrderRecord> = {};
   private stagedDraftOrders: Record<string, DraftOrderRecord> = {};
+  private orderMandatePayments: Record<string, OrderMandatePaymentRecord> = {};
 
   installSnapshot(snapshotFile: NormalizedStateSnapshotFile): void {
     this.initialBaseState = cloneSnapshot(snapshotFile.baseState);
@@ -378,6 +387,7 @@ export class InMemoryStore {
     this.stagedOrders = {};
     this.calculatedOrders = {};
     this.stagedDraftOrders = structuredClone(this.initialDraftOrders);
+    this.orderMandatePayments = {};
   }
 
   reset(): void {
@@ -399,6 +409,7 @@ export class InMemoryStore {
         orders: this.stagedOrders,
         draftOrders: this.stagedDraftOrders,
         calculatedOrders: this.calculatedOrders,
+        orderMandatePayments: this.orderMandatePayments,
       }),
     };
   }
@@ -622,6 +633,10 @@ export class InMemoryStore {
       this.baseState.locations[locationId] ?? null,
       this.stagedState.locations[locationId] ?? null,
     );
+  }
+
+  isLocationDeleted(locationId: string): boolean {
+    return this.stagedState.locations[locationId]?.deleted === true;
   }
 
   listEffectiveLocations(): LocationRecord[] {
@@ -1229,6 +1244,16 @@ export class InMemoryStore {
   updateOrder(order: OrderRecord): OrderRecord {
     this.stagedOrders[order.id] = structuredClone(order);
     return structuredClone(order);
+  }
+
+  stageOrderMandatePayment(record: OrderMandatePaymentRecord): OrderMandatePaymentRecord {
+    this.orderMandatePayments[`${record.orderId}::${record.idempotencyKey}`] = structuredClone(record);
+    return structuredClone(record);
+  }
+
+  getOrderMandatePayment(orderId: string, idempotencyKey: string): OrderMandatePaymentRecord | null {
+    const record = this.orderMandatePayments[`${orderId}::${idempotencyKey}`] ?? null;
+    return record ? structuredClone(record) : null;
   }
 
   stageCreateDraftOrder(draftOrder: DraftOrderRecord): DraftOrderRecord {
