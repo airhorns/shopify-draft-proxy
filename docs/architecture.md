@@ -230,6 +230,12 @@ Collection publication implementation note:
 - local `publishablePublish` / `publishableUnpublish` currently stages Product and Collection publishables only; broader publishable implementers remain unsupported passthrough
 - top-level `collections(query: "published_status:...")` applies the locally modeled aggregate collection publication state for staged/snapshot reads
 
+Store properties location implementation note:
+
+- snapshot `location` / `locationByIdentifier` detail reads are served by the Store properties overlay, but they deliberately derive known locations and nested inventory-level connections from the same effective inventory-level graph that powers top-level `locations`
+- the first location detail slice supports primary-location fallback when `location(id:)` omits `id`, identifier lookup by `LocationIdentifierInput.id`, unknown-location null behavior, address and lifecycle scalar shapes, empty metafield/suggested-address structures, and nested `inventoryLevel` / `inventoryLevels` selections
+- location creation/update/deletion remains unsupported runtime scope; no standalone location table is introduced yet because staged inventory read-after-write consistency is the higher-value source of truth for this slice
+
 Commit response should include:
 
 - ordered attempts

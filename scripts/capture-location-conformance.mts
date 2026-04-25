@@ -61,11 +61,154 @@ const shopBaselineQuery = `#graphql
   }
 `;
 
-const locationByIdQuery = `#graphql
-  query StorePropertiesLocationBaseline($id: ID!) {
-    location(id: $id) {
+const locationDetailFields = `#graphql
+  fragment StorePropertiesLocationDetailFields on Location {
+    id
+    legacyResourceId
+    name
+    activatable
+    addressVerified
+    createdAt
+    deactivatable
+    deactivatedAt
+    deletable
+    fulfillmentService {
+      id
+      handle
+      serviceName
+    }
+    fulfillsOnlineOrders
+    hasActiveInventory
+    hasUnfulfilledOrders
+    isActive
+    isFulfillmentService
+    shipsInventory
+    updatedAt
+    address {
+      address1
+      address2
+      city
+      country
+      countryCode
+      formatted
+      latitude
+      longitude
+      phone
+      province
+      provinceCode
+      zip
+    }
+    suggestedAddresses {
+      address1
+      address2
+      city
+      country
+      countryCode
+      formatted
+      province
+      provinceCode
+      zip
+    }
+    metafield(namespace: "custom", key: "hours") {
+      id
+      namespace
+      key
+      value
+      type
+    }
+    metafields(first: 3) {
+      nodes {
+        id
+        namespace
+        key
+        value
+        type
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    inventoryLevels(first: 3) {
+      nodes {
+        id
+        item {
+          id
+        }
+        location {
+          id
+          name
+        }
+        quantities(names: ["available", "committed", "on_hand"]) {
+          name
+          quantity
+          updatedAt
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+`;
+
+const locationDetailsQuery = `#graphql
+  ${locationDetailFields}
+
+  query StorePropertiesLocationDetails($id: ID!, $unknownId: ID!) {
+    primary: location {
+      ...StorePropertiesLocationDetailFields
+    }
+    byId: location(id: $id) {
+      ...StorePropertiesLocationDetailFields
+    }
+    byIdentifier: locationByIdentifier(identifier: { id: $id }) {
+      ...StorePropertiesLocationDetailFields
+    }
+    unknownById: location(id: $unknownId) {
       id
       name
+    }
+    unknownByIdentifier: locationByIdentifier(identifier: { id: $unknownId }) {
+      id
+      name
+    }
+  }
+`;
+
+const locationInvalidIdentifierQuery = `#graphql
+  query StorePropertiesLocationInvalidIdentifier {
+    emptyIdentifier: locationByIdentifier(identifier: {}) {
+      id
+      name
+    }
+  }
+`;
+
+const locationInventoryLevelQuery = `#graphql
+  query StorePropertiesLocationInventoryLevel($locationId: ID!, $inventoryItemId: ID!) {
+    location(id: $locationId) {
+      id
+      inventoryLevel(inventoryItemId: $inventoryItemId) {
+        id
+        item {
+          id
+        }
+        location {
+          id
+          name
+        }
+        quantities(names: ["available", "committed", "on_hand"]) {
+          name
+          quantity
+          updatedAt
+        }
+      }
     }
   }
 `;
@@ -285,10 +428,27 @@ const schemaInventory = await runGraphql(schemaInventoryQuery);
 const shopBaseline = await runGraphql(shopBaselineQuery);
 const locationsCatalog = await runGraphql(locationsCatalogQuery, { first });
 const firstLocationId = locationsCatalog.data?.locations?.edges?.[0]?.node?.id ?? null;
-const locationBaseline =
+const locationDetails =
   typeof firstLocationId === 'string' && firstLocationId.length > 0
-    ? await runGraphql(locationByIdQuery, { id: firstLocationId })
+    ? await runGraphqlCapture(locationDetailsQuery, {
+        id: firstLocationId,
+        unknownId: 'gid://shopify/Location/999999999999',
+      })
     : null;
+const firstInventoryItemId =
+  locationDetails?.data?.byId?.inventoryLevels?.nodes?.find((node) => typeof node?.item?.id === 'string')?.item?.id ??
+  null;
+const locationInventoryLevel =
+  typeof firstLocationId === 'string' &&
+  firstLocationId.length > 0 &&
+  typeof firstInventoryItemId === 'string' &&
+  firstInventoryItemId.length > 0
+    ? await runGraphqlCapture(locationInventoryLevelQuery, {
+        locationId: firstLocationId,
+        inventoryItemId: firstInventoryItemId,
+      })
+    : null;
+const locationInvalidIdentifier = await runGraphqlCapture(locationInvalidIdentifierQuery);
 const businessEntitiesCatalog = await runGraphqlCapture(businessEntitiesCatalogQuery);
 const firstBusinessEntityId = businessEntitiesCatalog.data?.businessEntities?.[0]?.id ?? null;
 const businessEntityFallbacks =
@@ -318,7 +478,9 @@ const storePropertiesBaseline = {
   readOnlyBaselines: {
     shop: shopBaseline,
     locationsCatalog,
-    location: locationBaseline,
+    location: locationDetails,
+    locationInventoryLevel,
+    locationInvalidIdentifier,
     businessEntitiesCatalog,
     businessEntityFallbacks,
   },

@@ -100,18 +100,18 @@
     "type": "query",
     "domain": "store-properties",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["location", "Location"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/location-query-shapes.test.ts"]
   },
   {
     "name": "locationByIdentifier",
     "type": "query",
     "domain": "store-properties",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["locationByIdentifier", "LocationByIdentifier"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/location-query-shapes.test.ts"]
   },
   {
     "name": "businessEntities",

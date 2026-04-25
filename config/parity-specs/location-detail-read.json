@@ -1,0 +1,21 @@
+{
+  "scenarioId": "location-detail-read",
+  "operationNames": ["location", "locationByIdentifier"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "nullability", "pagination-shape"],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/store-properties-baseline.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/location-detail-read.graphql",
+    "variablesPath": "config/parity-requests/location-detail-read.variables.json"
+  },
+  "comparisonMode": "capture-only",
+  "notes": "Live Store properties capture covers primary `location` fallback, `location(id:)`, `locationByIdentifier(identifier: { id })`, unknown-location null behavior, address/activation/fulfillment-service/metafield scalar shapes, and nested `inventoryLevels` evidence for the captured location slice.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "blocker": {
+    "kind": "explicit-comparison-targets-needed",
+    "blockerPath": null
+  }
+}
