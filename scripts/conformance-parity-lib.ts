@@ -29,6 +29,7 @@ import {
   handleCustomerQuery,
   hydrateCustomersFromUpstreamResponse,
 } from '../src/proxy/customers.js';
+import { handleDiscountQuery } from '../src/proxy/discounts.js';
 import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
 import {
   handleMarketsQuery,
@@ -42,6 +43,7 @@ import {
   handleProductQuery,
   hydrateProductsFromUpstreamResponse,
 } from '../src/proxy/products.js';
+import { handleSegmentsQuery, hydrateSegmentsFromUpstreamResponse } from '../src/proxy/segments.js';
 import { handleStorePropertiesMutation, handleStorePropertiesQuery } from '../src/proxy/store-properties.js';
 import { makeSyntheticGid, makeSyntheticTimestamp, resetSyntheticIdentity } from '../src/state/synthetic-identity.js';
 import { store } from '../src/state/store.js';
@@ -72,6 +74,7 @@ import type {
   ProductVariantRecord,
   ShopifyPaymentsAccountRecord,
   ShopRecord,
+  DiscountRecord,
 } from '../src/state/types.js';
 
 function interpretMutationLogEntry(
@@ -778,6 +781,13 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'overlay-read' && capability.domain === 'discounts') {
+    return {
+      status: 200,
+      body: handleDiscountQuery(document, variables),
+    };
+  }
+
   if (capability.execution === 'overlay-read' && capability.domain === 'store-properties') {
     return {
       status: 200,
@@ -796,6 +806,17 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'overlay-read' && capability.domain === 'segments') {
+    if (upstreamPayload !== undefined) {
+      hydrateSegmentsFromUpstreamResponse(document, variables, upstreamPayload);
+    }
+
+    return {
+      status: 200,
+      body: handleSegmentsQuery(document, variables),
+    };
+  }
+
   throw new Error(
     `Parity execution does not allow live Shopify requests or unsupported operations: ${capability.operationName}`,
   );
@@ -808,6 +829,7 @@ function hasStagedState(): boolean {
     Object.keys(stagedState.productVariants).length > 0 ||
     Object.keys(stagedState.productOptions).length > 0 ||
     Object.keys(stagedState.collections).length > 0 ||
+    Object.keys(stagedState.discounts).length > 0 ||
     Object.keys(stagedState.productCollections).length > 0 ||
     Object.keys(stagedState.productMedia).length > 0 ||
     Object.keys(stagedState.files).length > 0 ||
@@ -817,6 +839,7 @@ function hasStagedState(): boolean {
     Object.keys(stagedState.deletedCollectionIds).length > 0 ||
     Object.keys(stagedState.customers).length > 0 ||
     Object.keys(stagedState.deletedCustomerIds).length > 0 ||
+    Object.keys(stagedState.deletedDiscountIds).length > 0 ||
     Object.keys(stagedState.orders).length > 0 ||
     Object.keys(stagedState.draftOrders).length > 0 ||
     Object.keys(stagedState.calculatedOrders).length > 0
@@ -893,6 +916,69 @@ function readNullableStringField(value: Record<string, unknown> | null | undefin
 
 function readStringArrayField(value: Record<string, unknown> | null | undefined, key: string): string[] {
   return readArrayField(value, key).filter((entry): entry is string => typeof entry === 'string');
+}
+
+function readCapturedDiscountRecord(source: Record<string, unknown> | null): DiscountRecord | null {
+  const id = readStringField(source, 'id');
+  const discount = readRecordField(source, 'discount');
+  const typeName = readStringField(discount, '__typename');
+  const title = readStringField(discount, 'title');
+  if (!id || !discount || !typeName || !title) {
+    return null;
+  }
+
+  const combinesWith = readRecordField(discount, 'combinesWith');
+  const codes = readArrayField(readRecordField(discount, 'codes'), 'nodes')
+    .filter(isPlainObject)
+    .map((codeNode) => readStringField(codeNode, 'code'))
+    .filter((code): code is string => typeof code === 'string' && code.length > 0);
+
+  return {
+    id,
+    typeName,
+    method: typeName.toLowerCase().includes('code') ? 'code' : 'automatic',
+    title,
+    status: readStringField(discount, 'status'),
+    summary: readStringField(discount, 'summary'),
+    startsAt: readStringField(discount, 'startsAt'),
+    endsAt: readStringField(discount, 'endsAt'),
+    createdAt: readStringField(discount, 'createdAt'),
+    updatedAt: readStringField(discount, 'updatedAt'),
+    asyncUsageCount: readNumberField(discount, 'asyncUsageCount'),
+    discountClasses: readStringArrayField(discount, 'discountClasses'),
+    combinesWith: {
+      productDiscounts: readBooleanField(combinesWith, 'productDiscounts') ?? false,
+      orderDiscounts: readBooleanField(combinesWith, 'orderDiscounts') ?? false,
+      shippingDiscounts: readBooleanField(combinesWith, 'shippingDiscounts') ?? false,
+    },
+    codes,
+  };
+}
+
+function seedDiscountCatalogPreconditions(capture: unknown): boolean {
+  const responseData = readRecordField(readRecordField(capture as Record<string, unknown>, 'response'), 'data');
+  const discountNodes = readRecordField(responseData, 'discountNodes');
+  const capturedNodes = readArrayField(discountNodes, 'nodes').filter(isPlainObject);
+  const capturedEdgeNodes = readArrayField(discountNodes, 'edges')
+    .filter(isPlainObject)
+    .map((edge) => readRecordField(edge, 'node'))
+    .filter((node): node is Record<string, unknown> => node !== null);
+  const seedNodes = readArrayField(capture as Record<string, unknown>, 'seedDiscounts').filter(isPlainObject);
+  const discountsById = new Map<string, DiscountRecord>();
+
+  for (const node of [...capturedNodes, ...capturedEdgeNodes, ...seedNodes]) {
+    const discount = readCapturedDiscountRecord(node);
+    if (discount) {
+      discountsById.set(discount.id, discount);
+    }
+  }
+
+  if (discountsById.size === 0) {
+    return false;
+  }
+
+  store.upsertBaseDiscounts([...discountsById.values()]);
+  return true;
 }
 
 function readMoneySetField(
@@ -3059,11 +3145,22 @@ function seedMetafieldsDeleteOwnerProducts(capture: unknown, variables: Record<s
   const existingKeys = new Set(retainedMetafields.map((metafield) => `${metafield.namespace}:${metafield.key}`));
   const primaryInput = readRecordField(variables, 'input');
   const singularDeleteId = readStringField(primaryInput, 'id');
+  const capturedDeletedMetafields = readArrayField(mutationPayloadFromCapture(capture), 'deletedMetafields');
+  const hasCapturedDeletedMetafields = capturedDeletedMetafields.length > 0;
   const deletedMetafields = deletedIdentifiers
     .map((identifier, index): ProductMetafieldRecord | null => {
-      const namespace = readStringField(identifier, 'namespace');
-      const key = readStringField(identifier, 'key');
-      const productId = readStringField(identifier, 'ownerId') ?? ownerId;
+      const capturedDeletedMetafield = hasCapturedDeletedMetafields
+        ? isPlainObject(capturedDeletedMetafields[index])
+          ? capturedDeletedMetafields[index]
+          : null
+        : identifier;
+      if (!capturedDeletedMetafield) {
+        return null;
+      }
+
+      const namespace = readStringField(capturedDeletedMetafield, 'namespace');
+      const key = readStringField(capturedDeletedMetafield, 'key');
+      const productId = readStringField(capturedDeletedMetafield, 'ownerId') ?? ownerId;
       if (!namespace || !key || !productId.startsWith('gid://shopify/Product/')) {
         return null;
       }
@@ -3274,6 +3371,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   }
 
   if (seedMarketsFromCapture(capture)) {
+    return;
+  }
+
+  if (seedDiscountCatalogPreconditions(capture)) {
     return;
   }
 

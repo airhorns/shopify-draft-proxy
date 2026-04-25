@@ -3827,7 +3827,7 @@ describe('product draft flow', () => {
     });
   });
 
-  it('stages metafieldsDelete locally against hydrated product metafields and removes the deleted metafield from downstream reads', async () => {
+  it('stages metafieldsDelete locally for mixed existing and missing product metafields with ordered null entries', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as { query?: string }) : {};
       const query = body.query ?? '';
@@ -3893,7 +3893,10 @@ describe('product draft flow', () => {
         query:
           'mutation DeleteMetafields($metafields: [MetafieldIdentifierInput!]!) { metafieldsDelete(metafields: $metafields) { deletedMetafields { key namespace ownerId } userErrors { field message } } }',
         variables: {
-          metafields: [{ ownerId: 'gid://shopify/Product/2', namespace: 'custom', key: 'material' }],
+          metafields: [
+            { ownerId: 'gid://shopify/Product/2', namespace: 'custom', key: 'material' },
+            { ownerId: 'gid://shopify/Product/2', namespace: 'custom', key: 'missing' },
+          ],
         },
       });
 
@@ -3905,6 +3908,7 @@ describe('product draft flow', () => {
           namespace: 'custom',
           ownerId: 'gid://shopify/Product/2',
         },
+        null,
       ],
       userErrors: [],
     });
@@ -3913,12 +3917,13 @@ describe('product draft flow', () => {
       .post('/admin/api/2025-01/graphql.json')
       .send({
         query:
-          'query ($id: ID!) { product(id: $id) { id metafield(namespace: "custom", key: "material") { id namespace key type value } metafields(first: 10) { nodes { id namespace key type value } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }',
+          'query ($id: ID!) { product(id: $id) { id deletedSpec: metafield(namespace: "custom", key: "material") { id namespace key type value } missingSpec: metafield(namespace: "custom", key: "missing") { id namespace key type value } metafields(first: 10) { nodes { id namespace key type value } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }',
         variables: { id: 'gid://shopify/Product/2' },
       });
 
     expect(overlayResponse.status).toBe(200);
-    expect(overlayResponse.body.data.product.metafield).toBeNull();
+    expect(overlayResponse.body.data.product.deletedSpec).toBeNull();
+    expect(overlayResponse.body.data.product.missingSpec).toBeNull();
     expect(overlayResponse.body.data.product.metafields).toEqual({
       nodes: [
         {
@@ -3936,6 +3941,56 @@ describe('product draft flow', () => {
         endCursor: 'cursor:gid://shopify/Metafield/9102',
       },
     });
+  });
+
+  it('matches captured metafieldsDelete empty input behavior', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation DeleteMetafields($metafields: [MetafieldIdentifierInput!]!) { metafieldsDelete(metafields: $metafields) { deletedMetafields { key namespace ownerId } userErrors { field message } } }',
+        variables: { metafields: [] },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.metafieldsDelete).toEqual({
+      deletedMetafields: [],
+      userErrors: [],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns captured invalid-variable errors when metafieldsDelete identifier variables omit required fields', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation DeleteMetafields($metafields: [MetafieldIdentifierInput!]!) { metafieldsDelete(metafields: $metafields) { deletedMetafields { key namespace ownerId } userErrors { field message } } }',
+        variables: {
+          metafields: [{ ownerId: 'gid://shopify/Product/2', namespace: 'custom' }],
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.errors).toEqual([
+      {
+        message:
+          'Variable $metafields of type [MetafieldIdentifierInput!]! was provided invalid value for 0.key (Expected value to not be null)',
+        locations: [{ line: expect.any(Number), column: expect.any(Number) }],
+        extensions: {
+          code: 'INVALID_VARIABLE',
+          value: [{ ownerId: 'gid://shopify/Product/2', namespace: 'custom' }],
+          problems: [{ path: [0, 'key'], explanation: 'Expected value to not be null' }],
+        },
+      },
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('returns Shopify-like empty defaults in snapshot mode when no product exists', async () => {

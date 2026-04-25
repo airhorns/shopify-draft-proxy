@@ -1,9 +1,14 @@
 {
   "metafields": [
     {
-      "ownerId": "gid://shopify/Product/9255391559913",
+      "ownerId": "gid://shopify/Product/9264622174441",
       "namespace": "custom",
       "key": "material"
+    },
+    {
+      "ownerId": "gid://shopify/Product/9264622174441",
+      "namespace": "custom",
+      "key": "missing"
     }
   ]
 }

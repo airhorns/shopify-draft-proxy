@@ -1122,6 +1122,19 @@ Practical rule:
 - treat `metafieldDelete` as a compatibility alias over the same staged owner-scoped removal path
 - close the singular compatibility root against the plural live evidence explicitly; do not leave it behind as a stale declared gap once the alias behavior is proven
 
+## 18c. `metafieldsDelete` missing rows are ordered nulls, not userErrors
+
+HAR-143 refreshed the product-owned metafields delete capture against the 2025-01 conformance store after checking the 2026-04 Admin docs. The live behavior has a few sharp edges:
+
+- a mixed `metafieldsDelete` batch returns one `deletedMetafields` entry per input in order
+- existing product-owned metafields return `{ key, namespace, ownerId }`
+- nonexistent product-owned namespace/key pairs return `null` at that same response index and do **not** add `userErrors`
+- a nonexistent product owner id also returns `[null]` with no `userErrors`
+- an empty `metafields: []` variable returned `deletedMetafields: []` and `userErrors: []` in the captured run, despite the docs saying at least one identifier must be specified
+- omitting a required identifier field such as `key` from variables returns a top-level `INVALID_VARIABLE` GraphQL error before resolver execution
+
+Local product-owned staging should therefore distinguish malformed identifiers from valid-but-absent identifiers: malformed variable input is a GraphQL variable error, while valid identifiers that do not match an existing metafield are successful `null` delete results. Downstream product metafield reads still rely on product-scoped replacement semantics so base metafields do not reappear after an existing row is deleted in a mixed batch.
+
 ## 19. Variant bulk mutations are useful before full option/variant fanout parity
 
 A worthwhile intermediate step before true Shopify-grade variant fanout is supporting the real bulk mutation family with a narrower merchandising/inventory slice:
@@ -2082,7 +2095,23 @@ Practical rule:
 - do not fetch or mutate Shopify during normal runtime to discover missing merge customers; unknown ids should return captured `CustomerMergeUserError` payloads instead
 - do not model transfer of orders, draft orders, gift cards, discounts, addresses, or other attached resources until a fixture captures those non-empty merge fields
 
-## 56. `metafieldsSet` CAS and validation semantics are a mix of GraphQL and resolver errors
+## 56. discountNodes code filter does not mirror codeDiscountNodes for native code discounts
+
+HAR-191 captured discount catalog reads against Admin GraphQL 2026-04 with a temporary native `DiscountCodeBasic`.
+
+Captured facts:
+
+- the created native code discount was visible through `codeDiscountNodes` immediately
+- `discountNodes` did not return it until the catalog index caught up a few seconds later
+- after indexing, unfiltered `discountNodes` and `discountNodes(query: "status:active")` returned the discount
+- `discountNodes(query: "code:<native-code>")` still returned an empty connection and `discountNodesCount(query: "code:<native-code>")` returned `0` / `EXACT`
+
+Practical rule:
+
+- keep `discountNodes` code-filter behavior modeled from capture evidence; do not assume it matches `codeDiscountNodes`
+- keep `codeDiscountNodes` as a separate compatibility root until its node-specific connection and filtering behavior are captured and modeled directly
+
+## 57. `metafieldsSet` CAS and validation semantics are a mix of GraphQL and resolver errors
 
 HAR-142 expanded product-owned `metafieldsSet` coverage beyond happy-path upserts. Captured fixtures from `corepack pnpm conformance:capture-product-metafield-mutations` now cover compare-and-set success, stale digest failure, `compareDigest: null` creation, duplicate inputs, missing input fields, and over-limit input count.
 
