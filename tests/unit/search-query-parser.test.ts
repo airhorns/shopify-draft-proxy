@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseSearchQuery, parseSearchQueryTerm, parseSearchQueryTerms } from '../../src/search-query-parser.js';
+import {
+  matchesSearchQueryDate,
+  matchesSearchQueryNumber,
+  normalizeSearchQueryValue,
+  parseSearchQuery,
+  parseSearchQueryTerm,
+  parseSearchQueryTerms,
+} from '../../src/search-query-parser.js';
 
 describe('search query parser', () => {
   it('parses bare terms and field filters into reusable term metadata', () => {
@@ -168,5 +175,25 @@ describe('search query parser', () => {
       },
       { raw: 'tag:vip', negated: false, field: 'tag', comparator: null, value: 'vip' },
     ]);
+  });
+
+  it('normalizes and compares typed term values for endpoint filters', () => {
+    expect(normalizeSearchQueryValue(' "ACTIVE" ')).toBe('active');
+
+    expect(matchesSearchQueryNumber(5, parseSearchQueryTerm('times_used:>=5'))).toBe(true);
+    expect(matchesSearchQueryNumber(4, parseSearchQueryTerm('times_used:>=5'))).toBe(false);
+    expect(matchesSearchQueryNumber(null, parseSearchQueryTerm('times_used:>=5'))).toBe(false);
+
+    expect(
+      matchesSearchQueryDate('2026-01-02T00:00:00Z', parseSearchQueryTerm('starts_at:>2026-01-01T00:00:00Z')),
+    ).toBe(true);
+    expect(
+      matchesSearchQueryDate(
+        '2026-01-02T00:00:00Z',
+        parseSearchQueryTerm('starts_at:<=now'),
+        Date.parse('2026-01-03T00:00:00Z'),
+      ),
+    ).toBe(true);
+    expect(matchesSearchQueryDate('invalid', parseSearchQueryTerm('starts_at:>2026-01-01T00:00:00Z'))).toBe(false);
   });
 });

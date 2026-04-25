@@ -81,6 +81,63 @@ export function parseSearchQueryTerm(rawValue: string): SearchQueryTerm {
   return parseTerm(rawValue);
 }
 
+export function normalizeSearchQueryValue(value: string): string {
+  return value
+    .trim()
+    .replace(/^['"]|['"]$/g, '')
+    .toLowerCase();
+}
+
+export function matchesSearchQueryNumber(value: number | null, term: SearchQueryTerm): boolean {
+  const expected = Number.parseFloat(normalizeSearchQueryValue(term.value));
+  if (!Number.isFinite(expected) || value === null) {
+    return false;
+  }
+
+  switch (term.comparator ?? '=') {
+    case '>':
+      return value > expected;
+    case '>=':
+      return value >= expected;
+    case '<':
+      return value < expected;
+    case '<=':
+      return value <= expected;
+    case '=':
+      return value === expected;
+  }
+}
+
+export function matchesSearchQueryDate(
+  value: string | null | undefined,
+  term: SearchQueryTerm,
+  nowMs = Date.now(),
+): boolean {
+  if (!value) {
+    return false;
+  }
+
+  const actualDate = Date.parse(value);
+  const expectedValue = normalizeSearchQueryValue(term.value);
+  const expectedDate = expectedValue === 'now' ? nowMs : Date.parse(expectedValue);
+  if (Number.isNaN(actualDate) || Number.isNaN(expectedDate)) {
+    return false;
+  }
+
+  switch (term.comparator ?? '=') {
+    case '>':
+      return actualDate > expectedDate;
+    case '>=':
+      return actualDate >= expectedDate;
+    case '<':
+      return actualDate < expectedDate;
+    case '<=':
+      return actualDate <= expectedDate;
+    case '=':
+      return actualDate === expectedDate;
+  }
+}
+
 export function parseSearchQueryTerms(query: string, options: SearchQueryTermListOptions = {}): SearchQueryTerm[] {
   const quoteCharacters = options.quoteCharacters ?? DEFAULT_QUOTE_CHARACTERS;
   const ignoredKeywords = new Set((options.ignoredKeywords ?? []).map((keyword) => keyword.toUpperCase()));
