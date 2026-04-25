@@ -1487,13 +1487,7 @@ function hydrateOrdersFromUpstreamResponse(upstreamPayload: unknown): void {
     store.upsertBaseOrders([makeSeedOrder(orderId, order)]);
   }
 
-  for (const edge of readArrayField(readRecordField(data, 'orders'), 'edges').filter(isPlainObject)) {
-    const node = readRecordField(edge, 'node');
-    const nodeId = readStringField(node, 'id');
-    if (nodeId) {
-      store.upsertBaseOrders([makeSeedOrder(nodeId, node)]);
-    }
-  }
+  hydrateOrderConnectionsFromData(data);
 
   const draftOrder = readRecordField(data, 'draftOrder');
   const draftOrderId = readStringField(draftOrder, 'id');
@@ -1506,6 +1500,23 @@ function hydrateOrdersFromUpstreamResponse(upstreamPayload: unknown): void {
     const nodeId = readStringField(node, 'id');
     if (nodeId) {
       store.stageCreateDraftOrder(makeSeedDraftOrder(nodeId, node));
+    }
+  }
+}
+
+function hydrateOrderConnectionsFromData(data: Record<string, unknown> | null): void {
+  for (const value of Object.values(data ?? {})) {
+    const connection = isPlainObject(value) ? value : null;
+    const edges = readArrayField(connection, 'edges').filter(isPlainObject);
+    const nodes = readArrayField(connection, 'nodes').filter(isPlainObject);
+    const edgeNodes = edges.map((edge) => readRecordField(edge, 'node')).filter(isPlainObject);
+
+    for (const node of [...edgeNodes, ...nodes]) {
+      const nodeId = readStringField(node, 'id');
+      if (nodeId?.startsWith('gid://shopify/Order/')) {
+        const existingOrder = store.getOrderById(nodeId);
+        store.upsertBaseOrders([makeSeedOrder(nodeId, existingOrder ? { ...existingOrder, ...node } : node)]);
+      }
     }
   }
 }
@@ -2512,6 +2523,19 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   if (!mutationName && readOrderPayload && readOrderId) {
     store.upsertBaseOrders([makeSeedOrder(readOrderId, readOrderPayload)]);
     return;
+  }
+  if (!mutationName && (capture as Record<string, unknown>)['seedOrderCatalogFromCapture'] === true) {
+    const responsePayload = readRecordField(capture as Record<string, unknown>, 'response');
+    if (responsePayload) {
+      hydrateOrdersFromUpstreamResponse(responsePayload);
+    }
+    const nextPageResponse = readRecordField(
+      readRecordField(capture as Record<string, unknown>, 'nextPage'),
+      'response',
+    );
+    if (nextPageResponse) {
+      hydrateOrdersFromUpstreamResponse(nextPageResponse);
+    }
   }
 
   if (

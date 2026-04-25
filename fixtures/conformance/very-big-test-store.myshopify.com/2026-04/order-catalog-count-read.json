@@ -1,0 +1,199 @@
+{
+  "capturedAt": "2026-04-25T01:13:25.747Z",
+  "storeDomain": "very-big-test-store.myshopify.com",
+  "apiVersion": "2026-04",
+  "variables": {
+    "tagQuery": "tag:merchant-realistic",
+    "nameQuery": "name:1331",
+    "statusQuery": "financial_status:paid fulfillment_status:unfulfilled",
+    "pageSize": 1,
+    "seedSize": 2,
+    "countLimit": 1,
+    "unlimited": null
+  },
+  "response": {
+    "data": {
+      "seedCatalog": {
+        "nodes": [
+          {
+            "id": "gid://shopify/Order/6834565087465",
+            "name": "#1331",
+            "createdAt": "2026-04-25T00:27:41Z",
+            "updatedAt": "2026-04-25T01:08:36Z",
+            "displayFinancialStatus": "PAID",
+            "displayFulfillmentStatus": "UNFULFILLED",
+            "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
+            "email": "hermes-draft-order-probe-1777076856718@example.com",
+            "currentTotalPriceSet": {
+              "shopMoney": {
+                "amount": "38.25",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          {
+            "id": "gid://shopify/Order/6834528944361",
+            "name": "#1330",
+            "createdAt": "2026-04-24T23:51:30Z",
+            "updatedAt": "2026-04-25T00:06:32Z",
+            "displayFinancialStatus": "PAID",
+            "displayFulfillmentStatus": "UNFULFILLED",
+            "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
+            "email": "hermes-draft-order-probe-1777074686016@example.com",
+            "currentTotalPriceSet": {
+              "shopMoney": {
+                "amount": "38.25",
+                "currencyCode": "CAD"
+              }
+            }
+          }
+        ]
+      },
+      "recent": {
+        "nodes": [
+          {
+            "id": "gid://shopify/Order/6834565087465",
+            "name": "#1331",
+            "createdAt": "2026-04-25T00:27:41Z",
+            "updatedAt": "2026-04-25T01:08:36Z",
+            "displayFinancialStatus": "PAID",
+            "displayFulfillmentStatus": "UNFULFILLED",
+            "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
+            "email": "hermes-draft-order-probe-1777076856718@example.com"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": true,
+          "hasPreviousPage": false,
+          "startCursor": "eyJsYXN0X2lkIjo2ODM0NTY1MDg3NDY1LCJsYXN0X3ZhbHVlIjoxNzc3MDc2ODYxMDAwfQ==",
+          "endCursor": "eyJsYXN0X2lkIjo2ODM0NTY1MDg3NDY1LCJsYXN0X3ZhbHVlIjoxNzc3MDc2ODYxMDAwfQ=="
+        }
+      },
+      "oldest": {
+        "nodes": [
+          {
+            "id": "gid://shopify/Order/6834528944361",
+            "name": "#1330",
+            "createdAt": "2026-04-24T23:51:30Z",
+            "updatedAt": "2026-04-25T00:06:32Z",
+            "displayFinancialStatus": "PAID",
+            "displayFulfillmentStatus": "UNFULFILLED",
+            "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
+            "email": "hermes-draft-order-probe-1777074686016@example.com"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": true,
+          "hasPreviousPage": false,
+          "startCursor": "eyJsYXN0X2lkIjo2ODM0NTI4OTQ0MzYxLCJsYXN0X3ZhbHVlIjoxNzc3MDc0NjkwMDAwfQ==",
+          "endCursor": "eyJsYXN0X2lkIjo2ODM0NTI4OTQ0MzYxLCJsYXN0X3ZhbHVlIjoxNzc3MDc0NjkwMDAwfQ=="
+        }
+      },
+      "byName": {
+        "nodes": [
+          {
+            "id": "gid://shopify/Order/6834565087465",
+            "name": "#1331",
+            "tags": ["draft-order-create", "merchant-realistic", "parity-probe"]
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": "eyJsYXN0X2lkIjo2ODM0NTY1MDg3NDY1LCJsYXN0X3ZhbHVlIjoxNzc3MDc2ODYxMDAwfQ==",
+          "endCursor": "eyJsYXN0X2lkIjo2ODM0NTY1MDg3NDY1LCJsYXN0X3ZhbHVlIjoxNzc3MDc2ODYxMDAwfQ=="
+        }
+      },
+      "byStatus": {
+        "nodes": [
+          {
+            "id": "gid://shopify/Order/6834565087465",
+            "name": "#1331",
+            "displayFinancialStatus": "PAID",
+            "displayFulfillmentStatus": "UNFULFILLED"
+          },
+          {
+            "id": "gid://shopify/Order/6834528944361",
+            "name": "#1330",
+            "displayFinancialStatus": "PAID",
+            "displayFulfillmentStatus": "UNFULFILLED"
+          },
+          {
+            "id": "gid://shopify/Order/6830647771369",
+            "name": "#1329",
+            "displayFinancialStatus": "PAID",
+            "displayFulfillmentStatus": "UNFULFILLED"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": true,
+          "hasPreviousPage": false,
+          "startCursor": "eyJsYXN0X2lkIjo2ODM0NTY1MDg3NDY1LCJsYXN0X3ZhbHVlIjoxNzc3MDc2ODYxMDAwfQ==",
+          "endCursor": "eyJsYXN0X2lkIjo2ODMwNjQ3NzcxMzY5LCJsYXN0X3ZhbHVlIjoxNzc2OTAwNTQzMDAwfQ=="
+        }
+      },
+      "limitedTaggedCount": {
+        "count": 1,
+        "precision": "AT_LEAST"
+      },
+      "exactTaggedCount": {
+        "count": 2,
+        "precision": "EXACT"
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 37,
+        "actualQueryCost": 36,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1964,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "nextPage": {
+    "variables": {
+      "tagQuery": "tag:merchant-realistic",
+      "pageSize": 1,
+      "after": "eyJsYXN0X2lkIjo2ODM0NTY1MDg3NDY1LCJsYXN0X3ZhbHVlIjoxNzc3MDc2ODYxMDAwfQ=="
+    },
+    "response": {
+      "data": {
+        "nextPage": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Order/6834528944361",
+              "name": "#1330",
+              "createdAt": "2026-04-24T23:51:30Z",
+              "updatedAt": "2026-04-25T00:06:32Z",
+              "displayFinancialStatus": "PAID",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
+              "email": "hermes-draft-order-probe-1777074686016@example.com"
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": "eyJsYXN0X2lkIjo2ODM0NTI4OTQ0MzYxLCJsYXN0X3ZhbHVlIjoxNzc3MDc0NjkwMDAwfQ==",
+            "endCursor": "eyJsYXN0X2lkIjo2ODM0NTI4OTQ0MzYxLCJsYXN0X3ZhbHVlIjoxNzc3MDc0NjkwMDAwfQ=="
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1992,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "seedOrderCatalogFromCapture": true
+}

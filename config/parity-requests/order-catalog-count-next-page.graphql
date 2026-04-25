@@ -1,0 +1,20 @@
+query OrderCatalogNextPage($tagQuery: String!, $pageSize: Int!, $after: String) {
+  nextPage: orders(first: $pageSize, after: $after, query: $tagQuery, sortKey: CREATED_AT, reverse: true) {
+    nodes {
+      id
+      name
+      createdAt
+      updatedAt
+      displayFinancialStatus
+      displayFulfillmentStatus
+      tags
+      email
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

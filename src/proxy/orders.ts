@@ -2268,6 +2268,25 @@ function matchesTimestampTerm(timestamp: string, rawValue: string): boolean {
   }
 }
 
+function normalizeSearchValue(rawValue: string): string {
+  const trimmed = rawValue.trim();
+  const firstCharacter = trimmed[0];
+  const lastCharacter = trimmed[trimmed.length - 1];
+  if ((firstCharacter === '"' || firstCharacter === "'") && firstCharacter === lastCharacter) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+function matchesStringValueIncludingContains(candidate: string | null | undefined, rawValue: string): boolean {
+  if (!candidate) {
+    return false;
+  }
+
+  const value = normalizeSearchValue(rawValue).toLowerCase();
+  return value.length === 0 || candidate.toLowerCase().includes(value);
+}
+
 function matchesDraftOrderSource(draftOrder: DraftOrderRecord, rawValue: string): boolean {
   return draftOrder.customAttributes.some(
     (attribute) =>
@@ -3726,7 +3745,7 @@ function serializeCalculatedOrder(field: FieldNode, calculatedOrder: CalculatedO
   return result;
 }
 
-function serializeOrderCount(field: FieldNode, count = 0): Record<string, unknown> {
+function serializeOrderCount(field: FieldNode, count = 0, precision = 'EXACT'): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
   for (const selection of getSelectedChildFields(field)) {
@@ -3736,7 +3755,7 @@ function serializeOrderCount(field: FieldNode, count = 0): Record<string, unknow
         result[key] = count;
         break;
       case 'precision':
-        result[key] = 'EXACT';
+        result[key] = precision;
         break;
       default:
         result[key] = null;
@@ -3752,23 +3771,26 @@ function serializeOrdersConnection(
   orders: OrderRecord[],
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const first = readNullableIntArgument(field, 'first', variables);
-  const visibleOrders = first === null ? orders : orders.slice(0, Math.max(0, first));
-  const hasNextPage = first !== null && orders.length > visibleOrders.length;
-  const hasPreviousPage = false;
+  const args = getFieldArguments(field, variables);
+  const filteredOrders =
+    typeof args['savedSearchId'] === 'string' && args['savedSearchId'].trim()
+      ? []
+      : applyOrdersQuery(orders, args['query']);
+  const orderedOrders = sortOrdersForConnection(filteredOrders, field, variables);
+  const { visibleRecords, hasNextPage, hasPreviousPage } = applySyntheticCursorWindow(orderedOrders, field, variables);
   const result: Record<string, unknown> = {};
 
   for (const selection of getSelectedChildFields(field)) {
     const key = getFieldResponseKey(selection);
     switch (selection.name.value) {
       case 'edges':
-        result[key] = visibleOrders.map((order) => {
+        result[key] = visibleRecords.map((order) => {
           const edgeResult: Record<string, unknown> = {};
           for (const edgeSelection of getSelectedChildFields(selection)) {
             const edgeKey = getFieldResponseKey(edgeSelection);
             switch (edgeSelection.name.value) {
               case 'cursor':
-                edgeResult[edgeKey] = `cursor:${order.id}`;
+                edgeResult[edgeKey] = buildSyntheticCursor(order.id);
                 break;
               case 'node':
                 edgeResult[edgeKey] = serializeOrderNode(edgeSelection, order);
@@ -3782,12 +3804,12 @@ function serializeOrdersConnection(
         });
         break;
       case 'nodes':
-        result[key] = visibleOrders.map((order) => serializeOrderNode(selection, order));
+        result[key] = visibleRecords.map((order) => serializeOrderNode(selection, order));
         break;
       case 'pageInfo':
         result[key] = serializeConnectionPageInfo(
           selection,
-          visibleOrders,
+          visibleRecords,
           hasNextPage,
           hasPreviousPage,
           (order) => buildSyntheticCursor(order.id),
@@ -3801,6 +3823,240 @@ function serializeOrdersConnection(
   }
 
   return result;
+}
+
+function serializeOrdersCount(
+  field: FieldNode,
+  orders: OrderRecord[],
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const filteredOrders =
+    typeof args['savedSearchId'] === 'string' && args['savedSearchId'].trim()
+      ? []
+      : applyOrdersQuery(orders, args['query']);
+  const rawLimit = args['limit'];
+  const limit = typeof rawLimit === 'number' && Number.isFinite(rawLimit) && rawLimit >= 0 ? rawLimit : null;
+  const count = limit === null ? filteredOrders.length : Math.min(filteredOrders.length, limit);
+
+  return serializeOrderCount(field, count, limit !== null && filteredOrders.length > limit ? 'AT_LEAST' : 'EXACT');
+}
+
+function readOrderNumericId(order: OrderRecord): number | null {
+  const parsed = Number.parseInt(order.id.split('/').at(-1) ?? '', 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeOrderStatusValue(rawValue: string): string {
+  return normalizeSearchValue(rawValue).replace(/-/gu, '_').toUpperCase();
+}
+
+function matchesOrderStatus(candidate: string | null | undefined, rawValue: string): boolean {
+  if (!candidate) {
+    return false;
+  }
+
+  const normalizedCandidate = candidate.replace(/-/gu, '_').toUpperCase();
+  const normalizedValue = normalizeOrderStatusValue(rawValue);
+  return normalizedCandidate === normalizedValue;
+}
+
+function matchesOrderFulfillmentStatus(order: OrderRecord, rawValue: string): boolean {
+  const normalizedValue = normalizeOrderStatusValue(rawValue);
+  const normalizedCandidate = order.displayFulfillmentStatus?.replace(/-/gu, '_').toUpperCase() ?? null;
+  if (normalizedValue === 'UNSHIPPED') {
+    return normalizedCandidate === 'UNFULFILLED';
+  }
+  return normalizedCandidate === normalizedValue;
+}
+
+function matchesOrderLifecycleStatus(order: OrderRecord, rawValue: string): boolean {
+  const value = normalizeSearchValue(rawValue).toLowerCase();
+  switch (value) {
+    case 'open':
+      return order.cancelledAt === null && order.closedAt === null && order.closed !== true;
+    case 'closed':
+      return order.closed === true || order.closedAt !== null;
+    case 'cancelled':
+    case 'canceled':
+      return order.cancelledAt !== null;
+    case 'not_closed':
+      return order.closed !== true && order.closedAt === null;
+    default:
+      return false;
+  }
+}
+
+function matchesOrderSearchTerm(order: OrderRecord, term: string): boolean {
+  const separatorIndex = term.indexOf(':');
+  if (separatorIndex <= 0) {
+    return (
+      matchesStringValueIncludingContains(order.name, term) ||
+      matchesStringValueIncludingContains(order.email ?? order.customer?.email, term) ||
+      matchesStringValueIncludingContains(order.note, term) ||
+      order.tags.some((tag) => matchesStringValueIncludingContains(tag, term))
+    );
+  }
+
+  const field = term.slice(0, separatorIndex).toLowerCase();
+  const value = term.slice(separatorIndex + 1);
+
+  switch (field) {
+    case 'name':
+      return matchesStringValueIncludingContains(order.name.replace(/^#/u, ''), value);
+    case 'tag':
+      return order.tags.some((tag) => matchesStringValue(tag, normalizeSearchValue(value)));
+    case 'tag_not':
+      return !order.tags.some((tag) => matchesStringValue(tag, normalizeSearchValue(value)));
+    case 'email':
+      return matchesStringValueIncludingContains(order.email ?? order.customer?.email, value);
+    case 'financial_status':
+      return matchesOrderStatus(order.displayFinancialStatus, value);
+    case 'fulfillment_status':
+      return matchesOrderFulfillmentStatus(order, value);
+    case 'status':
+      return matchesOrderLifecycleStatus(order, value);
+    case 'id':
+      return order.id === normalizeSearchValue(value) || matchesNumericTerm(readOrderNumericId(order), value);
+    case 'created_at':
+      return matchesTimestampTerm(order.createdAt, value);
+    case 'updated_at':
+    case 'processed_at':
+      return matchesTimestampTerm(order.updatedAt, value);
+    case 'customer_id':
+      return (
+        order.customer?.id === normalizeSearchValue(value) || matchesNumericTerm(readCustomerNumericId(order), value)
+      );
+    case 'po_number':
+      return matchesStringValueIncludingContains(order.poNumber, value);
+    case 'source_name':
+    case 'source':
+      return matchesStringValue(order.sourceName ?? '', normalizeSearchValue(value));
+    case 'gateway':
+      return (order.paymentGatewayNames ?? []).some((gateway) => matchesStringValueIncludingContains(gateway, value));
+    case 'sku':
+      return order.lineItems.some((lineItem) => matchesStringValueIncludingContains(lineItem.sku, value));
+    case 'discount_code':
+      return (order.discountCodes ?? []).some((discountCode) =>
+        matchesStringValueIncludingContains(discountCode, value),
+      );
+    default:
+      return false;
+  }
+}
+
+function readCustomerNumericId(order: OrderRecord): number | null {
+  const parsed = Number.parseInt(order.customer?.id.split('/').at(-1) ?? '', 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function tokenizeOrderSearchQuery(query: string): string[] {
+  const terms: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  const flushCurrent = (): void => {
+    const value = current.trim();
+    if (value && value.toUpperCase() !== 'AND') {
+      terms.push(value);
+    }
+    current = '';
+  };
+
+  for (const character of query) {
+    if (character === '"') {
+      inQuotes = !inQuotes;
+      current += character;
+      continue;
+    }
+
+    if (!inQuotes && /\s/u.test(character)) {
+      flushCurrent();
+      continue;
+    }
+
+    current += character;
+  }
+
+  flushCurrent();
+  return terms;
+}
+
+function applyOrdersQuery(orders: OrderRecord[], rawQuery: unknown): OrderRecord[] {
+  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
+    return orders;
+  }
+
+  const terms = tokenizeOrderSearchQuery(rawQuery.trim());
+  if (terms.length === 0) {
+    return orders;
+  }
+
+  return orders.filter((order) => terms.every((term) => matchesOrderSearchTerm(order, term)));
+}
+
+function compareOrderIds(leftId: string, rightId: string): number {
+  const leftTail = Number.parseInt(leftId.split('/').at(-1) ?? '', 10);
+  const rightTail = Number.parseInt(rightId.split('/').at(-1) ?? '', 10);
+  if (Number.isFinite(leftTail) && Number.isFinite(rightTail)) {
+    return leftTail - rightTail;
+  }
+
+  return leftId.localeCompare(rightId);
+}
+
+function compareNullableStrings(left: string | null | undefined, right: string | null | undefined): number {
+  return (left ?? '').localeCompare(right ?? '');
+}
+
+function readMoneyAmount(raw: { shopMoney: MoneyV2Record | null } | null | undefined): number {
+  return parseDecimalAmount(raw?.shopMoney?.amount);
+}
+
+function sortOrdersForConnection(
+  orders: OrderRecord[],
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): OrderRecord[] {
+  const args = getFieldArguments(field, variables);
+  const sortKey = typeof args['sortKey'] === 'string' ? args['sortKey'] : null;
+  const reverse = args['reverse'] === true;
+
+  if (!sortKey) {
+    return reverse ? [...orders].reverse() : orders;
+  }
+
+  const sorted = [...orders].sort((left, right) => {
+    switch (sortKey) {
+      case 'CREATED_AT':
+      case 'PROCESSED_AT':
+        return left.createdAt.localeCompare(right.createdAt) || compareOrderIds(left.id, right.id);
+      case 'UPDATED_AT':
+        return left.updatedAt.localeCompare(right.updatedAt) || compareOrderIds(left.id, right.id);
+      case 'NAME':
+        return left.name.localeCompare(right.name) || compareOrderIds(left.id, right.id);
+      case 'TOTAL_PRICE':
+        return (
+          readMoneyAmount(left.currentTotalPriceSet ?? left.totalPriceSet) -
+            readMoneyAmount(right.currentTotalPriceSet ?? right.totalPriceSet) || compareOrderIds(left.id, right.id)
+        );
+      case 'FINANCIAL_STATUS':
+        return (
+          compareNullableStrings(left.displayFinancialStatus, right.displayFinancialStatus) ||
+          compareOrderIds(left.id, right.id)
+        );
+      case 'FULFILLMENT_STATUS':
+        return (
+          compareNullableStrings(left.displayFulfillmentStatus, right.displayFulfillmentStatus) ||
+          compareOrderIds(left.id, right.id)
+        );
+      case 'ID':
+      default:
+        return compareOrderIds(left.id, right.id);
+    }
+  });
+
+  return reverse ? sorted.reverse() : sorted;
 }
 
 function readOrderUpdateInput(variables: Record<string, unknown>): Record<string, unknown> {
@@ -4604,7 +4860,7 @@ export function handleOrderQuery(
         data[key] = serializeOrdersConnection(field, orders, variables);
         break;
       case 'ordersCount':
-        data[key] = serializeOrderCount(field, orders.length);
+        data[key] = serializeOrdersCount(field, orders, variables);
         break;
       case 'draftOrder': {
         const id = typeof variables['id'] === 'string' ? variables['id'] : null;
