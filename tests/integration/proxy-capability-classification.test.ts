@@ -121,4 +121,68 @@ describe('proxy capability classification', () => {
       notes: 'Mutation passthrough placeholder until supported local staging is implemented.',
     });
   });
+
+  it('logs generic publishable mutations as tracked Store properties passthrough', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            publishablePublish: {
+              publishable: null,
+              userErrors: [],
+            },
+          },
+        }),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        },
+      ),
+    );
+
+    const app = createApp(config);
+
+    const response = await request(app.callback())
+      .post('/admin/api/2026-04/graphql.json')
+      .set('x-shopify-access-token', 'shpat_test')
+      .send({
+        query: `#graphql
+          mutation PublishGeneric {
+            publishablePublish(
+              id: "gid://shopify/Product/1"
+              input: { publicationId: "gid://shopify/Publication/1" }
+            ) {
+              publishable {
+                ... on Product {
+                  id
+                }
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+      });
+
+    expect(response.status).toBe(200);
+    expect(store.getLog()).toHaveLength(1);
+    expect(store.getLog()[0]).toMatchObject({
+      operationName: 'publishablePublish',
+      status: 'proxied',
+      interpreted: {
+        operationType: 'mutation',
+        operationName: 'PublishGeneric',
+        rootFields: ['publishablePublish'],
+        primaryRootField: 'publishablePublish',
+        capability: {
+          operationName: 'publishablePublish',
+          domain: 'store-properties',
+          execution: 'passthrough',
+        },
+      },
+      notes: 'Mutation passthrough placeholder until supported local staging is implemented.',
+    });
+  });
 });

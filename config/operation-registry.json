@@ -480,37 +480,41 @@
     "name": "publishablePublish",
     "type": "mutation",
     "domain": "store-properties",
-    "execution": "stage-locally",
+    "execution": "passthrough",
     "implemented": false,
     "matchNames": ["publishablePublish", "PublishablePublish"],
-    "runtimeTests": []
+    "runtimeTests": [],
+    "supportNotes": "Explicit tracked passthrough for HAR-177: generic Publishable roots can target Product or Collection. Product-specific staged support remains in productPublish/productUnpublish, and this root must not be marked supported until generic-root fixtures scope a concrete resource type."
   },
   {
     "name": "publishablePublishToCurrentChannel",
     "type": "mutation",
     "domain": "store-properties",
-    "execution": "stage-locally",
+    "execution": "passthrough",
     "implemented": false,
     "matchNames": ["publishablePublishToCurrentChannel", "PublishablePublishToCurrentChannel"],
-    "runtimeTests": []
+    "runtimeTests": [],
+    "supportNotes": "Explicit tracked passthrough for HAR-177: current-channel generic publishing depends on the app publication target and the concrete Publishable resource type. Product-specific staged support remains in productPublish/productUnpublish."
   },
   {
     "name": "publishableUnpublish",
     "type": "mutation",
     "domain": "store-properties",
-    "execution": "stage-locally",
+    "execution": "passthrough",
     "implemented": false,
     "matchNames": ["publishableUnpublish", "PublishableUnpublish"],
-    "runtimeTests": []
+    "runtimeTests": [],
+    "supportNotes": "Explicit tracked passthrough for HAR-177: generic Publishable roots can target Product or Collection. Product-specific staged support remains in productPublish/productUnpublish, and this root must not be marked supported until generic-root fixtures scope a concrete resource type."
   },
   {
     "name": "publishableUnpublishToCurrentChannel",
     "type": "mutation",
     "domain": "store-properties",
-    "execution": "stage-locally",
+    "execution": "passthrough",
     "implemented": false,
     "matchNames": ["publishableUnpublishToCurrentChannel", "PublishableUnpublishToCurrentChannel"],
-    "runtimeTests": []
+    "runtimeTests": [],
+    "supportNotes": "Explicit tracked passthrough for HAR-177: current-channel generic unpublishing depends on the app publication target and the concrete Publishable resource type. Product-specific staged support remains in productPublish/productUnpublish."
   },
   {
     "name": "shopPolicyUpdate",

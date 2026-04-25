@@ -34,6 +34,22 @@ const storePropertiesMutationRoots = [
   'shopPolicyUpdate',
 ] as const;
 
+const storePropertiesLocalStagingMutationRoots = [
+  'locationAdd',
+  'locationEdit',
+  'locationActivate',
+  'locationDeactivate',
+  'locationDelete',
+  'shopPolicyUpdate',
+] as const;
+
+const genericPublishableMutationRoots = [
+  'publishablePublish',
+  'publishablePublishToCurrentChannel',
+  'publishableUnpublish',
+  'publishableUnpublishToCurrentChannel',
+] as const;
+
 const storePropertiesRoots = [...storePropertiesQueryRoots, ...storePropertiesMutationRoots] as const;
 
 function readText(relativePath: string): string {
@@ -61,14 +77,18 @@ describe('Store properties registry scaffold', () => {
       expect(entriesByName.get(root)?.execution, `${root} should be a planned overlay read`).toBe('overlay-read');
     }
 
-    for (const root of storePropertiesMutationRoots) {
+    for (const root of storePropertiesLocalStagingMutationRoots) {
       expect(entriesByName.get(root)?.execution, `${root} should be planned for local staging before support`).toBe(
         'stage-locally',
       );
     }
+
+    for (const root of genericPublishableMutationRoots) {
+      expect(entriesByName.get(root)?.execution, `${root} should be explicit tracked passthrough`).toBe('passthrough');
+    }
   });
 
-  it('keeps scaffolded roots out of capability routing until they are implemented', () => {
+  it('keeps planned local-staging scaffolds out of capability routing until they are implemented', () => {
     expect(getOperationCapability({ type: 'query', name: 'Shop', rootFields: ['shop'] })).toEqual({
       domain: 'unknown',
       execution: 'passthrough',
@@ -93,6 +113,17 @@ describe('Store properties registry scaffold', () => {
       operationName: 'ShopPolicyUpdate',
       type: 'mutation',
     });
+  });
+
+  it('routes generic publishable roots as observable Store properties passthrough', () => {
+    for (const root of genericPublishableMutationRoots) {
+      expect(getOperationCapability({ type: 'mutation', name: root, rootFields: [root] })).toEqual({
+        domain: 'store-properties',
+        execution: 'passthrough',
+        operationName: root,
+        type: 'mutation',
+      });
+    }
   });
 
   it('does not create planned-only parity scenarios for scaffold-only Store properties roots', () => {

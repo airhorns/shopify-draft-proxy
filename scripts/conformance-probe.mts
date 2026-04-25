@@ -1,7 +1,7 @@
 // @ts-nocheck
 import 'dotenv/config';
 
-import { runAdminGraphqlRequest } from './conformance-graphql-client.mjs';
+import { runAdminGraphqlRequest } from './conformance-graphql-client.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 const requiredVars = ['SHOPIFY_CONFORMANCE_STORE_DOMAIN', 'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];

@@ -1794,3 +1794,16 @@ Safety traps:
 Practical rule:
 
 - keep Store properties registry inventory separate from runtime support; do not flip these roots to implemented until there is captured fixture evidence plus local model behavior for the specific root family
+
+### 47a. Generic Publishable roots are tracked passthrough until their resource slice is fixture-backed
+
+The generic Store properties publication roots (`publishablePublish`, `publishablePublishToCurrentChannel`, `publishableUnpublish`, and `publishableUnpublishToCurrentChannel`) should not be collapsed into the existing product-specific publication handlers just because `Product` implements `Publishable`.
+
+Current HAR-177 decision:
+
+- keep `productPublish` / `productUnpublish` as the product-domain staged write path with their own captured parity fixtures
+- mark the generic `publishable*` roots as explicit tracked passthrough, not planned local staging, until a generic-root fixture scopes a concrete `Publishable` resource type
+- do not create planned-only parity specs for these roots; the first supported generic slice must come with a captured generic-root interaction and local modeling for the specific resource type
+- treat product and collection targets separately because the Shopify `Publishable` interface currently covers both resource families, and collection publication behavior should not inherit product assumptions without evidence
+
+This keeps unsupported generic publication mutations visible in logs while preventing duplicate or contradictory publication behavior from pretending to support generic roots with product-specific evidence.
