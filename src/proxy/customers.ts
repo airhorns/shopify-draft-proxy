@@ -1,12 +1,15 @@
 import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
+import { getFieldResponseKey, getSelectedChildFields, serializeConnectionPageInfo } from './graphql-helpers.js';
 import {
-  getFieldResponseKey,
-  getSelectedChildFields,
-  paginateConnectionItems,
-  serializeConnectionPageInfo,
-} from './graphql-helpers.js';
+  mergeMetafieldRecords,
+  normalizeOwnerMetafield,
+  readMetafieldInputObjects,
+  serializeMetafieldsConnection,
+  serializeMetafieldSelection,
+  upsertOwnerMetafields,
+} from './metafields.js';
 import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type {
@@ -492,28 +495,6 @@ function normalizeCustomer(raw: unknown): CustomerRecord | null {
   };
 }
 
-function normalizeCustomerMetafield(customerId: string, raw: unknown): CustomerMetafieldRecord | null {
-  if (!isObject(raw)) {
-    return null;
-  }
-
-  const id = raw['id'];
-  const namespace = raw['namespace'];
-  const key = raw['key'];
-  if (typeof id !== 'string' || typeof namespace !== 'string' || typeof key !== 'string') {
-    return null;
-  }
-
-  return {
-    id,
-    customerId,
-    namespace,
-    key,
-    type: normalizeStringField(raw, 'type'),
-    value: normalizeStringField(raw, 'value'),
-  };
-}
-
 function serializeMoneySelection(
   field: FieldNode,
   value: CustomerRecord['amountSpent'],
@@ -651,94 +632,6 @@ function serializeDefaultAddressSelection(
   return result;
 }
 
-function serializeCustomerMetafieldSelection(
-  metafield: CustomerMetafieldRecord,
-  field: FieldNode,
-): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'id':
-        result[key] = metafield.id;
-        break;
-      case 'namespace':
-        result[key] = metafield.namespace;
-        break;
-      case 'key':
-        result[key] = metafield.key;
-        break;
-      case 'type':
-        result[key] = metafield.type;
-        break;
-      case 'value':
-        result[key] = metafield.value;
-        break;
-      default:
-        result[key] = null;
-        break;
-    }
-  }
-  return result;
-}
-
-function serializeCustomerMetafieldsConnection(
-  customerId: string,
-  field: FieldNode,
-  variables: Record<string, unknown>,
-): Record<string, unknown> {
-  const allMetafields = store.getEffectiveMetafieldsByCustomerId(customerId);
-  const {
-    items: metafields,
-    hasNextPage,
-    hasPreviousPage,
-  } = paginateConnectionItems(allMetafields, field, variables, (metafield) => metafield.id);
-  const result: Record<string, unknown> = {};
-
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = metafields.map((metafield) => serializeCustomerMetafieldSelection(metafield, selection));
-        break;
-      case 'edges':
-        result[key] = metafields.map((metafield) => {
-          const edge: Record<string, unknown> = {};
-          for (const edgeSelection of getSelectedChildFields(selection)) {
-            const edgeKey = getFieldResponseKey(edgeSelection);
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edge[edgeKey] = `cursor:${metafield.id}`;
-                break;
-              case 'node':
-                edge[edgeKey] = serializeCustomerMetafieldSelection(metafield, edgeSelection);
-                break;
-              default:
-                edge[edgeKey] = null;
-                break;
-            }
-          }
-          return edge;
-        });
-        break;
-      case 'pageInfo':
-        result[key] = serializeConnectionPageInfo(
-          selection,
-          metafields,
-          hasNextPage,
-          hasPreviousPage,
-          (metafield) => metafield.id,
-        );
-        break;
-      default:
-        result[key] = null;
-        break;
-    }
-  }
-
-  return result;
-}
-
 function serializeCustomerSelection(
   customer: CustomerRecord,
   field: FieldNode,
@@ -822,11 +715,15 @@ function serializeCustomerSelection(
                 .getEffectiveMetafieldsByCustomerId(customer.id)
                 .find((candidate) => candidate.namespace === namespace && candidate.key === metafieldKey)
             : null;
-        result[key] = metafield ? serializeCustomerMetafieldSelection(metafield, selection) : null;
+        result[key] = metafield ? serializeMetafieldSelection(metafield, selection) : null;
         break;
       }
       case 'metafields':
-        result[key] = serializeCustomerMetafieldsConnection(customer.id, selection, variables);
+        result[key] = serializeMetafieldsConnection(
+          store.getEffectiveMetafieldsByCustomerId(customer.id),
+          selection,
+          variables,
+        );
         break;
       case 'createdAt':
         result[key] = customer.createdAt;
@@ -1657,7 +1554,7 @@ function collectCustomerMetafieldsFromSelection(
   for (const selection of getSelectedChildFields(customerField)) {
     const responseKey = getFieldResponseKey(selection);
     if (selection.name.value === 'metafield') {
-      const metafield = normalizeCustomerMetafield(customerId, rawCustomer[responseKey]);
+      const metafield = normalizeOwnerMetafield('customerId', customerId, rawCustomer[responseKey]);
       if (metafield) {
         metafields.push(metafield);
       }
@@ -1676,7 +1573,7 @@ function collectCustomerMetafieldsFromSelection(
           .map((edge) => edge['node'])
       : [];
     for (const rawMetafield of [...nodes, ...edgeNodes]) {
-      const metafield = normalizeCustomerMetafield(customerId, rawMetafield);
+      const metafield = normalizeOwnerMetafield('customerId', customerId, rawMetafield);
       if (metafield) {
         metafields.push(metafield);
       }
@@ -1684,17 +1581,6 @@ function collectCustomerMetafieldsFromSelection(
   }
 
   return metafields;
-}
-
-function mergeCustomerMetafieldRecords(
-  existing: CustomerMetafieldRecord[],
-  next: CustomerMetafieldRecord[],
-): CustomerMetafieldRecord[] {
-  const byIdentity = new Map(existing.map((metafield) => [`${metafield.namespace}:${metafield.key}`, metafield]));
-  for (const metafield of next) {
-    byIdentity.set(`${metafield.namespace}:${metafield.key}`, metafield);
-  }
-  return Array.from(byIdentity.values());
 }
 
 function collectCustomerMetafields(
@@ -1708,10 +1594,7 @@ function collectCustomerMetafields(
       return;
     }
 
-    metafieldsByCustomerId[customerId] = mergeCustomerMetafieldRecords(
-      metafieldsByCustomerId[customerId] ?? [],
-      metafields,
-    );
+    metafieldsByCustomerId[customerId] = mergeMetafieldRecords(metafieldsByCustomerId[customerId] ?? [], metafields);
   };
 
   for (const field of getRootFields(document)) {
@@ -1906,14 +1789,6 @@ function normalizeCustomerTaxExemptions(raw: unknown, fallback: string[]): strin
     .sort((left, right) => left.localeCompare(right));
 }
 
-function readCustomerMetafieldInputs(raw: unknown): Record<string, unknown>[] {
-  if (!Array.isArray(raw)) {
-    return [];
-  }
-
-  return raw.filter((value): value is Record<string, unknown> => isObject(value));
-}
-
 function validateCustomerTaxExemptionInput(input: Record<string, unknown>): CustomerMutationUserError[] {
   if (!hasOwnField(input, 'taxExemptions')) {
     return [];
@@ -1976,45 +1851,10 @@ function validateCustomerMetafieldInputs(rawMetafields: unknown, customerId: str
 }
 
 function upsertMetafieldsForCustomer(customerId: string, inputs: Record<string, unknown>[]): CustomerMetafieldRecord[] {
-  const existingMetafields = store.getEffectiveMetafieldsByCustomerId(customerId);
-  const metafieldsById = new Map(existingMetafields.map((metafield) => [metafield.id, metafield]));
-  const metafieldsByIdentity = new Map(
-    existingMetafields.map((metafield) => [`${metafield.namespace}:${metafield.key}`, metafield]),
-  );
-
-  for (const input of inputs) {
-    const existingById = typeof input['id'] === 'string' ? (metafieldsById.get(input['id']) ?? null) : null;
-    const namespace =
-      typeof input['namespace'] === 'string' ? input['namespace'].trim() : (existingById?.namespace ?? '');
-    const key = typeof input['key'] === 'string' ? input['key'].trim() : (existingById?.key ?? '');
-    if (!existingById && (!namespace || !key)) {
-      continue;
-    }
-
-    const identityKey = `${namespace}:${key}`;
-    const existing = existingById ?? metafieldsByIdentity.get(identityKey);
-    const nextMetafield: CustomerMetafieldRecord = {
-      id: existing?.id ?? makeSyntheticGid('Metafield'),
-      customerId,
-      namespace,
-      key,
-      type: typeof input['type'] === 'string' ? input['type'].trim() : (existing?.type ?? null),
-      value: typeof input['value'] === 'string' ? input['value'] : (existing?.value ?? null),
-    };
-
-    if (existingById && (existingById.namespace !== namespace || existingById.key !== key)) {
-      metafieldsByIdentity.delete(`${existingById.namespace}:${existingById.key}`);
-    }
-    metafieldsById.set(nextMetafield.id, nextMetafield);
-    metafieldsByIdentity.set(identityKey, nextMetafield);
-  }
-
-  return Array.from(metafieldsByIdentity.values()).sort(
-    (left, right) =>
-      left.namespace.localeCompare(right.namespace) ||
-      left.key.localeCompare(right.key) ||
-      left.id.localeCompare(right.id),
-  );
+  return upsertOwnerMetafields('customerId', customerId, inputs, store.getEffectiveMetafieldsByCustomerId(customerId), {
+    allowIdLookup: true,
+    trimIdentity: true,
+  }).metafields;
 }
 
 function buildCreatedCustomer(input: Record<string, unknown>): CustomerRecord {
@@ -2313,7 +2153,7 @@ export function handleCustomerMutation(
       }
 
       const customer = store.stageCreateCustomer(buildCreatedCustomer(input));
-      const metafieldInputs = readCustomerMetafieldInputs(input['metafields']);
+      const metafieldInputs = readMetafieldInputObjects(input['metafields']);
       if (metafieldInputs.length > 0) {
         store.replaceStagedMetafieldsForCustomer(
           customer.id,
@@ -2350,7 +2190,7 @@ export function handleCustomerMutation(
       }
 
       const customer = store.stageUpdateCustomer(buildUpdatedCustomer(existingCustomer, input));
-      const metafieldInputs = readCustomerMetafieldInputs(input['metafields']);
+      const metafieldInputs = readMetafieldInputObjects(input['metafields']);
       if (metafieldInputs.length > 0) {
         store.replaceStagedMetafieldsForCustomer(
           customer.id,
