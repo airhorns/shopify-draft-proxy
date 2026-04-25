@@ -29,8 +29,10 @@ import {
   handleCustomerQuery,
   hydrateCustomersFromUpstreamResponse,
 } from '../src/proxy/customers.js';
+import { handleDeliveryProfileQuery } from '../src/proxy/delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from '../src/proxy/discounts.js';
 import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
+import { handleMarketingQuery, hydrateMarketingFromUpstreamResponse } from '../src/proxy/marketing.js';
 import {
   handleMarketMutation,
   handleMarketsQuery,
@@ -44,7 +46,10 @@ import {
   handleProductQuery,
   hydrateProductsFromUpstreamResponse,
 } from '../src/proxy/products.js';
-import { handleMetafieldDefinitionQuery } from '../src/proxy/metafield-definitions.js';
+import {
+  handleMetafieldDefinitionMutation,
+  handleMetafieldDefinitionQuery,
+} from '../src/proxy/metafield-definitions.js';
 import { handlePaymentMutation, handlePaymentQuery } from '../src/proxy/payments.js';
 import {
   handleSegmentMutation,
@@ -58,6 +63,11 @@ import type {
   BusinessEntityRecord,
   CollectionRecord,
   CustomerRecord,
+  DeliveryProfileCountryRecord,
+  DeliveryProfileLocationGroupRecord,
+  DeliveryProfileLocationGroupZoneRecord,
+  DeliveryProfileMethodDefinitionRecord,
+  DeliveryProfileRecord,
   DraftOrderLineItemRecord,
   DraftOrderRecord,
   DraftOrderShippingLineRecord,
@@ -104,6 +114,7 @@ function interpretMutationLogEntry(
 
 export type ParityScenarioState =
   | 'ready-for-comparison'
+  | 'enforced-by-fixture'
   | 'invalid-missing-comparison-contract'
   | 'blocked-with-proxy-request'
   | 'not-yet-implemented';
@@ -239,29 +250,85 @@ export function classifyParityScenarioState(
   scenario: Pick<Scenario, 'status'>,
   paritySpec: ParitySpec | null | undefined,
 ): ParityScenarioState {
-  if (paritySpec?.blocker && hasProxyRequest(paritySpec)) {
-    return 'blocked-with-proxy-request';
-  }
-
   if (scenario.status === 'captured') {
+    if (paritySpec?.comparisonMode === 'captured-fixture' && (paritySpec.liveCaptureFiles?.length ?? 0) > 0) {
+      return 'enforced-by-fixture';
+    }
+
     return hasProxyRequest(paritySpec) && hasComparisonContract(paritySpec)
       ? 'ready-for-comparison'
       : 'invalid-missing-comparison-contract';
+  }
+
+  if (paritySpec?.blocker && hasProxyRequest(paritySpec)) {
+    return 'blocked-with-proxy-request';
   }
 
   return 'not-yet-implemented';
 }
 
 export const parityStatusNote =
-  'readyForComparison means a captured scenario has a proxy request and an explicit strict-json comparison contract. invalid scenarios are captured recordings that cannot run high-assurance comparison yet. notYetImplemented scenarios are legacy non-executable entries; do not add new planned-only or blocked-only parity specs.';
+  'readyForComparison means a captured scenario has a proxy request and an explicit strict-json comparison contract. enforcedByFixture means a captured multi-step fixture is enforced outside the generic parity runner by committed runtime tests. invalid captured scenarios are not allowed in checked-in inventory. notYetImplemented scenarios are legacy non-executable entries; do not add new planned-only or blocked-only parity specs.';
+
+export function validateParityScenarioInventoryEntry(
+  scenario: Pick<Scenario, 'id' | 'status' | 'captureFiles'>,
+  paritySpec: ParitySpec,
+): string[] {
+  const errors: string[] = [];
+  const mode = paritySpec.comparisonMode;
+
+  if (scenario.status !== 'captured') {
+    return errors;
+  }
+
+  if (paritySpec.blocker) {
+    errors.push(
+      `Captured scenario ${scenario.id} must not declare a blocker; remove it from checked-in parity inventory until it is enforceable.`,
+    );
+  }
+
+  if (mode === 'planned') {
+    errors.push(`Captured scenario ${scenario.id} must use an enforced captured comparison mode.`);
+    return errors;
+  }
+
+  if (mode === 'captured-fixture') {
+    if ((scenario.captureFiles?.length ?? paritySpec.liveCaptureFiles?.length ?? 0) === 0) {
+      errors.push(`Captured fixture scenario ${scenario.id} must reference at least one capture fixture.`);
+    }
+    if ((paritySpec.runtimeTestFiles?.length ?? 0) === 0) {
+      errors.push(`Captured fixture scenario ${scenario.id} must reference at least one runtime test file.`);
+    }
+    return errors;
+  }
+
+  if (!hasProxyRequest(paritySpec)) {
+    errors.push(`Captured scenario ${scenario.id} must declare a proxy request.`);
+  }
+
+  const comparisonErrors = validateComparisonContract(paritySpec.comparison);
+  if (comparisonErrors.length > 0) {
+    errors.push(...comparisonErrors.map((error) => `Captured scenario ${scenario.id}: ${error}`));
+  }
+
+  if (!hasComparisonContract(paritySpec)) {
+    errors.push(`Captured scenario ${scenario.id} must declare at least one executable comparison target.`);
+  }
+
+  return errors;
+}
 
 export function summarizeParityResults(results: Array<{ state: ParityScenarioState }>): {
   readyForComparison: number;
   pending: number;
-  statusCounts: Record<'readyForComparison' | 'invalidMissingComparisonContract' | 'notYetImplemented', number>;
+  statusCounts: Record<
+    'readyForComparison' | 'enforcedByFixture' | 'invalidMissingComparisonContract' | 'notYetImplemented',
+    number
+  >;
   statusNote: string;
 } {
   const readyForComparison = results.filter((result) => result.state === 'ready-for-comparison').length;
+  const enforcedByFixture = results.filter((result) => result.state === 'enforced-by-fixture').length;
   const invalidMissingComparisonContract = results.filter(
     (result) => result.state === 'invalid-missing-comparison-contract',
   ).length;
@@ -269,9 +336,10 @@ export function summarizeParityResults(results: Array<{ state: ParityScenarioSta
 
   return {
     readyForComparison,
-    pending: results.length - readyForComparison,
+    pending: results.length - readyForComparison - enforcedByFixture,
     statusCounts: {
       readyForComparison,
+      enforcedByFixture,
       invalidMissingComparisonContract,
       notYetImplemented,
     },
@@ -770,6 +838,25 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'stage-locally' && capability.domain === 'metafields') {
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2025-01/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: handleMetafieldDefinitionMutation(document, variables),
+    };
+  }
+
   if (capability.execution === 'stage-locally' && capability.domain === 'store-properties') {
     store.appendLog({
       id: makeSyntheticGid('MutationLogEntry'),
@@ -896,8 +983,31 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'overlay-read' && capability.domain === 'shipping-fulfillments') {
-    const parsed = parseOperation(document);
     const primaryRootField = parsed.rootFields[0] ?? capability.operationName;
+    if (parsed.rootFields.some((rootField) => rootField === 'deliveryProfile' || rootField === 'deliveryProfiles')) {
+      return {
+        status: 200,
+        body: handleDeliveryProfileQuery(document, variables),
+      };
+    }
+
+    if (
+      parsed.rootFields.some((rootField) =>
+        [
+          'fulfillment',
+          'fulfillmentOrder',
+          'fulfillmentOrders',
+          'assignedFulfillmentOrders',
+          'manualHoldsFulfillmentOrders',
+        ].includes(rootField),
+      )
+    ) {
+      return {
+        status: 200,
+        body: handleOrderQuery(document, variables),
+      };
+    }
+
     if (primaryRootField === 'fulfillmentService') {
       return {
         status: 200,
@@ -907,7 +1017,7 @@ async function executeGraphQLAgainstLocalProxy(
 
     return {
       status: 200,
-      body: handleOrderQuery(document, variables),
+      body: handleStorePropertiesQuery(document, variables),
     };
   }
 
@@ -937,6 +1047,17 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleSegmentsQuery(document, variables),
+    };
+  }
+
+  if (capability.execution === 'overlay-read' && capability.domain === 'marketing') {
+    if (upstreamPayload !== undefined) {
+      hydrateMarketingFromUpstreamResponse(document, variables, upstreamPayload);
+    }
+
+    return {
+      status: 200,
+      body: handleMarketingQuery(document, variables),
     };
   }
 
@@ -2071,6 +2192,457 @@ function seedLocationDetailPreconditions(capture: unknown): boolean {
     );
   }
 
+  return true;
+}
+
+function readDeliveryProfilesCatalogPayload(capture: unknown, key = 'catalogFirst'): Record<string, unknown> | null {
+  return readRecordField(
+    readRecordField(
+      readRecordField(readRecordField(readRecordField(capture as Record<string, unknown>, 'queries'), key), 'result'),
+      'payload',
+    ),
+    'data',
+  );
+}
+
+function readDeliveryProfileDetailPayload(capture: unknown): Record<string, unknown> | null {
+  return readRecordField(
+    readRecordField(
+      readRecordField(
+        readRecordField(readRecordField(capture as Record<string, unknown>, 'queries'), 'detail'),
+        'result',
+      ),
+      'payload',
+    ),
+    'data',
+  );
+}
+
+function readConnectionEntries(connection: Record<string, unknown> | null): Array<{
+  node: Record<string, unknown>;
+  cursor: string | null;
+}> {
+  const edgeEntries = readArrayField(connection, 'edges')
+    .filter(isPlainObject)
+    .map((edge) => ({
+      node: readRecordField(edge, 'node'),
+      cursor: readStringField(edge, 'cursor'),
+    }))
+    .filter((entry): entry is { node: Record<string, unknown>; cursor: string | null } => entry.node !== null);
+  if (edgeEntries.length > 0) {
+    return edgeEntries;
+  }
+
+  const nodes = readArrayField(connection, 'nodes').filter(isPlainObject);
+  const startCursor = readConnectionStartCursor(connection);
+  const endCursor = readConnectionEndCursor(connection);
+  return nodes.map((node, index) => ({
+    node,
+    cursor:
+      index === 0
+        ? (startCursor ?? null)
+        : index === nodes.length - 1
+          ? (endCursor ?? null)
+          : readStringField(node, 'id'),
+  }));
+}
+
+function readConnectionNodes(connection: Record<string, unknown> | null): Record<string, unknown>[] {
+  const edgeEntries = readConnectionEntries(connection);
+  if (edgeEntries.length > 0) {
+    return edgeEntries.map((entry) => entry.node);
+  }
+
+  return readArrayField(connection, 'nodes').filter(isPlainObject);
+}
+
+function readConnectionStartCursor(connection: Record<string, unknown> | null): string | null {
+  return readStringField(readRecordField(connection, 'pageInfo'), 'startCursor');
+}
+
+function readConnectionEndCursor(connection: Record<string, unknown> | null): string | null {
+  return readStringField(readRecordField(connection, 'pageInfo'), 'endCursor');
+}
+
+function readConnectionHasNextPage(connection: Record<string, unknown> | null): boolean {
+  return readBooleanField(readRecordField(connection, 'pageInfo'), 'hasNextPage') === true;
+}
+
+function readDeliveryProfileCount(
+  source: Record<string, unknown> | null,
+): DeliveryProfileRecord['productVariantsCount'] {
+  if (!source) {
+    return null;
+  }
+
+  const count = readNumberField(source, 'count');
+  if (count === null) {
+    return null;
+  }
+
+  return {
+    count,
+    precision: readStringField(source, 'precision') ?? 'EXACT',
+  };
+}
+
+function readDeliveryProfileCountry(source: Record<string, unknown> | null): DeliveryProfileCountryRecord | null {
+  const id = readStringField(source, 'id');
+  const name = readStringField(source, 'name');
+  if (!id || !name) {
+    return null;
+  }
+
+  const code = readRecordField(source, 'code');
+  return {
+    id,
+    name,
+    translatedName: readStringField(source, 'translatedName') ?? name,
+    code: {
+      countryCode: readStringField(code, 'countryCode'),
+      restOfWorld: readBooleanField(code, 'restOfWorld') ?? false,
+    },
+    provinces: readArrayField(source, 'provinces')
+      .filter(isPlainObject)
+      .map((province) => {
+        const provinceId = readStringField(province, 'id');
+        const provinceName = readStringField(province, 'name');
+        const provinceCode = readStringField(province, 'code');
+        return provinceId && provinceName && provinceCode
+          ? {
+              id: provinceId,
+              name: provinceName,
+              code: provinceCode,
+            }
+          : null;
+      })
+      .filter(
+        (province): province is NonNullable<DeliveryProfileCountryRecord['provinces'][number]> => province !== null,
+      ),
+  };
+}
+
+function readDeliveryProfileCountries(source: Record<string, unknown> | null): DeliveryProfileCountryRecord[] {
+  return readArrayField(source, 'countries')
+    .filter(isPlainObject)
+    .map(readDeliveryProfileCountry)
+    .filter((country): country is DeliveryProfileCountryRecord => country !== null);
+}
+
+function readDeliveryProfileMethodDefinition(
+  source: Record<string, unknown>,
+  cursor: string | null,
+): DeliveryProfileMethodDefinitionRecord | null {
+  const id = readStringField(source, 'id');
+  const name = readStringField(source, 'name');
+  const active = readBooleanField(source, 'active');
+  if (!id || !name || active === null) {
+    return null;
+  }
+
+  const rateProvider = readRecordField(source, 'rateProvider') ?? {};
+  const rateProviderTypename =
+    readRecordField(rateProvider, 'price') !== null
+      ? 'DeliveryRateDefinition'
+      : readRecordField(rateProvider, 'fixedFee') !== null
+        ? 'DeliveryParticipant'
+        : null;
+
+  return {
+    id,
+    ...(cursor ? { cursor } : {}),
+    name,
+    active,
+    description: readNullableStringField(source, 'description'),
+    rateProvider: {
+      ...(rateProviderTypename ? { __typename: rateProviderTypename } : {}),
+      ...structuredClone(rateProvider),
+    },
+    methodConditions: readArrayField(source, 'methodConditions')
+      .filter(isPlainObject)
+      .map((condition) => {
+        const conditionId = readStringField(condition, 'id');
+        const field = readStringField(condition, 'field');
+        const operator = readStringField(condition, 'operator');
+        const conditionCriteria = readRecordField(condition, 'conditionCriteria');
+        return conditionId && field && operator && conditionCriteria
+          ? {
+              id: conditionId,
+              field,
+              operator,
+              conditionCriteria: structuredClone(conditionCriteria),
+            }
+          : null;
+      })
+      .filter(
+        (condition): condition is DeliveryProfileMethodDefinitionRecord['methodConditions'][number] =>
+          condition !== null,
+      ),
+  };
+}
+
+function readDeliveryProfileLocationGroupZone(
+  source: Record<string, unknown>,
+  cursor: string | null,
+): DeliveryProfileLocationGroupZoneRecord | null {
+  const zone = readRecordField(source, 'zone');
+  const zoneId = readStringField(zone, 'id');
+  const zoneName = readStringField(zone, 'name');
+  if (!zoneId || !zoneName) {
+    return null;
+  }
+
+  const methodDefinitionsConnection = readRecordField(source, 'methodDefinitions');
+  const methodDefinitionEntries = readConnectionEntries(methodDefinitionsConnection);
+  const methodDefinitions = methodDefinitionEntries
+    .map((entry) => readDeliveryProfileMethodDefinition(entry.node, entry.cursor))
+    .filter((methodDefinition): methodDefinition is DeliveryProfileMethodDefinitionRecord => methodDefinition !== null);
+  if (readConnectionHasNextPage(methodDefinitionsConnection) && methodDefinitions.length > 0) {
+    const last = methodDefinitions[methodDefinitions.length - 1]!;
+    methodDefinitions.push({
+      ...structuredClone(last),
+      id: `${last.id}#unread-page`,
+      cursor: `${last.cursor ?? last.id}#unread-page`,
+    });
+  }
+
+  return {
+    ...(cursor ? { cursor } : {}),
+    zone: {
+      id: zoneId,
+      name: zoneName,
+      countries: readDeliveryProfileCountries(zone),
+    },
+    methodDefinitions,
+  };
+}
+
+function makeDeliveryProfileSeedVariant(
+  productId: string,
+  variant: Record<string, unknown>,
+  index: number,
+): ProductVariantRecord | null {
+  const id = readStringField(variant, 'id');
+  if (!id) {
+    return null;
+  }
+
+  return {
+    id,
+    productId,
+    title: readStringField(variant, 'title') ?? `Delivery profile variant ${index + 1}`,
+    sku: null,
+    barcode: null,
+    price: null,
+    compareAtPrice: null,
+    taxable: null,
+    inventoryPolicy: null,
+    inventoryQuantity: null,
+    selectedOptions: [],
+    inventoryItem: null,
+  };
+}
+
+function readDeliveryProfileRecord(
+  source: Record<string, unknown>,
+  cursor: string | null,
+): DeliveryProfileRecord | null {
+  const id = readStringField(source, 'id');
+  const name = readStringField(source, 'name');
+  const defaultProfile = readBooleanField(source, 'default');
+  if (!id || !name || defaultProfile === null) {
+    return null;
+  }
+
+  const profileItemsConnection = readRecordField(source, 'profileItems');
+  const profileItemNodes = readConnectionNodes(profileItemsConnection);
+  const profileItemStartCursor = readConnectionStartCursor(profileItemsConnection);
+  const profileItemEndCursor = readConnectionEndCursor(profileItemsConnection);
+  type DeliveryProfileItemSeed = DeliveryProfileRecord['profileItems'][number];
+  const profileItems: DeliveryProfileItemSeed[] = profileItemNodes
+    .map((item, index): DeliveryProfileItemSeed | null => {
+      const product = readRecordField(item, 'product');
+      const productId = readStringField(product, 'id');
+      if (!productId) {
+        return null;
+      }
+
+      store.upsertBaseProducts([makeSeedProduct(productId, product, 'Delivery profile product')]);
+      const variantsConnection = readRecordField(item, 'variants');
+      const variantNodes = readConnectionNodes(variantsConnection);
+      const variants = variantNodes
+        .map((variant, variantIndex) => makeDeliveryProfileSeedVariant(productId, variant, variantIndex))
+        .filter((variant): variant is ProductVariantRecord => variant !== null);
+      store.replaceBaseVariantsForProduct(productId, variants);
+
+      const variantStartCursor = readConnectionStartCursor(variantsConnection);
+      const variantEndCursor = readConnectionEndCursor(variantsConnection);
+      const variantCursors = Object.fromEntries(
+        variants.map((variant, variantIndex) => [
+          variant.id,
+          variantIndex === 0
+            ? (variantStartCursor ?? variant.id)
+            : variantIndex === variants.length - 1
+              ? (variantEndCursor ?? variant.id)
+              : variant.id,
+        ]),
+      );
+      if (readConnectionHasNextPage(variantsConnection) && variants.length > 0) {
+        const last = variants[variants.length - 1]!;
+        const unreadVariantId = `${last.id}#unread-page`;
+        store.replaceBaseVariantsForProduct(productId, [
+          ...variants,
+          {
+            ...structuredClone(last),
+            id: unreadVariantId,
+          },
+        ]);
+        variantCursors[unreadVariantId] = `${variantCursors[last.id] ?? last.id}#unread-page`;
+      }
+
+      return {
+        productId,
+        variantIds: Object.keys(variantCursors),
+        cursor:
+          index === 0
+            ? (profileItemStartCursor ?? productId)
+            : index === profileItemNodes.length - 1
+              ? (profileItemEndCursor ?? productId)
+              : productId,
+        variantCursors,
+      };
+    })
+    .filter((item): item is DeliveryProfileItemSeed => item !== null);
+  if (readConnectionHasNextPage(profileItemsConnection) && profileItems.length > 0) {
+    const last = profileItems[profileItems.length - 1]!;
+    profileItems.push({
+      ...structuredClone(last),
+      productId: `${last.productId}#unread-page`,
+      cursor: `${last.cursor ?? last.productId}#unread-page`,
+    });
+  }
+
+  const profileLocationGroups = readArrayField(source, 'profileLocationGroups')
+    .filter(isPlainObject)
+    .map((group): DeliveryProfileLocationGroupRecord | null => {
+      const locationGroup = readRecordField(group, 'locationGroup');
+      const groupId = readStringField(locationGroup, 'id');
+      if (!groupId) {
+        return null;
+      }
+
+      const locationsConnection = readRecordField(locationGroup, 'locations');
+      const locationEntries = readConnectionNodes(locationsConnection);
+      const locationStartCursor = readConnectionStartCursor(locationsConnection);
+      const locationEndCursor = readConnectionEndCursor(locationsConnection);
+      const locations = locationEntries
+        .map(readLocationRecord)
+        .filter((location): location is LocationRecord => location !== null);
+      store.upsertBaseLocations(locations);
+
+      const locationCursors = Object.fromEntries(
+        locations.map((location, index) => [
+          location.id,
+          index === 0
+            ? (locationStartCursor ?? location.id)
+            : index === locations.length - 1
+              ? (locationEndCursor ?? location.id)
+              : location.id,
+        ]),
+      );
+      const zonesConnection = readRecordField(group, 'locationGroupZones');
+      const zones = readConnectionEntries(zonesConnection)
+        .map((entry) => readDeliveryProfileLocationGroupZone(entry.node, entry.cursor))
+        .filter((zone): zone is DeliveryProfileLocationGroupZoneRecord => zone !== null);
+      if (readConnectionHasNextPage(zonesConnection) && zones.length > 0) {
+        const last = zones[zones.length - 1]!;
+        zones.push({
+          ...structuredClone(last),
+          zone: {
+            ...structuredClone(last.zone),
+            id: `${last.zone.id}#unread-page`,
+          },
+          cursor: `${last.cursor ?? last.zone.id}#unread-page`,
+        });
+      }
+
+      return {
+        id: groupId,
+        locationIds: locations.map((location) => location.id),
+        locationCursors,
+        countriesInAnyZone: readArrayField(group, 'countriesInAnyZone')
+          .filter(isPlainObject)
+          .map((countryAndZone) => {
+            const zone = readStringField(countryAndZone, 'zone');
+            const country = readDeliveryProfileCountry(readRecordField(countryAndZone, 'country'));
+            return zone && country ? { zone, country } : null;
+          })
+          .filter(
+            (countryAndZone): countryAndZone is DeliveryProfileLocationGroupRecord['countriesInAnyZone'][number] =>
+              countryAndZone !== null,
+          ),
+        locationGroupZones: zones,
+      };
+    })
+    .filter((group): group is DeliveryProfileLocationGroupRecord => group !== null);
+
+  const unassignedConnection = readRecordField(source, 'unassignedLocationsPaginated');
+  const unassignedLocations = readConnectionNodes(unassignedConnection)
+    .map(readLocationRecord)
+    .filter((location): location is LocationRecord => location !== null);
+  store.upsertBaseLocations(unassignedLocations);
+  const unassignedStartCursor = readConnectionStartCursor(unassignedConnection);
+  const unassignedEndCursor = readConnectionEndCursor(unassignedConnection);
+
+  return {
+    id,
+    ...(cursor ? { cursor } : {}),
+    name,
+    default: defaultProfile,
+    merchantOwned: defaultProfile,
+    version: readNumberField(source, 'version') ?? 1,
+    activeMethodDefinitionsCount: readNumberField(source, 'activeMethodDefinitionsCount') ?? 0,
+    locationsWithoutRatesCount: readNumberField(source, 'locationsWithoutRatesCount') ?? 0,
+    originLocationCount: readNumberField(source, 'originLocationCount') ?? profileLocationGroups.length,
+    zoneCountryCount: readNumberField(source, 'zoneCountryCount') ?? 0,
+    productVariantsCount: readDeliveryProfileCount(readRecordField(source, 'productVariantsCount')),
+    sellingPlanGroups: readConnectionNodes(readRecordField(source, 'sellingPlanGroups')).map(
+      (node) => structuredClone(node) as DeliveryProfileRecord['sellingPlanGroups'][number],
+    ),
+    profileItems,
+    profileLocationGroups,
+    unassignedLocationIds: unassignedLocations.map((location) => location.id),
+    unassignedLocationCursors: Object.fromEntries(
+      unassignedLocations.map((location, index) => [
+        location.id,
+        index === 0
+          ? (unassignedStartCursor ?? location.id)
+          : index === unassignedLocations.length - 1
+            ? (unassignedEndCursor ?? location.id)
+            : location.id,
+      ]),
+    ),
+  };
+}
+
+function seedDeliveryProfilePreconditions(capture: unknown): boolean {
+  const catalog = readRecordField(readDeliveryProfilesCatalogPayload(capture), 'deliveryProfiles');
+  const catalogProfiles = readConnectionEntries(catalog)
+    .map((entry) => readDeliveryProfileRecord(entry.node, entry.cursor))
+    .filter((profile): profile is DeliveryProfileRecord => profile !== null);
+
+  const detailProfile = readDeliveryProfileRecord(
+    readRecordField(readDeliveryProfileDetailPayload(capture), 'deliveryProfile') ?? {},
+    catalogProfiles[0]?.cursor ?? null,
+  );
+  const profiles = detailProfile
+    ? [detailProfile, ...catalogProfiles.filter((profile) => profile.id !== detailProfile.id)]
+    : catalogProfiles;
+  if (profiles.length === 0) {
+    return false;
+  }
+
+  store.upsertBaseDeliveryProfiles(profiles);
   return true;
 }
 
@@ -3782,6 +4354,19 @@ function readCapturedProductMedia(
 }
 
 function seedPreconditionsFromCapture(capture: unknown, variables: Record<string, unknown>): void {
+  const seedProducts = readArrayField(capture as Record<string, unknown>, 'seedProducts').filter(isPlainObject);
+  for (const seedProduct of seedProducts) {
+    const productId = readStringField(seedProduct, 'id');
+    if (!productId?.startsWith('gid://shopify/Product/')) {
+      continue;
+    }
+    store.upsertBaseProducts([makeSeedProduct(productId, seedProduct)]);
+    const variants = readCapturedProductVariants(productId, seedProduct);
+    if (variants.length > 0) {
+      store.replaceBaseVariantsForProduct(productId, variants);
+    }
+  }
+
   seedProductMetafieldsReadPreconditions(capture);
   seedMetafieldDefinitionPreconditions(capture);
   if (seedInventoryLinkagePreconditions(capture)) {
@@ -3823,6 +4408,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   const seededBusinessEntities = seedBusinessEntityPreconditions(capture);
   const seededStoreProperties = seededShop || seededLocations || seededBusinessEntities;
   if (seededStoreProperties) {
+    return;
+  }
+
+  if (seedDeliveryProfilePreconditions(capture)) {
     return;
   }
 

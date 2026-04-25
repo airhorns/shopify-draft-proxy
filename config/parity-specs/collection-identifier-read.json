@@ -14,6 +14,7 @@
     "documentPath": "config/parity-requests/collection-detail-read.graphql",
     "variablesPath": "config/parity-requests/collection-detail-read.variables.json"
   },
+  "comparisonMode": "captured-vs-proxy-request",
   "notes": "Uses the captured collection detail fixture to seed the local collection graph, then replays equivalent selected-field reads through collectionByIdentifier id/handle branches and the deprecated collectionByHandle root. collectionByIdentifier customId remains intentionally null in local behavior until a collection unique-metafield fixture exists. The root-specific local replay targets use the custom collection slice because the smart collection fixture captures only the first product page, not enough local membership state to prove productsCount or hasProduct.",
   "comparison": {
     "mode": "strict-json",

@@ -958,20 +958,26 @@
     "type": "mutation",
     "domain": "metafields",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metafieldDefinitionPin", "MetafieldDefinitionPin"],
-    "runtimeTests": ["tests/integration/metafield-definition-draft-flow.test.ts"],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires pinned-position ordering semantics before support."
+    "runtimeTests": [
+      "tests/integration/metafield-definition-query-shapes.test.ts",
+      "tests/unit/conformance-parity-scenarios.test.ts"
+    ],
+    "supportNotes": "Locally stages product-owner definition pinning for existing normalized definitions. Pin assigns the next owner-type pinned position; downstream definition detail and catalog reads reflect pinnedStatus and PINNED_POSITION ordering without runtime Shopify writes."
   },
   {
     "name": "metafieldDefinitionUnpin",
     "type": "mutation",
     "domain": "metafields",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metafieldDefinitionUnpin", "MetafieldDefinitionUnpin"],
-    "runtimeTests": ["tests/integration/metafield-definition-draft-flow.test.ts"],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires pinned-position ordering semantics before support."
+    "runtimeTests": [
+      "tests/integration/metafield-definition-query-shapes.test.ts",
+      "tests/unit/conformance-parity-scenarios.test.ts"
+    ],
+    "supportNotes": "Locally stages product-owner definition unpinning for existing normalized definitions. Unpin clears the definition pinned position and compacts higher owner-type positions so downstream pinned catalogs remain Shopify-like."
   },
   {
     "name": "standardMetafieldDefinitionEnable",
@@ -1902,20 +1908,20 @@
     "type": "query",
     "domain": "shipping-fulfillments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["deliveryProfile", "DeliveryProfile"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 DeliveryProfile ID lookup root. Registry-only declared gap until nested location groups, zones, method definitions, product variant assignments, and missing-profile nullability are captured."
+    "runtimeTests": ["tests/integration/delivery-profile-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 DeliveryProfile ID lookup root is fixture-backed in snapshot mode for captured scalar fields, nested location groups, zones, method definitions, product/variant assignments, unassigned locations, and missing-profile nullability. Delivery-profile writes remain unsupported until local staging models asynchronous removal jobs and nested validation behavior."
   },
   {
     "name": "deliveryProfiles",
     "type": "query",
     "domain": "shipping-fulfillments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["deliveryProfiles", "DeliveryProfiles"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 DeliveryProfile catalog root. Registry-only declared gap until merchantOwnedOnly, pagination, default profile behavior, legacy mode, and empty/permission behavior are captured."
+    "runtimeTests": ["tests/integration/delivery-profile-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 DeliveryProfile catalog root is fixture-backed in snapshot mode for first/last cursor windows, reverse ordering, merchantOwnedOnly filtering, and empty/no-data connection behavior. The local model does not invent delivery profiles when normalized fixtures are absent."
   },
   {
     "name": "locationsAvailableForDeliveryProfilesConnection",
@@ -2304,7 +2310,8 @@
     "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeBulkActivate", "DiscountCodeBulkActivate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-redeem-code-bulk-flow.test.ts"],
+    "supportNotes": "HAR-197 keeps the broad code-bulk status root unimplemented. Blank/all-discount destructive selectors are refused locally; other unsupported selectors remain visible through unsupported mutation passthrough observability until full bulk lifecycle staging exists."
   },
   {
     "name": "discountCodeBulkDeactivate",
@@ -2313,8 +2320,11 @@
     "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeBulkDeactivate", "DiscountCodeBulkDeactivate"],
-    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
-    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
+    "runtimeTests": [
+      "tests/integration/discount-mutation-validation.test.ts",
+      "tests/integration/discount-redeem-code-bulk-flow.test.ts"
+    ],
+    "supportNotes": "HAR-198 captures selector-conflict validation guardrails only. HAR-197 additionally refuses blank/all-discount destructive selectors locally. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
   },
   {
     "name": "discountCodeBulkDelete",
@@ -2323,7 +2333,8 @@
     "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeBulkDelete", "DiscountCodeBulkDelete"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-redeem-code-bulk-flow.test.ts"],
+    "supportNotes": "HAR-197 keeps the broad code-bulk delete root unimplemented. Blank/all-discount destructive selectors are refused locally; other unsupported selectors remain visible through unsupported mutation passthrough observability until full bulk lifecycle staging exists."
   },
   {
     "name": "discountRedeemCodeBulkAdd",
@@ -2332,16 +2343,23 @@
     "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountRedeemCodeBulkAdd", "DiscountRedeemCodeBulkAdd"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-redeem-code-bulk-flow.test.ts"],
+    "supportNotes": "HAR-197 locally stages safe explicit-code add branches and records completed bulk-creation state, but keeps the root unimplemented until full async job lifecycle and conformance-backed failure semantics are modeled."
   },
   {
-    "name": "discountRedeemCodeBulkDelete",
+    "name": "discountCodeRedeemCodeBulkDelete",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
     "implemented": false,
-    "matchNames": ["discountRedeemCodeBulkDelete", "DiscountRedeemCodeBulkDelete"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "matchNames": [
+      "discountCodeRedeemCodeBulkDelete",
+      "DiscountCodeRedeemCodeBulkDelete",
+      "discountRedeemCodeBulkDelete",
+      "DiscountRedeemCodeBulkDelete"
+    ],
+    "runtimeTests": ["tests/integration/discount-redeem-code-bulk-flow.test.ts"],
+    "supportNotes": "HAR-197 locally stages safe id-scoped delete branches and records completed job state, but keeps the root unimplemented until search/saved-search selectors, async lifecycle, and conformance-backed failure semantics are modeled."
   },
   {
     "name": "discountAutomaticBasicCreate",
@@ -2436,8 +2454,11 @@
     "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountAutomaticBulkDelete", "DiscountAutomaticBulkDelete"],
-    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
-    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
+    "runtimeTests": [
+      "tests/integration/discount-mutation-validation.test.ts",
+      "tests/integration/discount-redeem-code-bulk-flow.test.ts"
+    ],
+    "supportNotes": "HAR-198 captures selector-conflict validation guardrails only. HAR-197 additionally refuses blank/all-discount destructive selectors locally. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
   },
   {
     "name": "discountCodeAppCreate",
@@ -2484,40 +2505,40 @@
     "type": "query",
     "domain": "marketing",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingActivities", "MarketingActivities"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap. Needs live marketing app-scoped capture for list, filtering, and empty-connection behavior before snapshot or overlay support."
+    "runtimeTests": ["tests/integration/marketing-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local read support for captured selected fields, empty connections, filtering, sorting, reverse ordering, and cursor/pageInfo shapes. No marketing mutation staging is included."
   },
   {
     "name": "marketingActivity",
     "type": "query",
     "domain": "marketing",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingActivity", "MarketingActivity"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap. Needs live capture for ID lookup nullability and activity field shape before snapshot or overlay support."
+    "runtimeTests": ["tests/integration/marketing-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local singular lookup support for captured selected fields. Missing IDs return null; no arbitrary marketing activity records are synthesized."
   },
   {
     "name": "marketingEvent",
     "type": "query",
     "domain": "marketing",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingEvent", "MarketingEvent"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap. Needs live capture for ID lookup nullability and event field shape before snapshot or overlay support."
+    "runtimeTests": ["tests/integration/marketing-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local singular lookup support for captured selected fields. Missing IDs return null; no arbitrary marketing event records are synthesized."
   },
   {
     "name": "marketingEvents",
     "type": "query",
     "domain": "marketing",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingEvents", "MarketingEvents"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap. Needs live marketing app-scoped capture for list, filtering, and empty-connection behavior before snapshot or overlay support."
+    "runtimeTests": ["tests/integration/marketing-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local read support for captured selected fields, empty connections, filtering, sorting, reverse ordering, and cursor/pageInfo shapes. No marketing mutation staging is included."
   },
   {
     "name": "marketingActivityCreate",

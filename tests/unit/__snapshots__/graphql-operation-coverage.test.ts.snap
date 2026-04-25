@@ -182,8 +182,6 @@ exports[`GraphQL operation coverage > snapshots introspected Admin GraphQL mutat
   "menuUpdate",
   "metafieldDefinitionCreate",
   "metafieldDefinitionDelete",
-  "metafieldDefinitionPin",
-  "metafieldDefinitionUnpin",
   "metafieldDefinitionUpdate",
   "metaobjectBulkDelete",
   "metaobjectCreate",

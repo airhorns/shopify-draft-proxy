@@ -1,9 +1,24 @@
-import { Kind, type FieldNode } from 'graphql';
+import { Kind, parse, type FieldNode, type FragmentDefinitionNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments } from '../graphql/root-field.js';
 
 export type SelectedFieldOptions = {
   includeInlineFragments?: boolean;
+};
+
+export type FragmentMap = Map<string, FragmentDefinitionNode>;
+
+export type ProjectGraphqlFieldProjection = { handled: true; value: unknown } | { handled: false };
+
+export type ProjectGraphqlValueOptions = {
+  shouldApplyTypeCondition?: (source: Record<string, unknown>, typeCondition: string | undefined) => boolean;
+  projectFieldValue?: (context: {
+    source: Record<string, unknown>;
+    field: FieldNode;
+    fieldName: string;
+    responseKey: string;
+    fragments: FragmentMap;
+  }) => ProjectGraphqlFieldProjection;
 };
 
 export type ConnectionWindow<T> = {
@@ -37,6 +52,120 @@ export type SerializeConnectionOptions<T> = {
 
 export function getFieldResponseKey(field: FieldNode): string {
   return field.alias?.value ?? field.name.value;
+}
+
+export function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+export function defaultGraphqlTypeConditionApplies(
+  source: Record<string, unknown>,
+  typeCondition: string | undefined,
+): boolean {
+  if (!typeCondition) {
+    return true;
+  }
+
+  const sourceTypename = typeof source['__typename'] === 'string' ? source['__typename'] : null;
+  return !sourceTypename || sourceTypename === typeCondition;
+}
+
+export function projectGraphqlValue(
+  value: unknown,
+  selections: readonly SelectionNode[],
+  fragments: FragmentMap,
+  options: ProjectGraphqlValueOptions = {},
+): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => projectGraphqlValue(item, selections, fragments, options));
+  }
+
+  if (!isPlainObject(value)) {
+    return value ?? null;
+  }
+
+  return projectGraphqlObject(value, selections, fragments, options);
+}
+
+export function projectGraphqlObject(
+  source: Record<string, unknown>,
+  selections: readonly SelectionNode[],
+  fragments: FragmentMap,
+  options: ProjectGraphqlValueOptions = {},
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  const shouldApplyTypeCondition = options.shouldApplyTypeCondition ?? defaultGraphqlTypeConditionApplies;
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      const typeCondition = selection.typeCondition?.name.value;
+      if (shouldApplyTypeCondition(source, typeCondition)) {
+        Object.assign(result, projectGraphqlObject(source, selection.selectionSet.selections, fragments, options));
+      }
+      continue;
+    }
+
+    if (selection.kind === Kind.FRAGMENT_SPREAD) {
+      const fragment = fragments.get(selection.name.value);
+      if (fragment && shouldApplyTypeCondition(source, fragment.typeCondition.name.value)) {
+        Object.assign(result, projectGraphqlObject(source, fragment.selectionSet.selections, fragments, options));
+      }
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const fieldName = selection.name.value;
+    const key = getFieldResponseKey(selection);
+    if (fieldName === '__typename') {
+      result[key] = source['__typename'] ?? null;
+      continue;
+    }
+
+    const projectedField = options.projectFieldValue?.({
+      source,
+      field: selection,
+      fieldName,
+      responseKey: key,
+      fragments,
+    });
+    if (projectedField?.handled === true) {
+      result[key] = projectedField.value;
+      continue;
+    }
+
+    let value = source[fieldName];
+    if (fieldName === 'nodes' && value === undefined && Array.isArray(source['edges'])) {
+      value = source['edges']
+        .filter((edge): edge is Record<string, unknown> => isPlainObject(edge))
+        .map((edge) => edge['node'] ?? null);
+    }
+
+    result[key] = selection.selectionSet
+      ? projectGraphqlValue(value, selection.selectionSet.selections, fragments, options)
+      : (value ?? null);
+  }
+
+  return result;
+}
+
+export function getDocumentFragments(document: string): FragmentMap {
+  const ast = parse(document);
+  return new Map(
+    ast.definitions
+      .filter((definition): definition is FragmentDefinitionNode => definition.kind === Kind.FRAGMENT_DEFINITION)
+      .map((definition) => [definition.name.value, definition]),
+  );
+}
+
+export function readGraphqlDataResponsePayload(upstreamPayload: unknown, responseKey: string): unknown {
+  if (!isPlainObject(upstreamPayload) || !isPlainObject(upstreamPayload['data'])) {
+    return null;
+  }
+
+  return upstreamPayload['data'][responseKey] ?? null;
 }
 
 export function getSelectedChildFields(field: FieldNode, options: SelectedFieldOptions = {}): FieldNode[] {
