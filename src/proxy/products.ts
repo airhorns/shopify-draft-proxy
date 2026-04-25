@@ -237,6 +237,14 @@ function listEffectiveProductsForCollection(collectionId: string): ProductRecord
     .map((entry) => entry.product);
 }
 
+function getCollectionPublicationIds(collection: CollectionRecord | ProductCollectionRecord): string[] {
+  return structuredClone(collection.publicationIds ?? []);
+}
+
+function isPublishedCollection(collection: CollectionRecord | ProductCollectionRecord): boolean {
+  return getCollectionPublicationIds(collection).length > 0;
+}
+
 function makeProductCollectionRecord(
   productId: string,
   collection: CollectionRecord,
@@ -613,12 +621,13 @@ function readPublicationIds(raw: unknown, fallback: string[] = []): string[] {
 }
 
 function readPublicationTargets(raw: unknown): string[] {
-  if (!Array.isArray(raw)) {
+  const entries = Array.isArray(raw) ? raw : isObject(raw) ? [raw] : [];
+  if (entries.length === 0) {
     return [];
   }
 
   const targets: string[] = [];
-  for (const entry of raw) {
+  for (const entry of entries) {
     if (!isObject(entry)) {
       continue;
     }
@@ -894,6 +903,7 @@ function makeCollectionRecord(input: Record<string, unknown>, existing?: Collect
       typeof rawHandle === 'string' && rawHandle.trim()
         ? rawHandle
         : (existing?.handle ?? slugifyHandle(title).replace(/product$/u, 'collection')),
+    publicationIds: readPublicationIds(input['publicationIds'], existing?.publicationIds ?? []),
     updatedAt: now,
     description:
       typeof input['description'] === 'string'
@@ -3085,6 +3095,12 @@ function normalizeCollectionFields(
     legacyResourceId: typeof rawLegacyResourceId === 'string' ? rawLegacyResourceId : readLegacyResourceIdFromGid(id),
     title,
     handle,
+    publicationIds: makeUnknownPublicationIds(
+      Math.max(
+        readPublicationCount(value['availablePublicationsCount']),
+        readPublicationCount(value['resourcePublicationsCount']),
+      ),
+    ),
     updatedAt: typeof rawUpdatedAt === 'string' ? rawUpdatedAt : null,
     description:
       typeof rawDescription === 'string'
@@ -3397,18 +3413,65 @@ function serializeProductMutationPayload(
   return result;
 }
 
+function serializePublishableSelectionSet(
+  publishable: ProductRecord | CollectionRecord | null,
+  selections: readonly SelectionNode[],
+  variables: Record<string, unknown>,
+): Record<string, unknown> | null {
+  if (!publishable) {
+    return null;
+  }
+
+  if (publishable.id.startsWith('gid://shopify/Product/')) {
+    return serializeSelectionSet(publishable as ProductRecord, selections, variables);
+  }
+
+  return serializeCollectionObject(publishable as CollectionRecord, selections, variables);
+}
+
+function serializeShopSelectionSet(selections: readonly SelectionNode[]): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = selection.alias?.value ?? selection.name.value;
+    switch (selection.name.value) {
+      case 'publicationCount':
+        result[key] = listEffectivePublications().length;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
 function serializePublishableMutationPayload(
   field: FieldNode,
   variables: Record<string, unknown>,
   payload: {
-    publishable: ProductRecord | null;
+    publishable: ProductRecord | CollectionRecord | null;
     userErrors: Array<{ field: string[]; message: string }>;
   },
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
+
   const publishableField = getChildField(field, 'publishable');
   if (publishableField) {
-    result[getResponseKey(publishableField)] = serializeProduct(payload.publishable, publishableField, variables);
+    result[getResponseKey(publishableField)] = serializePublishableSelectionSet(
+      payload.publishable,
+      publishableField.selectionSet?.selections ?? [],
+      variables,
+    );
+  }
+
+  const shopField = getChildField(field, 'shop');
+  if (shopField) {
+    result[getResponseKey(shopField)] = serializeShopSelectionSet(shopField.selectionSet?.selections ?? []);
   }
 
   const userErrorsField = getChildField(field, 'userErrors');
@@ -4328,7 +4391,11 @@ function serializeCollectionField(
   field: FieldNode,
   variables: Record<string, unknown>,
 ): unknown {
+  const publicationIds = getCollectionPublicationIds(collection);
+
   switch (field.name.value) {
+    case '__typename':
+      return 'Collection';
     case 'id':
       return collection.id;
     case 'legacyResourceId':
@@ -4337,6 +4404,23 @@ function serializeCollectionField(
       return collection.title;
     case 'handle':
       return collection.handle;
+    case 'publishedOnCurrentPublication':
+    case 'publishedOnCurrentChannel':
+      return false;
+    case 'publishedOnPublication': {
+      const args = getFieldArguments(field, variables);
+      const publicationId = typeof args['publicationId'] === 'string' ? args['publicationId'] : null;
+      return publicationId ? publicationIds.includes(publicationId) : false;
+    }
+    case 'publishedOnChannel': {
+      const args = getFieldArguments(field, variables);
+      const channelId = typeof args['channelId'] === 'string' ? args['channelId'] : null;
+      return channelId ? publicationIds.includes(channelId) : false;
+    }
+    case 'availablePublicationsCount':
+    case 'resourcePublicationsCount':
+    case 'publicationCount':
+      return serializeCountValue(field, publicationIds.length);
     case 'updatedAt':
       return collection.updatedAt ?? null;
     case 'description': {
@@ -4384,6 +4468,16 @@ function serializeCollectionObject(
   const result: Record<string, unknown> = {};
 
   for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      const typeName = selection.typeCondition?.name.value;
+      if (typeName && typeName !== 'Collection' && typeName !== 'Publishable' && typeName !== 'Node') {
+        continue;
+      }
+
+      Object.assign(result, serializeCollectionObject(collection, selection.selectionSet.selections, variables));
+      continue;
+    }
+
     if (selection.kind !== Kind.FIELD) {
       continue;
     }
@@ -4488,11 +4582,43 @@ function serializeCollectionsConnection(
   return result;
 }
 
+function readCollectionPublishedStatus(rawQuery: unknown): 'published' | 'unpublished' | 'any' | null {
+  if (typeof rawQuery !== 'string') {
+    return null;
+  }
+
+  const match = rawQuery.match(/(?:^|\s)published_status:\s*(?:"([^"]+)"|'([^']+)'|(\S+))/iu);
+  const value = (match?.[1] ?? match?.[2] ?? match?.[3] ?? '').toLowerCase();
+  if (value === 'published' || value === 'visible') {
+    return 'published';
+  }
+  if (value === 'unpublished' || value === 'hidden') {
+    return 'unpublished';
+  }
+  if (value === 'any') {
+    return 'any';
+  }
+
+  return null;
+}
+
+function filterCollectionsByQuery(collections: CollectionRecord[], rawQuery: unknown): CollectionRecord[] {
+  const publishedStatus = readCollectionPublishedStatus(rawQuery);
+  if (!publishedStatus || publishedStatus === 'any') {
+    return collections;
+  }
+
+  return collections.filter((collection) =>
+    publishedStatus === 'published' ? isPublishedCollection(collection) : !isPublishedCollection(collection),
+  );
+}
+
 function serializeTopLevelCollectionsConnection(
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const allCollections = listEffectiveCollections();
+  const args = getFieldArguments(field, variables);
+  const allCollections = filterCollectionsByQuery(listEffectiveCollections(), args['query']);
   const {
     items: collections,
     hasNextPage,
@@ -5077,6 +5203,8 @@ function serializeProductField(product: ProductRecord, field: FieldNode, variabl
   const visiblePublicationCount = product.status === 'ACTIVE' ? product.publicationIds.length : 0;
 
   switch (field.name.value) {
+    case '__typename':
+      return 'Product';
     case 'id':
       return product.id;
     case 'legacyResourceId':
@@ -5090,10 +5218,19 @@ function serializeProductField(product: ProductRecord, field: FieldNode, variabl
     case 'publishedOnCurrentPublication':
     case 'publishedOnCurrentChannel':
       return visiblePublicationCount > 0;
+    case 'publishedOnPublication': {
+      const args = getFieldArguments(field, variables);
+      const publicationId = typeof args['publicationId'] === 'string' ? args['publicationId'] : null;
+      if (!publicationId || product.status !== 'ACTIVE') {
+        return false;
+      }
+
+      return product.publicationIds.includes(publicationId);
+    }
     case 'publishedOnChannel': {
       const args = getFieldArguments(field, variables);
       const channelId = typeof args['channelId'] === 'string' ? args['channelId'] : null;
-      if (!channelId) {
+      if (!channelId || product.status !== 'ACTIVE') {
         return false;
       }
 
@@ -6904,6 +7041,114 @@ export function handleProductMutation(
       };
     }
     case 'publishablePublish':
+    case 'publishableUnpublish': {
+      const publishableId = typeof args['id'] === 'string' ? args['id'] : null;
+      if (!publishableId) {
+        return {
+          data: {
+            [responseKey]: serializePublishableMutationPayload(field, variables, {
+              publishable: null,
+              userErrors: [{ field: ['id'], message: 'Publishable id is required' }],
+            }),
+          },
+        };
+      }
+
+      const isPublish = field.name.value === 'publishablePublish';
+      const publicationTargets = readPublicationTargets(args['input']);
+      const existingProduct = store.getEffectiveProductById(publishableId);
+      if (existingProduct) {
+        if (publicationTargets.length === 0) {
+          return {
+            data: {
+              [responseKey]: serializePublishableMutationPayload(field, variables, {
+                publishable: existingProduct,
+                userErrors: [{ field: ['input'], message: 'Publication target is required' }],
+              }),
+            },
+          };
+        }
+
+        const nextPublicationIds = isPublish
+          ? mergePublicationTargets(existingProduct.publicationIds, publicationTargets)
+          : removePublicationTargets(existingProduct.publicationIds, publicationTargets);
+        store.stageUpdateProduct(
+          makeProductRecord({ id: publishableId, publicationIds: nextPublicationIds }, existingProduct),
+        );
+
+        return {
+          data: {
+            [responseKey]: serializePublishableMutationPayload(field, variables, {
+              publishable: store.getEffectiveProductById(publishableId),
+              userErrors: [],
+            }),
+          },
+        };
+      }
+
+      if (publishableId.startsWith('gid://shopify/Product/')) {
+        return {
+          data: {
+            [responseKey]: serializePublishableMutationPayload(field, variables, {
+              publishable: null,
+              userErrors: [{ field: ['id'], message: 'Product not found' }],
+            }),
+          },
+        };
+      }
+
+      const existingCollection = findEffectiveCollectionById(publishableId);
+      if (existingCollection) {
+        if (publicationTargets.length === 0) {
+          return {
+            data: {
+              [responseKey]: serializePublishableMutationPayload(field, variables, {
+                publishable: existingCollection,
+                userErrors: [{ field: ['input'], message: 'Publication target is required' }],
+              }),
+            },
+          };
+        }
+
+        const nextPublicationIds = isPublish
+          ? mergePublicationTargets(existingCollection.publicationIds ?? [], publicationTargets)
+          : removePublicationTargets(existingCollection.publicationIds ?? [], publicationTargets);
+        store.stageUpdateCollection(
+          makeCollectionRecord({ id: publishableId, publicationIds: nextPublicationIds }, existingCollection),
+        );
+
+        return {
+          data: {
+            [responseKey]: serializePublishableMutationPayload(field, variables, {
+              publishable: findEffectiveCollectionById(publishableId),
+              userErrors: [],
+            }),
+          },
+        };
+      }
+
+      if (publishableId.startsWith('gid://shopify/Collection/')) {
+        return {
+          data: {
+            [responseKey]: serializePublishableMutationPayload(field, variables, {
+              publishable: null,
+              userErrors: [{ field: ['id'], message: 'Collection not found' }],
+            }),
+          },
+        };
+      }
+
+      return {
+        data: {
+          [responseKey]: serializePublishableMutationPayload(field, variables, {
+            publishable: null,
+            userErrors: [
+              { field: ['id'], message: 'Only Product and Collection publishable IDs are supported locally' },
+            ],
+          }),
+        },
+      };
+    }
     case 'publishablePublishToCurrentChannel': {
       const rawPublishableId = args['id'];
       const productId = getPublishableProductId(rawPublishableId);
@@ -6958,7 +7203,6 @@ export function handleProductMutation(
         },
       };
     }
-    case 'publishableUnpublish':
     case 'publishableUnpublishToCurrentChannel': {
       const rawPublishableId = args['id'];
       const productId = getPublishableProductId(rawPublishableId);
