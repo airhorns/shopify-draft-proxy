@@ -958,20 +958,26 @@
     "type": "mutation",
     "domain": "metafields",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metafieldDefinitionPin", "MetafieldDefinitionPin"],
-    "runtimeTests": ["tests/integration/metafield-definition-draft-flow.test.ts"],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires pinned-position ordering semantics before support."
+    "runtimeTests": [
+      "tests/integration/metafield-definition-query-shapes.test.ts",
+      "tests/unit/conformance-parity-scenarios.test.ts"
+    ],
+    "supportNotes": "Locally stages product-owner definition pinning for existing normalized definitions. Pin assigns the next owner-type pinned position; downstream definition detail and catalog reads reflect pinnedStatus and PINNED_POSITION ordering without runtime Shopify writes."
   },
   {
     "name": "metafieldDefinitionUnpin",
     "type": "mutation",
     "domain": "metafields",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metafieldDefinitionUnpin", "MetafieldDefinitionUnpin"],
-    "runtimeTests": ["tests/integration/metafield-definition-draft-flow.test.ts"],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires pinned-position ordering semantics before support."
+    "runtimeTests": [
+      "tests/integration/metafield-definition-query-shapes.test.ts",
+      "tests/unit/conformance-parity-scenarios.test.ts"
+    ],
+    "supportNotes": "Locally stages product-owner definition unpinning for existing normalized definitions. Unpin clears the definition pinned position and compacts higher owner-type positions so downstream pinned catalogs remain Shopify-like."
   },
   {
     "name": "standardMetafieldDefinitionEnable",
