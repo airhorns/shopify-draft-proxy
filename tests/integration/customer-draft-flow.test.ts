@@ -1340,6 +1340,317 @@ describe('customer draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('stages customerSet create, update, and identifier upsert slices locally', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('customerSet should not hit upstream fetch');
+    });
+
+    const app = createApp(snapshotConfig).callback();
+    const createResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CustomerSetCreate($input: CustomerSetInput!) {
+          customerSet(input: $input) {
+            customer {
+              id
+              firstName
+              lastName
+              displayName
+              email
+              note
+              taxExempt
+              taxExemptions
+              tags
+              defaultEmailAddress { emailAddress }
+              defaultPhoneNumber { phoneNumber }
+              defaultAddress { address1 }
+              addressesV2(first: 5) {
+                nodes { id address1 }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+              createdAt
+              updatedAt
+            }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            email: 'customer-set-create@example.com',
+            firstName: 'Set',
+            lastName: 'Create',
+            note: 'created by customerSet',
+            phone: '+14155550123',
+            tags: ['set', 'create'],
+            taxExempt: true,
+            taxExemptions: ['CA_BC_RESELLER_EXEMPTION'],
+          },
+        },
+      });
+
+    expect(createResponse.status).toBe(200);
+    expect(createResponse.body.data.customerSet.userErrors).toEqual([]);
+    expect(createResponse.body.data.customerSet.customer).toMatchObject({
+      firstName: 'Set',
+      lastName: 'Create',
+      displayName: 'Set Create',
+      email: 'customer-set-create@example.com',
+      note: 'created by customerSet',
+      taxExempt: true,
+      taxExemptions: ['CA_BC_RESELLER_EXEMPTION'],
+      tags: ['create', 'set'],
+      defaultEmailAddress: { emailAddress: 'customer-set-create@example.com' },
+      defaultPhoneNumber: { phoneNumber: '+14155550123' },
+      defaultAddress: null,
+      addressesV2: {
+        nodes: [],
+        pageInfo: { hasNextPage: false, hasPreviousPage: false, startCursor: null, endCursor: null },
+      },
+    });
+    const createdCustomerId = createResponse.body.data.customerSet.customer.id;
+
+    const updateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CustomerSetUpdate($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer {
+              id
+              displayName
+              email
+              note
+              taxExempt
+              taxExemptions
+              tags
+              defaultAddress { address1 city province country zip formattedArea }
+              addressesV2(first: 5) {
+                nodes { id address1 city province country zip formattedArea }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+              updatedAt
+            }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          identifier: { id: createdCustomerId },
+          input: {
+            email: 'customer-set-create@example.com',
+            firstName: 'Set',
+            lastName: 'Updated',
+            note: 'updated by customerSet',
+            tags: ['set', 'updated'],
+            taxExempt: false,
+            taxExemptions: [],
+            addresses: [
+              { address1: '10 Set St', city: 'Ottawa', countryCode: 'CA', provinceCode: 'ON', zip: 'K1A 0B1' },
+            ],
+          },
+        },
+      });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body.data.customerSet.userErrors).toEqual([]);
+    expect(updateResponse.body.data.customerSet.customer).toMatchObject({
+      id: createdCustomerId,
+      displayName: 'Set Updated',
+      email: 'customer-set-create@example.com',
+      note: 'updated by customerSet',
+      taxExempt: false,
+      taxExemptions: [],
+      tags: ['set', 'updated'],
+      defaultAddress: {
+        address1: '10 Set St',
+        city: 'Ottawa',
+        province: 'Ontario',
+        country: 'Canada',
+        zip: 'K1A 0B1',
+        formattedArea: 'Ottawa ON, Canada',
+      },
+    });
+    expect(updateResponse.body.data.customerSet.customer.addressesV2.nodes).toHaveLength(1);
+    expect(updateResponse.body.data.customerSet.customer.addressesV2.nodes[0]).toMatchObject({
+      address1: '10 Set St',
+      city: 'Ottawa',
+      province: 'Ontario',
+      country: 'Canada',
+      zip: 'K1A 0B1',
+      formattedArea: 'Ottawa ON, Canada',
+    });
+
+    const upsertResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CustomerSetUpsert($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer { id email displayName tags }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          identifier: { email: 'customer-set-upsert@example.com' },
+          input: {
+            email: 'customer-set-upsert@example.com',
+            firstName: 'Set',
+            lastName: 'Upsert',
+            tags: ['set', 'upsert'],
+          },
+        },
+      });
+
+    expect(upsertResponse.status).toBe(200);
+    expect(upsertResponse.body.data.customerSet.userErrors).toEqual([]);
+    expect(upsertResponse.body.data.customerSet.customer).toMatchObject({
+      email: 'customer-set-upsert@example.com',
+      displayName: 'Set Upsert',
+      tags: ['set', 'upsert'],
+    });
+    const upsertedCustomerId = upsertResponse.body.data.customerSet.customer.id;
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query CustomerSetReadback($id: ID!, $upsertId: ID!) {
+          detail: customer(id: $id) {
+            id
+            displayName
+            defaultAddress { address1 }
+            addressesV2(first: 5) { nodes { address1 } }
+          }
+          byIdentifier: customerByIdentifier(identifier: { emailAddress: "customer-set-upsert@example.com" }) {
+            id
+            email
+          }
+          catalog: customers(first: 10, query: "tag:set") {
+            nodes { id email tags }
+          }
+          counts: customersCount { count precision }
+          upsertDetail: customer(id: $upsertId) { id email displayName }
+        }`,
+        variables: { id: createdCustomerId, upsertId: upsertedCustomerId },
+      });
+
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body.data.detail).toEqual({
+      id: createdCustomerId,
+      displayName: 'Set Updated',
+      defaultAddress: { address1: '10 Set St' },
+      addressesV2: { nodes: [{ address1: '10 Set St' }] },
+    });
+    expect(readResponse.body.data.byIdentifier).toEqual({
+      id: upsertedCustomerId,
+      email: 'customer-set-upsert@example.com',
+    });
+    expect(readResponse.body.data.catalog.nodes).toEqual([
+      { id: upsertedCustomerId, email: 'customer-set-upsert@example.com', tags: ['set', 'upsert'] },
+      { id: createdCustomerId, email: 'customer-set-create@example.com', tags: ['set', 'updated'] },
+    ]);
+    expect(readResponse.body.data.counts).toEqual({ count: 2, precision: 'EXACT' });
+    expect(readResponse.body.data.upsertDetail).toEqual({
+      id: upsertedCustomerId,
+      email: 'customer-set-upsert@example.com',
+      displayName: 'Set Upsert',
+    });
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(logResponse.body.entries.map((entry: { operationName: string }) => entry.operationName)).toEqual([
+      'customerSet',
+      'customerSet',
+      'customerSet',
+    ]);
+    expect(logResponse.body.entries.map((entry: { status: string }) => entry.status)).toEqual([
+      'staged',
+      'staged',
+      'staged',
+    ]);
+    expect(logResponse.body.entries[0].requestBody.query).toContain('mutation CustomerSetCreate');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('rejects unsupported customerSet fields locally without proxying upstream', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('unsupported customerSet fields should not hit upstream fetch');
+    });
+
+    const app = createApp(snapshotConfig).callback();
+    const unsupportedInputResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CustomerSetUnsupported($input: CustomerSetInput!) {
+          customerSet(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            email: 'customer-set-unsupported@example.com',
+            metafields: [{ namespace: 'custom', key: 'loyalty', type: 'single_line_text_field', value: 'gold' }],
+          },
+        },
+      });
+
+    expect(unsupportedInputResponse.status).toBe(200);
+    expect(unsupportedInputResponse.body.data.customerSet).toEqual({
+      customer: null,
+      userErrors: [
+        {
+          field: ['input', 'metafields'],
+          message: "customerSet input field 'metafields' is not supported by local staging yet",
+        },
+      ],
+    });
+
+    const customIdResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CustomerSetCustomId($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          identifier: { customId: { namespace: 'custom', key: 'external_id', value: 'unsupported' } },
+          input: { firstName: 'Custom' },
+        },
+      });
+
+    expect(customIdResponse.status).toBe(200);
+    expect(customIdResponse.body).toEqual({
+      data: { customerSet: null },
+      errors: [
+        {
+          message: "Metafield definition of type 'id' is required when using custom ids.",
+          path: ['customerSet'],
+          extensions: { code: 'NOT_FOUND' },
+        },
+      ],
+    });
+
+    const unknownIdResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CustomerSetUnknown($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          identifier: { id: 'gid://shopify/Customer/999999999999999' },
+          input: { firstName: 'Ghost' },
+        },
+      });
+
+    expect(unknownIdResponse.status).toBe(200);
+    expect(unknownIdResponse.body.data.customerSet).toEqual({
+      customer: null,
+      userErrors: [{ field: ['input'], message: 'Resource matching the identifier was not found.' }],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('stages customer tax exemptions and metafields on customerUpdate and exposes them on downstream reads', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('customerUpdate tax/metafield staging should not hit upstream fetch');
