@@ -2081,3 +2081,19 @@ Practical rule:
 - stage supported `customerMerge` locally for customers already present in the normalized graph, mark the source customer deleted, record the source-to-result id redirect for state inspection, and expose a local merge request for `customerMergeJobStatus`
 - do not fetch or mutate Shopify during normal runtime to discover missing merge customers; unknown ids should return captured `CustomerMergeUserError` payloads instead
 - do not model transfer of orders, draft orders, gift cards, discounts, addresses, or other attached resources until a fixture captures those non-empty merge fields
+
+## 56. discountNodes code filter does not mirror codeDiscountNodes for native code discounts
+
+HAR-191 captured discount catalog reads against Admin GraphQL 2026-04 with a temporary native `DiscountCodeBasic`.
+
+Captured facts:
+
+- the created native code discount was visible through `codeDiscountNodes` immediately
+- `discountNodes` did not return it until the catalog index caught up a few seconds later
+- after indexing, unfiltered `discountNodes` and `discountNodes(query: "status:active")` returned the discount
+- `discountNodes(query: "code:<native-code>")` still returned an empty connection and `discountNodesCount(query: "code:<native-code>")` returned `0` / `EXACT`
+
+Practical rule:
+
+- keep `discountNodes` code-filter behavior modeled from capture evidence; do not assume it matches `codeDiscountNodes`
+- keep `codeDiscountNodes` as a separate compatibility root until its node-specific connection and filtering behavior are captured and modeled directly

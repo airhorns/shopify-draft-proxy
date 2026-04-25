@@ -495,11 +495,24 @@ describe('getOperationCapability', () => {
     });
   });
 
-  it('keeps registry-only discounts roots out of capability routing until implemented', () => {
+  it('routes implemented discount catalog roots and leaves other discount roots in passthrough', () => {
     expect(getOperationCapability({ type: 'query', name: 'DiscountNodes', rootFields: ['discountNodes'] })).toEqual({
-      domain: 'unknown',
-      execution: 'passthrough',
+      domain: 'discounts',
+      execution: 'overlay-read',
       operationName: 'DiscountNodes',
+      type: 'query',
+    });
+
+    expect(
+      getOperationCapability({
+        type: 'query',
+        name: 'DiscountNodesCount',
+        rootFields: ['discountNodesCount'],
+      }),
+    ).toEqual({
+      domain: 'discounts',
+      execution: 'overlay-read',
+      operationName: 'DiscountNodesCount',
       type: 'query',
     });
 

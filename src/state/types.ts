@@ -426,6 +426,33 @@ export const customerCatalogConnectionRecordSchema = z.strictObject({
 });
 export type CustomerCatalogConnectionRecord = z.infer<typeof customerCatalogConnectionRecordSchema>;
 
+export const discountCombinesWithRecordSchema = z.strictObject({
+  productDiscounts: z.boolean(),
+  orderDiscounts: z.boolean(),
+  shippingDiscounts: z.boolean(),
+});
+export type DiscountCombinesWithRecord = z.infer<typeof discountCombinesWithRecordSchema>;
+
+export const discountRecordSchema = z.strictObject({
+  id: z.string(),
+  typeName: z.string(),
+  method: z.enum(['code', 'automatic']),
+  title: z.string(),
+  status: nullableStringSchema,
+  summary: nullableStringSchema,
+  startsAt: nullableStringSchema,
+  endsAt: nullableStringSchema,
+  createdAt: nullableStringSchema,
+  updatedAt: nullableStringSchema,
+  asyncUsageCount: nullableNumberSchema,
+  discountClasses: z.array(z.string()),
+  combinesWith: discountCombinesWithRecordSchema,
+  codes: z.array(z.string()).default([]),
+  discountType: nullableStringSchema.optional(),
+  appId: nullableStringSchema.optional(),
+});
+export type DiscountRecord = z.infer<typeof discountRecordSchema>;
+
 export const customerMergeRequestRecordSchema = z.strictObject({
   jobId: z.string(),
   resultingCustomerId: z.string(),
@@ -887,6 +914,7 @@ export const stateSnapshotSchema = z.strictObject({
   collections: z.record(z.string(), collectionRecordSchema),
   publications: z.record(z.string(), publicationRecordSchema).default({}),
   customers: z.record(z.string(), customerRecordSchema),
+  discounts: z.record(z.string(), discountRecordSchema).default({}),
   businessEntities: z.record(z.string(), businessEntityRecordSchema).default({}),
   businessEntityOrder: z.array(z.string()).default([]),
   productCollections: z.record(z.string(), productCollectionRecordSchema),
@@ -898,6 +926,7 @@ export const stateSnapshotSchema = z.strictObject({
   deletedFileIds: z.record(z.string(), z.literal(true)).default({}),
   deletedCollectionIds: z.record(z.string(), z.literal(true)),
   deletedCustomerIds: z.record(z.string(), z.literal(true)),
+  deletedDiscountIds: z.record(z.string(), z.literal(true)).default({}),
   mergedCustomerIds: z.record(z.string(), z.string()).default({}),
   customerMergeRequests: z.record(z.string(), customerMergeRequestRecordSchema).default({}),
 });

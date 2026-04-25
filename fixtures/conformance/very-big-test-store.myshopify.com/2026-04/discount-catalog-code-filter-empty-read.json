@@ -1,0 +1,67 @@
+{
+  "variables": {
+    "query": "code:HAR191CODE1777117036468",
+    "first": 2,
+    "sortKey": "TITLE",
+    "reverse": false,
+    "countLimit": 10000
+  },
+  "seedDiscounts": [
+    {
+      "id": "gid://shopify/DiscountCodeNode/1688770478313",
+      "discount": {
+        "__typename": "DiscountCodeBasic",
+        "title": "HAR-191 catalog fixture HAR191CODE1777117036468",
+        "status": "ACTIVE",
+        "summary": "10% off entire order",
+        "startsAt": "2024-04-25T00:00:00Z",
+        "endsAt": null,
+        "createdAt": "2026-04-25T11:37:16Z",
+        "updatedAt": "2026-04-25T11:37:16Z",
+        "asyncUsageCount": 0,
+        "discountClasses": ["ORDER"],
+        "combinesWith": {
+          "productDiscounts": true,
+          "orderDiscounts": false,
+          "shippingDiscounts": false
+        },
+        "codes": {
+          "nodes": [
+            {
+              "code": "HAR191CODE1777117036468"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "response": {
+    "data": {
+      "discountNodes": {
+        "nodes": [],
+        "edges": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      },
+      "discountNodesCount": {
+        "count": 0,
+        "precision": "EXACT"
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 24,
+        "actualQueryCost": 13,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1976,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

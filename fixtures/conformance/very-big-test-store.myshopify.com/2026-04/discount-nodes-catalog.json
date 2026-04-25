@@ -1,0 +1,24 @@
+{
+  "data": {
+    "discountNodes": {
+      "edges": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": null,
+        "endCursor": null
+      }
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 10,
+      "actualQueryCost": 2,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1998,
+        "restoreRate": 100
+      }
+    }
+  }
+}

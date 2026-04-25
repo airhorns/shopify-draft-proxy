@@ -6,6 +6,7 @@ import type {
   CustomerMergeRequestRecord,
   CustomerMetafieldRecord,
   CustomerRecord,
+  DiscountRecord,
   DraftOrderRecord,
   FileRecord,
   LocationRecord,
@@ -23,6 +24,7 @@ import type {
   ShopRecord,
   StateSnapshot,
 } from './types.js';
+import { compareShopifyResourceIds } from '../shopify/resource-ids.js';
 
 type MetaStateSnapshot = StateSnapshot & {
   orders: Record<string, OrderRecord>;
@@ -45,6 +47,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   collections: {},
   publications: {},
   customers: {},
+  discounts: {},
   businessEntities: {},
   businessEntityOrder: [],
   productCollections: {},
@@ -56,6 +59,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedFileIds: {},
   deletedCollectionIds: {},
   deletedCustomerIds: {},
+  deletedDiscountIds: {},
   mergedCustomerIds: {},
   customerMergeRequests: {},
 };
@@ -86,16 +90,6 @@ function compareProductsNewestFirst(left: ProductRecord, right: ProductRecord): 
 
 function compareCustomersNewestFirst(left: CustomerRecord, right: CustomerRecord): number {
   return (right.updatedAt ?? '').localeCompare(left.updatedAt ?? '') || right.id.localeCompare(left.id);
-}
-
-function compareResourceIds(leftId: string, rightId: string): number {
-  const leftTail = Number.parseInt(leftId.split('/').at(-1) ?? '', 10);
-  const rightTail = Number.parseInt(rightId.split('/').at(-1) ?? '', 10);
-  if (Number.isFinite(leftTail) && Number.isFinite(rightTail)) {
-    return leftTail - rightTail;
-  }
-
-  return leftId.localeCompare(rightId);
 }
 
 function ensureUpdatedAtAfterBase(baseUpdatedAt: string, stagedUpdatedAt: string): string {
@@ -356,6 +350,14 @@ export class InMemoryStore {
     }
   }
 
+  upsertBaseDiscounts(discounts: DiscountRecord[]): void {
+    for (const discount of discounts) {
+      delete this.baseState.deletedDiscountIds[discount.id];
+      delete this.stagedState.deletedDiscountIds[discount.id];
+      this.baseState.discounts[discount.id] = structuredClone(discount);
+    }
+  }
+
   upsertBaseBusinessEntities(businessEntities: BusinessEntityRecord[]): void {
     for (const businessEntity of businessEntities) {
       this.baseState.businessEntities[businessEntity.id] = structuredClone(businessEntity);
@@ -385,7 +387,7 @@ export class InMemoryStore {
       .filter((location): location is LocationRecord => location !== null);
     const unorderedLocations = Object.values(this.baseState.locations)
       .filter((location) => !orderedIds.has(location.id))
-      .sort((left, right) => compareResourceIds(left.id, right.id));
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
 
     return structuredClone([...orderedLocations, ...unorderedLocations]);
   }
@@ -477,6 +479,17 @@ export class InMemoryStore {
     this.stagedState.deletedCustomerIds[customerId] = true;
   }
 
+  stageCreateDiscount(discount: DiscountRecord): DiscountRecord {
+    delete this.stagedState.deletedDiscountIds[discount.id];
+    this.stagedState.discounts[discount.id] = structuredClone(discount);
+    return structuredClone(discount);
+  }
+
+  stageDeleteDiscount(discountId: string): void {
+    delete this.stagedState.discounts[discountId];
+    this.stagedState.deletedDiscountIds[discountId] = true;
+  }
+
   stageMergeCustomers(
     sourceCustomerId: string,
     resultingCustomer: CustomerRecord,
@@ -519,7 +532,7 @@ export class InMemoryStore {
     }
 
     return Array.from(mergedOrders.values()).sort(
-      (left, right) => right.createdAt.localeCompare(left.createdAt) || compareResourceIds(right.id, left.id),
+      (left, right) => right.createdAt.localeCompare(left.createdAt) || compareShopifyResourceIds(right.id, left.id),
     );
   }
 
@@ -569,7 +582,9 @@ export class InMemoryStore {
   getDraftOrders(): DraftOrderRecord[] {
     return Object.values(this.stagedDraftOrders)
       .map((draftOrder) => structuredClone(draftOrder))
-      .sort((left, right) => right.createdAt.localeCompare(left.createdAt) || compareResourceIds(right.id, left.id));
+      .sort(
+        (left, right) => right.createdAt.localeCompare(left.createdAt) || compareShopifyResourceIds(right.id, left.id),
+      );
   }
 
   hasDraftOrders(): boolean {
@@ -1024,6 +1039,24 @@ export class InMemoryStore {
     return merged.sort(compareCustomersNewestFirst);
   }
 
+  listEffectiveDiscounts(): DiscountRecord[] {
+    const discountIds = new Set([...Object.keys(this.baseState.discounts), ...Object.keys(this.stagedState.discounts)]);
+    const merged: DiscountRecord[] = [];
+
+    for (const discountId of Array.from(discountIds)) {
+      if (this.stagedState.deletedDiscountIds[discountId]) {
+        continue;
+      }
+
+      const discount = this.stagedState.discounts[discountId] ?? this.baseState.discounts[discountId];
+      if (discount) {
+        merged.push(structuredClone(discount));
+      }
+    }
+
+    return merged;
+  }
+
   hasBaseCustomers(): boolean {
     return Object.keys(this.baseState.customers).length > 0;
   }
@@ -1035,6 +1068,14 @@ export class InMemoryStore {
       Object.keys(this.stagedState.deletedCustomerIds).length > 0 ||
       Object.keys(this.stagedState.mergedCustomerIds).length > 0 ||
       Object.keys(this.stagedState.customerMergeRequests).length > 0
+    );
+  }
+
+  hasDiscounts(): boolean {
+    return (
+      Object.keys(this.baseState.discounts).length > 0 ||
+      Object.keys(this.stagedState.discounts).length > 0 ||
+      Object.keys(this.stagedState.deletedDiscountIds).length > 0
     );
   }
 
@@ -1124,7 +1165,9 @@ export class InMemoryStore {
             .filter((option) => option.productId === productId)
             .map((option) => structuredClone(option));
 
-    return sourceOptions.sort((left, right) => left.position - right.position || compareResourceIds(left.id, right.id));
+    return sourceOptions.sort(
+      (left, right) => left.position - right.position || compareShopifyResourceIds(left.id, right.id),
+    );
   }
 
   getEffectiveCollectionById(collectionId: string): CollectionRecord | null {
@@ -1174,7 +1217,7 @@ export class InMemoryStore {
     }
 
     return Array.from(collectionsById.values()).sort(
-      (left, right) => left.title.localeCompare(right.title) || compareResourceIds(left.id, right.id),
+      (left, right) => left.title.localeCompare(right.title) || compareShopifyResourceIds(left.id, right.id),
     );
   }
 
@@ -1210,7 +1253,7 @@ export class InMemoryStore {
       }
     }
 
-    return Array.from(publicationsById.values()).sort((left, right) => compareResourceIds(left.id, right.id));
+    return Array.from(publicationsById.values()).sort((left, right) => compareShopifyResourceIds(left.id, right.id));
   }
 
   getEffectiveCollectionsByProductId(productId: string): ProductCollectionRecord[] {
@@ -1248,7 +1291,7 @@ export class InMemoryStore {
       });
 
     return visibleCollections.sort(
-      (left, right) => left.title.localeCompare(right.title) || compareResourceIds(left.id, right.id),
+      (left, right) => left.title.localeCompare(right.title) || compareShopifyResourceIds(left.id, right.id),
     );
   }
 
