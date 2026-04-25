@@ -44,7 +44,11 @@ import {
   handleProductQuery,
   hydrateProductsFromUpstreamResponse,
 } from '../src/proxy/products.js';
-import { handleSegmentsQuery, hydrateSegmentsFromUpstreamResponse } from '../src/proxy/segments.js';
+import {
+  handleSegmentMutation,
+  handleSegmentsQuery,
+  hydrateSegmentsFromUpstreamResponse,
+} from '../src/proxy/segments.js';
 import { handleStorePropertiesMutation, handleStorePropertiesQuery } from '../src/proxy/store-properties.js';
 import { makeSyntheticGid, makeSyntheticTimestamp, resetSyntheticIdentity } from '../src/state/synthetic-identity.js';
 import { store } from '../src/state/store.js';
@@ -748,6 +752,25 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body,
+    };
+  }
+
+  if (capability.execution === 'stage-locally' && capability.domain === 'segments') {
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2025-01/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: handleSegmentMutation(document, variables),
     };
   }
 
@@ -3252,17 +3275,61 @@ function seedMetafieldsSetOwnerProducts(capture: unknown, variables: Record<stri
     readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data'),
     'product',
   );
+  const seedProduct = readRecordField(capture as Record<string, unknown>, 'seedProduct');
+  const seedCollection = readRecordField(capture as Record<string, unknown>, 'seedCollection');
+  const downstreamProductVariant = readRecordField(
+    readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data'),
+    'productVariant',
+  );
+  const downstreamCollection = readRecordField(
+    readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data'),
+    'collection',
+  );
   const productSource = preconditionProduct ?? downstreamProduct;
   for (const input of readArrayField(variables, 'metafields').filter(isPlainObject)) {
     const ownerId = readStringField(input, 'ownerId');
-    if (!ownerId?.startsWith('gid://shopify/Product/') || store.getEffectiveProductById(ownerId)) {
+    if (!ownerId) {
       continue;
     }
 
-    const source = readStringField(productSource, 'id') === ownerId ? productSource : null;
-    store.upsertBaseProducts([makeSeedProduct(ownerId, source)]);
-    if (source) {
-      store.replaceBaseMetafieldsForProduct(ownerId, readCapturedProductMetafields(ownerId, source));
+    if (ownerId.startsWith('gid://shopify/Product/')) {
+      if (store.getEffectiveProductById(ownerId)) {
+        continue;
+      }
+
+      const source = readStringField(productSource, 'id') === ownerId ? productSource : null;
+      store.upsertBaseProducts([makeSeedProduct(ownerId, source)]);
+      if (source) {
+        store.replaceBaseMetafieldsForProduct(ownerId, readCapturedProductMetafields(ownerId, source));
+      }
+      continue;
+    }
+
+    if (ownerId.startsWith('gid://shopify/ProductVariant/')) {
+      const productId = readStringField(seedProduct, 'id') ?? readStringField(downstreamProduct, 'id');
+      if (!productId?.startsWith('gid://shopify/Product/')) {
+        continue;
+      }
+
+      store.upsertBaseProducts([makeSeedProduct(productId, seedProduct ?? downstreamProduct)]);
+      const variantSource =
+        readStringField(downstreamProductVariant, 'id') === ownerId
+          ? downstreamProductVariant
+          : (readArrayField(readRecordField(seedProduct ?? downstreamProduct, 'variants'), 'nodes')
+              .filter(isPlainObject)
+              .find((variant) => readStringField(variant, 'id') === ownerId) ?? null);
+      const variant = variantSource ? makeCapturedVariant(productId, variantSource) : null;
+      if (variant) {
+        store.replaceBaseVariantsForProduct(productId, [variant]);
+      }
+      continue;
+    }
+
+    if (ownerId.startsWith('gid://shopify/Collection/')) {
+      const source = readStringField(downstreamCollection, 'id') === ownerId ? downstreamCollection : seedCollection;
+      if (source) {
+        store.upsertBaseCollections([makeSeedCollection(ownerId, source)]);
+      }
     }
   }
 }
@@ -3406,7 +3473,11 @@ function seedFileDeleteMediaReferencePreconditions(capture: unknown, variables: 
   return true;
 }
 
-function readCapturedProductMetafields(productId: string, product: Record<string, unknown>): ProductMetafieldRecord[] {
+function readCapturedOwnerMetafields(
+  ownerId: string,
+  ownerType: string,
+  source: Record<string, unknown>,
+): ProductMetafieldRecord[] {
   const byIdentity = new Map<string, ProductMetafieldRecord>();
   const addMetafield = (candidate: unknown): void => {
     if (!isPlainObject(candidate)) {
@@ -3420,7 +3491,8 @@ function readCapturedProductMetafields(productId: string, product: Record<string
     }
     byIdentity.set(`${namespace}:${key}`, {
       id,
-      productId,
+      ...(ownerType === 'PRODUCT' ? { productId: ownerId } : {}),
+      ownerId,
       namespace,
       key,
       type: readStringField(candidate, 'type'),
@@ -3431,15 +3503,15 @@ function readCapturedProductMetafields(productId: string, product: Record<string
         : undefined,
       createdAt: readStringField(candidate, 'createdAt'),
       updatedAt: readStringField(candidate, 'updatedAt'),
-      ownerType: readStringField(candidate, 'ownerType') ?? 'PRODUCT',
+      ownerType: readStringField(candidate, 'ownerType') ?? ownerType,
     });
   };
 
-  for (const value of Object.values(product)) {
+  for (const value of Object.values(source)) {
     addMetafield(value);
   }
 
-  for (const value of Object.values(product)) {
+  for (const value of Object.values(source)) {
     const connection = isPlainObject(value) ? value : null;
     for (const node of readArrayField(connection, 'nodes')) {
       addMetafield(node);
@@ -3455,6 +3527,10 @@ function readCapturedProductMetafields(productId: string, product: Record<string
       left.key.localeCompare(right.key) ||
       left.id.localeCompare(right.id),
   );
+}
+
+function readCapturedProductMetafields(productId: string, product: Record<string, unknown>): ProductMetafieldRecord[] {
+  return readCapturedOwnerMetafields(productId, 'PRODUCT', product);
 }
 
 function readCapturedProductMedia(

@@ -15,7 +15,7 @@ import { handleDiscountMutation, handleDiscountQuery } from './discounts.js';
 import { handleMarketMutation, handleMarketsQuery, hydrateMarketsFromUpstreamResponse } from './markets.js';
 import { handleOrderMutation, handleOrderQuery, shouldServeDraftOrderCatalogLocally } from './orders.js';
 import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamResponse } from './products.js';
-import { handleSegmentsQuery, hydrateSegmentsFromUpstreamResponse } from './segments.js';
+import { handleSegmentMutation, handleSegmentsQuery, hydrateSegmentsFromUpstreamResponse } from './segments.js';
 import { handleStorePropertiesMutation, handleStorePropertiesQuery } from './store-properties.js';
 
 interface GraphQLBody {
@@ -241,21 +241,25 @@ export function createProxyRouter(config: AppConfig): Router {
     }
 
     if (capability.execution === 'stage-locally' && capability.domain === 'customers') {
+      const logEntryId = makeSyntheticGid('MutationLogEntry');
+      const receivedAt = makeSyntheticTimestamp();
+      const responseBody = handleCustomerMutation(body.query, variables);
       store.appendLog({
-        id: makeSyntheticGid('MutationLogEntry'),
-        receivedAt: makeSyntheticTimestamp(),
+        id: logEntryId,
+        receivedAt,
         operationName: capability.operationName,
         path: ctx.path,
         query: body.query,
         variables,
         requestBody,
+        stagedResourceIds: collectProxySyntheticGids(responseBody),
         status: 'staged',
         interpreted: interpretMutationLogEntry(parsed, capability),
         notes: 'Staged locally in the in-memory customer draft store.',
       });
 
       ctx.status = 200;
-      ctx.body = handleCustomerMutation(body.query, variables);
+      ctx.body = responseBody;
       return;
     }
 
@@ -323,10 +327,34 @@ export function createProxyRouter(config: AppConfig): Router {
       }
     }
 
+    if (capability.execution === 'stage-locally' && capability.domain === 'segments') {
+      const responseBody = handleSegmentMutation(body.query, variables);
+
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: ctx.path,
+        query: body.query,
+        variables,
+        requestBody,
+        stagedResourceIds: collectProxySyntheticGids(responseBody),
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        notes: 'Staged locally in the in-memory segment draft store.',
+      });
+
+      ctx.status = 200;
+      ctx.body = responseBody;
+      return;
+    }
+
     if (
       capability.execution === 'stage-locally' &&
       capability.domain === 'store-properties' &&
-      primaryRootField === 'shopPolicyUpdate'
+      (primaryRootField === 'shopPolicyUpdate' ||
+        primaryRootField === 'locationAdd' ||
+        primaryRootField === 'locationEdit')
     ) {
       proxyLogger.debug(
         {
@@ -351,7 +379,10 @@ export function createProxyRouter(config: AppConfig): Router {
         stagedResourceIds: collectProxySyntheticGids(responseBody),
         status: 'staged',
         interpreted: interpretMutationLogEntry(parsed, capability),
-        notes: 'Staged locally in the in-memory Store properties legal policy draft store.',
+        notes:
+          primaryRootField === 'shopPolicyUpdate'
+            ? 'Staged locally in the in-memory Store properties legal policy draft store.'
+            : 'Staged locally in the in-memory Store properties location draft store.',
       });
 
       ctx.status = 200;
@@ -572,7 +603,7 @@ export function createProxyRouter(config: AppConfig): Router {
         hydrateSegmentsFromUpstreamResponse(body.query, variables, upstreamBody);
 
         ctx.status = response.status;
-        ctx.body = upstreamBody;
+        ctx.body = store.hasStagedSegments() ? handleSegmentsQuery(body.query, variables) : upstreamBody;
         return;
       }
     }
