@@ -10,6 +10,7 @@
     "documentPath": "config/parity-requests/refundCreate-partial-shipping-restock-parity.graphql",
     "variablesCapturePath": "$.variables"
   },
+  "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

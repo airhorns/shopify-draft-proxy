@@ -150,25 +150,48 @@ export const blockerDetailsSchema = z
   .catchall(z.unknown());
 export type BlockerDetails = z.infer<typeof blockerDetailsSchema>;
 
-export const paritySpecSchema = z.strictObject({
-  scenarioId: z.string().optional(),
-  operationNames: z.array(z.string()).optional(),
-  scenarioStatus: z.string().optional(),
-  assertionKinds: z.array(z.string()).optional(),
-  comparisonMode: parityComparisonModeSchema.optional(),
-  proxyRequest: parityProxyRequestSpecSchema.optional(),
-  comparison: comparisonContractSchema.optional(),
-  liveCaptureFiles: z.array(z.string()).optional(),
-  runtimeTestFiles: z.array(z.string()).optional(),
-  notes: z.string().optional(),
-  blocker: z
-    .strictObject({
-      kind: z.string().optional(),
-      blockerPath: z.string().nullable().optional(),
-      details: blockerDetailsSchema.optional(),
-    })
-    .optional(),
-});
+export const paritySpecSchema = z
+  .strictObject({
+    scenarioId: z.string().optional(),
+    operationNames: z.array(z.string()).optional(),
+    scenarioStatus: z.string().optional(),
+    assertionKinds: z.array(z.string()).optional(),
+    comparisonMode: parityComparisonModeSchema.optional(),
+    proxyRequest: parityProxyRequestSpecSchema.optional(),
+    comparison: comparisonContractSchema.optional(),
+    liveCaptureFiles: z.array(z.string()).optional(),
+    runtimeTestFiles: z.array(z.string()).optional(),
+    notes: z.string().optional(),
+    blocker: z
+      .strictObject({
+        kind: z.string().optional(),
+        blockerPath: z.string().nullable().optional(),
+        details: blockerDetailsSchema.optional(),
+      })
+      .optional(),
+  })
+  .superRefine((spec, ctx) => {
+    if (spec.scenarioStatus !== 'captured') {
+      return;
+    }
+
+    if (!spec.comparisonMode) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['comparisonMode'],
+        message: 'Captured parity specs must declare an executable comparison mode.',
+      });
+      return;
+    }
+
+    if (spec.comparisonMode === 'planned') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['comparisonMode'],
+        message: 'Captured parity specs must not use planned comparison mode.',
+      });
+    }
+  });
 export type ParitySpec = z.infer<typeof paritySpecSchema>;
 
 export const conformanceScenarioOverrideSchema = z.strictObject({

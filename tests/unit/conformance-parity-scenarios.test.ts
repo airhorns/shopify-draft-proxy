@@ -27,7 +27,7 @@ const readyScenarios = discoveredScenarios.filter(
 );
 
 describe('conformance parity scenarios (convention-driven suite)', () => {
-  it('rejects checked-in recorded-but-not-enforced captured scenarios', () => {
+  it('rejects checked-in captured scenarios without executable enforcement', () => {
     const errors = discoveredScenarios.flatMap((scenario) =>
       validateParityScenarioInventoryEntry(scenario, scenario.paritySpec),
     );

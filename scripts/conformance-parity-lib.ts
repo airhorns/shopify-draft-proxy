@@ -3824,6 +3824,19 @@ function readCapturedProductMedia(
 }
 
 function seedPreconditionsFromCapture(capture: unknown, variables: Record<string, unknown>): void {
+  const seedProducts = readArrayField(capture as Record<string, unknown>, 'seedProducts').filter(isPlainObject);
+  for (const seedProduct of seedProducts) {
+    const productId = readStringField(seedProduct, 'id');
+    if (!productId?.startsWith('gid://shopify/Product/')) {
+      continue;
+    }
+    store.upsertBaseProducts([makeSeedProduct(productId, seedProduct)]);
+    const variants = readCapturedProductVariants(productId, seedProduct);
+    if (variants.length > 0) {
+      store.replaceBaseVariantsForProduct(productId, variants);
+    }
+  }
+
   seedProductMetafieldsReadPreconditions(capture);
   seedMetafieldDefinitionPreconditions(capture);
   if (seedInventoryLinkagePreconditions(capture)) {
