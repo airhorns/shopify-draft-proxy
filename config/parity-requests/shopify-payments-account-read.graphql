@@ -1,0 +1,44 @@
+query ShopifyPaymentsAccountAccessProbe {
+  shopifyPaymentsAccount {
+    id
+    activated
+    country
+    defaultCurrency
+    onboardable
+    payouts(first: 1) {
+      nodes {
+        id
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    disputes(first: 1) {
+      edges {
+        node {
+          id
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    balanceTransactions(first: 1) {
+      nodes {
+        id
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}

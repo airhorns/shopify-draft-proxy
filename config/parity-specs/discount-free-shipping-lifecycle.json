@@ -1,0 +1,46 @@
+{
+  "scenarioId": "discount-free-shipping-lifecycle",
+  "operationNames": [
+    "discountCodeFreeShippingCreate",
+    "discountCodeFreeShippingUpdate",
+    "discountCodeDeactivate",
+    "discountCodeActivate",
+    "discountCodeDelete",
+    "discountAutomaticFreeShippingCreate",
+    "discountAutomaticFreeShippingUpdate",
+    "discountAutomaticDeactivate",
+    "discountAutomaticActivate",
+    "discountAutomaticDelete",
+    "discountNode",
+    "codeDiscountNodeByCode",
+    "automaticDiscountNode",
+    "discountNodes",
+    "discountNodesCount"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "mutation-lifecycle", "read-after-write"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discount-free-shipping-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/discount-free-shipping-lifecycle-flow.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "capture-only-code-free-shipping-create-payload",
+        "capturePath": "$.codeCreate.payload.data.discountCodeFreeShippingCreate",
+        "proxyPath": "$.data.discountCodeFreeShippingCreate",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "capture-only-automatic-free-shipping-create-payload",
+        "capturePath": "$.automaticCreate.payload.data.discountAutomaticFreeShippingCreate",
+        "proxyPath": "$.data.discountAutomaticFreeShippingCreate",
+        "upstreamCapturePath": null
+      }
+    ]
+  },
+  "notes": "Captured 2026-04 native DiscountCodeFreeShipping and DiscountAutomaticFreeShipping create, update, shared deactivate/activate/delete cleanup, selected destination/minimum/max-shipping/recurring applicability fields, and downstream read roots. Runtime parity is covered by tests/integration/discount-free-shipping-lifecycle-flow.test.ts; executable mutation-lifecycle parity can be promoted when the parity runner supports full multi-root staged lifecycle replay for this scenario."
+}

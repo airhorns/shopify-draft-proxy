@@ -2,7 +2,7 @@ import { getLocation, Kind, parse, type ASTNode, type FieldNode, type SelectionN
 import type { ReadMode } from '../config.js';
 import { getFieldArguments, getRootField, getRootFieldArguments, getRootFields } from '../graphql/root-field.js';
 import { parseSearchQuery, type SearchQueryNode, type SearchQueryTerm } from '../search-query-parser.js';
-import { paginateConnectionItems, serializeConnectionPageInfo } from './graphql-helpers.js';
+import { paginateConnectionItems, serializeConnection } from './graphql-helpers.js';
 import {
   normalizeOwnerMetafield,
   readMetafieldInputObjects,
@@ -122,11 +122,13 @@ function getOperationPathLabel(document: string): string {
   return operation.name ? `${operationType} ${operation.name.value}` : operationType;
 }
 
+const maxProductHandleLength = 255;
+
 function normalizeHandleParts(value: string): string {
   return value
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
     .replace(/^-+|-+$/g, '');
 }
 
@@ -147,14 +149,10 @@ function stripHtmlToDescription(value: string): string {
     .trim();
 }
 
-function normalizeExplicitProductHandle(handle: string): string {
-  const normalized = normalizeHandleParts(handle);
-  return normalized || 'product';
-}
-
 type ExplicitHandleResolution =
   | { kind: 'normalized-explicit'; handle: string }
-  | { kind: 'fallback-explicit'; handle: string };
+  | { kind: 'fallback-explicit'; handle: string }
+  | { kind: 'invalid'; error: { field: string[]; message: string } };
 
 function readProductInput(raw: unknown): Record<string, unknown> {
   return isObject(raw) ? raw : {};
@@ -178,6 +176,16 @@ function readExplicitHandle(input: Record<string, unknown>): ExplicitHandleResol
   const normalized = normalizeHandleParts(trimmedHandle);
   if (!normalized) {
     return { kind: 'fallback-explicit', handle: 'product' };
+  }
+
+  if (Array.from(normalized).length > maxProductHandleLength) {
+    return {
+      kind: 'invalid',
+      error: {
+        field: ['handle'],
+        message: `Handle is too long (maximum is ${maxProductHandleLength} characters)`,
+      },
+    };
   }
 
   return { kind: 'normalized-explicit', handle: normalized };
@@ -228,6 +236,10 @@ function prepareProductInputWithResolvedHandle(
 ): { input: Record<string, unknown>; error: { field: string[]; message: string } | null } {
   const explicitHandle = readExplicitHandle(input);
   if (explicitHandle) {
+    if (explicitHandle.kind === 'invalid') {
+      return { input, error: explicitHandle.error };
+    }
+
     if (explicitHandle.kind === 'normalized-explicit') {
       if (productHandleInUse(explicitHandle.handle, existing?.id)) {
         return { input, error: productHandleConflictError(explicitHandle.handle) };
@@ -395,6 +407,12 @@ interface CollectionProductMove {
 }
 
 type CollectionReorderUserError = { field: string[]; message: string };
+type ProductReorderUserError = { field: string[]; message: string };
+
+interface ProductVariantPosition {
+  id: string;
+  position: number;
+}
 
 function listEffectiveCollectionMembershipEntries(collectionId: string): CollectionMembershipEntry[] {
   return store
@@ -469,6 +487,66 @@ function readCollectionProductMoves(rawMoves: unknown): {
   return { moves, userErrors };
 }
 
+function readProductVariantPositions(rawPositions: unknown): {
+  positions: ProductVariantPosition[];
+  userErrors: ProductReorderUserError[];
+} {
+  const rawPositionList = Array.isArray(rawPositions) ? rawPositions : isObject(rawPositions) ? [rawPositions] : [];
+  const positions: ProductVariantPosition[] = [];
+  const userErrors: ProductReorderUserError[] = [];
+
+  if (rawPositionList.length === 0) {
+    return {
+      positions,
+      userErrors: [{ field: ['positions'], message: 'At least one position is required' }],
+    };
+  }
+
+  for (const [index, rawPosition] of rawPositionList.entries()) {
+    if (!isObject(rawPosition)) {
+      userErrors.push({ field: ['positions', `${index}`], message: 'Position is invalid' });
+      continue;
+    }
+
+    const variantId = typeof rawPosition['id'] === 'string' ? rawPosition['id'] : null;
+    const position = readCollectionReorderPosition(rawPosition['position']);
+    if (!variantId) {
+      userErrors.push({ field: ['positions', `${index}`, 'id'], message: 'Variant id is required' });
+    }
+    if (position === null || position < 1) {
+      userErrors.push({ field: ['positions', `${index}`, 'position'], message: 'Position is invalid' });
+    }
+    if (variantId && position !== null && position >= 1) {
+      positions.push({ id: variantId, position: position - 1 });
+    }
+  }
+
+  return { positions, userErrors };
+}
+
+function applySequentialReorder<T>(
+  items: T[],
+  moves: Array<{ id: string; position: number }>,
+  getId: (item: T) => string | null | undefined,
+): T[] {
+  const orderedItems = [...items];
+  for (const move of moves) {
+    const currentIndex = orderedItems.findIndex((item) => getId(item) === move.id);
+    if (currentIndex < 0) {
+      continue;
+    }
+
+    const [item] = orderedItems.splice(currentIndex, 1);
+    if (!item) {
+      continue;
+    }
+
+    orderedItems.splice(Math.min(move.position, orderedItems.length), 0, item);
+  }
+
+  return orderedItems;
+}
+
 function reorderCollectionProducts(
   collection: CollectionRecord,
   rawMoves: unknown,
@@ -499,20 +577,12 @@ function reorderCollectionProducts(
     return { job: null, userErrors };
   }
 
-  for (const move of moves) {
-    const currentIndex = orderedEntries.findIndex((entry) => entry.product.id === move.id);
-    if (currentIndex < 0) {
-      continue;
-    }
-
-    const [entry] = orderedEntries.splice(currentIndex, 1);
-    if (!entry) {
-      continue;
-    }
-
-    const nextIndex = Math.min(move.newPosition, orderedEntries.length);
-    orderedEntries.splice(nextIndex, 0, entry);
-  }
+  const reorderedEntries = applySequentialReorder(
+    orderedEntries,
+    moves.map((move) => ({ id: move.id, position: move.newPosition })),
+    (entry) => entry.product.id,
+  );
+  orderedEntries.splice(0, orderedEntries.length, ...reorderedEntries);
 
   for (const [position, entry] of orderedEntries.entries()) {
     const nextCollections = store.getEffectiveCollectionsByProductId(entry.product.id).map((membership) =>
@@ -528,6 +598,71 @@ function reorderCollectionProducts(
 
   return {
     job: { id: makeSyntheticGid('Job'), done: false },
+    userErrors: [],
+  };
+}
+
+function reorderProductMedia(
+  productId: string,
+  rawMoves: unknown,
+): { job: { id: string; done: boolean } | null; userErrors: ProductReorderUserError[] } {
+  const { moves, userErrors } = readCollectionProductMoves(rawMoves);
+  const effectiveMedia = store.getEffectiveMediaByProductId(productId);
+  const mediaIds = new Set(
+    effectiveMedia
+      .map((mediaRecord) => mediaRecord.id)
+      .filter((mediaId): mediaId is string => typeof mediaId === 'string'),
+  );
+
+  for (const [index, move] of moves.entries()) {
+    if (!mediaIds.has(move.id)) {
+      userErrors.push({ field: ['moves', `${index}`, 'id'], message: 'Media does not exist' });
+    }
+  }
+
+  if (userErrors.length > 0) {
+    return { job: null, userErrors };
+  }
+
+  const nextMedia = applySequentialReorder(
+    effectiveMedia,
+    moves.map((move) => ({ id: move.id, position: move.newPosition })),
+    (mediaRecord) => mediaRecord.id,
+  ).map((mediaRecord, position) => ({
+    ...mediaRecord,
+    position,
+  }));
+  store.replaceStagedMediaForProduct(productId, nextMedia);
+
+  return {
+    job: { id: makeSyntheticGid('Job'), done: false },
+    userErrors: [],
+  };
+}
+
+function reorderProductVariants(
+  productId: string,
+  rawPositions: unknown,
+): { product: ProductRecord | null; userErrors: ProductReorderUserError[] } {
+  const { positions, userErrors } = readProductVariantPositions(rawPositions);
+  const effectiveVariants = store.getEffectiveVariantsByProductId(productId);
+  const variantIds = new Set(effectiveVariants.map((variant) => variant.id));
+
+  for (const [index, position] of positions.entries()) {
+    if (!variantIds.has(position.id)) {
+      userErrors.push({ field: ['positions', `${index}`, 'id'], message: 'Variant does not exist' });
+    }
+  }
+
+  if (userErrors.length > 0) {
+    return { product: null, userErrors };
+  }
+
+  const nextVariants = applySequentialReorder(effectiveVariants, positions, (variant) => variant.id);
+  store.replaceStagedVariantsForProduct(productId, nextVariants);
+
+  return {
+    product: syncProductInventorySummary(productId),
     userErrors: [],
   };
 }
@@ -576,7 +711,6 @@ function addProductsToCollection(
     .map((candidate) => candidate.position)
     .filter((position): position is number => typeof position === 'number' && Number.isFinite(position));
   const firstPosition = existingPositions.length > 0 ? Math.max(...existingPositions) + 1 : 0;
-  const addedCount = existingProductIds.length;
 
   for (const [index, productId] of existingProductIds.entries()) {
     const nextCollections = [
@@ -635,25 +769,56 @@ function serializeJobSelectionSet(
   return result;
 }
 
-function readProductSetInventoryQuantity(raw: unknown): number | null {
+interface ProductSetInventoryQuantityInput {
+  locationId: string | null;
+  name: string;
+  quantity: number;
+}
+
+function readProductSetInventoryQuantityInputs(raw: unknown): ProductSetInventoryQuantityInput[] {
   if (typeof raw === 'number' && Number.isFinite(raw)) {
-    return Math.floor(raw);
+    return [
+      {
+        locationId: null,
+        name: 'available',
+        quantity: Math.floor(raw),
+      },
+    ];
   }
 
   if (!Array.isArray(raw)) {
-    return null;
+    return [];
   }
 
-  const quantities = raw
+  return raw
     .filter((value): value is Record<string, unknown> => isObject(value))
-    .map((value) => value['quantity'])
-    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+    .map((value) => {
+      const rawQuantity = value['quantity'];
+      if (typeof rawQuantity !== 'number' || !Number.isFinite(rawQuantity)) {
+        return null;
+      }
+
+      const rawName = value['name'];
+      const rawLocationId = value['locationId'];
+      return {
+        locationId: typeof rawLocationId === 'string' && rawLocationId.trim() ? rawLocationId : null,
+        name: typeof rawName === 'string' && rawName.trim() ? rawName : 'available',
+        quantity: Math.floor(rawQuantity),
+      };
+    })
+    .filter((value): value is ProductSetInventoryQuantityInput => value !== null);
+}
+
+function readProductSetInventoryQuantity(raw: unknown): number | null {
+  const quantities = readProductSetInventoryQuantityInputs(raw)
+    .filter((value) => value.name === 'available')
+    .map((value) => value.quantity);
 
   if (quantities.length === 0) {
     return null;
   }
 
-  return quantities.reduce((total, quantity) => total + Math.floor(quantity), 0);
+  return quantities.reduce((total, quantity) => total + quantity, 0);
 }
 
 function readProductSetSelectedOptions(raw: unknown): ProductVariantRecord['selectedOptions'] {
@@ -1354,13 +1519,20 @@ function insertOptionAtPosition(
 }
 
 function productUsesOnlyDefaultOptionState(options: ProductOptionRecord[], variants: ProductVariantRecord[]): boolean {
+  const selectedOptions = variants[0]?.selectedOptions ?? [];
+  const variantUsesDefaultSelection =
+    selectedOptions.length === 0 ||
+    (selectedOptions.length === 1 &&
+      selectedOptions[0]?.name === 'Title' &&
+      selectedOptions[0]?.value === 'Default Title');
+
   return (
     options.length === 1 &&
     options[0]?.name === 'Title' &&
     options[0]?.optionValues.length === 1 &&
     options[0]?.optionValues[0]?.name === 'Default Title' &&
     variants.length === 1 &&
-    variants[0]?.selectedOptions.length === 0
+    variantUsesDefaultSelection
   );
 }
 
@@ -1403,7 +1575,7 @@ function restoreDefaultOptionState(
         ...baseVariant,
         productId: product.id,
         title: 'Default Title',
-        selectedOptions: [],
+        selectedOptions: [{ name: 'Title', value: 'Default Title' }],
       },
     ],
   };
@@ -1425,6 +1597,28 @@ function remapVariantSelectionsForOptionUpdate(
         value: renamedValues.get(selectedOption.value) ?? selectedOption.value,
       };
     });
+
+    return {
+      ...structuredClone(variant),
+      title: deriveVariantTitle(null, selectedOptions, variant.title),
+      selectedOptions,
+    };
+  });
+}
+
+function reorderVariantSelectionsForOptions(
+  variants: ProductVariantRecord[],
+  options: ProductOptionRecord[],
+): ProductVariantRecord[] {
+  return variants.map((variant) => {
+    const selectedByName = new Map(
+      variant.selectedOptions.map((selectedOption) => [selectedOption.name, selectedOption]),
+    );
+    const selectedOptions = options
+      .map((option) => selectedByName.get(option.name) ?? null)
+      .filter(
+        (selectedOption): selectedOption is ProductVariantRecord['selectedOptions'][number] => selectedOption !== null,
+      );
 
     return {
       ...structuredClone(variant),
@@ -1500,9 +1694,16 @@ function updateOptionRecords(
   }
 
   nextOptions.splice(existingIndex, 1);
+  const reorderedOptions = insertOptionAtPosition(nextOptions, target, optionInput['position']);
+  const remappedVariants = remapVariantSelectionsForOptionUpdate(
+    variants,
+    previousOptionName,
+    target.name,
+    renamedValues,
+  );
   return {
-    options: insertOptionAtPosition(nextOptions, target, optionInput['position']),
-    variants: remapVariantSelectionsForOptionUpdate(variants, previousOptionName, target.name, renamedValues),
+    options: reorderedOptions,
+    variants: reorderVariantSelectionsForOptions(remappedVariants, reorderedOptions),
   };
 }
 
@@ -1806,6 +2007,146 @@ function readInventoryItemInput(
   };
 }
 
+function makeInventoryItemForInventoryQuantities(
+  existing: ProductVariantRecord['inventoryItem'],
+): NonNullable<ProductVariantRecord['inventoryItem']> {
+  return existing
+    ? structuredClone(existing)
+    : {
+        id: makeSyntheticGid('InventoryItem'),
+        tracked: null,
+        requiresShipping: null,
+        measurement: null,
+        countryCodeOfOrigin: null,
+        provinceCodeOfOrigin: null,
+        harmonizedSystemCode: null,
+        inventoryLevels: null,
+      };
+}
+
+function upsertInventoryLevelQuantity(
+  quantities: InventoryLevelRecord['quantities'],
+  name: string,
+  quantity: number,
+  updatedAt: string | null = makeSyntheticTimestamp(),
+): InventoryLevelRecord['quantities'] {
+  const nextQuantities = quantities.map((candidate) => structuredClone(candidate));
+  const existingIndex = nextQuantities.findIndex((candidate) => candidate.name === name);
+  const nextQuantity = {
+    name,
+    quantity,
+    updatedAt,
+  };
+
+  if (existingIndex >= 0) {
+    nextQuantities[existingIndex] = {
+      ...nextQuantities[existingIndex]!,
+      ...nextQuantity,
+    };
+  } else {
+    nextQuantities.push(nextQuantity);
+  }
+
+  return nextQuantities;
+}
+
+function ensureInventoryLevelQuantity(
+  quantities: InventoryLevelRecord['quantities'],
+  name: string,
+  quantity: number,
+): InventoryLevelRecord['quantities'] {
+  if (quantities.some((candidate) => candidate.name === name)) {
+    return quantities;
+  }
+
+  return [
+    ...quantities,
+    {
+      name,
+      quantity,
+      updatedAt: null,
+    },
+  ];
+}
+
+function buildProductSetInventoryLevels(
+  variant: ProductVariantRecord,
+  rawInventoryQuantities: unknown,
+  inventoryItem: NonNullable<ProductVariantRecord['inventoryItem']>,
+): InventoryLevelRecord[] | null {
+  const quantityInputs = readProductSetInventoryQuantityInputs(rawInventoryQuantities);
+  if (quantityInputs.length === 0) {
+    return inventoryItem.inventoryLevels ?? null;
+  }
+
+  const inputsByLocationId = new Map<string, ProductSetInventoryQuantityInput[]>();
+  for (const quantityInput of quantityInputs) {
+    const locationId = quantityInput.locationId ?? DEFAULT_INVENTORY_LEVEL_LOCATION_ID;
+    inputsByLocationId.set(locationId, [...(inputsByLocationId.get(locationId) ?? []), quantityInput]);
+  }
+
+  const existingLevelsByLocationId = new Map(
+    (inventoryItem.inventoryLevels ?? buildSyntheticInventoryLevels({ ...variant, inventoryItem })).map((level) => [
+      level.location?.id ?? DEFAULT_INVENTORY_LEVEL_LOCATION_ID,
+      level,
+    ]),
+  );
+
+  return [...inputsByLocationId.entries()].map(([locationId, quantityInputsForLocation]) => {
+    const existingLevel = existingLevelsByLocationId.get(locationId) ?? null;
+    const effectiveLocation = store.getEffectiveLocationById(locationId);
+    let quantities = existingLevel?.quantities.map((quantity) => structuredClone(quantity)) ?? [];
+
+    for (const quantityInput of quantityInputsForLocation) {
+      quantities = upsertInventoryLevelQuantity(quantities, quantityInput.name, quantityInput.quantity);
+      if (quantityInput.name === 'available') {
+        quantities = upsertInventoryLevelQuantity(quantities, 'on_hand', quantityInput.quantity, null);
+      }
+    }
+
+    quantities = ensureInventoryLevelQuantity(quantities, 'available', 0);
+    quantities = ensureInventoryLevelQuantity(quantities, 'on_hand', 0);
+    quantities = ensureInventoryLevelQuantity(quantities, 'incoming', 0);
+
+    return {
+      id: existingLevel?.id ?? buildStableSyntheticInventoryLevelId(inventoryItem.id, locationId),
+      cursor: existingLevel?.cursor ?? null,
+      location: {
+        id: locationId,
+        name: effectiveLocation?.name ?? existingLevel?.location?.name ?? null,
+      },
+      quantities,
+    };
+  });
+}
+
+function applyProductSetInventoryQuantitiesToVariant(
+  variant: ProductVariantRecord,
+  input: Record<string, unknown>,
+): ProductVariantRecord {
+  if (!hasOwnField(input, 'inventoryQuantities')) {
+    return variant;
+  }
+
+  const quantityInputs = readProductSetInventoryQuantityInputs(input['inventoryQuantities']);
+  if (quantityInputs.length === 0) {
+    return variant;
+  }
+
+  const inventoryItem = makeInventoryItemForInventoryQuantities(variant.inventoryItem);
+  const inventoryLevels = buildProductSetInventoryLevels(variant, input['inventoryQuantities'], inventoryItem);
+  const availableQuantity = readProductSetInventoryQuantity(input['inventoryQuantities']);
+
+  return {
+    ...variant,
+    inventoryQuantity: availableQuantity ?? variant.inventoryQuantity,
+    inventoryItem: {
+      ...inventoryItem,
+      inventoryLevels,
+    },
+  };
+}
+
 function deriveVariantTitle(
   rawTitle: unknown,
   selectedOptions: ProductVariantRecord['selectedOptions'],
@@ -1849,17 +2190,27 @@ function makeCreatedVariantRecord(
 function makeCreatedProductSetVariantRecord(productId: string, input: Record<string, unknown>): ProductVariantRecord {
   const variant = makeCreatedVariantRecord(productId, input);
 
-  return {
-    ...variant,
-    taxable: variant.taxable ?? true,
-    inventoryPolicy: variant.inventoryPolicy ?? 'DENY',
-    inventoryItem: variant.inventoryItem
-      ? {
-          ...variant.inventoryItem,
-          measurement: variant.inventoryItem.measurement ?? makeDefaultInventoryItemMeasurement(),
-        }
-      : null,
-  };
+  return applyProductSetInventoryQuantitiesToVariant(
+    {
+      ...variant,
+      taxable: variant.taxable ?? true,
+      inventoryPolicy: variant.inventoryPolicy ?? 'DENY',
+      inventoryItem: variant.inventoryItem
+        ? {
+            ...variant.inventoryItem,
+            measurement: variant.inventoryItem.measurement ?? makeDefaultInventoryItemMeasurement(),
+          }
+        : null,
+    },
+    input,
+  );
+}
+
+function updateProductSetVariantRecord(
+  existing: ProductVariantRecord,
+  input: Record<string, unknown>,
+): ProductVariantRecord {
+  return applyProductSetInventoryQuantitiesToVariant(updateVariantRecord(existing, input), input);
 }
 
 function updateVariantRecord(existing: ProductVariantRecord, input: Record<string, unknown>): ProductVariantRecord {
@@ -1974,6 +2325,40 @@ function syncProductInventorySummary(productId: string): ProductRecord | null {
     ...structuredClone(existingProduct),
     updatedAt: makeSyntheticTimestamp(),
     totalInventory: sumVariantInventory(effectiveVariants),
+    tracksInventory: deriveTracksInventory(effectiveVariants),
+  };
+
+  store.stageUpdateProduct(nextProduct);
+  return store.getEffectiveProductById(productId);
+}
+
+function sumProductSetCreateInventory(variants: ProductVariantRecord[]): number | null {
+  const quantities = variants
+    .filter((variant) => variant.inventoryItem?.tracked !== false)
+    .map((variant) => variant.inventoryQuantity)
+    .filter((inventoryQuantity): inventoryQuantity is number => typeof inventoryQuantity === 'number');
+
+  if (quantities.length === 0) {
+    return null;
+  }
+
+  return quantities.reduce((total, quantity) => total + quantity, 0);
+}
+
+function syncProductSetInventorySummary(
+  productId: string,
+  previousProduct: ProductRecord | null,
+): ProductRecord | null {
+  const existingProduct = store.getEffectiveProductById(productId);
+  if (!existingProduct) {
+    return null;
+  }
+
+  const effectiveVariants = store.getEffectiveVariantsByProductId(productId);
+  const nextProduct: ProductRecord = {
+    ...structuredClone(existingProduct),
+    updatedAt: makeSyntheticTimestamp(),
+    totalInventory: previousProduct ? previousProduct.totalInventory : sumProductSetCreateInventory(effectiveVariants),
     tracksInventory: deriveTracksInventory(effectiveVariants),
   };
 
@@ -3288,7 +3673,7 @@ function buildProductSetVariantRecords(productId: string, rawVariants: unknown):
       const rawId = normalized['id'];
       const existing = typeof rawId === 'string' ? (existingVariantsById.get(rawId) ?? null) : null;
       return existing
-        ? updateVariantRecord(existing, normalized)
+        ? updateProductSetVariantRecord(existing, normalized)
         : makeCreatedProductSetVariantRecord(productId, normalized);
     });
 }
@@ -3799,22 +4184,6 @@ function readConnectionNodeEntries(value: unknown): Array<{ node: unknown; posit
   return [];
 }
 
-function readPublicationNodes(value: unknown): unknown[] {
-  if (!isObject(value)) {
-    return [];
-  }
-
-  if (Array.isArray(value['nodes'])) {
-    return value['nodes'];
-  }
-
-  if (Array.isArray(value['edges'])) {
-    return value['edges'].map((edge) => (isObject(edge) ? edge['node'] : null)).filter((node) => node !== null);
-  }
-
-  return [];
-}
-
 function readMediaNodes(value: unknown): unknown[] {
   if (!isObject(value)) {
     return [];
@@ -4107,7 +4476,7 @@ function buildSyntheticInventoryLevels(
   variant: ProductVariantRecord,
 ): NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']> {
   const level = buildSyntheticInventoryLevel(variant);
-  return level ? [level] : [];
+  return level && !store.isLocationDeleted(level.location?.id ?? '') ? [level] : [];
 }
 
 function getEffectiveInventoryLevels(
@@ -4118,7 +4487,7 @@ function getEffectiveInventoryLevels(
     return buildSyntheticInventoryLevels(variant);
   }
 
-  return structuredClone(hydratedLevels);
+  return structuredClone(hydratedLevels).filter((level) => !store.isLocationDeleted(level.location?.id ?? ''));
 }
 
 function serializeInventoryLevelQuantities(
@@ -4166,6 +4535,59 @@ function serializeInventoryLevelQuantities(
   });
 }
 
+function serializeInventoryLevelNode(
+  variant: ProductVariantRecord,
+  level: NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']>[number],
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const nodeResult: Record<string, unknown> = {};
+  for (const levelSelection of field.selectionSet?.selections ?? []) {
+    if (levelSelection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const levelKey = levelSelection.alias?.value ?? levelSelection.name.value;
+    switch (levelSelection.name.value) {
+      case 'id':
+        nodeResult[levelKey] = level.id;
+        break;
+      case 'location': {
+        if (!level.location) {
+          nodeResult[levelKey] = null;
+          break;
+        }
+        const effectiveLocation = readEffectiveInventoryLevelLocation(level.location);
+        const locationResult: Record<string, unknown> = {};
+        for (const locationSelection of levelSelection.selectionSet?.selections ?? []) {
+          if (locationSelection.kind !== Kind.FIELD) {
+            continue;
+          }
+          const locationKey = locationSelection.alias?.value ?? locationSelection.name.value;
+          switch (locationSelection.name.value) {
+            case 'id':
+              locationResult[locationKey] = effectiveLocation.id;
+              break;
+            case 'name':
+              locationResult[locationKey] = effectiveLocation.name;
+              break;
+            default:
+              locationResult[locationKey] = null;
+          }
+        }
+        nodeResult[levelKey] = locationResult;
+        break;
+      }
+      case 'quantities':
+        nodeResult[levelKey] = serializeInventoryLevelQuantities(variant, level, levelSelection, variables);
+        break;
+      default:
+        nodeResult[levelKey] = null;
+    }
+  }
+  return nodeResult;
+}
+
 function serializeInventoryLevelsConnection(
   variant: ProductVariantRecord,
   field: FieldNode,
@@ -4180,148 +4602,16 @@ function serializeInventoryLevelsConnection(
     hasNextPage,
     hasPreviousPage,
   } = paginateConnectionItems(allLevels, field, variables, getLevelCursor);
-  const result: Record<string, unknown> = {};
-
-  for (const selection of field.selectionSet?.selections ?? []) {
-    if (selection.kind !== Kind.FIELD) {
-      continue;
-    }
-
-    const key = selection.alias?.value ?? selection.name.value;
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = levels.map((level) => {
-          const nodeResult: Record<string, unknown> = {};
-          for (const levelSelection of selection.selectionSet?.selections ?? []) {
-            if (levelSelection.kind !== Kind.FIELD) {
-              continue;
-            }
-
-            const levelKey = levelSelection.alias?.value ?? levelSelection.name.value;
-            switch (levelSelection.name.value) {
-              case 'id':
-                nodeResult[levelKey] = level.id;
-                break;
-              case 'location': {
-                if (!level.location) {
-                  nodeResult[levelKey] = null;
-                  break;
-                }
-                const effectiveLocation = readEffectiveInventoryLevelLocation(level.location);
-                const locationResult: Record<string, unknown> = {};
-                for (const locationSelection of levelSelection.selectionSet?.selections ?? []) {
-                  if (locationSelection.kind !== Kind.FIELD) {
-                    continue;
-                  }
-                  const locationKey = locationSelection.alias?.value ?? locationSelection.name.value;
-                  switch (locationSelection.name.value) {
-                    case 'id':
-                      locationResult[locationKey] = effectiveLocation.id;
-                      break;
-                    case 'name':
-                      locationResult[locationKey] = effectiveLocation.name;
-                      break;
-                    default:
-                      locationResult[locationKey] = null;
-                  }
-                }
-                nodeResult[levelKey] = locationResult;
-                break;
-              }
-              case 'quantities':
-                nodeResult[levelKey] = serializeInventoryLevelQuantities(variant, level, levelSelection, variables);
-                break;
-              default:
-                nodeResult[levelKey] = null;
-            }
-          }
-          return nodeResult;
-        });
-        break;
-      case 'edges':
-        result[key] = levels.map((level) => {
-          const edgeResult: Record<string, unknown> = {};
-          for (const edgeSelection of selection.selectionSet?.selections ?? []) {
-            if (edgeSelection.kind !== Kind.FIELD) {
-              continue;
-            }
-
-            const edgeKey = edgeSelection.alias?.value ?? edgeSelection.name.value;
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edgeResult[edgeKey] = getLevelCursor(level);
-                break;
-              case 'node': {
-                const nodeResult: Record<string, unknown> = {};
-                for (const levelSelection of edgeSelection.selectionSet?.selections ?? []) {
-                  if (levelSelection.kind !== Kind.FIELD) {
-                    continue;
-                  }
-
-                  const levelKey = levelSelection.alias?.value ?? levelSelection.name.value;
-                  switch (levelSelection.name.value) {
-                    case 'id':
-                      nodeResult[levelKey] = level.id;
-                      break;
-                    case 'location': {
-                      if (!level.location) {
-                        nodeResult[levelKey] = null;
-                        break;
-                      }
-                      const effectiveLocation = readEffectiveInventoryLevelLocation(level.location);
-                      const locationResult: Record<string, unknown> = {};
-                      for (const locationSelection of levelSelection.selectionSet?.selections ?? []) {
-                        if (locationSelection.kind !== Kind.FIELD) {
-                          continue;
-                        }
-                        const locationKey = locationSelection.alias?.value ?? locationSelection.name.value;
-                        switch (locationSelection.name.value) {
-                          case 'id':
-                            locationResult[locationKey] = effectiveLocation.id;
-                            break;
-                          case 'name':
-                            locationResult[locationKey] = effectiveLocation.name;
-                            break;
-                          default:
-                            locationResult[locationKey] = null;
-                        }
-                      }
-                      nodeResult[levelKey] = locationResult;
-                      break;
-                    }
-                    case 'quantities':
-                      nodeResult[levelKey] = serializeInventoryLevelQuantities(
-                        variant,
-                        level,
-                        levelSelection,
-                        variables,
-                      );
-                      break;
-                    default:
-                      nodeResult[levelKey] = null;
-                  }
-                }
-                edgeResult[edgeKey] = nodeResult;
-                break;
-              }
-              default:
-                edgeResult[edgeKey] = null;
-            }
-          }
-          return edgeResult;
-        });
-        break;
-      case 'pageInfo':
-        result[key] = serializeConnectionPageInfo(selection, levels, hasNextPage, hasPreviousPage, getLevelCursor, {
-          prefixCursors: false,
-        });
-        break;
-      default:
-        result[key] = null;
-    }
-  }
-
-  return result;
+  return serializeConnection(field, {
+    items: levels,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: getLevelCursor,
+    serializeNode: (level, selection) => serializeInventoryLevelNode(variant, level, selection, variables),
+    pageInfoOptions: {
+      prefixCursors: false,
+    },
+  });
 }
 
 function serializeInventoryMutationUserErrors(
@@ -4692,62 +4982,14 @@ function serializeVariantsConnection(
     hasNextPage,
     hasPreviousPage,
   } = paginateConnectionItems(allVariants, field, variables, (variant) => variant.id);
-  const result: Record<string, unknown> = {};
-
-  for (const selection of field.selectionSet?.selections ?? []) {
-    if (selection.kind !== Kind.FIELD) {
-      continue;
-    }
-
-    const key = selection.alias?.value ?? selection.name.value;
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = variants.map((variant) =>
-          serializeVariantSelectionSet(variant, selection.selectionSet?.selections ?? [], variables),
-        );
-        break;
-      case 'edges':
-        result[key] = variants.map((variant) => {
-          const edgeResult: Record<string, unknown> = {};
-          for (const edgeSelection of selection.selectionSet?.selections ?? []) {
-            if (edgeSelection.kind !== Kind.FIELD) {
-              continue;
-            }
-
-            const edgeKey = edgeSelection.alias?.value ?? edgeSelection.name.value;
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edgeResult[edgeKey] = `cursor:${variant.id}`;
-                break;
-              case 'node':
-                edgeResult[edgeKey] = serializeVariantSelectionSet(
-                  variant,
-                  edgeSelection.selectionSet?.selections ?? [],
-                  variables,
-                );
-                break;
-              default:
-                edgeResult[edgeKey] = null;
-            }
-          }
-          return edgeResult;
-        });
-        break;
-      case 'pageInfo':
-        result[key] = serializeConnectionPageInfo(
-          selection,
-          variants,
-          hasNextPage,
-          hasPreviousPage,
-          (variant) => variant.id,
-        );
-        break;
-      default:
-        result[key] = null;
-    }
-  }
-
-  return result;
+  return serializeConnection(field, {
+    items: variants,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (variant) => variant.id,
+    serializeNode: (variant, selection) =>
+      serializeVariantSelectionSet(variant, selection.selectionSet?.selections ?? [], variables),
+  });
 }
 
 function serializeCollectionSelectionSet(
@@ -5050,62 +5292,14 @@ function serializeCollectionsConnection(
     hasNextPage,
     hasPreviousPage,
   } = paginateConnectionItems(allCollections, field, variables, (collection) => collection.id);
-  const result: Record<string, unknown> = {};
-
-  for (const selection of field.selectionSet?.selections ?? []) {
-    if (selection.kind !== Kind.FIELD) {
-      continue;
-    }
-
-    const key = selection.alias?.value ?? selection.name.value;
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = collections.map((collection) =>
-          serializeCollectionSelectionSet(collection, selection.selectionSet?.selections ?? [], variables),
-        );
-        break;
-      case 'edges':
-        result[key] = collections.map((collection) => {
-          const edgeResult: Record<string, unknown> = {};
-          for (const edgeSelection of selection.selectionSet?.selections ?? []) {
-            if (edgeSelection.kind !== Kind.FIELD) {
-              continue;
-            }
-
-            const edgeKey = edgeSelection.alias?.value ?? edgeSelection.name.value;
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edgeResult[edgeKey] = `cursor:${collection.id}`;
-                break;
-              case 'node':
-                edgeResult[edgeKey] = serializeCollectionSelectionSet(
-                  collection,
-                  edgeSelection.selectionSet?.selections ?? [],
-                  variables,
-                );
-                break;
-              default:
-                edgeResult[edgeKey] = null;
-            }
-          }
-          return edgeResult;
-        });
-        break;
-      case 'pageInfo':
-        result[key] = serializeConnectionPageInfo(
-          selection,
-          collections,
-          hasNextPage,
-          hasPreviousPage,
-          (collection) => collection.id,
-        );
-        break;
-      default:
-        result[key] = null;
-    }
-  }
-
-  return result;
+  return serializeConnection(field, {
+    items: collections,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (collection) => collection.id,
+    serializeNode: (collection, selection) =>
+      serializeCollectionSelectionSet(collection, selection.selectionSet?.selections ?? [], variables),
+  });
 }
 
 function readCollectionPublishedStatus(rawQuery: unknown): 'published' | 'unpublished' | 'any' | null {
@@ -5155,62 +5349,14 @@ function serializeTopLevelCollectionsConnection(
     hasNextPage,
     hasPreviousPage,
   } = paginateConnectionItems(allCollections, field, variables, (collection) => collection.id);
-  const result: Record<string, unknown> = {};
-
-  for (const selection of field.selectionSet?.selections ?? []) {
-    if (selection.kind !== Kind.FIELD) {
-      continue;
-    }
-
-    const key = selection.alias?.value ?? selection.name.value;
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = collections.map((collection) =>
-          serializeCollectionObject(collection, selection.selectionSet?.selections ?? [], variables),
-        );
-        break;
-      case 'edges':
-        result[key] = collections.map((collection) => {
-          const edgeResult: Record<string, unknown> = {};
-          for (const edgeSelection of selection.selectionSet?.selections ?? []) {
-            if (edgeSelection.kind !== Kind.FIELD) {
-              continue;
-            }
-
-            const edgeKey = edgeSelection.alias?.value ?? edgeSelection.name.value;
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edgeResult[edgeKey] = `cursor:${collection.id}`;
-                break;
-              case 'node':
-                edgeResult[edgeKey] = serializeCollectionObject(
-                  collection,
-                  edgeSelection.selectionSet?.selections ?? [],
-                  variables,
-                );
-                break;
-              default:
-                edgeResult[edgeKey] = null;
-            }
-          }
-          return edgeResult;
-        });
-        break;
-      case 'pageInfo':
-        result[key] = serializeConnectionPageInfo(
-          selection,
-          collections,
-          hasNextPage,
-          hasPreviousPage,
-          (collection) => collection.id,
-        );
-        break;
-      default:
-        result[key] = null;
-    }
-  }
-
-  return result;
+  return serializeConnection(field, {
+    items: collections,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (collection) => collection.id,
+    serializeNode: (collection, selection) =>
+      serializeCollectionObject(collection, selection.selectionSet?.selections ?? [], variables),
+  });
 }
 
 function serializeLocationSelectionSet(
@@ -5260,61 +5406,14 @@ function serializeTopLevelLocationsConnection(
     hasNextPage,
     hasPreviousPage,
   } = paginateConnectionItems(allLocations, field, variables, (location) => location.id);
-  const result: Record<string, unknown> = {};
-
-  for (const selection of field.selectionSet?.selections ?? []) {
-    if (selection.kind !== Kind.FIELD) {
-      continue;
-    }
-
-    const key = selection.alias?.value ?? selection.name.value;
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = locations.map((location) =>
-          serializeLocationSelectionSet(location, selection.selectionSet?.selections ?? []),
-        );
-        break;
-      case 'edges':
-        result[key] = locations.map((location) => {
-          const edgeResult: Record<string, unknown> = {};
-          for (const edgeSelection of selection.selectionSet?.selections ?? []) {
-            if (edgeSelection.kind !== Kind.FIELD) {
-              continue;
-            }
-
-            const edgeKey = edgeSelection.alias?.value ?? edgeSelection.name.value;
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edgeResult[edgeKey] = `cursor:${location.id}`;
-                break;
-              case 'node':
-                edgeResult[edgeKey] = serializeLocationSelectionSet(
-                  location,
-                  edgeSelection.selectionSet?.selections ?? [],
-                );
-                break;
-              default:
-                edgeResult[edgeKey] = null;
-            }
-          }
-          return edgeResult;
-        });
-        break;
-      case 'pageInfo':
-        result[key] = serializeConnectionPageInfo(
-          selection,
-          locations,
-          hasNextPage,
-          hasPreviousPage,
-          (location) => location.id,
-        );
-        break;
-      default:
-        result[key] = null;
-    }
-  }
-
-  return result;
+  return serializeConnection(field, {
+    items: locations,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (location) => location.id,
+    serializeNode: (location, selection) =>
+      serializeLocationSelectionSet(location, selection.selectionSet?.selections ?? []),
+  });
 }
 
 function serializePublicationSelectionSet(
@@ -5344,10 +5443,6 @@ function serializePublicationSelectionSet(
   return result;
 }
 
-function getPublicationCursorValue(publication: PublicationRecord): string {
-  return typeof publication.cursor === 'string' && publication.cursor.length > 0 ? publication.cursor : publication.id;
-}
-
 function serializePublicationCursor(publication: PublicationRecord): string {
   return typeof publication.cursor === 'string' && publication.cursor.length > 0
     ? publication.cursor
@@ -5363,79 +5458,20 @@ function serializeTopLevelPublicationsConnection(
     items: publications,
     hasNextPage,
     hasPreviousPage,
-  } = paginateConnectionItems(allPublications, field, variables, (publication) =>
-    getPublicationCursorValue(publication),
-  );
-  const result: Record<string, unknown> = {};
-
-  for (const selection of field.selectionSet?.selections ?? []) {
-    if (selection.kind !== Kind.FIELD) {
-      continue;
-    }
-
-    const key = selection.alias?.value ?? selection.name.value;
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = publications.map((publication) =>
-          serializePublicationSelectionSet(publication, selection.selectionSet?.selections ?? []),
-        );
-        break;
-      case 'edges':
-        result[key] = publications.map((publication) => {
-          const edgeResult: Record<string, unknown> = {};
-          for (const edgeSelection of selection.selectionSet?.selections ?? []) {
-            if (edgeSelection.kind !== Kind.FIELD) {
-              continue;
-            }
-
-            const edgeKey = edgeSelection.alias?.value ?? edgeSelection.name.value;
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edgeResult[edgeKey] = serializePublicationCursor(publication);
-                break;
-              case 'node':
-                edgeResult[edgeKey] = serializePublicationSelectionSet(
-                  publication,
-                  edgeSelection.selectionSet?.selections ?? [],
-                );
-                break;
-              default:
-                edgeResult[edgeKey] = null;
-            }
-          }
-          return edgeResult;
-        });
-        break;
-      case 'pageInfo':
-        result[key] = Object.fromEntries(
-          (selection.selectionSet?.selections ?? [])
-            .filter((pageInfoSelection): pageInfoSelection is FieldNode => pageInfoSelection.kind === Kind.FIELD)
-            .map((pageInfoSelection) => {
-              const pageInfoKey = pageInfoSelection.alias?.value ?? pageInfoSelection.name.value;
-              switch (pageInfoSelection.name.value) {
-                case 'hasNextPage':
-                  return [pageInfoKey, hasNextPage];
-                case 'hasPreviousPage':
-                  return [pageInfoKey, hasPreviousPage];
-                case 'startCursor':
-                  return [pageInfoKey, publications[0] ? serializePublicationCursor(publications[0]) : null];
-                case 'endCursor':
-                  return [
-                    pageInfoKey,
-                    publications.length > 0 ? serializePublicationCursor(publications[publications.length - 1]!) : null,
-                  ];
-                default:
-                  return [pageInfoKey, null];
-              }
-            }),
-        );
-        break;
-      default:
-        result[key] = null;
-    }
-  }
-
-  return result;
+  } = paginateConnectionItems(allPublications, field, variables, serializePublicationCursor, {
+    parseCursor: (raw) => raw,
+  });
+  return serializeConnection(field, {
+    items: publications,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: serializePublicationCursor,
+    serializeNode: (publication, selection) =>
+      serializePublicationSelectionSet(publication, selection.selectionSet?.selections ?? []),
+    pageInfoOptions: {
+      prefixCursors: false,
+    },
+  });
 }
 
 function serializeMediaImageSelectionSet(
@@ -5581,59 +5617,14 @@ function serializeMediaConnection(
     hasNextPage,
     hasPreviousPage,
   } = paginateConnectionItems(allMediaRecords, field, variables, (mediaRecord) => mediaRecord.key);
-  const result: Record<string, unknown> = {};
-
-  for (const selection of field.selectionSet?.selections ?? []) {
-    if (selection.kind !== Kind.FIELD) {
-      continue;
-    }
-
-    const key = selection.alias?.value ?? selection.name.value;
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = mediaRecords.map((mediaRecord) =>
-          serializeMediaSelectionSet(mediaRecord, selection.selectionSet?.selections ?? []),
-        );
-        break;
-      case 'edges':
-        result[key] = mediaRecords.map((mediaRecord) => {
-          const edgeResult: Record<string, unknown> = {};
-          for (const edgeSelection of selection.selectionSet?.selections ?? []) {
-            if (edgeSelection.kind !== Kind.FIELD) {
-              continue;
-            }
-
-            const edgeKey = edgeSelection.alias?.value ?? edgeSelection.name.value;
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edgeResult[edgeKey] = `cursor:${mediaRecord.key}`;
-                break;
-              case 'node':
-                edgeResult[edgeKey] = serializeMediaSelectionSet(
-                  mediaRecord,
-                  edgeSelection.selectionSet?.selections ?? [],
-                );
-                break;
-              default:
-                edgeResult[edgeKey] = null;
-            }
-          }
-          return edgeResult;
-        });
-        break;
-      case 'pageInfo':
-        result[key] = serializeConnectionPageInfo(
-          selection,
-          mediaRecords,
-          hasNextPage,
-          hasPreviousPage,
-          (mediaRecord) => mediaRecord.key,
-        );
-        break;
-      default:
-        result[key] = null;
-    }
-  }
+  const result = serializeConnection(field, {
+    items: mediaRecords,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (mediaRecord) => mediaRecord.key,
+    serializeNode: (mediaRecord, selection) =>
+      serializeMediaSelectionSet(mediaRecord, selection.selectionSet?.selections ?? []),
+  });
 
   promoteProcessingMediaAfterRead(productId, allMediaRecords);
   return result;
@@ -5712,59 +5703,14 @@ function serializeProductImagesConnection(
     hasNextPage,
     hasPreviousPage,
   } = paginateConnectionItems(allImageRecords, field, variables, (mediaRecord) => mediaRecord.key);
-  const result: Record<string, unknown> = {};
-
-  for (const selection of field.selectionSet?.selections ?? []) {
-    if (selection.kind !== Kind.FIELD) {
-      continue;
-    }
-
-    const key = selection.alias?.value ?? selection.name.value;
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = imageRecords.map((mediaRecord) =>
-          serializeProductImageSelectionSet(mediaRecord, selection.selectionSet?.selections ?? []),
-        );
-        break;
-      case 'edges':
-        result[key] = imageRecords.map((mediaRecord) => {
-          const edgeResult: Record<string, unknown> = {};
-          for (const edgeSelection of selection.selectionSet?.selections ?? []) {
-            if (edgeSelection.kind !== Kind.FIELD) {
-              continue;
-            }
-
-            const edgeKey = edgeSelection.alias?.value ?? edgeSelection.name.value;
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edgeResult[edgeKey] = `cursor:${mediaRecord.key}`;
-                break;
-              case 'node':
-                edgeResult[edgeKey] = serializeProductImageSelectionSet(
-                  mediaRecord,
-                  edgeSelection.selectionSet?.selections ?? [],
-                );
-                break;
-              default:
-                edgeResult[edgeKey] = null;
-            }
-          }
-          return edgeResult;
-        });
-        break;
-      case 'pageInfo':
-        result[key] = serializeConnectionPageInfo(
-          selection,
-          imageRecords,
-          hasNextPage,
-          hasPreviousPage,
-          (mediaRecord) => mediaRecord.key,
-        );
-        break;
-      default:
-        result[key] = null;
-    }
-  }
+  const result = serializeConnection(field, {
+    items: imageRecords,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (mediaRecord) => mediaRecord.key,
+    serializeNode: (mediaRecord, selection) =>
+      serializeProductImageSelectionSet(mediaRecord, selection.selectionSet?.selections ?? []),
+  });
 
   promoteProcessingMediaAfterRead(productId, allMediaRecords);
   return result;
@@ -5966,13 +5912,6 @@ function serializeProductsCount(rawQuery: unknown, selections: readonly Selectio
   return result;
 }
 
-function matchesProductVariantTerm(product: ProductRecord, field: 'sku' | 'barcode', value: string): boolean {
-  const normalizedValue = value.toLowerCase();
-  return store
-    .getEffectiveVariantsByProductId(product.id)
-    .some((variant) => typeof variant[field] === 'string' && variant[field]!.toLowerCase() === normalizedValue);
-}
-
 function matchesProductTimestampTerm(productValue: string, rawValue: string): boolean {
   const match = rawValue.match(/^(<=|>=|<|>|=)?\s*(.+)$/);
   if (!match) {
@@ -6027,6 +5966,25 @@ function matchesNullableProductTimestampTerm(productValue: string | null, rawVal
   }
 
   return productValue === null ? false : matchesProductTimestampTerm(productValue, normalizedValue);
+}
+
+function isProductPublished(product: Pick<ProductRecord, 'publicationIds' | 'status'>): boolean {
+  return product.status === 'ACTIVE' && product.publicationIds.length > 0;
+}
+
+function matchesProductPublicationStatus(product: ProductRecord, rawValue: string): boolean {
+  const normalizedValue = stripSearchValueQuotes(rawValue).trim().toLowerCase();
+  if (normalizedValue === 'published' || normalizedValue === 'visible') {
+    return isProductPublished(product);
+  }
+  if (normalizedValue === 'unpublished' || normalizedValue === 'hidden') {
+    return !isProductPublished(product);
+  }
+  if (normalizedValue === 'any') {
+    return true;
+  }
+
+  return true;
 }
 
 function isPrefixPattern(rawValue: string): boolean {
@@ -6126,6 +6084,10 @@ function matchesPositiveProductQueryTerm(product: ProductRecord, term: SearchQue
       return matchesProductTimestampTerm(product.createdAt, value);
     case 'published_at':
       return matchesNullableProductTimestampTerm(product.publishedAt ?? null, value);
+    case 'published_status':
+    case 'product_publication_status':
+    case 'publishable_status':
+      return matchesProductPublicationStatus(product, value);
     case 'updated_at':
       return matchesProductTimestampTerm(product.updatedAt, value);
     case 'tag_not':
@@ -6598,7 +6560,6 @@ function serializeProductsConnection(
   const preserveBaselinePageInfo = searchConnection !== null && beforeCursor === null && last === null;
   const calculatedHasNextPage =
     windowEnd < sortedProducts.length || (first !== null && paginatedProducts.length > first);
-  const calculatedHasPreviousPage = windowStart > 0;
 
   if (first !== null) {
     limitedProducts = limitedProducts.slice(0, first);
@@ -6610,95 +6571,24 @@ function serializeProductsConnection(
     limitedProducts = limitedProducts.slice(Math.max(0, limitedProducts.length - last));
   }
 
-  const visibleEndIndex = visibleStartIndex + limitedProducts.length;
   const hasNextPage =
     calculatedHasNextPage || (preserveBaselinePageInfo && (searchConnection?.pageInfo.hasNextPage ?? false));
   const hasPreviousPage =
     visibleStartIndex > 0 || (preserveBaselinePageInfo && (searchConnection?.pageInfo.hasPreviousPage ?? false));
 
-  const result: Record<string, unknown> = {};
-
-  for (const selection of field.selectionSet?.selections ?? []) {
-    if (selection.kind !== Kind.FIELD) {
-      continue;
-    }
-
-    const key = selection.alias?.value ?? selection.name.value;
-
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = limitedProducts.map((product) =>
-          serializeSelectionSet(product, selection.selectionSet?.selections ?? [], variables),
-        );
-        break;
-      case 'edges':
-        result[key] = limitedProducts.map((product) => {
-          const edgeResult: Record<string, unknown> = {};
-          for (const edgeSelection of selection.selectionSet?.selections ?? []) {
-            if (edgeSelection.kind !== Kind.FIELD) {
-              continue;
-            }
-
-            const edgeKey = edgeSelection.alias?.value ?? edgeSelection.name.value;
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edgeResult[edgeKey] = resolveCatalogProductCursor(product.id, searchConnection);
-                break;
-              case 'node':
-                edgeResult[edgeKey] = serializeSelectionSet(
-                  product,
-                  edgeSelection.selectionSet?.selections ?? [],
-                  variables,
-                );
-                break;
-              default:
-                edgeResult[edgeKey] = null;
-            }
-          }
-          return edgeResult;
-        });
-        break;
-      case 'pageInfo':
-        result[key] = Object.fromEntries(
-          (selection.selectionSet?.selections ?? [])
-            .filter((pageInfoSelection): pageInfoSelection is FieldNode => pageInfoSelection.kind === Kind.FIELD)
-            .map((pageInfoSelection) => {
-              const pageInfoKey = pageInfoSelection.alias?.value ?? pageInfoSelection.name.value;
-              switch (pageInfoSelection.name.value) {
-                case 'hasNextPage':
-                  return [pageInfoKey, hasNextPage];
-                case 'hasPreviousPage':
-                  return [pageInfoKey, hasPreviousPage];
-                case 'startCursor':
-                  return [
-                    pageInfoKey,
-                    limitedProducts[0]
-                      ? resolveCatalogProductCursor(limitedProducts[0].id, searchConnection)
-                      : preserveBaselinePageInfo
-                        ? (searchConnection?.pageInfo.startCursor ?? null)
-                        : null,
-                  ];
-                case 'endCursor':
-                  return [
-                    pageInfoKey,
-                    limitedProducts.length > 0
-                      ? resolveCatalogProductCursor(limitedProducts[limitedProducts.length - 1]!.id, searchConnection)
-                      : preserveBaselinePageInfo
-                        ? (searchConnection?.pageInfo.endCursor ?? null)
-                        : null,
-                  ];
-                default:
-                  return [pageInfoKey, null];
-              }
-            }),
-        );
-        break;
-      default:
-        result[key] = null;
-    }
-  }
-
-  return result;
+  return serializeConnection(field, {
+    items: limitedProducts,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (product) => resolveCatalogProductCursor(product.id, searchConnection),
+    serializeNode: (product, selection) =>
+      serializeSelectionSet(product, selection.selectionSet?.selections ?? [], variables),
+    pageInfoOptions: {
+      prefixCursors: false,
+      fallbackStartCursor: preserveBaselinePageInfo ? (searchConnection?.pageInfo.startCursor ?? null) : null,
+      fallbackEndCursor: preserveBaselinePageInfo ? (searchConnection?.pageInfo.endCursor ?? null) : null,
+    },
+  });
 }
 
 function normalizeUpstreamPublication(value: unknown, cursor?: string | null): PublicationRecord | null {
@@ -7530,7 +7420,7 @@ export function handleProductMutation(
         );
       }
 
-      const product = syncProductInventorySummary(productId) ?? store.getEffectiveProductById(productId);
+      const product = syncProductSetInventorySummary(productId, existing) ?? store.getEffectiveProductById(productId);
       return {
         data: {
           [responseKey]: {
@@ -7927,7 +7817,7 @@ export function handleProductMutation(
           data: {
             [responseKey]: {
               product: null,
-              userErrors: [{ field: ['productId'], message: 'Product not found' }],
+              userErrors: [{ field: ['productId'], message: 'Product does not exist' }],
             },
           },
         };
@@ -8001,6 +7891,23 @@ export function handleProductMutation(
       }
 
       const optionInput = readProductInput(args['option']);
+      const rawOptionId = optionInput['id'];
+      if (typeof rawOptionId === 'string') {
+        const optionExists = store
+          .getEffectiveOptionsByProductId(productId)
+          .some((option) => option.id === rawOptionId && option.productId === productId);
+        if (!optionExists) {
+          return {
+            data: {
+              [responseKey]: {
+                product: serializeProduct(existingProduct, getChildField(field, 'product'), variables),
+                userErrors: [{ field: ['option'], message: 'Option does not exist' }],
+              },
+            },
+          };
+        }
+      }
+
       const updateResult = updateOptionRecords(
         productId,
         store.getEffectiveOptionsByProductId(productId),
@@ -8067,6 +7974,32 @@ export function handleProductMutation(
 
       const effectiveOptions = store.getEffectiveOptionsByProductId(productId);
       const effectiveVariants = store.getEffectiveVariantsByProductId(productId);
+      const optionIds = Array.isArray(args['options'])
+        ? args['options'].filter((value): value is string => typeof value === 'string')
+        : [];
+      const existingOptionIds = new Set(effectiveOptions.map((option) => option.id));
+      const unknownOptionErrors = optionIds
+        .map((optionId, index) =>
+          existingOptionIds.has(optionId)
+            ? null
+            : {
+                field: ['options', String(index)],
+                message: 'Option does not exist',
+              },
+        )
+        .filter((userError): userError is { field: string[]; message: string } => userError !== null);
+      if (unknownOptionErrors.length > 0) {
+        return {
+          data: {
+            [responseKey]: {
+              deletedOptionsIds: [],
+              product: serializeProduct(existingProduct, getChildField(field, 'product'), variables),
+              userErrors: unknownOptionErrors,
+            },
+          },
+        };
+      }
+
       const deleteResult = deleteOptionRecords(productId, effectiveOptions, args['options']);
       let nextOptions = deleteResult.options;
       let nextVariants = effectiveVariants;
@@ -8320,6 +8253,44 @@ export function handleProductMutation(
               ? serializeJobSelectionSet(result.job, getChildField(field, 'job')?.selectionSet?.selections ?? [])
               : null,
             userErrors: result.userErrors,
+          },
+        },
+      };
+    }
+    case 'productReorderMedia': {
+      const rawProductId = args['id'];
+      const productId = typeof rawProductId === 'string' ? rawProductId : null;
+      if (!productId) {
+        return {
+          data: {
+            [responseKey]: {
+              job: null,
+              mediaUserErrors: [{ field: ['id'], message: 'Product id is required' }],
+            },
+          },
+        };
+      }
+
+      const existingProduct = store.getEffectiveProductById(productId);
+      if (!existingProduct) {
+        return {
+          data: {
+            [responseKey]: {
+              job: null,
+              mediaUserErrors: [{ field: ['id'], message: 'Product not found' }],
+            },
+          },
+        };
+      }
+
+      const result = reorderProductMedia(productId, args['moves']);
+      return {
+        data: {
+          [responseKey]: {
+            job: result.job
+              ? serializeJobSelectionSet(result.job, getChildField(field, 'job')?.selectionSet?.selections ?? [])
+              : null,
+            mediaUserErrors: result.userErrors,
           },
         },
       };
@@ -9249,6 +9220,42 @@ export function handleProductMutation(
           [responseKey]: {
             product: serializeProduct(product, getChildField(field, 'product'), variables),
             userErrors: [],
+          },
+        },
+      };
+    }
+    case 'productVariantsBulkReorder': {
+      const rawProductId = args['productId'];
+      const productId = typeof rawProductId === 'string' ? rawProductId : null;
+      if (!productId) {
+        return {
+          data: {
+            [responseKey]: {
+              product: null,
+              userErrors: [{ field: ['productId'], message: 'Product id is required' }],
+            },
+          },
+        };
+      }
+
+      const existingProduct = store.getEffectiveProductById(productId);
+      if (!existingProduct) {
+        return {
+          data: {
+            [responseKey]: {
+              product: null,
+              userErrors: [{ field: ['productId'], message: 'Product not found' }],
+            },
+          },
+        };
+      }
+
+      const result = reorderProductVariants(productId, args['positions']);
+      return {
+        data: {
+          [responseKey]: {
+            product: serializeProduct(result.product, getChildField(field, 'product'), variables),
+            userErrors: result.userErrors,
           },
         },
       };

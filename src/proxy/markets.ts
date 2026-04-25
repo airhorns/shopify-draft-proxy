@@ -1,12 +1,18 @@
-import { Kind, parse, type FieldNode, type FragmentDefinitionNode, type SelectionNode } from 'graphql';
+import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import { parseSearchQuery, type SearchQueryNode, type SearchQueryTerm } from '../search-query-parser.js';
 import {
+  defaultGraphqlTypeConditionApplies,
+  getDocumentFragments,
   getFieldResponseKey,
   getSelectedChildFields,
+  isPlainObject,
   paginateConnectionItems,
-  serializeConnectionPageInfo,
+  projectGraphqlValue,
+  readGraphqlDataResponsePayload,
+  serializeConnection,
+  type FragmentMap,
 } from './graphql-helpers.js';
 import { store } from '../state/store.js';
 import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
@@ -20,15 +26,10 @@ import type {
   WebPresenceRecord,
 } from '../state/types.js';
 
-function responseKey(selection: FieldNode): string {
-  return selection.alias?.value ?? selection.name.value;
+function hasOwnProperty(value: object, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
 }
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-type FragmentMap = Map<string, FragmentDefinitionNode>;
 type MarketUserError = {
   field: string[];
   message: string;
@@ -140,109 +141,86 @@ function connectionFromNodes(nodes: unknown[]): Record<string, unknown> {
   };
 }
 
-function shouldApplyTypeCondition(source: Record<string, unknown>, typeCondition: string | undefined): boolean {
-  if (!typeCondition) {
-    return true;
-  }
-
+function marketTypeConditionApplies(source: Record<string, unknown>, typeCondition: string | undefined): boolean {
   const sourceTypename = typeof source['__typename'] === 'string' ? source['__typename'] : null;
   return (
-    !sourceTypename ||
-    sourceTypename === typeCondition ||
+    defaultGraphqlTypeConditionApplies(source, typeCondition) ||
     (typeCondition === 'Catalog' && sourceTypename === 'MarketCatalog')
   );
 }
 
-function projectValue(
+function projectMarketValue(
   value: unknown,
   selections: readonly SelectionNode[],
   fragments: FragmentMap,
   variables: Record<string, unknown>,
 ): unknown {
-  if (Array.isArray(value)) {
-    return value.map((item) => projectValue(item, selections, fragments, variables));
-  }
-
-  if (!isPlainObject(value)) {
-    return value ?? null;
-  }
-
-  return projectObject(value, selections, fragments, variables);
-}
-
-function projectObject(
-  source: Record<string, unknown>,
-  selections: readonly SelectionNode[],
-  fragments: FragmentMap,
-  variables: Record<string, unknown>,
-): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-
-  for (const selection of selections) {
-    if (selection.kind === Kind.INLINE_FRAGMENT) {
-      const typeCondition = selection.typeCondition?.name.value;
-      if (!shouldApplyTypeCondition(source, typeCondition)) {
-        continue;
+  return projectGraphqlValue(value, selections, fragments, {
+    shouldApplyTypeCondition: marketTypeConditionApplies,
+    projectFieldValue: ({ source, field, fieldName }) => {
+      if (
+        fieldName === 'catalogs' &&
+        typeof source['id'] === 'string' &&
+        source['id'].startsWith('gid://shopify/Market/')
+      ) {
+        return {
+          handled: true,
+          value: projectConnectionPayload(
+            catalogConnectionForMarket(source['id'], source['catalogs']),
+            field,
+            fragments,
+            variables,
+          ),
+        };
       }
-      Object.assign(result, projectObject(source, selection.selectionSet.selections, fragments, variables));
-      continue;
-    }
 
-    if (selection.kind === Kind.FRAGMENT_SPREAD) {
-      const fragment = fragments.get(selection.name.value);
-      if (!fragment || !shouldApplyTypeCondition(source, fragment.typeCondition.name.value)) {
-        continue;
+      if (source['__typename'] === 'MarketCatalog') {
+        if (fieldName === 'marketsCount') {
+          return {
+            handled: true,
+            value: serializeCountSelection(field, readConnectionEdges(source['markets']).length),
+          };
+        }
+        if (fieldName === 'operations') {
+          return {
+            handled: true,
+            value: projectMarketValue(
+              source['operations'] ?? [],
+              field.selectionSet?.selections ?? [],
+              fragments,
+              variables,
+            ),
+          };
+        }
       }
-      Object.assign(result, projectObject(source, fragment.selectionSet.selections, fragments, variables));
-      continue;
-    }
 
-    if (selection.kind !== Kind.FIELD) {
-      continue;
-    }
-
-    const fieldName = selection.name.value;
-    const key = responseKey(selection);
-    if (fieldName === '__typename') {
-      result[key] = source['__typename'] ?? null;
-      continue;
-    }
-
-    if (source['__typename'] === 'MarketCatalog') {
-      if (fieldName === 'marketsCount') {
-        result[key] = serializeCountSelection(selection, readConnectionEdges(source['markets']).length);
-        continue;
+      if (source['__typename'] === 'PriceList') {
+        if (fieldName === 'prices') {
+          return {
+            handled: true,
+            value: projectPriceListPricesConnection(source['prices'], field, fragments, variables),
+          };
+        }
+        if (fieldName === 'quantityRules') {
+          const quantityRules = isPlainObject(source['quantityRules']) ? source['quantityRules'] : emptyConnection();
+          return {
+            handled: true,
+            value: projectConnectionPayload(quantityRules, field, fragments, variables),
+          };
+        }
       }
-      if (fieldName === 'operations') {
-        result[key] = projectValue(
-          source['operations'] ?? [],
-          selection.selectionSet?.selections ?? [],
-          fragments,
-          variables,
-        );
-        continue;
-      }
-    }
 
-    if (source['__typename'] === 'PriceList') {
-      if (fieldName === 'prices') {
-        result[key] = projectPriceListPricesConnection(source['prices'], selection, fragments, variables);
-        continue;
+      const value = source[fieldName];
+      if (isPlainObject(value) && Array.isArray(value['edges'])) {
+        return {
+          handled: true,
+          value: projectConnectionPayload(value, field, fragments, variables),
+        };
       }
-      if (fieldName === 'quantityRules') {
-        const quantityRules = isPlainObject(source['quantityRules']) ? source['quantityRules'] : emptyConnection();
-        result[key] = projectConnectionPayload(quantityRules, selection, fragments, variables);
-        continue;
-      }
-    }
 
-    const value = source[fieldName];
-    result[key] = selection.selectionSet
-      ? projectSelectedFieldValue(value, selection, fragments, variables)
-      : (value ?? null);
-  }
-
-  return result;
+      return { handled: false };
+    },
+  });
 }
 
 function priceListPriceNodeMatchesQuery(node: unknown, rawQuery: unknown): boolean {
@@ -363,84 +341,28 @@ function projectConnectionPayload(
     args['last'] === undefined &&
     (first === null || first >= edges.length) &&
     window.items.length === edges.length;
-  const result: Record<string, unknown> = {};
 
-  for (const childSelection of getSelectedChildFields(selection)) {
-    const key = getFieldResponseKey(childSelection);
-    switch (childSelection.name.value) {
-      case 'nodes':
-        result[key] = window.items.map((edge) =>
-          projectValue(edge.node, childSelection.selectionSet?.selections ?? [], fragments, variables),
-        );
-        break;
-      case 'edges':
-        result[key] = window.items.map((edge) => projectEdge(edge, childSelection, fragments, variables));
-        break;
-      case 'pageInfo':
-        result[key] = preservesCapturedPageInfo
-          ? projectValue(value['pageInfo'], childSelection.selectionSet?.selections ?? [], fragments, variables)
-          : serializeConnectionPageInfo(
-              childSelection,
-              window.items,
-              window.hasNextPage,
-              window.hasPreviousPage,
-              (edge) => edge.cursor,
-              { prefixCursors: false },
-            );
-        break;
-      default:
-        result[key] = value[childSelection.name.value] ?? null;
-    }
-  }
-
-  return result;
-}
-
-function projectSelectedFieldValue(
-  value: unknown,
-  selection: FieldNode,
-  fragments: FragmentMap,
-  variables: Record<string, unknown>,
-): unknown {
-  if (isPlainObject(value) && Array.isArray(value['edges'])) {
-    return projectConnectionPayload(value, selection, fragments, variables);
-  }
-
-  return projectValue(value, selection.selectionSet?.selections ?? [], fragments, variables);
-}
-
-function projectEdge(
-  edge: ConnectionEdge,
-  selection: FieldNode,
-  fragments: FragmentMap,
-  variables: Record<string, unknown>,
-): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-
-  for (const edgeSelection of getSelectedChildFields(selection)) {
-    const key = getFieldResponseKey(edgeSelection);
-    switch (edgeSelection.name.value) {
-      case 'cursor':
-        result[key] = edge.cursor;
-        break;
-      case 'node':
-        result[key] = projectValue(edge.node, edgeSelection.selectionSet?.selections ?? [], fragments, variables);
-        break;
-      default:
-        result[key] = null;
-    }
-  }
-
-  return result;
-}
-
-function getFragments(document: string): FragmentMap {
-  const ast = parse(document);
-  return new Map(
-    ast.definitions
-      .filter((definition): definition is FragmentDefinitionNode => definition.kind === Kind.FRAGMENT_DEFINITION)
-      .map((definition) => [definition.name.value, definition]),
-  );
+  return serializeConnection(selection, {
+    items: window.items,
+    hasNextPage: window.hasNextPage,
+    hasPreviousPage: window.hasPreviousPage,
+    getCursorValue: (edge) => edge.cursor,
+    serializeNode: (edge, nodeSelection) =>
+      projectMarketValue(edge.node, nodeSelection.selectionSet?.selections ?? [], fragments, variables),
+    pageInfoOptions: {
+      prefixCursors: false,
+    },
+    serializePageInfo: (pageInfoSelection) =>
+      preservesCapturedPageInfo
+        ? (projectMarketValue(
+            value['pageInfo'],
+            pageInfoSelection.selectionSet?.selections ?? [],
+            fragments,
+            variables,
+          ) as Record<string, unknown>)
+        : undefined,
+    serializeUnknownField: (childSelection) => value[childSelection.name.value] ?? null,
+  });
 }
 
 type MarketHydrationEntry = {
@@ -635,19 +557,6 @@ function collectPriceListNodes(
   return priceLists;
 }
 
-function readRootPayload(upstreamPayload: unknown, rootField: string): unknown {
-  if (!isPlainObject(upstreamPayload)) {
-    return null;
-  }
-
-  const data = upstreamPayload['data'];
-  if (!isPlainObject(data)) {
-    return null;
-  }
-
-  return data[rootField] ?? null;
-}
-
 export function hydrateMarketsFromUpstreamResponse(
   _document: string,
   _variables: Record<string, unknown>,
@@ -667,7 +576,7 @@ export function hydrateMarketsFromUpstreamResponse(
     'marketLocalizableResources',
     'marketLocalizableResourcesByIds',
   ]) {
-    const rootPayload = readRootPayload(upstreamPayload, rootField);
+    const rootPayload = readGraphqlDataResponsePayload(upstreamPayload, rootField);
     if (rootPayload === null) {
       continue;
     }
@@ -887,6 +796,34 @@ function catalogMarkets(catalog: CatalogRecord): ConnectionEdge[] {
   return readConnectionEdges(catalog.data['markets']);
 }
 
+function catalogReferencesMarket(catalog: CatalogRecord, marketId: string): boolean {
+  return catalogMarkets(catalog).some(
+    (edge) => isPlainObject(edge.node) && typeof edge.node['id'] === 'string' && edge.node['id'] === marketId,
+  );
+}
+
+function catalogConnectionForMarket(marketId: string, existingConnection: unknown): Record<string, unknown> {
+  const edgesById = new Map<string, ConnectionEdge>();
+
+  for (const edge of readConnectionEdges(existingConnection)) {
+    if (isPlainObject(edge.node) && typeof edge.node['id'] === 'string') {
+      edgesById.set(edge.node['id'], edge);
+    }
+  }
+
+  for (const catalog of store.listEffectiveCatalogs()) {
+    if (!catalogReferencesMarket(catalog, marketId)) {
+      continue;
+    }
+    edgesById.set(catalog.id, {
+      cursor: catalogCursor(catalog),
+      node: catalog.data,
+    });
+  }
+
+  return { edges: Array.from(edgesById.values()) };
+}
+
 function catalogHasType(catalog: CatalogRecord, rawType: unknown): boolean {
   if (typeof rawType !== 'string' || rawType.length === 0) {
     return true;
@@ -997,7 +934,7 @@ function compareCatalogsBySortKey(left: CatalogRecord, right: CatalogRecord, raw
 function listCatalogsForConnection(field: FieldNode, variables: Record<string, unknown>): CatalogRecord[] {
   const args = getFieldArguments(field, variables);
   const filteredCatalogs = applyCatalogsQuery(
-    store.listBaseCatalogs().filter((catalog) => catalogHasType(catalog, args['type'])),
+    store.listEffectiveCatalogs().filter((catalog) => catalogHasType(catalog, args['type'])),
     args['query'],
   );
   const sortedCatalogs = [...filteredCatalogs].sort((left, right) =>
@@ -1018,37 +955,17 @@ function serializeCatalogsConnection(
 ): Record<string, unknown> {
   const catalogs = listCatalogsForConnection(field, variables);
   const window = paginateConnectionItems(catalogs, field, variables, catalogCursor);
-  const result: Record<string, unknown> = {};
-
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = window.items.map((catalog) =>
-          projectValue(catalog.data, selection.selectionSet?.selections ?? [], fragments, variables),
-        );
-        break;
-      case 'edges':
-        result[key] = window.items.map((catalog) =>
-          projectEdge({ cursor: catalogCursor(catalog), node: catalog.data }, selection, fragments, variables),
-        );
-        break;
-      case 'pageInfo':
-        result[key] = serializeConnectionPageInfo(
-          selection,
-          window.items,
-          window.hasNextPage,
-          window.hasPreviousPage,
-          catalogCursor,
-          { prefixCursors: false },
-        );
-        break;
-      default:
-        result[key] = null;
-    }
-  }
-
-  return result;
+  return serializeConnection(field, {
+    items: window.items,
+    hasNextPage: window.hasNextPage,
+    hasPreviousPage: window.hasPreviousPage,
+    getCursorValue: catalogCursor,
+    serializeNode: (catalog, selection) =>
+      projectMarketValue(catalog.data, selection.selectionSet?.selections ?? [], fragments, variables),
+    pageInfoOptions: {
+      prefixCursors: false,
+    },
+  });
 }
 
 function serializeCatalogsCount(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
@@ -1091,37 +1008,17 @@ function serializePriceListsConnection(
 ): Record<string, unknown> {
   const priceLists = listPriceListsForConnection(field, variables);
   const window = paginateConnectionItems(priceLists, field, variables, priceListCursor);
-  const result: Record<string, unknown> = {};
-
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = window.items.map((priceList) =>
-          projectValue(priceList.data, selection.selectionSet?.selections ?? [], fragments, variables),
-        );
-        break;
-      case 'edges':
-        result[key] = window.items.map((priceList) =>
-          projectEdge({ cursor: priceListCursor(priceList), node: priceList.data }, selection, fragments, variables),
-        );
-        break;
-      case 'pageInfo':
-        result[key] = serializeConnectionPageInfo(
-          selection,
-          window.items,
-          window.hasNextPage,
-          window.hasPreviousPage,
-          priceListCursor,
-          { prefixCursors: false },
-        );
-        break;
-      default:
-        result[key] = null;
-    }
-  }
-
-  return result;
+  return serializeConnection(field, {
+    items: window.items,
+    hasNextPage: window.hasNextPage,
+    hasPreviousPage: window.hasPreviousPage,
+    getCursorValue: priceListCursor,
+    serializeNode: (priceList, selection) =>
+      projectMarketValue(priceList.data, selection.selectionSet?.selections ?? [], fragments, variables),
+    pageInfoOptions: {
+      prefixCursors: false,
+    },
+  });
 }
 
 function normalizeHandleParts(value: string): string {
@@ -1176,7 +1073,7 @@ function serializeMarketLocalizationMarket(
   variables: Record<string, unknown>,
 ): unknown {
   const market = store.getEffectiveMarketById(marketId);
-  return projectValue(market, selections, fragments, variables);
+  return projectMarketValue(market, selections, fragments, variables);
 }
 
 function serializeMarketLocalization(
@@ -1191,7 +1088,7 @@ function serializeMarketLocalization(
       continue;
     }
 
-    const key = responseKey(selection);
+    const key = getFieldResponseKey(selection);
     switch (selection.name.value) {
       case 'key':
         result[key] = localization.key;
@@ -1231,7 +1128,7 @@ function serializeMarketLocalizableContent(
         continue;
       }
 
-      const key = responseKey(selection);
+      const key = getFieldResponseKey(selection);
       switch (selection.name.value) {
         case 'key':
           result[key] = content.key;
@@ -1266,7 +1163,7 @@ function serializeMarketLocalizableResource(
       continue;
     }
 
-    const key = responseKey(selection);
+    const key = getFieldResponseKey(selection);
     switch (selection.name.value) {
       case 'resourceId':
         result[key] = resource.resourceId;
@@ -1326,10 +1223,6 @@ function marketLocalizableResourceCursor(resource: MarketLocalizableResourceReco
   return resource.resourceId;
 }
 
-function serializedMarketLocalizableResourceCursor(resource: MarketLocalizableResourceRecord): string {
-  return `cursor:${marketLocalizableResourceCursor(resource)}`;
-}
-
 function serializeMarketLocalizableResourcesConnection(
   resources: MarketLocalizableResourceRecord[],
   field: FieldNode,
@@ -1337,56 +1230,14 @@ function serializeMarketLocalizableResourcesConnection(
   fragments: FragmentMap,
 ): Record<string, unknown> {
   const window = paginateConnectionItems(resources, field, variables, marketLocalizableResourceCursor);
-  const result: Record<string, unknown> = {};
-
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = window.items.map((resource) =>
-          serializeMarketLocalizableResource(resource, selection.selectionSet?.selections ?? [], fragments, variables),
-        );
-        break;
-      case 'edges':
-        result[key] = window.items.map((resource) => {
-          const edgeResult: Record<string, unknown> = {};
-          for (const edgeSelection of getSelectedChildFields(selection)) {
-            const edgeKey = getFieldResponseKey(edgeSelection);
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edgeResult[edgeKey] = serializedMarketLocalizableResourceCursor(resource);
-                break;
-              case 'node':
-                edgeResult[edgeKey] = serializeMarketLocalizableResource(
-                  resource,
-                  edgeSelection.selectionSet?.selections ?? [],
-                  fragments,
-                  variables,
-                );
-                break;
-              default:
-                edgeResult[edgeKey] = null;
-            }
-          }
-          return edgeResult;
-        });
-        break;
-      case 'pageInfo':
-        result[key] = serializeConnectionPageInfo(
-          selection,
-          window.items,
-          window.hasNextPage,
-          window.hasPreviousPage,
-          marketLocalizableResourceCursor,
-          { prefixCursors: true },
-        );
-        break;
-      default:
-        result[key] = null;
-    }
-  }
-
-  return result;
+  return serializeConnection(field, {
+    items: window.items,
+    hasNextPage: window.hasNextPage,
+    hasPreviousPage: window.hasPreviousPage,
+    getCursorValue: marketLocalizableResourceCursor,
+    serializeNode: (resource, selection) =>
+      serializeMarketLocalizableResource(resource, selection.selectionSet?.selections ?? [], fragments, variables),
+  });
 }
 
 function readInput(raw: unknown): Record<string, unknown> {
@@ -2176,7 +2027,9 @@ function projectMutationPayload(
   fragments: FragmentMap,
   variables: Record<string, unknown>,
 ): unknown {
-  return field.selectionSet ? projectValue(payload, field.selectionSet.selections, fragments, variables) : payload;
+  return field.selectionSet
+    ? projectMarketValue(payload, field.selectionSet.selections, fragments, variables)
+    : payload;
 }
 
 function handleMarketCreate(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
@@ -2275,6 +2128,317 @@ function handleMarketDelete(field: FieldNode, variables: Record<string, unknown>
 
   if (errors.length === 0 && id) {
     store.stageDeleteMarket(id);
+  }
+
+  return projectMutationPayload(
+    {
+      deletedId: errors.length === 0 ? id : null,
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function catalogTitleInUse(title: string, excludedCatalogId?: string): boolean {
+  return store
+    .listEffectiveCatalogs()
+    .some((catalog) => catalog.id !== excludedCatalogId && catalog.data['title'] === title);
+}
+
+function catalogError(field: string[], message: string, code: string): MarketUserError {
+  return { field, message, code };
+}
+
+function catalogMarketIds(catalog: CatalogRecord): string[] {
+  return catalogMarkets(catalog).flatMap((edge) =>
+    isPlainObject(edge.node) && typeof edge.node['id'] === 'string' ? [edge.node['id']] : [],
+  );
+}
+
+function readCatalogContextMarketIds(
+  rawContext: unknown,
+  fieldPrefix: string[],
+  errors: MarketUserError[],
+  options: { requireMarketContext: boolean },
+): string[] {
+  const context = readInput(rawContext);
+  const companyLocationIds = readStringArray(context['companyLocationIds']);
+  if (companyLocationIds.length > 0) {
+    errors.push(
+      catalogError(
+        [...fieldPrefix, 'companyLocationIds'],
+        'Only market catalog contexts are supported locally',
+        'UNSUPPORTED_CONTEXT',
+      ),
+    );
+  }
+
+  const marketIds = readStringArray(context['marketIds']);
+  if (options.requireMarketContext && marketIds.length === 0) {
+    errors.push(catalogError([...fieldPrefix, 'marketIds'], 'At least one market is required', 'BLANK'));
+  }
+
+  const uniqueMarketIds: string[] = [];
+  const seenMarketIds = new Set<string>();
+  for (const marketId of marketIds) {
+    if (seenMarketIds.has(marketId)) {
+      continue;
+    }
+    seenMarketIds.add(marketId);
+    if (!marketId.startsWith('gid://shopify/Market/')) {
+      errors.push(catalogError([...fieldPrefix, 'marketIds'], 'Market does not exist', 'MARKET_NOT_FOUND'));
+      continue;
+    }
+    if (!store.getEffectiveMarketRecordById(marketId)) {
+      errors.push(catalogError([...fieldPrefix, 'marketIds'], 'Market does not exist', 'MARKET_NOT_FOUND'));
+      continue;
+    }
+    uniqueMarketIds.push(marketId);
+  }
+
+  return uniqueMarketIds;
+}
+
+function marketNodeForCatalogConnection(marketId: string): Record<string, unknown> {
+  const market = store.getEffectiveMarketRecordById(marketId);
+  return market ? { __typename: 'Market', ...market.data, id: market.id } : { __typename: 'Market', id: marketId };
+}
+
+function marketConnectionFromIds(marketIds: string[]): Record<string, unknown> {
+  return {
+    edges: marketIds.map((marketId) => ({
+      cursor: marketId,
+      node: marketNodeForCatalogConnection(marketId),
+    })),
+    pageInfo: {
+      hasNextPage: false,
+      hasPreviousPage: false,
+      startCursor: marketIds[0] ?? null,
+      endCursor: marketIds.at(-1) ?? null,
+    },
+  };
+}
+
+function catalogStatusFromInput(
+  input: Record<string, unknown>,
+  existing: Record<string, unknown> | null,
+  errors: MarketUserError[],
+): string {
+  const rawStatus = input['status'];
+  if (rawStatus === undefined) {
+    return typeof existing?.['status'] === 'string' ? existing['status'] : 'ACTIVE';
+  }
+
+  if (rawStatus === 'ACTIVE' || rawStatus === 'DRAFT' || rawStatus === 'ARCHIVED') {
+    return rawStatus;
+  }
+
+  errors.push(catalogError(['input', 'status'], "Status isn't included in the list", 'INCLUSION'));
+  return typeof existing?.['status'] === 'string' ? existing['status'] : 'ACTIVE';
+}
+
+function linkedPriceList(rawPriceListId: unknown, existing: Record<string, unknown> | null): unknown {
+  if (rawPriceListId === null) {
+    return null;
+  }
+  if (typeof rawPriceListId === 'string' && rawPriceListId.length > 0) {
+    return store.getBasePriceListById(rawPriceListId) ?? { __typename: 'PriceList', id: rawPriceListId };
+  }
+  return existing?.['priceList'] ?? null;
+}
+
+function linkedPublication(rawPublicationId: unknown, existing: Record<string, unknown> | null): unknown {
+  if (rawPublicationId === null) {
+    return null;
+  }
+  if (typeof rawPublicationId === 'string' && rawPublicationId.length > 0) {
+    const publication = store.listEffectivePublications().find((candidate) => candidate.id === rawPublicationId);
+    return publication
+      ? { __typename: 'Publication', ...publication }
+      : { __typename: 'Publication', id: rawPublicationId };
+  }
+  return existing?.['publication'] ?? null;
+}
+
+function buildCatalogRecord(
+  id: string,
+  input: Record<string, unknown>,
+  existingCatalog: CatalogRecord | null,
+  errors: MarketUserError[],
+  contextMarketIds: string[],
+): CatalogRecord {
+  const existing = existingCatalog?.data ?? null;
+  const rawTitle = input['title'];
+  const title =
+    typeof rawTitle === 'string' ? rawTitle : typeof existing?.['title'] === 'string' ? existing['title'] : '';
+  const trimmedTitle = title.trim();
+
+  if (trimmedTitle.length === 0) {
+    errors.push(catalogError(['input', 'title'], "Title can't be blank", 'BLANK'));
+  } else if (trimmedTitle.length < 2) {
+    errors.push(catalogError(['input', 'title'], 'Title is too short (minimum is 2 characters)', 'TOO_SHORT'));
+  } else if (catalogTitleInUse(trimmedTitle, existingCatalog?.id)) {
+    errors.push(catalogError(['input', 'title'], `Title '${trimmedTitle}' has already been taken`, 'TAKEN'));
+  }
+
+  const now = makeSyntheticTimestamp();
+  const data: Record<string, unknown> = {
+    ...(existing ? structuredClone(existing) : {}),
+    __typename: 'MarketCatalog',
+    id,
+    title: trimmedTitle,
+    status: catalogStatusFromInput(input, existing, errors),
+    markets: marketConnectionFromIds(contextMarketIds),
+    operations: Array.isArray(existing?.['operations']) ? structuredClone(existing['operations']) : [],
+    priceList: hasOwnProperty(input, 'priceListId')
+      ? linkedPriceList(input['priceListId'], existing)
+      : (existing?.['priceList'] ?? null),
+    publication: hasOwnProperty(input, 'publicationId')
+      ? linkedPublication(input['publicationId'], existing)
+      : (existing?.['publication'] ?? null),
+    createdAt: typeof existing?.['createdAt'] === 'string' ? existing['createdAt'] : now,
+    updatedAt: now,
+  };
+
+  return {
+    id,
+    cursor: existingCatalog?.cursor ?? id,
+    data: data as Record<string, JsonValue>,
+  };
+}
+
+function selectedCatalogPayload(catalog: CatalogRecord | null): unknown {
+  return catalog ? catalog.data : null;
+}
+
+function handleCatalogCreate(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+  const args = getFieldArguments(field, variables);
+  const input = readInput(args['input']);
+  const errors: MarketUserError[] = [];
+  const marketIds = readCatalogContextMarketIds(input['context'], ['input', 'context'], errors, {
+    requireMarketContext: true,
+  });
+  const catalog = buildCatalogRecord(makeSyntheticGid('MarketCatalog'), input, null, errors, marketIds);
+
+  if (errors.length === 0) {
+    store.stageCreateCatalog(catalog);
+  }
+
+  return projectMutationPayload(
+    {
+      catalog: errors.length === 0 ? selectedCatalogPayload(catalog) : null,
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function handleCatalogUpdate(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+  const args = getFieldArguments(field, variables);
+  const id = typeof args['id'] === 'string' ? args['id'] : null;
+  const input = readInput(args['input']);
+  const errors: MarketUserError[] = [];
+  const existingCatalog = id ? store.getEffectiveCatalogRecordById(id) : null;
+
+  if (!id || !existingCatalog) {
+    errors.push(catalogError(['id'], 'Catalog does not exist', 'CATALOG_NOT_FOUND'));
+  } else if (!catalogHasType(existingCatalog, 'MARKET')) {
+    errors.push(catalogError(['id'], 'Only market catalogs are supported locally', 'UNSUPPORTED_CONTEXT'));
+  }
+
+  const marketIds =
+    existingCatalog && hasOwnProperty(input, 'context')
+      ? readCatalogContextMarketIds(input['context'], ['input', 'context'], errors, { requireMarketContext: true })
+      : existingCatalog
+        ? catalogMarketIds(existingCatalog)
+        : [];
+  const catalog = id && existingCatalog ? buildCatalogRecord(id, input, existingCatalog, errors, marketIds) : null;
+
+  if (errors.length === 0 && catalog) {
+    store.stageUpdateCatalog(catalog);
+  }
+
+  return projectMutationPayload(
+    {
+      catalog: errors.length === 0 ? selectedCatalogPayload(catalog) : null,
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function handleCatalogContextUpdate(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
+  const args = getFieldArguments(field, variables);
+  const catalogId = typeof args['catalogId'] === 'string' ? args['catalogId'] : null;
+  const errors: MarketUserError[] = [];
+  const existingCatalog = catalogId ? store.getEffectiveCatalogRecordById(catalogId) : null;
+
+  if (!catalogId || !existingCatalog) {
+    errors.push(catalogError(['catalogId'], 'Catalog does not exist', 'CATALOG_NOT_FOUND'));
+  } else if (!catalogHasType(existingCatalog, 'MARKET')) {
+    errors.push(catalogError(['catalogId'], 'Only market catalogs are supported locally', 'UNSUPPORTED_CONTEXT'));
+  }
+
+  const nextMarketIds = new Set(existingCatalog ? catalogMarketIds(existingCatalog) : []);
+  for (const marketId of readCatalogContextMarketIds(args['contextsToRemove'], ['contextsToRemove'], errors, {
+    requireMarketContext: false,
+  })) {
+    nextMarketIds.delete(marketId);
+  }
+  for (const marketId of readCatalogContextMarketIds(args['contextsToAdd'], ['contextsToAdd'], errors, {
+    requireMarketContext: false,
+  })) {
+    nextMarketIds.add(marketId);
+  }
+
+  if (existingCatalog && nextMarketIds.size === 0) {
+    errors.push(catalogError(['contextsToAdd', 'marketIds'], 'At least one market is required', 'BLANK'));
+  }
+
+  const catalog =
+    catalogId && existingCatalog
+      ? buildCatalogRecord(catalogId, {}, existingCatalog, errors, Array.from(nextMarketIds))
+      : null;
+
+  if (errors.length === 0 && catalog) {
+    store.stageUpdateCatalog(catalog);
+  }
+
+  return projectMutationPayload(
+    {
+      catalog: errors.length === 0 ? selectedCatalogPayload(catalog) : null,
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function handleCatalogDelete(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+  const args = getFieldArguments(field, variables);
+  const id = typeof args['id'] === 'string' ? args['id'] : null;
+  const errors: MarketUserError[] = [];
+  const existingCatalog = id ? store.getEffectiveCatalogRecordById(id) : null;
+
+  if (!id || !existingCatalog) {
+    errors.push(catalogError(['id'], 'Catalog does not exist', 'CATALOG_NOT_FOUND'));
+  } else if (!catalogHasType(existingCatalog, 'MARKET')) {
+    errors.push(catalogError(['id'], 'Only market catalogs are supported locally', 'UNSUPPORTED_CONTEXT'));
+  }
+
+  if (errors.length === 0 && id) {
+    store.stageDeleteCatalog(id);
   }
 
   return projectMutationPayload(
@@ -2439,7 +2603,7 @@ function projectMarketLocalizationMutationPayload(
           : null;
         break;
       case 'userErrors':
-        result[key] = projectValue(
+        result[key] = projectMarketValue(
           payload['userErrors'],
           selection.selectionSet?.selections ?? [],
           fragments,
@@ -2610,37 +2774,17 @@ function serializeMarketsConnection(
 ): Record<string, unknown> {
   const markets = listMarketsForConnection(field, variables);
   const window = paginateConnectionItems(markets, field, variables, marketCursor);
-  const result: Record<string, unknown> = {};
-
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = window.items.map((market) =>
-          projectValue(market.data, selection.selectionSet?.selections ?? [], fragments, variables),
-        );
-        break;
-      case 'edges':
-        result[key] = window.items.map((market) =>
-          projectEdge({ cursor: marketCursor(market), node: market.data }, selection, fragments, variables),
-        );
-        break;
-      case 'pageInfo':
-        result[key] = serializeConnectionPageInfo(
-          selection,
-          window.items,
-          window.hasNextPage,
-          window.hasPreviousPage,
-          marketCursor,
-          { prefixCursors: false },
-        );
-        break;
-      default:
-        result[key] = null;
-    }
-  }
-
-  return result;
+  return serializeConnection(field, {
+    items: window.items,
+    hasNextPage: window.hasNextPage,
+    hasPreviousPage: window.hasPreviousPage,
+    getCursorValue: marketCursor,
+    serializeNode: (market, selection) =>
+      projectMarketValue(market.data, selection.selectionSet?.selections ?? [], fragments, variables),
+    pageInfoOptions: {
+      prefixCursors: false,
+    },
+  });
 }
 
 function webPresenceCursor(webPresence: WebPresenceRecord): string {
@@ -2656,42 +2800,17 @@ function serializeWebPresencesConnection(
   const args = getFieldArguments(field, variables);
   const sortedWebPresences = args['reverse'] === true ? [...webPresences].reverse() : webPresences;
   const window = paginateConnectionItems(sortedWebPresences, field, variables, webPresenceCursor);
-  const result: Record<string, unknown> = {};
-
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-        result[key] = window.items.map((webPresence) =>
-          projectValue(webPresence.data, selection.selectionSet?.selections ?? [], fragments, variables),
-        );
-        break;
-      case 'edges':
-        result[key] = window.items.map((webPresence) =>
-          projectEdge(
-            { cursor: webPresenceCursor(webPresence), node: webPresence.data },
-            selection,
-            fragments,
-            variables,
-          ),
-        );
-        break;
-      case 'pageInfo':
-        result[key] = serializeConnectionPageInfo(
-          selection,
-          window.items,
-          window.hasNextPage,
-          window.hasPreviousPage,
-          webPresenceCursor,
-          { prefixCursors: false },
-        );
-        break;
-      default:
-        result[key] = null;
-    }
-  }
-
-  return result;
+  return serializeConnection(field, {
+    items: window.items,
+    hasNextPage: window.hasNextPage,
+    hasPreviousPage: window.hasPreviousPage,
+    getCursorValue: webPresenceCursor,
+    serializeNode: (webPresence, selection) =>
+      projectMarketValue(webPresence.data, selection.selectionSet?.selections ?? [], fragments, variables),
+    pageInfoOptions: {
+      prefixCursors: false,
+    },
+  });
 }
 
 function overlayMarketsResolvedValuesWebPresences(rootPayload: unknown): unknown {
@@ -2759,7 +2878,7 @@ function rootPayloadForField(field: FieldNode, variables: Record<string, unknown
     case 'catalog': {
       const args = getFieldArguments(field, variables);
       const id = typeof args['id'] === 'string' ? args['id'] : null;
-      return id ? store.getBaseCatalogById(id) : null;
+      return id ? store.getEffectiveCatalogById(id) : null;
     }
     case 'catalogs':
       return serializeCatalogsConnection(field, variables, fragments);
@@ -2783,10 +2902,10 @@ function rootPayloadForField(field: FieldNode, variables: Record<string, unknown
 
 export function handleMarketsQuery(document: string, variables: Record<string, unknown>): Record<string, unknown> {
   const data: Record<string, unknown> = {};
-  const fragments = getFragments(document);
+  const fragments = getDocumentFragments(document);
 
   for (const field of getRootFields(document)) {
-    const key = responseKey(field);
+    const key = getFieldResponseKey(field);
     const rootPayload = rootPayloadForField(field, variables, fragments);
     data[key] =
       field.name.value === 'markets' ||
@@ -2799,7 +2918,7 @@ export function handleMarketsQuery(document: string, variables: Record<string, u
       field.name.value === 'webPresences'
         ? rootPayload
         : field.selectionSet
-          ? projectValue(rootPayload, field.selectionSet.selections, fragments, variables)
+          ? projectMarketValue(rootPayload, field.selectionSet.selections, fragments, variables)
           : rootPayload;
   }
 
@@ -2808,10 +2927,10 @@ export function handleMarketsQuery(document: string, variables: Record<string, u
 
 export function handleMarketMutation(document: string, variables: Record<string, unknown>): Record<string, unknown> {
   const data: Record<string, unknown> = {};
-  const fragments = getFragments(document);
+  const fragments = getDocumentFragments(document);
 
   for (const field of getRootFields(document)) {
-    const key = responseKey(field);
+    const key = getFieldResponseKey(field);
     switch (field.name.value) {
       case 'marketCreate':
         data[key] = handleMarketCreate(field, variables, fragments);
@@ -2821,6 +2940,18 @@ export function handleMarketMutation(document: string, variables: Record<string,
         break;
       case 'marketDelete':
         data[key] = handleMarketDelete(field, variables, fragments);
+        break;
+      case 'catalogCreate':
+        data[key] = handleCatalogCreate(field, variables, fragments);
+        break;
+      case 'catalogUpdate':
+        data[key] = handleCatalogUpdate(field, variables, fragments);
+        break;
+      case 'catalogContextUpdate':
+        data[key] = handleCatalogContextUpdate(field, variables, fragments);
+        break;
+      case 'catalogDelete':
+        data[key] = handleCatalogDelete(field, variables, fragments);
         break;
       case 'webPresenceCreate':
         data[key] = handleWebPresenceCreate(field, variables, fragments);
@@ -2863,7 +2994,7 @@ export function seedMarketsFromCapture(capture: unknown): boolean {
   let seeded = false;
 
   for (const root of roots) {
-    const payload = readRootPayload(capture, root);
+    const payload = readGraphqlDataResponsePayload(capture, root);
     if (payload === null) {
       continue;
     }

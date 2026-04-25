@@ -1,0 +1,27 @@
+{
+  "scenarioId": "webhook-subscription-conformance",
+  "operationNames": [
+    "webhookSubscription",
+    "webhookSubscriptions",
+    "webhookSubscriptionsCount",
+    "webhookSubscriptionCreate",
+    "webhookSubscriptionUpdate",
+    "webhookSubscriptionDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "empty-state-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhook-subscription-conformance.json"
+  ],
+  "runtimeTestFiles": ["tests/unit/webhook-subscription-conformance-fixture.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/webhook-subscription-catalog-read.graphql",
+    "variablesPath": "config/parity-requests/webhook-subscription-catalog-read.variables.json"
+  },
+  "comparisonMode": "captured-fixture",
+  "notes": "HAR-267 captured Admin GraphQL 2026-04 API-created webhook subscription empty catalog/count reads, unknown detail null behavior, create/update/delete lifecycle payloads, detail read-after-create/update/delete, missing URI validation, and unknown-id update/delete userErrors. The generic parity runner does not replay this fixture because webhook subscription runtime staging is not implemented; registry entries remain unimplemented until local state and downstream read behavior exist. The capture explicitly excludes app TOML webhooks and does not trigger webhook deliveries.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  }
+}

@@ -1,0 +1,891 @@
+{
+  "capturedAt": "2026-04-25T22:28:41.491Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "setup": {
+    "orderCreate": {
+      "query": "#graphql\n  mutation FulfillmentDetailEventsOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        createdAt\n        updatedAt\n        displayFinancialStatus\n        displayFulfillmentStatus\n        note\n        tags\n        customAttributes { key value }\n        subtotalPriceSet { shopMoney { amount currencyCode } }\n        currentTotalPriceSet { shopMoney { amount currencyCode } }\n        totalPriceSet { shopMoney { amount currencyCode } }\n        totalRefundedSet { shopMoney { amount currencyCode } }\n        lineItems(first: 5) {\n          nodes {\n            id\n            title\n            quantity\n            sku\n            variantTitle\n            originalUnitPriceSet { shopMoney { amount currencyCode } }\n          }\n        }\n        fulfillmentOrders(first: 5) {\n          nodes {\n            id\n            status\n            requestStatus\n            assignedLocation { name }\n            lineItems(first: 5) {\n              nodes {\n                id\n                totalQuantity\n                remainingQuantity\n                lineItem { id title }\n              }\n            }\n          }\n        }\n      }\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "order": {
+          "email": "hermes-fulfillment-event-1777156118907@example.com",
+          "note": "HAR-235 fulfillment detail/event capture 1777156118907",
+          "tags": ["parity-probe", "har-235", "fulfillment-event"],
+          "test": true,
+          "lineItems": [
+            {
+              "title": "HAR-235 fulfillment event item 1777156118907",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "10.00",
+                  "currencyCode": "CAD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": false,
+              "sku": "HAR-235-1777156118907"
+            }
+          ],
+          "transactions": [
+            {
+              "kind": "SALE",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "test": true,
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "10.00",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ]
+        },
+        "options": null
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "orderCreate": {
+            "order": {
+              "id": "gid://shopify/Order/8710681985330",
+              "name": "#1013",
+              "createdAt": "2026-04-25T22:28:39Z",
+              "updatedAt": "2026-04-25T22:28:39Z",
+              "displayFinancialStatus": "PAID",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "note": "HAR-235 fulfillment detail/event capture 1777156118907",
+              "tags": ["fulfillment-event", "har-235", "parity-probe"],
+              "customAttributes": [],
+              "subtotalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalRefundedSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19268060250418",
+                    "title": "HAR-235 fulfillment event item 1777156118907",
+                    "quantity": 1,
+                    "sku": "HAR-235-1777156118907",
+                    "variantTitle": null,
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              },
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9633710506290",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "Shop location"
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19417022234930",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19268060250418",
+                            "title": "HAR-235 fulfillment event item 1777156118907"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 48,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "fulfillmentCreate": {
+      "query": "#graphql\n  #graphql\n  fragment FulfillmentDetailEventsFields on Fulfillment {\n    id\n    status\n    displayStatus\n    createdAt\n    updatedAt\n    deliveredAt\n    estimatedDeliveryAt\n    inTransitAt\n    trackingInfo(first: 1) {\n      number\n      url\n      company\n    }\n    events(first: 5) {\n      nodes {\n        id\n        status\n        message\n        happenedAt\n        createdAt\n        estimatedDeliveryAt\n        city\n        province\n        country\n        zip\n        address1\n        latitude\n        longitude\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    service {\n      id\n      handle\n      serviceName\n      trackingSupport\n      type\n      location {\n        id\n        name\n      }\n    }\n    location {\n      id\n      name\n    }\n    originAddress {\n      address1\n      address2\n      city\n      countryCode\n      provinceCode\n      zip\n    }\n    fulfillmentLineItems(first: 5) {\n      nodes {\n        id\n        quantity\n        lineItem {\n          id\n          title\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n\n  mutation FulfillmentDetailEventsFulfillmentCreate($fulfillment: FulfillmentInput!, $message: String) {\n    fulfillmentCreate(fulfillment: $fulfillment, message: $message) {\n      fulfillment {\n        ...FulfillmentDetailEventsFields\n      }\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "fulfillment": {
+          "notifyCustomer": false,
+          "trackingInfo": {
+            "number": "HAR235-CREATE-1777156118907",
+            "url": "https://example.com/track/HAR235-CREATE-1777156118907",
+            "company": "Hermes"
+          },
+          "lineItemsByFulfillmentOrder": [
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9633710506290"
+            }
+          ]
+        },
+        "message": "HAR-235 fulfillment detail/event capture"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "fulfillmentCreate": {
+            "fulfillment": {
+              "id": "gid://shopify/Fulfillment/7859241517362",
+              "status": "SUCCESS",
+              "displayStatus": "FULFILLED",
+              "createdAt": "2026-04-25T22:28:39Z",
+              "updatedAt": "2026-04-25T22:28:39Z",
+              "deliveredAt": null,
+              "estimatedDeliveryAt": null,
+              "inTransitAt": null,
+              "trackingInfo": [
+                {
+                  "number": "HAR235-CREATE-1777156118907",
+                  "url": "https://example.com/track/HAR235-CREATE-1777156118907",
+                  "company": "Hermes"
+                }
+              ],
+              "events": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "service": {
+                "id": "gid://shopify/FulfillmentService/manual",
+                "handle": "manual",
+                "serviceName": "Manual",
+                "trackingSupport": false,
+                "type": "MANUAL",
+                "location": {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location"
+                }
+              },
+              "location": {
+                "id": "gid://shopify/Location/106318430514",
+                "name": "Shop location"
+              },
+              "originAddress": null,
+              "fulfillmentLineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentLineItem/17048347050290",
+                    "quantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19268060250418",
+                      "title": "HAR-235 fulfillment event item 1777156118907"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxNzA0ODM0NzA1MDI5MCwibGFzdF92YWx1ZSI6MTcwNDgzNDcwNTAyOTB9",
+                  "endCursor": "eyJsYXN0X2lkIjoxNzA0ODM0NzA1MDI5MCwibGFzdF92YWx1ZSI6MTcwNDgzNDcwNTAyOTB9"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 28,
+            "actualQueryCost": 24,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1976,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "fulfillmentEventCreate": {
+    "query": "#graphql\n  mutation FulfillmentDetailEventsEventCreate($fulfillmentEvent: FulfillmentEventInput!) {\n    fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) {\n      fulfillmentEvent {\n        id\n        status\n        message\n        happenedAt\n        createdAt\n        estimatedDeliveryAt\n        city\n        province\n        country\n        zip\n        address1\n        latitude\n        longitude\n      }\n      userErrors { field message }\n    }\n  }\n",
+    "variables": {
+      "fulfillmentEvent": {
+        "fulfillmentId": "gid://shopify/Fulfillment/7859241517362",
+        "status": "IN_TRANSIT",
+        "message": "HAR-235 package scanned in transit",
+        "happenedAt": "2026-04-25T22:29:38Z",
+        "estimatedDeliveryAt": "2026-04-27T22:28:38Z",
+        "city": "Toronto",
+        "province": "Ontario",
+        "country": "Canada",
+        "zip": "M5H 2M9",
+        "address1": "123 Queen St W",
+        "latitude": 43.6532,
+        "longitude": -79.3832
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "fulfillmentEventCreate": {
+          "fulfillmentEvent": {
+            "id": "gid://shopify/FulfillmentEvent/35254881059122",
+            "status": "IN_TRANSIT",
+            "message": "HAR-235 package scanned in transit",
+            "happenedAt": "2026-04-25T22:29:38Z",
+            "createdAt": "2026-04-25T22:28:40Z",
+            "estimatedDeliveryAt": "2026-04-27T22:28:38Z",
+            "city": "Toronto",
+            "province": "Ontario",
+            "country": "Canada",
+            "zip": "M5H 2M9",
+            "address1": "123 Queen St W",
+            "latitude": 43.6532,
+            "longitude": -79.3832
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "detailRead": {
+    "query": "#graphql\n  #graphql\n  fragment FulfillmentDetailEventsFields on Fulfillment {\n    id\n    status\n    displayStatus\n    createdAt\n    updatedAt\n    deliveredAt\n    estimatedDeliveryAt\n    inTransitAt\n    trackingInfo(first: 1) {\n      number\n      url\n      company\n    }\n    events(first: 5) {\n      nodes {\n        id\n        status\n        message\n        happenedAt\n        createdAt\n        estimatedDeliveryAt\n        city\n        province\n        country\n        zip\n        address1\n        latitude\n        longitude\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    service {\n      id\n      handle\n      serviceName\n      trackingSupport\n      type\n      location {\n        id\n        name\n      }\n    }\n    location {\n      id\n      name\n    }\n    originAddress {\n      address1\n      address2\n      city\n      countryCode\n      provinceCode\n      zip\n    }\n    fulfillmentLineItems(first: 5) {\n      nodes {\n        id\n        quantity\n        lineItem {\n          id\n          title\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n\n  query FulfillmentDetailEventsRead($orderId: ID!, $fulfillmentId: ID!) {\n    fulfillment(id: $fulfillmentId) {\n      ...FulfillmentDetailEventsFields\n    }\n    order(id: $orderId) {\n      id\n      displayFulfillmentStatus\n      fulfillments(first: 5) {\n        ...FulfillmentDetailEventsFields\n      }\n    }\n  }\n",
+    "variables": {
+      "orderId": "gid://shopify/Order/8710681985330",
+      "fulfillmentId": "gid://shopify/Fulfillment/7859241517362"
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "fulfillment": {
+          "id": "gid://shopify/Fulfillment/7859241517362",
+          "status": "SUCCESS",
+          "displayStatus": "IN_TRANSIT",
+          "createdAt": "2026-04-25T22:28:39Z",
+          "updatedAt": "2026-04-25T22:28:40Z",
+          "deliveredAt": null,
+          "estimatedDeliveryAt": "2026-04-27T22:28:38Z",
+          "inTransitAt": "2026-04-25T22:29:38Z",
+          "trackingInfo": [
+            {
+              "number": "HAR235-CREATE-1777156118907",
+              "url": "https://example.com/track/HAR235-CREATE-1777156118907",
+              "company": "Hermes"
+            }
+          ],
+          "events": {
+            "nodes": [
+              {
+                "id": "gid://shopify/FulfillmentEvent/35254881059122",
+                "status": "IN_TRANSIT",
+                "message": "HAR-235 package scanned in transit",
+                "happenedAt": "2026-04-25T22:29:38Z",
+                "createdAt": "2026-04-25T22:28:40Z",
+                "estimatedDeliveryAt": "2026-04-27T22:28:38Z",
+                "city": "Toronto",
+                "province": "Ontario",
+                "country": "Canada",
+                "zip": "M5H 2M9",
+                "address1": "123 Queen St W",
+                "latitude": 43.6532,
+                "longitude": -79.3832
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjozNTI1NDg4MTA1OTEyMiwibGFzdF92YWx1ZSI6IjIwMjYtMDQtMjUgMjI6Mjk6MzguMDAwMDAwIn0=",
+              "endCursor": "eyJsYXN0X2lkIjozNTI1NDg4MTA1OTEyMiwibGFzdF92YWx1ZSI6IjIwMjYtMDQtMjUgMjI6Mjk6MzguMDAwMDAwIn0="
+            }
+          },
+          "service": {
+            "id": "gid://shopify/FulfillmentService/manual",
+            "handle": "manual",
+            "serviceName": "Manual",
+            "trackingSupport": false,
+            "type": "MANUAL",
+            "location": {
+              "id": "gid://shopify/Location/106318430514",
+              "name": "Shop location"
+            }
+          },
+          "location": {
+            "id": "gid://shopify/Location/106318430514",
+            "name": "Shop location"
+          },
+          "originAddress": null,
+          "fulfillmentLineItems": {
+            "nodes": [
+              {
+                "id": "gid://shopify/FulfillmentLineItem/17048347050290",
+                "quantity": 1,
+                "lineItem": {
+                  "id": "gid://shopify/LineItem/19268060250418",
+                  "title": "HAR-235 fulfillment event item 1777156118907"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxNzA0ODM0NzA1MDI5MCwibGFzdF92YWx1ZSI6MTcwNDgzNDcwNTAyOTB9",
+              "endCursor": "eyJsYXN0X2lkIjoxNzA0ODM0NzA1MDI5MCwibGFzdF92YWx1ZSI6MTcwNDgzNDcwNTAyOTB9"
+            }
+          }
+        },
+        "order": {
+          "id": "gid://shopify/Order/8710681985330",
+          "displayFulfillmentStatus": "FULFILLED",
+          "fulfillments": [
+            {
+              "id": "gid://shopify/Fulfillment/7859241517362",
+              "status": "SUCCESS",
+              "displayStatus": "IN_TRANSIT",
+              "createdAt": "2026-04-25T22:28:39Z",
+              "updatedAt": "2026-04-25T22:28:40Z",
+              "deliveredAt": null,
+              "estimatedDeliveryAt": "2026-04-27T22:28:38Z",
+              "inTransitAt": "2026-04-25T22:29:38Z",
+              "trackingInfo": [
+                {
+                  "number": "HAR235-CREATE-1777156118907",
+                  "url": "https://example.com/track/HAR235-CREATE-1777156118907",
+                  "company": "Hermes"
+                }
+              ],
+              "events": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentEvent/35254881059122",
+                    "status": "IN_TRANSIT",
+                    "message": "HAR-235 package scanned in transit",
+                    "happenedAt": "2026-04-25T22:29:38Z",
+                    "createdAt": "2026-04-25T22:28:40Z",
+                    "estimatedDeliveryAt": "2026-04-27T22:28:38Z",
+                    "city": "Toronto",
+                    "province": "Ontario",
+                    "country": "Canada",
+                    "zip": "M5H 2M9",
+                    "address1": "123 Queen St W",
+                    "latitude": 43.6532,
+                    "longitude": -79.3832
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjozNTI1NDg4MTA1OTEyMiwibGFzdF92YWx1ZSI6IjIwMjYtMDQtMjUgMjI6Mjk6MzguMDAwMDAwIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjozNTI1NDg4MTA1OTEyMiwibGFzdF92YWx1ZSI6IjIwMjYtMDQtMjUgMjI6Mjk6MzguMDAwMDAwIn0="
+                }
+              },
+              "service": {
+                "id": "gid://shopify/FulfillmentService/manual",
+                "handle": "manual",
+                "serviceName": "Manual",
+                "trackingSupport": false,
+                "type": "MANUAL",
+                "location": {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location"
+                }
+              },
+              "location": {
+                "id": "gid://shopify/Location/106318430514",
+                "name": "Shop location"
+              },
+              "originAddress": null,
+              "fulfillmentLineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentLineItem/17048347050290",
+                    "quantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19268060250418",
+                      "title": "HAR-235 fulfillment event item 1777156118907"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxNzA0ODM0NzA1MDI5MCwibGFzdF92YWx1ZSI6MTcwNDgzNDcwNTAyOTB9",
+                  "endCursor": "eyJsYXN0X2lkIjoxNzA0ODM0NzA1MDI5MCwibGFzdF92YWx1ZSI6MTcwNDgzNDcwNTAyOTB9"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 39,
+          "actualQueryCost": 29,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1971,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "fulfillmentTrackingInfoUpdate": {
+    "query": "#graphql\n  #graphql\n  fragment FulfillmentDetailEventsFields on Fulfillment {\n    id\n    status\n    displayStatus\n    createdAt\n    updatedAt\n    deliveredAt\n    estimatedDeliveryAt\n    inTransitAt\n    trackingInfo(first: 1) {\n      number\n      url\n      company\n    }\n    events(first: 5) {\n      nodes {\n        id\n        status\n        message\n        happenedAt\n        createdAt\n        estimatedDeliveryAt\n        city\n        province\n        country\n        zip\n        address1\n        latitude\n        longitude\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    service {\n      id\n      handle\n      serviceName\n      trackingSupport\n      type\n      location {\n        id\n        name\n      }\n    }\n    location {\n      id\n      name\n    }\n    originAddress {\n      address1\n      address2\n      city\n      countryCode\n      provinceCode\n      zip\n    }\n    fulfillmentLineItems(first: 5) {\n      nodes {\n        id\n        quantity\n        lineItem {\n          id\n          title\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n\n  mutation FulfillmentDetailEventsTrackingUpdate(\n    $fulfillmentId: ID!\n    $trackingInfoInput: FulfillmentTrackingInput!\n    $notifyCustomer: Boolean\n  ) {\n    fulfillmentTrackingInfoUpdate(\n      fulfillmentId: $fulfillmentId\n      trackingInfoInput: $trackingInfoInput\n      notifyCustomer: $notifyCustomer\n    ) {\n      fulfillment {\n        ...FulfillmentDetailEventsFields\n      }\n      userErrors { field message }\n    }\n  }\n",
+    "variables": {
+      "fulfillmentId": "gid://shopify/Fulfillment/7859241517362",
+      "notifyCustomer": false,
+      "trackingInfoInput": {
+        "number": "HAR235-UPDATED-1777156118907",
+        "url": "https://example.com/track/HAR235-UPDATED-1777156118907",
+        "company": "Hermes Updated"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "fulfillmentTrackingInfoUpdate": {
+          "fulfillment": {
+            "id": "gid://shopify/Fulfillment/7859241517362",
+            "status": "SUCCESS",
+            "displayStatus": "IN_TRANSIT",
+            "createdAt": "2026-04-25T22:28:39Z",
+            "updatedAt": "2026-04-25T22:28:40Z",
+            "deliveredAt": null,
+            "estimatedDeliveryAt": "2026-04-27T22:28:38Z",
+            "inTransitAt": "2026-04-25T22:29:38Z",
+            "trackingInfo": [
+              {
+                "number": "HAR235-UPDATED-1777156118907",
+                "url": "https://example.com/track/HAR235-UPDATED-1777156118907",
+                "company": "Hermes Updated"
+              }
+            ],
+            "events": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentEvent/35254881059122",
+                  "status": "IN_TRANSIT",
+                  "message": "HAR-235 package scanned in transit",
+                  "happenedAt": "2026-04-25T22:29:38Z",
+                  "createdAt": "2026-04-25T22:28:40Z",
+                  "estimatedDeliveryAt": "2026-04-27T22:28:38Z",
+                  "city": "Toronto",
+                  "province": "Ontario",
+                  "country": "Canada",
+                  "zip": "M5H 2M9",
+                  "address1": "123 Queen St W",
+                  "latitude": 43.6532,
+                  "longitude": -79.3832
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjozNTI1NDg4MTA1OTEyMiwibGFzdF92YWx1ZSI6IjIwMjYtMDQtMjUgMjI6Mjk6MzguMDAwMDAwIn0=",
+                "endCursor": "eyJsYXN0X2lkIjozNTI1NDg4MTA1OTEyMiwibGFzdF92YWx1ZSI6IjIwMjYtMDQtMjUgMjI6Mjk6MzguMDAwMDAwIn0="
+              }
+            },
+            "service": {
+              "id": "gid://shopify/FulfillmentService/manual",
+              "handle": "manual",
+              "serviceName": "Manual",
+              "trackingSupport": false,
+              "type": "MANUAL",
+              "location": {
+                "id": "gid://shopify/Location/106318430514",
+                "name": "Shop location"
+              }
+            },
+            "location": {
+              "id": "gid://shopify/Location/106318430514",
+              "name": "Shop location"
+            },
+            "originAddress": null,
+            "fulfillmentLineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentLineItem/17048347050290",
+                  "quantity": 1,
+                  "lineItem": {
+                    "id": "gid://shopify/LineItem/19268060250418",
+                    "title": "HAR-235 fulfillment event item 1777156118907"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxNzA0ODM0NzA1MDI5MCwibGFzdF92YWx1ZSI6MTcwNDgzNDcwNTAyOTB9",
+                "endCursor": "eyJsYXN0X2lkIjoxNzA0ODM0NzA1MDI5MCwibGFzdF92YWx1ZSI6MTcwNDgzNDcwNTAyOTB9"
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 28,
+          "actualQueryCost": 23,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1963,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "fulfillmentCancel": {
+    "query": "#graphql\n  #graphql\n  fragment FulfillmentDetailEventsFields on Fulfillment {\n    id\n    status\n    displayStatus\n    createdAt\n    updatedAt\n    deliveredAt\n    estimatedDeliveryAt\n    inTransitAt\n    trackingInfo(first: 1) {\n      number\n      url\n      company\n    }\n    events(first: 5) {\n      nodes {\n        id\n        status\n        message\n        happenedAt\n        createdAt\n        estimatedDeliveryAt\n        city\n        province\n        country\n        zip\n        address1\n        latitude\n        longitude\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    service {\n      id\n      handle\n      serviceName\n      trackingSupport\n      type\n      location {\n        id\n        name\n      }\n    }\n    location {\n      id\n      name\n    }\n    originAddress {\n      address1\n      address2\n      city\n      countryCode\n      provinceCode\n      zip\n    }\n    fulfillmentLineItems(first: 5) {\n      nodes {\n        id\n        quantity\n        lineItem {\n          id\n          title\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n\n  mutation FulfillmentDetailEventsCancel($id: ID!) {\n    fulfillmentCancel(id: $id) {\n      fulfillment {\n        ...FulfillmentDetailEventsFields\n      }\n      userErrors { field message }\n    }\n  }\n",
+    "variables": {
+      "id": "gid://shopify/Fulfillment/7859241517362"
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "fulfillmentCancel": {
+          "fulfillment": {
+            "id": "gid://shopify/Fulfillment/7859241517362",
+            "status": "CANCELLED",
+            "displayStatus": "CANCELED",
+            "createdAt": "2026-04-25T22:28:39Z",
+            "updatedAt": "2026-04-25T22:28:41Z",
+            "deliveredAt": null,
+            "estimatedDeliveryAt": "2026-04-27T22:28:38Z",
+            "inTransitAt": "2026-04-25T22:29:38Z",
+            "trackingInfo": [
+              {
+                "number": "HAR235-UPDATED-1777156118907",
+                "url": "https://example.com/track/HAR235-UPDATED-1777156118907",
+                "company": "Hermes Updated"
+              }
+            ],
+            "events": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentEvent/35254881059122",
+                  "status": "IN_TRANSIT",
+                  "message": "HAR-235 package scanned in transit",
+                  "happenedAt": "2026-04-25T22:29:38Z",
+                  "createdAt": "2026-04-25T22:28:40Z",
+                  "estimatedDeliveryAt": "2026-04-27T22:28:38Z",
+                  "city": "Toronto",
+                  "province": "Ontario",
+                  "country": "Canada",
+                  "zip": "M5H 2M9",
+                  "address1": "123 Queen St W",
+                  "latitude": 43.6532,
+                  "longitude": -79.3832
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjozNTI1NDg4MTA1OTEyMiwibGFzdF92YWx1ZSI6IjIwMjYtMDQtMjUgMjI6Mjk6MzguMDAwMDAwIn0=",
+                "endCursor": "eyJsYXN0X2lkIjozNTI1NDg4MTA1OTEyMiwibGFzdF92YWx1ZSI6IjIwMjYtMDQtMjUgMjI6Mjk6MzguMDAwMDAwIn0="
+              }
+            },
+            "service": {
+              "id": "gid://shopify/FulfillmentService/manual",
+              "handle": "manual",
+              "serviceName": "Manual",
+              "trackingSupport": false,
+              "type": "MANUAL",
+              "location": {
+                "id": "gid://shopify/Location/106318430514",
+                "name": "Shop location"
+              }
+            },
+            "location": {
+              "id": "gid://shopify/Location/106318430514",
+              "name": "Shop location"
+            },
+            "originAddress": null,
+            "fulfillmentLineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentLineItem/17048347050290",
+                  "quantity": 1,
+                  "lineItem": {
+                    "id": "gid://shopify/LineItem/19268060250418",
+                    "title": "HAR-235 fulfillment event item 1777156118907"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxNzA0ODM0NzA1MDI5MCwibGFzdF92YWx1ZSI6MTcwNDgzNDcwNTAyOTB9",
+                "endCursor": "eyJsYXN0X2lkIjoxNzA0ODM0NzA1MDI5MCwibGFzdF92YWx1ZSI6MTcwNDgzNDcwNTAyOTB9"
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 28,
+          "actualQueryCost": 23,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1968,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "query": "#graphql\n  mutation FulfillmentDetailEventsCleanup(\n    $orderId: ID!\n    $notifyCustomer: Boolean\n    $reason: OrderCancelReason!\n    $refund: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(\n      orderId: $orderId\n      notifyCustomer: $notifyCustomer\n      reason: $reason\n      refund: $refund\n      restock: $restock\n    ) {\n      job { id done }\n      orderCancelUserErrors { field message code }\n      userErrors { field message }\n    }\n  }\n",
+    "variables": {
+      "orderId": "gid://shopify/Order/8710681985330",
+      "notifyCustomer": false,
+      "reason": "OTHER",
+      "refund": true,
+      "restock": true
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "orderCancel": {
+          "job": {
+            "id": "gid://shopify/Job/e76b6d07-79f2-4b62-b371-f31e99bfa07e",
+            "done": false
+          },
+          "orderCancelUserErrors": [],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "response": {
+    "data": {
+      "fulfillment": {
+        "id": "gid://shopify/Fulfillment/7859241517362",
+        "status": "SUCCESS",
+        "displayStatus": "IN_TRANSIT",
+        "createdAt": "2026-04-25T22:28:39Z",
+        "updatedAt": "2026-04-25T22:28:40Z",
+        "deliveredAt": null,
+        "estimatedDeliveryAt": "2026-04-27T22:28:38Z",
+        "inTransitAt": "2026-04-25T22:29:38Z",
+        "trackingInfo": [
+          {
+            "number": "HAR235-CREATE-1777156118907",
+            "url": "https://example.com/track/HAR235-CREATE-1777156118907",
+            "company": "Hermes"
+          }
+        ],
+        "events": {
+          "nodes": [
+            {
+              "id": "gid://shopify/FulfillmentEvent/35254881059122",
+              "status": "IN_TRANSIT",
+              "message": "HAR-235 package scanned in transit",
+              "happenedAt": "2026-04-25T22:29:38Z",
+              "createdAt": "2026-04-25T22:28:40Z",
+              "estimatedDeliveryAt": "2026-04-27T22:28:38Z",
+              "city": "Toronto",
+              "province": "Ontario",
+              "country": "Canada",
+              "zip": "M5H 2M9",
+              "address1": "123 Queen St W",
+              "latitude": 43.6532,
+              "longitude": -79.3832
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjozNTI1NDg4MTA1OTEyMiwibGFzdF92YWx1ZSI6IjIwMjYtMDQtMjUgMjI6Mjk6MzguMDAwMDAwIn0=",
+            "endCursor": "eyJsYXN0X2lkIjozNTI1NDg4MTA1OTEyMiwibGFzdF92YWx1ZSI6IjIwMjYtMDQtMjUgMjI6Mjk6MzguMDAwMDAwIn0="
+          }
+        },
+        "service": {
+          "id": "gid://shopify/FulfillmentService/manual",
+          "handle": "manual",
+          "serviceName": "Manual",
+          "trackingSupport": false,
+          "type": "MANUAL",
+          "location": {
+            "id": "gid://shopify/Location/106318430514",
+            "name": "Shop location"
+          }
+        },
+        "location": {
+          "id": "gid://shopify/Location/106318430514",
+          "name": "Shop location"
+        },
+        "originAddress": null,
+        "fulfillmentLineItems": {
+          "nodes": [
+            {
+              "id": "gid://shopify/FulfillmentLineItem/17048347050290",
+              "quantity": 1,
+              "lineItem": {
+                "id": "gid://shopify/LineItem/19268060250418",
+                "title": "HAR-235 fulfillment event item 1777156118907"
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjoxNzA0ODM0NzA1MDI5MCwibGFzdF92YWx1ZSI6MTcwNDgzNDcwNTAyOTB9",
+            "endCursor": "eyJsYXN0X2lkIjoxNzA0ODM0NzA1MDI5MCwibGFzdF92YWx1ZSI6MTcwNDgzNDcwNTAyOTB9"
+          }
+        }
+      },
+      "order": {
+        "id": "gid://shopify/Order/8710681985330",
+        "displayFulfillmentStatus": "FULFILLED",
+        "fulfillments": [
+          {
+            "id": "gid://shopify/Fulfillment/7859241517362",
+            "status": "SUCCESS",
+            "displayStatus": "IN_TRANSIT",
+            "createdAt": "2026-04-25T22:28:39Z",
+            "updatedAt": "2026-04-25T22:28:40Z",
+            "deliveredAt": null,
+            "estimatedDeliveryAt": "2026-04-27T22:28:38Z",
+            "inTransitAt": "2026-04-25T22:29:38Z",
+            "trackingInfo": [
+              {
+                "number": "HAR235-CREATE-1777156118907",
+                "url": "https://example.com/track/HAR235-CREATE-1777156118907",
+                "company": "Hermes"
+              }
+            ],
+            "events": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentEvent/35254881059122",
+                  "status": "IN_TRANSIT",
+                  "message": "HAR-235 package scanned in transit",
+                  "happenedAt": "2026-04-25T22:29:38Z",
+                  "createdAt": "2026-04-25T22:28:40Z",
+                  "estimatedDeliveryAt": "2026-04-27T22:28:38Z",
+                  "city": "Toronto",
+                  "province": "Ontario",
+                  "country": "Canada",
+                  "zip": "M5H 2M9",
+                  "address1": "123 Queen St W",
+                  "latitude": 43.6532,
+                  "longitude": -79.3832
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjozNTI1NDg4MTA1OTEyMiwibGFzdF92YWx1ZSI6IjIwMjYtMDQtMjUgMjI6Mjk6MzguMDAwMDAwIn0=",
+                "endCursor": "eyJsYXN0X2lkIjozNTI1NDg4MTA1OTEyMiwibGFzdF92YWx1ZSI6IjIwMjYtMDQtMjUgMjI6Mjk6MzguMDAwMDAwIn0="
+              }
+            },
+            "service": {
+              "id": "gid://shopify/FulfillmentService/manual",
+              "handle": "manual",
+              "serviceName": "Manual",
+              "trackingSupport": false,
+              "type": "MANUAL",
+              "location": {
+                "id": "gid://shopify/Location/106318430514",
+                "name": "Shop location"
+              }
+            },
+            "location": {
+              "id": "gid://shopify/Location/106318430514",
+              "name": "Shop location"
+            },
+            "originAddress": null,
+            "fulfillmentLineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentLineItem/17048347050290",
+                  "quantity": 1,
+                  "lineItem": {
+                    "id": "gid://shopify/LineItem/19268060250418",
+                    "title": "HAR-235 fulfillment event item 1777156118907"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxNzA0ODM0NzA1MDI5MCwibGFzdF92YWx1ZSI6MTcwNDgzNDcwNTAyOTB9",
+                "endCursor": "eyJsYXN0X2lkIjoxNzA0ODM0NzA1MDI5MCwibGFzdF92YWx1ZSI6MTcwNDgzNDcwNTAyOTB9"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 39,
+        "actualQueryCost": 29,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1971,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,670 @@
+{
+  "data": {
+    "queryRoot": {
+      "fields": [
+        {
+          "name": "marketingActivities",
+          "args": [
+            {
+              "name": "marketingActivityIds",
+              "type": {
+                "kind": "LIST",
+                "name": null,
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "SCALAR",
+                    "name": "ID",
+                    "ofType": null
+                  }
+                }
+              }
+            },
+            {
+              "name": "remoteIds",
+              "type": {
+                "kind": "LIST",
+                "name": null,
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "SCALAR",
+                    "name": "String",
+                    "ofType": null
+                  }
+                }
+              }
+            },
+            {
+              "name": "utm",
+              "type": {
+                "kind": "INPUT_OBJECT",
+                "name": "UTMInput",
+                "ofType": null
+              }
+            },
+            {
+              "name": "first",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null
+              }
+            },
+            {
+              "name": "after",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "name": "last",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null
+              }
+            },
+            {
+              "name": "before",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "name": "reverse",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            },
+            {
+              "name": "sortKey",
+              "type": {
+                "kind": "ENUM",
+                "name": "MarketingActivitySortKeys",
+                "ofType": null
+              }
+            },
+            {
+              "name": "query",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "name": "savedSearchId",
+              "type": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            }
+          ]
+        },
+        {
+          "name": "marketingActivity",
+          "args": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "ID",
+                  "ofType": null
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "marketingEvent",
+          "args": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "ID",
+                  "ofType": null
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "marketingEvents",
+          "args": [
+            {
+              "name": "first",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null
+              }
+            },
+            {
+              "name": "after",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "name": "last",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null
+              }
+            },
+            {
+              "name": "before",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "name": "reverse",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            },
+            {
+              "name": "sortKey",
+              "type": {
+                "kind": "ENUM",
+                "name": "MarketingEventSortKeys",
+                "ofType": null
+              }
+            },
+            {
+              "name": "query",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "marketingActivityType": {
+      "fields": [
+        {
+          "name": "activityListUrl",
+          "type": {
+            "kind": "SCALAR",
+            "name": "URL",
+            "ofType": null
+          }
+        },
+        {
+          "name": "adSpend",
+          "type": {
+            "kind": "OBJECT",
+            "name": "MoneyV2",
+            "ofType": null
+          }
+        },
+        {
+          "name": "app",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "OBJECT",
+              "name": "App",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "appErrors",
+          "type": {
+            "kind": "OBJECT",
+            "name": "MarketingActivityExtensionAppErrors",
+            "ofType": null
+          }
+        },
+        {
+          "name": "budget",
+          "type": {
+            "kind": "OBJECT",
+            "name": "MarketingBudget",
+            "ofType": null
+          }
+        },
+        {
+          "name": "createdAt",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "DateTime",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "formData",
+          "type": {
+            "kind": "SCALAR",
+            "name": "String",
+            "ofType": null
+          }
+        },
+        {
+          "name": "hierarchyLevel",
+          "type": {
+            "kind": "ENUM",
+            "name": "MarketingActivityHierarchyLevel",
+            "ofType": null
+          }
+        },
+        {
+          "name": "id",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "ID",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "inMainWorkflowVersion",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "Boolean",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "isExternal",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "Boolean",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "marketingChannelType",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "ENUM",
+              "name": "MarketingChannel",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "marketingEvent",
+          "type": {
+            "kind": "OBJECT",
+            "name": "MarketingEvent",
+            "ofType": null
+          }
+        },
+        {
+          "name": "parentActivityId",
+          "type": {
+            "kind": "SCALAR",
+            "name": "ID",
+            "ofType": null
+          }
+        },
+        {
+          "name": "parentRemoteId",
+          "type": {
+            "kind": "SCALAR",
+            "name": "String",
+            "ofType": null
+          }
+        },
+        {
+          "name": "sourceAndMedium",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "String",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "status",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "ENUM",
+              "name": "MarketingActivityStatus",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "statusBadgeTypeV2",
+          "type": {
+            "kind": "ENUM",
+            "name": "BadgeType",
+            "ofType": null
+          }
+        },
+        {
+          "name": "statusLabel",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "String",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "statusTransitionedAt",
+          "type": {
+            "kind": "SCALAR",
+            "name": "DateTime",
+            "ofType": null
+          }
+        },
+        {
+          "name": "tactic",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "ENUM",
+              "name": "MarketingTactic",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "targetStatus",
+          "type": {
+            "kind": "ENUM",
+            "name": "MarketingActivityStatus",
+            "ofType": null
+          }
+        },
+        {
+          "name": "title",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "String",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "updatedAt",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "DateTime",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "urlParameterValue",
+          "type": {
+            "kind": "SCALAR",
+            "name": "String",
+            "ofType": null
+          }
+        },
+        {
+          "name": "utmParameters",
+          "type": {
+            "kind": "OBJECT",
+            "name": "UTMParameters",
+            "ofType": null
+          }
+        }
+      ]
+    },
+    "marketingEventType": {
+      "fields": [
+        {
+          "name": "app",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "OBJECT",
+              "name": "App",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "channelHandle",
+          "type": {
+            "kind": "SCALAR",
+            "name": "String",
+            "ofType": null
+          }
+        },
+        {
+          "name": "description",
+          "type": {
+            "kind": "SCALAR",
+            "name": "String",
+            "ofType": null
+          }
+        },
+        {
+          "name": "endedAt",
+          "type": {
+            "kind": "SCALAR",
+            "name": "DateTime",
+            "ofType": null
+          }
+        },
+        {
+          "name": "id",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "ID",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "legacyResourceId",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "UnsignedInt64",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "manageUrl",
+          "type": {
+            "kind": "SCALAR",
+            "name": "URL",
+            "ofType": null
+          }
+        },
+        {
+          "name": "marketingChannelType",
+          "type": {
+            "kind": "ENUM",
+            "name": "MarketingChannel",
+            "ofType": null
+          }
+        },
+        {
+          "name": "previewUrl",
+          "type": {
+            "kind": "SCALAR",
+            "name": "URL",
+            "ofType": null
+          }
+        },
+        {
+          "name": "remoteId",
+          "type": {
+            "kind": "SCALAR",
+            "name": "String",
+            "ofType": null
+          }
+        },
+        {
+          "name": "scheduledToEndAt",
+          "type": {
+            "kind": "SCALAR",
+            "name": "DateTime",
+            "ofType": null
+          }
+        },
+        {
+          "name": "sourceAndMedium",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "String",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "startedAt",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "DateTime",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "type",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "ENUM",
+              "name": "MarketingTactic",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "utmCampaign",
+          "type": {
+            "kind": "SCALAR",
+            "name": "String",
+            "ofType": null
+          }
+        },
+        {
+          "name": "utmMedium",
+          "type": {
+            "kind": "SCALAR",
+            "name": "String",
+            "ofType": null
+          }
+        },
+        {
+          "name": "utmSource",
+          "type": {
+            "kind": "SCALAR",
+            "name": "String",
+            "ofType": null
+          }
+        }
+      ]
+    },
+    "marketingActivitySortKeys": {
+      "enumValues": [
+        {
+          "name": "CREATED_AT"
+        },
+        {
+          "name": "ID"
+        },
+        {
+          "name": "TITLE"
+        }
+      ]
+    },
+    "marketingEventSortKeys": {
+      "enumValues": [
+        {
+          "name": "ID"
+        },
+        {
+          "name": "STARTED_AT"
+        }
+      ]
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 23,
+      "actualQueryCost": 22,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1978,
+        "restoreRate": 100
+      }
+    }
+  }
+}

@@ -1,0 +1,287 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-04-25T18:39:00Z",
+  "notes": [
+    "Callback, stock fetch, tracking fetch, and fulfillment-order notification endpoints were not observed/invoked by this capture; the interactions are Admin GraphQL reads/mutations only.",
+    "The successful create omitted callbackUrl because the current app credential returned Callback url is not allowed for https://example.com callbacks."
+  ],
+  "interactions": [
+    {
+      "name": "missing-detail",
+      "request": {
+        "query": "query MissingFulfillmentService($id: ID!) { fulfillmentService(id: $id) { id handle serviceName callbackUrl trackingSupport inventoryManagement requiresShippingMethod type location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory } } }",
+        "variables": {
+          "id": "gid://shopify/FulfillmentService/999999999999"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentService": null
+          }
+        }
+      }
+    },
+    {
+      "name": "create-blank-name-callback-blocked",
+      "request": {
+        "query": "mutation CreateBlank($name: String!, $callbackUrl: URL) { fulfillmentServiceCreate(name: $name, callbackUrl: $callbackUrl, trackingSupport: true, inventoryManagement: true, requiresShippingMethod: true) { fulfillmentService { id handle serviceName callbackUrl trackingSupport inventoryManagement requiresShippingMethod type location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory } } userErrors { field message } } }",
+        "variables": {
+          "name": "",
+          "callbackUrl": "https://example.com/fulfillment-service/moeomiux"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentServiceCreate": {
+              "fulfillmentService": null,
+              "userErrors": [
+                {
+                  "field": ["name"],
+                  "message": "Name can't be blank"
+                },
+                {
+                  "field": ["callbackUrl"],
+                  "message": "Callback url is not allowed"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create-no-callback",
+      "request": {
+        "query": "mutation CreateFs($name: String!) { fulfillmentServiceCreate(name: $name, trackingSupport: true, inventoryManagement: true, requiresShippingMethod: true) { fulfillmentService { id handle serviceName callbackUrl trackingSupport inventoryManagement requiresShippingMethod type location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory } } userErrors { field message } } }",
+        "variables": {
+          "name": "Hermes FS moeompnx"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentServiceCreate": {
+              "fulfillmentService": {
+                "id": "gid://shopify/FulfillmentService/71889420594?id=true",
+                "handle": "hermes-fs-moeompnx",
+                "serviceName": "Hermes FS moeompnx",
+                "callbackUrl": null,
+                "trackingSupport": true,
+                "inventoryManagement": true,
+                "requiresShippingMethod": true,
+                "type": "THIRD_PARTY",
+                "location": {
+                  "id": "gid://shopify/Location/112677159218",
+                  "name": "Hermes FS moeompnx",
+                  "isFulfillmentService": true,
+                  "fulfillsOnlineOrders": true,
+                  "shipsInventory": false
+                }
+              },
+              "userErrors": []
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "shop-list-after-create",
+      "request": {
+        "query": "query ShopFulfillmentServices { shop { fulfillmentServices { id handle serviceName callbackUrl trackingSupport inventoryManagement requiresShippingMethod type location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory } } } }",
+        "variables": {}
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shop": {
+              "fulfillmentServices": [
+                {
+                  "id": "gid://shopify/FulfillmentService/manual",
+                  "handle": "manual",
+                  "serviceName": "Manual",
+                  "callbackUrl": null,
+                  "trackingSupport": false,
+                  "inventoryManagement": false,
+                  "requiresShippingMethod": true,
+                  "type": "MANUAL",
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514",
+                    "name": "Shop location",
+                    "isFulfillmentService": false,
+                    "fulfillsOnlineOrders": true,
+                    "shipsInventory": true
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentService/70752141618?id=true",
+                  "handle": "snow-city-warehouse",
+                  "serviceName": "Snow City Warehouse",
+                  "callbackUrl": "https://mock.shop/",
+                  "trackingSupport": false,
+                  "inventoryManagement": false,
+                  "requiresShippingMethod": false,
+                  "type": "THIRD_PARTY",
+                  "location": {
+                    "id": "gid://shopify/Location/106318496050",
+                    "name": "Snow City Warehouse",
+                    "isFulfillmentService": true,
+                    "fulfillsOnlineOrders": true,
+                    "shipsInventory": false
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentService/71889420594?id=true",
+                  "handle": "hermes-fs-moeompnx",
+                  "serviceName": "Hermes FS moeompnx",
+                  "callbackUrl": null,
+                  "trackingSupport": true,
+                  "inventoryManagement": true,
+                  "requiresShippingMethod": true,
+                  "type": "THIRD_PARTY",
+                  "location": {
+                    "id": "gid://shopify/Location/112677159218",
+                    "name": "Hermes FS moeompnx",
+                    "isFulfillmentService": true,
+                    "fulfillsOnlineOrders": true,
+                    "shipsInventory": false
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "update",
+      "request": {
+        "query": "mutation UpdateFs($id: ID!, $name: String!) { fulfillmentServiceUpdate(id: $id, name: $name, trackingSupport: false, inventoryManagement: false, requiresShippingMethod: false) { fulfillmentService { id handle serviceName callbackUrl trackingSupport inventoryManagement requiresShippingMethod type location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory } } userErrors { field message } } }",
+        "variables": {
+          "id": "gid://shopify/FulfillmentService/71889420594?id=true",
+          "name": "Hermes FS Updated moeompnx"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentServiceUpdate": {
+              "fulfillmentService": {
+                "id": "gid://shopify/FulfillmentService/71889420594?id=true",
+                "handle": "hermes-fs-moeompnx",
+                "serviceName": "Hermes FS Updated moeompnx",
+                "callbackUrl": null,
+                "trackingSupport": false,
+                "inventoryManagement": false,
+                "requiresShippingMethod": false,
+                "type": "THIRD_PARTY",
+                "location": {
+                  "id": "gid://shopify/Location/112677159218",
+                  "name": "Hermes FS Updated moeompnx",
+                  "isFulfillmentService": true,
+                  "fulfillsOnlineOrders": true,
+                  "shipsInventory": false
+                }
+              },
+              "userErrors": []
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "delete",
+      "request": {
+        "query": "mutation DeleteFs($id: ID!) { fulfillmentServiceDelete(id: $id, inventoryAction: DELETE) { deletedId userErrors { field message } } }",
+        "variables": {
+          "id": "gid://shopify/FulfillmentService/71889420594?id=true"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentServiceDelete": {
+              "deletedId": "gid://shopify/FulfillmentService/71889420594",
+              "userErrors": []
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "location-after-delete",
+      "request": {
+        "query": "query Loc($id: ID!) { location(id: $id) { id name isFulfillmentService isActive } }",
+        "variables": {
+          "id": "gid://shopify/Location/112677191986"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "location": null
+          }
+        }
+      }
+    },
+    {
+      "name": "update-unknown",
+      "request": {
+        "query": "mutation UpdateUnknown($id: ID!) { fulfillmentServiceUpdate(id: $id, name: \"Nope\") { fulfillmentService { id } userErrors { field message } } }",
+        "variables": {
+          "id": "gid://shopify/FulfillmentService/999999999999"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentServiceUpdate": {
+              "fulfillmentService": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Fulfillment service could not be found."
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "delete-unknown",
+      "request": {
+        "query": "mutation DeleteUnknown($id: ID!) { fulfillmentServiceDelete(id: $id, inventoryAction: DELETE) { deletedId userErrors { field message } } }",
+        "variables": {
+          "id": "gid://shopify/FulfillmentService/999999999999"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentServiceDelete": {
+              "deletedId": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Fulfillment service could not be found."
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
+}

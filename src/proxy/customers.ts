@@ -8,8 +8,8 @@ import {
   getFieldResponseKey,
   getSelectedChildFields,
   paginateConnectionItems,
+  serializeConnection,
   serializeConnectionPageInfo,
-  serializeEmptyConnectionPageInfo,
 } from './graphql-helpers.js';
 import {
   mergeMetafieldRecords,
@@ -44,63 +44,62 @@ function cloneJsonObject(value: Record<string, unknown>): Record<string, JsonVal
   return structuredClone(value) as Record<string, JsonValue>;
 }
 
-const VALID_TAX_EXEMPTIONS = new Set([
-  'CA_BC_COMMERCIAL_FISHERY_EXEMPTION',
-  'CA_BC_CONTRACTOR_EXEMPTION',
-  'CA_BC_PRODUCTION_AND_MACHINERY_EXEMPTION',
+const VALID_TAX_EXEMPTION_VALUES = [
+  'CA_STATUS_CARD_EXEMPTION',
   'CA_BC_RESELLER_EXEMPTION',
-  'CA_BC_SUB_CONTRACTOR_EXEMPTION',
-  'CA_DIPLOMAT_EXEMPTION',
-  'CA_MB_COMMERCIAL_FISHERY_EXEMPTION',
-  'CA_MB_FARMER_EXEMPTION',
   'CA_MB_RESELLER_EXEMPTION',
+  'CA_SK_RESELLER_EXEMPTION',
+  'CA_DIPLOMAT_EXEMPTION',
+  'CA_BC_COMMERCIAL_FISHERY_EXEMPTION',
+  'CA_MB_COMMERCIAL_FISHERY_EXEMPTION',
   'CA_NS_COMMERCIAL_FISHERY_EXEMPTION',
-  'CA_NS_FARMER_EXEMPTION',
-  'CA_ON_PURCHASE_EXEMPTION',
   'CA_PE_COMMERCIAL_FISHERY_EXEMPTION',
   'CA_SK_COMMERCIAL_FISHERY_EXEMPTION',
-  'CA_SK_CONTRACTOR_EXEMPTION',
-  'CA_SK_FARMER_EXEMPTION',
+  'CA_BC_PRODUCTION_AND_MACHINERY_EXEMPTION',
   'CA_SK_PRODUCTION_AND_MACHINERY_EXEMPTION',
-  'CA_SK_RESELLER_EXEMPTION',
+  'CA_BC_SUB_CONTRACTOR_EXEMPTION',
   'CA_SK_SUB_CONTRACTOR_EXEMPTION',
-  'CA_STATUS_CARD_EXEMPTION',
+  'CA_BC_CONTRACTOR_EXEMPTION',
+  'CA_SK_CONTRACTOR_EXEMPTION',
+  'CA_ON_PURCHASE_EXEMPTION',
+  'CA_MB_FARMER_EXEMPTION',
+  'CA_NS_FARMER_EXEMPTION',
+  'CA_SK_FARMER_EXEMPTION',
   'EU_REVERSE_CHARGE_EXEMPTION_RULE',
-  'US_AK_RESELLER_EXEMPTION',
   'US_AL_RESELLER_EXEMPTION',
-  'US_AR_RESELLER_EXEMPTION',
+  'US_AK_RESELLER_EXEMPTION',
   'US_AZ_RESELLER_EXEMPTION',
+  'US_AR_RESELLER_EXEMPTION',
   'US_CA_RESELLER_EXEMPTION',
   'US_CO_RESELLER_EXEMPTION',
   'US_CT_RESELLER_EXEMPTION',
-  'US_DC_RESELLER_EXEMPTION',
   'US_DE_RESELLER_EXEMPTION',
   'US_FL_RESELLER_EXEMPTION',
   'US_GA_RESELLER_EXEMPTION',
   'US_HI_RESELLER_EXEMPTION',
-  'US_IA_RESELLER_EXEMPTION',
   'US_ID_RESELLER_EXEMPTION',
   'US_IL_RESELLER_EXEMPTION',
   'US_IN_RESELLER_EXEMPTION',
+  'US_IA_RESELLER_EXEMPTION',
   'US_KS_RESELLER_EXEMPTION',
   'US_KY_RESELLER_EXEMPTION',
   'US_LA_RESELLER_EXEMPTION',
-  'US_MA_RESELLER_EXEMPTION',
-  'US_MD_RESELLER_EXEMPTION',
   'US_ME_RESELLER_EXEMPTION',
+  'US_MD_RESELLER_EXEMPTION',
+  'US_MA_RESELLER_EXEMPTION',
   'US_MI_RESELLER_EXEMPTION',
   'US_MN_RESELLER_EXEMPTION',
-  'US_MO_RESELLER_EXEMPTION',
   'US_MS_RESELLER_EXEMPTION',
+  'US_MO_RESELLER_EXEMPTION',
   'US_MT_RESELLER_EXEMPTION',
-  'US_NC_RESELLER_EXEMPTION',
-  'US_ND_RESELLER_EXEMPTION',
   'US_NE_RESELLER_EXEMPTION',
+  'US_NV_RESELLER_EXEMPTION',
   'US_NH_RESELLER_EXEMPTION',
   'US_NJ_RESELLER_EXEMPTION',
   'US_NM_RESELLER_EXEMPTION',
-  'US_NV_RESELLER_EXEMPTION',
   'US_NY_RESELLER_EXEMPTION',
+  'US_NC_RESELLER_EXEMPTION',
+  'US_ND_RESELLER_EXEMPTION',
   'US_OH_RESELLER_EXEMPTION',
   'US_OK_RESELLER_EXEMPTION',
   'US_OR_RESELLER_EXEMPTION',
@@ -111,13 +110,16 @@ const VALID_TAX_EXEMPTIONS = new Set([
   'US_TN_RESELLER_EXEMPTION',
   'US_TX_RESELLER_EXEMPTION',
   'US_UT_RESELLER_EXEMPTION',
-  'US_VA_RESELLER_EXEMPTION',
   'US_VT_RESELLER_EXEMPTION',
+  'US_VA_RESELLER_EXEMPTION',
   'US_WA_RESELLER_EXEMPTION',
-  'US_WI_RESELLER_EXEMPTION',
   'US_WV_RESELLER_EXEMPTION',
+  'US_WI_RESELLER_EXEMPTION',
   'US_WY_RESELLER_EXEMPTION',
-]);
+  'US_DC_RESELLER_EXEMPTION',
+] as const;
+
+const VALID_TAX_EXEMPTIONS = new Set<string>(VALID_TAX_EXEMPTION_VALUES);
 
 const VALID_CUSTOMER_METAFIELD_TYPES = new Set([
   'antenna_gain',
@@ -194,6 +196,21 @@ const VALID_CUSTOMER_METAFIELD_TYPE_MESSAGE = `Type must be one of the following
   ...VALID_CUSTOMER_METAFIELD_TYPES,
   ...CUSTOMER_METAFIELD_LIST_TYPES,
 ].join(', ')}.`;
+
+const SUPPORTED_CUSTOMER_SET_INPUT_FIELDS = new Set([
+  'addresses',
+  'email',
+  'firstName',
+  'lastName',
+  'locale',
+  'note',
+  'phone',
+  'tags',
+  'taxExempt',
+  'taxExemptions',
+]);
+
+const SUPPORTED_CUSTOMER_SET_IDENTIFIER_FIELDS = new Set(['id', 'email', 'phone']);
 
 const COUNTRY_NAMES_BY_CODE: Record<string, string> = {
   CA: 'Canada',
@@ -888,80 +905,34 @@ function serializeCustomerAddressesConnectionSelection(
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const args = getFieldArguments(field, variables);
-  const first =
-    typeof args['first'] === 'number' && Number.isFinite(args['first']) ? Math.max(0, Math.floor(args['first'])) : null;
   const addresses = store.listEffectiveCustomerAddresses(customerId);
-  const visibleAddresses = first === null ? addresses : addresses.slice(0, first);
-  const hasNextPage = first !== null && addresses.length > visibleAddresses.length;
-  const connection: Record<string, unknown> = {};
+  const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
+    addresses,
+    field,
+    variables,
+    (address, index) => address.cursor ?? `customer-address-${customerId}-${index}`,
+  );
 
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-        connection[key] = visibleAddresses.map((address) => serializeCustomerAddressSelection(selection, address));
-        break;
-      case 'edges':
-        connection[key] = visibleAddresses.map((address, index) => {
-          const cursor = address.cursor ?? `customer-address-${customerId}-${index}`;
-          const edge: Record<string, unknown> = {};
-          for (const edgeSelection of getSelectedChildFields(selection)) {
-            const edgeKey = getFieldResponseKey(edgeSelection);
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edge[edgeKey] = cursor;
-                break;
-              case 'node':
-                edge[edgeKey] = serializeCustomerAddressSelection(edgeSelection, address);
-                break;
-              default:
-                edge[edgeKey] = null;
-                break;
-            }
-          }
-          return edge;
-        });
-        break;
-      case 'pageInfo':
-        connection[key] = serializeConnectionPageInfo(
-          selection,
-          visibleAddresses,
-          hasNextPage,
-          false,
-          (address) => address.cursor ?? `customer-address-${customerId}-${address.id}`,
-          { prefixCursors: false },
-        );
-        break;
-      default:
-        connection[key] = null;
-        break;
-    }
-  }
-
-  return connection;
+  return serializeConnection(field, {
+    items,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (address, index) => address.cursor ?? `customer-address-${customerId}-${index}`,
+    serializeNode: (address, selection) => serializeCustomerAddressSelection(selection, address),
+    pageInfoOptions: {
+      prefixCursors: false,
+    },
+  });
 }
 
 function serializeEmptyConnectionSelection(field: FieldNode): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-      case 'edges':
-        result[key] = [];
-        break;
-      case 'pageInfo':
-        result[key] = serializeEmptyConnectionPageInfo(selection);
-        break;
-      default:
-        result[key] = null;
-        break;
-    }
-  }
-
-  return result;
+  return serializeConnection(field, {
+    items: [],
+    hasNextPage: false,
+    hasPreviousPage: false,
+    getCursorValue: () => '',
+    serializeNode: () => null,
+  });
 }
 
 function readBooleanArgument(args: Record<string, unknown>, name: string): boolean {
@@ -1494,6 +1465,25 @@ function findCustomerByIdentifier(identifier: Record<string, unknown>): Customer
   return null;
 }
 
+function findCustomerByCustomerSetIdentifier(identifier: Record<string, unknown>): CustomerRecord | null {
+  const id = normalizeCustomerIdentifierValue(identifier['id']);
+  if (id) {
+    return store.getEffectiveCustomerById(id);
+  }
+
+  const email = normalizeCustomerIdentifierValue(identifier['email']);
+  if (email) {
+    return findCustomerByIdentifier({ emailAddress: email });
+  }
+
+  const phone = normalizeCustomerIdentifierValue(identifier['phone']);
+  if (phone) {
+    return findCustomerByIdentifier({ phoneNumber: phone });
+  }
+
+  return null;
+}
+
 function countProvidedCustomerIdentifiers(identifier: Record<string, unknown>): number {
   return ['id', 'emailAddress', 'phoneNumber', 'customId'].filter((key) => identifier[key] !== undefined).length;
 }
@@ -1844,36 +1834,11 @@ function serializeCustomersCount(_rawQuery: unknown, selections: readonly Select
   return result;
 }
 
-function buildCatalogPageInfo(
-  visibleCustomers: CustomerRecord[],
-  field: FieldNode,
-  hasNextPage: boolean,
-  hasPreviousPage: boolean,
-  catalogConnection: CustomerCatalogConnectionRecord | null,
-  options: { preserveBaselinePageInfo: boolean },
-): Record<string, boolean | string | null> {
-  return serializeConnectionPageInfo(
-    field,
-    visibleCustomers,
-    hasNextPage,
-    hasPreviousPage,
-    (customer) => resolveCatalogCustomerCursor(customer.id, catalogConnection),
-    {
-      prefixCursors: false,
-      fallbackStartCursor: options.preserveBaselinePageInfo ? (catalogConnection?.pageInfo.startCursor ?? null) : null,
-      fallbackEndCursor: options.preserveBaselinePageInfo ? (catalogConnection?.pageInfo.endCursor ?? null) : null,
-    },
-  ) as Record<string, boolean | string | null>;
-}
-
 function serializeCustomersConnection(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
-  const first =
-    typeof args['first'] === 'number' && Number.isFinite(args['first']) ? Math.max(0, Math.floor(args['first'])) : null;
+  const before = typeof args['before'] === 'string' ? args['before'] : null;
   const last =
     typeof args['last'] === 'number' && Number.isFinite(args['last']) ? Math.max(0, Math.floor(args['last'])) : null;
-  const after = typeof args['after'] === 'string' ? args['after'] : null;
-  const before = typeof args['before'] === 'string' ? args['before'] : null;
 
   const catalogConnection = store.getBaseCustomerCatalogConnection();
   const searchConnectionKey = buildCustomerSearchConnectionKey(args['query'], args['sortKey'], args['reverse']);
@@ -1889,75 +1854,36 @@ function serializeCustomersConnection(field: FieldNode, variables: Record<string
     args['sortKey'],
     args['reverse'],
   );
-  const afterIndex = after
-    ? allCustomers.findIndex((customer) => resolveCatalogCustomerCursor(customer.id, activeConnection) === after)
-    : -1;
-  const beforeIndex = before
-    ? allCustomers.findIndex((customer) => resolveCatalogCustomerCursor(customer.id, activeConnection) === before)
-    : -1;
-  const startIndex = afterIndex >= 0 ? afterIndex + 1 : 0;
-  const endIndex = beforeIndex >= 0 ? beforeIndex : allCustomers.length;
-  const cursorWindow = allCustomers.slice(startIndex, endIndex);
-  const firstWindow = first === null ? cursorWindow : cursorWindow.slice(0, first);
-  const visibleCustomers = last === null ? firstWindow : firstWindow.slice(Math.max(0, firstWindow.length - last));
-  const visibleStartIndex =
-    last === null ? startIndex : Math.max(startIndex, startIndex + firstWindow.length - visibleCustomers.length);
-  const visibleEndIndex = visibleStartIndex + visibleCustomers.length;
-  const calculatedHasPreviousPage = visibleStartIndex > 0;
-  const calculatedHasNextPage = visibleEndIndex < allCustomers.length;
+  const {
+    items: visibleCustomers,
+    hasNextPage: calculatedHasNextPage,
+    hasPreviousPage: calculatedHasPreviousPage,
+  } = paginateConnectionItems(
+    allCustomers,
+    field,
+    variables,
+    (customer) => resolveCatalogCustomerCursor(customer.id, activeConnection),
+    {
+      parseCursor: (raw) => raw,
+    },
+  );
   const hasPreviousPage =
     calculatedHasPreviousPage || (preserveBaselinePageInfo && (activeConnection?.pageInfo.hasPreviousPage ?? false));
   const hasNextPage =
     calculatedHasNextPage || (preserveBaselinePageInfo && (activeConnection?.pageInfo.hasNextPage ?? false));
 
-  const connection: Record<string, unknown> = {};
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'nodes':
-        connection[key] = visibleCustomers.map((customer) =>
-          serializeCustomerSelection(customer, selection, variables),
-        );
-        break;
-      case 'edges':
-        connection[key] = visibleCustomers.map((customer) => {
-          const edge: Record<string, unknown> = {};
-          for (const edgeSelection of getSelectedChildFields(selection)) {
-            const edgeKey = getFieldResponseKey(edgeSelection);
-            switch (edgeSelection.name.value) {
-              case 'cursor':
-                edge[edgeKey] = resolveCatalogCustomerCursor(customer.id, activeConnection);
-                break;
-              case 'node':
-                edge[edgeKey] = serializeCustomerSelection(customer, edgeSelection, variables);
-                break;
-              default:
-                edge[edgeKey] = null;
-                break;
-            }
-          }
-          return edge;
-        });
-        break;
-      case 'pageInfo':
-        connection[key] = buildCatalogPageInfo(
-          visibleCustomers,
-          selection,
-          hasNextPage,
-          hasPreviousPage,
-          activeConnection,
-          {
-            preserveBaselinePageInfo,
-          },
-        );
-        break;
-      default:
-        connection[key] = null;
-        break;
-    }
-  }
-
-  return connection;
+  return serializeConnection(field, {
+    items: visibleCustomers,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (customer) => resolveCatalogCustomerCursor(customer.id, activeConnection),
+    serializeNode: (customer, selection) => serializeCustomerSelection(customer, selection, variables),
+    pageInfoOptions: {
+      prefixCursors: false,
+      fallbackStartCursor: preserveBaselinePageInfo ? (activeConnection?.pageInfo.startCursor ?? null) : null,
+      fallbackEndCursor: preserveBaselinePageInfo ? (activeConnection?.pageInfo.endCursor ?? null) : null,
+    },
+  });
 }
 
 function normalizeCustomerCatalogPageInfo(raw: unknown): CustomerCatalogPageInfoRecord {
@@ -2553,6 +2479,10 @@ function readCustomerInput(raw: unknown): Record<string, unknown> {
   return isObject(raw) ? raw : {};
 }
 
+function readCustomerSetIdentifier(raw: unknown): Record<string, unknown> {
+  return isObject(raw) ? raw : {};
+}
+
 function normalizeCustomerTags(raw: unknown, fallback: string[]): string[] {
   if (!Array.isArray(raw)) {
     return structuredClone(fallback);
@@ -2571,6 +2501,65 @@ function normalizeCustomerTaxExemptions(raw: unknown, fallback: string[]): strin
   return raw
     .filter((value): value is string => typeof value === 'string' && VALID_TAX_EXEMPTIONS.has(value))
     .sort((left, right) => left.localeCompare(right));
+}
+
+function normalizeDedicatedCustomerTaxExemptions(raw: unknown): string[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+  return raw.filter((value): value is string => {
+    if (typeof value !== 'string' || !VALID_TAX_EXEMPTIONS.has(value) || seen.has(value)) {
+      return false;
+    }
+    seen.add(value);
+    return true;
+  });
+}
+
+function taxExemptionsEqual(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function buildCustomerWithTaxExemptions(existing: CustomerRecord, taxExemptions: string[]): CustomerRecord {
+  const current = existing.taxExemptions ?? [];
+  return {
+    ...existing,
+    taxExemptions,
+    updatedAt: taxExemptionsEqual(current, taxExemptions) ? existing.updatedAt : makeSyntheticTimestamp(),
+  };
+}
+
+function buildInvalidTaxExemptionVariableErrors(rawTaxExemptions: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(rawTaxExemptions)) {
+    return [];
+  }
+
+  const expectedValues = VALID_TAX_EXEMPTION_VALUES.join(', ');
+  return rawTaxExemptions.flatMap((value, index): Array<Record<string, unknown>> => {
+    if (typeof value === 'string' && VALID_TAX_EXEMPTIONS.has(value)) {
+      return [];
+    }
+
+    const printableValue = typeof value === 'string' ? value : String(value);
+    const explanation = `Expected "${printableValue}" to be one of: ${expectedValues}`;
+    return [
+      {
+        message: `Variable $taxExemptions of type [TaxExemption!]! was provided invalid value for ${index} (${explanation})`,
+        extensions: {
+          code: 'INVALID_VARIABLE',
+          value: structuredClone(rawTaxExemptions),
+          problems: [
+            {
+              path: [index],
+              explanation,
+            },
+          ],
+        },
+      },
+    ];
+  });
 }
 
 function validateCustomerTaxExemptionInput(input: Record<string, unknown>): CustomerMutationUserError[] {
@@ -2645,6 +2634,10 @@ function readCustomerAddressInput(raw: unknown): Record<string, unknown> {
   return isObject(raw) ? raw : {};
 }
 
+function readCustomerAddressInputs(raw: unknown): Record<string, unknown>[] {
+  return Array.isArray(raw) ? raw.map(readCustomerAddressInput) : [];
+}
+
 function buildCreatedCustomerAddress(customerId: string, input: Record<string, unknown>): CustomerAddressRecord {
   const position = store.listEffectiveCustomerAddresses(customerId).length;
   return normalizeCustomerAddress(customerId, input, {
@@ -2673,6 +2666,18 @@ function buildCustomerWithDefaultAddress(
     defaultAddress: defaultAddress ? customerAddressToDefaultAddress(defaultAddress) : null,
     updatedAt: makeSyntheticTimestamp(),
   };
+}
+
+function replaceCustomerSetAddresses(customer: CustomerRecord, rawAddresses: unknown): CustomerRecord {
+  for (const address of store.listEffectiveCustomerAddresses(customer.id)) {
+    store.stageDeleteCustomerAddress(address.id);
+  }
+
+  const addresses = readCustomerAddressInputs(rawAddresses).map((addressInput) =>
+    store.stageUpsertCustomerAddress(buildCreatedCustomerAddress(customer.id, addressInput)),
+  );
+
+  return store.stageUpdateCustomer(buildCustomerWithDefaultAddress(customer, addresses[0] ?? null));
 }
 
 function buildMissingCustomerAddressCustomerError(fieldPath: string[]): CustomerMutationUserError {
@@ -2955,6 +2960,109 @@ function validateCustomerCreateInput(input: Record<string, unknown>): CustomerMu
   return [{ field: null, message: 'A name, phone number, or email address must be present' }];
 }
 
+function validateCustomerSetCreateInput(input: Record<string, unknown>): CustomerMutationUserError[] {
+  const hasEmail = typeof input['email'] === 'string' && input['email'].trim().length > 0;
+  const hasPhone = typeof input['phone'] === 'string' && input['phone'].trim().length > 0;
+  const hasFirstName = typeof input['firstName'] === 'string' && input['firstName'].trim().length > 0;
+  const hasLastName = typeof input['lastName'] === 'string' && input['lastName'].trim().length > 0;
+  if (hasEmail || hasPhone || hasFirstName || hasLastName) {
+    return [];
+  }
+
+  return [{ field: ['input'], message: 'A name, phone number, or email address must be present' }];
+}
+
+function validateSupportedCustomerSetInput(input: Record<string, unknown>): CustomerMutationUserError[] {
+  const unsupportedFields = Object.keys(input).filter((field) => !SUPPORTED_CUSTOMER_SET_INPUT_FIELDS.has(field));
+  const unsupportedErrors = unsupportedFields.map((field): CustomerMutationUserError => {
+    return {
+      field: ['input', field],
+      message: `customerSet input field '${field}' is not supported by local staging yet`,
+    };
+  });
+
+  const addressErrors: CustomerMutationUserError[] =
+    hasOwnField(input, 'addresses') && !Array.isArray(input['addresses'])
+      ? [{ field: ['input', 'addresses'], message: 'Addresses must be an array' }]
+      : [];
+
+  return [...unsupportedErrors, ...addressErrors, ...validateCustomerTaxExemptionInput(input)];
+}
+
+function providedCustomerSetIdentifierFields(identifier: Record<string, unknown>): string[] {
+  return ['id', 'email', 'phone', 'customId'].filter((field) => identifier[field] !== undefined);
+}
+
+function validateCustomerSetIdentifier(identifier: Record<string, unknown>): CustomerMutationUserError[] {
+  const unsupportedFields = Object.keys(identifier).filter(
+    (field) => field !== 'customId' && !SUPPORTED_CUSTOMER_SET_IDENTIFIER_FIELDS.has(field),
+  );
+  const unsupportedErrors = unsupportedFields.map((field): CustomerMutationUserError => {
+    return {
+      field: ['identifier', field],
+      message: `customerSet identifier field '${field}' is not supported by local staging yet`,
+    };
+  });
+
+  const providedFields = providedCustomerSetIdentifierFields(identifier);
+  if (providedFields.length <= 1) {
+    return unsupportedErrors;
+  }
+
+  return [
+    ...unsupportedErrors,
+    {
+      field: ['identifier'],
+      message: 'Customer set identifier must provide exactly one identifier',
+    },
+  ];
+}
+
+function validateCustomerSetIdentifierInputAlignment(
+  input: Record<string, unknown>,
+  identifier: Record<string, unknown>,
+): CustomerMutationUserError[] {
+  const email = normalizeCustomerIdentifierValue(identifier['email']);
+  const inputEmail = normalizeCustomerIdentifierValue(input['email']);
+  if (email && !inputEmail) {
+    return [
+      {
+        field: ['input'],
+        message: 'The input field corresponding to the identifier is required.',
+      },
+    ];
+  }
+  if (email && inputEmail && email.toLowerCase() !== inputEmail.toLowerCase()) {
+    return [
+      {
+        field: ['input', 'email'],
+        message: 'customerSet local staging requires input.email to match identifier.email',
+      },
+    ];
+  }
+
+  const phone = normalizeCustomerIdentifierValue(identifier['phone']);
+  const inputPhone = normalizeCustomerIdentifierValue(input['phone']);
+  if (phone && !inputPhone) {
+    return [
+      {
+        field: ['input'],
+        message: 'The input field corresponding to the identifier is required.',
+      },
+    ];
+  }
+  if (phone && inputPhone && phone !== inputPhone) {
+    return [
+      {
+        field: ['input', 'phone'],
+        message: 'customerSet local staging requires input.phone to match identifier.phone',
+      },
+    ];
+  }
+
+  return [];
+}
+
 function readConsentPayload(input: Record<string, unknown>, key: string): Record<string, unknown> {
   const value = input[key];
   return isObject(value) ? value : {};
@@ -3058,11 +3166,30 @@ function buildSmsMarketingConsentUpdatedCustomer(
   };
 }
 
+function buildAccountInviteBufferedCustomer(existing: CustomerRecord): CustomerRecord {
+  return {
+    ...existing,
+    state: existing.state === 'ENABLED' ? existing.state : 'INVITED',
+    updatedAt: makeSyntheticTimestamp(),
+  };
+}
+
+function buildSyntheticAccountActivationUrl(customerId: string): string {
+  const customerKey = customerId.split('/').pop() ?? 'customer';
+  const token = makeSyntheticGid('CustomerAccountActivationToken').split('/').pop() ?? 'token';
+  return `https://shopify-draft-proxy.local/customer-activation/${encodeURIComponent(customerKey)}?token=${encodeURIComponent(token)}`;
+}
+
+function isCustomerPaymentMethodGid(value: string): boolean {
+  return value.startsWith('gid://shopify/CustomerPaymentMethod/');
+}
+
 function serializeCustomerMutationPayload(
   field: FieldNode,
   payload: {
     customer?: CustomerRecord | null;
     customerAddress?: CustomerAddressRecord | null;
+    accountActivationUrl?: string | null;
     deletedCustomerId?: string | null;
     deletedCustomerAddressId?: string | null;
     resultingCustomerId?: string | null;
@@ -3078,6 +3205,9 @@ function serializeCustomerMutationPayload(
     switch (selection.name.value) {
       case 'customer':
         result[key] = payload.customer ? serializeCustomerSelection(payload.customer, selection, variables) : null;
+        break;
+      case 'accountActivationUrl':
+        result[key] = payload.accountActivationUrl ?? null;
         break;
       case 'customerAddress':
       case 'address':
@@ -3279,6 +3409,172 @@ export function handleCustomerMutation(
           upsertMetafieldsForCustomer(customer.id, metafieldInputs),
         );
       }
+      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
+      continue;
+    }
+
+    if (
+      field.name.value === 'customerAddTaxExemptions' ||
+      field.name.value === 'customerRemoveTaxExemptions' ||
+      field.name.value === 'customerReplaceTaxExemptions'
+    ) {
+      const variableErrors = buildInvalidTaxExemptionVariableErrors(args['taxExemptions']);
+      if (variableErrors.length > 0) {
+        errors.push(...variableErrors);
+        continue;
+      }
+
+      const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
+      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      if (!existingCustomer) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customer: null,
+            userErrors: [{ field: ['customerId'], message: 'Customer does not exist.' }],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      const requestedTaxExemptions = normalizeDedicatedCustomerTaxExemptions(args['taxExemptions']);
+      const currentTaxExemptions = existingCustomer.taxExemptions ?? [];
+      const nextTaxExemptions =
+        field.name.value === 'customerAddTaxExemptions'
+          ? [
+              ...currentTaxExemptions,
+              ...requestedTaxExemptions.filter((value) => !currentTaxExemptions.includes(value)),
+            ]
+          : field.name.value === 'customerRemoveTaxExemptions'
+            ? currentTaxExemptions.filter((value) => !requestedTaxExemptions.includes(value))
+            : requestedTaxExemptions;
+      const customer = store.stageUpdateCustomer(buildCustomerWithTaxExemptions(existingCustomer, nextTaxExemptions));
+      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
+      continue;
+    }
+
+    if (field.name.value === 'customerGenerateAccountActivationUrl') {
+      const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
+      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      if (!customerId || !existingCustomer) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            accountActivationUrl: null,
+            userErrors: [{ field: ['customerId'], message: "The customer can't be found." }],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      data[key] = serializeCustomerMutationPayload(
+        field,
+        {
+          accountActivationUrl: buildSyntheticAccountActivationUrl(customerId),
+          userErrors: [],
+        },
+        variables,
+      );
+      continue;
+    }
+
+    if (field.name.value === 'customerSendAccountInviteEmail') {
+      const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
+      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      if (!customerId || !existingCustomer) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customer: null,
+            userErrors: [{ field: ['customerId'], message: "Customer can't be found" }],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      const customer = store.stageUpdateCustomer(buildAccountInviteBufferedCustomer(existingCustomer));
+      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
+      continue;
+    }
+
+    if (field.name.value === 'customerPaymentMethodSendUpdateEmail') {
+      const customerPaymentMethodId =
+        typeof args['customerPaymentMethodId'] === 'string' ? args['customerPaymentMethodId'] : null;
+      const paymentMethod =
+        customerPaymentMethodId && isCustomerPaymentMethodGid(customerPaymentMethodId)
+          ? store.getEffectiveCustomerPaymentMethodById(customerPaymentMethodId)
+          : null;
+      if (!customerPaymentMethodId || !paymentMethod) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customer: null,
+            userErrors: [{ field: ['customerPaymentMethodId'], message: 'Customer payment method does not exist' }],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      const customer = paymentMethod.customerId ? store.getEffectiveCustomerById(paymentMethod.customerId) : null;
+      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
+      continue;
+    }
+
+    if (field.name.value === 'customerSet') {
+      const input = readCustomerInput(args['input']);
+      const identifier = readCustomerSetIdentifier(args['identifier']);
+      if (hasOwnField(identifier, 'customId')) {
+        data[key] = null;
+        errors.push(buildCustomerCustomIdentifierError(field));
+        continue;
+      }
+
+      const existingCustomer = findCustomerByCustomerSetIdentifier(identifier);
+      const effectiveInput = input;
+      const userErrors = [
+        ...validateSupportedCustomerSetInput(effectiveInput),
+        ...validateCustomerSetIdentifier(identifier),
+        ...validateCustomerSetIdentifierInputAlignment(effectiveInput, identifier),
+      ];
+      if (hasOwnField(effectiveInput, 'addresses') && !existingCustomer) {
+        userErrors.push({
+          field: ['input', 'addresses'],
+          message: 'customerSet local staging supports addresses only when updating an existing customer',
+        });
+      }
+
+      const idIdentifier = normalizeCustomerIdentifierValue(identifier['id']);
+      if (idIdentifier && !existingCustomer) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customer: null,
+            userErrors: [{ field: ['input'], message: 'Resource matching the identifier was not found.' }],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      if (!existingCustomer) {
+        userErrors.push(...validateCustomerSetCreateInput(effectiveInput));
+      }
+
+      if (userErrors.length > 0) {
+        data[key] = serializeCustomerMutationPayload(field, { customer: null, userErrors }, variables);
+        continue;
+      }
+
+      const stagedCustomer = existingCustomer
+        ? store.stageUpdateCustomer(buildUpdatedCustomer(existingCustomer, effectiveInput))
+        : store.stageCreateCustomer(buildCreatedCustomer(effectiveInput));
+      const customer = hasOwnField(effectiveInput, 'addresses')
+        ? replaceCustomerSetAddresses(stagedCustomer, effectiveInput['addresses'])
+        : stagedCustomer;
       data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
       continue;
     }

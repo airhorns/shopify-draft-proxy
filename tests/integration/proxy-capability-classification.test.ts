@@ -56,23 +56,10 @@ describe('proxy capability classification', () => {
     });
   });
 
-  it('logs registry-only discounts mutations through the generic unsupported passthrough path', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          data: {
-            discountCodeBasicCreate: {
-              codeDiscountNode: null,
-              userErrors: [],
-            },
-          },
-        }),
-        {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        },
-      ),
-    );
+  it('logs supported discount code-basic happy paths as staged-local intent', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('supported discount code-basic create should not hit upstream fetch');
+    });
 
     const app = createApp(config);
 
@@ -103,23 +90,25 @@ describe('proxy capability classification', () => {
       .send({ query });
 
     expect(response.status).toBe(200);
+    expect(response.body.data.discountCodeBasicCreate.userErrors).toEqual([]);
     expect(store.getLog()).toHaveLength(1);
     expect(store.getLog()[0]).toMatchObject({
-      operationName: 'CreateDiscount',
-      status: 'proxied',
+      operationName: 'discountCodeBasicCreate',
+      status: 'staged',
       interpreted: {
         operationType: 'mutation',
         operationName: 'CreateDiscount',
         rootFields: ['discountCodeBasicCreate'],
         primaryRootField: 'discountCodeBasicCreate',
         capability: {
-          operationName: 'CreateDiscount',
-          domain: 'unknown',
-          execution: 'passthrough',
+          operationName: 'discountCodeBasicCreate',
+          domain: 'discounts',
+          execution: 'stage-locally',
         },
       },
-      notes: 'Mutation passthrough placeholder until supported local staging is implemented.',
+      notes: 'Staged locally in the in-memory discount draft store.',
     });
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('marks app-managed discount mutations as unsafe unsupported passthrough in logs', async () => {

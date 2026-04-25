@@ -1,0 +1,138 @@
+query MetafieldDefinitionPinningRead($namespace: String!) {
+  byIdentifier: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_a" }) {
+    id
+    name
+    namespace
+    key
+    ownerType
+    type {
+      name
+      category
+    }
+    description
+    validations {
+      name
+      value
+    }
+    access {
+      admin
+      storefront
+    }
+    capabilities {
+      adminFilterable {
+        enabled
+        eligible
+        status
+      }
+      smartCollectionCondition {
+        enabled
+        eligible
+      }
+      uniqueValues {
+        enabled
+        eligible
+      }
+    }
+    constraints {
+      key
+      values(first: 10) {
+        nodes {
+          value
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+    pinnedPosition
+    validationStatus
+  }
+  metafieldDefinitions(ownerType: PRODUCT, first: 10, namespace: $namespace, sortKey: PINNED_POSITION) {
+    nodes {
+      id
+      name
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      description
+      validations {
+        name
+        value
+      }
+      access {
+        admin
+        storefront
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+      constraints {
+        key
+        values(first: 10) {
+          nodes {
+            value
+          }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+            startCursor
+            endCursor
+          }
+        }
+      }
+      pinnedPosition
+      validationStatus
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  pinned: metafieldDefinitions(
+    ownerType: PRODUCT
+    first: 10
+    namespace: $namespace
+    sortKey: PINNED_POSITION
+    pinnedStatus: PINNED
+  ) {
+    nodes {
+      id
+      key
+      pinnedPosition
+    }
+  }
+  unpinned: metafieldDefinitions(
+    ownerType: PRODUCT
+    first: 10
+    namespace: $namespace
+    sortKey: PINNED_POSITION
+    pinnedStatus: UNPINNED
+  ) {
+    nodes {
+      id
+      key
+      pinnedPosition
+    }
+  }
+}

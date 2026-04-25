@@ -3,29 +3,45 @@
   "operationNames": ["productOptionUpdate"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
-  "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-option-update-parity.json"
-  ],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/product-option-update-parity.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/productOptionUpdate-parity-plan.graphql",
     "variablesPath": "config/parity-requests/productOptionUpdate-parity-plan.variables.json",
     "variablesCapturePath": "$.mutation.variables"
   },
-  "notes": "Executed by the conformance parity runner against the local staged-mutation path with live fixture variables; expected differences are path-scoped to nondeterministic ids, timestamps, throttle metadata, or documented declared-gap fields.",
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executed by the conformance parity runner against the local staged-mutation path with live fixture variables. This scenario verifies option rename/reposition, option value add/update/delete, and the immediate downstream option and variant graph.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
       {
-        "path": "$.productOptionUpdate.product.options",
-        "ignore": true,
-        "regrettable": true,
-        "reason": "This field is a documented fidelity gap for the current staged local implementation."
+        "path": "$.productOptionUpdate.product.options[1].optionValues[1].id",
+        "matcher": "shopify-gid:ProductOptionValue",
+        "reason": "The added option value ID is allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.product.options[1].optionValues[1].id",
+        "matcher": "shopify-gid:ProductOptionValue",
+        "reason": "The downstream proxy read returns the locally generated added option value ID."
       }
     ],
     "targets": [
       {
         "name": "mutation-data",
         "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/product-option-lifecycle-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productOptionUpdate.product.id"
+            }
+          }
+        },
         "proxyPath": "$.data"
       }
     ]
