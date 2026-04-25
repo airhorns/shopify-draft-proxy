@@ -1,0 +1,10 @@
+{
+  "topic": "SHOP_UPDATE",
+  "webhookSubscription": {
+    "filter": "",
+    "format": "JSON",
+    "includeFields": ["id", "name"],
+    "metafieldNamespaces": ["custom"],
+    "uri": "https://example.com/hermes-webhook-conformance"
+  }
+}
