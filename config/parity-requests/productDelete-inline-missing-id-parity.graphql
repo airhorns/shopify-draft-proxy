@@ -1,0 +1,10 @@
+#graphql
+mutation {
+  productDelete(input: {}) {
+    deletedProductId
+    userErrors {
+      field
+      message
+    }
+  }
+}

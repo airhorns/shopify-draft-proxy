@@ -1,4 +1,4 @@
-import { getLocation, Kind, type FieldNode, type SelectionNode } from 'graphql';
+import { getLocation, Kind, parse, type ASTNode, type FieldNode, type SelectionNode } from 'graphql';
 import type { ReadMode } from '../config.js';
 import { getFieldArguments, getRootField, getRootFieldArguments, getRootFields } from '../graphql/root-field.js';
 import { parseSearchQuery, type SearchQueryNode, type SearchQueryTerm } from '../search-query-parser.js';
@@ -26,6 +26,42 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function hasOwnField(value: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+type GraphqlErrorLocation = { line: number; column: number };
+
+function getNodeLocation(node: ASTNode): GraphqlErrorLocation[] {
+  const token = node.loc?.startToken;
+  return token ? [{ line: token.line, column: token.column }] : [];
+}
+
+function getVariableDefinitionLocation(document: string, variableName: string): GraphqlErrorLocation[] {
+  const ast = parse(document);
+  for (const definition of ast.definitions) {
+    if (definition.kind !== Kind.OPERATION_DEFINITION) {
+      continue;
+    }
+
+    const variableDefinition = definition.variableDefinitions?.find(
+      (candidate) => candidate.variable.name.value === variableName,
+    );
+    if (variableDefinition) {
+      return getNodeLocation(variableDefinition);
+    }
+  }
+
+  return [];
+}
+
+function getOperationPathLabel(document: string): string {
+  const ast = parse(document);
+  const operation = ast.definitions.find((definition) => definition.kind === Kind.OPERATION_DEFINITION);
+  if (!operation || operation.kind !== Kind.OPERATION_DEFINITION) {
+    return 'mutation';
+  }
+
+  const operationType = operation.operation;
+  return operation.name ? `${operationType} ${operation.name.value}` : operationType;
 }
 
 function normalizeHandleParts(value: string): string {
@@ -1956,9 +1992,13 @@ function buildInventoryAdjustmentStaffMemberAccessDeniedError(
   };
 }
 
-function buildNullProductChangeStatusArgumentError(): {
+function buildNullProductChangeStatusArgumentError(
+  locations: GraphqlErrorLocation[],
+  operationPathLabel: string,
+): {
   errors: Array<{
     message: string;
+    locations: GraphqlErrorLocation[];
     path: string[];
     extensions: {
       code: 'argumentLiteralsIncompatible';
@@ -1972,7 +2012,8 @@ function buildNullProductChangeStatusArgumentError(): {
       {
         message:
           "Argument 'productId' on Field 'productChangeStatus' has an invalid value (null). Expected type 'ID!'.",
-        path: ['mutation', 'productChangeStatus', 'productId'],
+        locations,
+        path: [operationPathLabel, 'productChangeStatus', 'productId'],
         extensions: {
           code: 'argumentLiteralsIncompatible',
           typeName: 'Field',
@@ -1983,9 +2024,13 @@ function buildNullProductChangeStatusArgumentError(): {
   };
 }
 
-function buildProductDeleteInvalidVariableError(input: Record<string, unknown>): {
+function buildProductDeleteInvalidVariableError(
+  input: Record<string, unknown>,
+  locations: GraphqlErrorLocation[],
+): {
   errors: Array<{
     message: string;
+    locations: GraphqlErrorLocation[];
     extensions: {
       code: 'INVALID_VARIABLE';
       value: Record<string, unknown>;
@@ -1998,6 +2043,7 @@ function buildProductDeleteInvalidVariableError(input: Record<string, unknown>):
       {
         message:
           'Variable $input of type ProductDeleteInput! was provided invalid value for id (Expected value to not be null)',
+        locations,
         extensions: {
           code: 'INVALID_VARIABLE',
           value: structuredClone(input),
@@ -2008,9 +2054,10 @@ function buildProductDeleteInvalidVariableError(input: Record<string, unknown>):
   };
 }
 
-function buildMissingProductDeleteInputIdArgumentError(): {
+function buildMissingProductDeleteInputIdArgumentError(locations: GraphqlErrorLocation[]): {
   errors: Array<{
     message: string;
+    locations: GraphqlErrorLocation[];
     path: string[];
     extensions: {
       code: 'missingRequiredInputObjectAttribute';
@@ -2024,6 +2071,7 @@ function buildMissingProductDeleteInputIdArgumentError(): {
     errors: [
       {
         message: "Argument 'id' on InputObject 'ProductDeleteInput' is required. Expected type ID!",
+        locations,
         path: ['mutation', 'productDelete', 'input', 'id'],
         extensions: {
           code: 'missingRequiredInputObjectAttribute',
@@ -2036,9 +2084,10 @@ function buildMissingProductDeleteInputIdArgumentError(): {
   };
 }
 
-function buildNullProductDeleteInputIdArgumentError(): {
+function buildNullProductDeleteInputIdArgumentError(locations: GraphqlErrorLocation[]): {
   errors: Array<{
     message: string;
+    locations: GraphqlErrorLocation[];
     path: string[];
     extensions: {
       code: 'argumentLiteralsIncompatible';
@@ -2051,6 +2100,7 @@ function buildNullProductDeleteInputIdArgumentError(): {
     errors: [
       {
         message: "Argument 'id' on InputObject 'ProductDeleteInput' has an invalid value (null). Expected type 'ID!'.",
+        locations,
         path: ['mutation', 'productDelete', 'input', 'id'],
         extensions: {
           code: 'argumentLiteralsIncompatible',
@@ -6716,18 +6766,21 @@ export function handleProductMutation(
       if (inputArg?.value.kind === Kind.VARIABLE) {
         const rawVariableInput = readProductInput(variables[inputArg.value.name.value]);
         if (!hasOwnField(rawVariableInput, 'id') || rawVariableInput['id'] === null) {
-          return buildProductDeleteInvalidVariableError(rawVariableInput);
+          return buildProductDeleteInvalidVariableError(
+            rawVariableInput,
+            getVariableDefinitionLocation(document, inputArg.value.name.value),
+          );
         }
       }
 
       if (inputArg?.value.kind === Kind.OBJECT) {
         const idField = inputArg.value.fields.find((objectField) => objectField.name.value === 'id') ?? null;
         if (!idField) {
-          return buildMissingProductDeleteInputIdArgumentError();
+          return buildMissingProductDeleteInputIdArgumentError(getNodeLocation(inputArg.value));
         }
 
         if (idField.value.kind === Kind.NULL) {
-          return buildNullProductDeleteInputIdArgumentError();
+          return buildNullProductDeleteInputIdArgumentError(getNodeLocation(inputArg.value));
         }
       }
 
@@ -6736,7 +6789,7 @@ export function handleProductMutation(
       const argId = args['id'];
       const id = typeof inputId === 'string' ? inputId : typeof argId === 'string' ? argId : null;
       if (!id) {
-        return buildProductDeleteInvalidVariableError(input);
+        return buildProductDeleteInvalidVariableError(input, []);
       }
 
       const existing = store.getEffectiveProductById(id);
@@ -6934,7 +6987,7 @@ export function handleProductMutation(
     case 'productChangeStatus': {
       const rawProductId = args['productId'];
       if (rawProductId === null) {
-        return buildNullProductChangeStatusArgumentError();
+        return buildNullProductChangeStatusArgumentError(getNodeLocation(field), getOperationPathLabel(document));
       }
 
       const productId = typeof rawProductId === 'string' ? rawProductId : null;
