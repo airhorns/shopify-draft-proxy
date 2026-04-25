@@ -16,6 +16,7 @@ import {
   serializeMetafieldSelection,
   upsertOwnerMetafields,
 } from './metafields.js';
+import { CUSTOMER_ADDRESS_COUNTRIES } from './customer-address-territories.js';
 import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type {
@@ -203,18 +204,19 @@ const SUPPORTED_CUSTOMER_SET_INPUT_FIELDS = new Set([
 
 const SUPPORTED_CUSTOMER_SET_IDENTIFIER_FIELDS = new Set(['id', 'email', 'phone']);
 
-const COUNTRY_NAMES_BY_CODE: Record<string, string> = {
-  CA: 'Canada',
-  US: 'United States',
-};
+const CUSTOMER_ADDRESS_COUNTRIES_BY_CODE: Map<string, (typeof CUSTOMER_ADDRESS_COUNTRIES)[number]> = new Map(
+  CUSTOMER_ADDRESS_COUNTRIES.map((country) => [country.code, country]),
+);
 
-const PROVINCE_NAMES_BY_COUNTRY_CODE: Record<string, Record<string, string>> = {
-  CA: {
-    BC: 'British Columbia',
-    ON: 'Ontario',
-    QC: 'Quebec',
-  },
-};
+const CUSTOMER_ADDRESS_ZONES_BY_COUNTRY_CODE: Map<
+  string,
+  Map<string, (typeof CUSTOMER_ADDRESS_COUNTRIES)[number]['zones'][number]>
+> = new Map(
+  CUSTOMER_ADDRESS_COUNTRIES.filter((country) => country.zones.length > 0).map((country) => [
+    country.code,
+    new Map(country.zones.map((zone) => [zone.code, zone])),
+  ]),
+);
 
 const CUSTOMER_ADDRESS_DUPLICATE_FIELDS = [
   'firstName',
@@ -358,12 +360,12 @@ function resolveIntlCountryName(countryCode: string): string | null {
 }
 
 function isValidCountryCode(countryCode: string): boolean {
-  return Boolean(COUNTRY_NAMES_BY_CODE[countryCode] ?? resolveIntlCountryName(countryCode));
+  return CUSTOMER_ADDRESS_COUNTRIES_BY_CODE.has(countryCode);
 }
 
 function resolveCountryName(countryCode: string | null, fallback: string | null): string | null {
   return countryCode
-    ? (COUNTRY_NAMES_BY_CODE[countryCode] ?? resolveIntlCountryName(countryCode) ?? fallback)
+    ? (CUSTOMER_ADDRESS_COUNTRIES_BY_CODE.get(countryCode)?.name ?? resolveIntlCountryName(countryCode) ?? fallback)
     : fallback;
 }
 
@@ -376,7 +378,7 @@ function resolveProvinceName(
     return fallback;
   }
 
-  return PROVINCE_NAMES_BY_COUNTRY_CODE[countryCode]?.[provinceCode] ?? fallback ?? provinceCode;
+  return CUSTOMER_ADDRESS_ZONES_BY_COUNTRY_CODE.get(countryCode)?.get(provinceCode)?.name ?? fallback ?? provinceCode;
 }
 
 function buildFormattedArea(city: string | null, provinceCode: string | null, country: string | null): string | null {
@@ -2271,8 +2273,8 @@ function validateCustomerAddressInput(
     userErrors.push({ field: [...fieldPrefix, 'country'], message: 'Country is invalid' });
   }
 
-  const validProvinceCodes = countryCode ? PROVINCE_NAMES_BY_COUNTRY_CODE[countryCode] : undefined;
-  if (provinceCode && validProvinceCodes && !validProvinceCodes[provinceCode]) {
+  const validProvinceCodes = countryCode ? CUSTOMER_ADDRESS_ZONES_BY_COUNTRY_CODE.get(countryCode) : undefined;
+  if (provinceCode && validProvinceCodes && !validProvinceCodes.has(provinceCode)) {
     userErrors.push({ field: [...fieldPrefix, 'province'], message: 'Province is invalid' });
   }
 

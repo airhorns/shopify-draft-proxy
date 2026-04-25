@@ -715,6 +715,35 @@ describe('customer draft flow', () => {
       userErrors: [{ field: ['address', 'country'], message: 'Country is invalid' }],
     });
 
+    const albertaAddressResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation ValidAlbertaProvince($customerId: ID!) {
+          customerAddressCreate(
+            customerId: $customerId
+            address: { address1: "4 Alberta St", city: "Calgary", countryCode: CA, provinceCode: "AB", zip: "T2P 1J9" }
+          ) {
+            address { id address1 city country countryCodeV2 province provinceCode zip formattedArea }
+            userErrors { field message }
+          }
+        }`,
+        variables: { customerId },
+      });
+    expect(albertaAddressResponse.body.data.customerAddressCreate).toEqual({
+      address: {
+        id: albertaAddressResponse.body.data.customerAddressCreate.address.id,
+        address1: '4 Alberta St',
+        city: 'Calgary',
+        country: 'Canada',
+        countryCodeV2: 'CA',
+        province: 'Alberta',
+        provinceCode: 'AB',
+        zip: 'T2P 1J9',
+        formattedArea: 'Calgary AB, Canada',
+      },
+      userErrors: [],
+    });
+
     const invalidPostalResponse = await request(app)
       .post('/admin/api/2025-01/graphql.json')
       .send({
