@@ -1,0 +1,99 @@
+query OrderCatalogCountRead(
+  $tagQuery: String!
+  $nameQuery: String!
+  $statusQuery: String!
+  $pageSize: Int!
+  $seedSize: Int!
+  $countLimit: Int
+  $unlimited: Int
+) {
+  seedCatalog: orders(first: $seedSize, query: $tagQuery, sortKey: CREATED_AT, reverse: true) {
+    nodes {
+      id
+      name
+      createdAt
+      updatedAt
+      displayFinancialStatus
+      displayFulfillmentStatus
+      tags
+      email
+      currentTotalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+  }
+  recent: orders(first: $pageSize, query: $tagQuery, sortKey: CREATED_AT, reverse: true) {
+    nodes {
+      id
+      name
+      createdAt
+      updatedAt
+      displayFinancialStatus
+      displayFulfillmentStatus
+      tags
+      email
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  oldest: orders(first: $pageSize, query: $tagQuery, sortKey: CREATED_AT, reverse: false) {
+    nodes {
+      id
+      name
+      createdAt
+      updatedAt
+      displayFinancialStatus
+      displayFulfillmentStatus
+      tags
+      email
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  byName: orders(first: 3, query: $nameQuery, sortKey: CREATED_AT, reverse: true) {
+    nodes {
+      id
+      name
+      tags
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  byStatus: orders(first: 3, query: $statusQuery, sortKey: CREATED_AT, reverse: true) {
+    nodes {
+      id
+      name
+      displayFinancialStatus
+      displayFulfillmentStatus
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  limitedTaggedCount: ordersCount(query: $tagQuery, limit: $countLimit) {
+    count
+    precision
+  }
+  exactTaggedCount: ordersCount(query: $tagQuery, limit: $unlimited) {
+    count
+    precision
+  }
+}

@@ -8,8 +8,19 @@ import type {
   BusinessEntityAddressRecord,
   BusinessEntityRecord,
   InventoryLevelRecord,
+  PaymentSettingsRecord,
   ProductVariantRecord,
   ShopifyPaymentsAccountRecord,
+  ShopAddressRecord,
+  ShopBundlesFeatureRecord,
+  ShopCartTransformEligibleOperationsRecord,
+  ShopCartTransformFeatureRecord,
+  ShopDomainRecord,
+  ShopFeaturesRecord,
+  ShopPlanRecord,
+  ShopPolicyRecord,
+  ShopRecord,
+  ShopResourceLimitsRecord,
 } from '../state/types.js';
 import { paginateConnectionItems, serializeConnectionPageInfo } from './graphql-helpers.js';
 
@@ -636,6 +647,609 @@ function serializeLocation(
   return result;
 }
 
+function serializeShopDomain(domain: ShopDomainRecord, selections: readonly SelectionNode[]): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'Domain') {
+        continue;
+      }
+      Object.assign(result, serializeShopDomain(domain, selection.selectionSet.selections));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'Domain';
+        break;
+      case 'id':
+        result[key] = domain.id;
+        break;
+      case 'host':
+        result[key] = domain.host;
+        break;
+      case 'url':
+        result[key] = domain.url;
+        break;
+      case 'sslEnabled':
+        result[key] = domain.sslEnabled;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeShopAddress(
+  address: ShopAddressRecord,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'ShopAddress') {
+        continue;
+      }
+      Object.assign(result, serializeShopAddress(address, selection.selectionSet.selections));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'ShopAddress';
+        break;
+      case 'id':
+        result[key] = address.id;
+        break;
+      case 'address1':
+        result[key] = address.address1;
+        break;
+      case 'address2':
+        result[key] = address.address2;
+        break;
+      case 'city':
+        result[key] = address.city;
+        break;
+      case 'company':
+        result[key] = address.company;
+        break;
+      case 'coordinatesValidated':
+        result[key] = address.coordinatesValidated;
+        break;
+      case 'country':
+        result[key] = address.country;
+        break;
+      case 'countryCodeV2':
+        result[key] = address.countryCodeV2;
+        break;
+      case 'formatted':
+        result[key] = structuredClone(address.formatted);
+        break;
+      case 'formattedArea':
+        result[key] = address.formattedArea;
+        break;
+      case 'latitude':
+        result[key] = address.latitude;
+        break;
+      case 'longitude':
+        result[key] = address.longitude;
+        break;
+      case 'phone':
+        result[key] = address.phone;
+        break;
+      case 'province':
+        result[key] = address.province;
+        break;
+      case 'provinceCode':
+        result[key] = address.provinceCode;
+        break;
+      case 'zip':
+        result[key] = address.zip;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeShopPlan(plan: ShopPlanRecord, selections: readonly SelectionNode[]): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'ShopPlan') {
+        continue;
+      }
+      Object.assign(result, serializeShopPlan(plan, selection.selectionSet.selections));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'ShopPlan';
+        break;
+      case 'partnerDevelopment':
+        result[key] = plan.partnerDevelopment;
+        break;
+      case 'publicDisplayName':
+        result[key] = plan.publicDisplayName;
+        break;
+      case 'shopifyPlus':
+        result[key] = plan.shopifyPlus;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeShopResourceLimits(
+  resourceLimits: ShopResourceLimitsRecord,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'ShopResourceLimits') {
+        continue;
+      }
+      Object.assign(result, serializeShopResourceLimits(resourceLimits, selection.selectionSet.selections));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'ShopResourceLimits';
+        break;
+      case 'locationLimit':
+        result[key] = resourceLimits.locationLimit;
+        break;
+      case 'maxProductOptions':
+        result[key] = resourceLimits.maxProductOptions;
+        break;
+      case 'maxProductVariants':
+        result[key] = resourceLimits.maxProductVariants;
+        break;
+      case 'redirectLimitReached':
+        result[key] = resourceLimits.redirectLimitReached;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeShopBundlesFeature(
+  bundles: ShopBundlesFeatureRecord,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'BundlesFeature') {
+        continue;
+      }
+      Object.assign(result, serializeShopBundlesFeature(bundles, selection.selectionSet.selections));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'BundlesFeature';
+        break;
+      case 'eligibleForBundles':
+        result[key] = bundles.eligibleForBundles;
+        break;
+      case 'ineligibilityReason':
+        result[key] = bundles.ineligibilityReason;
+        break;
+      case 'sellsBundles':
+        result[key] = bundles.sellsBundles;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeShopCartTransformEligibleOperations(
+  operations: ShopCartTransformEligibleOperationsRecord,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (
+        selection.typeCondition?.name.value &&
+        selection.typeCondition.name.value !== 'CartTransformEligibleOperations'
+      ) {
+        continue;
+      }
+      Object.assign(
+        result,
+        serializeShopCartTransformEligibleOperations(operations, selection.selectionSet.selections),
+      );
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'CartTransformEligibleOperations';
+        break;
+      case 'expandOperation':
+        result[key] = operations.expandOperation;
+        break;
+      case 'mergeOperation':
+        result[key] = operations.mergeOperation;
+        break;
+      case 'updateOperation':
+        result[key] = operations.updateOperation;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeShopCartTransformFeature(
+  cartTransform: ShopCartTransformFeatureRecord,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'CartTransformFeature') {
+        continue;
+      }
+      Object.assign(result, serializeShopCartTransformFeature(cartTransform, selection.selectionSet.selections));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'CartTransformFeature';
+        break;
+      case 'eligibleOperations':
+        result[key] = serializeShopCartTransformEligibleOperations(
+          cartTransform.eligibleOperations,
+          selection.selectionSet?.selections ?? [],
+        );
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeShopFeatures(
+  features: ShopFeaturesRecord,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'ShopFeatures') {
+        continue;
+      }
+      Object.assign(result, serializeShopFeatures(features, selection.selectionSet.selections));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'ShopFeatures';
+        break;
+      case 'avalaraAvatax':
+        result[key] = features.avalaraAvatax;
+        break;
+      case 'branding':
+        result[key] = features.branding;
+        break;
+      case 'bundles':
+        result[key] = serializeShopBundlesFeature(features.bundles, selection.selectionSet?.selections ?? []);
+        break;
+      case 'captcha':
+        result[key] = features.captcha;
+        break;
+      case 'cartTransform':
+        result[key] = serializeShopCartTransformFeature(
+          features.cartTransform,
+          selection.selectionSet?.selections ?? [],
+        );
+        break;
+      case 'dynamicRemarketing':
+        result[key] = features.dynamicRemarketing;
+        break;
+      case 'eligibleForSubscriptionMigration':
+        result[key] = features.eligibleForSubscriptionMigration;
+        break;
+      case 'eligibleForSubscriptions':
+        result[key] = features.eligibleForSubscriptions;
+        break;
+      case 'giftCards':
+        result[key] = features.giftCards;
+        break;
+      case 'harmonizedSystemCode':
+        result[key] = features.harmonizedSystemCode;
+        break;
+      case 'legacySubscriptionGatewayEnabled':
+        result[key] = features.legacySubscriptionGatewayEnabled;
+        break;
+      case 'liveView':
+        result[key] = features.liveView;
+        break;
+      case 'paypalExpressSubscriptionGatewayStatus':
+        result[key] = features.paypalExpressSubscriptionGatewayStatus;
+        break;
+      case 'reports':
+        result[key] = features.reports;
+        break;
+      case 'sellsSubscriptions':
+        result[key] = features.sellsSubscriptions;
+        break;
+      case 'showMetrics':
+        result[key] = features.showMetrics;
+        break;
+      case 'storefront':
+        result[key] = features.storefront;
+        break;
+      case 'unifiedMarkets':
+        result[key] = features.unifiedMarkets;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializePaymentSettings(
+  paymentSettings: PaymentSettingsRecord,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'PaymentSettings') {
+        continue;
+      }
+      Object.assign(result, serializePaymentSettings(paymentSettings, selection.selectionSet.selections));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'PaymentSettings';
+        break;
+      case 'supportedDigitalWallets':
+        result[key] = structuredClone(paymentSettings.supportedDigitalWallets);
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeShopPolicy(policy: ShopPolicyRecord, selections: readonly SelectionNode[]): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'ShopPolicy') {
+        continue;
+      }
+      Object.assign(result, serializeShopPolicy(policy, selection.selectionSet.selections));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'ShopPolicy';
+        break;
+      case 'id':
+        result[key] = policy.id;
+        break;
+      case 'title':
+        result[key] = policy.title;
+        break;
+      case 'body':
+        result[key] = policy.body;
+        break;
+      case 'type':
+        result[key] = policy.type;
+        break;
+      case 'url':
+        result[key] = policy.url;
+        break;
+      case 'createdAt':
+        result[key] = policy.createdAt;
+        break;
+      case 'updatedAt':
+        result[key] = policy.updatedAt;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeShop(shop: ShopRecord, selections: readonly SelectionNode[]): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'Shop') {
+        continue;
+      }
+      Object.assign(result, serializeShop(shop, selection.selectionSet.selections));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'Shop';
+        break;
+      case 'id':
+        result[key] = shop.id;
+        break;
+      case 'name':
+        result[key] = shop.name;
+        break;
+      case 'myshopifyDomain':
+        result[key] = shop.myshopifyDomain;
+        break;
+      case 'url':
+        result[key] = shop.url;
+        break;
+      case 'primaryDomain':
+        result[key] = serializeShopDomain(shop.primaryDomain, selection.selectionSet?.selections ?? []);
+        break;
+      case 'contactEmail':
+        result[key] = shop.contactEmail;
+        break;
+      case 'email':
+        result[key] = shop.email;
+        break;
+      case 'currencyCode':
+        result[key] = shop.currencyCode;
+        break;
+      case 'enabledPresentmentCurrencies':
+        result[key] = structuredClone(shop.enabledPresentmentCurrencies);
+        break;
+      case 'ianaTimezone':
+        result[key] = shop.ianaTimezone;
+        break;
+      case 'timezoneAbbreviation':
+        result[key] = shop.timezoneAbbreviation;
+        break;
+      case 'timezoneOffset':
+        result[key] = shop.timezoneOffset;
+        break;
+      case 'timezoneOffsetMinutes':
+        result[key] = shop.timezoneOffsetMinutes;
+        break;
+      case 'taxesIncluded':
+        result[key] = shop.taxesIncluded;
+        break;
+      case 'taxShipping':
+        result[key] = shop.taxShipping;
+        break;
+      case 'unitSystem':
+        result[key] = shop.unitSystem;
+        break;
+      case 'weightUnit':
+        result[key] = shop.weightUnit;
+        break;
+      case 'shopAddress':
+        result[key] = serializeShopAddress(shop.shopAddress, selection.selectionSet?.selections ?? []);
+        break;
+      case 'plan':
+        result[key] = serializeShopPlan(shop.plan, selection.selectionSet?.selections ?? []);
+        break;
+      case 'resourceLimits':
+        result[key] = serializeShopResourceLimits(shop.resourceLimits, selection.selectionSet?.selections ?? []);
+        break;
+      case 'features':
+        result[key] = serializeShopFeatures(shop.features, selection.selectionSet?.selections ?? []);
+        break;
+      case 'paymentSettings':
+        result[key] = serializePaymentSettings(shop.paymentSettings, selection.selectionSet?.selections ?? []);
+        break;
+      case 'shopPolicies':
+        result[key] = shop.shopPolicies.map((policy) =>
+          serializeShopPolicy(policy, selection.selectionSet?.selections ?? []),
+        );
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
 function unsupportedShopifyPaymentsFieldError(
   businessEntity: BusinessEntityRecord,
   fieldName: string,
@@ -835,6 +1449,11 @@ export function handleStorePropertiesQuery(
       case 'locationByIdentifier': {
         const location = resolveLocationIdentifier(field, variables, context);
         data[key] = location ? serializeLocation(location, field.selectionSet?.selections ?? [], variables) : null;
+        break;
+      }
+      case 'shop': {
+        const shop = store.getEffectiveShop();
+        data[key] = shop ? serializeShop(shop, field.selectionSet?.selections ?? []) : null;
         break;
       }
       case 'businessEntities':

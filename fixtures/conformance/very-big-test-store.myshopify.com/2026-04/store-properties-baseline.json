@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-04-24T23:53:41.262Z",
+  "capturedAt": "2026-04-25T01:25:08.696Z",
   "storeDomain": "very-big-test-store.myshopify.com",
   "apiVersion": "2026-04",
   "schemaInventory": {
@@ -1691,16 +1691,98 @@
         "shop": {
           "id": "gid://shopify/Shop/63755419881",
           "name": "very-big-test-store",
-          "myshopifyDomain": "very-big-test-store.myshopify.com"
+          "myshopifyDomain": "very-big-test-store.myshopify.com",
+          "url": "https://very-big-test-store.myshopify.com",
+          "primaryDomain": {
+            "id": "gid://shopify/Domain/93049946345",
+            "host": "very-big-test-store.myshopify.com",
+            "url": "https://very-big-test-store.myshopify.com",
+            "sslEnabled": true
+          },
+          "contactEmail": "shopify@gadget.dev",
+          "email": "shopify@gadget.dev",
+          "currencyCode": "CAD",
+          "enabledPresentmentCurrencies": ["CAD"],
+          "ianaTimezone": "America/Toronto",
+          "timezoneAbbreviation": "EDT",
+          "timezoneOffset": "-0400",
+          "timezoneOffsetMinutes": -240,
+          "taxesIncluded": false,
+          "taxShipping": false,
+          "unitSystem": "METRIC_SYSTEM",
+          "weightUnit": "KILOGRAMS",
+          "shopAddress": {
+            "id": "gid://shopify/ShopAddress/63755419881",
+            "address1": "103 ossington",
+            "address2": null,
+            "city": "Ottawa",
+            "company": null,
+            "coordinatesValidated": false,
+            "country": "Canada",
+            "countryCodeV2": "CA",
+            "formatted": ["103 ossington", "Ottawa ON k1s3b7", "Canada"],
+            "formattedArea": "Ottawa ON, Canada",
+            "latitude": 45.389817,
+            "longitude": -75.68692920000001,
+            "phone": "",
+            "province": "Ontario",
+            "provinceCode": "ON",
+            "zip": "k1s3b7"
+          },
+          "plan": {
+            "partnerDevelopment": true,
+            "publicDisplayName": "Development",
+            "shopifyPlus": false
+          },
+          "resourceLimits": {
+            "locationLimit": 1000,
+            "maxProductOptions": 3,
+            "maxProductVariants": 2048,
+            "redirectLimitReached": false
+          },
+          "features": {
+            "avalaraAvatax": false,
+            "branding": "SHOPIFY",
+            "bundles": {
+              "eligibleForBundles": true,
+              "ineligibilityReason": null,
+              "sellsBundles": false
+            },
+            "captcha": true,
+            "cartTransform": {
+              "eligibleOperations": {
+                "expandOperation": true,
+                "mergeOperation": true,
+                "updateOperation": true
+              }
+            },
+            "dynamicRemarketing": false,
+            "eligibleForSubscriptionMigration": false,
+            "eligibleForSubscriptions": false,
+            "giftCards": true,
+            "harmonizedSystemCode": true,
+            "legacySubscriptionGatewayEnabled": false,
+            "liveView": true,
+            "paypalExpressSubscriptionGatewayStatus": "DISABLED",
+            "reports": true,
+            "sellsSubscriptions": false,
+            "showMetrics": true,
+            "storefront": true,
+            "unifiedMarkets": true
+          },
+          "paymentSettings": {
+            "supportedDigitalWallets": []
+          },
+          "shopPolicies": []
         }
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 1,
-          "actualQueryCost": 1,
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1947,
+            "currentlyAvailable": 1942,
             "restoreRate": 100
           }
         }
@@ -1739,7 +1821,7 @@
           "actualQueryCost": 4,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1952,
+            "currentlyAvailable": 1955,
             "restoreRate": 100
           }
         }
@@ -1758,7 +1840,7 @@
           "actualQueryCost": 1,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1959,
+            "currentlyAvailable": 1963,
             "restoreRate": 100
           }
         }
@@ -1808,7 +1890,7 @@
           "actualQueryCost": 3,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1965,
+            "currentlyAvailable": 1970,
             "restoreRate": 100
           }
         }
@@ -1888,7 +1970,7 @@
           "actualQueryCost": 7,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1968,
+            "currentlyAvailable": 1972,
             "restoreRate": 100
           }
         }

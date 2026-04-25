@@ -12,9 +12,10 @@ import { getOperationCapability } from '../../src/proxy/capabilities.js';
 
 const repoRoot = resolve(import.meta.dirname, '../..');
 
-const storePropertiesQueryRoots = ['shop', 'cashManagementLocationSummary'] as const;
+const storePropertiesQueryRoots = ['cashManagementLocationSummary'] as const;
 
 const implementedStorePropertiesQueryRoots = [
+  'shop',
   'location',
   'locationByIdentifier',
   'businessEntities',
@@ -85,7 +86,7 @@ describe('Store properties registry scaffold', () => {
     for (const root of implementedStorePropertiesQueryRoots) {
       const entry = entriesByName.get(root);
       expect(entry?.implemented, `${root} should now have runtime support`).toBe(true);
-      expect(entry?.runtimeTests, `${root} should declare its targeted integration coverage`).not.toEqual([]);
+      expect(entry?.runtimeTests.length, `${root} should declare targeted integration coverage`).toBeGreaterThan(0);
     }
 
     for (const root of storePropertiesQueryRoots) {
@@ -136,8 +137,8 @@ describe('Store properties registry scaffold', () => {
 
   it('keeps planned local-staging scaffolds out of capability routing until they are implemented', () => {
     expect(getOperationCapability({ type: 'query', name: 'Shop', rootFields: ['shop'] })).toEqual({
-      domain: 'unknown',
-      execution: 'passthrough',
+      domain: 'store-properties',
+      execution: 'overlay-read',
       operationName: 'Shop',
       type: 'query',
     });
@@ -172,7 +173,14 @@ describe('Store properties registry scaffold', () => {
     }
   });
 
-  it('routes implemented business entity reads through the Store properties overlay', () => {
+  it('routes implemented Store properties reads through the overlay', () => {
+    expect(getOperationCapability({ type: 'query', name: 'Shop', rootFields: ['shop'] })).toEqual({
+      domain: 'store-properties',
+      execution: 'overlay-read',
+      operationName: 'Shop',
+      type: 'query',
+    });
+
     expect(
       getOperationCapability({ type: 'query', name: 'BusinessEntities', rootFields: ['businessEntities'] }),
     ).toEqual({
