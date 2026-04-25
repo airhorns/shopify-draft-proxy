@@ -191,20 +191,20 @@
     "type": "query",
     "domain": "payments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["paymentCustomization", "PaymentCustomization"],
-    "runtimeTests": [],
-    "supportNotes": "Payment customization scaffold only. The 2026-04-25 harry-test-heelo probe can capture unknown-id null behavior with read_payment_customizations; future capture should record no-data/null behavior before local overlay support."
+    "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
+    "supportNotes": "Snapshot-mode payment customization detail reads are modeled from normalized state. Unknown ids return null; function ownership and error-history selections only replay captured normalized values."
   },
   {
     "name": "paymentCustomizations",
     "type": "query",
     "domain": "payments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["paymentCustomizations", "PaymentCustomizations"],
-    "runtimeTests": [],
-    "supportNotes": "Payment customization scaffold only. The 2026-04-25 harry-test-heelo probe can capture an empty connection with read_payment_customizations; future capture should record connection filters, empty pages, and pagination shape before local overlay support."
+    "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
+    "supportNotes": "Snapshot-mode payment customization catalog reads are modeled from normalized state with empty/no-data connections, cursor pagination, reverse ordering, and captured-safe enabled/function_id/id filters. No lifecycle mutations are supported."
   },
   {
     "name": "paymentTermsTemplates",

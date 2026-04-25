@@ -45,6 +45,7 @@ import {
   hydrateProductsFromUpstreamResponse,
 } from '../src/proxy/products.js';
 import { handleMetafieldDefinitionQuery } from '../src/proxy/metafield-definitions.js';
+import { handlePaymentQuery } from '../src/proxy/payments.js';
 import {
   handleSegmentMutation,
   handleSegmentsQuery,
@@ -837,6 +838,13 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleDiscountQuery(document, variables),
+    };
+  }
+
+  if (capability.execution === 'overlay-read' && capability.domain === 'payments') {
+    return {
+      status: 200,
+      body: handlePaymentQuery(document, variables),
     };
   }
 

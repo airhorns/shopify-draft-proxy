@@ -161,6 +161,8 @@ Current customer-domain state deliberately stays narrower than the product model
 - staged `customerUpdate(input.metafields)` computes against the effective customer metafield set and replaces the staged customer-owned set, so downstream `customer.metafield(...)` and `customer.metafields(...)` reads stay consistent
 - staged `customerMerge` updates the normalized resulting customer row, marks the source customer deleted, records the source-to-result customer id redirect in `mergedCustomerIds`, and records the observed merge job/result shape in `customerMergeRequests`
 
+Current payment customization state is read-only and intentionally narrow. `PaymentCustomizationRecord` stores captured catalog/detail rows for snapshot-mode `paymentCustomization(id:)` and `paymentCustomizations(...)` reads; lifecycle mutations remain unsupported until a local Shopify Functions-backed staging model exists.
+
 ## Mutation handling strategy
 
 Mutation handling should eventually have four steps:

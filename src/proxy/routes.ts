@@ -16,6 +16,7 @@ import { handleMarketMutation, handleMarketsQuery, hydrateMarketsFromUpstreamRes
 import { handleOrderMutation, handleOrderQuery, shouldServeDraftOrderCatalogLocally } from './orders.js';
 import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamResponse } from './products.js';
 import { handleMetafieldDefinitionQuery } from './metafield-definitions.js';
+import { handlePaymentQuery } from './payments.js';
 import { handleSegmentMutation, handleSegmentsQuery, hydrateSegmentsFromUpstreamResponse } from './segments.js';
 import { handleStorePropertiesMutation, handleStorePropertiesQuery } from './store-properties.js';
 
@@ -579,6 +580,20 @@ export function createProxyRouter(config: AppConfig): Router {
       ctx.status = response.status;
       ctx.body = await response.json();
       return;
+    }
+
+    if (capability.execution === 'overlay-read' && capability.domain === 'payments') {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handlePaymentQuery(body.query, variables);
+        return;
+      }
+
+      if (config.readMode === 'live-hybrid' && store.hasPaymentCustomizations()) {
+        ctx.status = 200;
+        ctx.body = handlePaymentQuery(body.query, variables);
+        return;
+      }
     }
 
     if (capability.execution === 'overlay-read' && capability.domain === 'segments') {

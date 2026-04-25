@@ -24,6 +24,8 @@ const emptySnapshot = {
   customerAddresses: {},
   segments: {},
   discounts: {},
+  paymentCustomizations: {},
+  paymentCustomizationOrder: [],
   customerMetafields: {},
   businessEntities: {},
   businessEntityOrder: [],

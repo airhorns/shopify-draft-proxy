@@ -18,6 +18,7 @@ import type {
   MutationLogEntry,
   NormalizedStateSnapshotFile,
   OrderRecord,
+  PaymentCustomizationRecord,
   ProductCatalogConnectionRecord,
   ProductCollectionRecord,
   ProductMediaRecord,
@@ -58,6 +59,8 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   customerAddresses: {},
   segments: {},
   discounts: {},
+  paymentCustomizations: {},
+  paymentCustomizationOrder: [],
   businessEntities: {},
   businessEntityOrder: [],
   markets: {},
@@ -513,6 +516,15 @@ export class InMemoryStore {
       delete this.baseState.deletedDiscountIds[discount.id];
       delete this.stagedState.deletedDiscountIds[discount.id];
       this.baseState.discounts[discount.id] = structuredClone(discount);
+    }
+  }
+
+  upsertBasePaymentCustomizations(paymentCustomizations: PaymentCustomizationRecord[]): void {
+    for (const customization of paymentCustomizations) {
+      this.baseState.paymentCustomizations[customization.id] = structuredClone(customization);
+      if (!this.baseState.paymentCustomizationOrder.includes(customization.id)) {
+        this.baseState.paymentCustomizationOrder.push(customization.id);
+      }
     }
   }
 
@@ -1681,6 +1693,32 @@ export class InMemoryStore {
     return merged;
   }
 
+  getEffectivePaymentCustomizationById(paymentCustomizationId: string): PaymentCustomizationRecord | null {
+    const customization =
+      this.stagedState.paymentCustomizations[paymentCustomizationId] ??
+      this.baseState.paymentCustomizations[paymentCustomizationId] ??
+      null;
+    return customization ? structuredClone(customization) : null;
+  }
+
+  listEffectivePaymentCustomizations(): PaymentCustomizationRecord[] {
+    const orderedIds = new Set([
+      ...this.baseState.paymentCustomizationOrder,
+      ...this.stagedState.paymentCustomizationOrder,
+    ]);
+    const orderedCustomizations = Array.from(orderedIds)
+      .map((id) => this.getEffectivePaymentCustomizationById(id))
+      .filter((customization): customization is PaymentCustomizationRecord => customization !== null);
+    const unorderedCustomizations = Object.values({
+      ...this.baseState.paymentCustomizations,
+      ...this.stagedState.paymentCustomizations,
+    })
+      .filter((customization) => !orderedIds.has(customization.id))
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
+
+    return structuredClone([...orderedCustomizations, ...unorderedCustomizations]);
+  }
+
   hasBaseCustomers(): boolean {
     return Object.keys(this.baseState.customers).length > 0;
   }
@@ -1702,6 +1740,13 @@ export class InMemoryStore {
       Object.keys(this.baseState.discounts).length > 0 ||
       Object.keys(this.stagedState.discounts).length > 0 ||
       Object.keys(this.stagedState.deletedDiscountIds).length > 0
+    );
+  }
+
+  hasPaymentCustomizations(): boolean {
+    return (
+      Object.keys(this.baseState.paymentCustomizations).length > 0 ||
+      Object.keys(this.stagedState.paymentCustomizations).length > 0
     );
   }
 
