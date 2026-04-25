@@ -1,0 +1,21 @@
+{
+  "scenarioId": "fulfillment-order-lifecycle-local-staging",
+  "operationNames": [
+    "fulfillmentOrderHold",
+    "fulfillmentOrderReleaseHold",
+    "fulfillmentOrderMove",
+    "fulfillmentOrderReportProgress",
+    "fulfillmentOrderOpen",
+    "fulfillmentOrderCancel"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "downstream-read-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/fulfillment-order-lifecycle.json"],
+  "runtimeTestFiles": ["tests/integration/order-fulfillment-flow.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "notes": "HAR-234 runtime evidence for local fulfillment-order lifecycle staging. The fixture captures Shopify 2026-04 partial hold/release, partial move, report-progress/open, cancel/replacement behavior, representative unknown-id validation, and guardrails for reschedule/close/reroute. The generic parity runner cannot yet replay this multi-operation order-scoped flow directly, so the referenced integration test enforces local staging, downstream read behavior, meta log visibility, and no upstream passthrough."
+}

@@ -3337,6 +3337,57 @@ function serializeOrderFulfillmentOrder(
       case 'requestStatus':
         result[key] = fulfillmentOrder.requestStatus ?? null;
         break;
+      case 'fulfillAt':
+        result[key] = fulfillmentOrder.fulfillAt ?? null;
+        break;
+      case 'fulfillBy':
+        result[key] = fulfillmentOrder.fulfillBy ?? null;
+        break;
+      case 'updatedAt':
+        result[key] = fulfillmentOrder.updatedAt ?? null;
+        break;
+      case 'supportedActions':
+        result[key] = (fulfillmentOrder.supportedActions ?? []).map((action) =>
+          Object.fromEntries(
+            getSelectedChildFields(selection).map((actionSelection) => {
+              const actionKey = getFieldResponseKey(actionSelection);
+              switch (actionSelection.name.value) {
+                case 'action':
+                  return [actionKey, action];
+                default:
+                  return [actionKey, null];
+              }
+            }),
+          ),
+        );
+        break;
+      case 'fulfillmentHolds':
+        result[key] = (fulfillmentOrder.fulfillmentHolds ?? []).map((hold) =>
+          Object.fromEntries(
+            getSelectedChildFields(selection).map((holdSelection) => {
+              const holdKey = getFieldResponseKey(holdSelection);
+              switch (holdSelection.name.value) {
+                case 'id':
+                  return [holdKey, hold.id];
+                case 'handle':
+                  return [holdKey, hold.handle ?? null];
+                case 'reason':
+                  return [holdKey, hold.reason ?? null];
+                case 'reasonNotes':
+                  return [holdKey, hold.reasonNotes ?? null];
+                case 'displayReason':
+                  return [holdKey, hold.displayReason ?? null];
+                case 'heldByRequestingApp':
+                  return [holdKey, hold.heldByRequestingApp ?? null];
+                case 'heldByApp':
+                  return [holdKey, null];
+                default:
+                  return [holdKey, null];
+              }
+            }),
+          ),
+        );
+        break;
       case 'assignedLocation':
         result[key] = fulfillmentOrder.assignedLocation
           ? Object.fromEntries(
@@ -3345,6 +3396,25 @@ function serializeOrderFulfillmentOrder(
                 switch (locationSelection.name.value) {
                   case 'name':
                     return [locationKey, fulfillmentOrder.assignedLocation?.name ?? null];
+                  case 'location':
+                    return fulfillmentOrder.assignedLocation?.locationId
+                      ? [
+                          locationKey,
+                          Object.fromEntries(
+                            getSelectedChildFields(locationSelection).map((nestedLocationSelection) => {
+                              const nestedLocationKey = getFieldResponseKey(nestedLocationSelection);
+                              switch (nestedLocationSelection.name.value) {
+                                case 'id':
+                                  return [nestedLocationKey, fulfillmentOrder.assignedLocation?.locationId ?? null];
+                                case 'name':
+                                  return [nestedLocationKey, fulfillmentOrder.assignedLocation?.name ?? null];
+                                default:
+                                  return [nestedLocationKey, null];
+                              }
+                            }),
+                          ),
+                        ]
+                      : [locationKey, null];
                   default:
                     return [locationKey, null];
                 }
@@ -4847,6 +4917,367 @@ function findOrderWithFulfillment(
   return null;
 }
 
+function findOrderWithFulfillmentOrder(
+  fulfillmentOrderId: string,
+): { order: OrderRecord; fulfillmentOrder: OrderFulfillmentOrderRecord } | null {
+  for (const order of store.getOrders()) {
+    const fulfillmentOrder = (order.fulfillmentOrders ?? []).find((candidate) => candidate.id === fulfillmentOrderId);
+    if (fulfillmentOrder) {
+      return { order, fulfillmentOrder };
+    }
+  }
+
+  return null;
+}
+
+function readFulfillmentOrderId(variables: Record<string, unknown>): string | null {
+  return typeof variables['id'] === 'string' ? variables['id'] : null;
+}
+
+function readFulfillmentOrderLineItemInputs(
+  variables: Record<string, unknown>,
+): Array<{ id: string; quantity: number }> {
+  const raw = variables['fulfillmentOrderLineItems'];
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  return raw
+    .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
+    .map((item) => ({
+      id: typeof item['id'] === 'string' ? item['id'] : '',
+      quantity: typeof item['quantity'] === 'number' ? item['quantity'] : 0,
+    }))
+    .filter((item) => item.id.length > 0 && item.quantity > 0);
+}
+
+function readFulfillmentHoldInput(variables: Record<string, unknown>): Record<string, unknown> {
+  const input = variables['fulfillmentHold'];
+  return typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {};
+}
+
+function fulfillmentOrderSupportedActions(status: string | null | undefined): string[] {
+  switch (status) {
+    case 'ON_HOLD':
+      return ['RELEASE_HOLD', 'HOLD', 'MOVE'];
+    case 'IN_PROGRESS':
+      return ['CREATE_FULFILLMENT', 'REPORT_PROGRESS', 'HOLD', 'MARK_AS_OPEN'];
+    case 'CLOSED':
+      return [];
+    case 'OPEN':
+    default:
+      return ['CREATE_FULFILLMENT', 'REPORT_PROGRESS', 'MOVE', 'HOLD', 'SPLIT'];
+  }
+}
+
+function updateOrderFulfillmentOrders(
+  order: OrderRecord,
+  updater: (fulfillmentOrders: OrderFulfillmentOrderRecord[]) => OrderFulfillmentOrderRecord[],
+): OrderRecord {
+  return store.updateOrder({
+    ...order,
+    updatedAt: makeSyntheticTimestamp(),
+    fulfillmentOrders: updater(order.fulfillmentOrders ?? []),
+  });
+}
+
+function serializeFulfillmentOrderMutationPayload(
+  field: FieldNode,
+  values: Record<string, OrderFulfillmentOrderRecord | OrderFulfillmentOrderRecord[] | null>,
+  userErrors: Array<{ field: string[] | null; message: string }>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const selectionKey = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'fulfillmentOrder':
+      case 'remainingFulfillmentOrder':
+      case 'movedFulfillmentOrder':
+      case 'originalFulfillmentOrder':
+      case 'replacementFulfillmentOrder': {
+        const fulfillmentOrder = values[selection.name.value];
+        payload[selectionKey] =
+          fulfillmentOrder && !Array.isArray(fulfillmentOrder)
+            ? serializeOrderFulfillmentOrder(selection, fulfillmentOrder)
+            : null;
+        break;
+      }
+      case 'movedFulfillmentOrders': {
+        const fulfillmentOrders = values[selection.name.value];
+        payload[selectionKey] = Array.isArray(fulfillmentOrders)
+          ? fulfillmentOrders.map((fulfillmentOrder) => serializeOrderFulfillmentOrder(selection, fulfillmentOrder))
+          : [];
+        break;
+      }
+      case 'fulfillmentHold': {
+        const fulfillmentOrder = values['fulfillmentOrder'];
+        const hold =
+          fulfillmentOrder && !Array.isArray(fulfillmentOrder)
+            ? ((fulfillmentOrder.fulfillmentHolds ?? [])[0] ?? null)
+            : null;
+        payload[selectionKey] = hold
+          ? Object.fromEntries(
+              getSelectedChildFields(selection).map((holdSelection) => {
+                const holdKey = getFieldResponseKey(holdSelection);
+                switch (holdSelection.name.value) {
+                  case 'id':
+                    return [holdKey, hold.id];
+                  case 'handle':
+                    return [holdKey, hold.handle ?? null];
+                  case 'reason':
+                    return [holdKey, hold.reason ?? null];
+                  case 'reasonNotes':
+                    return [holdKey, hold.reasonNotes ?? null];
+                  case 'displayReason':
+                    return [holdKey, hold.displayReason ?? null];
+                  case 'heldByRequestingApp':
+                    return [holdKey, hold.heldByRequestingApp ?? null];
+                  default:
+                    return [holdKey, null];
+                }
+              }),
+            )
+          : null;
+        break;
+      }
+      case 'userErrors':
+        payload[selectionKey] = serializeSelectedUserErrors(selection, userErrors);
+        break;
+      default:
+        payload[selectionKey] = null;
+        break;
+    }
+  }
+  return payload;
+}
+
+function splitFulfillmentOrderLineItems(
+  fulfillmentOrder: OrderFulfillmentOrderRecord,
+  inputs: Array<{ id: string; quantity: number }>,
+): {
+  selectedLineItems: OrderFulfillmentOrderLineItemRecord[];
+  remainingLineItems: OrderFulfillmentOrderLineItemRecord[];
+} {
+  if (inputs.length === 0) {
+    return {
+      selectedLineItems: structuredClone(fulfillmentOrder.lineItems ?? []),
+      remainingLineItems: [],
+    };
+  }
+
+  const selectedLineItems: OrderFulfillmentOrderLineItemRecord[] = [];
+  const remainingLineItems: OrderFulfillmentOrderLineItemRecord[] = [];
+  for (const lineItem of fulfillmentOrder.lineItems ?? []) {
+    const input = inputs.find((candidate) => candidate.id === lineItem.id);
+    if (!input) {
+      remainingLineItems.push(structuredClone(lineItem));
+      continue;
+    }
+
+    const selectedQuantity = Math.min(input.quantity, lineItem.remainingQuantity, lineItem.totalQuantity);
+    if (selectedQuantity > 0) {
+      selectedLineItems.push({
+        ...lineItem,
+        totalQuantity: selectedQuantity,
+        remainingQuantity: selectedQuantity,
+      });
+    }
+
+    const remainingQuantity = lineItem.totalQuantity - selectedQuantity;
+    if (remainingQuantity > 0) {
+      remainingLineItems.push({
+        ...lineItem,
+        id: makeSyntheticGid('FulfillmentOrderLineItem'),
+        totalQuantity: remainingQuantity,
+        remainingQuantity,
+      });
+    }
+  }
+
+  return { selectedLineItems, remainingLineItems };
+}
+
+function buildReplacementFulfillmentOrder(
+  fulfillmentOrder: OrderFulfillmentOrderRecord,
+  lineItems: OrderFulfillmentOrderLineItemRecord[],
+  overrides: Partial<OrderFulfillmentOrderRecord> = {},
+): OrderFulfillmentOrderRecord {
+  const status = overrides.status ?? 'OPEN';
+  return {
+    ...fulfillmentOrder,
+    id: makeSyntheticGid('FulfillmentOrder'),
+    updatedAt: makeSyntheticTimestamp(),
+    status,
+    requestStatus: overrides.requestStatus ?? fulfillmentOrder.requestStatus ?? 'UNSUBMITTED',
+    supportedActions: fulfillmentOrderSupportedActions(status),
+    fulfillmentHolds: [],
+    lineItems,
+    ...overrides,
+  };
+}
+
+function applyFulfillmentOrderHold(
+  order: OrderRecord,
+  fulfillmentOrder: OrderFulfillmentOrderRecord,
+  variables: Record<string, unknown>,
+): {
+  order: OrderRecord;
+  fulfillmentOrder: OrderFulfillmentOrderRecord;
+  remainingFulfillmentOrder: OrderFulfillmentOrderRecord | null;
+} {
+  const input = readFulfillmentHoldInput(variables);
+  const { selectedLineItems, remainingLineItems } = splitFulfillmentOrderLineItems(
+    fulfillmentOrder,
+    Array.isArray(input['fulfillmentOrderLineItems'])
+      ? (input['fulfillmentOrderLineItems'] as Record<string, unknown>[])
+          .map((item) => ({
+            id: typeof item['id'] === 'string' ? item['id'] : '',
+            quantity: typeof item['quantity'] === 'number' ? item['quantity'] : 0,
+          }))
+          .filter((item) => item.id.length > 0 && item.quantity > 0)
+      : [],
+  );
+  const hold = {
+    id: makeSyntheticGid('FulfillmentHold'),
+    handle: readString(input['handle']),
+    reason: readString(input['reason']) ?? 'OTHER',
+    reasonNotes: readString(input['reasonNotes']),
+    displayReason:
+      readString(input['reason']) === 'OTHER' || !readString(input['reason']) ? 'Other' : readString(input['reason']),
+    heldByRequestingApp: true,
+  };
+  const heldFulfillmentOrder: OrderFulfillmentOrderRecord = {
+    ...fulfillmentOrder,
+    status: 'ON_HOLD',
+    updatedAt: makeSyntheticTimestamp(),
+    supportedActions: fulfillmentOrderSupportedActions('ON_HOLD'),
+    fulfillmentHolds: [hold],
+    lineItems: selectedLineItems,
+  };
+  const remainingFulfillmentOrder =
+    remainingLineItems.length > 0
+      ? buildReplacementFulfillmentOrder(fulfillmentOrder, remainingLineItems, {
+          assignedLocation: fulfillmentOrder.assignedLocation,
+        })
+      : null;
+  const updatedOrder = updateOrderFulfillmentOrders(order, (fulfillmentOrders) =>
+    fulfillmentOrders.flatMap((candidate) => {
+      if (candidate.id !== fulfillmentOrder.id) {
+        return [candidate];
+      }
+      return remainingFulfillmentOrder ? [heldFulfillmentOrder, remainingFulfillmentOrder] : [heldFulfillmentOrder];
+    }),
+  );
+  return {
+    order: updatedOrder,
+    fulfillmentOrder: heldFulfillmentOrder,
+    remainingFulfillmentOrder,
+  };
+}
+
+function applyFulfillmentOrderReleaseHold(
+  order: OrderRecord,
+  fulfillmentOrder: OrderFulfillmentOrderRecord,
+): { order: OrderRecord; fulfillmentOrder: OrderFulfillmentOrderRecord } {
+  const releasedFulfillmentOrder: OrderFulfillmentOrderRecord = {
+    ...fulfillmentOrder,
+    status: 'OPEN',
+    updatedAt: makeSyntheticTimestamp(),
+    supportedActions: fulfillmentOrderSupportedActions('OPEN'),
+    fulfillmentHolds: [],
+  };
+  const updatedOrder = updateOrderFulfillmentOrders(order, (fulfillmentOrders) =>
+    fulfillmentOrders.map((candidate) => (candidate.id === fulfillmentOrder.id ? releasedFulfillmentOrder : candidate)),
+  );
+  return { order: updatedOrder, fulfillmentOrder: releasedFulfillmentOrder };
+}
+
+function applyFulfillmentOrderMove(
+  order: OrderRecord,
+  fulfillmentOrder: OrderFulfillmentOrderRecord,
+  variables: Record<string, unknown>,
+): {
+  order: OrderRecord;
+  movedFulfillmentOrder: OrderFulfillmentOrderRecord;
+  originalFulfillmentOrder: OrderFulfillmentOrderRecord;
+  remainingFulfillmentOrder: OrderFulfillmentOrderRecord | null;
+} {
+  const { selectedLineItems, remainingLineItems } = splitFulfillmentOrderLineItems(
+    fulfillmentOrder,
+    readFulfillmentOrderLineItemInputs(variables),
+  );
+  const newLocationId = typeof variables['newLocationId'] === 'string' ? variables['newLocationId'] : null;
+  const movedFulfillmentOrder = buildReplacementFulfillmentOrder(fulfillmentOrder, selectedLineItems, {
+    assignedLocation: {
+      name:
+        newLocationId === fulfillmentOrder.assignedLocation?.locationId
+          ? fulfillmentOrder.assignedLocation.name
+          : 'Shop location',
+      locationId: newLocationId,
+    },
+  });
+  const originalFulfillmentOrder: OrderFulfillmentOrderRecord = {
+    ...fulfillmentOrder,
+    updatedAt: makeSyntheticTimestamp(),
+    supportedActions: fulfillmentOrderSupportedActions(fulfillmentOrder.status),
+    lineItems: remainingLineItems.length > 0 ? remainingLineItems : [],
+  };
+  const remainingFulfillmentOrder = remainingLineItems.length > 0 ? originalFulfillmentOrder : null;
+  const updatedOrder = updateOrderFulfillmentOrders(order, (fulfillmentOrders) =>
+    fulfillmentOrders.flatMap((candidate) => {
+      if (candidate.id !== fulfillmentOrder.id) {
+        return [candidate];
+      }
+      return remainingFulfillmentOrder ? [originalFulfillmentOrder, movedFulfillmentOrder] : [movedFulfillmentOrder];
+    }),
+  );
+  return { order: updatedOrder, movedFulfillmentOrder, originalFulfillmentOrder, remainingFulfillmentOrder };
+}
+
+function applyFulfillmentOrderStatus(
+  order: OrderRecord,
+  fulfillmentOrder: OrderFulfillmentOrderRecord,
+  status: string,
+): { order: OrderRecord; fulfillmentOrder: OrderFulfillmentOrderRecord } {
+  const updatedFulfillmentOrder: OrderFulfillmentOrderRecord = {
+    ...fulfillmentOrder,
+    status,
+    updatedAt: makeSyntheticTimestamp(),
+    supportedActions: fulfillmentOrderSupportedActions(status),
+  };
+  const updatedOrder = updateOrderFulfillmentOrders(order, (fulfillmentOrders) =>
+    fulfillmentOrders.map((candidate) => (candidate.id === fulfillmentOrder.id ? updatedFulfillmentOrder : candidate)),
+  );
+  return { order: updatedOrder, fulfillmentOrder: updatedFulfillmentOrder };
+}
+
+function applyFulfillmentOrderCancel(
+  order: OrderRecord,
+  fulfillmentOrder: OrderFulfillmentOrderRecord,
+): {
+  order: OrderRecord;
+  fulfillmentOrder: OrderFulfillmentOrderRecord;
+  replacementFulfillmentOrder: OrderFulfillmentOrderRecord;
+} {
+  const cancelledFulfillmentOrder: OrderFulfillmentOrderRecord = {
+    ...fulfillmentOrder,
+    status: 'CLOSED',
+    updatedAt: makeSyntheticTimestamp(),
+    supportedActions: [],
+    lineItems: [],
+  };
+  const replacementFulfillmentOrder = buildReplacementFulfillmentOrder(
+    fulfillmentOrder,
+    structuredClone(fulfillmentOrder.lineItems ?? []),
+  );
+  const updatedOrder = updateOrderFulfillmentOrders(order, (fulfillmentOrders) =>
+    fulfillmentOrders.flatMap((candidate) =>
+      candidate.id === fulfillmentOrder.id ? [cancelledFulfillmentOrder, replacementFulfillmentOrder] : [candidate],
+    ),
+  );
+  return { order: updatedOrder, fulfillmentOrder: cancelledFulfillmentOrder, replacementFulfillmentOrder };
+}
+
 function serializeFulfillmentMutationPayload(
   field: FieldNode,
   fulfillment: OrderFulfillmentRecord | null,
@@ -5125,8 +5556,19 @@ export function handleOrderQuery(
         );
         break;
       case 'assignedFulfillmentOrders':
-      case 'manualHoldsFulfillmentOrders':
         data[key] = serializeOrderFulfillmentOrdersConnection(field, [], variables, { includeCursors: true });
+        break;
+      case 'manualHoldsFulfillmentOrders':
+        data[key] = serializeOrderFulfillmentOrdersConnection(
+          field,
+          sortFulfillmentOrdersForConnection(
+            fulfillmentOrders.filter((fulfillmentOrder) => (fulfillmentOrder.fulfillmentHolds ?? []).length > 0),
+            field,
+            variables,
+          ),
+          variables,
+          { includeCursors: true },
+        );
         break;
       case 'draftOrder': {
         const id = readNullableStringArgument(field, 'id', variables);
@@ -5940,6 +6382,166 @@ export function handleOrderMutation(
         });
         data[key] = serializeFulfillmentMutationPayload(field, updatedFulfillment, []);
       }
+      continue;
+    }
+
+    if (field.name.value === 'fulfillmentOrderHold' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const fulfillmentOrderId = readFulfillmentOrderId(variables);
+      const match = fulfillmentOrderId ? findOrderWithFulfillmentOrder(fulfillmentOrderId) : null;
+      if (!match) {
+        errors.push({
+          message: `Invalid id: ${fulfillmentOrderId ?? ''}`,
+          extensions: { code: 'RESOURCE_NOT_FOUND' },
+          path: [key],
+        });
+        continue;
+      }
+
+      const result = applyFulfillmentOrderHold(match.order, match.fulfillmentOrder, variables);
+      data[key] = serializeFulfillmentOrderMutationPayload(
+        field,
+        {
+          fulfillmentOrder: result.fulfillmentOrder,
+          remainingFulfillmentOrder: result.remainingFulfillmentOrder,
+        },
+        [],
+      );
+      continue;
+    }
+
+    if (field.name.value === 'fulfillmentOrderReleaseHold' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const fulfillmentOrderId = readFulfillmentOrderId(variables);
+      const match = fulfillmentOrderId ? findOrderWithFulfillmentOrder(fulfillmentOrderId) : null;
+      if (!match) {
+        errors.push({
+          message: `Invalid id: ${fulfillmentOrderId ?? ''}`,
+          extensions: { code: 'RESOURCE_NOT_FOUND' },
+          path: [key],
+        });
+        continue;
+      }
+
+      const result = applyFulfillmentOrderReleaseHold(match.order, match.fulfillmentOrder);
+      data[key] = serializeFulfillmentOrderMutationPayload(field, { fulfillmentOrder: result.fulfillmentOrder }, []);
+      continue;
+    }
+
+    if (field.name.value === 'fulfillmentOrderMove' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const fulfillmentOrderId = readFulfillmentOrderId(variables);
+      const match = fulfillmentOrderId ? findOrderWithFulfillmentOrder(fulfillmentOrderId) : null;
+      if (!match) {
+        errors.push({
+          message: `Invalid id: ${fulfillmentOrderId ?? ''}`,
+          extensions: { code: 'RESOURCE_NOT_FOUND' },
+          path: [key],
+        });
+        continue;
+      }
+
+      const result = applyFulfillmentOrderMove(match.order, match.fulfillmentOrder, variables);
+      data[key] = serializeFulfillmentOrderMutationPayload(
+        field,
+        {
+          movedFulfillmentOrder: result.movedFulfillmentOrder,
+          originalFulfillmentOrder: result.originalFulfillmentOrder,
+          remainingFulfillmentOrder: result.remainingFulfillmentOrder,
+        },
+        [],
+      );
+      continue;
+    }
+
+    if (
+      field.name.value === 'fulfillmentOrderReportProgress' &&
+      (readMode === 'snapshot' || readMode === 'live-hybrid')
+    ) {
+      handled = true;
+      const fulfillmentOrderId = readFulfillmentOrderId(variables);
+      const match = fulfillmentOrderId ? findOrderWithFulfillmentOrder(fulfillmentOrderId) : null;
+      if (!match) {
+        errors.push({
+          message: `Invalid id: ${fulfillmentOrderId ?? ''}`,
+          extensions: { code: 'RESOURCE_NOT_FOUND' },
+          path: [key],
+        });
+        continue;
+      }
+
+      const result = applyFulfillmentOrderStatus(match.order, match.fulfillmentOrder, 'IN_PROGRESS');
+      data[key] = serializeFulfillmentOrderMutationPayload(field, { fulfillmentOrder: result.fulfillmentOrder }, []);
+      continue;
+    }
+
+    if (field.name.value === 'fulfillmentOrderOpen' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const fulfillmentOrderId = readFulfillmentOrderId(variables);
+      const match = fulfillmentOrderId ? findOrderWithFulfillmentOrder(fulfillmentOrderId) : null;
+      if (!match) {
+        errors.push({
+          message: `Invalid id: ${fulfillmentOrderId ?? ''}`,
+          extensions: { code: 'RESOURCE_NOT_FOUND' },
+          path: [key],
+        });
+        continue;
+      }
+
+      const result = applyFulfillmentOrderStatus(match.order, match.fulfillmentOrder, 'OPEN');
+      data[key] = serializeFulfillmentOrderMutationPayload(field, { fulfillmentOrder: result.fulfillmentOrder }, []);
+      continue;
+    }
+
+    if (field.name.value === 'fulfillmentOrderCancel' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const fulfillmentOrderId = readFulfillmentOrderId(variables);
+      const match = fulfillmentOrderId ? findOrderWithFulfillmentOrder(fulfillmentOrderId) : null;
+      if (!match) {
+        errors.push({
+          message: `Invalid id: ${fulfillmentOrderId ?? ''}`,
+          extensions: { code: 'RESOURCE_NOT_FOUND' },
+          path: [key],
+        });
+        continue;
+      }
+
+      const result = applyFulfillmentOrderCancel(match.order, match.fulfillmentOrder);
+      data[key] = serializeFulfillmentOrderMutationPayload(
+        field,
+        {
+          fulfillmentOrder: result.fulfillmentOrder,
+          replacementFulfillmentOrder: result.replacementFulfillmentOrder,
+        },
+        [],
+      );
+      continue;
+    }
+
+    if (field.name.value === 'fulfillmentOrderReschedule' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      data[key] = serializeFulfillmentOrderMutationPayload(field, { fulfillmentOrder: null }, [
+        { field: null, message: 'Fulfillment order must be scheduled.' },
+      ]);
+      continue;
+    }
+
+    if (field.name.value === 'fulfillmentOrderClose' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      data[key] = serializeFulfillmentOrderMutationPayload(field, { fulfillmentOrder: null }, [
+        { field: null, message: "The fulfillment order's assigned fulfillment service must be of api type" },
+      ]);
+      continue;
+    }
+
+    if (field.name.value === 'fulfillmentOrdersReroute' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      errors.push({
+        message: 'Internal error. Looks like something went wrong on our end.',
+        extensions: {
+          code: 'INTERNAL_SERVER_ERROR',
+        },
+      });
       continue;
     }
 

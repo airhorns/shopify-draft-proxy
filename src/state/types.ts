@@ -952,6 +952,7 @@ export type OrderFulfillmentRecord = z.infer<typeof orderFulfillmentRecordSchema
 
 export const orderFulfillmentOrderAssignedLocationRecordSchema = z.strictObject({
   name: nullableStringSchema,
+  locationId: nullableStringSchema.optional(),
 });
 export type OrderFulfillmentOrderAssignedLocationRecord = z.infer<
   typeof orderFulfillmentOrderAssignedLocationRecordSchema
@@ -970,6 +971,22 @@ export const orderFulfillmentOrderRecordSchema = z.strictObject({
   id: z.string(),
   status: nullableStringSchema,
   requestStatus: nullableStringSchema.optional(),
+  fulfillAt: nullableStringSchema.optional(),
+  fulfillBy: nullableStringSchema.optional(),
+  updatedAt: nullableStringSchema.optional(),
+  supportedActions: z.array(z.string()).optional(),
+  fulfillmentHolds: z
+    .array(
+      z.strictObject({
+        id: z.string(),
+        handle: nullableStringSchema.optional(),
+        reason: nullableStringSchema.optional(),
+        reasonNotes: nullableStringSchema.optional(),
+        displayReason: nullableStringSchema.optional(),
+        heldByRequestingApp: z.boolean().optional(),
+      }),
+    )
+    .optional(),
   assignedLocation: orderFulfillmentOrderAssignedLocationRecordSchema.nullable().optional(),
   lineItems: z.array(orderFulfillmentOrderLineItemRecordSchema).optional(),
 });

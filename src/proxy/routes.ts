@@ -57,6 +57,18 @@ const CARRIER_SERVICE_MUTATION_ROOTS = new Set([
   'carrierServiceDelete',
 ]);
 
+const FULFILLMENT_ORDER_LIFECYCLE_MUTATION_ROOTS = new Set([
+  'fulfillmentOrderHold',
+  'fulfillmentOrderReleaseHold',
+  'fulfillmentOrderMove',
+  'fulfillmentOrderOpen',
+  'fulfillmentOrderCancel',
+  'fulfillmentOrderReportProgress',
+  'fulfillmentOrderReschedule',
+  'fulfillmentOrderClose',
+  'fulfillmentOrdersReroute',
+]);
+
 function readVariables(raw: unknown): Record<string, unknown> {
   return typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
 }
@@ -340,6 +352,34 @@ export function createProxyRouter(config: AppConfig): Router {
       ctx.status = 200;
       ctx.body = responseBody;
       return;
+    }
+
+    if (primaryRootField && FULFILLMENT_ORDER_LIFECYCLE_MUTATION_ROOTS.has(primaryRootField)) {
+      const responseBody = handleOrderMutation(body.query, variables, config.readMode, config.shopifyAdminOrigin);
+      if (responseBody) {
+        store.appendLog({
+          id: makeSyntheticGid('MutationLogEntry'),
+          receivedAt: makeSyntheticTimestamp(),
+          operationName: primaryRootField,
+          path: ctx.path,
+          query: body.query,
+          variables,
+          requestBody,
+          stagedResourceIds: collectProxySyntheticGids(responseBody),
+          status: 'staged',
+          interpreted: interpretMutationLogEntry(parsed, capability),
+          notes:
+            primaryRootField === 'fulfillmentOrderReschedule' ||
+            primaryRootField === 'fulfillmentOrderClose' ||
+            primaryRootField === 'fulfillmentOrdersReroute'
+              ? 'Returned a captured fulfillment-order lifecycle guardrail locally without proxying upstream; full local lifecycle support remains unimplemented for this root.'
+              : 'Staged locally in the in-memory fulfillment-order lifecycle draft store.',
+        });
+
+        ctx.status = 200;
+        ctx.body = responseBody;
+        return;
+      }
     }
 
     if (

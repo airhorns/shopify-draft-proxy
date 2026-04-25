@@ -9,6 +9,12 @@ Local staged mutations currently live under the orders group because they operat
 - `fulfillmentCreate`
 - `fulfillmentTrackingInfoUpdate`
 - `fulfillmentCancel`
+- `fulfillmentOrderHold`
+- `fulfillmentOrderReleaseHold`
+- `fulfillmentOrderMove`
+- `fulfillmentOrderReportProgress`
+- `fulfillmentOrderOpen`
+- `fulfillmentOrderCancel`
 
 Those roots are implemented in `tests/integration/order-fulfillment-flow.test.ts` and covered by `config/parity-specs/fulfillment*.json`. HAR-122/HAR-187 provide the evidence-backed fulfillment lifecycle slices; this document does not duplicate those request/fixture details.
 
@@ -22,7 +28,17 @@ Top-level fulfillment and fulfillment-order reads are implemented as snapshot/lo
 
 `fulfillment(id:)` and `fulfillmentOrder(id:)` resolve only records already present on local `Order.fulfillments` / `Order.fulfillmentOrders` data and return `null` for missing IDs. They do not invent fulfillment records, fulfillment orders, holds, delivery methods, or lifecycle replacement records absent from the snapshot or staged order graph.
 
-`fulfillmentOrders` lists local order-graph fulfillment orders, excludes `CLOSED` records unless `includeClosed: true` is selected, and supports the captured local subset of ID/status sorting, `reverse`, cursor pagination, and `query` terms for `id`, `status`, and `request_status`. `manualHoldsFulfillmentOrders` currently returns the captured no-hold empty connection because the local model does not store fulfillment holds yet. `assignedFulfillmentOrders` currently returns an empty local connection; the HAR-232 live fixture records that the active conformance credential receives `["The api_client is not associated with any fulfillment service."]` for that root, so broader assignment-status and fulfillment-service scope behavior remains an explicit access-scoped gap rather than guessed behavior.
+`fulfillmentOrders` lists local order-graph fulfillment orders, excludes `CLOSED` records unless `includeClosed: true` is selected, and supports the captured local subset of ID/status sorting, `reverse`, cursor pagination, and `query` terms for `id`, `status`, and `request_status`. `manualHoldsFulfillmentOrders` returns held local fulfillment orders after staged `fulfillmentOrderHold` calls and otherwise returns the captured no-hold empty connection. `assignedFulfillmentOrders` currently returns an empty local connection; the HAR-232 live fixture records that the active conformance credential receives `["The api_client is not associated with any fulfillment service."]` for that root, so broader assignment-status and fulfillment-service scope behavior remains an explicit access-scoped gap rather than guessed behavior.
+
+HAR-234 adds fulfillment-order lifecycle staging backed by `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/fulfillment-order-lifecycle.json`. Local support covers merchant-managed fulfillment orders already present on the local order graph:
+
+- `fulfillmentOrderHold` records app-created hold metadata, moves the selected work to `ON_HOLD`, exposes it through `fulfillmentHolds` and `manualHoldsFulfillmentOrders`, and creates an `OPEN` remaining fulfillment order for partial holds.
+- `fulfillmentOrderReleaseHold` clears local holds and restores `OPEN` status/actions for the held fulfillment order.
+- `fulfillmentOrderMove` stages full or partial line-item moves by assigning selected work to a replacement fulfillment order at the requested location and leaving remaining quantities on the original order.
+- `fulfillmentOrderReportProgress` changes local status to `IN_PROGRESS`; `fulfillmentOrderOpen` changes it back to `OPEN`.
+- `fulfillmentOrderCancel` closes the original fulfillment order, clears its line items, and creates an `OPEN` replacement fulfillment order carrying the remaining work.
+
+HAR-234 captured but does not mark full support for `fulfillmentOrderReschedule`, `fulfillmentOrderClose`, or `fulfillmentOrdersReroute`. The current disposable merchant-managed setup returns `Fulfillment order must be scheduled.` for reschedule, `The fulfillment order's assigned fulfillment service must be of api type` for close, and a Shopify internal error for the attempted included-location reroute success branch. The proxy mirrors the captured guardrails locally where modeled, but these roots remain registry-unimplemented until success-path setup and downstream read behavior are captured.
 
 Captured HAR-232 evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/fulfillment-top-level-reads.json` with parity coverage in `config/parity-specs/fulfillment-top-level-reads.json`. Runtime coverage is in `tests/integration/order-query-shapes.test.ts`.
 
@@ -78,17 +94,11 @@ Fulfillment-order mutations:
 
 - `fulfillmentOrderAcceptCancellationRequest`
 - `fulfillmentOrderAcceptFulfillmentRequest`
-- `fulfillmentOrderCancel`
 - `fulfillmentOrderClose`
-- `fulfillmentOrderHold`
 - `fulfillmentOrderLineItemsPreparedForPickup`
 - `fulfillmentOrderMerge`
-- `fulfillmentOrderMove`
-- `fulfillmentOrderOpen`
 - `fulfillmentOrderRejectCancellationRequest`
 - `fulfillmentOrderRejectFulfillmentRequest`
-- `fulfillmentOrderReleaseHold`
-- `fulfillmentOrderReportProgress`
 - `fulfillmentOrderReschedule`
 - `fulfillmentOrdersReroute`
 - `fulfillmentOrdersSetFulfillmentDeadline`

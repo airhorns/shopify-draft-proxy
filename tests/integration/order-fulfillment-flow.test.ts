@@ -18,11 +18,422 @@ const liveHybridConfig: AppConfig = {
   readMode: 'live-hybrid',
 };
 
+function makeOrder(id: string, overrides: Partial<OrderRecord> = {}): OrderRecord {
+  return {
+    id,
+    name: '#FULFILLMENT-ORDER-LIFECYCLE',
+    createdAt: '2026-04-25T00:00:00.000Z',
+    updatedAt: '2026-04-25T00:00:00.000Z',
+    displayFinancialStatus: 'PAID',
+    displayFulfillmentStatus: 'UNFULFILLED',
+    note: null,
+    tags: [],
+    customAttributes: [],
+    billingAddress: null,
+    shippingAddress: null,
+    subtotalPriceSet: { shopMoney: { amount: '10.0', currencyCode: 'CAD' } },
+    currentTotalPriceSet: { shopMoney: { amount: '10.0', currencyCode: 'CAD' } },
+    totalPriceSet: { shopMoney: { amount: '10.0', currencyCode: 'CAD' } },
+    totalRefundedSet: { shopMoney: { amount: '0.0', currencyCode: 'CAD' } },
+    customer: null,
+    shippingLines: [],
+    lineItems: [
+      {
+        id: 'gid://shopify/LineItem/fulfillment-order-lifecycle',
+        title: 'Fulfillment order lifecycle item',
+        quantity: 2,
+        sku: null,
+        variantTitle: null,
+        originalUnitPriceSet: null,
+      },
+    ],
+    fulfillments: [],
+    fulfillmentOrders: [],
+    transactions: [],
+    refunds: [],
+    returns: [],
+    ...overrides,
+  };
+}
+
 describe('order fulfillment flow', () => {
   beforeEach(() => {
     store.reset();
     resetSyntheticIdentity();
     vi.restoreAllMocks();
+  });
+
+  it('stages fulfillment-order hold and release with downstream held-order reads and mutation log entries', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('fulfillmentOrderHold and fulfillmentOrderReleaseHold must not hit upstream in snapshot mode');
+    });
+    const fulfillmentOrder = {
+      id: 'gid://shopify/FulfillmentOrder/hold-release',
+      status: 'OPEN',
+      requestStatus: 'UNSUBMITTED',
+      fulfillAt: '2026-04-25T22:00:00Z',
+      fulfillBy: null,
+      assignedLocation: {
+        name: 'My Custom Location',
+        locationId: 'gid://shopify/Location/source',
+      },
+      supportedActions: ['CREATE_FULFILLMENT', 'REPORT_PROGRESS', 'MOVE', 'HOLD', 'SPLIT'],
+      lineItems: [
+        {
+          id: 'gid://shopify/FulfillmentOrderLineItem/hold-release',
+          lineItemId: 'gid://shopify/LineItem/fulfillment-order-lifecycle',
+          title: 'Fulfillment order lifecycle item',
+          totalQuantity: 2,
+          remainingQuantity: 2,
+        },
+      ],
+    };
+    const order = makeOrder('gid://shopify/Order/hold-release', { fulfillmentOrders: [fulfillmentOrder] });
+    store.upsertBaseOrders([order]);
+
+    const app = createApp(snapshotConfig).callback();
+    const holdResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation Hold($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {
+          fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {
+            fulfillmentHold { id handle reason reasonNotes heldByRequestingApp }
+            fulfillmentOrder {
+              id
+              status
+              requestStatus
+              supportedActions { action }
+              fulfillmentHolds { id handle reason reasonNotes heldByRequestingApp }
+              lineItems(first: 5) { nodes { id totalQuantity remainingQuantity lineItem { id title } } }
+            }
+            remainingFulfillmentOrder {
+              id
+              status
+              lineItems(first: 5) { nodes { totalQuantity remainingQuantity lineItem { id } } }
+            }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          id: fulfillmentOrder.id,
+          fulfillmentHold: {
+            reason: 'OTHER',
+            reasonNotes: 'Local lifecycle hold',
+            handle: 'local-lifecycle-hold',
+            notifyMerchant: false,
+            fulfillmentOrderLineItems: [{ id: 'gid://shopify/FulfillmentOrderLineItem/hold-release', quantity: 1 }],
+          },
+        },
+      });
+
+    expect(holdResponse.status).toBe(200);
+    expect(holdResponse.body.data.fulfillmentOrderHold.userErrors).toEqual([]);
+    expect(holdResponse.body.data.fulfillmentOrderHold.fulfillmentOrder).toMatchObject({
+      id: fulfillmentOrder.id,
+      status: 'ON_HOLD',
+      requestStatus: 'UNSUBMITTED',
+      supportedActions: [{ action: 'RELEASE_HOLD' }, { action: 'HOLD' }, { action: 'MOVE' }],
+      fulfillmentHolds: [
+        {
+          handle: 'local-lifecycle-hold',
+          reason: 'OTHER',
+          reasonNotes: 'Local lifecycle hold',
+          heldByRequestingApp: true,
+        },
+      ],
+      lineItems: {
+        nodes: [
+          {
+            id: 'gid://shopify/FulfillmentOrderLineItem/hold-release',
+            totalQuantity: 1,
+            remainingQuantity: 1,
+            lineItem: {
+              id: 'gid://shopify/LineItem/fulfillment-order-lifecycle',
+              title: 'Fulfillment order lifecycle item',
+            },
+          },
+        ],
+      },
+    });
+    expect(holdResponse.body.data.fulfillmentOrderHold.remainingFulfillmentOrder).toMatchObject({
+      status: 'OPEN',
+      lineItems: {
+        nodes: [
+          {
+            totalQuantity: 1,
+            remainingQuantity: 1,
+            lineItem: { id: 'gid://shopify/LineItem/fulfillment-order-lifecycle' },
+          },
+        ],
+      },
+    });
+
+    const heldRead = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query HeldReads($id: ID!, $first: Int!) {
+          order(id: $id) {
+            fulfillmentOrders(first: $first) {
+              nodes { id status fulfillmentHolds { id handle } }
+            }
+          }
+          manualHoldsFulfillmentOrders(first: $first) {
+            nodes { id status fulfillmentHolds { id handle } }
+          }
+        }`,
+        variables: { id: order.id, first: 5 },
+      });
+
+    expect(heldRead.body.data.manualHoldsFulfillmentOrders.nodes).toEqual([
+      {
+        id: fulfillmentOrder.id,
+        status: 'ON_HOLD',
+        fulfillmentHolds: [
+          {
+            id: expect.any(String),
+            handle: 'local-lifecycle-hold',
+          },
+        ],
+      },
+    ]);
+    expect(heldRead.body.data.order.fulfillmentOrders.nodes).toHaveLength(2);
+
+    const releaseResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation ReleaseHold($id: ID!, $holdIds: [ID!], $externalId: String) {
+          fulfillmentOrderReleaseHold(id: $id, holdIds: $holdIds, externalId: $externalId) {
+            fulfillmentOrder { id status fulfillmentHolds { id } supportedActions { action } }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          id: fulfillmentOrder.id,
+          holdIds: [holdResponse.body.data.fulfillmentOrderHold.fulfillmentHold.id],
+          externalId: 'local-lifecycle-hold',
+        },
+      });
+
+    expect(releaseResponse.status).toBe(200);
+    expect(releaseResponse.body.data.fulfillmentOrderReleaseHold).toEqual({
+      fulfillmentOrder: {
+        id: fulfillmentOrder.id,
+        status: 'OPEN',
+        fulfillmentHolds: [],
+        supportedActions: [
+          { action: 'CREATE_FULFILLMENT' },
+          { action: 'REPORT_PROGRESS' },
+          { action: 'MOVE' },
+          { action: 'HOLD' },
+          { action: 'SPLIT' },
+        ],
+      },
+      userErrors: [],
+    });
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(logResponse.body.entries).toHaveLength(2);
+    expect(
+      logResponse.body.entries.map((entry: { operationName: string; status: string }) => [
+        entry.operationName,
+        entry.status,
+      ]),
+    ).toEqual([
+      ['fulfillmentOrderHold', 'staged'],
+      ['fulfillmentOrderReleaseHold', 'staged'],
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('stages fulfillment-order move, progress/open, cancel, and captured guardrails without upstream calls', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('fulfillment-order lifecycle mutations must not hit upstream in snapshot mode');
+    });
+    const fulfillmentOrder = {
+      id: 'gid://shopify/FulfillmentOrder/lifecycle',
+      status: 'OPEN',
+      requestStatus: 'UNSUBMITTED',
+      fulfillAt: '2026-04-25T22:00:00Z',
+      fulfillBy: null,
+      assignedLocation: {
+        name: 'My Custom Location',
+        locationId: 'gid://shopify/Location/source',
+      },
+      supportedActions: ['CREATE_FULFILLMENT', 'REPORT_PROGRESS', 'MOVE', 'HOLD', 'SPLIT'],
+      lineItems: [
+        {
+          id: 'gid://shopify/FulfillmentOrderLineItem/lifecycle',
+          lineItemId: 'gid://shopify/LineItem/fulfillment-order-lifecycle',
+          title: 'Fulfillment order lifecycle item',
+          totalQuantity: 2,
+          remainingQuantity: 2,
+        },
+      ],
+    };
+    const order = makeOrder('gid://shopify/Order/lifecycle', { fulfillmentOrders: [fulfillmentOrder] });
+    store.upsertBaseOrders([order]);
+
+    const app = createApp(snapshotConfig).callback();
+    const moveResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation Move($id: ID!, $newLocationId: ID!, $fulfillmentOrderLineItems: [FulfillmentOrderLineItemInput!]) {
+          fulfillmentOrderMove(id: $id, newLocationId: $newLocationId, fulfillmentOrderLineItems: $fulfillmentOrderLineItems) {
+            movedFulfillmentOrder { id status assignedLocation { name location { id name } } lineItems(first: 5) { nodes { totalQuantity remainingQuantity } } }
+            originalFulfillmentOrder { id status lineItems(first: 5) { nodes { totalQuantity remainingQuantity } } }
+            remainingFulfillmentOrder { id status lineItems(first: 5) { nodes { totalQuantity remainingQuantity } } }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          id: fulfillmentOrder.id,
+          newLocationId: 'gid://shopify/Location/destination',
+          fulfillmentOrderLineItems: [{ id: 'gid://shopify/FulfillmentOrderLineItem/lifecycle', quantity: 1 }],
+        },
+      });
+
+    expect(moveResponse.status).toBe(200);
+    expect(moveResponse.body.data.fulfillmentOrderMove.userErrors).toEqual([]);
+    const movedFulfillmentOrderId = moveResponse.body.data.fulfillmentOrderMove.movedFulfillmentOrder.id;
+    expect(moveResponse.body.data.fulfillmentOrderMove).toMatchObject({
+      movedFulfillmentOrder: {
+        status: 'OPEN',
+        assignedLocation: {
+          name: 'Shop location',
+          location: {
+            id: 'gid://shopify/Location/destination',
+            name: 'Shop location',
+          },
+        },
+        lineItems: { nodes: [{ totalQuantity: 1, remainingQuantity: 1 }] },
+      },
+      originalFulfillmentOrder: {
+        id: fulfillmentOrder.id,
+        status: 'OPEN',
+        lineItems: { nodes: [{ totalQuantity: 1, remainingQuantity: 1 }] },
+      },
+      remainingFulfillmentOrder: {
+        id: fulfillmentOrder.id,
+        status: 'OPEN',
+        lineItems: { nodes: [{ totalQuantity: 1, remainingQuantity: 1 }] },
+      },
+    });
+
+    const progressResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation Progress($id: ID!, $progressReport: FulfillmentOrderReportProgressInput) {
+          fulfillmentOrderReportProgress(id: $id, progressReport: $progressReport) {
+            fulfillmentOrder { id status supportedActions { action } }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          id: movedFulfillmentOrderId,
+          progressReport: { reasonNotes: 'Local progress' },
+        },
+      });
+    expect(progressResponse.body.data.fulfillmentOrderReportProgress).toEqual({
+      fulfillmentOrder: {
+        id: movedFulfillmentOrderId,
+        status: 'IN_PROGRESS',
+        supportedActions: [
+          { action: 'CREATE_FULFILLMENT' },
+          { action: 'REPORT_PROGRESS' },
+          { action: 'HOLD' },
+          { action: 'MARK_AS_OPEN' },
+        ],
+      },
+      userErrors: [],
+    });
+
+    const openResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation Open($id: ID!) {
+          fulfillmentOrderOpen(id: $id) {
+            fulfillmentOrder { id status supportedActions { action } }
+            userErrors { field message }
+          }
+        }`,
+        variables: { id: movedFulfillmentOrderId },
+      });
+    expect(openResponse.body.data.fulfillmentOrderOpen.fulfillmentOrder.status).toBe('OPEN');
+
+    const cancelResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation Cancel($id: ID!) {
+          fulfillmentOrderCancel(id: $id) {
+            fulfillmentOrder { id status lineItems(first: 5) { nodes { id } } }
+            replacementFulfillmentOrder { id status lineItems(first: 5) { nodes { totalQuantity remainingQuantity } } }
+            userErrors { field message }
+          }
+        }`,
+        variables: { id: movedFulfillmentOrderId },
+      });
+    expect(cancelResponse.body.data.fulfillmentOrderCancel).toMatchObject({
+      fulfillmentOrder: {
+        id: movedFulfillmentOrderId,
+        status: 'CLOSED',
+        lineItems: { nodes: [] },
+      },
+      replacementFulfillmentOrder: {
+        status: 'OPEN',
+        lineItems: { nodes: [{ totalQuantity: 1, remainingQuantity: 1 }] },
+      },
+      userErrors: [],
+    });
+
+    const guardrailResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation Guardrails($id: ID!, $fulfillAt: DateTime!, $message: String) {
+          fulfillmentOrderReschedule(id: $id, fulfillAt: $fulfillAt) {
+            fulfillmentOrder { id }
+            userErrors { field message }
+          }
+          fulfillmentOrderClose(id: $id, message: $message) {
+            fulfillmentOrder { id }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          id: fulfillmentOrder.id,
+          fulfillAt: '2026-04-28T00:00:00Z',
+          message: 'close guardrail',
+        },
+      });
+    expect(guardrailResponse.body.data).toEqual({
+      fulfillmentOrderReschedule: {
+        fulfillmentOrder: null,
+        userErrors: [{ field: null, message: 'Fulfillment order must be scheduled.' }],
+      },
+      fulfillmentOrderClose: {
+        fulfillmentOrder: null,
+        userErrors: [
+          {
+            field: null,
+            message: "The fulfillment order's assigned fulfillment service must be of api type",
+          },
+        ],
+      },
+    });
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(
+      logResponse.body.entries.map((entry: { operationName: string; status: string }) => [
+        entry.operationName,
+        entry.status,
+      ]),
+    ).toEqual([
+      ['fulfillmentOrderMove', 'staged'],
+      ['fulfillmentOrderReportProgress', 'staged'],
+      ['fulfillmentOrderOpen', 'staged'],
+      ['fulfillmentOrderCancel', 'staged'],
+      ['fulfillmentOrderReschedule', 'staged'],
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('mirrors the captured fulfillmentTrackingInfoUpdate missing-fulfillmentId variable error in snapshot mode without hitting upstream', async () => {
