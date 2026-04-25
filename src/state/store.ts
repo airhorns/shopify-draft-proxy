@@ -117,6 +117,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedPaymentCustomizationIds: {},
   deletedMarketIds: {},
   deletedCatalogIds: {},
+  deletedPriceListIds: {},
   deletedWebPresenceIds: {},
   deletedDeliveryProfileIds: {},
   mergedCustomerIds: {},
@@ -1217,6 +1218,8 @@ export class InMemoryStore {
       const priceList = rawPriceList as Record<string, unknown>;
       const id = priceList['id'];
       if (typeof id === 'string' && id.length > 0) {
+        delete this.baseState.deletedPriceListIds[id];
+        delete this.stagedState.deletedPriceListIds[id];
         const previous = this.baseState.priceLists[id];
         const cursor = typeof rawCursor === 'string' && rawCursor.length > 0 ? rawCursor : (previous?.cursor ?? null);
         this.baseState.priceLists[id] = {
@@ -1232,6 +1235,32 @@ export class InMemoryStore {
         }
       }
     }
+  }
+
+  stageCreatePriceList(priceList: PriceListRecord): PriceListRecord {
+    delete this.stagedState.deletedPriceListIds[priceList.id];
+    this.stagedState.priceLists[priceList.id] = structuredClone(priceList);
+    if (!this.stagedState.priceListOrder.includes(priceList.id)) {
+      this.stagedState.priceListOrder.push(priceList.id);
+    }
+    return structuredClone(priceList);
+  }
+
+  stageUpdatePriceList(priceList: PriceListRecord): PriceListRecord {
+    delete this.stagedState.deletedPriceListIds[priceList.id];
+    this.stagedState.priceLists[priceList.id] = structuredClone(priceList);
+    if (
+      !this.baseState.priceListOrder.includes(priceList.id) &&
+      !this.stagedState.priceListOrder.includes(priceList.id)
+    ) {
+      this.stagedState.priceListOrder.push(priceList.id);
+    }
+    return structuredClone(priceList);
+  }
+
+  stageDeletePriceList(priceListId: string): void {
+    delete this.stagedState.priceLists[priceListId];
+    this.stagedState.deletedPriceListIds[priceListId] = true;
   }
 
   upsertBaseDeliveryProfiles(deliveryProfiles: DeliveryProfileRecord[]): void {
@@ -1328,6 +1357,19 @@ export class InMemoryStore {
     return this.getBasePriceListRecordById(priceListId)?.data ?? null;
   }
 
+  getEffectivePriceListRecordById(priceListId: string): PriceListRecord | null {
+    if (this.stagedState.deletedPriceListIds[priceListId] || this.baseState.deletedPriceListIds[priceListId]) {
+      return null;
+    }
+
+    const priceList = this.stagedState.priceLists[priceListId] ?? this.baseState.priceLists[priceListId] ?? null;
+    return priceList ? structuredClone(priceList) : null;
+  }
+
+  getEffectivePriceListById(priceListId: string): unknown | null {
+    return this.getEffectivePriceListRecordById(priceListId)?.data ?? null;
+  }
+
   listBasePriceLists(): PriceListRecord[] {
     const orderedIds = new Set(this.baseState.priceListOrder);
     const orderedPriceLists = this.baseState.priceListOrder
@@ -1338,6 +1380,30 @@ export class InMemoryStore {
       .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
 
     return structuredClone([...orderedPriceLists, ...unorderedPriceLists]);
+  }
+
+  listEffectivePriceLists(): PriceListRecord[] {
+    const orderedIds = new Set([...this.baseState.priceListOrder, ...this.stagedState.priceListOrder]);
+    const orderedPriceLists = [...orderedIds]
+      .map((id) => this.getEffectivePriceListRecordById(id))
+      .filter((priceList): priceList is PriceListRecord => priceList !== null);
+    const unorderedPriceLists = Object.values({
+      ...this.baseState.priceLists,
+      ...this.stagedState.priceLists,
+    })
+      .filter((priceList) => !orderedIds.has(priceList.id))
+      .map((priceList) => this.getEffectivePriceListRecordById(priceList.id))
+      .filter((priceList): priceList is PriceListRecord => priceList !== null)
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
+
+    return structuredClone([...orderedPriceLists, ...unorderedPriceLists]);
+  }
+
+  hasStagedPriceLists(): boolean {
+    return (
+      Object.keys(this.stagedState.priceLists).length > 0 ||
+      Object.keys(this.stagedState.deletedPriceListIds).length > 0
+    );
   }
 
   setBaseMarketsRootPayload(rootField: string, payload: unknown): void {
