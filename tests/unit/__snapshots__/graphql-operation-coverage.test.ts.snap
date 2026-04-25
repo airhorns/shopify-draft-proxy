@@ -84,7 +84,6 @@ exports[`GraphQL operation coverage > snapshots introspected Admin GraphQL mutat
   "customerRequestDataErasure",
   "customerSegmentMembersQueryCreate",
   "customerSendAccountInviteEmail",
-  "customerSet",
   "dataSaleOptOut",
   "delegateAccessTokenCreate",
   "delegateAccessTokenDestroy",

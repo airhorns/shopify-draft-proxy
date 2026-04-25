@@ -1,0 +1,667 @@
+{
+  "mutation": {
+    "variables": {
+      "input": {
+        "email": "hermes-customerset-create-1777142258412@example.com",
+        "firstName": "Hermes",
+        "lastName": "SetCreate",
+        "locale": "en",
+        "note": "customerSet create parity probe",
+        "phone": "+17142258412",
+        "tags": ["set", "create"],
+        "taxExempt": true,
+        "taxExemptions": ["CA_BC_RESELLER_EXEMPTION"]
+      }
+    },
+    "response": {
+      "data": {
+        "customerSet": {
+          "customer": {
+            "id": "gid://shopify/Customer/10540310364466",
+            "firstName": "Hermes",
+            "lastName": "SetCreate",
+            "displayName": "Hermes SetCreate",
+            "email": "hermes-customerset-create-1777142258412@example.com",
+            "locale": "en",
+            "note": "customerSet create parity probe",
+            "verifiedEmail": true,
+            "taxExempt": true,
+            "taxExemptions": ["CA_BC_RESELLER_EXEMPTION"],
+            "tags": ["create", "set"],
+            "state": "DISABLED",
+            "canDelete": true,
+            "defaultEmailAddress": {
+              "emailAddress": "hermes-customerset-create-1777142258412@example.com"
+            },
+            "defaultPhoneNumber": {
+              "phoneNumber": "+17142258412"
+            },
+            "defaultAddress": null,
+            "addressesV2": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
+            "createdAt": "2026-04-25T18:37:38Z",
+            "updatedAt": "2026-04-25T18:37:38Z"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 17,
+          "actualQueryCost": 17,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1967,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "update": {
+    "variables": {
+      "identifier": {
+        "id": "gid://shopify/Customer/10540310364466"
+      },
+      "input": {
+        "email": "hermes-customerset-create-1777142258412@example.com",
+        "firstName": "Hermes",
+        "lastName": "SetUpdated",
+        "note": "customerSet update parity probe",
+        "phone": "+17142258413",
+        "tags": ["set", "updated"],
+        "taxExempt": false,
+        "taxExemptions": [],
+        "addresses": [
+          {
+            "address1": "10 Set St",
+            "city": "Ottawa",
+            "countryCode": "CA",
+            "provinceCode": "ON",
+            "zip": "K1A 0B1"
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "customerSet": {
+          "customer": {
+            "id": "gid://shopify/Customer/10540310364466",
+            "firstName": "Hermes",
+            "lastName": "SetUpdated",
+            "displayName": "Hermes SetUpdated",
+            "email": "hermes-customerset-create-1777142258412@example.com",
+            "locale": "en",
+            "note": "customerSet update parity probe",
+            "verifiedEmail": true,
+            "taxExempt": false,
+            "taxExemptions": [],
+            "tags": ["set", "updated"],
+            "state": "DISABLED",
+            "canDelete": true,
+            "defaultEmailAddress": {
+              "emailAddress": "hermes-customerset-create-1777142258412@example.com"
+            },
+            "defaultPhoneNumber": {
+              "phoneNumber": "+17142258413"
+            },
+            "defaultAddress": {
+              "address1": "10 Set St",
+              "city": "Ottawa",
+              "province": "Ontario",
+              "country": "Canada",
+              "zip": "K1A 0B1",
+              "formattedArea": "Ottawa ON, Canada"
+            },
+            "addressesV2": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MailingAddress/12034117206322?model_name=CustomerAddress",
+                  "address1": "10 Set St",
+                  "city": "Ottawa",
+                  "province": "Ontario",
+                  "country": "Canada",
+                  "zip": "K1A 0B1",
+                  "formattedArea": "Ottawa ON, Canada"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMjAzNDExNzIwNjMyMiwibGFzdF92YWx1ZSI6IjEyMDM0MTE3MjA2MzIyIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxMjAzNDExNzIwNjMyMiwibGFzdF92YWx1ZSI6IjEyMDM0MTE3MjA2MzIyIn0="
+              }
+            },
+            "createdAt": "2026-04-25T18:37:38Z",
+            "updatedAt": "2026-04-25T18:37:38Z"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 17,
+          "actualQueryCost": 16,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1975,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upsert": {
+    "variables": {
+      "identifier": {
+        "email": "hermes-customerset-upsert-1777142258412@example.com"
+      },
+      "input": {
+        "email": "hermes-customerset-upsert-1777142258412@example.com",
+        "firstName": "Hermes",
+        "lastName": "SetUpsert",
+        "note": "customerSet upsert parity probe",
+        "tags": ["set", "upsert"],
+        "taxExempt": false
+      }
+    },
+    "response": {
+      "data": {
+        "customerSet": {
+          "customer": {
+            "id": "gid://shopify/Customer/10540310430002",
+            "firstName": "Hermes",
+            "lastName": "SetUpsert",
+            "displayName": "Hermes SetUpsert",
+            "email": "hermes-customerset-upsert-1777142258412@example.com",
+            "locale": "en",
+            "note": "customerSet upsert parity probe",
+            "verifiedEmail": true,
+            "taxExempt": false,
+            "taxExemptions": [],
+            "tags": ["set", "upsert"],
+            "state": "DISABLED",
+            "canDelete": true,
+            "defaultEmailAddress": {
+              "emailAddress": "hermes-customerset-upsert-1777142258412@example.com"
+            },
+            "defaultPhoneNumber": null,
+            "defaultAddress": null,
+            "addressesV2": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
+            "createdAt": "2026-04-25T18:37:38Z",
+            "updatedAt": "2026-04-25T18:37:38Z"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 17,
+          "actualQueryCost": 17,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "updateByEmail": {
+    "variables": {
+      "identifier": {
+        "email": "hermes-customerset-upsert-1777142258412@example.com"
+      },
+      "input": {
+        "email": "hermes-customerset-upsert-1777142258412@example.com",
+        "firstName": "Hermes",
+        "lastName": "SetUpsertUpdated",
+        "note": "customerSet upsert update parity probe",
+        "tags": ["set", "upsert-updated"],
+        "addresses": [
+          {
+            "address1": "11 Upsert St",
+            "city": "Toronto",
+            "countryCode": "CA",
+            "provinceCode": "ON",
+            "zip": "M5H 2N2"
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "customerSet": {
+          "customer": {
+            "id": "gid://shopify/Customer/10540310430002",
+            "firstName": "Hermes",
+            "lastName": "SetUpsertUpdated",
+            "displayName": "Hermes SetUpsertUpdated",
+            "email": "hermes-customerset-upsert-1777142258412@example.com",
+            "locale": "en",
+            "note": "customerSet upsert update parity probe",
+            "verifiedEmail": true,
+            "taxExempt": false,
+            "taxExemptions": [],
+            "tags": ["set", "upsert-updated"],
+            "state": "DISABLED",
+            "canDelete": true,
+            "defaultEmailAddress": {
+              "emailAddress": "hermes-customerset-upsert-1777142258412@example.com"
+            },
+            "defaultPhoneNumber": null,
+            "defaultAddress": {
+              "address1": "11 Upsert St",
+              "city": "Toronto",
+              "province": "Ontario",
+              "country": "Canada",
+              "zip": "M5H 2N2",
+              "formattedArea": "Toronto ON, Canada"
+            },
+            "addressesV2": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MailingAddress/12034117239090?model_name=CustomerAddress",
+                  "address1": "11 Upsert St",
+                  "city": "Toronto",
+                  "province": "Ontario",
+                  "country": "Canada",
+                  "zip": "M5H 2N2",
+                  "formattedArea": "Toronto ON, Canada"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMjAzNDExNzIzOTA5MCwibGFzdF92YWx1ZSI6IjEyMDM0MTE3MjM5MDkwIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxMjAzNDExNzIzOTA5MCwibGFzdF92YWx1ZSI6IjEyMDM0MTE3MjM5MDkwIn0="
+              }
+            },
+            "createdAt": "2026-04-25T18:37:38Z",
+            "updatedAt": "2026-04-25T18:37:39Z"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 17,
+          "actualQueryCost": 16,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1981,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "clearAddresses": {
+    "variables": {
+      "identifier": {
+        "id": "gid://shopify/Customer/10540310430002"
+      },
+      "input": {
+        "email": "hermes-customerset-upsert-1777142258412@example.com",
+        "addresses": []
+      }
+    },
+    "response": {
+      "data": {
+        "customerSet": {
+          "customer": {
+            "id": "gid://shopify/Customer/10540310430002",
+            "firstName": "Hermes",
+            "lastName": "SetUpsertUpdated",
+            "displayName": "Hermes SetUpsertUpdated",
+            "email": "hermes-customerset-upsert-1777142258412@example.com",
+            "locale": "en",
+            "note": "customerSet upsert update parity probe",
+            "verifiedEmail": true,
+            "taxExempt": false,
+            "taxExemptions": [],
+            "tags": ["set", "upsert-updated"],
+            "state": "DISABLED",
+            "canDelete": true,
+            "defaultEmailAddress": {
+              "emailAddress": "hermes-customerset-upsert-1777142258412@example.com"
+            },
+            "defaultPhoneNumber": null,
+            "defaultAddress": null,
+            "addressesV2": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
+            "createdAt": "2026-04-25T18:37:38Z",
+            "updatedAt": "2026-04-25T18:37:39Z"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 17,
+          "actualQueryCost": 17,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1983,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "variables": {
+      "createdId": "gid://shopify/Customer/10540310364466",
+      "upsertedId": "gid://shopify/Customer/10540310430002",
+      "upsertedEmail": "hermes-customerset-upsert-1777142258412@example.com",
+      "query": "tag:set",
+      "first": 5
+    },
+    "response": {
+      "data": {
+        "created": {
+          "id": "gid://shopify/Customer/10540310364466",
+          "firstName": "Hermes",
+          "lastName": "SetUpdated",
+          "displayName": "Hermes SetUpdated",
+          "email": "hermes-customerset-create-1777142258412@example.com",
+          "locale": "en",
+          "note": "customerSet update parity probe",
+          "verifiedEmail": true,
+          "taxExempt": false,
+          "taxExemptions": [],
+          "tags": ["set", "updated"],
+          "state": "DISABLED",
+          "canDelete": true,
+          "defaultEmailAddress": {
+            "emailAddress": "hermes-customerset-create-1777142258412@example.com"
+          },
+          "defaultPhoneNumber": {
+            "phoneNumber": "+17142258413"
+          },
+          "defaultAddress": {
+            "address1": "10 Set St",
+            "city": "Ottawa",
+            "province": "Ontario",
+            "country": "Canada",
+            "zip": "K1A 0B1",
+            "formattedArea": "Ottawa ON, Canada"
+          },
+          "addressesV2": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MailingAddress/12034117206322?model_name=CustomerAddress",
+                "address1": "10 Set St",
+                "city": "Ottawa",
+                "province": "Ontario",
+                "country": "Canada",
+                "zip": "K1A 0B1",
+                "formattedArea": "Ottawa ON, Canada"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMjAzNDExNzIwNjMyMiwibGFzdF92YWx1ZSI6IjEyMDM0MTE3MjA2MzIyIn0=",
+              "endCursor": "eyJsYXN0X2lkIjoxMjAzNDExNzIwNjMyMiwibGFzdF92YWx1ZSI6IjEyMDM0MTE3MjA2MzIyIn0="
+            }
+          },
+          "createdAt": "2026-04-25T18:37:38Z",
+          "updatedAt": "2026-04-25T18:37:38Z"
+        },
+        "upserted": {
+          "id": "gid://shopify/Customer/10540310430002",
+          "firstName": "Hermes",
+          "lastName": "SetUpsertUpdated",
+          "displayName": "Hermes SetUpsertUpdated",
+          "email": "hermes-customerset-upsert-1777142258412@example.com",
+          "locale": "en",
+          "note": "customerSet upsert update parity probe",
+          "verifiedEmail": true,
+          "taxExempt": false,
+          "taxExemptions": [],
+          "tags": ["set", "upsert-updated"],
+          "state": "DISABLED",
+          "canDelete": true,
+          "defaultEmailAddress": {
+            "emailAddress": "hermes-customerset-upsert-1777142258412@example.com"
+          },
+          "defaultPhoneNumber": null,
+          "defaultAddress": null,
+          "addressesV2": {
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          },
+          "createdAt": "2026-04-25T18:37:38Z",
+          "updatedAt": "2026-04-25T18:37:39Z"
+        },
+        "byIdentifier": {
+          "id": "gid://shopify/Customer/10540310430002",
+          "email": "hermes-customerset-upsert-1777142258412@example.com",
+          "displayName": "Hermes SetUpsertUpdated"
+        },
+        "customers": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Customer/10540307874098",
+              "email": "hermes-customerset-create-1777142217948@example.com",
+              "displayName": "Hermes SetCreate",
+              "tags": ["create", "set"]
+            },
+            {
+              "id": "gid://shopify/Customer/10540294799666",
+              "email": "hermes-customerset-upsert-1777141941308@example.com",
+              "displayName": "Hermes SetUpsertUpdated",
+              "tags": ["set", "upsert-updated"]
+            },
+            {
+              "id": "gid://shopify/Customer/10540294046002",
+              "email": "hermes-customerset-create-1777141920646@example.com",
+              "displayName": "Hermes SetUpdated",
+              "tags": ["set", "updated"]
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        },
+        "customersCount": {
+          "count": 6,
+          "precision": "EXACT"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 32,
+          "actualQueryCost": 30,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1968,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "validation": {
+    "missingIdentity": {
+      "variables": {
+        "input": {
+          "email": ""
+        }
+      },
+      "response": {
+        "data": {
+          "customerSet": {
+            "customer": null,
+            "userErrors": [
+              {
+                "field": ["input"],
+                "message": "A name, phone number, or email address must be present"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 17,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1983,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "unknownId": {
+      "variables": {
+        "identifier": {
+          "id": "gid://shopify/Customer/999999999999999"
+        },
+        "input": {
+          "firstName": "Ghost"
+        }
+      },
+      "response": {
+        "data": {
+          "customerSet": {
+            "customer": null,
+            "userErrors": [
+              {
+                "field": ["input"],
+                "message": "Resource matching the identifier was not found."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 17,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1983,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "customId": {
+      "variables": {
+        "identifier": {
+          "customId": {
+            "namespace": "custom",
+            "key": "external_id",
+            "value": "customer-set-1777142258412"
+          }
+        },
+        "input": {
+          "firstName": "Custom"
+        }
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Metafield definition of type 'id' is required when using custom ids.",
+            "locations": [
+              {
+                "line": 3,
+                "column": 5
+              }
+            ],
+            "extensions": {
+              "code": "NOT_FOUND"
+            },
+            "path": ["customerSet"]
+          }
+        ],
+        "data": {
+          "customerSet": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 17,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1982,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "data": {
+        "customerDelete": {
+          "deletedCustomerId": "gid://shopify/Customer/10540310364466",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1984,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "customerDelete": {
+          "deletedCustomerId": "gid://shopify/Customer/10540310430002",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  ]
+}

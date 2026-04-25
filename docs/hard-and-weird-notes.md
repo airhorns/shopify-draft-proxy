@@ -2323,3 +2323,21 @@ Practical rule:
 - locally stage address lifecycle roots against a normalized customer-owned address graph and keep `Customer.defaultAddress` synchronized from the selected address row
 - use fixture-backed top-level errors for unknown address ids instead of turning those branches into payload `userErrors`
 - keep broader address validation, normalization, and territory-specific postal validation out of local support until new fixtures capture those branches
+
+## 63. `customerSet` uses its own identifier input and replaces address lists
+
+HAR-155 captured a first `customerSet` slice on Admin GraphQL 2026-04.
+
+Captured facts:
+
+- the mutation arguments are `customerSet(input: CustomerSetInput!, identifier: CustomerSetIdentifiers)`, not `CustomerIdentifierInput`
+- `CustomerSetIdentifiers` uses `email` and `phone`, while `customerByIdentifier` uses `emailAddress` and `phoneNumber`
+- no-identifier `customerSet` creates a customer when the input has a name, phone, or email
+- `identifier.email` upserts: a missing email identifier creates a customer, and a later call with the same identifier updates that customer
+- unknown `identifier.id` returns payload `userErrors` with `field: ["input"]` and message `Resource matching the identifier was not found.`
+- `identifier.customId` without an id-typed unique metafield definition returns `data.customerSet: null` plus a top-level `NOT_FOUND` error
+- `input.addresses` behaves as a replacement list for an existing customer; an empty list clears the default address and downstream `addressesV2`
+
+Practical rule:
+
+- keep the local `customerSet` support boundary narrower than `customerUpdate`: support fixture-backed scalar replacement, tag/tax exemption replacement, id/email/phone resolution, synthetic create/upsert, and existing-customer address-list replacement; reject unmodeled fields locally instead of letting a now-supported root proxy upstream
