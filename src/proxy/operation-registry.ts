@@ -13,6 +13,7 @@ export type CapabilityDomain =
   | 'shipping-fulfillments'
   | 'markets'
   | 'metafields'
+  | 'metaobjects'
   | 'unknown';
 export type CapabilityExecution = 'overlay-read' | 'stage-locally' | 'passthrough';
 export type OperationType = 'query' | 'mutation';

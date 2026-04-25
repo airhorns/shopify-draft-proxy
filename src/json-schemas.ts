@@ -48,6 +48,7 @@ export const operationRegistryEntrySchema = z.strictObject({
     'segments',
     'shipping-fulfillments',
     'metafields',
+    'metaobjects',
     'markets',
     'unknown',
   ]),
