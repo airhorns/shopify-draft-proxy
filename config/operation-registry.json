@@ -118,18 +118,18 @@
     "type": "query",
     "domain": "store-properties",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["businessEntities", "BusinessEntities"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/business-entity-query-shapes.test.ts"]
   },
   {
     "name": "businessEntity",
     "type": "query",
     "domain": "store-properties",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["businessEntity", "BusinessEntity"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/business-entity-query-shapes.test.ts"]
   },
   {
     "name": "cashManagementLocationSummary",

@@ -37,9 +37,11 @@ import {
   handleProductQuery,
   hydrateProductsFromUpstreamResponse,
 } from '../src/proxy/products.js';
+import { handleStorePropertiesQuery } from '../src/proxy/store-properties.js';
 import { makeSyntheticGid, makeSyntheticTimestamp, resetSyntheticIdentity } from '../src/state/synthetic-identity.js';
 import { store } from '../src/state/store.js';
 import type {
+  BusinessEntityRecord,
   CollectionRecord,
   CustomerRecord,
   DraftOrderLineItemRecord,
@@ -62,6 +64,7 @@ import type {
   ProductOptionRecord,
   ProductRecord,
   ProductVariantRecord,
+  ShopifyPaymentsAccountRecord,
 } from '../src/state/types.js';
 
 function interpretMutationLogEntry(
@@ -719,6 +722,13 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'overlay-read' && capability.domain === 'store-properties') {
+    return {
+      status: 200,
+      body: handleStorePropertiesQuery(document, variables),
+    };
+  }
+
   throw new Error(
     `Parity execution does not allow live Shopify requests or unsupported operations: ${capability.operationName}`,
   );
@@ -1008,6 +1018,85 @@ function seedCustomerMutationPreconditions(
     store.upsertBaseCustomers(seedCustomers);
   }
 
+  return true;
+}
+
+function readShopifyPaymentsAccountRecord(source: Record<string, unknown> | null): ShopifyPaymentsAccountRecord | null {
+  if (!source) {
+    return null;
+  }
+
+  const id = readStringField(source, 'id');
+  const activated = readBooleanField(source, 'activated');
+  const country = readStringField(source, 'country');
+  const defaultCurrency = readStringField(source, 'defaultCurrency');
+  const onboardable = readBooleanField(source, 'onboardable');
+
+  if (!id || activated === null || !country || !defaultCurrency || onboardable === null) {
+    return null;
+  }
+
+  return {
+    id,
+    activated,
+    country,
+    defaultCurrency,
+    onboardable,
+  };
+}
+
+function readBusinessEntityRecord(source: Record<string, unknown> | null): BusinessEntityRecord | null {
+  if (!source) {
+    return null;
+  }
+
+  const id = readStringField(source, 'id');
+  const displayName = readStringField(source, 'displayName');
+  const primary = readBooleanField(source, 'primary');
+  const archived = readBooleanField(source, 'archived');
+  const address = readRecordField(source, 'address');
+  const countryCode = readStringField(address, 'countryCode');
+
+  if (!id || !displayName || primary === null || archived === null || !address || !countryCode) {
+    return null;
+  }
+
+  return {
+    id,
+    displayName,
+    companyName: readStringField(source, 'companyName'),
+    primary,
+    archived,
+    address: {
+      address1: readStringField(address, 'address1'),
+      address2: readStringField(address, 'address2'),
+      city: readStringField(address, 'city'),
+      countryCode,
+      province: readStringField(address, 'province'),
+      zip: readStringField(address, 'zip'),
+    },
+    shopifyPaymentsAccount: readShopifyPaymentsAccountRecord(readRecordField(source, 'shopifyPaymentsAccount')),
+  };
+}
+
+function seedBusinessEntityPreconditions(capture: unknown): boolean {
+  const data = readRecordField(capture as Record<string, unknown>, 'data');
+  const catalogEntities = readArrayField(data, 'businessEntities');
+  const fallbackEntities = [readRecordField(data, 'primary'), readRecordField(data, 'known')];
+  const rawEntities =
+    catalogEntities.length > 0
+      ? catalogEntities
+      : fallbackEntities.filter((entity): entity is Record<string, unknown> => entity !== null);
+  const businessEntities = rawEntities
+    .filter(isPlainObject)
+    .map(readBusinessEntityRecord)
+    .filter((entity): entity is BusinessEntityRecord => entity !== null);
+
+  if (businessEntities.length === 0) {
+    return false;
+  }
+
+  store.upsertBaseBusinessEntities(businessEntities);
   return true;
 }
 
@@ -2332,6 +2421,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   const payload = mutationPayloadFromCapture(capture);
   const mutationName = mutationNameFromCapture(capture);
   if (seedCustomerMutationPreconditions(capture, variables, mutationName, payload)) {
+    return;
+  }
+
+  if (seedBusinessEntityPreconditions(capture)) {
     return;
   }
 
