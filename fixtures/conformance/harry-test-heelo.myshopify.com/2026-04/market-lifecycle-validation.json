@@ -1,0 +1,89 @@
+{
+  "capturedAt": "2026-04-25T15:43:05.058Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "cases": [
+    {
+      "name": "marketCreateBlankName",
+      "query": "#graphql\nmutation MarketCreateBlankName($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market { id name handle status enabled }\n    userErrors { field message code }\n  }\n}",
+      "variables": {
+        "input": {
+          "name": ""
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketCreate": {
+              "market": null,
+              "userErrors": [
+                {
+                  "field": ["input", "name"],
+                  "message": "Name can't be blank",
+                  "code": "BLANK"
+                },
+                {
+                  "field": ["input", "name"],
+                  "message": "Name is too short (minimum is 2 characters)",
+                  "code": "TOO_SHORT"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketUpdateUnknownId",
+      "query": "#graphql\nmutation MarketUpdateUnknownId($id: ID!, $input: MarketUpdateInput!) {\n  marketUpdate(id: $id, input: $input) {\n    market { id name handle status enabled }\n    userErrors { field message code }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/Market/999999999999",
+        "input": {
+          "name": "Nope"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketUpdate": {
+              "market": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Market does not exist",
+                  "code": "MARKET_NOT_FOUND"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketDeleteUnknownId",
+      "query": "#graphql\nmutation MarketDeleteUnknownId($id: ID!) {\n  marketDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/Market/999999999999"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketDelete": {
+              "deletedId": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Market does not exist",
+                  "code": "MARKET_NOT_FOUND"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
+}
