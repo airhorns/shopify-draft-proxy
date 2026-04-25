@@ -125,6 +125,103 @@ const customerDetailQuery = `#graphql
   }
 `;
 
+const customerNestedSubresourcesQuery = `#graphql
+  query CustomerNestedSubresourcesConformance($id: ID!) {
+    customer(id: $id) {
+      id
+      addresses {
+        address1
+        city
+      }
+      addressesV2(first: 2) {
+        nodes {
+          address1
+          city
+        }
+        edges {
+          cursor
+          node {
+            address1
+            city
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+      companyContactProfiles {
+        id
+      }
+      orders(first: 2) {
+        nodes {
+          id
+        }
+        edges {
+          cursor
+          node {
+            id
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+      events(first: 2) {
+        nodes {
+          id
+        }
+        edges {
+          cursor
+          node {
+            id
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+      metafield(namespace: "custom", key: "tier") {
+        id
+        namespace
+        key
+      }
+      metafields(first: 2) {
+        nodes {
+          id
+          namespace
+          key
+        }
+        edges {
+          cursor
+          node {
+            id
+            namespace
+            key
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+      lastOrder {
+        id
+      }
+    }
+  }
+`;
+
 const customerByIdentifierQuery = `#graphql
   query CustomerByIdentifierConformance(
     $idIdentifier: CustomerIdentifierInput!
@@ -560,6 +657,7 @@ function renderProtectedCustomerDataBlocker({ message, accessScopeHandles, custo
   }
 
   const detail = await runGraphql(customerDetailQuery, { id: firstCustomerId });
+  const nestedSubresources = await runGraphql(customerNestedSubresourcesQuery, { id: firstCustomerId });
   const detailCustomer = detail.data?.customer;
   const firstCustomerEmail = detailCustomer?.email ?? detailCustomer?.defaultEmailAddress?.emailAddress;
   const firstCustomerPhone = detailCustomer?.defaultPhoneNumber?.phoneNumber;
@@ -609,6 +707,11 @@ function renderProtectedCustomerDataBlocker({ message, accessScopeHandles, custo
   await writeFile(path.join(outputDir, 'customers-catalog.json'), `${JSON.stringify(catalog, null, 2)}\n`, 'utf8');
   await writeFile(path.join(outputDir, 'customer-detail.json'), `${JSON.stringify(detail, null, 2)}\n`, 'utf8');
   await writeFile(
+    path.join(outputDir, 'customer-nested-subresources.json'),
+    `${JSON.stringify(nestedSubresources, null, 2)}\n`,
+    'utf8',
+  );
+  await writeFile(
     path.join(outputDir, 'customer-by-identifier.json'),
     `${JSON.stringify(customerByIdentifier, null, 2)}\n`,
     'utf8',
@@ -636,6 +739,7 @@ function renderProtectedCustomerDataBlocker({ message, accessScopeHandles, custo
         files: [
           'customers-catalog.json',
           'customer-detail.json',
+          'customer-nested-subresources.json',
           'customer-by-identifier.json',
           'customers-search.json',
           'customers-advanced-search.json',

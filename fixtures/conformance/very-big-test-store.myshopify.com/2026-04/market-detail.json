@@ -1,0 +1,80 @@
+{
+  "data": {
+    "market": {
+      "id": "gid://shopify/Market/7188250857",
+      "name": "Canada",
+      "handle": "ca",
+      "status": "ACTIVE",
+      "type": "REGION",
+      "conditions": {
+        "conditionTypes": ["REGION"],
+        "regionsCondition": {
+          "applicationLevel": "SPECIFIED",
+          "regions": {
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjo5Nzc1MTU2NDUyMSwibGFzdF92YWx1ZSI6Ijk3NzUxNTY0NTIxIn0=",
+                "node": {
+                  "__typename": "MarketRegionCountry",
+                  "id": "gid://shopify/MarketRegionCountry/454909493481",
+                  "name": "Canada",
+                  "code": "CA",
+                  "currency": {
+                    "currencyCode": "CAD",
+                    "currencyName": "Canadian Dollar",
+                    "enabled": true
+                  }
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo5Nzc1MTU2NDUyMSwibGFzdF92YWx1ZSI6Ijk3NzUxNTY0NTIxIn0=",
+              "endCursor": "eyJsYXN0X2lkIjo5Nzc1MTU2NDUyMSwibGFzdF92YWx1ZSI6Ijk3NzUxNTY0NTIxIn0="
+            }
+          }
+        }
+      },
+      "currencySettings": {
+        "baseCurrency": {
+          "currencyCode": "CAD",
+          "currencyName": "Canadian Dollar",
+          "enabled": true
+        },
+        "localCurrencies": false,
+        "roundingEnabled": true
+      },
+      "priceInclusions": null,
+      "catalogs": {
+        "edges": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      },
+      "webPresences": {
+        "edges": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      }
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 44,
+      "actualQueryCost": 14,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1944,
+        "restoreRate": 100
+      }
+    }
+  }
+}
