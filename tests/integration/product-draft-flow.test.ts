@@ -2559,6 +2559,272 @@ describe('product draft flow', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
+  it('stages captured product option lifecycle effects into downstream option and variant reads', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      return new Response(JSON.stringify({ data: { product: null } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const createProductResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Captured Option Graph Hat" }) { product { id } userErrors { field message } } }',
+    });
+    const productId = createProductResponse.body.data.productCreate.product.id as string;
+
+    const lifecycleProductSelection =
+      'product { id options { id name position values optionValues { id name hasVariants } } variants(first: 10) { nodes { id title selectedOptions { name value } } } }';
+
+    const createOptionsResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CreateOptions($productId: ID!, $options: [OptionCreateInput!]!) { productOptionsCreate(productId: $productId, options: $options) { ${lifecycleProductSelection} userErrors { field message } } }`,
+        variables: {
+          productId,
+          options: [
+            { name: 'Color', position: 1, values: [{ name: 'Red' }, { name: 'Green' }] },
+            { name: 'Size', position: 2, values: [{ name: 'Small' }] },
+          ],
+        },
+      });
+
+    expect(createOptionsResponse.status).toBe(200);
+    expect(createOptionsResponse.body.data.productOptionsCreate.userErrors).toEqual([]);
+    expect(createOptionsResponse.body.data.productOptionsCreate.product).toMatchObject({
+      options: [
+        {
+          name: 'Color',
+          position: 1,
+          values: ['Red'],
+          optionValues: [
+            { name: 'Red', hasVariants: true },
+            { name: 'Green', hasVariants: false },
+          ],
+        },
+        {
+          name: 'Size',
+          position: 2,
+          values: ['Small'],
+          optionValues: [{ name: 'Small', hasVariants: true }],
+        },
+      ],
+      variants: {
+        nodes: [
+          {
+            title: 'Red / Small',
+            selectedOptions: [
+              { name: 'Color', value: 'Red' },
+              { name: 'Size', value: 'Small' },
+            ],
+          },
+        ],
+      },
+    });
+
+    const createdOptions = createOptionsResponse.body.data.productOptionsCreate.product.options as Array<{
+      id: string;
+      name: string;
+      optionValues: Array<{ id: string; name: string }>;
+    }>;
+    const colorOption = createdOptions.find((option) => option.name === 'Color');
+    const sizeOption = createdOptions.find((option) => option.name === 'Size');
+    const redValue = colorOption?.optionValues.find((value) => value.name === 'Red');
+    const greenValue = colorOption?.optionValues.find((value) => value.name === 'Green');
+    expect(colorOption?.id).toEqual(expect.stringMatching(/^gid:\/\/shopify\/ProductOption\//));
+    expect(sizeOption?.id).toEqual(expect.stringMatching(/^gid:\/\/shopify\/ProductOption\//));
+    expect(redValue?.id).toEqual(expect.stringMatching(/^gid:\/\/shopify\/ProductOptionValue\//));
+    expect(greenValue?.id).toEqual(expect.stringMatching(/^gid:\/\/shopify\/ProductOptionValue\//));
+
+    const updateOptionResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          `mutation UpdateOption($productId: ID!, $option: OptionUpdateInput!, $optionValuesToAdd: [OptionValueCreateInput!], $optionValuesToUpdate: [OptionValueUpdateInput!], $optionValuesToDelete: [ID!]) { ` +
+          `productOptionUpdate(productId: $productId, option: $option, optionValuesToAdd: $optionValuesToAdd, optionValuesToUpdate: $optionValuesToUpdate, optionValuesToDelete: $optionValuesToDelete) { ${lifecycleProductSelection} userErrors { field message } } }`,
+        variables: {
+          productId,
+          option: { id: colorOption?.id, name: 'Shade', position: 2 },
+          optionValuesToAdd: [{ name: 'Blue' }],
+          optionValuesToUpdate: [{ id: redValue?.id, name: 'Crimson' }],
+          optionValuesToDelete: [greenValue?.id],
+        },
+      });
+
+    expect(updateOptionResponse.status).toBe(200);
+    expect(updateOptionResponse.body.data.productOptionUpdate.userErrors).toEqual([]);
+    expect(updateOptionResponse.body.data.productOptionUpdate.product).toMatchObject({
+      options: [
+        {
+          id: sizeOption?.id,
+          name: 'Size',
+          position: 1,
+          values: ['Small'],
+          optionValues: [{ name: 'Small', hasVariants: true }],
+        },
+        {
+          id: colorOption?.id,
+          name: 'Shade',
+          position: 2,
+          values: ['Crimson'],
+          optionValues: [
+            { id: redValue?.id, name: 'Crimson', hasVariants: true },
+            { name: 'Blue', hasVariants: false },
+          ],
+        },
+      ],
+      variants: {
+        nodes: [
+          {
+            title: 'Small / Crimson',
+            selectedOptions: [
+              { name: 'Size', value: 'Small' },
+              { name: 'Shade', value: 'Crimson' },
+            ],
+          },
+        ],
+      },
+    });
+
+    const deleteOptionsResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation DeleteOptions($productId: ID!, $options: [ID!]!) { productOptionsDelete(productId: $productId, options: $options) { deletedOptionsIds product { id options { id name position values optionValues { id name hasVariants } } variants(first: 10) { nodes { id title selectedOptions { name value } } } } userErrors { field message } } }',
+        variables: {
+          productId,
+          options: [sizeOption?.id, colorOption?.id],
+        },
+      });
+
+    expect(deleteOptionsResponse.status).toBe(200);
+    expect(deleteOptionsResponse.body.data.productOptionsDelete.userErrors).toEqual([]);
+    expect(deleteOptionsResponse.body.data.productOptionsDelete.deletedOptionsIds).toEqual([
+      sizeOption?.id,
+      colorOption?.id,
+    ]);
+    expect(deleteOptionsResponse.body.data.productOptionsDelete.product).toMatchObject({
+      options: [
+        {
+          name: 'Title',
+          position: 1,
+          values: ['Default Title'],
+          optionValues: [{ name: 'Default Title', hasVariants: true }],
+        },
+      ],
+      variants: {
+        nodes: [
+          {
+            title: 'Default Title',
+            selectedOptions: [{ name: 'Title', value: 'Default Title' }],
+          },
+        ],
+      },
+    });
+
+    const downstreamReadResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query ProductOptionLifecycle($id: ID!) { product(id: $id) { id options { name values optionValues { name hasVariants } } variants(first: 10) { nodes { title selectedOptions { name value } } } } }',
+        variables: { id: productId },
+      });
+
+    expect(downstreamReadResponse.status).toBe(200);
+    expect(downstreamReadResponse.body.data.product).toEqual({
+      id: productId,
+      options: [
+        {
+          name: 'Title',
+          values: ['Default Title'],
+          optionValues: [{ name: 'Default Title', hasVariants: true }],
+        },
+      ],
+      variants: {
+        nodes: [
+          {
+            title: 'Default Title',
+            selectedOptions: [{ name: 'Title', value: 'Default Title' }],
+          },
+        ],
+      },
+    });
+  });
+
+  it('returns captured product option lifecycle validation userErrors locally', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('product option validation branches should not hit upstream fetch');
+    });
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const createUnknownProductResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateOption($productId: ID!, $options: [OptionCreateInput!]!) { productOptionsCreate(productId: $productId, options: $options) { product { id } userErrors { field message } } }',
+        variables: {
+          productId: 'gid://shopify/Product/0',
+          options: [{ name: 'Material', values: [{ name: 'Cotton' }] }],
+        },
+      });
+
+    expect(createUnknownProductResponse.status).toBe(200);
+    expect(createUnknownProductResponse.body.data.productOptionsCreate).toEqual({
+      product: null,
+      userErrors: [{ field: ['productId'], message: 'Product does not exist' }],
+    });
+
+    const createProductResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Option Validation Hat" }) { product { id } userErrors { field message } } }',
+    });
+    const productId = createProductResponse.body.data.productCreate.product.id as string;
+
+    const updateUnknownOptionResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation UpdateOption($productId: ID!, $option: OptionUpdateInput!) { productOptionUpdate(productId: $productId, option: $option) { product { id options { name } } userErrors { field message } } }',
+        variables: {
+          productId,
+          option: { id: 'gid://shopify/ProductOption/0', name: 'Missing Option' },
+        },
+      });
+
+    expect(updateUnknownOptionResponse.status).toBe(200);
+    expect(updateUnknownOptionResponse.body.data.productOptionUpdate).toEqual({
+      product: {
+        id: productId,
+        options: [{ name: 'Title' }],
+      },
+      userErrors: [{ field: ['option'], message: 'Option does not exist' }],
+    });
+
+    const deleteUnknownOptionResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation DeleteOption($productId: ID!, $options: [ID!]!) { productOptionsDelete(productId: $productId, options: $options) { deletedOptionsIds product { id options { name } } userErrors { field message } } }',
+        variables: {
+          productId,
+          options: ['gid://shopify/ProductOption/0'],
+        },
+      });
+
+    expect(deleteUnknownOptionResponse.status).toBe(200);
+    expect(deleteUnknownOptionResponse.body.data.productOptionsDelete).toEqual({
+      deletedOptionsIds: [],
+      product: {
+        id: productId,
+        options: [{ name: 'Title' }],
+      },
+      userErrors: [{ field: ['options', '0'], message: 'Option does not exist' }],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('stages product variant bulk create, update, and delete mutations locally with downstream variant reads and inventory-derived catalog fields', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       return new Response(

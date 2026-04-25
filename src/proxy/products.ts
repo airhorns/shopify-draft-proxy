@@ -1348,13 +1348,20 @@ function insertOptionAtPosition(
 }
 
 function productUsesOnlyDefaultOptionState(options: ProductOptionRecord[], variants: ProductVariantRecord[]): boolean {
+  const selectedOptions = variants[0]?.selectedOptions ?? [];
+  const variantUsesDefaultSelection =
+    selectedOptions.length === 0 ||
+    (selectedOptions.length === 1 &&
+      selectedOptions[0]?.name === 'Title' &&
+      selectedOptions[0]?.value === 'Default Title');
+
   return (
     options.length === 1 &&
     options[0]?.name === 'Title' &&
     options[0]?.optionValues.length === 1 &&
     options[0]?.optionValues[0]?.name === 'Default Title' &&
     variants.length === 1 &&
-    variants[0]?.selectedOptions.length === 0
+    variantUsesDefaultSelection
   );
 }
 
@@ -1397,7 +1404,7 @@ function restoreDefaultOptionState(
         ...baseVariant,
         productId: product.id,
         title: 'Default Title',
-        selectedOptions: [],
+        selectedOptions: [{ name: 'Title', value: 'Default Title' }],
       },
     ],
   };
@@ -1419,6 +1426,28 @@ function remapVariantSelectionsForOptionUpdate(
         value: renamedValues.get(selectedOption.value) ?? selectedOption.value,
       };
     });
+
+    return {
+      ...structuredClone(variant),
+      title: deriveVariantTitle(null, selectedOptions, variant.title),
+      selectedOptions,
+    };
+  });
+}
+
+function reorderVariantSelectionsForOptions(
+  variants: ProductVariantRecord[],
+  options: ProductOptionRecord[],
+): ProductVariantRecord[] {
+  return variants.map((variant) => {
+    const selectedByName = new Map(
+      variant.selectedOptions.map((selectedOption) => [selectedOption.name, selectedOption]),
+    );
+    const selectedOptions = options
+      .map((option) => selectedByName.get(option.name) ?? null)
+      .filter(
+        (selectedOption): selectedOption is ProductVariantRecord['selectedOptions'][number] => selectedOption !== null,
+      );
 
     return {
       ...structuredClone(variant),
@@ -1494,9 +1523,16 @@ function updateOptionRecords(
   }
 
   nextOptions.splice(existingIndex, 1);
+  const reorderedOptions = insertOptionAtPosition(nextOptions, target, optionInput['position']);
+  const remappedVariants = remapVariantSelectionsForOptionUpdate(
+    variants,
+    previousOptionName,
+    target.name,
+    renamedValues,
+  );
   return {
-    options: insertOptionAtPosition(nextOptions, target, optionInput['position']),
-    variants: remapVariantSelectionsForOptionUpdate(variants, previousOptionName, target.name, renamedValues),
+    options: reorderedOptions,
+    variants: reorderVariantSelectionsForOptions(remappedVariants, reorderedOptions),
   };
 }
 
@@ -7591,7 +7627,7 @@ export function handleProductMutation(
           data: {
             [responseKey]: {
               product: null,
-              userErrors: [{ field: ['productId'], message: 'Product not found' }],
+              userErrors: [{ field: ['productId'], message: 'Product does not exist' }],
             },
           },
         };
@@ -7665,6 +7701,23 @@ export function handleProductMutation(
       }
 
       const optionInput = readProductInput(args['option']);
+      const rawOptionId = optionInput['id'];
+      if (typeof rawOptionId === 'string') {
+        const optionExists = store
+          .getEffectiveOptionsByProductId(productId)
+          .some((option) => option.id === rawOptionId && option.productId === productId);
+        if (!optionExists) {
+          return {
+            data: {
+              [responseKey]: {
+                product: serializeProduct(existingProduct, getChildField(field, 'product'), variables),
+                userErrors: [{ field: ['option'], message: 'Option does not exist' }],
+              },
+            },
+          };
+        }
+      }
+
       const updateResult = updateOptionRecords(
         productId,
         store.getEffectiveOptionsByProductId(productId),
@@ -7731,6 +7784,32 @@ export function handleProductMutation(
 
       const effectiveOptions = store.getEffectiveOptionsByProductId(productId);
       const effectiveVariants = store.getEffectiveVariantsByProductId(productId);
+      const optionIds = Array.isArray(args['options'])
+        ? args['options'].filter((value): value is string => typeof value === 'string')
+        : [];
+      const existingOptionIds = new Set(effectiveOptions.map((option) => option.id));
+      const unknownOptionErrors = optionIds
+        .map((optionId, index) =>
+          existingOptionIds.has(optionId)
+            ? null
+            : {
+                field: ['options', String(index)],
+                message: 'Option does not exist',
+              },
+        )
+        .filter((userError): userError is { field: string[]; message: string } => userError !== null);
+      if (unknownOptionErrors.length > 0) {
+        return {
+          data: {
+            [responseKey]: {
+              deletedOptionsIds: [],
+              product: serializeProduct(existingProduct, getChildField(field, 'product'), variables),
+              userErrors: unknownOptionErrors,
+            },
+          },
+        };
+      }
+
       const deleteResult = deleteOptionRecords(productId, effectiveOptions, args['options']);
       let nextOptions = deleteResult.options;
       let nextVariants = effectiveVariants;

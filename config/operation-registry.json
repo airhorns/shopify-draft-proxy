@@ -405,27 +405,27 @@
     "type": "mutation",
     "domain": "customers",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerAddTaxExemptions", "CustomerAddTaxExemptions"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
   },
   {
     "name": "customerRemoveTaxExemptions",
     "type": "mutation",
     "domain": "customers",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerRemoveTaxExemptions", "CustomerRemoveTaxExemptions"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
   },
   {
     "name": "customerReplaceTaxExemptions",
     "type": "mutation",
     "domain": "customers",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerReplaceTaxExemptions", "CustomerReplaceTaxExemptions"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
   },
   {
     "name": "customerSet",
@@ -1084,30 +1084,30 @@
     "type": "query",
     "domain": "metaobjects",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectDefinition", "MetaobjectDefinition"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 definition read root. Registry-only declared gap until ID lookup nullability, field definition ordering, capabilities, access settings, and empty/no-data behavior are captured."
+    "runtimeTests": ["tests/integration/metaobject-definition-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 definition read root. HAR-241 supports snapshot and live-hybrid overlay reads from normalized fixture/local state, including ID lookup nullability, captured field ordering, capabilities, access settings, and no-data behavior."
   },
   {
     "name": "metaobjectDefinitionByType",
     "type": "query",
     "domain": "metaobjects",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectDefinitionByType", "MetaobjectDefinitionByType"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 definition type lookup root. Registry-only declared gap until type identity, app-reserved type handling, and missing-type nullability are captured."
+    "runtimeTests": ["tests/integration/metaobject-definition-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 definition type lookup root. HAR-241 supports snapshot and live-hybrid overlay reads from normalized fixture/local state, including type identity and missing-type nullability."
   },
   {
     "name": "metaobjectDefinitions",
     "type": "query",
     "domain": "metaobjects",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectDefinitions", "MetaobjectDefinitions"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 definition catalog root. Registry-only declared gap until definition pagination, ordering, type filtering, standard-template metadata, and empty connection behavior are captured."
+    "runtimeTests": ["tests/integration/metaobject-definition-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 definition catalog root. HAR-241 supports snapshot and live-hybrid overlay reads from normalized fixture/local state, including definition pagination, reverse ordering, standard-template metadata, and empty connection behavior."
   },
   {
     "name": "metaobjectCreate",
@@ -2699,30 +2699,30 @@
     "type": "query",
     "domain": "webhooks",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["webhookSubscription", "WebhookSubscription"],
-    "runtimeTests": [],
-    "supportNotes": "Conformance scaffold only. HAR-267 captured empty/null and create/update/delete lifecycle evidence for API-created webhook subscriptions, but local snapshot/live-hybrid reads are not modeled yet."
+    "runtimeTests": ["tests/integration/webhook-subscription-query-shapes.test.ts"],
+    "supportNotes": "Local snapshot/live-hybrid reads are modeled for API-created webhook subscription records in normalized state. Unknown IDs return null. Create/update/delete staging remains unsupported until a local mutation lifecycle model exists."
   },
   {
     "name": "webhookSubscriptions",
     "type": "query",
     "domain": "webhooks",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["webhookSubscriptions", "WebhookSubscriptions"],
-    "runtimeTests": [],
-    "supportNotes": "Conformance scaffold only. Catalog/count/detail behavior is captured for API-created subscriptions; app TOML webhooks and local connection modeling remain out of scope until runtime support is implemented."
+    "runtimeTests": ["tests/integration/webhook-subscription-query-shapes.test.ts"],
+    "supportNotes": "Local snapshot/live-hybrid catalog reads are modeled for API-created webhook subscriptions with normalized nodes, edges, pageInfo, stable synthetic cursors, ID sorting, reverse ordering, pagination, and simple captured query filtering. App TOML webhooks remain out of scope."
   },
   {
     "name": "webhookSubscriptionsCount",
     "type": "query",
     "domain": "webhooks",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["webhookSubscriptionsCount", "WebhookSubscriptionsCount"],
-    "runtimeTests": [],
-    "supportNotes": "Conformance scaffold only. Empty and filtered count behavior is captured, but the proxy does not yet synthesize webhook subscription counts locally."
+    "runtimeTests": ["tests/integration/webhook-subscription-query-shapes.test.ts"],
+    "supportNotes": "Local snapshot/live-hybrid count reads are synthesized from normalized API-created webhook subscription state with Shopify-like count/precision fields and limit-aware AT_LEAST precision."
   },
   {
     "name": "webhookSubscriptionCreate",
