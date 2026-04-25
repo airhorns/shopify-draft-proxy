@@ -270,6 +270,36 @@ export const customerRecordSchema = z.strictObject({
 });
 export type CustomerRecord = z.infer<typeof customerRecordSchema>;
 
+export const businessEntityAddressRecordSchema = z.strictObject({
+  address1: nullableStringSchema,
+  address2: nullableStringSchema,
+  city: nullableStringSchema,
+  countryCode: z.string(),
+  province: nullableStringSchema,
+  zip: nullableStringSchema,
+});
+export type BusinessEntityAddressRecord = z.infer<typeof businessEntityAddressRecordSchema>;
+
+export const shopifyPaymentsAccountRecordSchema = z.strictObject({
+  id: z.string(),
+  activated: z.boolean(),
+  country: z.string(),
+  defaultCurrency: z.string(),
+  onboardable: z.boolean(),
+});
+export type ShopifyPaymentsAccountRecord = z.infer<typeof shopifyPaymentsAccountRecordSchema>;
+
+export const businessEntityRecordSchema = z.strictObject({
+  id: z.string(),
+  displayName: z.string(),
+  companyName: nullableStringSchema,
+  primary: z.boolean(),
+  archived: z.boolean(),
+  address: businessEntityAddressRecordSchema,
+  shopifyPaymentsAccount: shopifyPaymentsAccountRecordSchema.nullable(),
+});
+export type BusinessEntityRecord = z.infer<typeof businessEntityRecordSchema>;
+
 export const productCatalogPageInfoRecordSchema = z.strictObject({
   hasNextPage: z.boolean(),
   hasPreviousPage: z.boolean(),
@@ -615,6 +645,8 @@ export const stateSnapshotSchema = z.strictObject({
   collections: z.record(z.string(), collectionRecordSchema),
   publications: z.record(z.string(), publicationRecordSchema).default({}),
   customers: z.record(z.string(), customerRecordSchema),
+  businessEntities: z.record(z.string(), businessEntityRecordSchema).default({}),
+  businessEntityOrder: z.array(z.string()).default([]),
   productCollections: z.record(z.string(), productCollectionRecordSchema),
   productMedia: z.record(z.string(), productMediaRecordSchema),
   files: z.record(z.string(), fileRecordSchema).default({}),

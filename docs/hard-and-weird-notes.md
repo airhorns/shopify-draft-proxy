@@ -1810,3 +1810,19 @@ Shopify documents `Collection` as a `Publishable` implementer and notes that col
 - generic `publishablePublish` / `publishableUnpublish` are locally supported for Product and Collection ids only; other `Publishable` implementers remain outside the supported mutation surface
 - `collections(query: "published_status:published")` and `published_status:unpublished` filter against the same aggregate collection state in local reads
 - full `resourcePublications` / `resourcePublicationsV2` edge parity remains pending collection-specific live capture because the current safe local model only proves the aggregate publication fields and search visibility path
+
+## 48. Business entity Store properties reads expose payments-adjacent data
+
+The first `businessEntities` / `businessEntity` capture for Admin GraphQL 2026-04 showed a single primary entity on the conformance store. `businessEntity` without an `id` returned that primary entity, and an unknown `gid://shopify/BusinessEntity/...` returned `null`.
+
+Captured shape for the first local slice:
+
+- core entity fields: `id`, `displayName`, `companyName`, `primary`, `archived`
+- address fields: `address1`, `address2`, `city`, `countryCode`, `province`, `zip`
+- `shopifyPaymentsAccount` selected with safe scalar fields, but the live token received `ACCESS_DENIED` without `read_shopify_payments` / `read_shopify_payments_accounts`, so the captured value is `null`
+
+Practical rule:
+
+- local business entity snapshots can fixture safe account scalars only when they were explicitly captured
+- do not synthesize balances, payouts, bank accounts, statement descriptors, disputes, or account opener details from Store properties reads
+- order and market attribution should treat `BusinessEntity` as an identity link for now; do not model Markets assignment or order attribution rules until there is separate captured evidence for those domains
