@@ -4481,8 +4481,12 @@ describe('product draft flow', () => {
       .post('/admin/api/2025-01/graphql.json')
       .send({
         query:
-          'query ($id: ID!) { duplicated: product(id: $id) { id title handle status options { name values } variants(first: 10) { nodes { title sku inventoryItem { tracked } } } collections(first: 10) { nodes { id title handle } } media(first: 10) { nodes { mediaContentType alt preview { image { url } } } } metafield(namespace: "custom", key: "material") { namespace key value } } total: productsCount { count precision } }',
-        variables: { id: duplicatedProductId },
+          'query ($id: ID!, $collectionId: ID!, $duplicateMembershipQuery: String!) { duplicated: product(id: $id) { id title handle status options { name values } variants(first: 10) { nodes { title sku inventoryItem { tracked } } } collections(first: 10) { nodes { id title handle } } media(first: 10) { nodes { mediaContentType alt preview { image { url } } } } metafield(namespace: "custom", key: "material") { namespace key value } } duplicateCollection: collection(id: $collectionId) { id title handle hasProduct(id: $id) productsCount { count precision } products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } duplicateMembershipSearch: collections(first: 10, query: $duplicateMembershipQuery) { nodes { id title handle } } total: productsCount { count precision } }',
+        variables: {
+          id: duplicatedProductId,
+          collectionId: 'gid://shopify/Collection/4000',
+          duplicateMembershipQuery: `product_id:${duplicatedProductId}`,
+        },
       });
 
     expect(queryResponse.status).toBe(200);
@@ -4516,6 +4520,29 @@ describe('product draft flow', () => {
             key: 'material',
             value: 'mesh',
           },
+        },
+        duplicateCollection: {
+          id: 'gid://shopify/Collection/4000',
+          title: 'Summer',
+          handle: 'summer',
+          hasProduct: true,
+          productsCount: {
+            count: 2,
+            precision: 'EXACT',
+          },
+          products: {
+            nodes: [
+              { id: 'gid://shopify/Product/100', title: 'Base Shoe', handle: 'base-shoe' },
+              { id: duplicatedProductId, title: 'Copied Shoe', handle: 'copied-shoe' },
+            ],
+            pageInfo: {
+              hasNextPage: false,
+              hasPreviousPage: false,
+            },
+          },
+        },
+        duplicateMembershipSearch: {
+          nodes: [{ id: 'gid://shopify/Collection/4000', title: 'Summer', handle: 'summer' }],
         },
         total: {
           count: 2,
