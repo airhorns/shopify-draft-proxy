@@ -165,7 +165,7 @@
     "implemented": false,
     "matchNames": ["cashManagementLocationSummary", "CashManagementLocationSummary"],
     "runtimeTests": [],
-    "supportNotes": "2026-04 conformance evidence is access-denied only for the current credential: Shopify requires `read_cash_tracking` plus `view_payment_tracking_sessions_pos_channel` or `payments_cash_session_history` retail role permission. Keep unsupported passthrough/runtime support unclaimed until fixture-backed no-data or summary shapes are captured."
+    "supportNotes": "2026-04 harry-test-heelo conformance evidence is access-denied only for the current credential: Shopify requires `read_cash_tracking` plus `view_payment_tracking_sessions_pos_channel` or `payments_cash_session_history` retail role permission. Keep unsupported passthrough/runtime support unclaimed until fixture-backed no-data or summary shapes are captured."
   },
   {
     "name": "customerPaymentMethod",

@@ -38,6 +38,7 @@ Local staged mutations:
 - `locationAdd` stages new normalized locations with proxy-synthetic `Location` IDs, stable timestamps, address metadata, `fulfillsOnlineOrders`, and owner-scoped metafields. Downstream `location`, `locationByIdentifier`, top-level `locations`, and meta state/log inspection observe the staged location without sending the write upstream at runtime.
 - `locationEdit` stages updates against base or synthetic locations, preserving unspecified address fields and updating inventory-level location name serialization through the effective location record. Captured validation branches include blank-name `userErrors` (`input.name` / `Add a location name`) and missing-location `userErrors` (`id` / `Location not found.`). Fulfillment-service locations are blocked locally unless future conformance proves an app-owned editable fulfillment-service branch.
 - Generic `publishablePublish` and `publishableUnpublish` stage Product and Collection publishables locally. `publishablePublishToCurrentChannel` and `publishableUnpublishToCurrentChannel` currently cover Product publishables. Unsupported publishable target types return local userErrors instead of proxying upstream as supported behavior.
+- `cashManagementLocationSummary` remains unsupported at runtime. Fresh Admin 2026-04 evidence for `harry-test-heelo.myshopify.com` is access-denied before known-location, unknown-location, or no-data summary behavior can be observed; do not synthesize `CashManagementSummary` balances or session counts until a fixture-backed readable branch exists.
 
 ## Validation anchors
 
@@ -47,3 +48,4 @@ Local staged mutations:
 - Business entity reads: `tests/integration/business-entity-query-shapes.test.ts`
 - Generic publishable slices: `tests/integration/product-draft-flow.test.ts`, `tests/integration/collection-draft-flow.test.ts`
 - Conformance fixtures and requests: `config/parity-specs/shop*.json`, `config/parity-specs/location*.json`, `config/parity-specs/locations*.json`, `config/parity-specs/business*.json`, `config/parity-specs/publishable*.json`, and matching files under `config/parity-requests/`
+- Cash-management blocker evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/cash-management-location-summary-access-denied.json`

@@ -1,0 +1,390 @@
+{
+  "capturedAt": "2026-04-25T18:23:12.919Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "operation": "cashManagementLocationSummary",
+  "selectedLocation": {
+    "id": "gid://shopify/Location/106318463282",
+    "name": "My Custom Location"
+  },
+  "conclusion": "Current conformance credential can introspect CashManagementSummary but cannot read cashManagementLocationSummary data. Keep runtime support unimplemented and do not synthesize balances or session counts until read_cash_tracking plus required POS/retail role evidence is available.",
+  "schemaInventory": {
+    "queryRoot": {
+      "name": "cashManagementLocationSummary",
+      "args": [
+        {
+          "name": "locationId",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "ID",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "startDate",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "Date",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "endDate",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "Date",
+              "ofType": null
+            }
+          }
+        }
+      ],
+      "type": {
+        "kind": "NON_NULL",
+        "name": null,
+        "ofType": {
+          "kind": "OBJECT",
+          "name": "CashManagementSummary"
+        }
+      }
+    },
+    "cashManagementSummary": {
+      "fields": [
+        {
+          "name": "cashBalanceAtEnd",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "OBJECT",
+              "name": "MoneyV2",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "cashBalanceAtStart",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "OBJECT",
+              "name": "MoneyV2",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "netCash",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "OBJECT",
+              "name": "MoneyV2",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "sessionsClosed",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "Int",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "sessionsOpened",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "Int",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "totalDiscrepancies",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "OBJECT",
+              "name": "MoneyV2",
+              "ofType": null
+            }
+          }
+        }
+      ]
+    },
+    "moneyV2": {
+      "fields": [
+        {
+          "name": "amount",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "Decimal"
+            }
+          }
+        },
+        {
+          "name": "currencyCode",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "ENUM",
+              "name": "CurrencyCode"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "probes": [
+    {
+      "name": "locationsProbe",
+      "status": 200,
+      "variables": {},
+      "response": {
+        "data": {
+          "locations": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Location/106318463282",
+                "name": "My Custom Location"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 3,
+            "actualQueryCost": 3,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "knownLocationAccessDenied",
+      "status": 200,
+      "variables": {
+        "locationId": "gid://shopify/Location/106318463282",
+        "startDate": "2026-04-01",
+        "endDate": "2026-04-25"
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Access denied for cashManagementLocationSummary field. Required access: `read_cash_tracking` access scope. Also: User must have `view_payment_tracking_sessions_pos_channel` or `payments_cash_session_history` retail role permission.",
+            "locations": [
+              {
+                "line": 3,
+                "column": 5
+              }
+            ],
+            "extensions": {
+              "code": "ACCESS_DENIED",
+              "documentation": "https://shopify.dev/api/usage/access-scopes",
+              "requiredAccess": "`read_cash_tracking` access scope. Also: User must have `view_payment_tracking_sessions_pos_channel` or `payments_cash_session_history` retail role permission."
+            },
+            "path": ["cashManagementLocationSummary"]
+          }
+        ],
+        "data": null,
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1997,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "unknownLocationAccessDenied",
+      "status": 200,
+      "variables": {
+        "locationId": "gid://shopify/Location/999999999999",
+        "startDate": "2026-04-01",
+        "endDate": "2026-04-25"
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Access denied for cashManagementLocationSummary field. Required access: `read_cash_tracking` access scope. Also: User must have `view_payment_tracking_sessions_pos_channel` or `payments_cash_session_history` retail role permission.",
+            "locations": [
+              {
+                "line": 3,
+                "column": 5
+              }
+            ],
+            "extensions": {
+              "code": "ACCESS_DENIED",
+              "documentation": "https://shopify.dev/api/usage/access-scopes",
+              "requiredAccess": "`read_cash_tracking` access scope. Also: User must have `view_payment_tracking_sessions_pos_channel` or `payments_cash_session_history` retail role permission."
+            },
+            "path": ["cashManagementLocationSummary"]
+          }
+        ],
+        "data": null,
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "missingLocationIdVariable",
+      "status": 200,
+      "variables": {
+        "startDate": "2026-04-01",
+        "endDate": "2026-04-25"
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Variable $locationId of type ID! was provided invalid value",
+            "locations": [
+              {
+                "line": 2,
+                "column": 44
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": null,
+              "problems": [
+                {
+                  "path": [],
+                  "explanation": "Expected value to not be null"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "missingStartDateVariable",
+      "status": 200,
+      "variables": {
+        "locationId": "gid://shopify/Location/106318463282",
+        "endDate": "2026-04-25"
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Variable $startDate of type Date! was provided invalid value",
+            "locations": [
+              {
+                "line": 2,
+                "column": 62
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": null,
+              "problems": [
+                {
+                  "path": [],
+                  "explanation": "Expected value to not be null"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "missingEndDateVariable",
+      "status": 200,
+      "variables": {
+        "locationId": "gid://shopify/Location/106318463282",
+        "startDate": "2026-04-01"
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Variable $endDate of type Date! was provided invalid value",
+            "locations": [
+              {
+                "line": 2,
+                "column": 81
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": null,
+              "problems": [
+                {
+                  "path": [],
+                  "explanation": "Expected value to not be null"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalidStartDateLiteral",
+      "status": 200,
+      "variables": {},
+      "response": {
+        "errors": [
+          {
+            "message": "invalid Date 'not-a-date'",
+            "locations": [
+              {
+                "line": 3,
+                "column": 5
+              }
+            ],
+            "path": ["query CashManagementLocationSummaryInvalidDate", "cashManagementLocationSummary", "startDate"],
+            "extensions": {
+              "code": "argumentLiteralsIncompatible",
+              "typeName": "CoercionError"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

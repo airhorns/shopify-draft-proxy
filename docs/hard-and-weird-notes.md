@@ -1886,7 +1886,7 @@ Safety traps:
 - generic `publishablePublish*` / `publishableUnpublish*` roots can affect any `Publishable` implementer, not only product-specific publication paths already covered elsewhere
 - `shopPolicyUpdate` edits merchant legal policy content, so success-path captures must use a disposable or restorable policy body and must include cleanup evidence
 - `cashManagementLocationSummary` is POS/cash-management adjacent and may be gated by location, staff, POS, or cash-tracking permissions; treat access-denied or null/empty responses as domain evidence, not as generic read failures
-- HAR-175 live evidence on `very-big-test-store.myshopify.com` for 2026-04 found access-denied behavior before any known-location, unknown-location, or no-data branch could be observed: Shopify requires `read_cash_tracking` plus `view_payment_tracking_sessions_pos_channel` or `payments_cash_session_history` retail role permission. Missing `locationId`, `startDate`, and `endDate` variables fail with `INVALID_VARIABLE`; an invalid date literal fails with `argumentLiteralsIncompatible`.
+- HAR-175 live evidence on `very-big-test-store.myshopify.com` and refreshed evidence on `harry-test-heelo.myshopify.com` for 2026-04 found access-denied behavior before any known-location, unknown-location, or no-data branch could be observed: Shopify requires `read_cash_tracking` plus `view_payment_tracking_sessions_pos_channel` or `payments_cash_session_history` retail role permission. Missing `locationId`, `startDate`, and `endDate` variables fail with `INVALID_VARIABLE`; an invalid date literal fails with `argumentLiteralsIncompatible`.
 
 Practical rule:
 
