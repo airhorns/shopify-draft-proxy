@@ -12,10 +12,374 @@
   "assertionKinds": ["runtime-staging", "downstream-read-parity", "no-upstream-passthrough"],
   "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/fulfillment-order-lifecycle.json"],
   "runtimeTestFiles": ["tests/integration/order-fulfillment-flow.test.ts"],
-  "comparisonMode": "captured-fixture",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/fulfillment-order-lifecycle-hold.graphql",
+    "variablesCapturePath": "$.workflows.holdRelease.hold.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "hold-mutation-data",
+        "capturePath": "$.workflows.holdRelease.hold.response.payload.data.fulfillmentOrderHold",
+        "proxyPath": "$.data.fulfillmentOrderHold",
+        "selectedPaths": [
+          "$.fulfillmentHold.handle",
+          "$.fulfillmentHold.reason",
+          "$.fulfillmentHold.reasonNotes",
+          "$.fulfillmentHold.displayReason",
+          "$.fulfillmentHold.heldByRequestingApp",
+          "$.fulfillmentOrder.status",
+          "$.fulfillmentOrder.requestStatus",
+          "$.fulfillmentOrder.fulfillAt",
+          "$.fulfillmentOrder.fulfillBy",
+          "$.fulfillmentOrder.supportedActions",
+          "$.fulfillmentOrder.assignedLocation",
+          "$.fulfillmentOrder.fulfillmentHolds[0].handle",
+          "$.fulfillmentOrder.fulfillmentHolds[0].reason",
+          "$.fulfillmentOrder.fulfillmentHolds[0].reasonNotes",
+          "$.fulfillmentOrder.fulfillmentHolds[0].displayReason",
+          "$.fulfillmentOrder.fulfillmentHolds[0].heldByRequestingApp",
+          "$.fulfillmentOrder.lineItems.nodes[0].totalQuantity",
+          "$.fulfillmentOrder.lineItems.nodes[0].remainingQuantity",
+          "$.fulfillmentOrder.lineItems.nodes[0].lineItem.id",
+          "$.fulfillmentOrder.lineItems.nodes[0].lineItem.title",
+          "$.remainingFulfillmentOrder.status",
+          "$.remainingFulfillmentOrder.requestStatus",
+          "$.remainingFulfillmentOrder.fulfillAt",
+          "$.remainingFulfillmentOrder.fulfillBy",
+          "$.remainingFulfillmentOrder.supportedActions",
+          "$.remainingFulfillmentOrder.assignedLocation",
+          "$.remainingFulfillmentOrder.fulfillmentHolds",
+          "$.remainingFulfillmentOrder.lineItems.nodes[0].totalQuantity",
+          "$.remainingFulfillmentOrder.lineItems.nodes[0].remainingQuantity",
+          "$.remainingFulfillmentOrder.lineItems.nodes[0].lineItem.id",
+          "$.remainingFulfillmentOrder.lineItems.nodes[0].lineItem.title",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "after-hold-order-read",
+        "capturePath": "$.workflows.holdRelease.afterHold.orderRead.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/fulfillment-order-lifecycle-order-read.graphql",
+          "variablesCapturePath": "$.workflows.holdRelease.afterHold.orderRead.variables"
+        },
+        "selectedPaths": [
+          "$.id",
+          "$.name",
+          "$.displayFulfillmentStatus",
+          "$.fulfillmentOrders.nodes[0].status",
+          "$.fulfillmentOrders.nodes[0].requestStatus",
+          "$.fulfillmentOrders.nodes[0].supportedActions",
+          "$.fulfillmentOrders.nodes[0].fulfillmentHolds[0].handle",
+          "$.fulfillmentOrders.nodes[0].fulfillmentHolds[0].reason",
+          "$.fulfillmentOrders.nodes[0].fulfillmentHolds[0].reasonNotes",
+          "$.fulfillmentOrders.nodes[0].fulfillmentHolds[0].displayReason",
+          "$.fulfillmentOrders.nodes[0].fulfillmentHolds[0].heldByRequestingApp",
+          "$.fulfillmentOrders.nodes[0].lineItems.nodes[0].totalQuantity",
+          "$.fulfillmentOrders.nodes[0].lineItems.nodes[0].remainingQuantity",
+          "$.fulfillmentOrders.nodes[0].lineItems.nodes[0].lineItem.id",
+          "$.fulfillmentOrders.nodes[0].lineItems.nodes[0].lineItem.title",
+          "$.fulfillmentOrders.nodes[1].status",
+          "$.fulfillmentOrders.nodes[1].requestStatus",
+          "$.fulfillmentOrders.nodes[1].supportedActions",
+          "$.fulfillmentOrders.nodes[1].fulfillmentHolds",
+          "$.fulfillmentOrders.nodes[1].lineItems.nodes[0].totalQuantity",
+          "$.fulfillmentOrders.nodes[1].lineItems.nodes[0].remainingQuantity",
+          "$.fulfillmentOrders.nodes[1].lineItems.nodes[0].lineItem.id",
+          "$.fulfillmentOrders.nodes[1].lineItems.nodes[0].lineItem.title"
+        ]
+      },
+      {
+        "name": "release-hold-mutation-data",
+        "capturePath": "$.workflows.holdRelease.releaseHold.response.payload.data.fulfillmentOrderReleaseHold",
+        "proxyPath": "$.data.fulfillmentOrderReleaseHold",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/fulfillment-order-lifecycle-release-hold.graphql",
+          "variablesCapturePath": "$.workflows.holdRelease.releaseHold.variables"
+        },
+        "selectedPaths": [
+          "$.fulfillmentOrder.status",
+          "$.fulfillmentOrder.requestStatus",
+          "$.fulfillmentOrder.fulfillAt",
+          "$.fulfillmentOrder.fulfillBy",
+          "$.fulfillmentOrder.supportedActions",
+          "$.fulfillmentOrder.assignedLocation",
+          "$.fulfillmentOrder.fulfillmentHolds",
+          "$.fulfillmentOrder.lineItems.nodes[0].totalQuantity",
+          "$.fulfillmentOrder.lineItems.nodes[0].remainingQuantity",
+          "$.fulfillmentOrder.lineItems.nodes[0].lineItem.id",
+          "$.fulfillmentOrder.lineItems.nodes[0].lineItem.title",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "after-release-hold-order-read",
+        "capturePath": "$.workflows.holdRelease.afterReleaseHold.orderRead.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/fulfillment-order-lifecycle-order-read.graphql",
+          "variablesCapturePath": "$.workflows.holdRelease.afterReleaseHold.orderRead.variables"
+        },
+        "selectedPaths": [
+          "$.id",
+          "$.name",
+          "$.displayFulfillmentStatus",
+          "$.fulfillmentOrders.nodes[0].status",
+          "$.fulfillmentOrders.nodes[0].supportedActions",
+          "$.fulfillmentOrders.nodes[0].fulfillmentHolds",
+          "$.fulfillmentOrders.nodes[0].lineItems.nodes[0].totalQuantity",
+          "$.fulfillmentOrders.nodes[0].lineItems.nodes[0].remainingQuantity",
+          "$.fulfillmentOrders.nodes[1].status",
+          "$.fulfillmentOrders.nodes[1].supportedActions",
+          "$.fulfillmentOrders.nodes[1].fulfillmentHolds",
+          "$.fulfillmentOrders.nodes[1].lineItems.nodes[0].totalQuantity",
+          "$.fulfillmentOrders.nodes[1].lineItems.nodes[0].remainingQuantity"
+        ]
+      },
+      {
+        "name": "move-mutation-data",
+        "capturePath": "$.workflows.move.move.response.payload.data.fulfillmentOrderMove",
+        "proxyPath": "$.data.fulfillmentOrderMove",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/fulfillment-order-lifecycle-move.graphql",
+          "variablesCapturePath": "$.workflows.move.move.variables"
+        },
+        "selectedPaths": [
+          "$.movedFulfillmentOrder.status",
+          "$.movedFulfillmentOrder.requestStatus",
+          "$.movedFulfillmentOrder.fulfillAt",
+          "$.movedFulfillmentOrder.fulfillBy",
+          "$.movedFulfillmentOrder.supportedActions",
+          "$.movedFulfillmentOrder.assignedLocation",
+          "$.movedFulfillmentOrder.fulfillmentHolds",
+          "$.movedFulfillmentOrder.lineItems.nodes[0].totalQuantity",
+          "$.movedFulfillmentOrder.lineItems.nodes[0].remainingQuantity",
+          "$.movedFulfillmentOrder.lineItems.nodes[0].lineItem.id",
+          "$.movedFulfillmentOrder.lineItems.nodes[0].lineItem.title",
+          "$.originalFulfillmentOrder.status",
+          "$.originalFulfillmentOrder.requestStatus",
+          "$.originalFulfillmentOrder.supportedActions",
+          "$.originalFulfillmentOrder.assignedLocation",
+          "$.originalFulfillmentOrder.lineItems.nodes[0].totalQuantity",
+          "$.originalFulfillmentOrder.lineItems.nodes[0].remainingQuantity",
+          "$.remainingFulfillmentOrder.status",
+          "$.remainingFulfillmentOrder.requestStatus",
+          "$.remainingFulfillmentOrder.supportedActions",
+          "$.remainingFulfillmentOrder.assignedLocation",
+          "$.remainingFulfillmentOrder.lineItems.nodes[0].totalQuantity",
+          "$.remainingFulfillmentOrder.lineItems.nodes[0].remainingQuantity",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "after-move-order-read",
+        "capturePath": "$.workflows.move.afterMove.orderRead.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/fulfillment-order-lifecycle-order-read.graphql",
+          "variablesCapturePath": "$.workflows.move.afterMove.orderRead.variables"
+        },
+        "selectedPaths": [
+          "$.id",
+          "$.name",
+          "$.displayFulfillmentStatus",
+          "$.fulfillmentOrders.nodes[0].status",
+          "$.fulfillmentOrders.nodes[0].supportedActions",
+          "$.fulfillmentOrders.nodes[0].assignedLocation",
+          "$.fulfillmentOrders.nodes[0].lineItems.nodes[0].totalQuantity",
+          "$.fulfillmentOrders.nodes[0].lineItems.nodes[0].remainingQuantity",
+          "$.fulfillmentOrders.nodes[1].status",
+          "$.fulfillmentOrders.nodes[1].supportedActions",
+          "$.fulfillmentOrders.nodes[1].assignedLocation",
+          "$.fulfillmentOrders.nodes[1].lineItems.nodes[0].totalQuantity",
+          "$.fulfillmentOrders.nodes[1].lineItems.nodes[0].remainingQuantity"
+        ]
+      },
+      {
+        "name": "reschedule-guardrail-data",
+        "capturePath": "$.workflows.scheduleProgressOpenClose.reschedule.response.payload.data.fulfillmentOrderReschedule",
+        "proxyPath": "$.data.fulfillmentOrderReschedule",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/fulfillment-order-lifecycle-reschedule.graphql",
+          "variablesCapturePath": "$.workflows.scheduleProgressOpenClose.reschedule.variables"
+        },
+        "selectedPaths": ["$.fulfillmentOrder", "$.userErrors"]
+      },
+      {
+        "name": "after-reschedule-order-read",
+        "capturePath": "$.workflows.scheduleProgressOpenClose.afterReschedule.orderRead.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/fulfillment-order-lifecycle-order-read.graphql",
+          "variablesCapturePath": "$.workflows.scheduleProgressOpenClose.afterReschedule.orderRead.variables"
+        },
+        "selectedPaths": [
+          "$.id",
+          "$.name",
+          "$.displayFulfillmentStatus",
+          "$.fulfillmentOrders.nodes[0].status",
+          "$.fulfillmentOrders.nodes[0].supportedActions",
+          "$.fulfillmentOrders.nodes[0].lineItems.nodes[0].totalQuantity",
+          "$.fulfillmentOrders.nodes[0].lineItems.nodes[0].remainingQuantity"
+        ]
+      },
+      {
+        "name": "report-progress-mutation-data",
+        "capturePath": "$.workflows.scheduleProgressOpenClose.reportProgress.response.payload.data.fulfillmentOrderReportProgress",
+        "proxyPath": "$.data.fulfillmentOrderReportProgress",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/fulfillment-order-lifecycle-report-progress.graphql",
+          "variablesCapturePath": "$.workflows.scheduleProgressOpenClose.reportProgress.variables"
+        },
+        "selectedPaths": [
+          "$.fulfillmentOrder.status",
+          "$.fulfillmentOrder.requestStatus",
+          "$.fulfillmentOrder.supportedActions",
+          "$.fulfillmentOrder.assignedLocation",
+          "$.fulfillmentOrder.fulfillmentHolds",
+          "$.fulfillmentOrder.lineItems.nodes[0].totalQuantity",
+          "$.fulfillmentOrder.lineItems.nodes[0].remainingQuantity",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "after-report-progress-order-read",
+        "capturePath": "$.workflows.scheduleProgressOpenClose.afterReportProgress.orderRead.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/fulfillment-order-lifecycle-order-read.graphql",
+          "variablesCapturePath": "$.workflows.scheduleProgressOpenClose.afterReportProgress.orderRead.variables"
+        },
+        "selectedPaths": [
+          "$.id",
+          "$.name",
+          "$.fulfillmentOrders.nodes[0].status",
+          "$.fulfillmentOrders.nodes[0].supportedActions",
+          "$.fulfillmentOrders.nodes[0].lineItems.nodes[0].totalQuantity",
+          "$.fulfillmentOrders.nodes[0].lineItems.nodes[0].remainingQuantity"
+        ]
+      },
+      {
+        "name": "open-mutation-data",
+        "capturePath": "$.workflows.scheduleProgressOpenClose.open.response.payload.data.fulfillmentOrderOpen",
+        "proxyPath": "$.data.fulfillmentOrderOpen",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/fulfillment-order-lifecycle-open.graphql",
+          "variablesCapturePath": "$.workflows.scheduleProgressOpenClose.open.variables"
+        },
+        "selectedPaths": [
+          "$.fulfillmentOrder.status",
+          "$.fulfillmentOrder.requestStatus",
+          "$.fulfillmentOrder.supportedActions",
+          "$.fulfillmentOrder.assignedLocation",
+          "$.fulfillmentOrder.fulfillmentHolds",
+          "$.fulfillmentOrder.lineItems.nodes[0].totalQuantity",
+          "$.fulfillmentOrder.lineItems.nodes[0].remainingQuantity",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "after-open-order-read",
+        "capturePath": "$.workflows.scheduleProgressOpenClose.afterOpen.orderRead.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/fulfillment-order-lifecycle-order-read.graphql",
+          "variablesCapturePath": "$.workflows.scheduleProgressOpenClose.afterOpen.orderRead.variables"
+        },
+        "selectedPaths": [
+          "$.id",
+          "$.name",
+          "$.displayFulfillmentStatus",
+          "$.fulfillmentOrders.nodes[0].status",
+          "$.fulfillmentOrders.nodes[0].supportedActions",
+          "$.fulfillmentOrders.nodes[0].lineItems.nodes[0].totalQuantity",
+          "$.fulfillmentOrders.nodes[0].lineItems.nodes[0].remainingQuantity"
+        ]
+      },
+      {
+        "name": "close-guardrail-data",
+        "capturePath": "$.workflows.scheduleProgressOpenClose.close.response.payload.data.fulfillmentOrderClose",
+        "proxyPath": "$.data.fulfillmentOrderClose",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/fulfillment-order-lifecycle-close.graphql",
+          "variablesCapturePath": "$.workflows.scheduleProgressOpenClose.close.variables"
+        },
+        "selectedPaths": ["$.fulfillmentOrder", "$.userErrors"]
+      },
+      {
+        "name": "after-close-order-read",
+        "capturePath": "$.workflows.scheduleProgressOpenClose.afterClose.orderRead.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/fulfillment-order-lifecycle-order-read.graphql",
+          "variablesCapturePath": "$.workflows.scheduleProgressOpenClose.afterClose.orderRead.variables"
+        },
+        "selectedPaths": [
+          "$.id",
+          "$.name",
+          "$.displayFulfillmentStatus",
+          "$.fulfillmentOrders.nodes[0].status",
+          "$.fulfillmentOrders.nodes[0].supportedActions",
+          "$.fulfillmentOrders.nodes[0].lineItems.nodes[0].totalQuantity",
+          "$.fulfillmentOrders.nodes[0].lineItems.nodes[0].remainingQuantity"
+        ]
+      },
+      {
+        "name": "cancel-mutation-data",
+        "capturePath": "$.workflows.reroute.cancelAfterReroute.response.payload.data.fulfillmentOrderCancel",
+        "proxyPath": "$.data.fulfillmentOrderCancel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/fulfillment-order-lifecycle-cancel.graphql",
+          "variablesCapturePath": "$.workflows.reroute.cancelAfterReroute.variables"
+        },
+        "selectedPaths": [
+          "$.fulfillmentOrder.status",
+          "$.fulfillmentOrder.requestStatus",
+          "$.fulfillmentOrder.supportedActions",
+          "$.fulfillmentOrder.assignedLocation",
+          "$.fulfillmentOrder.fulfillmentHolds",
+          "$.fulfillmentOrder.lineItems.nodes",
+          "$.replacementFulfillmentOrder.status",
+          "$.replacementFulfillmentOrder.requestStatus",
+          "$.replacementFulfillmentOrder.supportedActions",
+          "$.replacementFulfillmentOrder.assignedLocation",
+          "$.replacementFulfillmentOrder.fulfillmentHolds",
+          "$.replacementFulfillmentOrder.lineItems.nodes[0].totalQuantity",
+          "$.replacementFulfillmentOrder.lineItems.nodes[0].remainingQuantity",
+          "$.replacementFulfillmentOrder.lineItems.nodes[0].lineItem.id",
+          "$.replacementFulfillmentOrder.lineItems.nodes[0].lineItem.title",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "after-cancel-order-read",
+        "capturePath": "$.workflows.reroute.afterCancel.orderRead.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/fulfillment-order-lifecycle-order-read.graphql",
+          "variablesCapturePath": "$.workflows.reroute.afterCancel.orderRead.variables"
+        },
+        "selectedPaths": [
+          "$.id",
+          "$.name",
+          "$.displayFulfillmentStatus",
+          "$.fulfillmentOrders.nodes[0].status",
+          "$.fulfillmentOrders.nodes[0].supportedActions",
+          "$.fulfillmentOrders.nodes[0].lineItems.nodes",
+          "$.fulfillmentOrders.nodes[1].status",
+          "$.fulfillmentOrders.nodes[1].supportedActions",
+          "$.fulfillmentOrders.nodes[1].lineItems.nodes[0].totalQuantity",
+          "$.fulfillmentOrders.nodes[1].lineItems.nodes[0].remainingQuantity",
+          "$.fulfillmentOrders.nodes[1].lineItems.nodes[0].lineItem.id",
+          "$.fulfillmentOrders.nodes[1].lineItems.nodes[0].lineItem.title"
+        ]
+      }
+    ]
   },
-  "notes": "HAR-234 runtime evidence for local fulfillment-order lifecycle staging. The fixture captures Shopify 2026-04 partial hold/release, partial move, report-progress/open, cancel/replacement behavior, representative unknown-id validation, and guardrails for reschedule/close/reroute. The generic parity runner cannot yet replay this multi-operation order-scoped flow directly, so the referenced integration test enforces local staging, downstream read behavior, meta log visibility, and no upstream passthrough."
+  "notes": "HAR-234 executable parity replay for local fulfillment-order lifecycle staging. The runner seeds the captured Shopify 2026-04 order/fulfillment-order preconditions, replays supported hold/release, move, report-progress/open, and cancel mutations against the local proxy harness, and performs strict selected-path comparisons against captured downstream reads plus documented reschedule/close guardrails. Reroute remains documented as a captured Shopify internal-error branch rather than local support."
 }

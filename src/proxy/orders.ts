@@ -4956,7 +4956,14 @@ function readFulfillmentHoldInput(variables: Record<string, unknown>): Record<st
   return typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {};
 }
 
-function fulfillmentOrderSupportedActions(status: string | null | undefined): string[] {
+function fulfillmentOrderSupportsSplit(lineItems: OrderFulfillmentOrderLineItemRecord[] | undefined): boolean {
+  return (lineItems ?? []).some((lineItem) => Math.max(lineItem.totalQuantity, lineItem.remainingQuantity) > 1);
+}
+
+function fulfillmentOrderSupportedActions(
+  status: string | null | undefined,
+  lineItems?: OrderFulfillmentOrderLineItemRecord[],
+): string[] {
   switch (status) {
     case 'ON_HOLD':
       return ['RELEASE_HOLD', 'HOLD', 'MOVE'];
@@ -4966,7 +4973,9 @@ function fulfillmentOrderSupportedActions(status: string | null | undefined): st
       return [];
     case 'OPEN':
     default:
-      return ['CREATE_FULFILLMENT', 'REPORT_PROGRESS', 'MOVE', 'HOLD', 'SPLIT'];
+      return fulfillmentOrderSupportsSplit(lineItems)
+        ? ['CREATE_FULFILLMENT', 'REPORT_PROGRESS', 'MOVE', 'HOLD', 'SPLIT']
+        : ['CREATE_FULFILLMENT', 'REPORT_PROGRESS', 'MOVE', 'HOLD'];
   }
 }
 
@@ -5109,7 +5118,7 @@ function buildReplacementFulfillmentOrder(
     updatedAt: makeSyntheticTimestamp(),
     status,
     requestStatus: overrides.requestStatus ?? fulfillmentOrder.requestStatus ?? 'UNSUBMITTED',
-    supportedActions: fulfillmentOrderSupportedActions(status),
+    supportedActions: fulfillmentOrderSupportedActions(status, lineItems),
     fulfillmentHolds: [],
     lineItems,
     ...overrides,
@@ -5150,7 +5159,7 @@ function applyFulfillmentOrderHold(
     ...fulfillmentOrder,
     status: 'ON_HOLD',
     updatedAt: makeSyntheticTimestamp(),
-    supportedActions: fulfillmentOrderSupportedActions('ON_HOLD'),
+    supportedActions: fulfillmentOrderSupportedActions('ON_HOLD', selectedLineItems),
     fulfillmentHolds: [hold],
     lineItems: selectedLineItems,
   };
@@ -5179,15 +5188,70 @@ function applyFulfillmentOrderReleaseHold(
   order: OrderRecord,
   fulfillmentOrder: OrderFulfillmentOrderRecord,
 ): { order: OrderRecord; fulfillmentOrder: OrderFulfillmentOrderRecord } {
+  const releasedLineItems = (fulfillmentOrder.lineItems ?? []).map((lineItem) => ({ ...lineItem }));
+  const releasedLineItemsByLineItemId = new Map(
+    releasedLineItems
+      .filter((lineItem) => lineItem.lineItemId)
+      .map((lineItem) => [lineItem.lineItemId as string, lineItem]),
+  );
+  const closedSiblingIds = new Set<string>();
+  const closedSiblingLineItems = new Map<string, OrderFulfillmentOrderLineItemRecord[]>();
+
+  for (const sibling of order.fulfillmentOrders ?? []) {
+    if (sibling.id === fulfillmentOrder.id || sibling.status === 'CLOSED') {
+      continue;
+    }
+    const siblingLineItems = sibling.lineItems ?? [];
+    const isMatchingSplitSibling = siblingLineItems.some(
+      (lineItem) => lineItem.lineItemId && releasedLineItemsByLineItemId.has(lineItem.lineItemId),
+    );
+    if (!isMatchingSplitSibling) {
+      continue;
+    }
+
+    closedSiblingIds.add(sibling.id);
+    closedSiblingLineItems.set(
+      sibling.id,
+      siblingLineItems.map((lineItem) => {
+        const releasedLineItem = lineItem.lineItemId ? releasedLineItemsByLineItemId.get(lineItem.lineItemId) : null;
+        if (releasedLineItem) {
+          releasedLineItem.totalQuantity += lineItem.totalQuantity;
+          releasedLineItem.remainingQuantity += lineItem.remainingQuantity;
+        }
+        return {
+          ...lineItem,
+          totalQuantity: 0,
+          remainingQuantity: 0,
+        };
+      }),
+    );
+  }
+
   const releasedFulfillmentOrder: OrderFulfillmentOrderRecord = {
     ...fulfillmentOrder,
     status: 'OPEN',
     updatedAt: makeSyntheticTimestamp(),
-    supportedActions: fulfillmentOrderSupportedActions('OPEN'),
+    supportedActions: fulfillmentOrderSupportedActions('OPEN', releasedLineItems),
     fulfillmentHolds: [],
+    lineItems: releasedLineItems,
   };
   const updatedOrder = updateOrderFulfillmentOrders(order, (fulfillmentOrders) =>
-    fulfillmentOrders.map((candidate) => (candidate.id === fulfillmentOrder.id ? releasedFulfillmentOrder : candidate)),
+    fulfillmentOrders.map((candidate) => {
+      if (candidate.id === fulfillmentOrder.id) {
+        return releasedFulfillmentOrder;
+      }
+      if (!closedSiblingIds.has(candidate.id)) {
+        return candidate;
+      }
+      return {
+        ...candidate,
+        status: 'CLOSED',
+        updatedAt: makeSyntheticTimestamp(),
+        supportedActions: [],
+        fulfillmentHolds: [],
+        lineItems: closedSiblingLineItems.get(candidate.id) ?? [],
+      };
+    }),
   );
   return { order: updatedOrder, fulfillmentOrder: releasedFulfillmentOrder };
 }
@@ -5219,7 +5283,7 @@ function applyFulfillmentOrderMove(
   const originalFulfillmentOrder: OrderFulfillmentOrderRecord = {
     ...fulfillmentOrder,
     updatedAt: makeSyntheticTimestamp(),
-    supportedActions: fulfillmentOrderSupportedActions(fulfillmentOrder.status),
+    supportedActions: fulfillmentOrderSupportedActions(fulfillmentOrder.status, remainingLineItems),
     lineItems: remainingLineItems.length > 0 ? remainingLineItems : [],
   };
   const remainingFulfillmentOrder = remainingLineItems.length > 0 ? originalFulfillmentOrder : null;
@@ -5243,7 +5307,7 @@ function applyFulfillmentOrderStatus(
     ...fulfillmentOrder,
     status,
     updatedAt: makeSyntheticTimestamp(),
-    supportedActions: fulfillmentOrderSupportedActions(status),
+    supportedActions: fulfillmentOrderSupportedActions(status, fulfillmentOrder.lineItems),
   };
   const updatedOrder = updateOrderFulfillmentOrders(order, (fulfillmentOrders) =>
     fulfillmentOrders.map((candidate) => (candidate.id === fulfillmentOrder.id ? updatedFulfillmentOrder : candidate)),

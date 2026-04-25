@@ -98,6 +98,7 @@ export const comparisonTargetSchema = z.strictObject({
   proxyPath: z.string(),
   upstreamCapturePath: z.string().nullable().optional(),
   proxyRequest: parityProxyRequestSpecSchema.optional(),
+  selectedPaths: z.array(z.string()).optional(),
 });
 export type ComparisonTarget = z.infer<typeof comparisonTargetSchema>;
 

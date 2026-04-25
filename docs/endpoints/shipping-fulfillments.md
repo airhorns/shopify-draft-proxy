@@ -33,7 +33,7 @@ Top-level fulfillment and fulfillment-order reads are implemented as snapshot/lo
 HAR-234 adds fulfillment-order lifecycle staging backed by `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/fulfillment-order-lifecycle.json`. Local support covers merchant-managed fulfillment orders already present on the local order graph:
 
 - `fulfillmentOrderHold` records app-created hold metadata, moves the selected work to `ON_HOLD`, exposes it through `fulfillmentHolds` and `manualHoldsFulfillmentOrders`, and creates an `OPEN` remaining fulfillment order for partial holds.
-- `fulfillmentOrderReleaseHold` clears local holds and restores `OPEN` status/actions for the held fulfillment order.
+- `fulfillmentOrderReleaseHold` clears local holds, restores `OPEN` status/actions for the held fulfillment order, re-expands the released line items to include the split remainder, and marks the partial-hold remainder order `CLOSED` with zero remaining quantity.
 - `fulfillmentOrderMove` stages full or partial line-item moves by assigning selected work to a replacement fulfillment order at the requested location and leaving remaining quantities on the original order.
 - `fulfillmentOrderReportProgress` changes local status to `IN_PROGRESS`; `fulfillmentOrderOpen` changes it back to `OPEN`.
 - `fulfillmentOrderCancel` closes the original fulfillment order, clears its line items, and creates an `OPEN` replacement fulfillment order carrying the remaining work.

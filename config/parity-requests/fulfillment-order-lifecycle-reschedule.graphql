@@ -1,0 +1,44 @@
+mutation FulfillmentOrderRescheduleLifecycle($id: ID!, $fulfillAt: DateTime!) {
+  fulfillmentOrderReschedule(id: $id, fulfillAt: $fulfillAt) {
+    fulfillmentOrder {
+      id
+      status
+      requestStatus
+      fulfillAt
+      fulfillBy
+      supportedActions {
+        action
+      }
+      assignedLocation {
+        name
+        location {
+          id
+          name
+        }
+      }
+      fulfillmentHolds {
+        id
+        handle
+        reason
+        reasonNotes
+        displayReason
+        heldByRequestingApp
+      }
+      lineItems(first: 5) {
+        nodes {
+          id
+          totalQuantity
+          remainingQuantity
+          lineItem {
+            id
+            title
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

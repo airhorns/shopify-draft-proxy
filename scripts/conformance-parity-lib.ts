@@ -149,6 +149,17 @@ const PAYMENT_CUSTOMIZATION_MUTATION_ROOTS = new Set([
   'paymentCustomizationUpdate',
 ]);
 
+const FULFILLMENT_ORDER_LIFECYCLE_MUTATION_ROOTS = new Set([
+  'fulfillmentOrderCancel',
+  'fulfillmentOrderClose',
+  'fulfillmentOrderHold',
+  'fulfillmentOrderMove',
+  'fulfillmentOrderOpen',
+  'fulfillmentOrderReleaseHold',
+  'fulfillmentOrderReportProgress',
+  'fulfillmentOrderReschedule',
+]);
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -238,6 +249,17 @@ export function validateComparisonContract(comparison: unknown): string[] {
         }
         if (typeof target['proxyPath'] !== 'string' || target['proxyPath'].length === 0) {
           errors.push(`${label} must declare a non-empty proxyPath.`);
+        }
+        if ('selectedPaths' in target) {
+          if (!Array.isArray(target['selectedPaths']) || target['selectedPaths'].length === 0) {
+            errors.push(`${label} selectedPaths, when declared, must be a non-empty array.`);
+          } else {
+            for (const [pathIndex, rawPath] of target['selectedPaths'].entries()) {
+              if (typeof rawPath !== 'string' || rawPath.length === 0) {
+                errors.push(`${label}.selectedPaths[${pathIndex}] must be a non-empty JSON path.`);
+              }
+            }
+          }
         }
       }
     }
@@ -757,7 +779,10 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
-  if (capability.execution === 'stage-locally' && capability.domain === 'orders') {
+  if (
+    capability.execution === 'stage-locally' &&
+    (capability.domain === 'orders' || capability.domain === 'shipping-fulfillments')
+  ) {
     const body = handleOrderMutation(document, variables, 'snapshot');
     if (!body) {
       throw new Error(`Order-domain parity request was not handled locally: ${capability.operationName}`);
@@ -768,6 +793,33 @@ async function executeGraphQLAgainstLocalProxy(
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
       path: '/admin/api/2025-01/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body,
+    };
+  }
+
+  if (
+    parsed.type === 'mutation' &&
+    parsed.rootFields.some((rootField) => FULFILLMENT_ORDER_LIFECYCLE_MUTATION_ROOTS.has(rootField))
+  ) {
+    const body = handleOrderMutation(document, variables, 'snapshot');
+    if (!body) {
+      throw new Error(`Fulfillment-order parity request was not handled locally: ${parsed.rootFields.join(', ')}`);
+    }
+
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: parsed.rootFields[0] ?? capability.operationName,
+      path: '/admin/api/2026-04/graphql.json',
       query: document,
       variables,
       status: 'staged',
@@ -2832,17 +2884,75 @@ function readCapturedFulfillmentOrderLineItems(
 function readCapturedOrderFulfillmentOrders(order: Record<string, unknown> | null): OrderFulfillmentOrderRecord[] {
   return readArrayField(readRecordField(order, 'fulfillmentOrders'), 'nodes')
     .filter(isPlainObject)
-    .map((fulfillmentOrder, index) => ({
-      id: readStringField(fulfillmentOrder, 'id') ?? `gid://shopify/FulfillmentOrder/conformance-${index}`,
-      status: readStringField(fulfillmentOrder, 'status'),
-      requestStatus: readStringField(fulfillmentOrder, 'requestStatus'),
-      assignedLocation: readRecordField(fulfillmentOrder, 'assignedLocation')
-        ? {
-            name: readStringField(readRecordField(fulfillmentOrder, 'assignedLocation'), 'name'),
-          }
-        : null,
-      lineItems: readCapturedFulfillmentOrderLineItems(fulfillmentOrder),
-    }));
+    .map((fulfillmentOrder, index) => {
+      const assignedLocation = readRecordField(fulfillmentOrder, 'assignedLocation');
+      const nestedLocation = readRecordField(assignedLocation, 'location');
+      return {
+        id: readStringField(fulfillmentOrder, 'id') ?? `gid://shopify/FulfillmentOrder/conformance-${index}`,
+        status: readStringField(fulfillmentOrder, 'status'),
+        requestStatus: readStringField(fulfillmentOrder, 'requestStatus'),
+        fulfillAt: readStringField(fulfillmentOrder, 'fulfillAt'),
+        fulfillBy: readStringField(fulfillmentOrder, 'fulfillBy'),
+        updatedAt: readStringField(fulfillmentOrder, 'updatedAt'),
+        supportedActions: readArrayField(fulfillmentOrder, 'supportedActions')
+          .filter(isPlainObject)
+          .map((action) => readStringField(action, 'action'))
+          .filter((action): action is string => action !== null),
+        fulfillmentHolds: readArrayField(fulfillmentOrder, 'fulfillmentHolds')
+          .filter(isPlainObject)
+          .map((hold, holdIndex) => ({
+            id: readStringField(hold, 'id') ?? `gid://shopify/FulfillmentHold/conformance-${index}-${holdIndex}`,
+            handle: readStringField(hold, 'handle'),
+            reason: readStringField(hold, 'reason'),
+            reasonNotes: readStringField(hold, 'reasonNotes'),
+            displayReason: readStringField(hold, 'displayReason'),
+            heldByRequestingApp: readBooleanField(hold, 'heldByRequestingApp') ?? undefined,
+          })),
+        assignedLocation: assignedLocation
+          ? {
+              name: readStringField(assignedLocation, 'name'),
+              locationId: readStringField(nestedLocation, 'id'),
+            }
+          : null,
+        lineItems: readCapturedFulfillmentOrderLineItems(fulfillmentOrder),
+      };
+    });
+}
+
+function seedFulfillmentOrderLifecyclePreconditions(capture: unknown): boolean {
+  const workflows = readRecordField(capture as Record<string, unknown>, 'workflows');
+  if (!workflows) {
+    return false;
+  }
+
+  const seedOrders: OrderRecord[] = [];
+  for (const workflow of Object.values(workflows)) {
+    if (!isPlainObject(workflow)) {
+      continue;
+    }
+    const orderSource = readRecordField(
+      readRecordField(
+        readRecordField(readRecordField(readRecordField(workflow, 'create'), 'response'), 'payload'),
+        'data',
+      ),
+      'orderCreate',
+    )?.['order'];
+    if (!isPlainObject(orderSource)) {
+      continue;
+    }
+    const orderId = readStringField(orderSource, 'id');
+    if (!orderId) {
+      continue;
+    }
+    seedOrders.push(makeSeedOrder(orderId, orderSource));
+  }
+
+  if (seedOrders.length === 0) {
+    return false;
+  }
+
+  store.upsertBaseOrders(seedOrders);
+  return true;
 }
 
 function readCapturedOrderRefundLineItems(
@@ -4391,6 +4501,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     return;
   }
 
+  if (seedFulfillmentOrderLifecyclePreconditions(capture)) {
+    return;
+  }
+
   if (seedCustomerMergePreconditions(capture, variables, mutationName)) {
     return;
   }
@@ -4932,6 +5046,14 @@ function readComparisonTargets(comparison: ComparisonContract): ComparisonTarget
   return Array.isArray(comparison.targets) ? comparison.targets : [];
 }
 
+function selectComparisonPaths(value: unknown, selectedPaths: string[] | undefined): unknown {
+  if (!selectedPaths) {
+    return value;
+  }
+
+  return Object.fromEntries(selectedPaths.map((selectedPath) => [selectedPath, readJsonPath(value, selectedPath)]));
+}
+
 function readRequestVariables(
   repoRoot: string,
   request: ProxyRequestSpec,
@@ -5040,7 +5162,11 @@ export async function executeParityScenario({
     }
 
     const actual = readJsonPath(proxyResponseBody, target.proxyPath);
-    const comparison = compareJsonPayloads(expected, actual, paritySpec.comparison);
+    const comparison = compareJsonPayloads(
+      selectComparisonPaths(expected, target.selectedPaths),
+      selectComparisonPaths(actual, target.selectedPaths),
+      paritySpec.comparison,
+    );
     comparisons.push({
       name: target.name,
       ok: comparison.ok,
