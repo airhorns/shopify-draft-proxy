@@ -139,6 +139,21 @@ export const locationFulfillmentServiceRecordSchema = z.strictObject({
 });
 export type LocationFulfillmentServiceRecord = z.infer<typeof locationFulfillmentServiceRecordSchema>;
 
+export const locationMetafieldRecordSchema = z.strictObject({
+  id: z.string(),
+  locationId: z.string(),
+  namespace: z.string(),
+  key: z.string(),
+  type: nullableStringSchema,
+  value: nullableStringSchema,
+  compareDigest: nullableStringSchema.optional(),
+  jsonValue: jsonValueSchema.optional(),
+  createdAt: nullableStringSchema.optional(),
+  updatedAt: nullableStringSchema.optional(),
+  ownerType: nullableStringSchema.optional(),
+});
+export type LocationMetafieldRecord = z.infer<typeof locationMetafieldRecordSchema>;
+
 export const locationRecordSchema = z.strictObject({
   id: z.string(),
   name: nullableStringSchema,
@@ -159,6 +174,7 @@ export const locationRecordSchema = z.strictObject({
   updatedAt: nullableStringSchema.optional(),
   address: locationAddressRecordSchema.nullable().optional(),
   suggestedAddresses: z.array(locationSuggestedAddressRecordSchema).optional(),
+  metafields: z.array(locationMetafieldRecordSchema).optional(),
 });
 export type LocationRecord = z.infer<typeof locationRecordSchema>;
 

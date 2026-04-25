@@ -325,7 +325,9 @@ export function createProxyRouter(config: AppConfig): Router {
     if (
       capability.execution === 'stage-locally' &&
       capability.domain === 'store-properties' &&
-      primaryRootField === 'shopPolicyUpdate'
+      (primaryRootField === 'shopPolicyUpdate' ||
+        primaryRootField === 'locationAdd' ||
+        primaryRootField === 'locationEdit')
     ) {
       proxyLogger.debug(
         {
@@ -350,7 +352,10 @@ export function createProxyRouter(config: AppConfig): Router {
         stagedResourceIds: collectProxySyntheticGids(responseBody),
         status: 'staged',
         interpreted: interpretMutationLogEntry(parsed, capability),
-        notes: 'Staged locally in the in-memory Store properties legal policy draft store.',
+        notes:
+          primaryRootField === 'shopPolicyUpdate'
+            ? 'Staged locally in the in-memory Store properties legal policy draft store.'
+            : 'Staged locally in the in-memory Store properties location draft store.',
       });
 
       ctx.status = 200;

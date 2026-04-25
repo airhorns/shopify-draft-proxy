@@ -562,18 +562,18 @@
     "type": "mutation",
     "domain": "store-properties",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["locationAdd", "LocationAdd"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/location-query-shapes.test.ts"]
   },
   {
     "name": "locationEdit",
     "type": "mutation",
     "domain": "store-properties",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["locationEdit", "LocationEdit"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/location-query-shapes.test.ts"]
   },
   {
     "name": "locationActivate",
