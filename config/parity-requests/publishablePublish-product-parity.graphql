@@ -1,0 +1,22 @@
+mutation PublishablePublishProductParity($id: ID!, $input: [PublicationInput!]!) {
+  publishablePublish(id: $id, input: $input) {
+    publishable {
+      ... on Product {
+        id
+        publishedOnCurrentPublication
+        availablePublicationsCount {
+          count
+          precision
+        }
+        resourcePublicationsCount {
+          count
+          precision
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

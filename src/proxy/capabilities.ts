@@ -1,6 +1,5 @@
 import type { ParsedOperation } from '../graphql/parse-operation.js';
 import {
-  listOperationRegistryEntries,
   listImplementedOperationRegistryEntries,
   type CapabilityDomain,
   type CapabilityExecution,
@@ -14,15 +13,12 @@ export interface OperationCapability {
 }
 
 const implementedEntries = listImplementedOperationRegistryEntries();
-const passthroughEntries = listOperationRegistryEntries().filter((entry) => entry.execution === 'passthrough');
 const CAPABILITY_ENTRY_BY_MATCH_NAME = new Map(
-  [...implementedEntries, ...passthroughEntries].flatMap((entry) =>
-    entry.matchNames.map((matchName) => [matchName, entry] as const),
-  ),
+  implementedEntries.flatMap((entry) => entry.matchNames.map((matchName) => [matchName, entry] as const)),
 );
 
 function getCandidateOperationNames(operation: ParsedOperation): string[] {
-  const names = [operation.name, operation.rootFields?.[0] ?? null].filter(
+  const names = [...(operation.rootFields ?? []), operation.name].filter(
     (value): value is string => typeof value === 'string' && value.length > 0,
   );
 
@@ -31,16 +27,26 @@ function getCandidateOperationNames(operation: ParsedOperation): string[] {
 
 export function getOperationCapability(operation: ParsedOperation): OperationCapability {
   const candidates = getCandidateOperationNames(operation);
-  const matchedCandidate = candidates.find((candidate) => {
+  const matchedRootField = operation.rootFields.find((candidate) => {
     const entry = CAPABILITY_ENTRY_BY_MATCH_NAME.get(candidate);
     return entry?.type === operation.type;
   });
+  const matchedCandidate =
+    matchedRootField ??
+    candidates.find((candidate) => {
+      const entry = CAPABILITY_ENTRY_BY_MATCH_NAME.get(candidate);
+      return entry?.type === operation.type;
+    });
   const matchedEntry = matchedCandidate ? (CAPABILITY_ENTRY_BY_MATCH_NAME.get(matchedCandidate) ?? null) : null;
 
   if (matchedCandidate && matchedEntry) {
+    const operationNameEntry =
+      operation.name && CAPABILITY_ENTRY_BY_MATCH_NAME.get(operation.name)?.name === matchedEntry.name
+        ? operation.name
+        : matchedCandidate;
     return {
       type: operation.type,
-      operationName: matchedCandidate,
+      operationName: operationNameEntry,
       domain: matchedEntry.domain,
       execution: matchedEntry.execution,
     };
@@ -48,7 +54,7 @@ export function getOperationCapability(operation: ParsedOperation): OperationCap
 
   return {
     type: operation.type,
-    operationName: candidates[0] ?? null,
+    operationName: operation.name ?? operation.rootFields[0] ?? null,
     domain: 'unknown',
     execution: 'passthrough',
   };

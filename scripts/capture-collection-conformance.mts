@@ -183,8 +183,17 @@ const collectionDetailQuery = `#graphql
 `;
 
 const collectionsCatalogQuery = `#graphql
-  query CollectionsCatalogRead($first: Int!) {
-    collections(first: $first) {
+  query CollectionsCatalogRead(
+    $catalogFirst: Int!
+    $first: Int!
+    $titleWildcardQuery: String!
+    $customTypeQuery: String!
+    $smartTypeQuery: String!
+    $updatedSortQuery: String!
+    $emptyQuery: String!
+    $productMembershipQuery: String!
+  ) {
+    collections(first: $catalogFirst) {
       edges {
         cursor
         node {
@@ -246,6 +255,114 @@ const collectionsCatalogQuery = `#graphql
         endCursor
       }
     }
+    titleWildcard: collections(first: $first, query: $titleWildcardQuery, sortKey: TITLE) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          handle
+          updatedAt
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    customCollections: collections(first: $first, query: $customTypeQuery, sortKey: ID) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          handle
+          ruleSet {
+            appliedDisjunctively
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    smartCollections: collections(first: $first, query: $smartTypeQuery, sortKey: TITLE) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          handle
+          ruleSet {
+            appliedDisjunctively
+            rules {
+              column
+              relation
+              condition
+            }
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    updatedNewest: collections(first: $first, query: $updatedSortQuery, sortKey: UPDATED_AT, reverse: true) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          handle
+          updatedAt
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    productMembership: collections(first: $first, query: $productMembershipQuery, sortKey: ID) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          handle
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    emptyUnmatched: collections(first: $first, query: $emptyQuery) {
+      edges {
+        cursor
+        node {
+          id
+          title
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
   }
 `;
 
@@ -284,7 +401,18 @@ const collectionDetail = await runGraphql(collectionDetailQuery, {
   smartCollectionId: smartCollection.id,
   productId,
 });
-const collectionsCatalog = await runGraphql(collectionsCatalogQuery, { first: 3 });
+const smartCollectionProductId = smartCollection.products.edges[0]?.node?.id ?? productId;
+const smartCollectionProductLegacyId = smartCollectionProductId.split('/').at(-1) ?? smartCollectionProductId;
+const collectionsCatalog = await runGraphql(collectionsCatalogQuery, {
+  catalogFirst: 20,
+  first: 3,
+  titleWildcardQuery: `title:${smartCollection.title.slice(0, 3)}*`,
+  customTypeQuery: 'collection_type:custom',
+  smartTypeQuery: 'collection_type:smart',
+  updatedSortQuery: 'collection_type:smart',
+  emptyQuery: 'title:No collection should match this 157*',
+  productMembershipQuery: `product_id:${smartCollectionProductLegacyId}`,
+});
 
 const captures = {
   'collection-detail.json': collectionDetail,
@@ -313,6 +441,8 @@ console.log(
         handle: smartCollection.handle,
       },
       productId,
+      smartCollectionProductId,
+      smartCollectionProductLegacyId,
       files: Object.keys(captures),
     },
     null,

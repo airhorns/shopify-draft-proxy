@@ -12,6 +12,7 @@ import { handleMediaMutation } from './media.js';
 import { handleCustomerMutation, handleCustomerQuery, hydrateCustomersFromUpstreamResponse } from './customers.js';
 import { handleOrderMutation, handleOrderQuery, shouldServeDraftOrderCatalogLocally } from './orders.js';
 import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamResponse } from './products.js';
+import { handleStorePropertiesQuery } from './store-properties.js';
 
 interface GraphQLBody {
   query?: unknown;
@@ -91,6 +92,14 @@ function interpretMutationLogEntry(
   };
 }
 
+function isProductLocalMutationCapability(capability: OperationCapability): boolean {
+  return (
+    capability.execution === 'stage-locally' &&
+    (capability.domain === 'products' ||
+      (capability.domain === 'store-properties' && capability.operationName?.startsWith('publishable') === true))
+  );
+}
+
 export function createProxyRouter(config: AppConfig): Router {
   const router = new Router();
   const upstream = createUpstreamGraphQLClient(config.shopifyAdminOrigin);
@@ -111,7 +120,7 @@ export function createProxyRouter(config: AppConfig): Router {
     const capability = getOperationCapability(parsed);
     const primaryRootField = parsed.rootFields[0] ?? capability.operationName;
 
-    if (capability.execution === 'stage-locally' && capability.domain === 'products') {
+    if (isProductLocalMutationCapability(capability)) {
       proxyLogger.debug(
         {
           execution: capability.execution,
@@ -138,6 +147,42 @@ export function createProxyRouter(config: AppConfig): Router {
         status: 'staged',
         interpreted: interpretMutationLogEntry(parsed, capability),
         notes: 'Staged locally in the in-memory product draft store.',
+      });
+
+      ctx.status = 200;
+      ctx.body = responseBody;
+      return;
+    }
+
+    if (
+      capability.execution === 'stage-locally' &&
+      capability.domain === 'store-properties' &&
+      (primaryRootField === 'publishablePublish' || primaryRootField === 'publishableUnpublish')
+    ) {
+      proxyLogger.debug(
+        {
+          execution: capability.execution,
+          operationName: capability.operationName,
+          operationType: parsed.type,
+          rootFields: parsed.rootFields,
+        },
+        'staging supported publishable mutation locally',
+      );
+
+      const responseBody = handleProductMutation(body.query, variables, config.readMode);
+
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: ctx.path,
+        query: body.query,
+        variables,
+        requestBody,
+        stagedResourceIds: collectProxySyntheticGids(responseBody),
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        notes: 'Staged locally in the in-memory publishable draft store.',
       });
 
       ctx.status = 200;
@@ -234,7 +279,10 @@ export function createProxyRouter(config: AppConfig): Router {
         hydrateCustomersFromUpstreamResponse(body.query, variables, upstreamBody);
 
         ctx.status = response.status;
-        ctx.body = store.hasBaseCustomers() ? handleCustomerQuery(body.query, variables) : upstreamBody;
+        ctx.body =
+          store.hasBaseCustomers() || store.hasStagedCustomers()
+            ? handleCustomerQuery(body.query, variables)
+            : upstreamBody;
         return;
       }
     }
@@ -273,6 +321,38 @@ export function createProxyRouter(config: AppConfig): Router {
         ) {
           ctx.status = 200;
           ctx.body = handleOrderQuery(body.query, variables);
+          return;
+        }
+
+        const response = await upstream.request({
+          path: ctx.path,
+          headers: {
+            'content-type': 'application/json',
+            'x-shopify-access-token': ctx.get('x-shopify-access-token'),
+          },
+          body: {
+            query: body.query,
+            variables,
+          },
+        });
+
+        ctx.status = response.status;
+        ctx.body = await response.json();
+        return;
+      }
+    }
+
+    if (capability.execution === 'overlay-read' && capability.domain === 'store-properties') {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleStorePropertiesQuery(body.query, variables);
+        return;
+      }
+
+      if (config.readMode === 'live-hybrid') {
+        if (primaryRootField === 'shop' && store.getEffectiveShop() !== null) {
+          ctx.status = 200;
+          ctx.body = handleStorePropertiesQuery(body.query, variables);
           return;
         }
 

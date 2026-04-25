@@ -1,0 +1,107 @@
+{
+  "variables": {
+    "id": "gid://shopify/Order/6834565087465"
+  },
+  "seedOrder": {
+    "id": "gid://shopify/Order/6834565087465",
+    "name": "#1331",
+    "lineItems": {
+      "nodes": [
+        {
+          "id": "gid://shopify/LineItem/16209970594025",
+          "title": "Test Product - 6635",
+          "quantity": 1,
+          "currentQuantity": 1,
+          "sku": null,
+          "variant": {
+            "id": "gid://shopify/ProductVariant/48540157378793"
+          },
+          "originalUnitPriceSet": {
+            "shopMoney": {
+              "amount": "0.0",
+              "currencyCode": "CAD"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "seedProducts": [
+    {
+      "id": "gid://shopify/Product/8971842846953",
+      "title": "Test Product - 6635",
+      "variants": {
+        "nodes": [
+          {
+            "id": "gid://shopify/ProductVariant/48540157378793",
+            "title": "Default Title",
+            "sku": null,
+            "price": "0.00"
+          }
+        ]
+      }
+    }
+  ],
+  "mutation": {
+    "response": {
+      "data": {
+        "orderEditBegin": {
+          "calculatedOrder": {
+            "id": "gid://shopify/CalculatedOrder/221172138217"
+          },
+          "orderEditSession": {
+            "id": "gid://shopify/OrderEditSession/221172138217"
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "invalidVariant": {
+    "response": {
+      "data": {
+        "orderEditAddVariant": {
+          "calculatedOrder": null,
+          "calculatedLineItem": null,
+          "orderEditSession": null,
+          "userErrors": [
+            {
+              "field": ["variantId"],
+              "message": "can't convert Integer[0] to a positive Integer to use as an untrusted id"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "duplicateVariant": {
+    "variables": {
+      "variantId": "gid://shopify/ProductVariant/48540157378793",
+      "quantity": 1,
+      "locationId": "gid://shopify/Location/68509171945",
+      "allowDuplicates": false
+    },
+    "response": {
+      "data": {
+        "orderEditAddVariant": {
+          "calculatedLineItem": {
+            "title": "Test Product - 6635",
+            "quantity": 1,
+            "currentQuantity": 1,
+            "sku": null,
+            "variant": {
+              "id": "gid://shopify/ProductVariant/48540157378793"
+            },
+            "originalUnitPriceSet": {
+              "shopMoney": {
+                "amount": "0.0",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "userErrors": []
+        }
+      }
+    }
+  }
+}

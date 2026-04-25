@@ -56,7 +56,7 @@ describe('proxy capability classification', () => {
     });
   });
 
-  it('logs tracked unsupported discounts mutations as discounts passthrough', async () => {
+  it('logs registry-only discounts mutations through the generic unsupported passthrough path', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -105,7 +105,7 @@ describe('proxy capability classification', () => {
     expect(response.status).toBe(200);
     expect(store.getLog()).toHaveLength(1);
     expect(store.getLog()[0]).toMatchObject({
-      operationName: 'discountCodeBasicCreate',
+      operationName: 'CreateDiscount',
       status: 'proxied',
       interpreted: {
         operationType: 'mutation',
@@ -113,12 +113,82 @@ describe('proxy capability classification', () => {
         rootFields: ['discountCodeBasicCreate'],
         primaryRootField: 'discountCodeBasicCreate',
         capability: {
-          operationName: 'discountCodeBasicCreate',
-          domain: 'discounts',
+          operationName: 'CreateDiscount',
+          domain: 'unknown',
           execution: 'passthrough',
         },
       },
       notes: 'Mutation passthrough placeholder until supported local staging is implemented.',
+    });
+  });
+
+  it('logs generic publishable mutations as local Store properties staging', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('generic publishable product support should not proxy upstream');
+    });
+
+    const app = createApp(config);
+
+    const createResponse = await request(app.callback())
+      .post('/admin/api/2026-04/graphql.json')
+      .set('x-shopify-access-token', 'shpat_test')
+      .send({
+        query:
+          'mutation { productCreate(product: { title: "Generic publishable hat", status: ACTIVE }) { product { id } userErrors { field message } } }',
+      });
+
+    const productId = createResponse.body.data.productCreate.product.id as string;
+
+    const response = await request(app.callback())
+      .post('/admin/api/2026-04/graphql.json')
+      .set('x-shopify-access-token', 'shpat_test')
+      .send({
+        query: `#graphql
+          mutation PublishGeneric {
+            publishablePublish(
+              id: "${productId}"
+              input: [{ publicationId: "gid://shopify/Publication/1" }]
+            ) {
+              publishable {
+                ... on Product {
+                  id
+                  publishedOnCurrentPublication
+                }
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.publishablePublish).toEqual({
+      publishable: {
+        id: productId,
+        publishedOnCurrentPublication: true,
+      },
+      userErrors: [],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(store.getLog()).toHaveLength(2);
+    expect(store.getLog()[1]).toMatchObject({
+      operationName: 'publishablePublish',
+      status: 'staged',
+      interpreted: {
+        operationType: 'mutation',
+        operationName: 'PublishGeneric',
+        rootFields: ['publishablePublish'],
+        primaryRootField: 'publishablePublish',
+        capability: {
+          operationName: 'publishablePublish',
+          domain: 'store-properties',
+          execution: 'stage-locally',
+        },
+      },
+      notes: 'Staged locally in the in-memory product draft store.',
     });
   });
 });

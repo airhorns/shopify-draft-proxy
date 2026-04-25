@@ -18,6 +18,53 @@ const liveHybridConfig: AppConfig = {
   readMode: 'live-hybrid',
 };
 
+function makeOrder(id: string, name: string, createdAt: string, overrides: Partial<OrderRecord> = {}): OrderRecord {
+  return {
+    id,
+    name,
+    createdAt,
+    updatedAt: createdAt,
+    displayFinancialStatus: 'PENDING',
+    displayFulfillmentStatus: 'UNFULFILLED',
+    note: null,
+    tags: [],
+    customAttributes: [],
+    billingAddress: null,
+    shippingAddress: null,
+    subtotalPriceSet: {
+      shopMoney: {
+        amount: '10.0',
+        currencyCode: 'CAD',
+      },
+    },
+    currentTotalPriceSet: {
+      shopMoney: {
+        amount: '10.0',
+        currencyCode: 'CAD',
+      },
+    },
+    totalPriceSet: {
+      shopMoney: {
+        amount: '10.0',
+        currencyCode: 'CAD',
+      },
+    },
+    totalRefundedSet: {
+      shopMoney: {
+        amount: '0.0',
+        currencyCode: 'CAD',
+      },
+    },
+    customer: null,
+    shippingLines: [],
+    lineItems: [],
+    transactions: [],
+    refunds: [],
+    returns: [],
+    ...overrides,
+  };
+}
+
 describe('order query shapes', () => {
   beforeEach(() => {
     store.reset();
@@ -153,50 +200,168 @@ describe('order query shapes', () => {
     expect(fetchSpy).toHaveBeenCalledOnce();
   });
 
+  it('filters, sorts, paginates, and count-limits local order catalog reads in snapshot mode', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('snapshot order catalog reads must not hit upstream');
+    });
+
+    store.stageCreateOrder(
+      makeOrder('gid://shopify/Order/1001', '#1001', '2026-04-20T00:00:00.000Z', {
+        displayFinancialStatus: 'PAID',
+        tags: ['vip'],
+        email: 'vip-one@example.com',
+      }),
+    );
+    store.stageCreateOrder(
+      makeOrder('gid://shopify/Order/1002', '#1002', '2026-04-22T00:00:00.000Z', {
+        displayFinancialStatus: 'PENDING',
+        displayFulfillmentStatus: 'FULFILLED',
+        tags: ['wholesale'],
+        email: 'wholesale@example.com',
+      }),
+    );
+    store.stageCreateOrder(
+      makeOrder('gid://shopify/Order/1003', '#1003', '2026-04-21T00:00:00.000Z', {
+        displayFinancialStatus: 'PAID',
+        tags: ['vip', 'priority'],
+        email: 'vip-two@example.com',
+      }),
+    );
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query OrderCatalogSemantics($tagQuery: String!, $statusQuery: String!, $after: String, $limit: Int, $unlimited: Int) {
+          newestVip: orders(first: 1, query: $tagQuery, sortKey: CREATED_AT, reverse: true) {
+            nodes { id name tags email }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          nextVip: orders(first: 1, after: $after, query: $tagQuery, sortKey: CREATED_AT, reverse: true) {
+            nodes { id name tags email }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          oldestVip: orders(first: 1, query: $tagQuery, sortKey: CREATED_AT, reverse: false) {
+            nodes { id name }
+          }
+          byName: orders(first: 3, query: "name:1003", sortKey: CREATED_AT, reverse: true) {
+            nodes { id name }
+          }
+          byStatus: orders(first: 3, query: $statusQuery, sortKey: CREATED_AT, reverse: true) {
+            nodes { id name displayFinancialStatus displayFulfillmentStatus }
+          }
+          savedSearch: orders(first: 3, savedSearchId: "gid://shopify/SavedSearch/1") {
+            nodes { id }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          limitedVipCount: ordersCount(query: $tagQuery, limit: $limit) { count precision }
+          exactVipCount: ordersCount(query: $tagQuery, limit: $unlimited) { count precision }
+          savedSearchCount: ordersCount(savedSearchId: "gid://shopify/SavedSearch/1") { count precision }
+        }`,
+        variables: {
+          tagQuery: 'tag:vip',
+          statusQuery: 'financial_status:paid fulfillment_status:unfulfilled',
+          after: 'cursor:gid://shopify/Order/1003',
+          limit: 1,
+          unlimited: null,
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        newestVip: {
+          nodes: [
+            {
+              id: 'gid://shopify/Order/1003',
+              name: '#1003',
+              tags: ['vip', 'priority'],
+              email: 'vip-two@example.com',
+            },
+          ],
+          pageInfo: {
+            hasNextPage: true,
+            hasPreviousPage: false,
+            startCursor: 'cursor:gid://shopify/Order/1003',
+            endCursor: 'cursor:gid://shopify/Order/1003',
+          },
+        },
+        nextVip: {
+          nodes: [
+            {
+              id: 'gid://shopify/Order/1001',
+              name: '#1001',
+              tags: ['vip'],
+              email: 'vip-one@example.com',
+            },
+          ],
+          pageInfo: {
+            hasNextPage: false,
+            hasPreviousPage: true,
+            startCursor: 'cursor:gid://shopify/Order/1001',
+            endCursor: 'cursor:gid://shopify/Order/1001',
+          },
+        },
+        oldestVip: {
+          nodes: [
+            {
+              id: 'gid://shopify/Order/1001',
+              name: '#1001',
+            },
+          ],
+        },
+        byName: {
+          nodes: [
+            {
+              id: 'gid://shopify/Order/1003',
+              name: '#1003',
+            },
+          ],
+        },
+        byStatus: {
+          nodes: [
+            {
+              id: 'gid://shopify/Order/1003',
+              name: '#1003',
+              displayFinancialStatus: 'PAID',
+              displayFulfillmentStatus: 'UNFULFILLED',
+            },
+            {
+              id: 'gid://shopify/Order/1001',
+              name: '#1001',
+              displayFinancialStatus: 'PAID',
+              displayFulfillmentStatus: 'UNFULFILLED',
+            },
+          ],
+        },
+        savedSearch: {
+          nodes: [],
+          pageInfo: {
+            hasNextPage: false,
+            hasPreviousPage: false,
+            startCursor: null,
+            endCursor: null,
+          },
+        },
+        limitedVipCount: {
+          count: 1,
+          precision: 'AT_LEAST',
+        },
+        exactVipCount: {
+          count: 2,
+          precision: 'EXACT',
+        },
+        savedSearchCount: {
+          count: 0,
+          precision: 'EXACT',
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('returns Shopify-like empty detail shapes for absent merchant order nested data', async () => {
-    const order: OrderRecord = {
-      id: 'gid://shopify/Order/112',
-      name: '#112',
-      createdAt: '2026-04-24T00:00:00.000Z',
-      updatedAt: '2026-04-24T00:00:00.000Z',
-      displayFinancialStatus: 'PENDING',
-      displayFulfillmentStatus: 'UNFULFILLED',
-      note: null,
-      tags: [],
-      customAttributes: [],
-      billingAddress: null,
-      shippingAddress: null,
-      subtotalPriceSet: {
-        shopMoney: {
-          amount: '10.0',
-          currencyCode: 'CAD',
-        },
-      },
-      currentTotalPriceSet: {
-        shopMoney: {
-          amount: '10.0',
-          currencyCode: 'CAD',
-        },
-      },
-      totalPriceSet: {
-        shopMoney: {
-          amount: '10.0',
-          currencyCode: 'CAD',
-        },
-      },
-      totalRefundedSet: {
-        shopMoney: {
-          amount: '0.0',
-          currencyCode: 'CAD',
-        },
-      },
-      customer: null,
-      shippingLines: [],
-      lineItems: [],
-      transactions: [],
-      refunds: [],
-      returns: [],
-    };
+    const order = makeOrder('gid://shopify/Order/112', '#112', '2026-04-24T00:00:00.000Z');
     store.upsertBaseOrders([order]);
 
     const app = createApp(snapshotConfig).callback();

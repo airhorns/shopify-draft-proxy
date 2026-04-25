@@ -14,14 +14,17 @@
     "documentPath": "config/parity-requests/products-advanced-search-read.graphql",
     "variablesPath": "config/parity-requests/products-advanced-search-read.variables.json"
   },
-  "comparisonMode": "capture-only",
-  "notes": "Live product advanced search capture exercises trailing prefix matching, grouped OR vendor filters, grouped negation, and UPDATED_AT-desc ordering with pageInfo across both `products` and `productsCount`.",
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity coverage for advanced products search: compares prefix matching, grouped OR vendor filters, grouped negation, counts, UPDATED_AT-desc ordering, cursors, and pageInfo from the captured Shopify response.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "products-advanced-search-data",
+        "capturePath": "$.data",
+        "proxyPath": "$.data"
+      }
+    ]
   }
 }

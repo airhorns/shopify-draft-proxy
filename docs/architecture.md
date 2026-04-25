@@ -155,6 +155,12 @@ Initial normalized entities should include at least:
 
 The architecture should be open to later domains without making products special in the core engine.
 
+Current customer-domain state deliberately stays narrower than the product model, but it is still normalized:
+
+- `CustomerRecord` carries scalar/detail fields plus `taxExemptions` as a separate list from the boolean `taxExempt`
+- customer-owned metafields live in a customer-scoped `customerMetafields` bucket instead of reusing product metafield storage or broadening `metafieldsSet` owner support without separate evidence
+- staged `customerUpdate(input.metafields)` computes against the effective customer metafield set and replaces the staged customer-owned set, so downstream `customer.metafield(...)` and `customer.metafields(...)` reads stay consistent
+
 ## Mutation handling strategy
 
 Mutation handling should eventually have four steps:
@@ -194,9 +200,11 @@ Current implementation note:
 
 - `createApp()` now reads `config.snapshotPath` eagerly when it is set
 - the current supported on-disk format is a normalized snapshot JSON file containing `baseState` plus optional product search connection baselines and customer catalog/search connection baselines
+- `baseState` includes a nullable normalized `shop` slice for Store properties reads; snapshot mode returns `shop: null` when no shop slice is present rather than inventing store identity, while live-hybrid can serve a locally staged shop overlay when one exists
 - normalized snapshot JSON is parsed through Zod schemas at the file boundary; the same schemas derive the runtime snapshot TypeScript types
 - loading that file seeds the in-memory base state before the server handles requests
 - `POST /__meta/reset` restores that startup snapshot baseline, including captured connection cursor/pageInfo baselines, rather than wiping snapshot mode back to an empty store
+- customer identifier reads resolve `customerByIdentifier(identifier:)` from the same effective normalized customer graph as `customer(id:)` and `customers`, including staged customer creates/updates and hydrated live-hybrid customers
 
 Snapshot misses should return the same kind of empty/null structure Shopify returns when the backing store has no matching data.
 
@@ -221,6 +229,15 @@ Current implementation notes:
 - `POST /__meta/commit` replays pending locally `staged` mutations against upstream Shopify in original log order using the caller-provided `X-Shopify-Access-Token`; `proxied` unsupported mutations are intentionally not replayed because they already went upstream at runtime
 - commit replay tracks proxy-created resource IDs returned by local staging and, after a successful upstream replay returns authoritative Shopify IDs, rewrites later staged mutation inputs from the proxy synthetic IDs to the real IDs before sending them upstream
 - commit replay persists per-entry `committed` / `failed` statuses back into the in-memory log and stops at the first upstream transport or GraphQL failure
+- commit reports include `ok`, `stopIndex`, and ordered `attempts`; each attempt includes explicit `success`, log `status`, `upstreamStatus`, `upstreamBody` when Shopify returned one, and `upstreamError` when replay failed before an upstream body was available
+
+Collection publication implementation note:
+
+- collection records carry aggregate publication target ids alongside product publication ids
+- staged `collectionCreate` starts with no publication ids, so collection publication counts and `publishedOnPublication(publicationId:)` serialize as unpublished until a local `publishablePublish` mutation adds a target
+- `publishedOnCurrentPublication` is not inferred from aggregate publication count for collections; captured Online Store publishable writes leave it false when the app's current publication is not the target
+- local `publishablePublish` / `publishableUnpublish` currently stages Product and Collection publishables only; broader publishable implementers remain unsupported passthrough
+- top-level `collections(query: "published_status:...")` applies the locally modeled aggregate collection publication state for staged/snapshot reads
 
 Commit response should include:
 
@@ -244,6 +261,8 @@ For supported operations, the proxy should aim to preserve:
 ## Safety trade-off
 
 Unsupported mutations proxy through by explicit product decision. This is dangerous in tests because it can create real side effects. The system should therefore expose clear indicators that a mutation was proxied instead of staged.
+
+Operation registry entries must not encode permanent passthrough as an intended posture. A registered mutation should either be locally staged once supported or remain unimplemented until a local model exists; upstream passthrough is the unknown/unsupported escape hatch, not a target state for known write roots.
 
 ## Conformance framework design
 

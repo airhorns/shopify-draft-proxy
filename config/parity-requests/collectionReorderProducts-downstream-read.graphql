@@ -1,0 +1,57 @@
+query CollectionReorderProductsDownstream($collectionId: ID!, $firstProductId: ID!, $secondProductId: ID!) {
+  collection(id: $collectionId) {
+    id
+    title
+    handle
+    defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) {
+      nodes {
+        id
+        title
+        handle
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+    manualProducts: products(first: 10, sortKey: MANUAL) {
+      nodes {
+        id
+        title
+        handle
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+  }
+  first: product(id: $firstProductId) {
+    id
+    collections(first: 10) {
+      nodes {
+        id
+        title
+        handle
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+  }
+  second: product(id: $secondProductId) {
+    id
+    collections(first: 10) {
+      nodes {
+        id
+        title
+        handle
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+  }
+}

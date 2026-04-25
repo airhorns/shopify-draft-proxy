@@ -157,6 +157,7 @@ export const collectionRecordSchema = z.strictObject({
   legacyResourceId: nullableStringSchema.optional(),
   title: z.string(),
   handle: z.string(),
+  publicationIds: z.array(z.string()).optional(),
   updatedAt: nullableStringSchema.optional(),
   description: nullableStringSchema.optional(),
   descriptionHtml: nullableStringSchema.optional(),
@@ -222,18 +223,50 @@ export const productMetafieldRecordSchema = z.strictObject({
 });
 export type ProductMetafieldRecord = z.infer<typeof productMetafieldRecordSchema>;
 
+export const customerMetafieldRecordSchema = z.strictObject({
+  id: z.string(),
+  customerId: z.string(),
+  namespace: z.string(),
+  key: z.string(),
+  type: nullableStringSchema,
+  value: nullableStringSchema,
+});
+export type CustomerMetafieldRecord = z.infer<typeof customerMetafieldRecordSchema>;
+
 export const moneyV2RecordSchema = moneyV2Schema;
 export type MoneyV2Record = z.infer<typeof moneyV2RecordSchema>;
 
 export const customerDefaultEmailAddressRecordSchema = z.strictObject({
   emailAddress: nullableStringSchema,
+  marketingState: nullableStringSchema.optional(),
+  marketingOptInLevel: nullableStringSchema.optional(),
+  marketingUpdatedAt: nullableStringSchema.optional(),
 });
 export type CustomerDefaultEmailAddressRecord = z.infer<typeof customerDefaultEmailAddressRecordSchema>;
 
 export const customerDefaultPhoneNumberRecordSchema = z.strictObject({
   phoneNumber: nullableStringSchema,
+  marketingState: nullableStringSchema.optional(),
+  marketingOptInLevel: nullableStringSchema.optional(),
+  marketingUpdatedAt: nullableStringSchema.optional(),
+  marketingCollectedFrom: nullableStringSchema.optional(),
 });
 export type CustomerDefaultPhoneNumberRecord = z.infer<typeof customerDefaultPhoneNumberRecordSchema>;
+
+export const customerEmailMarketingConsentRecordSchema = z.strictObject({
+  marketingState: nullableStringSchema,
+  marketingOptInLevel: nullableStringSchema,
+  consentUpdatedAt: nullableStringSchema,
+});
+export type CustomerEmailMarketingConsentRecord = z.infer<typeof customerEmailMarketingConsentRecordSchema>;
+
+export const customerSmsMarketingConsentRecordSchema = z.strictObject({
+  marketingState: nullableStringSchema,
+  marketingOptInLevel: nullableStringSchema,
+  consentUpdatedAt: nullableStringSchema,
+  consentCollectedFrom: nullableStringSchema,
+});
+export type CustomerSmsMarketingConsentRecord = z.infer<typeof customerSmsMarketingConsentRecordSchema>;
 
 export const customerDefaultAddressRecordSchema = z.strictObject({
   address1: nullableStringSchema,
@@ -257,17 +290,50 @@ export const customerRecordSchema = z.strictObject({
   canDelete: nullableBooleanSchema,
   verifiedEmail: nullableBooleanSchema,
   taxExempt: nullableBooleanSchema,
+  taxExemptions: z.array(z.string()).optional(),
   state: nullableStringSchema,
   tags: z.array(z.string()),
   numberOfOrders: z.union([z.string(), z.number()]).nullable(),
   amountSpent: moneyV2RecordSchema.nullable(),
   defaultEmailAddress: customerDefaultEmailAddressRecordSchema.nullable(),
   defaultPhoneNumber: customerDefaultPhoneNumberRecordSchema.nullable(),
+  emailMarketingConsent: customerEmailMarketingConsentRecordSchema.nullable().optional(),
+  smsMarketingConsent: customerSmsMarketingConsentRecordSchema.nullable().optional(),
   defaultAddress: customerDefaultAddressRecordSchema.nullable(),
   createdAt: nullableStringSchema,
   updatedAt: nullableStringSchema,
 });
 export type CustomerRecord = z.infer<typeof customerRecordSchema>;
+
+export const businessEntityAddressRecordSchema = z.strictObject({
+  address1: nullableStringSchema,
+  address2: nullableStringSchema,
+  city: nullableStringSchema,
+  countryCode: z.string(),
+  province: nullableStringSchema,
+  zip: nullableStringSchema,
+});
+export type BusinessEntityAddressRecord = z.infer<typeof businessEntityAddressRecordSchema>;
+
+export const shopifyPaymentsAccountRecordSchema = z.strictObject({
+  id: z.string(),
+  activated: z.boolean(),
+  country: z.string(),
+  defaultCurrency: z.string(),
+  onboardable: z.boolean(),
+});
+export type ShopifyPaymentsAccountRecord = z.infer<typeof shopifyPaymentsAccountRecordSchema>;
+
+export const businessEntityRecordSchema = z.strictObject({
+  id: z.string(),
+  displayName: z.string(),
+  companyName: nullableStringSchema,
+  primary: z.boolean(),
+  archived: z.boolean(),
+  address: businessEntityAddressRecordSchema,
+  shopifyPaymentsAccount: shopifyPaymentsAccountRecordSchema.nullable(),
+});
+export type BusinessEntityRecord = z.infer<typeof businessEntityRecordSchema>;
 
 export const productCatalogPageInfoRecordSchema = z.strictObject({
   hasNextPage: z.boolean(),
@@ -443,13 +509,16 @@ export type OrderMetafieldRecord = z.infer<typeof orderMetafieldRecordSchema>;
 
 export const orderLineItemRecordSchema = z.strictObject({
   id: z.string(),
+  originalLineItemId: nullableStringSchema.optional(),
   title: nullableStringSchema,
   quantity: z.number(),
+  currentQuantity: z.number().optional(),
   sku: nullableStringSchema,
   variantId: nullableStringSchema.optional(),
   variantTitle: nullableStringSchema,
   originalUnitPriceSet: moneySetSchema.nullable(),
   taxLines: z.array(orderTaxLineRecordSchema).optional(),
+  isAdded: z.boolean().optional(),
 });
 export type OrderLineItemRecord = z.infer<typeof orderLineItemRecordSchema>;
 
@@ -602,22 +671,153 @@ export const orderRecordSchema = z.strictObject({
 });
 export type OrderRecord = z.infer<typeof orderRecordSchema>;
 
+export const shopDomainRecordSchema = z.strictObject({
+  id: z.string(),
+  host: z.string(),
+  url: z.string(),
+  sslEnabled: z.boolean(),
+});
+export type ShopDomainRecord = z.infer<typeof shopDomainRecordSchema>;
+
+export const shopAddressRecordSchema = z.strictObject({
+  id: z.string(),
+  address1: nullableStringSchema,
+  address2: nullableStringSchema,
+  city: nullableStringSchema,
+  company: nullableStringSchema,
+  coordinatesValidated: z.boolean(),
+  country: nullableStringSchema,
+  countryCodeV2: nullableStringSchema,
+  formatted: z.array(z.string()),
+  formattedArea: nullableStringSchema,
+  latitude: nullableNumberSchema,
+  longitude: nullableNumberSchema,
+  phone: nullableStringSchema,
+  province: nullableStringSchema,
+  provinceCode: nullableStringSchema,
+  zip: nullableStringSchema,
+});
+export type ShopAddressRecord = z.infer<typeof shopAddressRecordSchema>;
+
+export const shopPlanRecordSchema = z.strictObject({
+  partnerDevelopment: z.boolean(),
+  publicDisplayName: z.string(),
+  shopifyPlus: z.boolean(),
+});
+export type ShopPlanRecord = z.infer<typeof shopPlanRecordSchema>;
+
+export const shopResourceLimitsRecordSchema = z.strictObject({
+  locationLimit: z.number(),
+  maxProductOptions: z.number(),
+  maxProductVariants: z.number(),
+  redirectLimitReached: z.boolean(),
+});
+export type ShopResourceLimitsRecord = z.infer<typeof shopResourceLimitsRecordSchema>;
+
+export const shopBundlesFeatureRecordSchema = z.strictObject({
+  eligibleForBundles: z.boolean(),
+  ineligibilityReason: nullableStringSchema,
+  sellsBundles: z.boolean(),
+});
+export type ShopBundlesFeatureRecord = z.infer<typeof shopBundlesFeatureRecordSchema>;
+
+export const shopCartTransformEligibleOperationsRecordSchema = z.strictObject({
+  expandOperation: z.boolean(),
+  mergeOperation: z.boolean(),
+  updateOperation: z.boolean(),
+});
+export type ShopCartTransformEligibleOperationsRecord = z.infer<typeof shopCartTransformEligibleOperationsRecordSchema>;
+
+export const shopCartTransformFeatureRecordSchema = z.strictObject({
+  eligibleOperations: shopCartTransformEligibleOperationsRecordSchema,
+});
+export type ShopCartTransformFeatureRecord = z.infer<typeof shopCartTransformFeatureRecordSchema>;
+
+export const shopFeaturesRecordSchema = z.strictObject({
+  avalaraAvatax: z.boolean(),
+  branding: z.string(),
+  bundles: shopBundlesFeatureRecordSchema,
+  captcha: z.boolean(),
+  cartTransform: shopCartTransformFeatureRecordSchema,
+  dynamicRemarketing: z.boolean(),
+  eligibleForSubscriptionMigration: z.boolean(),
+  eligibleForSubscriptions: z.boolean(),
+  giftCards: z.boolean(),
+  harmonizedSystemCode: z.boolean(),
+  legacySubscriptionGatewayEnabled: z.boolean(),
+  liveView: z.boolean(),
+  paypalExpressSubscriptionGatewayStatus: z.string(),
+  reports: z.boolean(),
+  sellsSubscriptions: z.boolean(),
+  showMetrics: z.boolean(),
+  storefront: z.boolean(),
+  unifiedMarkets: z.boolean(),
+});
+export type ShopFeaturesRecord = z.infer<typeof shopFeaturesRecordSchema>;
+
+export const paymentSettingsRecordSchema = z.strictObject({
+  supportedDigitalWallets: z.array(z.string()),
+});
+export type PaymentSettingsRecord = z.infer<typeof paymentSettingsRecordSchema>;
+
+export const shopPolicyRecordSchema = z.strictObject({
+  id: z.string(),
+  title: z.string(),
+  body: z.string(),
+  type: z.string(),
+  url: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type ShopPolicyRecord = z.infer<typeof shopPolicyRecordSchema>;
+
+export const shopRecordSchema = z.strictObject({
+  id: z.string(),
+  name: z.string(),
+  myshopifyDomain: z.string(),
+  url: z.string(),
+  primaryDomain: shopDomainRecordSchema,
+  contactEmail: z.string(),
+  email: z.string(),
+  currencyCode: z.string(),
+  enabledPresentmentCurrencies: z.array(z.string()),
+  ianaTimezone: z.string(),
+  timezoneAbbreviation: z.string(),
+  timezoneOffset: z.string(),
+  timezoneOffsetMinutes: z.number(),
+  taxesIncluded: z.boolean(),
+  taxShipping: z.boolean(),
+  unitSystem: z.string(),
+  weightUnit: z.string(),
+  shopAddress: shopAddressRecordSchema,
+  plan: shopPlanRecordSchema,
+  resourceLimits: shopResourceLimitsRecordSchema,
+  features: shopFeaturesRecordSchema,
+  paymentSettings: paymentSettingsRecordSchema,
+  shopPolicies: z.array(shopPolicyRecordSchema),
+});
+export type ShopRecord = z.infer<typeof shopRecordSchema>;
+
 export const calculatedOrderRecordSchema = orderRecordSchema.extend({
   originalOrderId: z.string(),
 });
 export type CalculatedOrderRecord = z.infer<typeof calculatedOrderRecordSchema>;
 
 export const stateSnapshotSchema = z.strictObject({
+  shop: shopRecordSchema.nullable().default(null),
   products: z.record(z.string(), productRecordSchema),
   productVariants: z.record(z.string(), productVariantRecordSchema),
   productOptions: z.record(z.string(), productOptionRecordSchema),
   collections: z.record(z.string(), collectionRecordSchema),
   publications: z.record(z.string(), publicationRecordSchema).default({}),
   customers: z.record(z.string(), customerRecordSchema),
+  businessEntities: z.record(z.string(), businessEntityRecordSchema).default({}),
+  businessEntityOrder: z.array(z.string()).default([]),
   productCollections: z.record(z.string(), productCollectionRecordSchema),
   productMedia: z.record(z.string(), productMediaRecordSchema),
   files: z.record(z.string(), fileRecordSchema).default({}),
   productMetafields: z.record(z.string(), productMetafieldRecordSchema),
+  customerMetafields: z.record(z.string(), customerMetafieldRecordSchema).default({}),
   deletedProductIds: z.record(z.string(), z.literal(true)),
   deletedFileIds: z.record(z.string(), z.literal(true)).default({}),
   deletedCollectionIds: z.record(z.string(), z.literal(true)),

@@ -31,11 +31,11 @@ If a behavior is surprising or underspecified, do not guess forever — add a co
 4. Identify the root operation and whether it is already implemented in `config/operation-registry.json`.
 5. Add or update runtime tests for proxy behavior before relying on parity evidence.
 6. Add or update exactly one captured, working parity spec for each scenario under `config/parity-specs/`.
-7. Add proxy replay files under `config/parity-requests/` when the scenario can be replayed locally.
+7. Add proxy replay files under `config/parity-requests/` only when a captured scenario can be replayed locally as working evidence.
 8. Add live captures under `fixtures/conformance/<store-domain>/<api-version>/` only when credentials and store safety allow it.
 9. Make sure every root operation in the parity spec's `operationNames` exists in `config/operation-registry.json`.
 10. Add new helper scripts as TypeScript and run them with `tsx` or an equivalent TypeScript runner.
-11. Do not add new planned-only or blocked-only parity specs. If a scenario cannot be captured and replayed as working evidence in the current task, document the gap in Linear/workpad notes instead of adding repository scenario files.
+11. Do not add new planned-only or blocked-only parity specs, and do not add parity request files as TODO placeholders for future captures. Ticket-specific acceptance text asking for scaffold files does not override this rule. If a scenario cannot be captured and replayed as working evidence in the current task, document the gap in Linear/workpad notes instead of adding repository scenario files.
 12. If the task specifically requires recording or re-recording live conformance
     evidence and valid Shopify credentials cannot be restored with the
     documented auth/probe paths, stop before implementation handoff: update the
@@ -220,7 +220,7 @@ Each parity spec must carry the scenario metadata:
 - `scenarioStatus`: `captured`; new planned-only or blocked-only specs are not acceptable.
 - `assertionKinds`: what confidence the scenario builds, such as `payload-shape`, `user-errors-parity`, or `downstream-read-parity`.
 - `liveCaptureFiles`: fixture paths for captured scenarios.
-- `proxyRequest`: `documentPath` and `variablesPath` when replay through the proxy is scaffolded; `null` when capture-only or not ready.
+- `proxyRequest`: `documentPath` and `variablesPath` when a captured scenario can be replayed through the proxy as working evidence; `null` when capture-only or not ready.
 - `comparison`: strict JSON comparison contract for captured scenarios that are ready to execute.
 - `notes`: concise fidelity findings, blockers, or promotion criteria.
 

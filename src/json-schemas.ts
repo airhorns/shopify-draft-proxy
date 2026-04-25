@@ -37,11 +37,21 @@ export const graphqlVariablesSchema = z.record(z.string(), z.unknown());
 export const operationRegistryEntrySchema = z.strictObject({
   name: z.string().min(1),
   type: z.enum(['query', 'mutation']),
-  domain: z.enum(['products', 'media', 'customers', 'orders', 'store-properties', 'discounts', 'unknown']),
-  execution: z.enum(['overlay-read', 'stage-locally', 'passthrough']),
+  domain: z.enum([
+    'products',
+    'media',
+    'customers',
+    'orders',
+    'store-properties',
+    'discounts',
+    'metafields',
+    'unknown',
+  ]),
+  execution: z.enum(['overlay-read', 'stage-locally']),
   implemented: z.boolean(),
   matchNames: z.array(z.string().min(1)),
   runtimeTests: z.array(z.string().min(1)),
+  supportNotes: z.string().min(1).optional(),
 });
 export const operationRegistrySchema = z.array(operationRegistryEntrySchema);
 export type OperationRegistryEntry = z.infer<typeof operationRegistryEntrySchema>;

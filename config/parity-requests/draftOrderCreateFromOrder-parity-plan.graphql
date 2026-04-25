@@ -7,7 +7,6 @@ mutation DraftOrderCreateFromOrderParityPlan($orderId: ID!) {
       status
       ready
       email
-      note
       tags
       subtotalPriceSet {
         shopMoney {

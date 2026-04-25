@@ -1,5 +1,14 @@
-query CollectionsCatalogRead($first: Int!) {
-  collections(first: $first) {
+query CollectionsCatalogRead(
+  $catalogFirst: Int!
+  $first: Int!
+  $titleWildcardQuery: String!
+  $customTypeQuery: String!
+  $smartTypeQuery: String!
+  $updatedSortQuery: String!
+  $emptyQuery: String!
+  $productMembershipQuery: String!
+) {
+  collections(first: $catalogFirst) {
     edges {
       cursor
       node {
@@ -52,6 +61,114 @@ query CollectionsCatalogRead($first: Int!) {
             endCursor
           }
         }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  titleWildcard: collections(first: $first, query: $titleWildcardQuery, sortKey: TITLE) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        handle
+        updatedAt
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  customCollections: collections(first: $first, query: $customTypeQuery, sortKey: ID) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        handle
+        ruleSet {
+          appliedDisjunctively
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  smartCollections: collections(first: $first, query: $smartTypeQuery, sortKey: TITLE) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        handle
+        ruleSet {
+          appliedDisjunctively
+          rules {
+            column
+            relation
+            condition
+          }
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  updatedNewest: collections(first: $first, query: $updatedSortQuery, sortKey: UPDATED_AT, reverse: true) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        handle
+        updatedAt
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  productMembership: collections(first: $first, query: $productMembershipQuery, sortKey: ID) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        handle
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  emptyUnmatched: collections(first: $first, query: $emptyQuery) {
+    edges {
+      cursor
+      node {
+        id
+        title
       }
     }
     pageInfo {

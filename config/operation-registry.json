@@ -66,6 +66,32 @@
     ]
   },
   {
+    "name": "collectionByIdentifier",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["collectionByIdentifier", "CollectionByIdentifier"],
+    "runtimeTests": [
+      "tests/integration/collection-query-shapes.test.ts",
+      "tests/integration/collection-draft-flow.test.ts"
+    ],
+    "supportNotes": "Supports id and handle identifier branches against effective local collection state. customId currently returns null until collection unique-metafield evidence exists."
+  },
+  {
+    "name": "collectionByHandle",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["collectionByHandle", "CollectionByHandle"],
+    "runtimeTests": [
+      "tests/integration/collection-query-shapes.test.ts",
+      "tests/integration/collection-draft-flow.test.ts"
+    ],
+    "supportNotes": "Deprecated Shopify root supported as a handle lookup over effective local collection state."
+  },
+  {
     "name": "collections",
     "type": "query",
     "domain": "products",
@@ -91,9 +117,9 @@
     "type": "query",
     "domain": "store-properties",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["shop", "Shop"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/shop-query-shapes.test.ts"]
   },
   {
     "name": "location",
@@ -118,18 +144,18 @@
     "type": "query",
     "domain": "store-properties",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["businessEntities", "BusinessEntities"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/business-entity-query-shapes.test.ts"]
   },
   {
     "name": "businessEntity",
     "type": "query",
     "domain": "store-properties",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["businessEntity", "BusinessEntity"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/business-entity-query-shapes.test.ts"]
   },
   {
     "name": "cashManagementLocationSummary",
@@ -181,9 +207,9 @@
     "type": "query",
     "domain": "customers",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerByIdentifier", "CustomerByIdentifier"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/customer-query-shapes.test.ts", "tests/integration/customer-draft-flow.test.ts"]
   },
   {
     "name": "customerMergePreview",
@@ -262,18 +288,18 @@
     "type": "mutation",
     "domain": "customers",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerEmailMarketingConsentUpdate", "CustomerEmailMarketingConsentUpdate"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
   },
   {
     "name": "customerSmsMarketingConsentUpdate",
     "type": "mutation",
     "domain": "customers",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerSmsMarketingConsentUpdate", "CustomerSmsMarketingConsentUpdate"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
   },
   {
     "name": "customerAddTaxExemptions",
@@ -315,7 +341,7 @@
     "name": "customerSendAccountInviteEmail",
     "type": "mutation",
     "domain": "customers",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["customerSendAccountInviteEmail", "CustomerSendAccountInviteEmail"],
     "runtimeTests": []
@@ -324,7 +350,7 @@
     "name": "customerPaymentMethodSendUpdateEmail",
     "type": "mutation",
     "domain": "customers",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["customerPaymentMethodSendUpdateEmail", "CustomerPaymentMethodSendUpdateEmail"],
     "runtimeTests": []
@@ -333,7 +359,7 @@
     "name": "customerMerge",
     "type": "mutation",
     "domain": "customers",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["customerMerge", "CustomerMerge"],
     "runtimeTests": []
@@ -481,36 +507,40 @@
     "type": "mutation",
     "domain": "store-properties",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["publishablePublish", "PublishablePublish"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts", "tests/integration/collection-draft-flow.test.ts"],
+    "supportNotes": "HAR-177/HAR-163 slices: stages generic Publishable mutations locally when the publishable ID is a Product or Collection. Product-specific productPublish/productUnpublish remain the deeper product publication parity roots; unsupported Publishable targets return local userErrors instead of proxying upstream."
   },
   {
     "name": "publishablePublishToCurrentChannel",
     "type": "mutation",
     "domain": "store-properties",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["publishablePublishToCurrentChannel", "PublishablePublishToCurrentChannel"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
+    "supportNotes": "HAR-177 product slice: stages generic Publishable mutations locally when the publishable ID is a Product. Product-specific productPublish/productUnpublish remain the deeper product publication parity roots; non-product Publishable targets return local userErrors instead of proxying upstream."
   },
   {
     "name": "publishableUnpublish",
     "type": "mutation",
     "domain": "store-properties",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["publishableUnpublish", "PublishableUnpublish"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts", "tests/integration/collection-draft-flow.test.ts"],
+    "supportNotes": "HAR-177/HAR-163 slices: stages generic Publishable mutations locally when the publishable ID is a Product or Collection. Product-specific productPublish/productUnpublish remain the deeper product publication parity roots; unsupported Publishable targets return local userErrors instead of proxying upstream."
   },
   {
     "name": "publishableUnpublishToCurrentChannel",
     "type": "mutation",
     "domain": "store-properties",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["publishableUnpublishToCurrentChannel", "PublishableUnpublishToCurrentChannel"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
+    "supportNotes": "HAR-177 product slice: stages generic Publishable mutations locally when the publishable ID is a Product. Product-specific productPublish/productUnpublish remain the deeper product publication parity roots; non-product Publishable targets return local userErrors instead of proxying upstream."
   },
   {
     "name": "shopPolicyUpdate",
@@ -702,6 +732,96 @@
     "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
+    "name": "metafieldDefinition",
+    "type": "query",
+    "domain": "metafields",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["metafieldDefinition", "MetafieldDefinition"],
+    "runtimeTests": ["tests/integration/metafield-definition-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 definition read root. Registry-only declared gap until live capture, explicit comparison targets, and local metafield-definition modeling exist."
+  },
+  {
+    "name": "metafieldDefinitions",
+    "type": "query",
+    "domain": "metafields",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["metafieldDefinitions", "MetafieldDefinitions"],
+    "runtimeTests": ["tests/integration/metafield-definition-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 definition catalog root. Registry-only declared gap until owner-type-aware snapshot/live overlay semantics exist."
+  },
+  {
+    "name": "standardMetafieldDefinitionTemplates",
+    "type": "query",
+    "domain": "metafields",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["standardMetafieldDefinitionTemplates", "StandardMetafieldDefinitionTemplates"],
+    "runtimeTests": ["tests/integration/metafield-definition-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 standard template catalog root used before standardMetafieldDefinitionEnable. Registry-only declared gap until template catalog capture and modeling exist."
+  },
+  {
+    "name": "metafieldDefinitionCreate",
+    "type": "mutation",
+    "domain": "metafields",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["metafieldDefinitionCreate", "MetafieldDefinitionCreate"],
+    "runtimeTests": ["tests/integration/metafield-definition-draft-flow.test.ts"],
+    "supportNotes": "Registry-only declared gap for future local staging. Do not proxy as supported until metafield-definition state, validation, and affected value migration semantics are modeled."
+  },
+  {
+    "name": "metafieldDefinitionUpdate",
+    "type": "mutation",
+    "domain": "metafields",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["metafieldDefinitionUpdate", "MetafieldDefinitionUpdate"],
+    "runtimeTests": ["tests/integration/metafield-definition-draft-flow.test.ts"],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires immutable identity checks and validation job semantics before support."
+  },
+  {
+    "name": "metafieldDefinitionDelete",
+    "type": "mutation",
+    "domain": "metafields",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["metafieldDefinitionDelete", "MetafieldDefinitionDelete"],
+    "runtimeTests": ["tests/integration/metafield-definition-draft-flow.test.ts"],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires deleteAllAssociatedMetafields behavior and asynchronous associated-value deletion semantics before support."
+  },
+  {
+    "name": "metafieldDefinitionPin",
+    "type": "mutation",
+    "domain": "metafields",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["metafieldDefinitionPin", "MetafieldDefinitionPin"],
+    "runtimeTests": ["tests/integration/metafield-definition-draft-flow.test.ts"],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires pinned-position ordering semantics before support."
+  },
+  {
+    "name": "metafieldDefinitionUnpin",
+    "type": "mutation",
+    "domain": "metafields",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["metafieldDefinitionUnpin", "MetafieldDefinitionUnpin"],
+    "runtimeTests": ["tests/integration/metafield-definition-draft-flow.test.ts"],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires pinned-position ordering semantics before support."
+  },
+  {
+    "name": "standardMetafieldDefinitionEnable",
+    "type": "mutation",
+    "domain": "metafields",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["standardMetafieldDefinitionEnable", "StandardMetafieldDefinitionEnable"],
+    "runtimeTests": ["tests/integration/metafield-definition-draft-flow.test.ts"],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires standard template catalog modeling plus created-definition semantics before support."
+  },
+  {
     "name": "collectionCreate",
     "type": "mutation",
     "domain": "products",
@@ -744,6 +864,15 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["collectionRemoveProducts", "CollectionRemoveProducts"],
+    "runtimeTests": ["tests/integration/collection-draft-flow.test.ts"]
+  },
+  {
+    "name": "collectionReorderProducts",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["collectionReorderProducts", "CollectionReorderProducts"],
     "runtimeTests": ["tests/integration/collection-draft-flow.test.ts"]
   },
   {
@@ -1038,7 +1167,7 @@
     "name": "discountNodes",
     "type": "query",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "overlay-read",
     "implemented": false,
     "matchNames": ["discountNodes", "DiscountNodes"],
     "runtimeTests": ["tests/unit/capabilities.test.ts"]
@@ -1047,7 +1176,7 @@
     "name": "discountNodesCount",
     "type": "query",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "overlay-read",
     "implemented": false,
     "matchNames": ["discountNodesCount", "DiscountNodesCount"],
     "runtimeTests": ["tests/unit/capabilities.test.ts"]
@@ -1056,7 +1185,7 @@
     "name": "discountNode",
     "type": "query",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "overlay-read",
     "implemented": false,
     "matchNames": ["discountNode", "DiscountNode"],
     "runtimeTests": ["tests/unit/capabilities.test.ts"]
@@ -1065,7 +1194,7 @@
     "name": "codeDiscountNodes",
     "type": "query",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "overlay-read",
     "implemented": false,
     "matchNames": ["codeDiscountNodes", "CodeDiscountNodes"],
     "runtimeTests": ["tests/unit/capabilities.test.ts"]
@@ -1074,7 +1203,7 @@
     "name": "codeDiscountNode",
     "type": "query",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "overlay-read",
     "implemented": false,
     "matchNames": ["codeDiscountNode", "CodeDiscountNode"],
     "runtimeTests": ["tests/unit/capabilities.test.ts"]
@@ -1083,7 +1212,7 @@
     "name": "codeDiscountNodeByCode",
     "type": "query",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "overlay-read",
     "implemented": false,
     "matchNames": ["codeDiscountNodeByCode", "CodeDiscountNodeByCode"],
     "runtimeTests": ["tests/unit/capabilities.test.ts"]
@@ -1092,7 +1221,7 @@
     "name": "automaticDiscountNodes",
     "type": "query",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "overlay-read",
     "implemented": false,
     "matchNames": ["automaticDiscountNodes", "AutomaticDiscountNodes"],
     "runtimeTests": ["tests/unit/capabilities.test.ts"]
@@ -1101,7 +1230,7 @@
     "name": "automaticDiscountNode",
     "type": "query",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "overlay-read",
     "implemented": false,
     "matchNames": ["automaticDiscountNode", "AutomaticDiscountNode"],
     "runtimeTests": ["tests/unit/capabilities.test.ts"]
@@ -1110,7 +1239,7 @@
     "name": "discountCodeBasicCreate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeBasicCreate", "DiscountCodeBasicCreate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1119,7 +1248,7 @@
     "name": "discountCodeBasicUpdate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeBasicUpdate", "DiscountCodeBasicUpdate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1128,7 +1257,7 @@
     "name": "discountCodeBxgyCreate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeBxgyCreate", "DiscountCodeBxgyCreate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1137,7 +1266,7 @@
     "name": "discountCodeBxgyUpdate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeBxgyUpdate", "DiscountCodeBxgyUpdate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1146,7 +1275,7 @@
     "name": "discountCodeFreeShippingCreate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeFreeShippingCreate", "DiscountCodeFreeShippingCreate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1155,7 +1284,7 @@
     "name": "discountCodeFreeShippingUpdate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeFreeShippingUpdate", "DiscountCodeFreeShippingUpdate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1164,7 +1293,7 @@
     "name": "discountCodeActivate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeActivate", "DiscountCodeActivate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1173,7 +1302,7 @@
     "name": "discountCodeDeactivate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeDeactivate", "DiscountCodeDeactivate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1182,7 +1311,7 @@
     "name": "discountCodeDelete",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeDelete", "DiscountCodeDelete"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1191,7 +1320,7 @@
     "name": "discountCodeBulkActivate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeBulkActivate", "DiscountCodeBulkActivate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1200,7 +1329,7 @@
     "name": "discountCodeBulkDeactivate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeBulkDeactivate", "DiscountCodeBulkDeactivate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1209,7 +1338,7 @@
     "name": "discountCodeBulkDelete",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeBulkDelete", "DiscountCodeBulkDelete"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1218,7 +1347,7 @@
     "name": "discountRedeemCodeBulkAdd",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountRedeemCodeBulkAdd", "DiscountRedeemCodeBulkAdd"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1227,7 +1356,7 @@
     "name": "discountRedeemCodeBulkDelete",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountRedeemCodeBulkDelete", "DiscountRedeemCodeBulkDelete"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1236,7 +1365,7 @@
     "name": "discountAutomaticBasicCreate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountAutomaticBasicCreate", "DiscountAutomaticBasicCreate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1245,7 +1374,7 @@
     "name": "discountAutomaticBasicUpdate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountAutomaticBasicUpdate", "DiscountAutomaticBasicUpdate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1254,7 +1383,7 @@
     "name": "discountAutomaticBxgyCreate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountAutomaticBxgyCreate", "DiscountAutomaticBxgyCreate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1263,7 +1392,7 @@
     "name": "discountAutomaticBxgyUpdate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountAutomaticBxgyUpdate", "DiscountAutomaticBxgyUpdate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1272,7 +1401,7 @@
     "name": "discountAutomaticFreeShippingCreate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountAutomaticFreeShippingCreate", "DiscountAutomaticFreeShippingCreate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1281,7 +1410,7 @@
     "name": "discountAutomaticFreeShippingUpdate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountAutomaticFreeShippingUpdate", "DiscountAutomaticFreeShippingUpdate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1290,7 +1419,7 @@
     "name": "discountAutomaticActivate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountAutomaticActivate", "DiscountAutomaticActivate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1299,7 +1428,7 @@
     "name": "discountAutomaticDeactivate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountAutomaticDeactivate", "DiscountAutomaticDeactivate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1308,7 +1437,7 @@
     "name": "discountAutomaticDelete",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountAutomaticDelete", "DiscountAutomaticDelete"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1317,7 +1446,7 @@
     "name": "discountAutomaticBulkDelete",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountAutomaticBulkDelete", "DiscountAutomaticBulkDelete"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1326,7 +1455,7 @@
     "name": "discountCodeAppUpdate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeAppUpdate", "DiscountCodeAppUpdate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1335,7 +1464,7 @@
     "name": "discountAutomaticAppUpdate",
     "type": "mutation",
     "domain": "discounts",
-    "execution": "passthrough",
+    "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountAutomaticAppUpdate", "DiscountAutomaticAppUpdate"],
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
@@ -1347,6 +1476,15 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["fileCreate", "FileCreate"],
+    "runtimeTests": ["tests/integration/media-draft-flow.test.ts"]
+  },
+  {
+    "name": "fileUpdate",
+    "type": "mutation",
+    "domain": "media",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["fileUpdate", "FileUpdate"],
     "runtimeTests": ["tests/integration/media-draft-flow.test.ts"]
   },
   {

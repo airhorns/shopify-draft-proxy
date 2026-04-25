@@ -1,0 +1,143 @@
+{
+  "proxyVariables": {
+    "idIdentifier": {
+      "id": "gid://shopify/Customer/6157654556905"
+    },
+    "emailIdentifier": {
+      "emailAddress": "egnition_sample_29@egnition.com"
+    },
+    "phoneIdentifier": {
+      "phoneNumber": "+2911120123"
+    },
+    "missingIdentifier": {
+      "emailAddress": "missing-har-150@example.com"
+    }
+  },
+  "positiveAndMissing": {
+    "data": {
+      "byId": {
+        "id": "gid://shopify/Customer/6157654556905",
+        "firstName": "Henry",
+        "lastName": "Short",
+        "displayName": "Henry Short",
+        "email": "egnition_sample_29@egnition.com",
+        "legacyResourceId": "6157654556905",
+        "locale": "en",
+        "note": null,
+        "canDelete": false,
+        "verifiedEmail": true,
+        "taxExempt": false,
+        "state": "DISABLED",
+        "tags": ["egnition-sample-data", "referral"],
+        "numberOfOrders": "18",
+        "amountSpent": {
+          "amount": "231.1",
+          "currencyCode": "CAD"
+        },
+        "defaultEmailAddress": {
+          "emailAddress": "egnition_sample_29@egnition.com"
+        },
+        "defaultPhoneNumber": {
+          "phoneNumber": "+2911120123"
+        },
+        "defaultAddress": {
+          "address1": "Ap #147-5705 Nonummy Street",
+          "city": "Maubeuge",
+          "province": null,
+          "country": "Eritrea",
+          "zip": "7759",
+          "formattedArea": "Maubeuge, Eritrea"
+        },
+        "createdAt": "2022-04-06T14:51:36Z",
+        "updatedAt": "2026-04-25T01:24:48Z"
+      },
+      "byEmail": {
+        "id": "gid://shopify/Customer/6157654556905",
+        "email": "egnition_sample_29@egnition.com",
+        "defaultEmailAddress": {
+          "emailAddress": "egnition_sample_29@egnition.com"
+        }
+      },
+      "byPhone": {
+        "id": "gid://shopify/Customer/6157654556905",
+        "defaultPhoneNumber": {
+          "phoneNumber": "+2911120123"
+        }
+      },
+      "missingEmail": null
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 8,
+        "actualQueryCost": 8,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1974,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "customIdMissing": {
+    "ok": false,
+    "status": 200,
+    "payload": {
+      "errors": [
+        {
+          "message": "Metafield definition of type 'id' is required when using custom ids.",
+          "locations": [
+            {
+              "line": 3,
+              "column": 5
+            }
+          ],
+          "extensions": {
+            "code": "NOT_FOUND"
+          },
+          "path": ["customId"]
+        }
+      ],
+      "data": {
+        "customId": null
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 1,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1984,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "emptyIdentifier": {
+    "ok": false,
+    "status": 200,
+    "payload": {
+      "errors": [
+        {
+          "message": "Variable $idIdentifier of type CustomerIdentifierInput! was provided invalid value",
+          "locations": [
+            {
+              "line": 3,
+              "column": 5
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": {},
+            "problems": [
+              {
+                "path": [],
+                "explanation": "'CustomerIdentifierInput' requires exactly one argument, but 0 were provided."
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
