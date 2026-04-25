@@ -8,6 +8,8 @@ export type CapabilityDomain =
   | 'orders'
   | 'store-properties'
   | 'discounts'
+  | 'marketing'
+  | 'segments'
   | 'markets'
   | 'metafields'
   | 'unknown';

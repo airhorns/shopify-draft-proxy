@@ -1479,6 +1479,276 @@
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
   },
   {
+    "name": "marketingActivities",
+    "type": "query",
+    "domain": "marketing",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["marketingActivities", "MarketingActivities"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap. Needs live marketing app-scoped capture for list, filtering, and empty-connection behavior before snapshot or overlay support."
+  },
+  {
+    "name": "marketingActivity",
+    "type": "query",
+    "domain": "marketing",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["marketingActivity", "MarketingActivity"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap. Needs live capture for ID lookup nullability and activity field shape before snapshot or overlay support."
+  },
+  {
+    "name": "marketingEvent",
+    "type": "query",
+    "domain": "marketing",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["marketingEvent", "MarketingEvent"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap. Needs live capture for ID lookup nullability and event field shape before snapshot or overlay support."
+  },
+  {
+    "name": "marketingEvents",
+    "type": "query",
+    "domain": "marketing",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["marketingEvents", "MarketingEvents"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap. Needs live marketing app-scoped capture for list, filtering, and empty-connection behavior before snapshot or overlay support."
+  },
+  {
+    "name": "marketingActivityCreate",
+    "type": "mutation",
+    "domain": "marketing",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["marketingActivityCreate", "MarketingActivityCreate"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for payload, validation, status transitions, and downstream read visibility."
+  },
+  {
+    "name": "marketingActivityUpdate",
+    "type": "mutation",
+    "domain": "marketing",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["marketingActivityUpdate", "MarketingActivityUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for update payloads, userErrors, and downstream activity/event reads."
+  },
+  {
+    "name": "marketingActivityCreateExternal",
+    "type": "mutation",
+    "domain": "marketing",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["marketingActivityCreateExternal", "MarketingActivityCreateExternal"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for external remoteId/UTM fields, userErrors, and downstream list/detail visibility."
+  },
+  {
+    "name": "marketingActivityUpdateExternal",
+    "type": "mutation",
+    "domain": "marketing",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["marketingActivityUpdateExternal", "MarketingActivityUpdateExternal"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for external activity identity, status updates, and downstream list/detail visibility."
+  },
+  {
+    "name": "marketingActivityUpsertExternal",
+    "type": "mutation",
+    "domain": "marketing",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["marketingActivityUpsertExternal", "MarketingActivityUpsertExternal"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for create-vs-update behavior, remoteId identity, and downstream list/detail visibility."
+  },
+  {
+    "name": "marketingActivityDeleteExternal",
+    "type": "mutation",
+    "domain": "marketing",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["marketingActivityDeleteExternal", "MarketingActivityDeleteExternal"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for deletion payloads, unknown IDs, and downstream absence behavior."
+  },
+  {
+    "name": "marketingActivitiesDeleteAllExternal",
+    "type": "mutation",
+    "domain": "marketing",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["marketingActivitiesDeleteAllExternal", "MarketingActivitiesDeleteAllExternal"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for asynchronous job payloads and blocked create/update behavior while deletion is pending."
+  },
+  {
+    "name": "marketingEngagementCreate",
+    "type": "mutation",
+    "domain": "marketing",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["marketingEngagementCreate", "MarketingEngagementCreate"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for activity-level and channel-level engagement metrics and report visibility."
+  },
+  {
+    "name": "marketingEngagementsDelete",
+    "type": "mutation",
+    "domain": "marketing",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["marketingEngagementsDelete", "MarketingEngagementsDelete"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for channel-level deletion semantics and userErrors."
+  },
+  {
+    "name": "segment",
+    "type": "query",
+    "domain": "segments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["segment", "Segment"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap. Requires read_customers and unrestricted/protected-customer-data capture for ID lookup nullability and segment field shape before snapshot or overlay support."
+  },
+  {
+    "name": "segments",
+    "type": "query",
+    "domain": "segments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["segments", "Segments"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap. Requires read_customers and unrestricted/protected-customer-data capture for catalog pagination, filtering, and empty-connection behavior."
+  },
+  {
+    "name": "segmentsCount",
+    "type": "query",
+    "domain": "segments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["segmentsCount", "SegmentsCount"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap. Requires read_customers and unrestricted/protected-customer-data capture for count precision and empty-count behavior."
+  },
+  {
+    "name": "segmentFilters",
+    "type": "query",
+    "domain": "segments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["segmentFilters", "SegmentFilters"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap. Requires live catalog capture before snapshot support because Shopify owns filter availability and localization."
+  },
+  {
+    "name": "segmentFilterSuggestions",
+    "type": "query",
+    "domain": "segments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["segmentFilterSuggestions", "SegmentFilterSuggestions"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap. Requires live suggestion capture for required search input behavior and empty suggestions before snapshot support."
+  },
+  {
+    "name": "segmentValueSuggestions",
+    "type": "query",
+    "domain": "segments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["segmentValueSuggestions", "SegmentValueSuggestions"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap. Requires live suggestion capture for filter-specific values and empty suggestions before snapshot support."
+  },
+  {
+    "name": "segmentMigrations",
+    "type": "query",
+    "domain": "segments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["segmentMigrations", "SegmentMigrations"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap. Requires live capture for migration catalog shape and empty/no-data behavior before snapshot support."
+  },
+  {
+    "name": "customerSegmentMembers",
+    "type": "query",
+    "domain": "segments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["customerSegmentMembers", "CustomerSegmentMembers"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap. Requires read_customers and unrestricted/protected-customer-data capture for member pagination, statistics, and empty membership behavior."
+  },
+  {
+    "name": "customerSegmentMembersQuery",
+    "type": "query",
+    "domain": "segments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["customerSegmentMembersQuery", "CustomerSegmentMembersQuery"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap. Requires read_customers and unrestricted/protected-customer-data capture for asynchronous query job shape and missing-job behavior."
+  },
+  {
+    "name": "customerSegmentMembership",
+    "type": "query",
+    "domain": "segments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["customerSegmentMembership", "CustomerSegmentMembership"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap. Requires read_customers and unrestricted/protected-customer-data capture for membership boolean maps, unknown segment IDs, and empty responses."
+  },
+  {
+    "name": "customerSegmentMembersQueryCreate",
+    "type": "mutation",
+    "domain": "segments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["customerSegmentMembersQueryCreate", "CustomerSegmentMembersQueryCreate"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires write_customers and protected-customer-data captures for asynchronous job identity, validation, and downstream query reads."
+  },
+  {
+    "name": "segmentCreate",
+    "type": "mutation",
+    "domain": "segments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["segmentCreate", "SegmentCreate"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires write_customers and protected-customer-data captures for ShopifyQL validation, unique names, and downstream segment catalog reads."
+  },
+  {
+    "name": "segmentUpdate",
+    "type": "mutation",
+    "domain": "segments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["segmentUpdate", "SegmentUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires write_customers and protected-customer-data captures for ShopifyQL validation, rename behavior, and downstream member recalculation."
+  },
+  {
+    "name": "segmentDelete",
+    "type": "mutation",
+    "domain": "segments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["segmentDelete", "SegmentDelete"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires write_customers and protected-customer-data captures for deletion payloads, unknown IDs, and downstream absence behavior."
+  },
+  {
     "name": "market",
     "type": "query",
     "domain": "markets",
