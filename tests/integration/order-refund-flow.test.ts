@@ -250,6 +250,12 @@ describe('order refund flow', () => {
                   currencyCode
                 }
               }
+              totalRefundedShippingSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
             }
             userErrors {
               field
@@ -350,6 +356,12 @@ describe('order refund flow', () => {
                 currencyCode: 'CAD',
               },
             },
+            totalRefundedShippingSet: {
+              shopMoney: {
+                amount: '5.0',
+                currencyCode: 'CAD',
+              },
+            },
           },
           userErrors: [],
         },
@@ -397,6 +409,12 @@ describe('order refund flow', () => {
                 currencyCode
               }
             }
+            totalRefundedShippingSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+            }
           }
         }`,
         variables: {
@@ -426,6 +444,12 @@ describe('order refund flow', () => {
       totalRefundedSet: {
         shopMoney: {
           amount: '15.0',
+          currencyCode: 'CAD',
+        },
+      },
+      totalRefundedShippingSet: {
+        shopMoney: {
+          amount: '5.0',
           currencyCode: 'CAD',
         },
       },

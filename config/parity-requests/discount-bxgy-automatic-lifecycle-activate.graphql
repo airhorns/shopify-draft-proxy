@@ -1,0 +1,23 @@
+mutation DiscountAutomaticBxgyLifecycleActivate($id: ID!) {
+  discountAutomaticActivate(id: $id) {
+    automaticDiscountNode {
+      id
+      automaticDiscount {
+        __typename
+        ... on DiscountAutomaticBxgy {
+          title
+          status
+          summary
+          startsAt
+          endsAt
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

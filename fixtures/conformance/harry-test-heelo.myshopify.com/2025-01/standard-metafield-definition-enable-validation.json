@@ -1,0 +1,405 @@
+{
+  "capturedAt": "2026-04-25T20:53:52.508Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "safety": {
+    "successfulEnablementNotCaptured": "This fixture records validation branches only. Successful standardMetafieldDefinitionEnable calls create real metafield definitions and may be captured in a disposable test-shop setup with explicit cleanup evidence."
+  },
+  "schema": {
+    "request": {
+      "query": "#graphql\n  query StandardMetafieldDefinitionEnableSchema {\n    mutationRoot: __type(name: \"Mutation\") {\n      fields {\n        name\n        args {\n          name\n          type {\n            kind\n            name\n            ofType {\n              kind\n              name\n              ofType {\n                kind\n                name\n                ofType {\n                  kind\n                  name\n                }\n              }\n            }\n          }\n        }\n        type {\n          kind\n          name\n          ofType {\n            kind\n            name\n          }\n        }\n      }\n    }\n    payload: __type(name: \"StandardMetafieldDefinitionEnablePayload\") {\n      fields {\n        name\n        type {\n          kind\n          name\n          ofType {\n            kind\n            name\n            ofType {\n              kind\n              name\n            }\n          }\n        }\n      }\n    }\n    userError: __type(name: \"StandardMetafieldDefinitionEnableUserError\") {\n      fields {\n        name\n        type {\n          kind\n          name\n          ofType {\n            kind\n            name\n            ofType {\n              kind\n              name\n            }\n          }\n        }\n      }\n    }\n  }\n",
+      "variables": {}
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "mutationRoot": {
+          "fields": [
+            {
+              "name": "standardMetafieldDefinitionEnable",
+              "args": [
+                {
+                  "name": "ownerType",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "ENUM",
+                      "name": "MetafieldOwnerType",
+                      "ofType": null
+                    }
+                  }
+                },
+                {
+                  "name": "id",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "ID",
+                    "ofType": null
+                  }
+                },
+                {
+                  "name": "namespace",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "String",
+                    "ofType": null
+                  }
+                },
+                {
+                  "name": "key",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "String",
+                    "ofType": null
+                  }
+                },
+                {
+                  "name": "pin",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "Boolean",
+                    "ofType": null
+                  }
+                },
+                {
+                  "name": "capabilities",
+                  "type": {
+                    "kind": "INPUT_OBJECT",
+                    "name": "MetafieldCapabilityCreateInput",
+                    "ofType": null
+                  }
+                },
+                {
+                  "name": "access",
+                  "type": {
+                    "kind": "INPUT_OBJECT",
+                    "name": "StandardMetafieldDefinitionAccessInput",
+                    "ofType": null
+                  }
+                }
+              ],
+              "type": {
+                "kind": "OBJECT",
+                "name": "StandardMetafieldDefinitionEnablePayload",
+                "ofType": null
+              }
+            }
+          ]
+        },
+        "payload": {
+          "fields": [
+            {
+              "name": "createdDefinition",
+              "type": {
+                "kind": "OBJECT",
+                "name": "MetafieldDefinition",
+                "ofType": null
+              }
+            },
+            {
+              "name": "userErrors",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "LIST",
+                  "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL",
+                    "name": null
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "userError": {
+          "fields": [
+            {
+              "name": "code",
+              "type": {
+                "kind": "ENUM",
+                "name": "StandardMetafieldDefinitionEnableUserErrorCode",
+                "ofType": null
+              }
+            },
+            {
+              "name": "field",
+              "type": {
+                "kind": "LIST",
+                "name": null,
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "SCALAR",
+                    "name": "String"
+                  }
+                }
+              }
+            },
+            {
+              "name": "message",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "String",
+                  "ofType": null
+                }
+              }
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 19,
+          "actualQueryCost": 19,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1981,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "templateSample": {
+    "request": {
+      "query": "#graphql\n  query StandardMetafieldDefinitionTemplatesSample {\n    standardMetafieldDefinitionTemplates(first: 3, excludeActivated: false) {\n      nodes {\n        id\n        namespace\n        key\n        name\n        description\n        ownerTypes\n        type {\n          name\n          category\n        }\n        validations {\n          name\n          value\n        }\n        visibleToStorefrontApi\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n",
+      "variables": {}
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "standardMetafieldDefinitionTemplates": {
+          "nodes": [
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/1",
+              "namespace": "descriptors",
+              "key": "subtitle",
+              "name": "Product subtitle",
+              "description": "Used as a shorthand for a product name",
+              "ownerTypes": ["PRODUCT", "PRODUCTVARIANT"],
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "validations": [
+                {
+                  "name": "max",
+                  "value": "70"
+                }
+              ],
+              "visibleToStorefrontApi": true
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/2",
+              "namespace": "descriptors",
+              "key": "care_guide",
+              "name": "Care guide",
+              "description": "Instructions for taking care of a product or apparel",
+              "ownerTypes": ["PRODUCT", "PRODUCTVARIANT"],
+              "type": {
+                "name": "multi_line_text_field",
+                "category": "TEXT"
+              },
+              "validations": [
+                {
+                  "name": "max",
+                  "value": "500"
+                }
+              ],
+              "visibleToStorefrontApi": true
+            },
+            {
+              "id": "gid://shopify/StandardMetafieldDefinitionTemplate/3",
+              "namespace": "facts",
+              "key": "isbn",
+              "name": "ISBN",
+              "description": "International Standard Book Number",
+              "ownerTypes": ["PRODUCT", "PRODUCTVARIANT"],
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "validations": [
+                {
+                  "name": "regex",
+                  "value": "^((\\d{3})?([\\-\\s])?(\\d{1,5})([\\-\\s])?(\\d{1,7})([\\-\\s])?(\\d{6})([\\-\\s])?(\\d{1}))$"
+                }
+              ],
+              "visibleToStorefrontApi": true
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjoxLCJsYXN0X3ZhbHVlIjoxfQ==",
+            "endCursor": "eyJsYXN0X2lkIjozLCJsYXN0X3ZhbHVlIjozfQ=="
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 8,
+          "actualQueryCost": 8,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1984,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "validation": [
+    {
+      "name": "missing-selector",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetafieldDefinitionEnableValidation(\n    $ownerType: MetafieldOwnerType!\n    $id: ID\n    $namespace: String\n    $key: String\n  ) {\n    standardMetafieldDefinitionEnable(ownerType: $ownerType, id: $id, namespace: $namespace, key: $key) {\n      createdDefinition {\n        id\n        namespace\n        key\n        ownerType\n        name\n        type {\n          name\n          category\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "ownerType": "PRODUCT"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetafieldDefinitionEnable": {
+            "createdDefinition": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "A namespace and key or standard metafield definition template id must be provided.",
+                "code": "TEMPLATE_NOT_FOUND"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1985,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "unknown-id",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetafieldDefinitionEnableValidation(\n    $ownerType: MetafieldOwnerType!\n    $id: ID\n    $namespace: String\n    $key: String\n  ) {\n    standardMetafieldDefinitionEnable(ownerType: $ownerType, id: $id, namespace: $namespace, key: $key) {\n      createdDefinition {\n        id\n        namespace\n        key\n        ownerType\n        name\n        type {\n          name\n          category\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "ownerType": "PRODUCT",
+          "id": "gid://shopify/StandardMetafieldDefinitionTemplate/999999999"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetafieldDefinitionEnable": {
+            "createdDefinition": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Id is not a valid standard metafield definition template id",
+                "code": "TEMPLATE_NOT_FOUND"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1985,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "unknown-namespace-key",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetafieldDefinitionEnableValidation(\n    $ownerType: MetafieldOwnerType!\n    $id: ID\n    $namespace: String\n    $key: String\n  ) {\n    standardMetafieldDefinitionEnable(ownerType: $ownerType, id: $id, namespace: $namespace, key: $key) {\n      createdDefinition {\n        id\n        namespace\n        key\n        ownerType\n        name\n        type {\n          name\n          category\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "ownerType": "PRODUCT",
+          "namespace": "codex_missing_standard",
+          "key": "codex_missing_key"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetafieldDefinitionEnable": {
+            "createdDefinition": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "A standard definition wasn't found for the specified owner type, namespace, and key.",
+                "code": "TEMPLATE_NOT_FOUND"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "incompatible-owner-type",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetafieldDefinitionEnableValidation(\n    $ownerType: MetafieldOwnerType!\n    $id: ID\n    $namespace: String\n    $key: String\n  ) {\n    standardMetafieldDefinitionEnable(ownerType: $ownerType, id: $id, namespace: $namespace, key: $key) {\n      createdDefinition {\n        id\n        namespace\n        key\n        ownerType\n        name\n        type {\n          name\n          category\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "ownerType": "CUSTOMER",
+          "id": "gid://shopify/StandardMetafieldDefinitionTemplate/1"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetafieldDefinitionEnable": {
+            "createdDefinition": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Id is not a valid standard metafield definition template id",
+                "code": "TEMPLATE_NOT_FOUND"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ]
+}

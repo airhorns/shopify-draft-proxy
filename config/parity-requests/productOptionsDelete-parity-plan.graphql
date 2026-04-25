@@ -14,6 +14,16 @@ mutation ProductOptionsDeleteParityPlan($productId: ID!, $options: [ID!]!) {
           hasVariants
         }
       }
+      variants(first: 10) {
+        nodes {
+          id
+          title
+          selectedOptions {
+            name
+            value
+          }
+        }
+      }
     }
     userErrors {
       field

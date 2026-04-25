@@ -1,0 +1,75 @@
+mutation DeliveryProfileLifecycleCreate($profile: DeliveryProfileInput!) {
+  deliveryProfileCreate(profile: $profile) {
+    profile {
+      id
+      name
+      version
+      originLocationCount
+      zoneCountryCount
+      activeMethodDefinitionsCount
+      profileItems(first: 5) {
+        nodes {
+          product {
+            id
+            title
+          }
+          variants(first: 5) {
+            nodes {
+              id
+              title
+            }
+          }
+        }
+      }
+      profileLocationGroups {
+        locationGroup {
+          id
+        }
+        locationGroupZones(first: 5) {
+          nodes {
+            zone {
+              id
+              name
+            }
+            methodDefinitions(first: 5) {
+              nodes {
+                id
+                name
+                active
+                rateProvider {
+                  ... on DeliveryRateDefinition {
+                    id
+                    price {
+                      amount
+                      currencyCode
+                    }
+                  }
+                }
+                methodConditions {
+                  id
+                  field
+                  operator
+                  conditionCriteria {
+                    __typename
+                    ... on Weight {
+                      value
+                      unit
+                    }
+                    ... on MoneyV2 {
+                      amount
+                      currencyCode
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

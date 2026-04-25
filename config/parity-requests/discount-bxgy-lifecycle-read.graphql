@@ -1,0 +1,25 @@
+query DiscountBxgyLifecycleRead($codeId: ID!, $automaticId: ID!, $code: String!) {
+  discountNode(id: $codeId) {
+    id
+    discount {
+      __typename
+      ... on DiscountCodeBxgy {
+        title
+        status
+      }
+    }
+  }
+  codeDiscountNodeByCode(code: $code) {
+    id
+  }
+  automaticDiscountNode(id: $automaticId) {
+    id
+    automaticDiscount {
+      __typename
+      ... on DiscountAutomaticBxgy {
+        title
+        status
+      }
+    }
+  }
+}

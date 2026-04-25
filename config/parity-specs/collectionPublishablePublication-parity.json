@@ -10,6 +10,7 @@
     "documentPath": "config/parity-requests/collectionPublishablePublish-parity.graphql",
     "variablesCapturePath": "$.mutation.variables"
   },
+  "comparisonMode": "captured-vs-proxy-request",
   "notes": "Collection-specific publication capture for generic publishable publish/unpublish aggregate fields. The live fixture also records `collections` published_status filter slices, but strict parity compares the target collection read only because the current parity harness does not seed the entire live collection catalog. Runtime integration tests cover staged published_status filtering for local collection state.",
   "comparison": {
     "mode": "strict-json",

@@ -13,6 +13,16 @@ mutation ProductOptionsCreateParityPlan($productId: ID!, $options: [OptionCreate
           hasVariants
         }
       }
+      variants(first: 10) {
+        nodes {
+          id
+          title
+          selectedOptions {
+            name
+            value
+          }
+        }
+      }
     }
     userErrors {
       field

@@ -1,0 +1,57 @@
+{
+  "data": {
+    "marketingActivities": {
+      "nodes": [],
+      "edges": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": null,
+        "endCursor": null
+      }
+    },
+    "marketingActivitiesEmpty": {
+      "nodes": [],
+      "edges": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": null,
+        "endCursor": null
+      }
+    },
+    "marketingActivity": null,
+    "marketingEvents": {
+      "nodes": [],
+      "edges": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": null,
+        "endCursor": null
+      }
+    },
+    "marketingEventsEmpty": {
+      "nodes": [],
+      "edges": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": null,
+        "endCursor": null
+      }
+    },
+    "marketingEvent": null
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 30,
+      "actualQueryCost": 18,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1982,
+        "restoreRate": 100
+      }
+    }
+  }
+}

@@ -1,12 +1,16 @@
 import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
+import type { JsonValue } from '../json-schemas.js';
 import { parseSearchQuery, type SearchQueryNode, type SearchQueryTerm } from '../search-query-parser.js';
 import { compareShopifyResourceIds } from '../shopify/resource-ids.js';
+import { makeSyntheticGid } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type {
+  MetafieldDefinitionCapabilitiesRecord,
   MetafieldDefinitionConstraintValueRecord,
   MetafieldDefinitionRecord,
+  MetafieldDefinitionValidationRecord,
   ProductMetafieldRecord,
 } from '../state/types.js';
 import {
@@ -28,6 +32,81 @@ function readString(value: unknown): string | null {
 function readBoolean(value: unknown): boolean {
   return value === true;
 }
+
+function readNullableBoolean(value: unknown): boolean | null {
+  return typeof value === 'boolean' ? value : null;
+}
+
+type StandardMetafieldDefinitionTemplate = {
+  id: string;
+  namespace: string;
+  key: string;
+  name: string;
+  description: string | null;
+  ownerTypes: string[];
+  type: {
+    name: string;
+    category: string | null;
+  };
+  validations: MetafieldDefinitionValidationRecord[];
+  visibleToStorefrontApi: boolean;
+};
+
+type StandardMetafieldDefinitionEnableUserError = {
+  field: string[] | null;
+  message: string;
+  code: string;
+};
+
+const STANDARD_METAFIELD_DEFINITION_TEMPLATES: StandardMetafieldDefinitionTemplate[] = [
+  {
+    id: 'gid://shopify/StandardMetafieldDefinitionTemplate/1',
+    namespace: 'descriptors',
+    key: 'subtitle',
+    name: 'Product subtitle',
+    description: 'Used as a shorthand for a product name',
+    ownerTypes: ['PRODUCT', 'PRODUCTVARIANT'],
+    type: {
+      name: 'single_line_text_field',
+      category: 'TEXT',
+    },
+    validations: [{ name: 'max', value: '70' }],
+    visibleToStorefrontApi: true,
+  },
+  {
+    id: 'gid://shopify/StandardMetafieldDefinitionTemplate/2',
+    namespace: 'descriptors',
+    key: 'care_guide',
+    name: 'Care guide',
+    description: 'Instructions for taking care of a product or apparel',
+    ownerTypes: ['PRODUCT', 'PRODUCTVARIANT'],
+    type: {
+      name: 'multi_line_text_field',
+      category: 'TEXT',
+    },
+    validations: [{ name: 'max', value: '500' }],
+    visibleToStorefrontApi: true,
+  },
+  {
+    id: 'gid://shopify/StandardMetafieldDefinitionTemplate/3',
+    namespace: 'facts',
+    key: 'isbn',
+    name: 'ISBN',
+    description: 'International Standard Book Number',
+    ownerTypes: ['PRODUCT', 'PRODUCTVARIANT'],
+    type: {
+      name: 'single_line_text_field',
+      category: 'TEXT',
+    },
+    validations: [
+      {
+        name: 'regex',
+        value: '^((\\d{3})?([\\-\\s])?(\\d{1,5})([\\-\\s])?(\\d{1,7})([\\-\\s])?(\\d{6})([\\-\\s])?(\\d{1}))$',
+      },
+    ],
+    visibleToStorefrontApi: true,
+  },
+];
 
 function stripSearchValueQuotes(value: string): string {
   const trimmed = value.trim();
@@ -271,9 +350,9 @@ function sortDefinitions(
       case 'NAME':
         return left.name.localeCompare(right.name) || compareShopifyResourceIds(left.id, right.id);
       case 'PINNED_POSITION': {
-        const leftPosition = left.pinnedPosition ?? Number.POSITIVE_INFINITY;
-        const rightPosition = right.pinnedPosition ?? Number.POSITIVE_INFINITY;
-        return rightPosition - leftPosition || compareShopifyResourceIds(left.id, right.id);
+        const leftPosition = left.pinnedPosition ?? Number.NEGATIVE_INFINITY;
+        const rightPosition = right.pinnedPosition ?? Number.NEGATIVE_INFINITY;
+        return rightPosition - leftPosition || compareShopifyResourceIds(right.id, left.id);
       }
       case 'RELEVANCE':
       case 'ID':
@@ -482,6 +561,222 @@ function serializeDefinitionSelectionSet(
   return result;
 }
 
+function serializeStandardMetafieldDefinitionEnableUserError(
+  userError: StandardMetafieldDefinitionEnableUserError,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'field':
+        result[key] = userError.field;
+        break;
+      case 'message':
+        result[key] = userError.message;
+        break;
+      case 'code':
+        result[key] = userError.code;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+
+  return result;
+}
+
+function serializeStandardMetafieldDefinitionEnablePayload(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  createdDefinition: MetafieldDefinitionRecord | null,
+  userErrors: StandardMetafieldDefinitionEnableUserError[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'createdDefinition':
+        result[key] = createdDefinition
+          ? serializeDefinitionSelectionSet(createdDefinition, selection.selectionSet?.selections ?? [], variables)
+          : null;
+        break;
+      case 'userErrors':
+        result[key] = userErrors.map((userError) =>
+          serializeStandardMetafieldDefinitionEnableUserError(userError, selection.selectionSet?.selections ?? []),
+        );
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+
+  return result;
+}
+
+function findStandardMetafieldDefinitionTemplate(args: Record<string, unknown>): {
+  template: StandardMetafieldDefinitionTemplate | null;
+  userErrors: StandardMetafieldDefinitionEnableUserError[];
+} {
+  const ownerType = readString(args['ownerType']);
+  const id = readString(args['id']);
+  const namespace = readString(args['namespace']);
+  const key = readString(args['key']);
+
+  if (!ownerType || (!id && (!namespace || !key))) {
+    return {
+      template: null,
+      userErrors: [
+        {
+          field: null,
+          message: 'A namespace and key or standard metafield definition template id must be provided.',
+          code: 'TEMPLATE_NOT_FOUND',
+        },
+      ],
+    };
+  }
+
+  if (id) {
+    const template =
+      STANDARD_METAFIELD_DEFINITION_TEMPLATES.find(
+        (candidate) => candidate.id === id && candidate.ownerTypes.includes(ownerType),
+      ) ?? null;
+
+    return template
+      ? { template, userErrors: [] }
+      : {
+          template: null,
+          userErrors: [
+            {
+              field: ['id'],
+              message: 'Id is not a valid standard metafield definition template id',
+              code: 'TEMPLATE_NOT_FOUND',
+            },
+          ],
+        };
+  }
+
+  const template =
+    STANDARD_METAFIELD_DEFINITION_TEMPLATES.find(
+      (candidate) =>
+        candidate.ownerTypes.includes(ownerType) && candidate.namespace === namespace && candidate.key === key,
+    ) ?? null;
+
+  return template
+    ? { template, userErrors: [] }
+    : {
+        template: null,
+        userErrors: [
+          {
+            field: null,
+            message: "A standard definition wasn't found for the specified owner type, namespace, and key.",
+            code: 'TEMPLATE_NOT_FOUND',
+          },
+        ],
+      };
+}
+
+function readCapabilityEnabled(rawCapabilities: unknown, capabilityName: string): boolean {
+  if (!isObject(rawCapabilities)) {
+    return false;
+  }
+
+  const rawCapability = rawCapabilities[capabilityName];
+  if (!isObject(rawCapability)) {
+    return false;
+  }
+
+  return readNullableBoolean(rawCapability['enabled']) ?? false;
+}
+
+function buildDefinitionCapabilities(rawCapabilities: unknown): MetafieldDefinitionCapabilitiesRecord {
+  const adminFilterableEnabled = readCapabilityEnabled(rawCapabilities, 'adminFilterable');
+  const smartCollectionConditionEnabled = readCapabilityEnabled(rawCapabilities, 'smartCollectionCondition');
+  const uniqueValuesEnabled = readCapabilityEnabled(rawCapabilities, 'uniqueValues');
+
+  return {
+    adminFilterable: {
+      enabled: adminFilterableEnabled,
+      eligible: true,
+      status: adminFilterableEnabled ? 'FILTERABLE' : 'NOT_FILTERABLE',
+    },
+    smartCollectionCondition: {
+      enabled: smartCollectionConditionEnabled,
+      eligible: true,
+    },
+    uniqueValues: {
+      enabled: uniqueValuesEnabled,
+      eligible: true,
+    },
+  };
+}
+
+function buildDefinitionAccess(
+  rawAccess: unknown,
+  template: StandardMetafieldDefinitionTemplate,
+): Record<string, JsonValue> {
+  const access = isObject(rawAccess) ? rawAccess : {};
+  return {
+    admin: readString(access['admin']) ?? 'PUBLIC_READ_WRITE',
+    storefront: readString(access['storefront']) ?? (template.visibleToStorefrontApi ? 'PUBLIC_READ' : 'NONE'),
+    customerAccount: readString(access['customerAccount']) ?? 'NONE',
+  };
+}
+
+function buildEnabledStandardMetafieldDefinition(
+  args: Record<string, unknown>,
+  template: StandardMetafieldDefinitionTemplate,
+): MetafieldDefinitionRecord {
+  const ownerType = readString(args['ownerType']) ?? template.ownerTypes[0] ?? 'PRODUCT';
+  const existingDefinition = store.findEffectiveMetafieldDefinition({
+    ownerType,
+    namespace: template.namespace,
+    key: template.key,
+  });
+
+  return {
+    id: existingDefinition?.id ?? makeSyntheticGid('MetafieldDefinition'),
+    name: template.name,
+    namespace: template.namespace,
+    key: template.key,
+    ownerType,
+    type: template.type,
+    description: template.description,
+    validations: template.validations,
+    access: buildDefinitionAccess(args['access'], template),
+    capabilities: buildDefinitionCapabilities(args['capabilities']),
+    constraints: {
+      key: null,
+      values: [],
+    },
+    pinnedPosition: readBoolean(args['pin']) ? 1 : null,
+    validationStatus: 'ALL_VALID',
+  };
+}
+
+function serializeStandardMetafieldDefinitionEnableMutation(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const { template, userErrors } = findStandardMetafieldDefinitionTemplate(args);
+  if (!template) {
+    return serializeStandardMetafieldDefinitionEnablePayload(field, variables, null, userErrors);
+  }
+
+  const definition = buildEnabledStandardMetafieldDefinition(args, template);
+  store.upsertStagedMetafieldDefinitions([definition]);
+  return serializeStandardMetafieldDefinitionEnablePayload(field, variables, definition, []);
+}
+
 function readDefinitionIdentifier(
   args: Record<string, unknown>,
 ): { ownerType: string; namespace: string; key: string } | null {
@@ -498,6 +793,180 @@ function readDefinitionIdentifier(
   }
 
   return { ownerType, namespace, key };
+}
+
+function getDefinitionReferenceField(args: Record<string, unknown>): string[] {
+  if (typeof args['definitionId'] === 'string') {
+    return ['definitionId'];
+  }
+
+  return ['identifier'];
+}
+
+function findDefinitionFromMutationArgs(args: Record<string, unknown>): MetafieldDefinitionRecord | null {
+  const definitionId = readString(args['definitionId']);
+  if (definitionId) {
+    return store.getEffectiveMetafieldDefinitionById(definitionId);
+  }
+
+  const identifier = readDefinitionIdentifier(args);
+  return identifier ? store.findEffectiveMetafieldDefinition(identifier) : null;
+}
+
+function serializeUserError(
+  selections: readonly SelectionNode[],
+  error: { field: string[]; message: string; code: string },
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'field':
+        result[key] = error.field;
+        break;
+      case 'message':
+        result[key] = error.message;
+        break;
+      case 'code':
+        result[key] = error.code;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+
+  return result;
+}
+
+function listPinnedDefinitions(ownerType: string): MetafieldDefinitionRecord[] {
+  return store
+    .listEffectiveMetafieldDefinitions()
+    .filter((definition) => definition.ownerType === ownerType && definition.pinnedPosition !== null);
+}
+
+function updatePinnedDefinitions(definitions: MetafieldDefinitionRecord[]): void {
+  if (definitions.length > 0) {
+    store.upsertStagedMetafieldDefinitions(definitions);
+  }
+}
+
+function pinDefinition(definition: MetafieldDefinitionRecord): MetafieldDefinitionRecord {
+  if (definition.pinnedPosition !== null) {
+    return definition;
+  }
+
+  const highestPinnedPosition = listPinnedDefinitions(definition.ownerType).reduce(
+    (highest, candidate) => Math.max(highest, candidate.pinnedPosition ?? 0),
+    0,
+  );
+  const pinnedDefinition = {
+    ...definition,
+    pinnedPosition: highestPinnedPosition + 1,
+  };
+  store.upsertStagedMetafieldDefinitions([pinnedDefinition]);
+
+  return pinnedDefinition;
+}
+
+function unpinDefinition(definition: MetafieldDefinitionRecord): MetafieldDefinitionRecord {
+  if (definition.pinnedPosition === null) {
+    return definition;
+  }
+
+  const removedPosition = definition.pinnedPosition;
+  const unpinnedDefinition = {
+    ...definition,
+    pinnedPosition: null,
+  };
+  const compactedDefinitions = listPinnedDefinitions(definition.ownerType)
+    .filter((candidate) => candidate.id !== definition.id && (candidate.pinnedPosition ?? 0) > removedPosition)
+    .map((candidate) => ({
+      ...candidate,
+      pinnedPosition: (candidate.pinnedPosition ?? 1) - 1,
+    }));
+
+  updatePinnedDefinitions([unpinnedDefinition, ...compactedDefinitions]);
+
+  return unpinnedDefinition;
+}
+
+function serializePinningPayload(
+  payloadFieldName: 'pinnedDefinition' | 'unpinnedDefinition',
+  definition: MetafieldDefinitionRecord | null,
+  userErrors: Array<{ field: string[]; message: string; code: string }>,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case payloadFieldName:
+        result[key] = definition
+          ? serializeDefinitionSelectionSet(definition, selection.selectionSet?.selections ?? [], variables)
+          : null;
+        break;
+      case 'userErrors':
+        result[key] = userErrors.map((error) => serializeUserError(selection.selectionSet?.selections ?? [], error));
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+
+  return result;
+}
+
+function serializeDefinitionPinRoot(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const definition = findDefinitionFromMutationArgs(args);
+  if (!definition) {
+    return serializePinningPayload(
+      'pinnedDefinition',
+      null,
+      [
+        {
+          field: getDefinitionReferenceField(args),
+          message: 'Definition not found.',
+          code: 'NOT_FOUND',
+        },
+      ],
+      field,
+      variables,
+    );
+  }
+
+  return serializePinningPayload('pinnedDefinition', pinDefinition(definition), [], field, variables);
+}
+
+function serializeDefinitionUnpinRoot(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const definition = findDefinitionFromMutationArgs(args);
+  if (!definition) {
+    return serializePinningPayload(
+      'unpinnedDefinition',
+      null,
+      [
+        {
+          field: getDefinitionReferenceField(args),
+          message: 'Definition not found.',
+          code: 'NOT_FOUND',
+        },
+      ],
+      field,
+      variables,
+    );
+  }
+
+  return serializePinningPayload('unpinnedDefinition', unpinDefinition(definition), [], field, variables);
 }
 
 function serializeMetafieldDefinitionRoot(
@@ -600,6 +1069,33 @@ export function handleMetafieldDefinitionQuery(
         break;
       case 'metafieldDefinitions':
         data[responseKey] = serializeMetafieldDefinitionsConnection(field, variables);
+        break;
+      default:
+        data[responseKey] = null;
+        break;
+    }
+  }
+
+  return { data };
+}
+
+export function handleMetafieldDefinitionMutation(
+  document: string,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const data: Record<string, unknown> = {};
+
+  for (const field of getRootFields(document)) {
+    const responseKey = getFieldResponseKey(field);
+    switch (field.name.value) {
+      case 'standardMetafieldDefinitionEnable':
+        data[responseKey] = serializeStandardMetafieldDefinitionEnableMutation(field, variables);
+        break;
+      case 'metafieldDefinitionPin':
+        data[responseKey] = serializeDefinitionPinRoot(field, variables);
+        break;
+      case 'metafieldDefinitionUnpin':
+        data[responseKey] = serializeDefinitionUnpinRoot(field, variables);
         break;
       default:
         data[responseKey] = null;

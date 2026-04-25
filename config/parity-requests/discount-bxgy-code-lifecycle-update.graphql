@@ -1,0 +1,64 @@
+mutation DiscountCodeBxgyLifecycleUpdate($id: ID!, $input: DiscountCodeBxgyInput!) {
+  discountCodeBxgyUpdate(id: $id, bxgyCodeDiscount: $input) {
+    codeDiscountNode {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBxgy {
+          title
+          status
+          summary
+          startsAt
+          endsAt
+          asyncUsageCount
+          discountClasses
+          usageLimit
+          usesPerOrderLimit
+          combinesWith {
+            productDiscounts
+            orderDiscounts
+            shippingDiscounts
+          }
+          codes(first: 2) {
+            nodes {
+              code
+              asyncUsageCount
+            }
+          }
+          customerBuys {
+            value {
+              __typename
+              ... on DiscountQuantity {
+                quantity
+              }
+            }
+          }
+          customerGets {
+            value {
+              __typename
+              ... on DiscountOnQuantity {
+                quantity {
+                  quantity
+                }
+                effect {
+                  __typename
+                  ... on DiscountPercentage {
+                    percentage
+                  }
+                }
+              }
+            }
+            appliesOnOneTimePurchase
+            appliesOnSubscription
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

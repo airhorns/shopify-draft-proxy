@@ -40,6 +40,10 @@ const productSetMutation = readFileSync(
   path.join(repoRoot, 'config', 'parity-requests', 'productSet-parity-plan.graphql'),
   'utf8',
 );
+const productSetDownstreamReadQuery = readFileSync(
+  path.join(repoRoot, 'config', 'parity-requests', 'productSet-downstream-read.graphql'),
+  'utf8',
+);
 const productDuplicateMutation = readFileSync(
   path.join(repoRoot, 'config', 'parity-requests', 'productDuplicate-parity-plan.graphql'),
   'utf8',
@@ -144,9 +148,14 @@ const sourceAugmentQuery = `#graphql
 
 const locationQuery = `#graphql
   query ProductGraphConformanceLocations {
-    locations(first: 1) {
-      nodes {
-        id
+    locations(first: 2) {
+      edges {
+        cursor
+        node {
+          id
+          name
+          isActive
+        }
       }
     }
   }
@@ -244,7 +253,17 @@ const productDeleteMutation = `#graphql
   }
 `;
 
-function buildProductSetVariables(runId, locationId) {
+function buildProductSetVariables(runId, locations) {
+  const primaryLocationId = locations[0]?.id;
+  const secondaryLocationId = locations[1]?.id ?? primaryLocationId;
+  const blueInventoryQuantities =
+    secondaryLocationId && secondaryLocationId !== primaryLocationId
+      ? [
+          { quantity: 2, locationId: primaryLocationId, name: 'available' },
+          { quantity: 5, locationId: secondaryLocationId, name: 'available' },
+        ]
+      : [{ quantity: 7, locationId: primaryLocationId, name: 'available' }];
+
   return {
     synchronous: true,
     input: {
@@ -265,14 +284,14 @@ function buildProductSetVariables(runId, locationId) {
           optionValues: [{ optionName: 'Color', name: 'Blue' }],
           sku: `GRAPH-BLUE-${runId}`,
           price: '79.99',
-          inventoryQuantities: [{ quantity: 7, locationId, name: 'available' }],
+          inventoryQuantities: blueInventoryQuantities,
           inventoryItem: { tracked: true, requiresShipping: true },
         },
         {
           optionValues: [{ optionName: 'Color', name: 'Black' }],
           sku: `GRAPH-BLACK-${runId}`,
           price: '69.99',
-          inventoryQuantities: [{ quantity: 3, locationId, name: 'available' }],
+          inventoryQuantities: [{ quantity: 3, locationId: primaryLocationId, name: 'available' }],
           inventoryItem: { tracked: false, requiresShipping: true },
         },
       ],
@@ -282,6 +301,95 @@ function buildProductSetVariables(runId, locationId) {
           key: 'material',
           type: 'single_line_text_field',
           value: 'canvas',
+        },
+      ],
+    },
+  };
+}
+
+function readProductSetVariantRefs(productSetResponse) {
+  const nodes = productSetResponse.data?.productSet?.product?.variants?.nodes ?? [];
+  const firstVariant = nodes[0] ?? null;
+  const secondVariant = nodes[1] ?? null;
+  return {
+    firstVariantId: firstVariant?.id ?? null,
+    firstInventoryItemId: firstVariant?.inventoryItem?.id ?? null,
+    secondVariantId: secondVariant?.id ?? null,
+    secondInventoryItemId: secondVariant?.inventoryItem?.id ?? null,
+  };
+}
+
+function buildProductSetDownstreamVariables(productSetResponse) {
+  const productId = productSetResponse.data?.productSet?.product?.id ?? null;
+  const refs = readProductSetVariantRefs(productSetResponse);
+  if (
+    !productId ||
+    !refs.firstVariantId ||
+    !refs.firstInventoryItemId ||
+    !refs.secondVariantId ||
+    !refs.secondInventoryItemId
+  ) {
+    throw new Error(
+      'productSet capture did not return the product, variant, and inventory item ids needed downstream.',
+    );
+  }
+
+  return {
+    id: productId,
+    variantOneId: refs.firstVariantId,
+    inventoryItemOneId: refs.firstInventoryItemId,
+    variantTwoId: refs.secondVariantId,
+    inventoryItemTwoId: refs.secondInventoryItemId,
+  };
+}
+
+function buildProductSetUpdateVariables(runId, productSetResponse, locations) {
+  const refs = readProductSetVariantRefs(productSetResponse);
+  const colorOptionId = productSetResponse.data?.productSet?.product?.options?.[0]?.id ?? null;
+  const primaryLocationId = locations[0]?.id;
+  const secondaryLocationId = locations[1]?.id ?? primaryLocationId;
+  if (!refs.firstVariantId || !refs.secondVariantId || !primaryLocationId || !colorOptionId) {
+    throw new Error('productSet update capture could not resolve created variant ids and writable locations.');
+  }
+
+  const blueInventoryQuantities =
+    secondaryLocationId && secondaryLocationId !== primaryLocationId
+      ? [
+          { quantity: 4, locationId: primaryLocationId, name: 'available' },
+          { quantity: 6, locationId: secondaryLocationId, name: 'available' },
+        ]
+      : [{ quantity: 10, locationId: primaryLocationId, name: 'available' }];
+
+  return {
+    synchronous: true,
+    identifier: {
+      id: productSetResponse.data?.productSet?.product?.id ?? null,
+    },
+    input: {
+      title: `Hermes Product Graph Updated ${runId}`,
+      status: 'DRAFT',
+      productOptions: [
+        {
+          id: colorOptionId,
+          name: 'Color',
+          position: 1,
+          values: [{ name: 'Blue' }, { name: 'Black' }],
+        },
+      ],
+      variants: [
+        {
+          id: refs.firstVariantId,
+          optionValues: [{ optionName: 'Color', name: 'Blue' }],
+          sku: `GRAPH-BLUE-UPDATED-${runId}`,
+          price: '89.99',
+          inventoryQuantities: blueInventoryQuantities,
+        },
+        {
+          id: refs.secondVariantId,
+          optionValues: [{ optionName: 'Color', name: 'Black' }],
+          sku: `GRAPH-BLACK-UPDATED-${runId}`,
+          price: '59.99',
+          inventoryQuantities: [{ quantity: 1, locationId: primaryLocationId, name: 'available' }],
         },
       ],
     },
@@ -380,20 +488,29 @@ let collectionId = null;
 
 try {
   const locationResponse = await runGraphql(locationQuery);
-  const locationId = locationResponse.data?.locations?.nodes?.[0]?.id ?? null;
-  if (!locationId) {
+  const locations = (locationResponse.data?.locations?.edges ?? [])
+    .map((edge) => edge?.node)
+    .filter((location) => location?.id);
+  if (locations.length === 0) {
     throw new Error(
       'Product graph capture could not resolve a writable location id for productSet inventoryQuantities.',
     );
   }
 
-  const productSetVariables = buildProductSetVariables(runId, locationId);
+  const productSetVariables = buildProductSetVariables(runId, locations);
   const productSetResponse = await runGraphql(productSetMutation, productSetVariables);
   expectNoUserErrors('productSet', productSetResponse.data?.productSet?.userErrors);
   sourceProductId = productSetResponse.data?.productSet?.product?.id ?? null;
   if (!sourceProductId) {
     throw new Error('productSet capture did not return a product id.');
   }
+  const productSetDownstreamVariables = buildProductSetDownstreamVariables(productSetResponse);
+  const postSetRead = await runGraphql(productSetDownstreamReadQuery, productSetDownstreamVariables);
+  const productSetUpdateVariables = buildProductSetUpdateVariables(runId, productSetResponse, locations);
+  const productSetUpdateResponse = await runGraphql(productSetMutation, productSetUpdateVariables);
+  expectNoUserErrors('productSet update', productSetUpdateResponse.data?.productSet?.userErrors);
+  const productSetUpdateDownstreamVariables = buildProductSetDownstreamVariables(productSetUpdateResponse);
+  const postSetUpdateRead = await runGraphql(productSetDownstreamReadQuery, productSetUpdateDownstreamVariables);
 
   const productSetCollisionResponse = await runGraphql(productSetMutation, productSetVariables);
   expectNoUserErrors('productSet handle collision create', productSetCollisionResponse.data?.productSet?.userErrors);
@@ -421,8 +538,6 @@ try {
     'productSet explicit handle normalization',
     productSetExplicitNormalizationResponse.data?.productSet?.userErrors,
   );
-
-  const postSetRead = await runGraphql(sourceAugmentQuery, { id: sourceProductId });
 
   const collectionCreateVariables = buildCollectionCreateVariables(runId);
   const collectionCreateResponse = await runGraphql(collectionCreateMutation, collectionCreateVariables);
@@ -466,9 +581,22 @@ try {
 
   const captures = {
     'product-set-parity.json': {
+      readOnlyBaselines: {
+        locationsCatalog: locationResponse,
+      },
       mutation: {
         variables: productSetVariables,
         response: productSetResponse,
+      },
+      downstreamReadVariables: productSetDownstreamVariables,
+      downstreamRead: postSetRead,
+      update: {
+        mutation: {
+          variables: productSetUpdateVariables,
+          response: productSetUpdateResponse,
+        },
+        downstreamReadVariables: productSetUpdateDownstreamVariables,
+        downstreamRead: postSetUpdateRead,
       },
       handleParity: {
         productSetCreateCollision: {
@@ -480,10 +608,10 @@ try {
           response: productSetExplicitNormalizationResponse,
         },
       },
-      downstreamRead: postSetRead,
       liveRequirements: {
-        inventoryQuantitiesLocationId: locationId,
+        inventoryQuantitiesLocationIds: locations.map((location) => location.id),
         inventoryQuantitiesName: 'available',
+        multiLocationInventoryQuantities: locations.length > 1,
       },
     },
     'product-duplicate-parity.json': {
