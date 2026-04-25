@@ -4920,6 +4920,263 @@ describe('product draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('models captured product media validation branches and rejected-batch no-write behavior', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+    const postGraphql = (query: string, variables?: Record<string, unknown>) =>
+      request(app).post('/admin/api/2025-01/graphql.json').send({ query, variables });
+
+    const createProductResponse = await postGraphql(
+      'mutation { productCreate(product: { title: "Media Validation Hat" }) { product { id } userErrors { field message } } }',
+    );
+    const productId = createProductResponse.body.data.productCreate.product.id as string;
+    const unknownProductId = 'gid://shopify/Product/999999999999';
+    const unknownMediaId = 'gid://shopify/MediaImage/999999999999';
+
+    const missingProductIdResponse = await postGraphql(
+      'mutation MissingProduct($productId: ID!, $media: [CreateMediaInput!]!) { productCreateMedia(productId: $productId, media: $media) { media { id } mediaUserErrors { field message } } }',
+      {
+        productId: '',
+        media: [{ mediaContentType: 'IMAGE', originalSource: 'https://placehold.co/600x400/png' }],
+      },
+    );
+    expect(missingProductIdResponse.body.errors).toEqual([
+      {
+        message: 'Variable $productId of type ID! was provided invalid value',
+        locations: [{ line: expect.any(Number), column: expect.any(Number) }],
+        extensions: {
+          code: 'INVALID_VARIABLE',
+          value: '',
+          problems: [{ path: [], explanation: "Invalid global id ''", message: "Invalid global id ''" }],
+        },
+      },
+    ]);
+
+    const unknownProductCreateResponse = await postGraphql(
+      'mutation UnknownProduct($productId: ID!, $media: [CreateMediaInput!]!) { productCreateMedia(productId: $productId, media: $media) { media { id } mediaUserErrors { field message } product { id } } }',
+      {
+        productId: unknownProductId,
+        media: [{ mediaContentType: 'IMAGE', originalSource: 'https://placehold.co/600x400/png' }],
+      },
+    );
+    expect(unknownProductCreateResponse.body.data.productCreateMedia).toEqual({
+      media: null,
+      mediaUserErrors: [{ field: ['productId'], message: 'Product does not exist' }],
+      product: null,
+    });
+
+    const emptyCreateResponse = await postGraphql(
+      'mutation EmptyCreate($productId: ID!, $media: [CreateMediaInput!]!) { productCreateMedia(productId: $productId, media: $media) { media { id } mediaUserErrors { field message } product { id media(first: 10) { nodes { id } } } } }',
+      { productId, media: [] },
+    );
+    expect(emptyCreateResponse.body.data.productCreateMedia).toEqual({
+      media: [],
+      mediaUserErrors: [],
+      product: {
+        id: productId,
+        media: { nodes: [] },
+      },
+    });
+
+    const invalidTypeResponse = await postGraphql(
+      'mutation InvalidMediaType($productId: ID!, $media: [CreateMediaInput!]!) { productCreateMedia(productId: $productId, media: $media) { media { id } mediaUserErrors { field message } } }',
+      {
+        productId,
+        media: [{ mediaContentType: 'FILE', originalSource: 'https://placehold.co/600x400/png' }],
+      },
+    );
+    expect(invalidTypeResponse.body.errors).toEqual([
+      {
+        message:
+          'Variable $media of type [CreateMediaInput!]! was provided invalid value for 0.mediaContentType (Expected "FILE" to be one of: VIDEO, EXTERNAL_VIDEO, MODEL_3D, IMAGE)',
+        locations: [{ line: expect.any(Number), column: expect.any(Number) }],
+        extensions: {
+          code: 'INVALID_VARIABLE',
+          value: [{ mediaContentType: 'FILE', originalSource: 'https://placehold.co/600x400/png' }],
+          problems: [
+            {
+              path: [0, 'mediaContentType'],
+              explanation: 'Expected "FILE" to be one of: VIDEO, EXTERNAL_VIDEO, MODEL_3D, IMAGE',
+            },
+          ],
+        },
+      },
+    ]);
+
+    const invalidSourceResponse = await postGraphql(
+      'mutation InvalidSource($productId: ID!, $media: [CreateMediaInput!]!) { productCreateMedia(productId: $productId, media: $media) { media { id } mediaUserErrors { field message } product { id media(first: 10) { nodes { id } } } } }',
+      { productId, media: [{ mediaContentType: 'IMAGE', originalSource: 'not-a-url' }] },
+    );
+    expect(invalidSourceResponse.body.data.productCreateMedia).toEqual({
+      media: [],
+      mediaUserErrors: [{ field: ['media', '0', 'originalSource'], message: 'Image URL is invalid' }],
+      product: {
+        id: productId,
+        media: { nodes: [] },
+      },
+    });
+
+    const mixedCreateResponse = await postGraphql(
+      'mutation MixedCreate($productId: ID!, $media: [CreateMediaInput!]!) { productCreateMedia(productId: $productId, media: $media) { media { id alt mediaContentType status } mediaUserErrors { field message } product { id media(first: 10) { nodes { id alt mediaContentType status } } } } }',
+      {
+        productId,
+        media: [
+          {
+            mediaContentType: 'IMAGE',
+            originalSource: 'https://placehold.co/600x400/png',
+            alt: 'Valid mixed create',
+          },
+          { mediaContentType: 'IMAGE', originalSource: 'not-a-url', alt: 'Invalid mixed create' },
+        ],
+      },
+    );
+    const mixedCreateMediaId = mixedCreateResponse.body.data.productCreateMedia.media[0].id as string;
+    expect(mixedCreateResponse.body.data.productCreateMedia).toEqual({
+      media: [
+        {
+          id: mixedCreateMediaId,
+          alt: 'Valid mixed create',
+          mediaContentType: 'IMAGE',
+          status: 'UPLOADED',
+        },
+      ],
+      mediaUserErrors: [{ field: ['media', '1', 'originalSource'], message: 'Image URL is invalid' }],
+      product: {
+        id: productId,
+        media: {
+          nodes: [
+            {
+              id: mixedCreateMediaId,
+              alt: 'Valid mixed create',
+              mediaContentType: 'IMAGE',
+              status: 'UPLOADED',
+            },
+          ],
+        },
+      },
+    });
+
+    const seedCreateResponse = await postGraphql(
+      'mutation SeedMedia($productId: ID!, $media: [CreateMediaInput!]!) { productCreateMedia(productId: $productId, media: $media) { media { id } mediaUserErrors { field message } } }',
+      {
+        productId,
+        media: [
+          {
+            mediaContentType: 'IMAGE',
+            originalSource: 'https://placehold.co/600x400/png',
+            alt: 'Seed media',
+          },
+        ],
+      },
+    );
+    const seedMediaId = seedCreateResponse.body.data.productCreateMedia.media[0].id as string;
+
+    await postGraphql(
+      'query PromoteProcessing($id: ID!) { product(id: $id) { id media(first: 10) { nodes { id status } } } }',
+      { id: productId },
+    );
+    await postGraphql(
+      'query PromoteReady($id: ID!) { product(id: $id) { id media(first: 10) { nodes { id status } } } }',
+      { id: productId },
+    );
+
+    const emptyUpdateResponse = await postGraphql(
+      'mutation EmptyUpdate($productId: ID!, $media: [UpdateMediaInput!]!) { productUpdateMedia(productId: $productId, media: $media) { media { id } mediaUserErrors { field message } } }',
+      { productId, media: [] },
+    );
+    expect(emptyUpdateResponse.body.data.productUpdateMedia).toEqual({ media: [], mediaUserErrors: [] });
+
+    const unknownProductUpdateResponse = await postGraphql(
+      'mutation UnknownProductUpdate($productId: ID!, $media: [UpdateMediaInput!]!) { productUpdateMedia(productId: $productId, media: $media) { media { id } mediaUserErrors { field message } } }',
+      { productId: unknownProductId, media: [{ id: seedMediaId, alt: 'Should not update' }] },
+    );
+    expect(unknownProductUpdateResponse.body.data.productUpdateMedia).toEqual({
+      media: null,
+      mediaUserErrors: [{ field: ['productId'], message: 'Product does not exist' }],
+    });
+
+    const mixedUpdateResponse = await postGraphql(
+      'mutation MixedUpdate($productId: ID!, $media: [UpdateMediaInput!]!) { productUpdateMedia(productId: $productId, media: $media) { media { id } mediaUserErrors { field message } } }',
+      {
+        productId,
+        media: [
+          { id: seedMediaId, alt: 'Rejected update' },
+          { id: unknownMediaId, alt: 'Unknown media' },
+        ],
+      },
+    );
+    expect(mixedUpdateResponse.body.data.productUpdateMedia).toEqual({
+      media: null,
+      mediaUserErrors: [{ field: ['media'], message: `Media id ${unknownMediaId} does not exist` }],
+    });
+
+    const afterRejectedUpdateResponse = await postGraphql(
+      'query MediaAfterRejectedUpdate($id: ID!) { product(id: $id) { id media(first: 10) { nodes { id alt status } } } }',
+      { id: productId },
+    );
+    expect(afterRejectedUpdateResponse.body.data.product.media.nodes).toContainEqual({
+      id: seedMediaId,
+      alt: 'Seed media',
+      status: 'READY',
+    });
+
+    const emptyDeleteResponse = await postGraphql(
+      'mutation EmptyDelete($productId: ID!, $mediaIds: [ID!]!) { productDeleteMedia(productId: $productId, mediaIds: $mediaIds) { deletedMediaIds deletedProductImageIds mediaUserErrors { field message } product { id } } }',
+      { productId, mediaIds: [] },
+    );
+    expect(emptyDeleteResponse.body.data.productDeleteMedia).toEqual({
+      deletedMediaIds: [],
+      deletedProductImageIds: [],
+      mediaUserErrors: [],
+      product: { id: productId },
+    });
+
+    const unknownProductDeleteResponse = await postGraphql(
+      'mutation UnknownProductDelete($productId: ID!, $mediaIds: [ID!]!) { productDeleteMedia(productId: $productId, mediaIds: $mediaIds) { deletedMediaIds deletedProductImageIds mediaUserErrors { field message } product { id } } }',
+      { productId: unknownProductId, mediaIds: [seedMediaId] },
+    );
+    expect(unknownProductDeleteResponse.body.data.productDeleteMedia).toEqual({
+      deletedMediaIds: null,
+      deletedProductImageIds: null,
+      mediaUserErrors: [{ field: ['productId'], message: 'Product does not exist' }],
+      product: null,
+    });
+
+    const mixedDeleteResponse = await postGraphql(
+      'mutation MixedDelete($productId: ID!, $mediaIds: [ID!]!) { productDeleteMedia(productId: $productId, mediaIds: $mediaIds) { deletedMediaIds deletedProductImageIds mediaUserErrors { field message } product { id media(first: 10) { nodes { id alt status } } } } }',
+      { productId, mediaIds: [seedMediaId, unknownMediaId] },
+    );
+    expect(mixedDeleteResponse.body.data.productDeleteMedia).toEqual({
+      deletedMediaIds: null,
+      deletedProductImageIds: null,
+      mediaUserErrors: [{ field: ['mediaIds'], message: `Media id ${unknownMediaId} does not exist` }],
+      product: {
+        id: productId,
+        media: {
+          nodes: expect.arrayContaining([
+            {
+              id: seedMediaId,
+              alt: 'Seed media',
+              status: 'READY',
+            },
+          ]),
+        },
+      },
+    });
+
+    const unknownDeleteResponse = await postGraphql(
+      'mutation UnknownDelete($productId: ID!, $mediaIds: [ID!]!) { productDeleteMedia(productId: $productId, mediaIds: $mediaIds) { deletedMediaIds deletedProductImageIds mediaUserErrors { field message } product { id media(first: 10) { nodes { id } } } } }',
+      { productId, mediaIds: [unknownMediaId] },
+    );
+    expect(unknownDeleteResponse.body.data.productDeleteMedia).toMatchObject({
+      deletedMediaIds: null,
+      deletedProductImageIds: null,
+      mediaUserErrors: [{ field: ['mediaIds'], message: `Media id ${unknownMediaId} does not exist` }],
+    });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('stages synchronous productSet creates with product options, variants, and metafields for immediate downstream reads', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('productSet should not hit upstream fetch');

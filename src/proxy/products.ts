@@ -1191,6 +1191,100 @@ function makeSyntheticProductImageId(mediaContentType: string | null | undefined
   return null;
 }
 
+const CREATE_MEDIA_CONTENT_TYPES = new Set(['VIDEO', 'EXTERNAL_VIDEO', 'MODEL_3D', 'IMAGE']);
+
+function isValidMediaSource(value: unknown): value is string {
+  if (typeof value !== 'string' || !value.trim()) {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function mediaValidationProductNotFoundPayload(shape: 'create' | 'update' | 'delete') {
+  if (shape === 'delete') {
+    return {
+      deletedMediaIds: null,
+      deletedProductImageIds: null,
+      mediaUserErrors: [{ field: ['productId'], message: 'Product does not exist' }],
+      product: null,
+    };
+  }
+
+  return {
+    media: null,
+    mediaUserErrors: [{ field: ['productId'], message: 'Product does not exist' }],
+    ...(shape === 'create' ? { product: null } : {}),
+  };
+}
+
+function buildInvalidProductMediaContentTypeVariableError(
+  media: unknown[],
+  mediaIndex: number,
+  mediaContentType: string,
+  document: string,
+): {
+  errors: Array<{
+    message: string;
+    locations: GraphqlErrorLocation[];
+    extensions: {
+      code: 'INVALID_VARIABLE';
+      value: unknown[];
+      problems: Array<{ path: Array<string | number>; explanation: string }>;
+    };
+  }>;
+} {
+  const explanation = `Expected "${mediaContentType}" to be one of: VIDEO, EXTERNAL_VIDEO, MODEL_3D, IMAGE`;
+  return {
+    errors: [
+      {
+        message: `Variable $media of type [CreateMediaInput!]! was provided invalid value for ${mediaIndex}.mediaContentType (${explanation})`,
+        locations: getVariableDefinitionLocation(document, 'media'),
+        extensions: {
+          code: 'INVALID_VARIABLE',
+          value: structuredClone(media),
+          problems: [{ path: [mediaIndex, 'mediaContentType'], explanation }],
+        },
+      },
+    ],
+  };
+}
+
+function buildInvalidProductMediaProductIdVariableError(
+  productId: string,
+  document: string,
+): {
+  errors: Array<{
+    message: string;
+    locations: GraphqlErrorLocation[];
+    extensions: {
+      code: 'INVALID_VARIABLE';
+      value: string;
+      problems: Array<{ path: never[]; explanation: string; message: string }>;
+    };
+  }>;
+} {
+  const message = `Invalid global id '${productId}'`;
+  return {
+    errors: [
+      {
+        message: 'Variable $productId of type ID! was provided invalid value',
+        locations: getVariableDefinitionLocation(document, 'productId'),
+        extensions: {
+          code: 'INVALID_VARIABLE',
+          value: productId,
+          problems: [{ path: [], explanation: message, message }],
+        },
+      },
+    ],
+  };
+}
+
 function duplicateMetafieldRecord(metafield: ProductMetafieldRecord, productId: string): ProductMetafieldRecord {
   const timestamp = makeSyntheticTimestamp();
   const duplicated: ProductMetafieldRecord = {
@@ -7826,6 +7920,27 @@ export function handleProductMutation(
     case 'productCreateMedia': {
       const rawProductId = args['productId'];
       const productId = typeof rawProductId === 'string' ? rawProductId : null;
+      if (productId === '') {
+        return buildInvalidProductMediaProductIdVariableError(productId, document);
+      }
+
+      const mediaInput = Array.isArray(args['media']) ? args['media'] : [];
+      for (const [mediaIndex, media] of mediaInput.entries()) {
+        if (!isObject(media)) {
+          continue;
+        }
+
+        const rawMediaContentType = media['mediaContentType'];
+        if (typeof rawMediaContentType === 'string' && !CREATE_MEDIA_CONTENT_TYPES.has(rawMediaContentType)) {
+          return buildInvalidProductMediaContentTypeVariableError(
+            mediaInput,
+            mediaIndex,
+            rawMediaContentType,
+            document,
+          );
+        }
+      }
+
       if (!productId) {
         return {
           data: {
@@ -7842,27 +7957,40 @@ export function handleProductMutation(
       if (!existingProduct) {
         return {
           data: {
-            [responseKey]: {
-              media: [],
-              mediaUserErrors: [{ field: ['productId'], message: 'Product not found' }],
-              product: null,
-            },
+            [responseKey]: mediaValidationProductNotFoundPayload('create'),
           },
         };
       }
 
       const existingMedia = store.getEffectiveMediaByProductId(productId);
-      const createdMedia = (Array.isArray(args['media']) ? args['media'] : [])
-        .filter((media): media is Record<string, unknown> => isObject(media))
-        .map((media, index) => makeCreatedMediaRecord(productId, media, existingMedia.length + index));
+      const createdMedia: ProductMediaRecord[] = [];
+      const mediaUserErrors: Array<{ field: string[]; message: string }> = [];
+      for (const [mediaIndex, media] of mediaInput.entries()) {
+        if (!isObject(media)) {
+          continue;
+        }
+
+        const mediaContentType = typeof media['mediaContentType'] === 'string' ? media['mediaContentType'] : 'IMAGE';
+        if (mediaContentType === 'IMAGE' && !isValidMediaSource(media['originalSource'])) {
+          mediaUserErrors.push({
+            field: ['media', `${mediaIndex}`, 'originalSource'],
+            message: 'Image URL is invalid',
+          });
+          continue;
+        }
+
+        createdMedia.push(makeCreatedMediaRecord(productId, media, existingMedia.length + createdMedia.length));
+      }
       const nextMedia = [...existingMedia, ...createdMedia];
-      store.replaceStagedMediaForProduct(productId, nextMedia);
+      if (createdMedia.length > 0) {
+        store.replaceStagedMediaForProduct(productId, nextMedia);
+      }
 
       const response = {
         data: {
           [responseKey]: {
             media: serializeMediaPayload(createdMedia, getChildField(field, 'media')),
-            mediaUserErrors: [],
+            mediaUserErrors,
             product: serializeProduct(
               store.getEffectiveProductById(productId),
               getChildField(field, 'product'),
@@ -7872,16 +8000,22 @@ export function handleProductMutation(
         },
       };
 
-      store.replaceStagedMediaForProduct(productId, [
-        ...existingMedia,
-        ...createdMedia.map((mediaRecord) => transitionMediaToProcessing(mediaRecord)),
-      ]);
+      if (createdMedia.length > 0) {
+        store.replaceStagedMediaForProduct(productId, [
+          ...existingMedia,
+          ...createdMedia.map((mediaRecord) => transitionMediaToProcessing(mediaRecord)),
+        ]);
+      }
 
       return response;
     }
     case 'productUpdateMedia': {
       const rawProductId = args['productId'];
       const productId = typeof rawProductId === 'string' ? rawProductId : null;
+      if (productId === '') {
+        return buildInvalidProductMediaProductIdVariableError(productId, document);
+      }
+
       if (!productId) {
         return {
           data: {
@@ -7897,10 +8031,7 @@ export function handleProductMutation(
       if (!existingProduct) {
         return {
           data: {
-            [responseKey]: {
-              media: [],
-              mediaUserErrors: [{ field: ['productId'], message: 'Product not found' }],
-            },
+            [responseKey]: mediaValidationProductNotFoundPayload('update'),
           },
         };
       }
@@ -7913,11 +8044,16 @@ export function handleProductMutation(
         (media) => typeof media['id'] !== 'string' || !effectiveMedia.some((candidate) => candidate.id === media['id']),
       );
       if (missingMediaId) {
+        const rawMediaId = missingMediaId['id'];
+        const mediaUserError =
+          typeof rawMediaId === 'string'
+            ? { field: ['media'], message: `Media id ${rawMediaId} does not exist` }
+            : { field: ['media', 'id'], message: 'Media id is required' };
         return {
           data: {
             [responseKey]: {
-              media: [],
-              mediaUserErrors: [{ field: ['media', 'id'], message: 'Media id is required' }],
+              media: typeof rawMediaId === 'string' ? null : [],
+              mediaUserErrors: [mediaUserError],
             },
           },
         };
@@ -7969,6 +8105,10 @@ export function handleProductMutation(
     case 'productDeleteMedia': {
       const rawProductId = args['productId'];
       const productId = typeof rawProductId === 'string' ? rawProductId : null;
+      if (productId === '') {
+        return buildInvalidProductMediaProductIdVariableError(productId, document);
+      }
+
       if (!productId) {
         return {
           data: {
@@ -7986,12 +8126,7 @@ export function handleProductMutation(
       if (!existingProduct) {
         return {
           data: {
-            [responseKey]: {
-              deletedMediaIds: [],
-              deletedProductImageIds: [],
-              mediaUserErrors: [{ field: ['productId'], message: 'Product not found' }],
-              product: null,
-            },
+            [responseKey]: mediaValidationProductNotFoundPayload('delete'),
           },
         };
       }
@@ -8000,6 +8135,26 @@ export function handleProductMutation(
         ? args['mediaIds'].filter((mediaId): mediaId is string => typeof mediaId === 'string')
         : [];
       const effectiveMedia = store.getEffectiveMediaByProductId(productId);
+      const unknownMediaId = mediaIds.find(
+        (mediaId) => !effectiveMedia.some((mediaRecord) => mediaRecord.id === mediaId),
+      );
+      if (unknownMediaId) {
+        return {
+          data: {
+            [responseKey]: {
+              deletedMediaIds: null,
+              deletedProductImageIds: null,
+              mediaUserErrors: [{ field: ['mediaIds'], message: `Media id ${unknownMediaId} does not exist` }],
+              product: serializeProduct(
+                store.getEffectiveProductById(productId),
+                getChildField(field, 'product'),
+                variables,
+              ),
+            },
+          },
+        };
+      }
+
       const deletedMedia = effectiveMedia.filter(
         (mediaRecord) => typeof mediaRecord.id === 'string' && mediaIds.includes(mediaRecord.id),
       );

@@ -1,0 +1,16 @@
+{
+  "scenarioId": "product-media-validation-branches",
+  "operationNames": ["productCreateMedia", "productUpdateMedia", "productDeleteMedia"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "mutation-no-write-parity", "payload-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/product-media-validation-branches.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/product-draft-flow.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "notes": "Multi-step validation fixture covering missing/unknown product ids, empty media/id inputs, invalid image source, invalid mediaContentType variable coercion, unknown media ids, and mixed valid/invalid batches. The committed runtime test enforces the captured local behavior because the generic parity runner cannot yet set up and chain a product with ready media across create/update/delete validation branches."
+}
