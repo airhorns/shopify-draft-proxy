@@ -37,12 +37,14 @@ Local staged mutations:
 - `productVariantsBulkCreate`
 - `productVariantsBulkUpdate`
 - `productVariantsBulkDelete`
+- `productVariantsBulkReorder`
 - `productVariantCreate`
 - `productVariantUpdate`
 - `productVariantDelete`
 - `productCreateMedia`
 - `productUpdateMedia`
 - `productDeleteMedia`
+- `productReorderMedia`
 - `inventoryItemUpdate`
 - `inventoryAdjustQuantities`
 - `inventoryActivate`
@@ -64,6 +66,9 @@ Local staged mutations:
 - Local `metafieldsSet` support covers product, product variant, and collection owners only. It validates the full input batch before replacing each affected owner metafield set, supports compare-and-set through `compareDigest`, treats `compareDigest: null` as a create-only guard, and preserves Shopify-like atomic no-write behavior when any modeled resolver error is returned. Customer, order, draft-order, shop, discount, and other owner families remain scoped to their own endpoint groups or future issues.
 - `metafieldsDelete` uses the same product-domain owner scope and returns ordered `deletedMetafields` entries, including `null` for missing namespace/key rows. Downstream `product(id:)`, `productVariant(id:)`, and `collection(id:)` reads expose staged owner-specific singular `metafield(namespace:, key:)` and `metafields` connection results without live writes.
 - Product search uses the shared Shopify-style search parser. Endpoint-specific product behavior includes boolean grouping, quoted values, field comparators, simple term-list searches, variant search terms, sort keys, and captured connection cursor/pageInfo baselines.
+- Live schema introspection confirms product reorder roots for variant order (`productVariantsBulkReorder`), media order (`productReorderMedia`), option/value order (`productOptionsReorder`), and collection product order (`collectionReorderProducts`). Local support currently covers variant list reordering and media list reordering because the normalized state already has ordered variant/media connections; `productOptionsReorder` remains registry-only until option/value reorder semantics and Shopify's resulting variant order recalculation are backed by conformance evidence.
+- `productVariantsBulkReorder` stages an ordered effective variant list from `ProductVariantPositionInput.position` and exposes that ordering through downstream `product.variants(...)` and `productVariant(id:)` reads without runtime Shopify writes.
+- `productReorderMedia` stages `MoveInput` media moves, returns an async-style `Job`, and exposes reordered `product.media(...)` and `product.images(...)` connections without runtime Shopify writes.
 - Collection records carry aggregate publication target ids alongside product publication ids. A staged `collectionCreate` starts unpublished; collection publication counts and `publishedOnPublication(publicationId:)` remain unpublished until a local publish mutation adds a target.
 - `publishedOnCurrentPublication` is not inferred from aggregate collection publication count. Captured Online Store publishable writes leave it false when the app current publication is not the target.
 - Local `publishablePublish` and `publishableUnpublish` currently stage Product and Collection publishables. Broader publishable implementers remain unsupported in their own groups.

@@ -741,6 +741,16 @@
     "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
+    "name": "productOptionsReorder",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["productOptionsReorder", "ProductOptionsReorder"],
+    "runtimeTests": [],
+    "supportNotes": "Live schema introspection confirms `productOptionsReorder(productId: ID!, options: [OptionReorderInput!]!)` returns `product` plus `userErrors`. Keep unimplemented until option/value reorder semantics and the resulting variant order recalculation are backed by conformance evidence; registry presence must not make this a supported passthrough."
+  },
+  {
     "name": "productVariantsBulkCreate",
     "type": "mutation",
     "domain": "products",
@@ -766,6 +776,16 @@
     "implemented": true,
     "matchNames": ["productVariantsBulkDelete", "ProductVariantsBulkDelete"],
     "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
+  },
+  {
+    "name": "productVariantsBulkReorder",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["productVariantsBulkReorder", "ProductVariantsBulkReorder"],
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
+    "supportNotes": "Local staging reorders the effective product variant list by `ProductVariantPositionInput.position` and exposes the new order through product variant connections without runtime Shopify writes."
   },
   {
     "name": "productVariantCreate",
@@ -820,6 +840,16 @@
     "implemented": true,
     "matchNames": ["productDeleteMedia", "ProductDeleteMedia"],
     "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
+  },
+  {
+    "name": "productReorderMedia",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["productReorderMedia", "ProductReorderMedia"],
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
+    "supportNotes": "Local staging applies `MoveInput` media moves to the effective product media order, returns an async-style `Job`, and exposes the reordered media/image connections without runtime Shopify writes."
   },
   {
     "name": "inventoryItemUpdate",

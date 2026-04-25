@@ -324,6 +324,19 @@ describe('getOperationCapability', () => {
       operationName: 'ProductVariantsBulkDelete',
       type: 'mutation',
     });
+
+    expect(
+      getOperationCapability({
+        type: 'mutation',
+        name: 'ProductVariantsBulkReorder',
+        rootFields: ['productVariantsBulkReorder'],
+      }),
+    ).toEqual({
+      domain: 'products',
+      execution: 'stage-locally',
+      operationName: 'ProductVariantsBulkReorder',
+      type: 'mutation',
+    });
   });
 
   it('marks singular product variant mutations as locally staged mutations', () => {
@@ -449,6 +462,15 @@ describe('getOperationCapability', () => {
       domain: 'products',
       execution: 'stage-locally',
       operationName: 'ProductDeleteMedia',
+      type: 'mutation',
+    });
+
+    expect(
+      getOperationCapability({ type: 'mutation', name: 'ProductReorderMedia', rootFields: ['productReorderMedia'] }),
+    ).toEqual({
+      domain: 'products',
+      execution: 'stage-locally',
+      operationName: 'ProductReorderMedia',
       type: 'mutation',
     });
   });
