@@ -20,6 +20,9 @@ Local staged mutations:
 - `orderOpen`
 - `orderMarkAsPaid`
 - `orderCreateManualPayment`
+- `orderCapture`
+- `transactionVoid`
+- `orderCreateMandatePayment`
 - `orderCustomerSet`
 - `orderCustomerRemove`
 - `orderInvoiceSend`
@@ -50,11 +53,16 @@ Local staged mutations:
 - Draft-order create/complete/update/duplicate/delete/invoice/create-from-order flows preserve staged state for downstream reads and commit replay.
 - Order edit operations use calculated-order state during the edit session and materialize changes on `orderEditCommit`.
 - `refundCreate` stages refund records for downstream order reads and covers over-refund user-error behavior through parity fixtures.
+- Order payment transaction flows stage locally for in-memory orders. `orderCapture` turns successful authorization transactions into `CAPTURE` transactions, updates `capturable`, `totalCapturable`, `totalCapturableSet`, `totalOutstandingSet`, `totalReceivedSet`, `netPaymentSet`, `displayFinancialStatus`, `paymentGatewayNames`, and records synthetic `paymentId` / `paymentReferenceId` values. Partial captures keep the remaining authorization capturable; final captures close the remaining capturable balance.
+- `transactionVoid` creates a `VOID` transaction for uncaptured authorization transactions and clears downstream capturable state. Invalid, already-voided, and already-captured authorization requests return local `userErrors` without passthrough.
+- `orderCreateMandatePayment` creates a completed local `Job`, a stable session-scoped `paymentReferenceId`, and a `MANDATE_PAYMENT` transaction. Reusing the same order/idempotency-key pair returns the original job/reference result and does not duplicate the transaction.
+- The local payment implementation does not contact real payment gateways and intentionally limits itself to local/synthetic orders and transaction branches covered by runtime tests or safe documentation evidence. Broader Plus-only and permission-specific mandate/capture branches still require live conformance evidence before they should be expanded.
 
 ## Validation anchors
 
 - Order reads: `tests/integration/order-query-shapes.test.ts`
 - Order lifecycle, payment, and customer changes: `tests/integration/order-lifecycle-payment-customer-flow.test.ts`
+- Order payment transaction changes: `tests/integration/order-payment-transaction-flow.test.ts`
 - Order create/update flows: `tests/integration/order-creation-flow.test.ts`, `tests/integration/order-draft-flow.test.ts`
 - Draft-order mutation family: `tests/integration/draft-order-mutation-family-flow.test.ts`
 - Fulfillments: `tests/integration/order-fulfillment-flow.test.ts`

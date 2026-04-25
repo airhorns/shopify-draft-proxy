@@ -909,8 +909,22 @@ export const orderTransactionRecordSchema = z.strictObject({
   status: nullableStringSchema,
   gateway: nullableStringSchema,
   amountSet: moneySetSchema.nullable(),
+  parentTransactionId: nullableStringSchema.optional(),
+  paymentId: nullableStringSchema.optional(),
+  paymentReferenceId: nullableStringSchema.optional(),
+  processedAt: nullableStringSchema.optional(),
 });
 export type OrderTransactionRecord = z.infer<typeof orderTransactionRecordSchema>;
+
+export const orderMandatePaymentRecordSchema = z.strictObject({
+  idempotencyKey: z.string(),
+  orderId: z.string(),
+  jobId: z.string(),
+  paymentReferenceId: z.string(),
+  transactionId: z.string(),
+  createdAt: z.string(),
+});
+export type OrderMandatePaymentRecord = z.infer<typeof orderMandatePaymentRecordSchema>;
 
 export const orderRefundLineItemRecordSchema = z.strictObject({
   id: z.string(),
@@ -968,6 +982,8 @@ export const orderRecordSchema = z.strictObject({
   currentTotalTaxSet: moneySetSchema.nullable().optional(),
   totalPriceSet: moneySetSchema.nullable(),
   totalOutstandingSet: moneySetSchema.nullable().optional(),
+  totalCapturableSet: moneySetSchema.nullable().optional(),
+  capturable: z.boolean().optional(),
   totalReceivedSet: moneySetSchema.nullable().optional(),
   netPaymentSet: moneySetSchema.nullable().optional(),
   totalRefundedSet: moneySetSchema.nullable(),

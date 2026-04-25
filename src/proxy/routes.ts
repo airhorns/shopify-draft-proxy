@@ -33,6 +33,8 @@ const APP_DISCOUNT_MUTATION_ROOTS = new Set([
   'discountAutomaticAppUpdate',
 ]);
 
+const ORDER_PAYMENT_MUTATION_ROOTS = new Set(['orderCapture', 'transactionVoid', 'orderCreateMandatePayment']);
+
 const FULFILLMENT_SERVICE_MUTATION_ROOTS = new Set([
   'fulfillmentServiceCreate',
   'fulfillmentServiceUpdate',
@@ -348,6 +350,33 @@ export function createProxyRouter(config: AppConfig): Router {
       ctx.status = 200;
       ctx.body = handleMediaMutation(body.query, variables);
       return;
+    }
+
+    if (
+      capability.execution === 'stage-locally' &&
+      capability.domain === 'payments' &&
+      ORDER_PAYMENT_MUTATION_ROOTS.has(primaryRootField ?? '')
+    ) {
+      const responseBody = handleOrderMutation(body.query, variables, config.readMode, config.shopifyAdminOrigin);
+      if (responseBody) {
+        store.appendLog({
+          id: makeSyntheticGid('MutationLogEntry'),
+          receivedAt: makeSyntheticTimestamp(),
+          operationName: capability.operationName,
+          path: ctx.path,
+          query: body.query,
+          variables,
+          requestBody,
+          stagedResourceIds: collectProxySyntheticGids(responseBody),
+          status: 'staged',
+          interpreted: interpretMutationLogEntry(parsed, capability),
+          notes: 'Staged locally in the in-memory order payment draft store.',
+        });
+
+        ctx.status = 200;
+        ctx.body = responseBody;
+        return;
+      }
     }
 
     if (capability.execution === 'stage-locally' && capability.domain === 'markets') {
