@@ -1564,6 +1564,9 @@ function makeSeedCustomer(customerId: string, source: Record<string, unknown> | 
     canDelete: readBooleanField(source, 'canDelete') ?? true,
     verifiedEmail: readBooleanField(source, 'verifiedEmail') ?? (email ? true : null),
     taxExempt: readBooleanField(source, 'taxExempt') ?? false,
+    taxExemptions: readArrayField(source, 'taxExemptions').filter(
+      (taxExemption): taxExemption is string => typeof taxExemption === 'string',
+    ),
     state: readStringField(source, 'state') ?? 'DISABLED',
     tags: readArrayField(source, 'tags').filter((tag): tag is string => typeof tag === 'string'),
     numberOfOrders: readNumberField(source, 'numberOfOrders') ?? readStringField(source, 'numberOfOrders') ?? 0,
@@ -1605,6 +1608,7 @@ function makePlaceholderCustomer(index: number): CustomerRecord {
     canDelete: true,
     verifiedEmail: true,
     taxExempt: false,
+    taxExemptions: [],
     state: 'DISABLED',
     tags: ['baseline'],
     numberOfOrders: 0,
@@ -1630,7 +1634,10 @@ function seedCustomerMutationPreconditions(
     mutationName !== 'customerUpdate' &&
     mutationName !== 'customerDelete' &&
     mutationName !== 'customerEmailMarketingConsentUpdate' &&
-    mutationName !== 'customerSmsMarketingConsentUpdate'
+    mutationName !== 'customerSmsMarketingConsentUpdate' &&
+    mutationName !== 'customerAddTaxExemptions' &&
+    mutationName !== 'customerRemoveTaxExemptions' &&
+    mutationName !== 'customerReplaceTaxExemptions'
   ) {
     return false;
   }
@@ -1639,7 +1646,9 @@ function seedCustomerMutationPreconditions(
   const customerPayload = readRecordField(payload, 'customer');
   const preconditionPayload = firstObjectValue(readJsonPath(capture, '$.precondition.response.data'));
   const preconditionCustomerPayload = readRecordField(preconditionPayload, 'customer');
-  const downstreamData = readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data');
+  const downstreamRead = readRecordField(capture as Record<string, unknown>, 'downstreamRead');
+  const downstreamData =
+    readRecordField(downstreamRead, 'data') ?? readRecordField(readRecordField(downstreamRead, 'response'), 'data');
   const downstreamCount = readNumberField(readRecordField(downstreamData, 'customersCount'), 'count');
   const targetCustomerId =
     readStringField(input, 'id') ??
@@ -1655,7 +1664,13 @@ function seedCustomerMutationPreconditions(
 
   if (downstreamCount !== null) {
     const targetContributesToDownstreamCount =
-      mutationName === 'customerCreate' || mutationName === 'customerUpdate' ? 1 : 0;
+      mutationName === 'customerCreate' ||
+      mutationName === 'customerUpdate' ||
+      mutationName === 'customerAddTaxExemptions' ||
+      mutationName === 'customerRemoveTaxExemptions' ||
+      mutationName === 'customerReplaceTaxExemptions'
+        ? 1
+        : 0;
     const placeholderCount = Math.max(0, downstreamCount - targetContributesToDownstreamCount);
     for (let index = 0; index < placeholderCount; index += 1) {
       seedCustomers.push(makePlaceholderCustomer(index));
