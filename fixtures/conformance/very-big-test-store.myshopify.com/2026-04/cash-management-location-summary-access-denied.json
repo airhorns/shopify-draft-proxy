@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-04-25T12:22:26.443Z",
+  "capturedAt": "2026-04-25T14:31:07.093Z",
   "storeDomain": "very-big-test-store.myshopify.com",
   "apiVersion": "2026-04",
   "operation": "cashManagementLocationSummary",
@@ -183,7 +183,7 @@
             "actualQueryCost": 3,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1991,
+              "currentlyAvailable": 1988,
               "restoreRate": 100
             }
           }
@@ -213,7 +213,9 @@
               "documentation": "https://shopify.dev/api/usage/access-scopes",
               "requiredAccess": "`read_cash_tracking` access scope. Also: User must have `view_payment_tracking_sessions_pos_channel` or `payments_cash_session_history` retail role permission."
             },
-            "path": ["cashManagementLocationSummary"]
+            "path": [
+              "cashManagementLocationSummary"
+            ]
           }
         ],
         "data": null,
@@ -223,7 +225,7 @@
             "actualQueryCost": 1,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1999,
+              "currentlyAvailable": 1998,
               "restoreRate": 100
             }
           }
@@ -253,7 +255,9 @@
               "documentation": "https://shopify.dev/api/usage/access-scopes",
               "requiredAccess": "`read_cash_tracking` access scope. Also: User must have `view_payment_tracking_sessions_pos_channel` or `payments_cash_session_history` retail role permission."
             },
-            "path": ["cashManagementLocationSummary"]
+            "path": [
+              "cashManagementLocationSummary"
+            ]
           }
         ],
         "data": null,
@@ -377,7 +381,11 @@
                 "column": 5
               }
             ],
-            "path": ["query CashManagementLocationSummaryInvalidDate", "cashManagementLocationSummary", "startDate"],
+            "path": [
+              "query CashManagementLocationSummaryInvalidDate",
+              "cashManagementLocationSummary",
+              "startDate"
+            ],
             "extensions": {
               "code": "argumentLiteralsIncompatible",
               "typeName": "CoercionError"
