@@ -19,6 +19,7 @@ const emptySnapshot = {
   collections: {},
   publications: {},
   customers: {},
+  customerMetafields: {},
   businessEntities: {},
   businessEntityOrder: [],
   productCollections: {},

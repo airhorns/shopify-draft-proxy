@@ -270,6 +270,249 @@ describe('customer draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('stages customer tax exemptions and metafields on customerUpdate and exposes them on downstream reads', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('customerUpdate tax/metafield staging should not hit upstream fetch');
+    });
+
+    store.upsertBaseCustomers([
+      {
+        id: 'gid://shopify/Customer/154',
+        firstName: 'Tax',
+        lastName: 'Customer',
+        displayName: 'Tax Customer',
+        email: 'tax-customer@example.com',
+        legacyResourceId: '154',
+        locale: 'en',
+        note: null,
+        canDelete: true,
+        verifiedEmail: true,
+        taxExempt: false,
+        taxExemptions: [],
+        state: 'DISABLED',
+        tags: ['baseline'],
+        numberOfOrders: 0,
+        amountSpent: null,
+        defaultEmailAddress: { emailAddress: 'tax-customer@example.com' },
+        defaultPhoneNumber: null,
+        defaultAddress: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
+      },
+    ]);
+
+    const app = createApp(snapshotConfig).callback();
+    const updateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CustomerTaxAndMetafields($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer {
+              id
+              taxExempt
+              taxExemptions
+              loyalty: metafield(namespace: "custom", key: "loyalty") {
+                id
+                namespace
+                key
+                type
+                value
+              }
+              metafields(first: 5) {
+                nodes {
+                  id
+                  namespace
+                  key
+                  type
+                  value
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            id: 'gid://shopify/Customer/154',
+            taxExempt: true,
+            taxExemptions: ['CA_BC_RESELLER_EXEMPTION'],
+            metafields: [
+              {
+                namespace: 'custom',
+                key: 'loyalty',
+                type: 'single_line_text_field',
+                value: 'gold',
+              },
+            ],
+          },
+        },
+      });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body.data.customerUpdate.userErrors).toEqual([]);
+    expect(updateResponse.body.data.customerUpdate.customer).toMatchObject({
+      id: 'gid://shopify/Customer/154',
+      taxExempt: true,
+      taxExemptions: ['CA_BC_RESELLER_EXEMPTION'],
+      loyalty: {
+        namespace: 'custom',
+        key: 'loyalty',
+        type: 'single_line_text_field',
+        value: 'gold',
+      },
+      metafields: {
+        nodes: [
+          {
+            namespace: 'custom',
+            key: 'loyalty',
+            type: 'single_line_text_field',
+            value: 'gold',
+          },
+        ],
+        pageInfo: {
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
+      },
+    });
+    expect(updateResponse.body.data.customerUpdate.customer.loyalty.id).toMatch(/^gid:\/\/shopify\/Metafield\//);
+    expect(updateResponse.body.data.customerUpdate.customer.metafields.nodes[0].id).toBe(
+      updateResponse.body.data.customerUpdate.customer.loyalty.id,
+    );
+    expect(updateResponse.body.data.customerUpdate.customer.metafields.pageInfo.startCursor).toBe(
+      `cursor:${updateResponse.body.data.customerUpdate.customer.loyalty.id}`,
+    );
+    expect(updateResponse.body.data.customerUpdate.customer.metafields.pageInfo.endCursor).toBe(
+      `cursor:${updateResponse.body.data.customerUpdate.customer.loyalty.id}`,
+    );
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query CustomerTaxMetafieldRead($id: ID!) {
+          customer(id: $id) {
+            id
+            taxExempt
+            taxExemptions
+            loyalty: metafield(namespace: "custom", key: "loyalty") {
+              id
+              namespace
+              key
+              type
+              value
+            }
+          }
+          customers(first: 5) {
+            nodes {
+              id
+              taxExemptions
+              metafields(first: 5) {
+                nodes { id namespace key type value }
+              }
+            }
+          }
+        }`,
+        variables: { id: 'gid://shopify/Customer/154' },
+      });
+
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body.data.customer).toEqual({
+      id: 'gid://shopify/Customer/154',
+      taxExempt: true,
+      taxExemptions: ['CA_BC_RESELLER_EXEMPTION'],
+      loyalty: updateResponse.body.data.customerUpdate.customer.loyalty,
+    });
+    expect(readResponse.body.data.customers.nodes).toEqual([
+      {
+        id: 'gid://shopify/Customer/154',
+        taxExemptions: ['CA_BC_RESELLER_EXEMPTION'],
+        metafields: {
+          nodes: [updateResponse.body.data.customerUpdate.customer.loyalty],
+        },
+      },
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns userErrors for invalid customer tax exemption and metafield update inputs', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('invalid customerUpdate tax/metafield inputs should not hit upstream fetch');
+    });
+
+    store.upsertBaseCustomers([
+      {
+        id: 'gid://shopify/Customer/155',
+        firstName: 'Invalid',
+        lastName: 'Input',
+        displayName: 'Invalid Input',
+        email: 'invalid-input@example.com',
+        legacyResourceId: '155',
+        locale: 'en',
+        note: null,
+        canDelete: true,
+        verifiedEmail: true,
+        taxExempt: false,
+        taxExemptions: [],
+        state: 'DISABLED',
+        tags: [],
+        numberOfOrders: 0,
+        amountSpent: null,
+        defaultEmailAddress: { emailAddress: 'invalid-input@example.com' },
+        defaultPhoneNumber: null,
+        defaultAddress: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
+      },
+    ]);
+
+    const app = createApp(snapshotConfig).callback();
+    const updateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation InvalidCustomerTaxMetafields($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id taxExemptions metafields(first: 5) { nodes { id } } }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            id: 'gid://shopify/Customer/155',
+            taxExemptions: ['NOT_A_TAX_EXEMPTION'],
+            metafields: [{ namespace: 'custom', key: 'bad_type', type: 'not_a_type', value: 'bad' }],
+          },
+        },
+      });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body).toEqual({
+      data: {
+        customerUpdate: {
+          customer: null,
+          userErrors: [
+            {
+              field: ['taxExemptions', '0'],
+              message: 'Tax exemption is not a valid value',
+            },
+            {
+              field: ['metafields', '0', 'type'],
+              message: expect.stringContaining('Type must be one of the following:'),
+            },
+          ],
+        },
+      },
+    });
+    expect(store.getEffectiveCustomerById('gid://shopify/Customer/155')?.taxExemptions).toEqual([]);
+    expect(store.getEffectiveMetafieldsByCustomerId('gid://shopify/Customer/155')).toEqual([]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('stages customerDelete locally and removes the customer from downstream reads without hitting upstream', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('customerDelete should not hit upstream fetch');
