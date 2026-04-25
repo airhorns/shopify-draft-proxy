@@ -1,0 +1,12 @@
+mutation WebPresenceUpdateUnknownId($id: ID!, $input: WebPresenceUpdateInput!) {
+  webPresenceUpdate(id: $id, input: $input) {
+    webPresence {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
