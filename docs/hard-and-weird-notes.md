@@ -1122,6 +1122,19 @@ Practical rule:
 - treat `metafieldDelete` as a compatibility alias over the same staged owner-scoped removal path
 - close the singular compatibility root against the plural live evidence explicitly; do not leave it behind as a stale declared gap once the alias behavior is proven
 
+## 18c. `metafieldsDelete` missing rows are ordered nulls, not userErrors
+
+HAR-143 refreshed the product-owned metafields delete capture against the 2025-01 conformance store after checking the 2026-04 Admin docs. The live behavior has a few sharp edges:
+
+- a mixed `metafieldsDelete` batch returns one `deletedMetafields` entry per input in order
+- existing product-owned metafields return `{ key, namespace, ownerId }`
+- nonexistent product-owned namespace/key pairs return `null` at that same response index and do **not** add `userErrors`
+- a nonexistent product owner id also returns `[null]` with no `userErrors`
+- an empty `metafields: []` variable returned `deletedMetafields: []` and `userErrors: []` in the captured run, despite the docs saying at least one identifier must be specified
+- omitting a required identifier field such as `key` from variables returns a top-level `INVALID_VARIABLE` GraphQL error before resolver execution
+
+Local product-owned staging should therefore distinguish malformed identifiers from valid-but-absent identifiers: malformed variable input is a GraphQL variable error, while valid identifiers that do not match an existing metafield are successful `null` delete results. Downstream product metafield reads still rely on product-scoped replacement semantics so base metafields do not reappear after an existing row is deleted in a mixed batch.
+
 ## 19. Variant bulk mutations are useful before full option/variant fanout parity
 
 A worthwhile intermediate step before true Shopify-grade variant fanout is supporting the real bulk mutation family with a narrower merchandising/inventory slice:

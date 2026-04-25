@@ -10,7 +10,7 @@
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live capture now covers Shopify's current plural `metafieldsDelete` root, including immediate downstream `product.metafield(...)` / `product.metafields` removal parity for product-owned metafields.",
+  "notes": "Live capture covers Shopify's current plural `metafieldsDelete` root, including a mixed product-owned batch where an existing metafield returns its identifier, a nonexistent namespace/key returns `null` in the same ordered `deletedMetafields` list, and immediate downstream `product.metafield(...)` / `product.metafields` reads show the existing metafield removed. The same fixture also records non-comparison edge evidence for nonexistent owner, empty input, and missing required key validation.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [

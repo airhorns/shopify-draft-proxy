@@ -3,14 +3,14 @@
     "variables": {
       "metafields": [
         {
-          "ownerId": "gid://shopify/Product/9264604807401",
+          "ownerId": "gid://shopify/Product/9264622174441",
           "namespace": "custom",
           "key": "material",
           "type": "single_line_text_field",
           "value": "Canvas"
         },
         {
-          "ownerId": "gid://shopify/Product/9264604807401",
+          "ownerId": "gid://shopify/Product/9264622174441",
           "namespace": "details",
           "key": "origin",
           "type": "single_line_text_field",
@@ -23,14 +23,14 @@
         "metafieldsSet": {
           "metafields": [
             {
-              "id": "gid://shopify/Metafield/35329787920617",
+              "id": "gid://shopify/Metafield/35330177695977",
               "namespace": "custom",
               "key": "material",
               "type": "single_line_text_field",
               "value": "Canvas"
             },
             {
-              "id": "gid://shopify/Metafield/35329787953385",
+              "id": "gid://shopify/Metafield/35330177728745",
               "namespace": "details",
               "key": "origin",
               "type": "single_line_text_field",
@@ -56,16 +56,16 @@
   "downstreamRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/9264604807401",
+        "id": "gid://shopify/Product/9264622174441",
         "primarySpec": {
-          "id": "gid://shopify/Metafield/35329787920617",
+          "id": "gid://shopify/Metafield/35330177695977",
           "namespace": "custom",
           "key": "material",
           "type": "single_line_text_field",
           "value": "Canvas"
         },
         "origin": {
-          "id": "gid://shopify/Metafield/35329787953385",
+          "id": "gid://shopify/Metafield/35330177728745",
           "namespace": "details",
           "key": "origin",
           "type": "single_line_text_field",
@@ -74,14 +74,14 @@
         "metafields": {
           "nodes": [
             {
-              "id": "gid://shopify/Metafield/35329787920617",
+              "id": "gid://shopify/Metafield/35330177695977",
               "namespace": "custom",
               "key": "material",
               "type": "single_line_text_field",
               "value": "Canvas"
             },
             {
-              "id": "gid://shopify/Metafield/35329787953385",
+              "id": "gid://shopify/Metafield/35330177728745",
               "namespace": "details",
               "key": "origin",
               "type": "single_line_text_field",
@@ -91,8 +91,8 @@
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjozNTMyOTc4NzkyMDYxNywibGFzdF92YWx1ZSI6IjM1MzI5Nzg3OTIwNjE3In0=",
-            "endCursor": "eyJsYXN0X2lkIjozNTMyOTc4Nzk1MzM4NSwibGFzdF92YWx1ZSI6IjM1MzI5Nzg3OTUzMzg1In0="
+            "startCursor": "eyJsYXN0X2lkIjozNTMzMDE3NzY5NTk3NywibGFzdF92YWx1ZSI6IjM1MzMwMTc3Njk1OTc3In0=",
+            "endCursor": "eyJsYXN0X2lkIjozNTMzMDE3NzcyODc0NSwibGFzdF92YWx1ZSI6IjM1MzMwMTc3NzI4NzQ1In0="
           }
         }
       }
