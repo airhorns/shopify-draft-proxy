@@ -139,6 +139,69 @@ function hasComparisonContract(paritySpec: ParitySpec | null | undefined): boole
   return Array.isArray(targets) && targets.length > 0;
 }
 
+function pathSegmentsOrNull(pathValue: unknown): PathSegment[] | null {
+  if (typeof pathValue !== 'string') {
+    return null;
+  }
+
+  try {
+    return parsePath(pathValue);
+  } catch {
+    return null;
+  }
+}
+
+function isErrorSurfaceSegment(segment: PathSegment): boolean {
+  return (
+    segment === 'errors' ||
+    (typeof segment === 'string' && (segment === 'userErrors' || segment.endsWith('UserErrors')))
+  );
+}
+
+function selectsMutationPayloadRoot(pathValue: unknown): boolean {
+  const segments = pathSegmentsOrNull(pathValue);
+  if (!segments) {
+    return false;
+  }
+
+  if (segments.some(isErrorSurfaceSegment)) {
+    return true;
+  }
+
+  const dataIndex = segments.lastIndexOf('data');
+  if (dataIndex === -1) {
+    return false;
+  }
+
+  return dataIndex === segments.length - 1 || dataIndex === segments.length - 2;
+}
+
+function targetCoversMutationErrorSurface(target: ComparisonTarget): boolean {
+  return selectsMutationPayloadRoot(target.capturePath) && selectsMutationPayloadRoot(target.proxyPath);
+}
+
+function validateAssertionKindContract(
+  scenario: Pick<Scenario, 'assertionKinds'>,
+  paritySpec: ParitySpec | null | undefined,
+): string[] {
+  if (!scenario.assertionKinds?.includes('user-errors-parity')) {
+    return [];
+  }
+
+  const targets = paritySpec?.comparison?.targets;
+  if (!Array.isArray(targets) || targets.length === 0) {
+    return ['`user-errors-parity` scenarios must declare comparison targets that cover mutation error surfaces.'];
+  }
+
+  if (targets.some(targetCoversMutationErrorSurface)) {
+    return [];
+  }
+
+  return [
+    '`user-errors-parity` scenarios must compare GraphQL `errors`, a mutation payload root, or a `*UserErrors` field; product-only or resource-only targets can miss validation drift.',
+  ];
+}
+
 function isKnownMatcher(matcher: string): matcher is Matcher {
   return (
     matcher === 'any-string' ||
@@ -221,7 +284,7 @@ export function validateComparisonContract(comparison: unknown): string[] {
 }
 
 export function classifyParityScenarioState(
-  scenario: Pick<Scenario, 'status'>,
+  scenario: Pick<Scenario, 'status' | 'assertionKinds'>,
   paritySpec: ParitySpec | null | undefined,
 ): ParityScenarioState {
   if (paritySpec?.blocker && hasProxyRequest(paritySpec)) {
@@ -229,7 +292,9 @@ export function classifyParityScenarioState(
   }
 
   if (scenario.status === 'captured') {
-    return hasProxyRequest(paritySpec) && hasComparisonContract(paritySpec)
+    return hasProxyRequest(paritySpec) &&
+      hasComparisonContract(paritySpec) &&
+      validateAssertionKindContract(scenario, paritySpec).length === 0
       ? 'ready-for-comparison'
       : 'invalid-missing-comparison-contract';
   }
@@ -3948,6 +4013,10 @@ export async function executeParityScenario({
     throw new Error(
       `Scenario ${scenario.id} must declare at least one comparison target or a blocker; no implicit fallback target is used.`,
     );
+  }
+  const assertionKindErrors = validateAssertionKindContract(scenario, paritySpec);
+  if (assertionKindErrors.length > 0) {
+    throw new Error(`Scenario ${scenario.id} has invalid assertion-kind coverage: ${assertionKindErrors.join(' ')}`);
   }
 
   store.reset();

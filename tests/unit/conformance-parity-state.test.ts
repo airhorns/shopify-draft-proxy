@@ -63,6 +63,31 @@ describe('classifyParityScenarioState', () => {
     expect(state).toBe('ready-for-comparison');
   });
 
+  it('keeps userErrors parity scenarios invalid until a target covers the mutation error surface', () => {
+    const state = classifyParityScenarioState(
+      { status: 'captured', assertionKinds: ['payload-shape', 'user-errors-parity'] },
+      {
+        proxyRequest: {
+          documentPath: 'config/parity-requests/productCreate.graphql',
+          variablesPath: 'config/parity-requests/productCreate.json',
+        },
+        comparison: {
+          mode: 'strict-json',
+          expectedDifferences: [],
+          targets: [
+            {
+              name: 'product-only',
+              capturePath: '$.mutation.response.data.productCreate.product',
+              proxyPath: '$.data.productCreate.product',
+            },
+          ],
+        },
+      },
+    );
+
+    expect(state).toBe('invalid-missing-comparison-contract');
+  });
+
   it('marks captured scenarios without comparison targets as invalid even when the contract shape is valid', () => {
     expect(
       classifyParityScenarioState(
@@ -463,6 +488,123 @@ describe('compareJsonPayloads', () => {
 });
 
 describe('executeParityScenario', () => {
+  it('compares fixture-backed mutation userErrors through the mutation payload target', async () => {
+    const repoRoot = new URL('../..', import.meta.url).pathname;
+    const result = await executeParityScenario({
+      repoRoot,
+      scenario: {
+        id: 'productCreate-blank-title-parity',
+        status: 'captured',
+        assertionKinds: ['payload-shape', 'user-errors-parity'],
+        captureFiles: ['fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-create-parity.json'],
+      },
+      paritySpec: {
+        proxyRequest: {
+          documentPath: 'config/parity-requests/productCreate-parity-plan.graphql',
+          variablesCapturePath: '$.validation.variables',
+        },
+        comparison: {
+          mode: 'strict-json',
+          expectedDifferences: [],
+          targets: [
+            {
+              name: 'blank-title-product-create-data',
+              capturePath: '$.validation.response.data',
+              proxyPath: '$.data',
+            },
+          ],
+        },
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.comparisons).toEqual([
+      {
+        name: 'blank-title-product-create-data',
+        ok: true,
+        differences: [],
+      },
+    ]);
+  });
+
+  it('fails fixture-backed mutation userErrors parity when proxy validation drifts', async () => {
+    const repoRoot = new URL('../..', import.meta.url).pathname;
+    const result = await executeParityScenario({
+      repoRoot,
+      scenario: {
+        id: 'productCreate-blank-title-parity',
+        status: 'captured',
+        assertionKinds: ['payload-shape', 'user-errors-parity'],
+        captureFiles: ['fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-create-parity.json'],
+      },
+      paritySpec: {
+        proxyRequest: {
+          documentPath: 'config/parity-requests/productCreate-parity-plan.graphql',
+          variables: {
+            product: {
+              title: 'Valid title that should not match the blank-title capture',
+            },
+          },
+        },
+        comparison: {
+          mode: 'strict-json',
+          expectedDifferences: [],
+          targets: [
+            {
+              name: 'blank-title-product-create-data',
+              capturePath: '$.validation.response.data',
+              proxyPath: '$.data',
+            },
+          ],
+        },
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.comparisons).toHaveLength(1);
+    expect(result.comparisons[0]?.differences).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: '$.productCreate.userErrors',
+          message: 'Array length differs: expected 1, received 0.',
+        }),
+      ]),
+    );
+  });
+
+  it('rejects userErrors parity scenarios whose targets can only compare the resource body', async () => {
+    const repoRoot = new URL('../..', import.meta.url).pathname;
+
+    await expect(
+      executeParityScenario({
+        repoRoot,
+        scenario: {
+          id: 'productCreate-blank-title-parity',
+          status: 'captured',
+          assertionKinds: ['payload-shape', 'user-errors-parity'],
+          captureFiles: ['fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-create-parity.json'],
+        },
+        paritySpec: {
+          proxyRequest: {
+            documentPath: 'config/parity-requests/productCreate-parity-plan.graphql',
+            variablesCapturePath: '$.validation.variables',
+          },
+          comparison: {
+            mode: 'strict-json',
+            expectedDifferences: [],
+            targets: [
+              {
+                name: 'product-only',
+                capturePath: '$.validation.response.data.productCreate.product',
+                proxyPath: '$.data.productCreate.product',
+              },
+            ],
+          },
+        },
+      }),
+    ).rejects.toThrow('user-errors-parity');
+  });
+
   it('returns captured upstream payloads for no-write overlay reads', async () => {
     const repoRoot = new URL('../..', import.meta.url).pathname;
     const result = await executeParityScenario({
