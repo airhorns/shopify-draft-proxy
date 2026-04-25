@@ -67,6 +67,7 @@ Local staged mutations:
 - Collection records carry aggregate publication target ids alongside product publication ids. A staged `collectionCreate` starts unpublished; collection publication counts and `publishedOnPublication(publicationId:)` remain unpublished until a local publish mutation adds a target.
 - `publishedOnCurrentPublication` is not inferred from aggregate collection publication count. Captured Online Store publishable writes leave it false when the app current publication is not the target.
 - Local `publishablePublish` and `publishableUnpublish` currently stage Product and Collection publishables. Broader publishable implementers remain unsupported in their own groups.
+- Product handle generation and validation follows the captured product mutation slice: duplicate title-generated handles are de-duplicated, explicit handles are normalized before uniqueness checks, Unicode letters/numbers are preserved, punctuation-only explicit handles fall back into the `product` handle family, explicit collisions return `['input', 'handle']` userErrors, and explicit handles longer than 255 characters return `['handle']` userErrors without staging partial state. The HAR-22 live probe found no product reserved-word rejection for handles such as `admin`, `products`, `collections`, `cart`, `checkout`, or `new`.
 - Top-level `collections(query: "published_status:...")` applies locally modeled aggregate collection publication state for staged and snapshot reads.
 - `collectionByIdentifier` supports id and handle identifier branches against effective local collection state. `customId` returns `null` until collection unique-metafield evidence exists.
 - `collectionByHandle` is a deprecated Shopify root but is supported as a handle lookup over effective local collection state.
@@ -78,3 +79,4 @@ Local staged mutations:
 - Collection reads and mutations: `tests/integration/collection-query-shapes.test.ts`, `tests/integration/collection-draft-flow.test.ts`
 - Location and publication reads: `tests/integration/location-query-shapes.test.ts`, `tests/integration/publication-query-shapes.test.ts`
 - Conformance fixtures and requests: `config/parity-specs/product*.json`, `config/parity-specs/products*.json`, `config/parity-specs/collection*.json`, `config/parity-specs/metafieldsSet-owner-expansion.json`, and matching files under `config/parity-requests/`
+- Product handle validation fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/product-handle-validation-parity.json`

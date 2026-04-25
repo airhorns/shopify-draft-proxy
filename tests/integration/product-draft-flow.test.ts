@@ -894,6 +894,141 @@ describe('product draft flow', () => {
     expect(firstProductId).not.toBe(secondProductId);
   });
 
+  it('accepts reserved-looking and Unicode explicit productCreate handles captured from Shopify', async () => {
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const reservedResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateProduct($product: ProductCreateInput!) { productCreate(product: $product) { product { id title handle } userErrors { field message } } }',
+        variables: {
+          product: {
+            title: 'Reserved Looking Handle Owner',
+            handle: 'admin',
+          },
+        },
+      });
+
+    const unicodeResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateProduct($product: ProductCreateInput!) { productCreate(product: $product) { product { id title handle } userErrors { field message } } }',
+        variables: {
+          product: {
+            title: 'Unicode Handle Owner',
+            handle: '東京',
+          },
+        },
+      });
+
+    expect(reservedResponse.status).toBe(200);
+    expect(unicodeResponse.status).toBe(200);
+    expect(reservedResponse.body.data.productCreate).toEqual({
+      product: {
+        id: expect.any(String),
+        title: 'Reserved Looking Handle Owner',
+        handle: 'admin',
+      },
+      userErrors: [],
+    });
+    expect(unicodeResponse.body.data.productCreate).toEqual({
+      product: {
+        id: expect.any(String),
+        title: 'Unicode Handle Owner',
+        handle: '東京',
+      },
+      userErrors: [],
+    });
+  });
+
+  it('rejects explicit productCreate handles longer than Shopify allows without staging a product', async () => {
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const createResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateProduct($product: ProductCreateInput!) { productCreate(product: $product) { product { id title handle } userErrors { field message } } }',
+        variables: {
+          product: {
+            title: 'Too Long Handle Owner',
+            handle: 'a'.repeat(260),
+          },
+        },
+      });
+
+    expect(createResponse.status).toBe(200);
+    expect(createResponse.body.data.productCreate).toEqual({
+      product: null,
+      userErrors: [{ field: ['handle'], message: 'Handle is too long (maximum is 255 characters)' }],
+    });
+
+    const queryResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query: 'query { products(first: 10) { nodes { id title handle } } }',
+    });
+
+    expect(queryResponse.status).toBe(200);
+    expect(queryResponse.body.data.products.nodes).toEqual([]);
+  });
+
+  it('rejects explicit productUpdate handles longer than Shopify allows and preserves the current handle', async () => {
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const createResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateProduct($product: ProductCreateInput!) { productCreate(product: $product) { product { id title handle } userErrors { field message } } }',
+        variables: {
+          product: {
+            title: 'Update Too Long Handle Owner',
+            handle: 'update-too-long-handle-owner',
+          },
+        },
+      });
+
+    const productId = createResponse.body.data.productCreate.product.id as string;
+
+    const updateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation UpdateProduct($product: ProductUpdateInput!) { productUpdate(product: $product) { product { id title handle } userErrors { field message } } }',
+        variables: {
+          product: {
+            id: productId,
+            handle: 'b'.repeat(260),
+          },
+        },
+      });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body.data.productUpdate).toEqual({
+      product: {
+        id: productId,
+        title: 'Update Too Long Handle Owner',
+        handle: 'update-too-long-handle-owner',
+      },
+      userErrors: [{ field: ['handle'], message: 'Handle is too long (maximum is 255 characters)' }],
+    });
+
+    const queryResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: 'query ReadProduct($id: ID!) { product(id: $id) { id title handle } }',
+        variables: { id: productId },
+      });
+
+    expect(queryResponse.status).toBe(200);
+    expect(queryResponse.body.data.product).toEqual({
+      id: productId,
+      title: 'Update Too Long Handle Owner',
+      handle: 'update-too-long-handle-owner',
+    });
+  });
+
   it('stages tagsAdd locally for product resources and keeps downstream tag-filtered reads aligned', async () => {
     const app = createApp({ ...config, readMode: 'snapshot' }).callback();
 
