@@ -30,6 +30,11 @@ import {
   hydrateCustomersFromUpstreamResponse,
 } from '../src/proxy/customers.js';
 import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
+import {
+  handleMarketsQuery,
+  hydrateMarketsFromUpstreamResponse,
+  seedMarketsFromCapture,
+} from '../src/proxy/markets.js';
 import { handleMediaMutation } from '../src/proxy/media.js';
 import { handleOrderMutation, handleOrderQuery } from '../src/proxy/orders.js';
 import {
@@ -48,6 +53,7 @@ import type {
   DraftOrderRecord,
   DraftOrderShippingLineRecord,
   InventoryLevelRecord,
+  LocationRecord,
   MutationLogInterpretedMetadata,
   OrderCustomerRecord,
   OrderFulfillmentLineItemRecord,
@@ -779,6 +785,17 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'overlay-read' && capability.domain === 'markets') {
+    if (upstreamPayload !== undefined) {
+      hydrateMarketsFromUpstreamResponse(document, variables, upstreamPayload);
+    }
+
+    return {
+      status: 200,
+      body: handleMarketsQuery(document, variables),
+    };
+  }
+
   throw new Error(
     `Parity execution does not allow live Shopify requests or unsupported operations: ${capability.operationName}`,
   );
@@ -852,6 +869,11 @@ function readStringField(value: Record<string, unknown> | null | undefined, key:
 function readNumberField(value: Record<string, unknown> | null | undefined, key: string): number | null {
   const fieldValue = value?.[key];
   return typeof fieldValue === 'number' ? fieldValue : null;
+}
+
+function readNullableNumberField(value: Record<string, unknown> | null | undefined, key: string): number | null {
+  const fieldValue = value?.[key];
+  return typeof fieldValue === 'number' || fieldValue === null ? fieldValue : null;
 }
 
 function readBooleanField(value: Record<string, unknown> | null | undefined, key: string): boolean | null {
@@ -1135,6 +1157,57 @@ function seedCustomerMutationPreconditions(
     store.upsertBaseCustomers(seedCustomers);
   }
 
+  return true;
+}
+
+function readCustomerCreatePayloadFromCapture(
+  capture: Record<string, unknown>,
+  key: string,
+): Record<string, unknown> | null {
+  return readRecordField(
+    readRecordField(
+      readRecordField(readRecordField(readRecordField(capture, 'precondition'), key), 'response'),
+      'data',
+    ),
+    'customerCreate',
+  );
+}
+
+function seedCustomerMergePreconditions(
+  capture: unknown,
+  _variables: Record<string, unknown>,
+  mutationName: string | null,
+): boolean {
+  if (mutationName !== 'customerMerge' || !isPlainObject(capture)) {
+    return false;
+  }
+
+  const seedCustomers: CustomerRecord[] = [];
+  for (const key of ['createOne', 'createTwo']) {
+    const customerPayload = readRecordField(readCustomerCreatePayloadFromCapture(capture, key), 'customer');
+    const customerId = readStringField(customerPayload, 'id');
+    if (customerId) {
+      seedCustomers.push(makeSeedCustomer(customerId, customerPayload));
+    }
+  }
+
+  const downstreamData = readRecordField(
+    readRecordField(readRecordField(capture, 'downstreamRead'), 'response'),
+    'data',
+  );
+  const downstreamCount = readNumberField(readRecordField(downstreamData, 'customersCount'), 'count');
+  if (downstreamCount !== null) {
+    const placeholderCount = Math.max(0, downstreamCount - 1);
+    for (let index = 0; index < placeholderCount; index += 1) {
+      seedCustomers.push(makePlaceholderCustomer(index));
+    }
+  }
+
+  if (seedCustomers.length === 0) {
+    return false;
+  }
+
+  store.upsertBaseCustomers(seedCustomers);
   return true;
 }
 
@@ -1465,6 +1538,191 @@ function seedShopPreconditions(capture: unknown): boolean {
   }
 
   store.upsertBaseShop(shop);
+  return true;
+}
+
+function readLocationAddressRecord(source: Record<string, unknown> | null): LocationRecord['address'] {
+  if (!source) {
+    return null;
+  }
+
+  return {
+    address1: readNullableStringField(source, 'address1'),
+    address2: readNullableStringField(source, 'address2'),
+    city: readNullableStringField(source, 'city'),
+    country: readNullableStringField(source, 'country'),
+    countryCode: readNullableStringField(source, 'countryCode'),
+    formatted: readStringArrayField(source, 'formatted'),
+    latitude: readNullableNumberField(source, 'latitude'),
+    longitude: readNullableNumberField(source, 'longitude'),
+    phone: readNullableStringField(source, 'phone'),
+    province: readNullableStringField(source, 'province'),
+    provinceCode: readNullableStringField(source, 'provinceCode'),
+    zip: readNullableStringField(source, 'zip'),
+  };
+}
+
+function readLocationRecord(source: Record<string, unknown> | null): LocationRecord | null {
+  const id = readStringField(source, 'id');
+  if (!id) {
+    return null;
+  }
+
+  const fulfillmentService = readRecordField(source, 'fulfillmentService');
+
+  return {
+    id,
+    name: readNullableStringField(source, 'name'),
+    legacyResourceId: readNullableStringField(source, 'legacyResourceId'),
+    activatable: readBooleanField(source, 'activatable'),
+    addressVerified: readBooleanField(source, 'addressVerified'),
+    createdAt: readNullableStringField(source, 'createdAt'),
+    deactivatable: readBooleanField(source, 'deactivatable'),
+    deactivatedAt: readNullableStringField(source, 'deactivatedAt'),
+    deletable: readBooleanField(source, 'deletable'),
+    fulfillmentService: fulfillmentService
+      ? {
+          id: readNullableStringField(fulfillmentService, 'id'),
+          handle: readNullableStringField(fulfillmentService, 'handle'),
+          serviceName: readNullableStringField(fulfillmentService, 'serviceName'),
+        }
+      : null,
+    fulfillsOnlineOrders: readBooleanField(source, 'fulfillsOnlineOrders'),
+    hasActiveInventory: readBooleanField(source, 'hasActiveInventory'),
+    hasUnfulfilledOrders: readBooleanField(source, 'hasUnfulfilledOrders'),
+    isActive: readBooleanField(source, 'isActive'),
+    isFulfillmentService: readBooleanField(source, 'isFulfillmentService'),
+    shipsInventory: readBooleanField(source, 'shipsInventory'),
+    updatedAt: readNullableStringField(source, 'updatedAt'),
+    address: readLocationAddressRecord(readRecordField(source, 'address')),
+    suggestedAddresses: readArrayField(source, 'suggestedAddresses')
+      .filter(isPlainObject)
+      .map((address) => ({
+        address1: readNullableStringField(address, 'address1'),
+        countryCode: readNullableStringField(address, 'countryCode'),
+        formatted: readStringArrayField(address, 'formatted'),
+      })),
+  };
+}
+
+function makeLocationDetailSeedVariant(
+  productId: string,
+  level: InventoryLevelRecord,
+  index: number,
+): ProductVariantRecord | null {
+  const rawInventoryItemId = level.id.includes('?inventory_item_id=')
+    ? decodeURIComponent(level.id.split('?inventory_item_id=').at(-1) ?? '')
+    : null;
+  const itemId =
+    rawInventoryItemId && rawInventoryItemId.startsWith('gid://shopify/InventoryItem/')
+      ? rawInventoryItemId
+      : rawInventoryItemId
+        ? `gid://shopify/InventoryItem/${rawInventoryItemId}`
+        : `gid://shopify/InventoryItem/location-detail-${index}`;
+
+  return {
+    id: `gid://shopify/ProductVariant/location-detail-${index}`,
+    productId,
+    title: `Location detail seed variant ${index + 1}`,
+    sku: null,
+    barcode: null,
+    price: null,
+    compareAtPrice: null,
+    taxable: null,
+    inventoryPolicy: null,
+    inventoryQuantity: level.quantities.find((quantity) => quantity.name === 'available')?.quantity ?? null,
+    selectedOptions: [],
+    inventoryItem: {
+      id: itemId,
+      tracked: true,
+      requiresShipping: true,
+      measurement: null,
+      countryCodeOfOrigin: null,
+      provinceCodeOfOrigin: null,
+      harmonizedSystemCode: null,
+      inventoryLevels: [level],
+    },
+  };
+}
+
+function readCapturedLocationInventoryLevels(location: Record<string, unknown> | null): InventoryLevelRecord[] {
+  const connection = readRecordField(location, 'inventoryLevels');
+  const pageInfo = readRecordField(connection, 'pageInfo');
+  const rawLevels = readArrayField(connection, 'nodes').filter(isPlainObject);
+  const levels = rawLevels
+    .map((level, index) => {
+      const capturedLevel = readCapturedInventoryLevel(level);
+      if (!capturedLevel) {
+        return null;
+      }
+
+      const startCursor = readStringField(pageInfo, 'startCursor');
+      const endCursor = readStringField(pageInfo, 'endCursor');
+      return {
+        ...capturedLevel,
+        cursor: index === 0 ? startCursor : index === rawLevels.length - 1 ? endCursor : capturedLevel.id,
+      };
+    })
+    .filter((level): level is InventoryLevelRecord => level !== null);
+
+  if (readBooleanField(pageInfo, 'hasNextPage') === true && levels.length > 0) {
+    const last = levels[levels.length - 1]!;
+    levels.push({
+      ...structuredClone(last),
+      id: `${last.id}#unread-page`,
+      cursor: `${last.cursor ?? last.id}#unread-page`,
+    });
+  }
+
+  return levels;
+}
+
+function seedLocationDetailPreconditions(capture: unknown): boolean {
+  const locationData = readRecordField(
+    readRecordField(readRecordField(capture as Record<string, unknown>, 'readOnlyBaselines'), 'location'),
+    'data',
+  );
+  const catalogLocations = readArrayField(
+    readRecordField(
+      readRecordField(
+        readRecordField(readRecordField(capture as Record<string, unknown>, 'readOnlyBaselines'), 'locationsCatalog'),
+        'data',
+      ),
+      'locations',
+    ),
+    'edges',
+  )
+    .filter(isPlainObject)
+    .map((edge) => readLocationRecord(readRecordField(edge, 'node')))
+    .filter((location): location is LocationRecord => location !== null);
+
+  const detailedLocations = ['primary', 'byId', 'byIdentifier']
+    .map((key) => readLocationRecord(readRecordField(locationData, key)))
+    .filter((location): location is LocationRecord => location !== null);
+  const locationsById = new Map(catalogLocations.map((location) => [location.id, location]));
+  for (const location of detailedLocations) {
+    locationsById.set(location.id, { ...locationsById.get(location.id), ...location });
+  }
+
+  if (locationsById.size === 0) {
+    return false;
+  }
+
+  store.upsertBaseLocations([...locationsById.values()]);
+
+  const primaryLocation = readRecordField(locationData, 'primary') ?? readRecordField(locationData, 'byId');
+  const levels = readCapturedLocationInventoryLevels(primaryLocation);
+  if (levels.length > 0) {
+    const productId = 'gid://shopify/Product/location-detail-seed';
+    store.upsertBaseProducts([makeSeedProduct(productId, { totalInventory: null, tracksInventory: true })]);
+    store.replaceBaseVariantsForProduct(
+      productId,
+      levels
+        .map((level, index) => makeLocationDetailSeedVariant(productId, level, index))
+        .filter((variant): variant is ProductVariantRecord => variant !== null),
+    );
+  }
+
   return true;
 }
 
@@ -2896,6 +3154,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
 
   const payload = mutationPayloadFromCapture(capture);
   const mutationName = mutationNameFromCapture(capture);
+  if (seedCustomerMergePreconditions(capture, variables, mutationName)) {
+    return;
+  }
+
   if (seedCustomerMutationPreconditions(capture, variables, mutationName, payload)) {
     return;
   }
@@ -2904,11 +3166,15 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     return;
   }
 
-  if (seedShopPreconditions(capture)) {
+  const seededShop = seedShopPreconditions(capture);
+  const seededLocations = seedLocationDetailPreconditions(capture);
+  const seededBusinessEntities = seedBusinessEntityPreconditions(capture);
+  const seededStoreProperties = seededShop || seededLocations || seededBusinessEntities;
+  if (seededStoreProperties) {
     return;
   }
 
-  if (seedBusinessEntityPreconditions(capture)) {
+  if (seedMarketsFromCapture(capture)) {
     return;
   }
 
@@ -3249,12 +3515,24 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   const productDeletePayloadId = mutationName === 'productDelete' ? readStringField(payload, 'deletedProductId') : null;
   const isProductDeleteValidationProbe =
     mutationName === 'productDelete' && productDeletePayloadId !== null && productDeletePayloadId !== productId;
+  const productUserErrors = readArrayField(payload, 'userErrors').filter(isPlainObject);
+  const isMissingProductValidationProbe =
+    (mutationName === 'productUpdate' || mutationName === 'productChangeStatus') &&
+    productPayload === null &&
+    productUserErrors.some((userError) => {
+      const fieldPath = readArrayField(userError, 'field');
+      return (
+        (fieldPath.includes('id') || fieldPath.includes('productId')) &&
+        readStringField(userError, 'message') === 'Product does not exist'
+      );
+    });
 
   const shouldSeedProduct =
     productId !== null &&
     !(mutationName === 'productCreate' && readStringField(productInput, 'id') === null) &&
     !isProductSetCreate &&
-    !isProductDeleteValidationProbe;
+    !isProductDeleteValidationProbe &&
+    !isMissingProductValidationProbe;
 
   if (seedProductDuplicateSource(capture)) {
     return;

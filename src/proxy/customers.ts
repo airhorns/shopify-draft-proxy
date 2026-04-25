@@ -1,17 +1,20 @@
 import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
+import { parseSearchQuery, type SearchQueryNode, type SearchQueryTerm } from '../search-query-parser.js';
 import {
   getFieldResponseKey,
   getSelectedChildFields,
   paginateConnectionItems,
   serializeConnectionPageInfo,
+  serializeEmptyConnectionPageInfo,
 } from './graphql-helpers.js';
 import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type {
   CustomerCatalogConnectionRecord,
   CustomerCatalogPageInfoRecord,
+  CustomerMergeRequestRecord,
   CustomerMetafieldRecord,
   CustomerRecord,
 } from '../state/types.js';
@@ -651,6 +654,28 @@ function serializeDefaultAddressSelection(
   return result;
 }
 
+function serializeEmptyConnectionSelection(field: FieldNode): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'nodes':
+      case 'edges':
+        result[key] = [];
+        break;
+      case 'pageInfo':
+        result[key] = serializeEmptyConnectionPageInfo(selection);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+
+  return result;
+}
+
 function serializeCustomerMetafieldSelection(
   metafield: CustomerMetafieldRecord,
   field: FieldNode,
@@ -812,6 +837,21 @@ function serializeCustomerSelection(
       case 'defaultAddress':
         result[key] = serializeDefaultAddressSelection(selection, customer.defaultAddress);
         break;
+      case 'addresses':
+      case 'companyContactProfiles':
+        result[key] = [];
+        break;
+      case 'addressesV2':
+      case 'events':
+      case 'orders':
+      case 'paymentMethods':
+      case 'storeCreditAccounts':
+      case 'subscriptionContracts':
+        result[key] = serializeEmptyConnectionSelection(selection);
+        break;
+      case 'lastOrder':
+        result[key] = null;
+        break;
       case 'metafield': {
         const args = getFieldArguments(selection, variables);
         const namespace = typeof args['namespace'] === 'string' ? args['namespace'] : null;
@@ -932,161 +972,6 @@ function listCustomersForConnection(catalogConnection: CustomerCatalogConnection
   const seenCustomerIds = new Set(orderedCustomers.map((customer) => customer.id));
   const extraCustomers = store.listEffectiveCustomers().filter((customer) => !seenCustomerIds.has(customer.id));
   return [...orderedCustomers, ...extraCustomers];
-}
-
-type CustomerQueryToken =
-  | { type: 'term'; value: string }
-  | { type: 'or' }
-  | { type: 'lparen' }
-  | { type: 'rparen' }
-  | { type: 'not' };
-
-type CustomerQueryNode =
-  | { type: 'term'; value: string }
-  | { type: 'and'; children: CustomerQueryNode[] }
-  | { type: 'or'; children: CustomerQueryNode[] }
-  | { type: 'not'; child: CustomerQueryNode };
-
-function tokenizeCustomerQuery(query: string): CustomerQueryToken[] {
-  const tokens: CustomerQueryToken[] = [];
-  let current = '';
-  let inQuotes = false;
-
-  const flushCurrent = (): void => {
-    const value = current.trim();
-    if (!value) {
-      current = '';
-      return;
-    }
-
-    if (value.toUpperCase() === 'OR') {
-      tokens.push({ type: 'or' });
-    } else {
-      tokens.push({ type: 'term', value });
-    }
-    current = '';
-  };
-
-  for (let index = 0; index < query.length; index += 1) {
-    const character = query[index] ?? '';
-
-    if (character === '"') {
-      inQuotes = !inQuotes;
-      continue;
-    }
-
-    if (!inQuotes && /\s/u.test(character)) {
-      flushCurrent();
-      continue;
-    }
-
-    if (!inQuotes && character === '(') {
-      flushCurrent();
-      tokens.push({ type: 'lparen' });
-      continue;
-    }
-
-    if (!inQuotes && character === ')') {
-      flushCurrent();
-      tokens.push({ type: 'rparen' });
-      continue;
-    }
-
-    if (!inQuotes && character === '-' && !current) {
-      const nextCharacter = query[index + 1] ?? '';
-      if (nextCharacter === '(') {
-        tokens.push({ type: 'not' });
-        continue;
-      }
-    }
-
-    current += character;
-  }
-
-  flushCurrent();
-  return tokens;
-}
-
-function parseCustomerQuery(query: string): CustomerQueryNode | null {
-  const tokens = tokenizeCustomerQuery(query);
-  if (tokens.length === 0) {
-    return null;
-  }
-
-  let index = 0;
-
-  const parseOrExpression = (): CustomerQueryNode | null => {
-    const firstChild = parseAndExpression();
-    if (!firstChild) {
-      return null;
-    }
-
-    const children: CustomerQueryNode[] = [firstChild];
-    while (tokens[index]?.type === 'or') {
-      index += 1;
-      const nextChild = parseAndExpression();
-      if (!nextChild) {
-        break;
-      }
-      children.push(nextChild);
-    }
-
-    return children.length === 1 ? (children[0] ?? null) : { type: 'or', children };
-  };
-
-  const parseAndExpression = (): CustomerQueryNode | null => {
-    const children: CustomerQueryNode[] = [];
-
-    while (index < tokens.length) {
-      const token = tokens[index];
-      if (!token || token.type === 'or' || token.type === 'rparen') {
-        break;
-      }
-
-      const child = parseUnaryExpression();
-      if (!child) {
-        break;
-      }
-      children.push(child);
-    }
-
-    if (children.length === 0) {
-      return null;
-    }
-
-    return children.length === 1 ? (children[0] ?? null) : { type: 'and', children };
-  };
-
-  const parseUnaryExpression = (): CustomerQueryNode | null => {
-    const token = tokens[index];
-    if (!token) {
-      return null;
-    }
-
-    if (token.type === 'not') {
-      index += 1;
-      const child = parseUnaryExpression();
-      return child ? { type: 'not', child } : null;
-    }
-
-    if (token.type === 'term') {
-      index += 1;
-      return { type: 'term', value: token.value };
-    }
-
-    if (token.type === 'lparen') {
-      index += 1;
-      const child = parseOrExpression();
-      if (tokens[index]?.type === 'rparen') {
-        index += 1;
-      }
-      return child;
-    }
-
-    return null;
-  };
-
-  return parseOrExpression();
 }
 
 function normalizeCustomerSearchValue(value: string | null | undefined): string {
@@ -1225,14 +1110,20 @@ function customerMatchesBareToken(customer: CustomerRecord, token: string): bool
   return haystacks.some((value) => matchesStringValue(value, normalizedToken, 'includes'));
 }
 
-function customerMatchesPositiveQueryTerm(customer: CustomerRecord, term: string): boolean {
-  const separatorIndex = term.indexOf(':');
-  if (separatorIndex <= 0) {
-    return customerMatchesBareToken(customer, term);
+function searchTermValue(term: SearchQueryTerm): string {
+  return term.comparator === null ? term.value : `${term.comparator}${term.value}`;
+}
+
+function customerMatchesPositiveQueryTerm(customer: CustomerRecord, term: SearchQueryTerm): boolean {
+  if (term.field === null) {
+    return customerMatchesBareToken(customer, term.value);
+  }
+  if (term.field === '') {
+    return customerMatchesBareToken(customer, term.raw);
   }
 
-  const rawField = term.slice(0, separatorIndex);
-  const rawValue = term.slice(separatorIndex + 1);
+  const rawField = term.field;
+  const rawValue = searchTermValue(term);
   const field = normalizeCustomerSearchValue(rawField);
 
   switch (field) {
@@ -1254,17 +1145,15 @@ function customerMatchesPositiveQueryTerm(customer: CustomerRecord, term: string
     case 'display_name':
       return matchesStringValue(customer.displayName, rawValue, 'includes');
     default:
-      return customerMatchesBareToken(customer, term);
+      return customerMatchesBareToken(customer, term.raw);
   }
 }
 
-function customerMatchesQueryNode(customer: CustomerRecord, node: CustomerQueryNode): boolean {
+function customerMatchesQueryNode(customer: CustomerRecord, node: SearchQueryNode): boolean {
   switch (node.type) {
     case 'term': {
-      const negated = node.value.startsWith('-') && node.value.length > 1;
-      const term = negated ? node.value.slice(1) : node.value;
-      const matches = customerMatchesPositiveQueryTerm(customer, term);
-      return negated ? !matches : matches;
+      const matches = customerMatchesPositiveQueryTerm(customer, node.term);
+      return node.term.negated ? !matches : matches;
     }
     case 'and':
       return node.children.every((child) => customerMatchesQueryNode(customer, child));
@@ -1282,7 +1171,7 @@ function filterCustomersByQuery(customers: CustomerRecord[], rawQuery: unknown):
     return customers;
   }
 
-  const parsedQuery = parseCustomerQuery(rawQuery);
+  const parsedQuery = parseSearchQuery(rawQuery, { quoteCharacters: ['"'] });
   if (!parsedQuery) {
     return customers;
   }
@@ -1839,6 +1728,11 @@ type CustomerMutationUserError = {
   code?: string | null;
 };
 
+type CustomerMergeError = {
+  errorFields: string[];
+  message: string;
+};
+
 function serializeCustomerMutationUserErrors(
   field: FieldNode,
   userErrors: CustomerMutationUserError[],
@@ -1864,6 +1758,81 @@ function serializeCustomerMutationUserErrors(
     }
     return result;
   });
+}
+
+function serializeCustomerMergeErrors(field: FieldNode, errors: CustomerMergeError[]): Array<Record<string, unknown>> {
+  return errors.map((error) => {
+    const result: Record<string, unknown> = {};
+    for (const selection of getSelectedChildFields(field)) {
+      const key = getFieldResponseKey(selection);
+      switch (selection.name.value) {
+        case 'errorFields':
+          result[key] = structuredClone(error.errorFields);
+          break;
+        case 'message':
+          result[key] = error.message;
+          break;
+        default:
+          result[key] = null;
+          break;
+      }
+    }
+    return result;
+  });
+}
+
+function serializeJobSelection(
+  field: FieldNode,
+  job: { id: string; done: boolean } | null,
+): Record<string, unknown> | null {
+  if (!job) {
+    return null;
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = job.id;
+        break;
+      case 'done':
+        result[key] = job.done;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeCustomerMergeRequestSelection(
+  request: CustomerMergeRequestRecord,
+  field: FieldNode,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'jobId':
+        result[key] = request.jobId;
+        break;
+      case 'resultingCustomerId':
+        result[key] = request.resultingCustomerId;
+        break;
+      case 'status':
+        result[key] = request.status;
+        break;
+      case 'customerMergeErrors':
+        result[key] = serializeCustomerMergeErrors(selection, request.customerMergeErrors);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
 }
 
 function serializeShopSelection(field: FieldNode): Record<string, unknown> {
@@ -2140,6 +2109,136 @@ function buildUpdatedCustomer(existing: CustomerRecord, input: Record<string, un
   };
 }
 
+function readCustomerMergeOverrideFields(raw: unknown): Record<string, unknown> {
+  return isObject(raw) ? raw : {};
+}
+
+function readCustomerIdOverride(
+  overrideFields: Record<string, unknown>,
+  key: string,
+  customerOne: CustomerRecord,
+  customerTwo: CustomerRecord,
+): CustomerRecord | null {
+  const value = overrideFields[key];
+  if (value === customerOne.id) {
+    return customerOne;
+  }
+  if (value === customerTwo.id) {
+    return customerTwo;
+  }
+  return null;
+}
+
+function selectCustomerMergeField<T>(
+  overrideFields: Record<string, unknown>,
+  key: string,
+  customerOne: CustomerRecord,
+  customerTwo: CustomerRecord,
+  readValue: (customer: CustomerRecord) => T,
+): T {
+  const selectedCustomer = readCustomerIdOverride(overrideFields, key, customerOne, customerTwo);
+  return readValue(selectedCustomer ?? customerTwo);
+}
+
+function mergeCustomerNotes(
+  customerOne: CustomerRecord,
+  customerTwo: CustomerRecord,
+  overrideFields: Record<string, unknown>,
+): string | null {
+  if (typeof overrideFields['note'] === 'string') {
+    return overrideFields['note'];
+  }
+
+  const notes = [customerTwo.note, customerOne.note].filter((note): note is string => !!note?.trim());
+  return notes.length > 0 ? notes.join(' ') : null;
+}
+
+function mergeCustomerTags(
+  customerOne: CustomerRecord,
+  customerTwo: CustomerRecord,
+  overrideFields: Record<string, unknown>,
+): string[] {
+  if (Array.isArray(overrideFields['tags'])) {
+    return normalizeCustomerTags(overrideFields['tags'], []);
+  }
+
+  return [...new Set([...customerTwo.tags, ...customerOne.tags])].sort((left, right) => left.localeCompare(right));
+}
+
+function buildMergedCustomer(
+  customerOne: CustomerRecord,
+  customerTwo: CustomerRecord,
+  overrideFields: Record<string, unknown>,
+  options: { updateTimestamp?: boolean } = {},
+): CustomerRecord {
+  const firstName = selectCustomerMergeField(
+    overrideFields,
+    'customerIdOfFirstNameToKeep',
+    customerOne,
+    customerTwo,
+    (customer) => customer.firstName,
+  );
+  const lastName = selectCustomerMergeField(
+    overrideFields,
+    'customerIdOfLastNameToKeep',
+    customerOne,
+    customerTwo,
+    (customer) => customer.lastName,
+  );
+  const emailSource =
+    readCustomerIdOverride(overrideFields, 'customerIdOfEmailToKeep', customerOne, customerTwo) ?? customerTwo;
+  const phoneSource =
+    readCustomerIdOverride(overrideFields, 'customerIdOfPhoneNumberToKeep', customerOne, customerTwo) ?? customerTwo;
+  const defaultAddress = selectCustomerMergeField(
+    overrideFields,
+    'customerIdOfDefaultAddressToKeep',
+    customerOne,
+    customerTwo,
+    (customer) => customer.defaultAddress,
+  );
+
+  return {
+    ...customerTwo,
+    firstName,
+    lastName,
+    displayName: buildCustomerDisplayName(firstName, lastName, emailSource.email),
+    email: emailSource.email,
+    note: mergeCustomerNotes(customerOne, customerTwo, overrideFields),
+    tags: mergeCustomerTags(customerOne, customerTwo, overrideFields),
+    defaultEmailAddress: emailSource.defaultEmailAddress,
+    defaultPhoneNumber: phoneSource.defaultPhoneNumber,
+    emailMarketingConsent: emailSource.emailMarketingConsent,
+    smsMarketingConsent: phoneSource.smsMarketingConsent,
+    defaultAddress,
+    updatedAt: options.updateTimestamp === false ? customerTwo.updatedAt : makeSyntheticTimestamp(),
+  };
+}
+
+function buildCustomerMergeMissingArgumentError(field: FieldNode, missingArguments: string[]): Record<string, unknown> {
+  return {
+    message: `Field '${field.name.value}' is missing required arguments: ${missingArguments.join(', ')}`,
+    path: [getFieldResponseKey(field)],
+    extensions: {
+      code: 'missingRequiredArguments',
+      className: 'Field',
+      name: field.name.value,
+      arguments: missingArguments.join(', '),
+    },
+  };
+}
+
+function customerIdTail(customerId: string): string {
+  return customerId.split('/').at(-1) ?? customerId;
+}
+
+function buildCustomerMergeMissingCustomerError(field: string, customerId: string): CustomerMutationUserError {
+  return {
+    field: [field],
+    message: `Customer does not exist with ID ${customerIdTail(customerId)}`,
+    code: 'INVALID_CUSTOMER_ID',
+  };
+}
+
 function validateCustomerCreateInput(input: Record<string, unknown>): CustomerMutationUserError[] {
   const hasEmail = typeof input['email'] === 'string' && input['email'].trim().length > 0;
   const hasPhone = typeof input['phone'] === 'string' && input['phone'].trim().length > 0;
@@ -2260,6 +2359,8 @@ function serializeCustomerMutationPayload(
   payload: {
     customer?: CustomerRecord | null;
     deletedCustomerId?: string | null;
+    resultingCustomerId?: string | null;
+    job?: { id: string; done: boolean } | null;
     shop?: boolean;
     userErrors: CustomerMutationUserError[];
   },
@@ -2275,6 +2376,12 @@ function serializeCustomerMutationPayload(
       case 'deletedCustomerId':
         result[key] = payload.deletedCustomerId ?? null;
         break;
+      case 'resultingCustomerId':
+        result[key] = payload.resultingCustomerId ?? null;
+        break;
+      case 'job':
+        result[key] = serializeJobSelection(selection, payload.job ?? null);
+        break;
       case 'shop':
         result[key] = payload.shop ? serializeShopSelection(selection) : null;
         break;
@@ -2289,11 +2396,110 @@ function serializeCustomerMutationPayload(
   return result;
 }
 
+function serializeCustomerMergeFieldSet(
+  customer: CustomerRecord,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'firstName':
+        result[key] = customer.firstName;
+        break;
+      case 'lastName':
+        result[key] = customer.lastName;
+        break;
+      case 'displayName':
+        result[key] = customer.displayName;
+        break;
+      case 'email':
+        result[key] = serializeDefaultEmailSelection(selection, customer.defaultEmailAddress);
+        break;
+      case 'phoneNumber':
+        result[key] = serializeDefaultPhoneNumberSelection(selection, customer.defaultPhoneNumber);
+        break;
+      case 'defaultAddress':
+        result[key] = serializeDefaultAddressSelection(selection, customer.defaultAddress);
+        break;
+      case 'note':
+        result[key] = customer.note;
+        break;
+      case 'tags':
+        result[key] = structuredClone(customer.tags);
+        break;
+      case 'addresses':
+      case 'discountNodes':
+      case 'draftOrders':
+      case 'giftCards':
+      case 'orders':
+        result[key] = {
+          nodes: [],
+          edges: [],
+          pageInfo: { hasNextPage: false, hasPreviousPage: false, startCursor: null, endCursor: null },
+        };
+        break;
+      case 'discountNodeCount':
+      case 'draftOrderCount':
+      case 'giftCardCount':
+      case 'metafieldCount':
+      case 'orderCount':
+        result[key] = 0;
+        break;
+      default:
+        result[key] = serializeCustomerSelection(customer, selection, variables)[key] ?? null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeCustomerMergePreview(
+  field: FieldNode,
+  customerOne: CustomerRecord,
+  customerTwo: CustomerRecord,
+  overrideFields: Record<string, unknown>,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const defaultCustomer = buildMergedCustomer(customerOne, customerTwo, {}, { updateTimestamp: false });
+  const alternateCustomer = buildMergedCustomer(customerTwo, customerOne, {}, { updateTimestamp: false });
+  const resultingCustomer = buildMergedCustomer(customerOne, customerTwo, overrideFields, { updateTimestamp: false });
+  const result: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'resultingCustomerId':
+        result[key] = customerTwo.id;
+        break;
+      case 'defaultFields':
+        result[key] = serializeCustomerMergeFieldSet(defaultCustomer, selection, variables);
+        break;
+      case 'alternateFields':
+        result[key] = serializeCustomerMergeFieldSet(alternateCustomer, selection, variables);
+        break;
+      case 'blockingFields':
+        result[key] = null;
+        break;
+      case 'customerMergeErrors':
+        result[key] = null;
+        break;
+      default:
+        result[key] = serializeCustomerSelection(resultingCustomer, selection, variables)[key] ?? null;
+        break;
+    }
+  }
+
+  return result;
+}
+
 export function handleCustomerMutation(
   document: string,
   variables: Record<string, unknown> = {},
-): { data: Record<string, unknown> } {
+): { data?: Record<string, unknown>; errors?: Array<Record<string, unknown>> } {
   const data: Record<string, unknown> = {};
+  const errors: Array<Record<string, unknown>> = [];
 
   for (const field of getRootFields(document)) {
     const key = getFieldResponseKey(field);
@@ -2456,9 +2662,98 @@ export function handleCustomerMutation(
         variables,
       );
     }
+
+    if (field.name.value === 'customerMerge') {
+      const missingArguments = ['customerOneId', 'customerTwoId'].filter((argument) => !hasOwnField(args, argument));
+      if (missingArguments.length > 0) {
+        errors.push(buildCustomerMergeMissingArgumentError(field, missingArguments));
+        continue;
+      }
+
+      const customerOneId = typeof args['customerOneId'] === 'string' ? args['customerOneId'] : null;
+      const customerTwoId = typeof args['customerTwoId'] === 'string' ? args['customerTwoId'] : null;
+      if (customerOneId && customerTwoId && customerOneId === customerTwoId) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            resultingCustomerId: null,
+            job: null,
+            userErrors: [
+              {
+                field: null,
+                message: 'Customers IDs should not match',
+                code: 'INVALID_CUSTOMER_ID',
+              },
+            ],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      const customerOne = customerOneId ? store.getEffectiveCustomerById(customerOneId) : null;
+      const customerTwo = customerTwoId ? store.getEffectiveCustomerById(customerTwoId) : null;
+      const userErrors = [
+        ...(customerOneId && !customerOne
+          ? [buildCustomerMergeMissingCustomerError('customerOneId', customerOneId)]
+          : []),
+        ...(customerTwoId && !customerTwo
+          ? [buildCustomerMergeMissingCustomerError('customerTwoId', customerTwoId)]
+          : []),
+      ];
+      if (!customerOneId) {
+        userErrors.push({
+          field: ['customerOneId'],
+          message: 'Customer does not exist with ID null',
+          code: 'INVALID_CUSTOMER_ID',
+        });
+      }
+      if (!customerTwoId) {
+        userErrors.push({
+          field: ['customerTwoId'],
+          message: 'Customer does not exist with ID null',
+          code: 'INVALID_CUSTOMER_ID',
+        });
+      }
+      if (userErrors.length > 0 || !customerOne || !customerTwo || !customerTwoId) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            resultingCustomerId: null,
+            job: null,
+            userErrors,
+          },
+          variables,
+        );
+        continue;
+      }
+
+      const overrideFields = readCustomerMergeOverrideFields(args['overrideFields']);
+      const mergedCustomer = buildMergedCustomer(customerOne, customerTwo, overrideFields);
+      const jobId = makeSyntheticGid('Job');
+      const customer = store.stageMergeCustomers(customerOne.id, mergedCustomer, {
+        jobId,
+        resultingCustomerId: customerTwoId,
+        status: 'COMPLETED',
+        customerMergeErrors: [],
+      });
+      data[key] = serializeCustomerMutationPayload(
+        field,
+        {
+          resultingCustomerId: customer.id,
+          job: { id: jobId, done: false },
+          userErrors: [],
+        },
+        variables,
+      );
+      continue;
+    }
   }
 
-  return { data };
+  return {
+    ...(Object.keys(data).length > 0 ? { data } : {}),
+    ...(errors.length > 0 ? { errors } : {}),
+  };
 }
 
 export function hydrateCustomersFromUpstreamResponse(
@@ -2541,6 +2836,57 @@ export function handleCustomerQuery(
 
       const customer = findCustomerByIdentifier(identifier);
       data[key] = customer ? serializeCustomerSelection(customer, field, variables) : null;
+      continue;
+    }
+
+    if (field.name.value === 'customerMergePreview') {
+      const args = getFieldArguments(field, variables);
+      const missingArguments = ['customerOneId', 'customerTwoId'].filter((argument) => !hasOwnField(args, argument));
+      if (missingArguments.length > 0) {
+        errors.push(buildCustomerMergeMissingArgumentError(field, missingArguments));
+        continue;
+      }
+
+      const customerOneId = typeof args['customerOneId'] === 'string' ? args['customerOneId'] : null;
+      const customerTwoId = typeof args['customerTwoId'] === 'string' ? args['customerTwoId'] : null;
+      if (customerOneId && customerTwoId && customerOneId === customerTwoId) {
+        data[key] = null;
+        errors.push({
+          message: 'Customers must be different.',
+          path: [key],
+          extensions: { code: 'BAD_REQUEST' },
+        });
+        continue;
+      }
+
+      const customerOne = customerOneId ? store.getEffectiveCustomerById(customerOneId) : null;
+      const customerTwo = customerTwoId ? store.getEffectiveCustomerById(customerTwoId) : null;
+      if (!customerOne || !customerTwo) {
+        data[key] = null;
+        const missingCustomerId = customerOne ? customerTwoId : customerOneId;
+        errors.push({
+          message: `Customer does not exist with ID ${customerIdTail(missingCustomerId ?? 'null')}`,
+          path: [key],
+          extensions: { code: 'BAD_REQUEST' },
+        });
+        continue;
+      }
+
+      data[key] = serializeCustomerMergePreview(
+        field,
+        customerOne,
+        customerTwo,
+        readCustomerMergeOverrideFields(args['overrideFields']),
+        variables,
+      );
+      continue;
+    }
+
+    if (field.name.value === 'customerMergeJobStatus') {
+      const args = getFieldArguments(field, variables);
+      const jobId = typeof args['jobId'] === 'string' ? args['jobId'] : null;
+      const request = jobId ? store.getCustomerMergeRequest(jobId) : null;
+      data[key] = request ? serializeCustomerMergeRequestSelection(request, field) : null;
       continue;
     }
 

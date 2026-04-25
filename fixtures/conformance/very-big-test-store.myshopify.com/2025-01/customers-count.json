@@ -1,15 +1,15 @@
 {
   "data": {
     "total": {
-      "count": 177,
+      "count": 178,
       "precision": "EXACT"
     },
     "matching": {
-      "count": 177,
+      "count": 178,
       "precision": "EXACT"
     },
     "disabled": {
-      "count": 177,
+      "count": 178,
       "precision": "EXACT"
     }
   },

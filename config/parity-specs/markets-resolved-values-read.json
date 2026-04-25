@@ -1,0 +1,25 @@
+{
+  "scenarioId": "markets-resolved-values-read",
+  "operationNames": ["marketsResolvedValues"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "resolved-catalogs", "resolved-web-presences"],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2026-04/markets-resolved-values.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets-resolved-values-read.graphql",
+    "variablesPath": "config/parity-requests/markets-resolved-values-read.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live `marketsResolvedValues` capture for Admin GraphQL 2026-04 using a US buyer signal. This schema-confirmed root returned empty resolved catalogs on the current store while still returning resolved currency and price-inclusivity values.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "markets-resolved-values-data",
+        "capturePath": "$.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}
