@@ -4107,7 +4107,7 @@ function buildSyntheticInventoryLevels(
   variant: ProductVariantRecord,
 ): NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']> {
   const level = buildSyntheticInventoryLevel(variant);
-  return level ? [level] : [];
+  return level && !store.isLocationDeleted(level.location?.id ?? '') ? [level] : [];
 }
 
 function getEffectiveInventoryLevels(
@@ -4118,7 +4118,7 @@ function getEffectiveInventoryLevels(
     return buildSyntheticInventoryLevels(variant);
   }
 
-  return structuredClone(hydratedLevels);
+  return structuredClone(hydratedLevels).filter((level) => !store.isLocationDeleted(level.location?.id ?? ''));
 }
 
 function serializeInventoryLevelQuantities(

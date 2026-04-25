@@ -754,4 +754,243 @@ describe('location query shapes', () => {
     expect(store.listEffectiveLocations()).toEqual([{ id: 'gid://shopify/Location/1', name: 'Alpha Warehouse' }]);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it('stages locationDeactivate and locationActivate locally with inventory transfer read-after-write', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('location lifecycle mutations should stage locally in snapshot mode');
+    });
+    store.upsertBaseLocations([
+      {
+        id: 'gid://shopify/Location/1',
+        name: 'Alpha Warehouse',
+        isActive: true,
+        deactivatable: true,
+        hasActiveInventory: true,
+      },
+      {
+        id: 'gid://shopify/Location/2',
+        name: 'Beta Warehouse',
+        isActive: true,
+        deactivatable: true,
+      },
+    ]);
+    const product = makeProduct('gid://shopify/Product/1', 'Alpha Product');
+    store.upsertBaseProducts([product]);
+    store.replaceBaseVariantsForProduct(product.id, [
+      makeVariant(product.id, 'gid://shopify/ProductVariant/1', 'gid://shopify/InventoryItem/1'),
+    ]);
+    const app = createApp(config).callback();
+
+    const deactivateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation DeactivateLocation($sourceId: ID!, $destinationId: ID!) {
+          locationDeactivate(locationId: $sourceId, destinationLocationId: $destinationId) @idempotent(key: "deactivate-location-1") {
+            location { id name isActive activatable deactivatable deactivatedAt deletable shipsInventory hasActiveInventory }
+            locationDeactivateUserErrors { field message code }
+          }
+        }`,
+        variables: {
+          sourceId: 'gid://shopify/Location/1',
+          destinationId: 'gid://shopify/Location/2',
+        },
+      });
+
+    expect(deactivateResponse.status).toBe(200);
+    expect(deactivateResponse.body.data.locationDeactivate).toEqual({
+      location: {
+        id: 'gid://shopify/Location/1',
+        name: 'Alpha Warehouse',
+        isActive: false,
+        activatable: true,
+        deactivatable: false,
+        deactivatedAt: '2024-01-01T00:00:00.000Z',
+        deletable: true,
+        shipsInventory: false,
+        hasActiveInventory: false,
+      },
+      locationDeactivateUserErrors: [],
+    });
+
+    const inventoryResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query($inventoryItemId: ID!) {
+          inventoryItem(id: $inventoryItemId) {
+            inventoryLevels(first: 5) {
+              nodes {
+                location { id name }
+                quantities(names: ["available"]) { name quantity }
+              }
+            }
+          }
+        }`,
+        variables: { inventoryItemId: 'gid://shopify/InventoryItem/1' },
+      });
+
+    expect(inventoryResponse.body.data.inventoryItem.inventoryLevels.nodes).toEqual([
+      {
+        location: { id: 'gid://shopify/Location/2', name: 'Beta Warehouse' },
+        quantities: [{ name: 'available', quantity: 10 }],
+      },
+    ]);
+
+    const activateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation ActivateLocation($id: ID!) {
+          locationActivate(locationId: $id) @idempotent(key: "activate-location-1") {
+            location { id isActive activatable deactivatable deactivatedAt deletable shipsInventory }
+            locationActivateUserErrors { field message code }
+          }
+        }`,
+        variables: { id: 'gid://shopify/Location/1' },
+      });
+
+    expect(activateResponse.body.data.locationActivate).toEqual({
+      location: {
+        id: 'gid://shopify/Location/1',
+        isActive: true,
+        activatable: false,
+        deactivatable: true,
+        deactivatedAt: null,
+        deletable: false,
+        shipsInventory: true,
+      },
+      locationActivateUserErrors: [],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('validates location lifecycle constraints and removes deleted locations from reads', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('locationDelete should stage locally in snapshot mode');
+    });
+    store.upsertBaseLocations([
+      {
+        id: 'gid://shopify/Location/3',
+        name: 'Gamma Warehouse',
+        isActive: true,
+        deactivatable: true,
+      },
+    ]);
+    const app = createApp(config).callback();
+
+    const activeDeleteResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation DeleteActiveLocation($id: ID!) {
+          locationDelete(locationId: $id) {
+            deletedLocationId
+            locationDeleteUserErrors { field message code }
+          }
+        }`,
+        variables: { id: 'gid://shopify/Location/3' },
+      });
+
+    expect(activeDeleteResponse.body.data.locationDelete).toEqual({
+      deletedLocationId: null,
+      locationDeleteUserErrors: [
+        {
+          field: ['locationId'],
+          message: 'The location cannot be deleted while it is active.',
+          code: 'LOCATION_IS_ACTIVE',
+        },
+      ],
+    });
+
+    await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation DeactivateLocation($id: ID!) {
+          locationDeactivate(locationId: $id) @idempotent(key: "deactivate-gamma") {
+            location { id }
+            locationDeactivateUserErrors { field message code }
+          }
+        }`,
+        variables: { id: 'gid://shopify/Location/3' },
+      });
+
+    const deleteResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation DeleteInactiveLocation($id: ID!) {
+          locationDelete(locationId: $id) {
+            deletedLocationId
+            locationDeleteUserErrors { field message code }
+          }
+        }`,
+        variables: { id: 'gid://shopify/Location/3' },
+      });
+
+    expect(deleteResponse.body.data.locationDelete).toEqual({
+      deletedLocationId: 'gid://shopify/Location/3',
+      locationDeleteUserErrors: [],
+    });
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query($id: ID!) {
+          location(id: $id) { id }
+          locationByIdentifier(identifier: { id: $id }) { id }
+        }`,
+        variables: { id: 'gid://shopify/Location/3' },
+      });
+
+    expect(readResponse.body.data).toEqual({
+      location: null,
+      locationByIdentifier: null,
+    });
+
+    const catalogResponse = await request(app).post('/admin/api/2026-04/graphql.json').send({
+      query: 'query { locations(first: 5) { nodes { id name } } }',
+    });
+
+    expect(catalogResponse.body.data.locations).toEqual({ nodes: [] });
+
+    const stateResponse = await request(app).get('/__meta/state');
+    expect(stateResponse.body.stagedState.locations['gid://shopify/Location/3']).toMatchObject({
+      id: 'gid://shopify/Location/3',
+      deleted: true,
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('requires the 2026-04 idempotent directive for locationActivate and locationDeactivate', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('idempotency validation should resolve locally before upstream');
+    });
+    store.upsertBaseLocations([{ id: 'gid://shopify/Location/4', name: 'Delta Warehouse', isActive: false }]);
+    const app = createApp(config).callback();
+
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation ActivateWithoutKey($id: ID!) {
+          locationActivate(locationId: $id) {
+            location { id }
+            locationActivateUserErrors { field message code }
+          }
+        }`,
+        variables: { id: 'gid://shopify/Location/4' },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      errors: [
+        {
+          message: 'The @idempotent directive is required for this mutation but was not provided.',
+          path: ['locationActivate'],
+          extensions: {
+            code: 'BAD_REQUEST',
+          },
+        },
+      ],
+      data: {
+        locationActivate: null,
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });
