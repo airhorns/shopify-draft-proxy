@@ -1,0 +1,354 @@
+{
+  "capturedAt": "2026-04-25T21:32:00.000Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "evidence": {
+    "credentialProbe": {
+      "ok": true,
+      "apiVersion": "2026-04",
+      "shopId": "gid://shopify/Shop/92891250994"
+    },
+    "schema": {
+      "deliveryProfileCreate": ["profile"],
+      "deliveryProfileUpdate": ["id", "profile"],
+      "deliveryProfileRemove": ["id"],
+      "removePayloadFields": ["job", "userErrors"]
+    }
+  },
+  "mutations": {
+    "blankCreate": {
+      "variables": {
+        "profile": {
+          "name": ""
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileCreate": {
+              "profile": null,
+              "userErrors": [
+                {
+                  "field": ["profile", "name"],
+                  "message": "Add a profile name"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "nestedCreate": {
+      "variables": {
+        "profile": {
+          "name": "HAR-247 nested 1777152157411",
+          "locationGroupsToCreate": [
+            {
+              "locations": ["gid://shopify/Location/106318430514"],
+              "zonesToCreate": [
+                {
+                  "name": "HAR-247 Domestic",
+                  "countries": [
+                    {
+                      "code": "US",
+                      "includeAllProvinces": true
+                    }
+                  ],
+                  "methodDefinitionsToCreate": [
+                    {
+                      "name": "HAR-247 Standard",
+                      "active": true,
+                      "rateDefinition": {
+                        "price": {
+                          "amount": "7.25",
+                          "currencyCode": "USD"
+                        }
+                      },
+                      "weightConditionsToCreate": [
+                        {
+                          "operator": "GREATER_THAN_OR_EQUAL_TO",
+                          "criteria": {
+                            "value": 1,
+                            "unit": "KILOGRAMS"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "variantsToAssociate": ["gid://shopify/ProductVariant/51098706739506"]
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileCreate": {
+              "profile": {
+                "id": "gid://shopify/DeliveryProfile/131621028146",
+                "name": "HAR-247 nested 1777152157411",
+                "version": 1,
+                "originLocationCount": 1,
+                "zoneCountryCount": 1,
+                "activeMethodDefinitionsCount": 1,
+                "profileItems": {
+                  "nodes": [
+                    {
+                      "product": {
+                        "id": "gid://shopify/Product/10170561036594",
+                        "title": "Hermes Variant Search Conformance 1777150673975"
+                      },
+                      "variants": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/ProductVariant/51098706739506",
+                            "title": "Default Title"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                "profileLocationGroups": [
+                  {
+                    "locationGroup": {
+                      "id": "gid://shopify/DeliveryLocationGroup/133308088626"
+                    },
+                    "locationGroupZones": {
+                      "nodes": [
+                        {
+                          "zone": {
+                            "id": "gid://shopify/DeliveryZone/581656510770",
+                            "name": "HAR-247 Domestic"
+                          },
+                          "methodDefinitions": {
+                            "nodes": [
+                              {
+                                "id": "gid://shopify/DeliveryMethodDefinition/1088057180466",
+                                "name": "HAR-247 Standard",
+                                "active": true,
+                                "rateProvider": {
+                                  "id": "gid://shopify/DeliveryRateDefinition/1010671485234",
+                                  "price": {
+                                    "amount": "7.25",
+                                    "currencyCode": "USD"
+                                  }
+                                },
+                                "methodConditions": [
+                                  {
+                                    "id": "gid://shopify/DeliveryCondition/292281450802?operator=greater_than_or_equal_to",
+                                    "field": "TOTAL_WEIGHT",
+                                    "operator": "GREATER_THAN_OR_EQUAL_TO",
+                                    "conditionCriteria": {
+                                      "__typename": "Weight",
+                                      "value": 1,
+                                      "unit": "KILOGRAMS"
+                                    }
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              "userErrors": []
+            }
+          }
+        }
+      }
+    },
+    "nestedUpdate": {
+      "variables": {
+        "id": "gid://shopify/DeliveryProfile/131621028146",
+        "profile": {
+          "name": "HAR-247 nested updated",
+          "variantsToDissociate": ["gid://shopify/ProductVariant/51098706739506"],
+          "conditionsToDelete": ["gid://shopify/DeliveryCondition/292281450802?operator=greater_than_or_equal_to"],
+          "locationGroupsToUpdate": [
+            {
+              "id": "gid://shopify/DeliveryLocationGroup/133308088626",
+              "locationsToAdd": ["gid://shopify/Location/106318463282"],
+              "zonesToUpdate": [
+                {
+                  "id": "gid://shopify/DeliveryZone/581656510770",
+                  "name": "HAR-247 Domestic Updated",
+                  "methodDefinitionsToUpdate": [
+                    {
+                      "id": "gid://shopify/DeliveryMethodDefinition/1088057180466",
+                      "name": "HAR-247 Standard Updated",
+                      "active": false,
+                      "rateDefinition": {
+                        "id": "gid://shopify/DeliveryRateDefinition/1010671485234",
+                        "price": {
+                          "amount": "8.50",
+                          "currencyCode": "USD"
+                        }
+                      }
+                    }
+                  ],
+                  "methodDefinitionsToCreate": [
+                    {
+                      "name": "HAR-247 Express",
+                      "active": true,
+                      "rateDefinition": {
+                        "price": {
+                          "amount": "12.00",
+                          "currencyCode": "USD"
+                        }
+                      },
+                      "priceConditionsToCreate": [
+                        {
+                          "operator": "LESS_THAN_OR_EQUAL_TO",
+                          "criteria": {
+                            "amount": "100.00",
+                            "currencyCode": "USD"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileUpdate": {
+              "profile": {
+                "id": "gid://shopify/DeliveryProfile/131621028146",
+                "name": "HAR-247 nested updated",
+                "version": 2,
+                "originLocationCount": 2,
+                "zoneCountryCount": 1,
+                "activeMethodDefinitionsCount": 1,
+                "productVariantsCount": {
+                  "count": 0,
+                  "precision": "EXACT"
+                },
+                "profileItems": {
+                  "nodes": []
+                }
+              },
+              "userErrors": []
+            }
+          }
+        }
+      }
+    },
+    "remove": {
+      "variables": {
+        "id": "gid://shopify/DeliveryProfile/131621028146"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileRemove": {
+              "job": {
+                "id": "gid://shopify/Job/bad9d3cd-1922-41a8-af76-8faa33806a70",
+                "done": false
+              },
+              "userErrors": []
+            }
+          }
+        }
+      }
+    },
+    "readAfterRemovePoll": {
+      "variables": {
+        "id": "gid://shopify/DeliveryProfile/131621028146"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfile": null
+          }
+        }
+      }
+    },
+    "missingUpdate": {
+      "variables": {
+        "id": "gid://shopify/DeliveryProfile/999999999999",
+        "profile": {
+          "name": "Nope"
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileUpdate": {
+              "profile": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Profile could not be updated."
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "missingRemove": {
+      "variables": {
+        "id": "gid://shopify/DeliveryProfile/999999999999"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileRemove": {
+              "job": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "The Delivery Profile cannot be found for the shop."
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "defaultRemove": {
+      "variables": {
+        "id": "gid://shopify/DeliveryProfile/125254992178"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileRemove": {
+              "job": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Cannot delete the default profile."
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "notes": [
+    "Captured with SHOPIFY_CONFORMANCE_API_VERSION=2026-04 and home-folder conformance auth.",
+    "The successful lifecycle used a disposable custom delivery profile, then removed it; Shopify removal returned an asynchronous Job with done=false and the profile read became null after a short poll.",
+    "No access-scope or manage-delivery-settings blocker was encountered for the active conformance credential."
+  ]
+}

@@ -1941,30 +1941,30 @@
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["deliveryProfileCreate", "DeliveryProfileCreate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires nested profile/location-group/zone/rate method validation, variant assignment, and downstream profile reads before support."
+    "runtimeTests": ["tests/integration/delivery-profile-lifecycle-flow.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 deliveryProfileCreate stages locally for merchant-owned custom profiles, name validation, nested location groups/zones/static rate definitions, weight/price condition creation, variant association, downstream delivery profile reads, and meta log/state inspection. Carrier participants, selling-plan lifecycle semantics, and full delivery-setting eligibility validation remain outside the supported subset."
   },
   {
     "name": "deliveryProfileRemove",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["deliveryProfileRemove", "DeliveryProfileRemove"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires asynchronous job payload semantics, default-profile restrictions, and downstream profile/catalog absence before support."
+    "runtimeTests": ["tests/integration/delivery-profile-lifecycle-flow.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 deliveryProfileRemove stages locally for custom-profile removal, Shopify-like asynchronous Job payloads, missing-profile userErrors, default-profile denial, and downstream profile/catalog absence. Removal is immediate in local staged reads while commit replay retains the original mutation order for Shopify's asynchronous runtime behavior."
   },
   {
     "name": "deliveryProfileUpdate",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["deliveryProfileUpdate", "DeliveryProfileUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires nested diff semantics for groups, zones, method definitions, variant/selling-plan associations, legacy-mode transitions, and downstream profile reads before support."
+    "runtimeTests": ["tests/integration/delivery-profile-lifecycle-flow.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 deliveryProfileUpdate stages locally for profile rename, nested location add/remove, location-group create/update/delete, zone create/update/delete, static rate method create/update/delete, condition update/delete, variant association/dissociation, and downstream profile reads. Legacy-mode transitions, carrier participant callbacks, and full selling-plan routing remain excluded until separately captured."
   },
   {
     "name": "orderEditAddShippingLine",

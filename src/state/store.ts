@@ -108,6 +108,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedMarketIds: {},
   deletedCatalogIds: {},
   deletedWebPresenceIds: {},
+  deletedDeliveryProfileIds: {},
   mergedCustomerIds: {},
   customerMergeRequests: {},
 };
@@ -1075,8 +1076,43 @@ export class InMemoryStore {
     }
   }
 
+  stageCreateDeliveryProfile(profile: DeliveryProfileRecord): DeliveryProfileRecord {
+    delete this.stagedState.deletedDeliveryProfileIds[profile.id];
+    this.stagedState.deliveryProfiles[profile.id] = structuredClone(profile);
+    if (!this.stagedState.deliveryProfileOrder.includes(profile.id)) {
+      this.stagedState.deliveryProfileOrder.push(profile.id);
+    }
+    return structuredClone(profile);
+  }
+
+  stageUpdateDeliveryProfile(profile: DeliveryProfileRecord): DeliveryProfileRecord {
+    delete this.stagedState.deletedDeliveryProfileIds[profile.id];
+    this.stagedState.deliveryProfiles[profile.id] = structuredClone(profile);
+    if (
+      !this.baseState.deliveryProfileOrder.includes(profile.id) &&
+      !this.stagedState.deliveryProfileOrder.includes(profile.id)
+    ) {
+      this.stagedState.deliveryProfileOrder.push(profile.id);
+    }
+    return structuredClone(profile);
+  }
+
+  stageDeleteDeliveryProfile(profileId: string): void {
+    delete this.stagedState.deliveryProfiles[profileId];
+    this.stagedState.deletedDeliveryProfileIds[profileId] = true;
+  }
+
   getBaseDeliveryProfileById(profileId: string): DeliveryProfileRecord | null {
     const profile = this.baseState.deliveryProfiles[profileId] ?? null;
+    return profile ? structuredClone(profile) : null;
+  }
+
+  getEffectiveDeliveryProfileById(profileId: string): DeliveryProfileRecord | null {
+    if (this.stagedState.deletedDeliveryProfileIds[profileId] || this.baseState.deletedDeliveryProfileIds[profileId]) {
+      return null;
+    }
+
+    const profile = this.stagedState.deliveryProfiles[profileId] ?? this.baseState.deliveryProfiles[profileId] ?? null;
     return profile ? structuredClone(profile) : null;
   }
 
@@ -1090,6 +1126,30 @@ export class InMemoryStore {
       .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
 
     return structuredClone([...orderedProfiles, ...unorderedProfiles]);
+  }
+
+  listEffectiveDeliveryProfiles(): DeliveryProfileRecord[] {
+    const orderedIds = new Set([...this.baseState.deliveryProfileOrder, ...this.stagedState.deliveryProfileOrder]);
+    const orderedProfiles = [...orderedIds]
+      .map((id) => this.getEffectiveDeliveryProfileById(id))
+      .filter((profile): profile is DeliveryProfileRecord => profile !== null);
+    const unorderedProfiles = Object.values({
+      ...this.baseState.deliveryProfiles,
+      ...this.stagedState.deliveryProfiles,
+    })
+      .filter((profile) => !orderedIds.has(profile.id))
+      .map((profile) => this.getEffectiveDeliveryProfileById(profile.id))
+      .filter((profile): profile is DeliveryProfileRecord => profile !== null)
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
+
+    return structuredClone([...orderedProfiles, ...unorderedProfiles]);
+  }
+
+  hasStagedDeliveryProfiles(): boolean {
+    return (
+      Object.keys(this.stagedState.deliveryProfiles).length > 0 ||
+      Object.keys(this.stagedState.deletedDeliveryProfileIds).length > 0
+    );
   }
 
   getBasePriceListRecordById(priceListId: string): PriceListRecord | null {

@@ -1,0 +1,20 @@
+{
+  "scenarioId": "delivery-profile-lifecycle",
+  "operationNames": [
+    "deliveryProfile",
+    "deliveryProfiles",
+    "deliveryProfileCreate",
+    "deliveryProfileUpdate",
+    "deliveryProfileRemove"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "mutation-log-parity"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/delivery-profile-writes.json"],
+  "runtimeTestFiles": ["tests/integration/delivery-profile-lifecycle-flow.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "notes": "Captured Admin GraphQL 2026-04 delivery-profile write evidence covers blank-name validation, nested profile create, nested update with location add, method update/create, condition delete, variant dissociation, missing-id userErrors, default-profile removal denial, asynchronous remove job payload, and downstream profile absence after removal. Runtime parity is enforced by the delivery-profile lifecycle integration test while the generic parity runner lacks multi-step mutation chaining for this write flow.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  }
+}
