@@ -437,13 +437,24 @@
     "runtimeTests": []
   },
   {
+    "name": "customerGenerateAccountActivationUrl",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["customerGenerateAccountActivationUrl", "CustomerGenerateAccountActivationUrl"],
+    "runtimeTests": [],
+    "supportNotes": "Customer account activation URL scaffold only. This returns sensitive, expiring customer account material; future support must synthesize non-deliverable local URLs from captured shape evidence without sending invite email or treating upstream passthrough as support."
+  },
+  {
     "name": "customerSendAccountInviteEmail",
     "type": "mutation",
     "domain": "customers",
     "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["customerSendAccountInviteEmail", "CustomerSendAccountInviteEmail"],
-    "runtimeTests": []
+    "runtimeTests": [],
+    "supportNotes": "Explicitly unsupported outbound email side effect. A successful local response would imply customer-visible delivery that the proxy cannot observe or roll back; future support needs a product decision for blocked behavior or a non-delivering test outbox model before this can be marked implemented."
   },
   {
     "name": "customerPaymentMethodSendUpdateEmail",
@@ -453,7 +464,7 @@
     "implemented": false,
     "matchNames": ["customerPaymentMethodSendUpdateEmail", "CustomerPaymentMethodSendUpdateEmail"],
     "runtimeTests": [],
-    "supportNotes": "Customer payment method email scaffold only. This is customer-visible side effect work; future capture requires write_customers plus write_customer_payment_methods and a no-recipient or otherwise safe email plan before local staging support."
+    "supportNotes": "Explicitly unsupported outbound payment-method email side effect. Future capture requires write_customers plus write_customer_payment_methods and a no-recipient or non-delivering test plan; future implementation must not claim successful customer-visible delivery unless a safe local outbox/blocking model exists."
   },
   {
     "name": "customerMerge",
