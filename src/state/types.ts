@@ -1397,6 +1397,8 @@ export const stateSnapshotSchema = z.strictObject({
   marketingActivityOrder: z.array(z.string()).default([]),
   marketingEvents: z.record(z.string(), marketingRecordSchema).default({}),
   marketingEventOrder: z.array(z.string()).default([]),
+  deletedMarketingActivityIds: z.record(z.string(), z.boolean()).default({}),
+  deletedMarketingEventIds: z.record(z.string(), z.boolean()).default({}),
   discounts: z.record(z.string(), discountRecordSchema).default({}),
   discountBulkOperations: z.record(z.string(), discountBulkOperationRecordSchema).default({}),
   paymentCustomizations: z.record(z.string(), paymentCustomizationRecordSchema).default({}),

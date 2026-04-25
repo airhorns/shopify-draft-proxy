@@ -2572,7 +2572,7 @@
     "implemented": true,
     "matchNames": ["marketingActivities", "MarketingActivities"],
     "runtimeTests": ["tests/integration/marketing-query-shapes.test.ts"],
-    "supportNotes": "Snapshot/local read support for captured selected fields, empty connections, filtering, sorting, reverse ordering, and cursor/pageInfo shapes. No marketing mutation staging is included."
+    "supportNotes": "Snapshot/local read support for captured selected fields, empty connections, filtering, sorting, reverse ordering, cursor/pageInfo shapes, and staged external activity lifecycle overlays."
   },
   {
     "name": "marketingActivity",
@@ -2582,7 +2582,7 @@
     "implemented": true,
     "matchNames": ["marketingActivity", "MarketingActivity"],
     "runtimeTests": ["tests/integration/marketing-query-shapes.test.ts"],
-    "supportNotes": "Snapshot/local singular lookup support for captured selected fields. Missing IDs return null; no arbitrary marketing activity records are synthesized."
+    "supportNotes": "Snapshot/local singular lookup support for captured selected fields. Missing IDs return null; staged external activity lifecycle mutations are visible immediately."
   },
   {
     "name": "marketingEvent",
@@ -2602,7 +2602,7 @@
     "implemented": true,
     "matchNames": ["marketingEvents", "MarketingEvents"],
     "runtimeTests": ["tests/integration/marketing-query-shapes.test.ts"],
-    "supportNotes": "Snapshot/local read support for captured selected fields, empty connections, filtering, sorting, reverse ordering, and cursor/pageInfo shapes. No marketing mutation staging is included."
+    "supportNotes": "Snapshot/local read support for captured selected fields, empty connections, filtering, sorting, reverse ordering, cursor/pageInfo shapes, and staged external activity lifecycle overlays."
   },
   {
     "name": "marketingActivityCreate",
@@ -2629,50 +2629,50 @@
     "type": "mutation",
     "domain": "marketing",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingActivityCreateExternal", "MarketingActivityCreateExternal"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for external remoteId/UTM fields, userErrors, and downstream list/detail visibility."
+    "runtimeTests": ["tests/integration/marketing-activity-lifecycle-flow.test.ts"],
+    "supportNotes": "Locally stages external activity creation from captured write_marketing_events evidence. Preserves remoteId/UTM attribution, selected Shopify-like fields, userErrors, original mutation log retention, and downstream marketingActivity/marketingActivities visibility."
   },
   {
     "name": "marketingActivityUpdateExternal",
     "type": "mutation",
     "domain": "marketing",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingActivityUpdateExternal", "MarketingActivityUpdateExternal"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for external activity identity, status updates, and downstream list/detail visibility."
+    "runtimeTests": ["tests/integration/marketing-activity-lifecycle-flow.test.ts"],
+    "supportNotes": "Locally stages external activity updates by remoteId or local staged id from captured write_marketing_events evidence. UTM mutation attempts return captured immutable-UTM userErrors; downstream marketing reads observe the updated activity/event fields."
   },
   {
     "name": "marketingActivityUpsertExternal",
     "type": "mutation",
     "domain": "marketing",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingActivityUpsertExternal", "MarketingActivityUpsertExternal"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for create-vs-update behavior, remoteId identity, and downstream list/detail visibility."
+    "runtimeTests": ["tests/integration/marketing-activity-lifecycle-flow.test.ts"],
+    "supportNotes": "Locally stages external activity upserts using remoteId identity from captured write_marketing_events evidence. Missing remoteIds create staged activity/event rows; existing remoteIds update staged fields while preserving immutable UTM attribution."
   },
   {
     "name": "marketingActivityDeleteExternal",
     "type": "mutation",
     "domain": "marketing",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingActivityDeleteExternal", "MarketingActivityDeleteExternal"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for deletion payloads, unknown IDs, and downstream absence behavior."
+    "runtimeTests": ["tests/integration/marketing-activity-lifecycle-flow.test.ts"],
+    "supportNotes": "Locally stages external activity deletion by remoteId or staged id from captured write_marketing_events evidence. Missing activities return captured userErrors and successful deletes hide activity/event rows from downstream reads."
   },
   {
     "name": "marketingActivitiesDeleteAllExternal",
     "type": "mutation",
     "domain": "marketing",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingActivitiesDeleteAllExternal", "MarketingActivitiesDeleteAllExternal"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for asynchronous job payloads and blocked create/update behavior while deletion is pending."
+    "runtimeTests": ["tests/integration/marketing-activity-lifecycle-flow.test.ts"],
+    "supportNotes": "Locally stages bulk external activity deletion and returns a Shopify-like asynchronous Job payload from captured write_marketing_events evidence. Downstream marketing reads hide locally known external activities after the staged delete-all."
   },
   {
     "name": "marketingEngagementCreate",

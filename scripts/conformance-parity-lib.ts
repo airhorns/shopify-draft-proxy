@@ -32,7 +32,11 @@ import {
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from '../src/proxy/delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from '../src/proxy/discounts.js';
 import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
-import { handleMarketingQuery, hydrateMarketingFromUpstreamResponse } from '../src/proxy/marketing.js';
+import {
+  handleMarketingMutation,
+  handleMarketingQuery,
+  hydrateMarketingFromUpstreamResponse,
+} from '../src/proxy/marketing.js';
 import {
   handleMarketMutation,
   handleMarketsQuery,
@@ -835,6 +839,31 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleSegmentMutation(document, variables),
+    };
+  }
+
+  if (capability.execution === 'stage-locally' && capability.domain === 'marketing') {
+    const marketingMutation = handleMarketingMutation(document, variables);
+    if (!marketingMutation) {
+      throw new Error(`Marketing-domain parity request was not handled locally: ${capability.operationName}`);
+    }
+
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2025-01/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      stagedResourceIds: marketingMutation.stagedResourceIds,
+      notes: marketingMutation.notes,
+    });
+
+    return {
+      status: 200,
+      body: marketingMutation.response,
     };
   }
 

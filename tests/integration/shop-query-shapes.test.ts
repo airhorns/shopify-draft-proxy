@@ -138,6 +138,8 @@ function writeSnapshot(shop: ShopRecord | null): string {
       marketingActivityOrder: [],
       marketingEvents: {},
       marketingEventOrder: [],
+      deletedMarketingActivityIds: {},
+      deletedMarketingEventIds: {},
       discounts: {},
       discountBulkOperations: {},
       paymentCustomizations: {},
