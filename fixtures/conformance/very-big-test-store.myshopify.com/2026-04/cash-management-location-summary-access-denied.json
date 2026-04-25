@@ -213,9 +213,7 @@
               "documentation": "https://shopify.dev/api/usage/access-scopes",
               "requiredAccess": "`read_cash_tracking` access scope. Also: User must have `view_payment_tracking_sessions_pos_channel` or `payments_cash_session_history` retail role permission."
             },
-            "path": [
-              "cashManagementLocationSummary"
-            ]
+            "path": ["cashManagementLocationSummary"]
           }
         ],
         "data": null,
@@ -255,9 +253,7 @@
               "documentation": "https://shopify.dev/api/usage/access-scopes",
               "requiredAccess": "`read_cash_tracking` access scope. Also: User must have `view_payment_tracking_sessions_pos_channel` or `payments_cash_session_history` retail role permission."
             },
-            "path": [
-              "cashManagementLocationSummary"
-            ]
+            "path": ["cashManagementLocationSummary"]
           }
         ],
         "data": null,
@@ -381,11 +377,7 @@
                 "column": 5
               }
             ],
-            "path": [
-              "query CashManagementLocationSummaryInvalidDate",
-              "cashManagementLocationSummary",
-              "startDate"
-            ],
+            "path": ["query CashManagementLocationSummaryInvalidDate", "cashManagementLocationSummary", "startDate"],
             "extensions": {
               "code": "argumentLiteralsIncompatible",
               "typeName": "CoercionError"
