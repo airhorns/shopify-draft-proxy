@@ -153,6 +153,266 @@ describe('customer draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('exposes staged customerCreate rows through filtered reverse and backward customer windows', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('staged customer connection replay should not hit upstream fetch');
+    });
+    store.upsertBaseCustomers([
+      {
+        id: 'gid://shopify/Customer/501',
+        firstName: 'Alan',
+        lastName: 'Turing',
+        displayName: 'Alan Turing',
+        email: 'alan@example.com',
+        legacyResourceId: '501',
+        locale: 'en',
+        note: null,
+        canDelete: false,
+        verifiedEmail: true,
+        taxExempt: false,
+        state: 'DISABLED',
+        tags: ['vip'],
+        numberOfOrders: '1',
+        amountSpent: null,
+        defaultEmailAddress: { emailAddress: 'alan@example.com' },
+        defaultPhoneNumber: null,
+        defaultAddress: null,
+        createdAt: '2023-12-01T00:00:00.000Z',
+        updatedAt: '2023-12-01T00:00:00.000Z',
+      },
+      {
+        id: 'gid://shopify/Customer/502',
+        firstName: 'Barbara',
+        lastName: 'Liskov',
+        displayName: 'Barbara Liskov',
+        email: 'barbara@example.com',
+        legacyResourceId: '502',
+        locale: 'en',
+        note: null,
+        canDelete: false,
+        verifiedEmail: true,
+        taxExempt: false,
+        state: 'DISABLED',
+        tags: ['vip'],
+        numberOfOrders: '2',
+        amountSpent: null,
+        defaultEmailAddress: { emailAddress: 'barbara@example.com' },
+        defaultPhoneNumber: null,
+        defaultAddress: null,
+        createdAt: '2023-12-02T00:00:00.000Z',
+        updatedAt: '2023-12-02T00:00:00.000Z',
+      },
+      {
+        id: 'gid://shopify/Customer/503',
+        firstName: 'Claude',
+        lastName: 'Shannon',
+        displayName: 'Claude Shannon',
+        email: 'claude@example.com',
+        legacyResourceId: '503',
+        locale: 'en',
+        note: null,
+        canDelete: false,
+        verifiedEmail: true,
+        taxExempt: false,
+        state: 'DISABLED',
+        tags: ['vip'],
+        numberOfOrders: '3',
+        amountSpent: null,
+        defaultEmailAddress: { emailAddress: 'claude@example.com' },
+        defaultPhoneNumber: null,
+        defaultAddress: null,
+        createdAt: '2023-12-03T00:00:00.000Z',
+        updatedAt: '2023-12-03T00:00:00.000Z',
+      },
+      {
+        id: 'gid://shopify/Customer/504',
+        firstName: 'Donald',
+        lastName: 'Knuth',
+        displayName: 'Donald Knuth',
+        email: 'donald@example.com',
+        legacyResourceId: '504',
+        locale: 'en',
+        note: null,
+        canDelete: false,
+        verifiedEmail: true,
+        taxExempt: false,
+        state: 'DISABLED',
+        tags: ['vip'],
+        numberOfOrders: '4',
+        amountSpent: null,
+        defaultEmailAddress: { emailAddress: 'donald@example.com' },
+        defaultPhoneNumber: null,
+        defaultAddress: null,
+        createdAt: '2023-12-04T00:00:00.000Z',
+        updatedAt: '2023-12-04T00:00:00.000Z',
+      },
+    ]);
+    store.setBaseCustomerCatalogConnection({
+      orderedCustomerIds: [
+        'gid://shopify/Customer/501',
+        'gid://shopify/Customer/502',
+        'gid://shopify/Customer/503',
+        'gid://shopify/Customer/504',
+      ],
+      cursorByCustomerId: {
+        'gid://shopify/Customer/501': 'opaque-cursor-501',
+        'gid://shopify/Customer/502': 'opaque-cursor-502',
+        'gid://shopify/Customer/503': 'opaque-cursor-503',
+        'gid://shopify/Customer/504': 'opaque-cursor-504',
+      },
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: 'opaque-cursor-501',
+        endCursor: 'opaque-cursor-504',
+      },
+    });
+
+    const app = createApp(snapshotConfig).callback();
+    const createResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CustomerCreate($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id displayName email state tags createdAt updatedAt }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            email: 'zeta-vip@example.com',
+            firstName: 'Zeta',
+            lastName: 'Vip',
+            tags: ['vip', 'draft'],
+          },
+        },
+      });
+
+    expect(createResponse.status).toBe(200);
+    expect(createResponse.body.data.customerCreate.userErrors).toEqual([]);
+    const customerId = createResponse.body.data.customerCreate.customer.id;
+    const syntheticCursor = `cursor:${customerId}`;
+
+    const connectionResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query StagedCustomerWindows($query: String!, $before: String!) {
+          firstPage: customers(first: 2, query: $query, sortKey: UPDATED_AT, reverse: true) {
+            edges {
+              cursor
+              node { id displayName email tags updatedAt }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          previousPage: customers(last: 2, before: $before, query: $query, sortKey: UPDATED_AT, reverse: true) {
+            edges {
+              cursor
+              node { id displayName email tags updatedAt }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          counts: customersCount(query: "state:DISABLED") {
+            count
+            precision
+          }
+        }`,
+        variables: {
+          query: 'state:DISABLED tag:vip',
+          before: 'opaque-cursor-502',
+        },
+      });
+
+    expect(connectionResponse.status).toBe(200);
+    expect(connectionResponse.body).toEqual({
+      data: {
+        firstPage: {
+          edges: [
+            {
+              cursor: syntheticCursor,
+              node: {
+                id: customerId,
+                displayName: 'Zeta Vip',
+                email: 'zeta-vip@example.com',
+                tags: ['draft', 'vip'],
+                updatedAt: '2024-01-01T00:00:01.000Z',
+              },
+            },
+            {
+              cursor: 'opaque-cursor-504',
+              node: {
+                id: 'gid://shopify/Customer/504',
+                displayName: 'Donald Knuth',
+                email: 'donald@example.com',
+                tags: ['vip'],
+                updatedAt: '2023-12-04T00:00:00.000Z',
+              },
+            },
+          ],
+          pageInfo: {
+            hasNextPage: true,
+            hasPreviousPage: false,
+            startCursor: syntheticCursor,
+            endCursor: 'opaque-cursor-504',
+          },
+        },
+        previousPage: {
+          edges: [
+            {
+              cursor: 'opaque-cursor-504',
+              node: {
+                id: 'gid://shopify/Customer/504',
+                displayName: 'Donald Knuth',
+                email: 'donald@example.com',
+                tags: ['vip'],
+                updatedAt: '2023-12-04T00:00:00.000Z',
+              },
+            },
+            {
+              cursor: 'opaque-cursor-503',
+              node: {
+                id: 'gid://shopify/Customer/503',
+                displayName: 'Claude Shannon',
+                email: 'claude@example.com',
+                tags: ['vip'],
+                updatedAt: '2023-12-03T00:00:00.000Z',
+              },
+            },
+          ],
+          pageInfo: {
+            hasNextPage: true,
+            hasPreviousPage: true,
+            startCursor: 'opaque-cursor-504',
+            endCursor: 'opaque-cursor-503',
+          },
+        },
+        counts: {
+          count: 5,
+          precision: 'EXACT',
+        },
+      },
+      extensions: {
+        search: [
+          {
+            path: ['counts'],
+            query: 'state:DISABLED',
+            parsed: {
+              field: 'state',
+              match_all: 'DISABLED',
+            },
+            warnings: [
+              {
+                field: 'state',
+                message: 'Invalid search field for this query.',
+                code: 'invalid_field',
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('overlays staged customerByIdentifier lookups in live-hybrid mode when Shopify has no match yet', async () => {
     const app = createApp({ ...snapshotConfig, readMode: 'live-hybrid' }).callback();
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
