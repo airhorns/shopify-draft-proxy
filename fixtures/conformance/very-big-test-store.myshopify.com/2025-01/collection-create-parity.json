@@ -16,7 +16,7 @@
   "mutation": {
     "variables": {
       "input": {
-        "title": "Hermes Collection Conformance 1777076165973",
+        "title": "Hermes Collection Conformance 1777076623249",
         "sortOrder": "MANUAL"
       }
     },
@@ -24,9 +24,9 @@
       "data": {
         "collectionCreate": {
           "collection": {
-            "id": "gid://shopify/Collection/468786741481",
-            "title": "Hermes Collection Conformance 1777076165973",
-            "handle": "hermes-collection-conformance-1777076165973",
+            "id": "gid://shopify/Collection/468787233001",
+            "title": "Hermes Collection Conformance 1777076623249",
+            "handle": "hermes-collection-conformance-1777076623249",
             "products": {
               "nodes": [],
               "pageInfo": {
@@ -54,9 +54,9 @@
   "downstreamRead": {
     "data": {
       "collection": {
-        "id": "gid://shopify/Collection/468786741481",
-        "title": "Hermes Collection Conformance 1777076165973",
-        "handle": "hermes-collection-conformance-1777076165973",
+        "id": "gid://shopify/Collection/468787233001",
+        "title": "Hermes Collection Conformance 1777076623249",
+        "handle": "hermes-collection-conformance-1777076623249",
         "products": {
           "nodes": [],
           "pageInfo": {
@@ -68,9 +68,9 @@
       "collections": {
         "nodes": [
           {
-            "id": "gid://shopify/Collection/468786741481",
-            "title": "Hermes Collection Conformance 1777076165973",
-            "handle": "hermes-collection-conformance-1777076165973",
+            "id": "gid://shopify/Collection/468787233001",
+            "title": "Hermes Collection Conformance 1777076623249",
+            "handle": "hermes-collection-conformance-1777076623249",
             "products": {
               "nodes": [],
               "pageInfo": {
