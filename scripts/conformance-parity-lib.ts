@@ -158,6 +158,7 @@ const FULFILLMENT_ORDER_LIFECYCLE_MUTATION_ROOTS = new Set([
   'fulfillmentOrderReleaseHold',
   'fulfillmentOrderReportProgress',
   'fulfillmentOrderReschedule',
+  'fulfillmentOrdersReroute',
 ]);
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -779,10 +780,7 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
-  if (
-    capability.execution === 'stage-locally' &&
-    (capability.domain === 'orders' || capability.domain === 'shipping-fulfillments')
-  ) {
+  if (capability.execution === 'stage-locally' && capability.domain === 'orders') {
     const body = handleOrderMutation(document, variables, 'snapshot');
     if (!body) {
       throw new Error(`Order-domain parity request was not handled locally: ${capability.operationName}`);
