@@ -1,0 +1,22 @@
+{
+  "scenarioId": "metaobject-definition-lifecycle-local-staging",
+  "operationNames": [
+    "metaobjectDefinitionCreate",
+    "metaobjectDefinitionUpdate",
+    "metaobjectDefinitionDelete",
+    "standardMetaobjectDefinitionEnable",
+    "metaobjectDefinition",
+    "metaobjectDefinitionByType",
+    "metaobjectDefinitions"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/metaobject-definition-draft-flow.json"],
+  "runtimeTestFiles": ["tests/integration/metaobject-definition-draft-flow.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "notes": "Runtime evidence for HAR-242 local metaobject definition lifecycle staging. The fixture-backed integration test covers create/update/delete read-after-write behavior, meta API log/state visibility, no-upstream mutation handling, the captured merchant-owned access.admin guardrail, a documented unsupported delete branch for definitions with associated entries, and bounded standard template enablement. The generic parity runner cannot yet replay this multi-step local mutation flow directly."
+}

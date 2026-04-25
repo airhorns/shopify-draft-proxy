@@ -683,6 +683,28 @@ describe('getOperationCapability', () => {
     }
   });
 
+  it('routes implemented metaobject definition mutation roots through local staging', () => {
+    for (const rootField of [
+      'metaobjectDefinitionCreate',
+      'metaobjectDefinitionUpdate',
+      'metaobjectDefinitionDelete',
+      'standardMetaobjectDefinitionEnable',
+    ]) {
+      expect(
+        getOperationCapability({
+          type: 'mutation',
+          name: rootField,
+          rootFields: [rootField],
+        }),
+      ).toEqual({
+        domain: 'metaobjects',
+        execution: 'stage-locally',
+        operationName: rootField,
+        type: 'mutation',
+      });
+    }
+  });
+
   it('routes implemented payment customization read roots through the local overlay', () => {
     expect(
       getOperationCapability({

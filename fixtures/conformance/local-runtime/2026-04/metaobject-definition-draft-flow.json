@@ -1,0 +1,25 @@
+{
+  "kind": "local-runtime-fixture",
+  "apiVersion": "2026-04",
+  "scenarioId": "metaobject-definition-lifecycle-local-staging",
+  "issue": "HAR-242",
+  "runtimeTestFiles": ["tests/integration/metaobject-definition-draft-flow.test.ts"],
+  "coveredOperations": [
+    "metaobjectDefinitionCreate",
+    "metaobjectDefinitionUpdate",
+    "metaobjectDefinitionDelete",
+    "standardMetaobjectDefinitionEnable",
+    "metaobjectDefinition",
+    "metaobjectDefinitionByType",
+    "metaobjectDefinitions"
+  ],
+  "evidence": [
+    "Snapshot-mode create/update/delete requests are handled without upstream fetch.",
+    "Staged definitions are visible through catalog, ID, and type reads.",
+    "Meta API state exposes staged definition records and tombstones.",
+    "Meta API log preserves original raw mutation request bodies in order for commit replay.",
+    "Merchant-owned create with access.admin returns the captured ADMIN_ACCESS_INPUT_NOT_ALLOWED guardrail locally.",
+    "Definitions with associated metaobjects return an explicit local unsupported userError until entry cascade behavior is modeled.",
+    "standardMetaobjectDefinitionEnable stages the bounded local template catalog and returns TEMPLATE_NOT_FOUND for unknown template types."
+  ]
+}

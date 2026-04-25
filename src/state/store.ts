@@ -119,6 +119,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedCatalogIds: {},
   deletedWebPresenceIds: {},
   deletedDeliveryProfileIds: {},
+  deletedMetaobjectDefinitionIds: {},
   mergedCustomerIds: {},
   customerMergeRequests: {},
 };
@@ -2036,8 +2037,14 @@ export class InMemoryStore {
 
   upsertStagedMetaobjectDefinitions(definitions: MetaobjectDefinitionRecord[]): void {
     for (const definition of definitions) {
+      delete this.stagedState.deletedMetaobjectDefinitionIds[definition.id];
       this.stagedState.metaobjectDefinitions[definition.id] = structuredClone(definition);
     }
+  }
+
+  deleteStagedMetaobjectDefinition(definitionId: string): void {
+    delete this.stagedState.metaobjectDefinitions[definitionId];
+    this.stagedState.deletedMetaobjectDefinitionIds[definitionId] = true;
   }
 
   replaceBaseMetafieldsForProduct(productId: string, metafields: ProductMetafieldRecord[]): void {
@@ -2663,6 +2670,9 @@ export class InMemoryStore {
     const definitionsById = new Map<string, MetaobjectDefinitionRecord>();
 
     for (const definition of Object.values(this.baseState.metaobjectDefinitions)) {
+      if (this.stagedState.deletedMetaobjectDefinitionIds[definition.id]) {
+        continue;
+      }
       definitionsById.set(definition.id, structuredClone(definition));
     }
 
@@ -2676,6 +2686,10 @@ export class InMemoryStore {
   }
 
   getEffectiveMetaobjectDefinitionById(definitionId: string): MetaobjectDefinitionRecord | null {
+    if (this.stagedState.deletedMetaobjectDefinitionIds[definitionId]) {
+      return null;
+    }
+
     const definition =
       this.stagedState.metaobjectDefinitions[definitionId] ?? this.baseState.metaobjectDefinitions[definitionId];
     return definition ? structuredClone(definition) : null;
@@ -2689,7 +2703,8 @@ export class InMemoryStore {
   hasEffectiveMetaobjectDefinitions(): boolean {
     return (
       Object.keys(this.baseState.metaobjectDefinitions).length > 0 ||
-      Object.keys(this.stagedState.metaobjectDefinitions).length > 0
+      Object.keys(this.stagedState.metaobjectDefinitions).length > 0 ||
+      Object.keys(this.stagedState.deletedMetaobjectDefinitionIds).length > 0
     );
   }
 
