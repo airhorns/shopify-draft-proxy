@@ -22,6 +22,7 @@ const emptySnapshot = {
   publications: {},
   customers: {},
   customerAddresses: {},
+  customerPaymentMethods: {},
   segments: {},
   discounts: {},
   customerMetafields: {},

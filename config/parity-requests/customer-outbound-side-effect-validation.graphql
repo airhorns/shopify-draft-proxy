@@ -1,0 +1,29 @@
+mutation CustomerOutboundSideEffectValidation($customerId: ID!, $customerPaymentMethodId: ID!) {
+  customerGenerateAccountActivationUrl(customerId: $customerId) {
+    accountActivationUrl
+    userErrors {
+      field
+      message
+    }
+  }
+  customerSendAccountInviteEmail(customerId: $customerId) {
+    customer {
+      id
+      state
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  customerPaymentMethodSendUpdateEmail(customerPaymentMethodId: $customerPaymentMethodId) {
+    customer {
+      id
+      state
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

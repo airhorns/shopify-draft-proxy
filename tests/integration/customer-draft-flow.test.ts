@@ -2247,6 +2247,185 @@ describe('customer draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('buffers customer account activation and outbound email roots locally for commit replay', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('customer outbound side effects should be buffered locally');
+    });
+
+    store.upsertBaseCustomers([
+      {
+        id: 'gid://shopify/Customer/404',
+        firstName: 'Dorothy',
+        lastName: 'Vaughan',
+        displayName: 'Dorothy Vaughan',
+        email: 'dorothy@example.com',
+        legacyResourceId: '404',
+        locale: 'en',
+        note: null,
+        canDelete: true,
+        verifiedEmail: true,
+        taxExempt: false,
+        state: 'DISABLED',
+        tags: ['invite'],
+        numberOfOrders: '0',
+        amountSpent: null,
+        defaultEmailAddress: { emailAddress: 'dorothy@example.com' },
+        defaultPhoneNumber: null,
+        defaultAddress: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-02T00:00:00.000Z',
+      },
+    ]);
+    store.upsertBaseCustomerPaymentMethods([
+      {
+        id: 'gid://shopify/CustomerPaymentMethod/local-payment-method',
+        customerId: 'gid://shopify/Customer/404',
+      },
+    ]);
+
+    const app = createApp(snapshotConfig).callback();
+    const activationResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation Activation($customerId: ID!) {
+          customerGenerateAccountActivationUrl(customerId: $customerId) {
+            accountActivationUrl
+            userErrors { field message }
+          }
+        }`,
+        variables: { customerId: 'gid://shopify/Customer/404' },
+      });
+
+    expect(activationResponse.status).toBe(200);
+    expect(activationResponse.body.data.customerGenerateAccountActivationUrl.userErrors).toEqual([]);
+    expect(activationResponse.body.data.customerGenerateAccountActivationUrl.accountActivationUrl).toMatch(
+      /^https:\/\/shopify-draft-proxy\.local\/customer-activation\/404\?token=/,
+    );
+
+    const inviteResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation Invite($customerId: ID!, $email: EmailInput) {
+          customerSendAccountInviteEmail(customerId: $customerId, email: $email) {
+            customer { id state }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          customerId: 'gid://shopify/Customer/404',
+          email: {
+            subject: 'Activate your account',
+            customMessage: 'Welcome',
+          },
+        },
+      });
+
+    expect(inviteResponse.status).toBe(200);
+    expect(inviteResponse.body).toEqual({
+      data: {
+        customerSendAccountInviteEmail: {
+          customer: {
+            id: 'gid://shopify/Customer/404',
+            state: 'INVITED',
+          },
+          userErrors: [],
+        },
+      },
+    });
+
+    const paymentEmailResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation PaymentEmail($customerPaymentMethodId: ID!) {
+          customerPaymentMethodSendUpdateEmail(customerPaymentMethodId: $customerPaymentMethodId) {
+            customer { id state }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          customerPaymentMethodId: 'gid://shopify/CustomerPaymentMethod/local-payment-method',
+        },
+      });
+
+    expect(paymentEmailResponse.status).toBe(200);
+    expect(paymentEmailResponse.body).toEqual({
+      data: {
+        customerPaymentMethodSendUpdateEmail: {
+          customer: {
+            id: 'gid://shopify/Customer/404',
+            state: 'INVITED',
+          },
+          userErrors: [],
+        },
+      },
+    });
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query CustomerInviteReadback($id: ID!) {
+          customer(id: $id) { id state }
+        }`,
+        variables: { id: 'gid://shopify/Customer/404' },
+      });
+
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body).toEqual({
+      data: {
+        customer: {
+          id: 'gid://shopify/Customer/404',
+          state: 'INVITED',
+        },
+      },
+    });
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(logResponse.status).toBe(200);
+    expect(logResponse.body.entries).toMatchObject([
+      {
+        operationName: 'customerGenerateAccountActivationUrl',
+        interpreted: {
+          operationName: 'Activation',
+          primaryRootField: 'customerGenerateAccountActivationUrl',
+        },
+        requestBody: {
+          variables: { customerId: 'gid://shopify/Customer/404' },
+        },
+        status: 'staged',
+      },
+      {
+        operationName: 'customerSendAccountInviteEmail',
+        interpreted: {
+          operationName: 'Invite',
+          primaryRootField: 'customerSendAccountInviteEmail',
+        },
+        requestBody: {
+          variables: {
+            customerId: 'gid://shopify/Customer/404',
+            email: {
+              subject: 'Activate your account',
+            },
+          },
+        },
+        status: 'staged',
+      },
+      {
+        operationName: 'customerPaymentMethodSendUpdateEmail',
+        interpreted: {
+          operationName: 'PaymentEmail',
+          primaryRootField: 'customerPaymentMethodSendUpdateEmail',
+        },
+        requestBody: {
+          variables: {
+            customerPaymentMethodId: 'gid://shopify/CustomerPaymentMethod/local-payment-method',
+          },
+        },
+        status: 'staged',
+      },
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('mirrors the captured customer mutation validation userErrors in snapshot mode', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('customer mutation validation should not hit upstream fetch');
