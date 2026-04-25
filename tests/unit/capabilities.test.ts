@@ -651,6 +651,21 @@ describe('getOperationCapability', () => {
     });
   });
 
+  it('routes standard metafield definition enablement through local staging', () => {
+    expect(
+      getOperationCapability({
+        type: 'mutation',
+        name: 'EnableStandardDefinition',
+        rootFields: ['standardMetafieldDefinitionEnable'],
+      }),
+    ).toEqual({
+      domain: 'metafields',
+      execution: 'stage-locally',
+      operationName: 'standardMetafieldDefinitionEnable',
+      type: 'mutation',
+    });
+  });
+
   it('routes implemented payment customization read roots through the local overlay', () => {
     expect(
       getOperationCapability({
