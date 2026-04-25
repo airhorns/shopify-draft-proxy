@@ -6,18 +6,38 @@
   "liveCaptureFiles": [
     "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/discount-catalog-status-filter-read.json"
   ],
-  "comparisonMode": "capture-only",
-  "notes": "Live 2026-04 capture showing `status:active` finds the temporary DiscountCodeBasic fixture through discountNodes and discountNodesCount.",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discount-catalog-empty-read.graphql",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity coverage showing `status:active` finds the temporary DiscountCodeBasic fixture through discountNodes and discountNodesCount. The parity harness seeds the captured discount node as base state before issuing the local read.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "captured-live-discount-status-filter-not-seeded",
-    "blockerPath": null,
-    "details": {
-      "blockedFields": ["discountNodes(query: status:active)", "discountNodesCount(query: status:active)"],
-      "requiredApproval": "Seed captured discount catalog records into the parity harness before strict non-empty status-filter comparison."
-    }
+    "expectedDifferences": [
+      {
+        "path": "$.discountNodes.edges[0].cursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque; the local proxy emits stable synthetic cursors for seeded discount catalog records."
+      },
+      {
+        "path": "$.discountNodes.pageInfo.startCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque; the local proxy emits stable synthetic cursors for seeded discount catalog records."
+      },
+      {
+        "path": "$.discountNodes.pageInfo.endCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque; the local proxy emits stable synthetic cursors for seeded discount catalog records."
+      }
+    ],
+    "targets": [
+      {
+        "name": "status-filter-discount-catalog-read-data",
+        "capturePath": "$.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
   }
 }

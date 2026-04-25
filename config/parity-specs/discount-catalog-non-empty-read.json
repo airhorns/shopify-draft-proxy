@@ -6,18 +6,38 @@
   "liveCaptureFiles": [
     "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/discount-catalog-non-empty-read.json"
   ],
-  "comparisonMode": "capture-only",
-  "notes": "Live 2026-04 capture for a non-empty discountNodes/discountNodesCount catalog after creating a temporary DiscountCodeBasic fixture. Kept capture-only because the parity harness does not yet seed discount read fixtures into base state by scenario file.",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discount-catalog-empty-read.graphql",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity coverage for a non-empty discountNodes/discountNodesCount catalog after creating a temporary DiscountCodeBasic fixture. The parity harness seeds the captured discount node as base state before issuing the local read.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "captured-live-discount-catalog-baseline-not-seeded",
-    "blockerPath": null,
-    "details": {
-      "blockedFields": ["discountNodes", "discountNodesCount"],
-      "requiredApproval": "Seed captured discount catalog records into the parity harness before strict non-empty captured-vs-proxy comparison."
-    }
+    "expectedDifferences": [
+      {
+        "path": "$.discountNodes.edges[0].cursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque; the local proxy emits stable synthetic cursors for seeded discount catalog records."
+      },
+      {
+        "path": "$.discountNodes.pageInfo.startCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque; the local proxy emits stable synthetic cursors for seeded discount catalog records."
+      },
+      {
+        "path": "$.discountNodes.pageInfo.endCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque; the local proxy emits stable synthetic cursors for seeded discount catalog records."
+      }
+    ],
+    "targets": [
+      {
+        "name": "non-empty-discount-catalog-read-data",
+        "capturePath": "$.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
   }
 }

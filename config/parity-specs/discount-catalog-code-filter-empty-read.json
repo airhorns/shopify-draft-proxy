@@ -6,18 +6,22 @@
   "liveCaptureFiles": [
     "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/discount-catalog-code-filter-empty-read.json"
   ],
-  "comparisonMode": "capture-only",
-  "notes": "Live 2026-04 capture showing `discountNodes(query: \"code:<native-code>\")` returned empty for a native DiscountCodeBasic that was visible through codeDiscountNodes and unfiltered/status-filtered discountNodes after indexing.",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discount-catalog-empty-read.graphql",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity coverage showing `discountNodes(query: \"code:<native-code>\")` returned empty for a seeded native DiscountCodeBasic that was visible through codeDiscountNodes and unfiltered/status-filtered discountNodes after indexing.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "captured-live-discount-code-filter-empty-behavior",
-    "blockerPath": null,
-    "details": {
-      "blockedFields": ["discountNodes(query: code:<native-code>)", "discountNodesCount(query: code:<native-code>)"],
-      "requiredApproval": "Promote to strict comparison once discount fixture seeding can include the captured native-code filter behavior explicitly."
-    }
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "code-filter-empty-discount-catalog-read-data",
+        "capturePath": "$.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
   }
 }

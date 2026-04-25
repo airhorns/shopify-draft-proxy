@@ -67,6 +67,7 @@ import type {
   ProductVariantRecord,
   ShopifyPaymentsAccountRecord,
   ShopRecord,
+  DiscountRecord,
 } from '../src/state/types.js';
 
 function interpretMutationLogEntry(
@@ -862,6 +863,69 @@ function readNullableStringField(value: Record<string, unknown> | null | undefin
 
 function readStringArrayField(value: Record<string, unknown> | null | undefined, key: string): string[] {
   return readArrayField(value, key).filter((entry): entry is string => typeof entry === 'string');
+}
+
+function readCapturedDiscountRecord(source: Record<string, unknown> | null): DiscountRecord | null {
+  const id = readStringField(source, 'id');
+  const discount = readRecordField(source, 'discount');
+  const typeName = readStringField(discount, '__typename');
+  const title = readStringField(discount, 'title');
+  if (!id || !discount || !typeName || !title) {
+    return null;
+  }
+
+  const combinesWith = readRecordField(discount, 'combinesWith');
+  const codes = readArrayField(readRecordField(discount, 'codes'), 'nodes')
+    .filter(isPlainObject)
+    .map((codeNode) => readStringField(codeNode, 'code'))
+    .filter((code): code is string => typeof code === 'string' && code.length > 0);
+
+  return {
+    id,
+    typeName,
+    method: typeName.toLowerCase().includes('code') ? 'code' : 'automatic',
+    title,
+    status: readStringField(discount, 'status'),
+    summary: readStringField(discount, 'summary'),
+    startsAt: readStringField(discount, 'startsAt'),
+    endsAt: readStringField(discount, 'endsAt'),
+    createdAt: readStringField(discount, 'createdAt'),
+    updatedAt: readStringField(discount, 'updatedAt'),
+    asyncUsageCount: readNumberField(discount, 'asyncUsageCount'),
+    discountClasses: readStringArrayField(discount, 'discountClasses'),
+    combinesWith: {
+      productDiscounts: readBooleanField(combinesWith, 'productDiscounts') ?? false,
+      orderDiscounts: readBooleanField(combinesWith, 'orderDiscounts') ?? false,
+      shippingDiscounts: readBooleanField(combinesWith, 'shippingDiscounts') ?? false,
+    },
+    codes,
+  };
+}
+
+function seedDiscountCatalogPreconditions(capture: unknown): boolean {
+  const responseData = readRecordField(readRecordField(capture as Record<string, unknown>, 'response'), 'data');
+  const discountNodes = readRecordField(responseData, 'discountNodes');
+  const capturedNodes = readArrayField(discountNodes, 'nodes').filter(isPlainObject);
+  const capturedEdgeNodes = readArrayField(discountNodes, 'edges')
+    .filter(isPlainObject)
+    .map((edge) => readRecordField(edge, 'node'))
+    .filter((node): node is Record<string, unknown> => node !== null);
+  const seedNodes = readArrayField(capture as Record<string, unknown>, 'seedDiscounts').filter(isPlainObject);
+  const discountsById = new Map<string, DiscountRecord>();
+
+  for (const node of [...capturedNodes, ...capturedEdgeNodes, ...seedNodes]) {
+    const discount = readCapturedDiscountRecord(node);
+    if (discount) {
+      discountsById.set(discount.id, discount);
+    }
+  }
+
+  if (discountsById.size === 0) {
+    return false;
+  }
+
+  store.upsertBaseDiscounts([...discountsById.values()]);
+  return true;
 }
 
 function readMoneySetField(
@@ -2900,6 +2964,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   }
 
   if (seedBusinessEntityPreconditions(capture)) {
+    return;
+  }
+
+  if (seedDiscountCatalogPreconditions(capture)) {
     return;
   }
 
