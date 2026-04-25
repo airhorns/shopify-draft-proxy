@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { jsonValueSchema } from '../json-schemas.js';
+import { jsonObjectSchema, jsonValueSchema } from '../json-schemas.js';
 
 const nullableStringSchema = z.string().nullable();
 const nullableNumberSchema = z.number().nullable();
@@ -543,6 +543,9 @@ export const discountRecordSchema = z.strictObject({
   events: z.array(discountEventRecordSchema).optional(),
   discountType: nullableStringSchema.optional(),
   appId: nullableStringSchema.optional(),
+  appDiscountType: jsonObjectSchema.optional(),
+  discountId: nullableStringSchema.optional(),
+  errorHistory: jsonValueSchema.optional(),
   unsupportedAppFieldNames: z.array(z.string()).optional(),
 });
 export type DiscountRecord = z.infer<typeof discountRecordSchema>;
@@ -1065,6 +1068,18 @@ export interface MutationLogInterpretedMetadata {
     operationName: string | null;
     domain: string;
     execution: string;
+  };
+  registeredOperation?: {
+    name: string;
+    domain: string;
+    execution: string;
+    implemented: boolean;
+    supportNotes?: string;
+  };
+  safety?: {
+    classification: string;
+    wouldProxyToShopify: boolean;
+    reason: string;
   };
 }
 

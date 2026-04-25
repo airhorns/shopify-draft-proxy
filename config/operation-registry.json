@@ -832,6 +832,156 @@
     "supportNotes": "Registry-only declared gap for future local staging. Requires standard template catalog modeling plus created-definition semantics before support."
   },
   {
+    "name": "metaobject",
+    "type": "query",
+    "domain": "metaobjects",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["metaobject", "Metaobject"],
+    "runtimeTests": [],
+    "supportNotes": "Admin GraphQL 2026-04 entry read root. Registry-only declared gap until live capture proves ID lookup nullability, selected field shape, capabilities, references, and empty/no-data behavior."
+  },
+  {
+    "name": "metaobjectByHandle",
+    "type": "query",
+    "domain": "metaobjects",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["metaobjectByHandle", "MetaobjectByHandle"],
+    "runtimeTests": [],
+    "supportNotes": "Admin GraphQL 2026-04 handle lookup root. Registry-only declared gap until type-plus-handle identity, missing-handle nullability, and app-owned type behavior are captured."
+  },
+  {
+    "name": "metaobjects",
+    "type": "query",
+    "domain": "metaobjects",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["metaobjects", "Metaobjects"],
+    "runtimeTests": [],
+    "supportNotes": "Admin GraphQL 2026-04 entry connection root. Registry-only declared gap until type-scoped empty connections, pagination, search filters, sorting, and field-value query semantics are captured."
+  },
+  {
+    "name": "metaobjectDefinition",
+    "type": "query",
+    "domain": "metaobjects",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["metaobjectDefinition", "MetaobjectDefinition"],
+    "runtimeTests": [],
+    "supportNotes": "Admin GraphQL 2026-04 definition read root. Registry-only declared gap until ID lookup nullability, field definition ordering, capabilities, access settings, and empty/no-data behavior are captured."
+  },
+  {
+    "name": "metaobjectDefinitionByType",
+    "type": "query",
+    "domain": "metaobjects",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["metaobjectDefinitionByType", "MetaobjectDefinitionByType"],
+    "runtimeTests": [],
+    "supportNotes": "Admin GraphQL 2026-04 definition type lookup root. Registry-only declared gap until type identity, app-reserved type handling, and missing-type nullability are captured."
+  },
+  {
+    "name": "metaobjectDefinitions",
+    "type": "query",
+    "domain": "metaobjects",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["metaobjectDefinitions", "MetaobjectDefinitions"],
+    "runtimeTests": [],
+    "supportNotes": "Admin GraphQL 2026-04 definition catalog root. Registry-only declared gap until definition pagination, ordering, type filtering, standard-template metadata, and empty connection behavior are captured."
+  },
+  {
+    "name": "metaobjectCreate",
+    "type": "mutation",
+    "domain": "metaobjects",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["metaobjectCreate", "MetaobjectCreate"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until field validation, handle generation, capabilities, and downstream read visibility are modeled."
+  },
+  {
+    "name": "metaobjectUpdate",
+    "type": "mutation",
+    "domain": "metaobjects",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["metaobjectUpdate", "MetaobjectUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until field patching, validation, capability changes, and read-after-write behavior are modeled."
+  },
+  {
+    "name": "metaobjectUpsert",
+    "type": "mutation",
+    "domain": "metaobjects",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["metaobjectUpsert", "MetaobjectUpsert"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until create-vs-update identity, handle conflicts, and downstream catalog behavior are modeled."
+  },
+  {
+    "name": "metaobjectDelete",
+    "type": "mutation",
+    "domain": "metaobjects",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["metaobjectDelete", "MetaobjectDelete"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until delete payloads, unknown IDs, references, and downstream absence behavior are modeled."
+  },
+  {
+    "name": "metaobjectBulkDelete",
+    "type": "mutation",
+    "domain": "metaobjects",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["metaobjectBulkDelete", "MetaobjectBulkDelete"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until bulk selection, partial failures, async job shape, and downstream absence behavior are modeled."
+  },
+  {
+    "name": "metaobjectDefinitionCreate",
+    "type": "mutation",
+    "domain": "metaobjects",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["metaobjectDefinitionCreate", "MetaobjectDefinitionCreate"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until definition schema validation, capabilities, access, and entry catalog side effects are modeled."
+  },
+  {
+    "name": "metaobjectDefinitionUpdate",
+    "type": "mutation",
+    "domain": "metaobjects",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["metaobjectDefinitionUpdate", "MetaobjectDefinitionUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until field definition migrations, validation jobs, access changes, and downstream entry effects are modeled."
+  },
+  {
+    "name": "metaobjectDefinitionDelete",
+    "type": "mutation",
+    "domain": "metaobjects",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["metaobjectDefinitionDelete", "MetaobjectDefinitionDelete"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until associated entry deletion, unknown-type behavior, and downstream definition absence are modeled."
+  },
+  {
+    "name": "standardMetaobjectDefinitionEnable",
+    "type": "mutation",
+    "domain": "metaobjects",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["standardMetaobjectDefinitionEnable", "StandardMetaobjectDefinitionEnable"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until standard template catalog capture, enable validation, and created-definition semantics are modeled."
+  },
+  {
     "name": "collectionCreate",
     "type": "mutation",
     "domain": "products",
@@ -1028,6 +1178,449 @@
     "implemented": true,
     "matchNames": ["fulfillmentCancel", "FulfillmentCancel"],
     "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"]
+  },
+  {
+    "name": "fulfillment",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["fulfillment", "Fulfillment"],
+    "runtimeTests": [],
+    "supportNotes": "Admin GraphQL 2026-04 Fulfillment read root. Registry-only declared gap until fulfillment records are modeled as first-class local state outside order-scoped downstream reads."
+  },
+  {
+    "name": "fulfillmentEventCreate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentEventCreate", "FulfillmentEventCreate"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires fulfillment event status semantics, tracking/shipment-state transitions, and downstream fulfillment/order read visibility before support."
+  },
+  {
+    "name": "assignedFulfillmentOrders",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["assignedFulfillmentOrders", "AssignedFulfillmentOrders"],
+    "runtimeTests": [],
+    "supportNotes": "Admin GraphQL 2026-04 fulfillment-order assignment catalog root. Registry-only declared gap until access-scope filtering, assignmentStatus behavior, location filters, and empty-connection semantics are captured."
+  },
+  {
+    "name": "fulfillmentOrder",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["fulfillmentOrder", "FulfillmentOrder"],
+    "runtimeTests": [],
+    "supportNotes": "Admin GraphQL 2026-04 FulfillmentOrder ID lookup root. Registry-only declared gap until fulfillment-order identity, status/requestStatus, line items, holds, deliveryMethod, and access-scope null/error behavior are modeled."
+  },
+  {
+    "name": "fulfillmentOrders",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["fulfillmentOrders", "FulfillmentOrders"],
+    "runtimeTests": [],
+    "supportNotes": "Admin GraphQL 2026-04 all-fulfillment-orders catalog root. Registry-only declared gap until includeClosed, search filters, sort keys, scope-restricted visibility, and cursor/pageInfo behavior are captured."
+  },
+  {
+    "name": "manualHoldsFulfillmentOrders",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["manualHoldsFulfillmentOrders", "ManualHoldsFulfillmentOrders"],
+    "runtimeTests": [],
+    "supportNotes": "Admin GraphQL 2026-04 held fulfillment-order catalog root. Registry-only declared gap until hold filtering, supported order query filters, and no-hold empty connection behavior are captured."
+  },
+  {
+    "name": "fulfillmentOrderAcceptCancellationRequest",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentOrderAcceptCancellationRequest", "FulfillmentOrderAcceptCancellationRequest"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires fulfillment-service cancellation request lifecycle, status/requestStatus transitions, merchant request history, and downstream reads before support."
+  },
+  {
+    "name": "fulfillmentOrderAcceptFulfillmentRequest",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentOrderAcceptFulfillmentRequest", "FulfillmentOrderAcceptFulfillmentRequest"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires fulfillment-service acceptance semantics, estimated shipped timestamps, request status transitions, and downstream reads before support."
+  },
+  {
+    "name": "fulfillmentOrderCancel",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentOrderCancel", "FulfillmentOrderCancel"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires replacement fulfillment-order creation, partial remaining-work semantics, and status transitions before support."
+  },
+  {
+    "name": "fulfillmentOrderClose",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentOrderClose", "FulfillmentOrderClose"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires accepted fulfillment-service request semantics, in-progress constraints, and control handoff back to merchant-managed fulfillment before support."
+  },
+  {
+    "name": "fulfillmentOrderHold",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentOrderHold", "FulfillmentOrderHold"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires hold handle/id behavior, multiple active holds per app, limit userErrors, and downstream fulfillmentHolds reads before support."
+  },
+  {
+    "name": "fulfillmentOrderLineItemsPreparedForPickup",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentOrderLineItemsPreparedForPickup", "FulfillmentOrderLineItemsPreparedForPickup"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires pickup-specific fulfillment-order line-item states, notification semantics, and downstream deliveryMethod/status visibility before support."
+  },
+  {
+    "name": "fulfillmentOrderMerge",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentOrderMerge", "FulfillmentOrderMerge"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires merge eligibility, line-item aggregation, replacement/closed order identity behavior, and downstream fulfillmentOrdersForMerge parity before support."
+  },
+  {
+    "name": "fulfillmentOrderMove",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentOrderMove", "FulfillmentOrderMove"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires inventory/location eligibility, partial move split behavior, requestStatus restrictions, and replacement order reads before support."
+  },
+  {
+    "name": "fulfillmentOrderOpen",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentOrderOpen", "FulfillmentOrderOpen"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires scheduled and progress-reported state transitions plus downstream status/requestStatus reads before support."
+  },
+  {
+    "name": "fulfillmentOrderRejectCancellationRequest",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentOrderRejectCancellationRequest", "FulfillmentOrderRejectCancellationRequest"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires cancellation request rejection lifecycle, merchant request records, and post-rejection fulfillment-order status behavior before support."
+  },
+  {
+    "name": "fulfillmentOrderRejectFulfillmentRequest",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentOrderRejectFulfillmentRequest", "FulfillmentOrderRejectFulfillmentRequest"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires rejection reasons, rejected line-item semantics, merchant request records, and unfulfillable-line behavior before support."
+  },
+  {
+    "name": "fulfillmentOrderReleaseHold",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentOrderReleaseHold", "FulfillmentOrderReleaseHold"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires hold id filtering, release-all behavior, externalId tracking, and downstream fulfillmentHolds/status changes before support."
+  },
+  {
+    "name": "fulfillmentOrderReportProgress",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentOrderReportProgress", "FulfillmentOrderReportProgress"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires progress report state, status transitions, and interaction with move/open restrictions before support."
+  },
+  {
+    "name": "fulfillmentOrderReschedule",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentOrderReschedule", "FulfillmentOrderReschedule"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires scheduled fulfillment-order semantics, future fulfillAt validation, and downstream fulfillAt/status visibility before support."
+  },
+  {
+    "name": "fulfillmentOrdersReroute",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentOrdersReroute", "FulfillmentOrdersReroute"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires order-routing location selection, included/excluded location semantics, and assignedLocation updates before support."
+  },
+  {
+    "name": "fulfillmentOrdersSetFulfillmentDeadline",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentOrdersSetFulfillmentDeadline", "FulfillmentOrdersSetFulfillmentDeadline"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires fulfillBy/deadline mutation semantics and downstream fulfillment-order deadline reads before support."
+  },
+  {
+    "name": "fulfillmentOrderSplit",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentOrderSplit", "FulfillmentOrderSplit"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires quantity-based line-item splitting, remaining fulfillment-order identity, and downstream line item totals before support."
+  },
+  {
+    "name": "fulfillmentOrderSubmitCancellationRequest",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentOrderSubmitCancellationRequest", "FulfillmentOrderSubmitCancellationRequest"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires cancellation request creation, merchant request history, notification semantics, and requestStatus transitions before support."
+  },
+  {
+    "name": "fulfillmentOrderSubmitFulfillmentRequest",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentOrderSubmitFulfillmentRequest", "FulfillmentOrderSubmitFulfillmentRequest"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires full and partial fulfillment request semantics, split-on-partial behavior, notifyCustomer handling, and requestStatus transitions before support."
+  },
+  {
+    "name": "fulfillmentService",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["fulfillmentService", "FulfillmentService"],
+    "runtimeTests": [],
+    "supportNotes": "Admin GraphQL 2026-04 FulfillmentService ID lookup root. Registry-only declared gap until fulfillment-service location linkage, callback URL fields, inventory/tracking flags, and missing-service nullability are captured."
+  },
+  {
+    "name": "fulfillmentServiceCreate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentServiceCreate", "FulfillmentServiceCreate"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires service/location creation coupling, callback endpoint validation, inventory/tracking flags, and downstream shop.fulfillmentServices visibility before support."
+  },
+  {
+    "name": "fulfillmentServiceDelete",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentServiceDelete", "FulfillmentServiceDelete"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires inventoryAction behavior, destination location transfer/keep/delete semantics, and downstream service/location visibility before support."
+  },
+  {
+    "name": "fulfillmentServiceUpdate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentServiceUpdate", "FulfillmentServiceUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires service field validation plus LocationEdit handoff boundaries for service-managed location changes before support."
+  },
+  {
+    "name": "availableCarrierServices",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["availableCarrierServices", "AvailableCarrierServices"],
+    "runtimeTests": [],
+    "supportNotes": "Admin GraphQL carrier-service availability root. Registry-only declared gap until active carrier service/location pairing and empty-list behavior are captured."
+  },
+  {
+    "name": "carrierService",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["carrierService", "CarrierService"],
+    "runtimeTests": [],
+    "supportNotes": "Admin GraphQL DeliveryCarrierService ID lookup root. Registry-only declared gap until callback URL, active/service discovery flags, app ownership, and missing-service nullability are captured."
+  },
+  {
+    "name": "carrierServices",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["carrierServices", "CarrierServices"],
+    "runtimeTests": [],
+    "supportNotes": "Admin GraphQL DeliveryCarrierService catalog root. Registry-only declared gap until active-only behavior, sort keys, pagination, and app/scopes visibility are captured."
+  },
+  {
+    "name": "carrierServiceCreate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["carrierServiceCreate", "CarrierServiceCreate"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires write_shipping access behavior, plan eligibility userErrors, callback URL validation, and downstream carrier-service reads before support."
+  },
+  {
+    "name": "carrierServiceDelete",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["carrierServiceDelete", "CarrierServiceDelete"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires app ownership checks, deletedId/userErrors behavior, and downstream catalog absence before support."
+  },
+  {
+    "name": "carrierServiceUpdate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["carrierServiceUpdate", "CarrierServiceUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires app ownership checks, callback/active/service discovery field validation, and downstream read visibility before support."
+  },
+  {
+    "name": "deliveryProfile",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["deliveryProfile", "DeliveryProfile"],
+    "runtimeTests": [],
+    "supportNotes": "Admin GraphQL 2026-04 DeliveryProfile ID lookup root. Registry-only declared gap until nested location groups, zones, method definitions, product variant assignments, and missing-profile nullability are captured."
+  },
+  {
+    "name": "deliveryProfiles",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["deliveryProfiles", "DeliveryProfiles"],
+    "runtimeTests": [],
+    "supportNotes": "Admin GraphQL 2026-04 DeliveryProfile catalog root. Registry-only declared gap until merchantOwnedOnly, pagination, default profile behavior, legacy mode, and empty/permission behavior are captured."
+  },
+  {
+    "name": "locationsAvailableForDeliveryProfilesConnection",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": [
+      "locationsAvailableForDeliveryProfilesConnection",
+      "LocationsAvailableForDeliveryProfilesConnection"
+    ],
+    "runtimeTests": [],
+    "supportNotes": "Delivery-profile origin-location helper root. Registry-only declared gap until active origin location eligibility, pickup/local-delivery/shipping-rate configuration, and cursor behavior are captured."
+  },
+  {
+    "name": "deliveryProfileCreate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["deliveryProfileCreate", "DeliveryProfileCreate"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires nested profile/location-group/zone/rate method validation, variant assignment, and downstream profile reads before support."
+  },
+  {
+    "name": "deliveryProfileRemove",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["deliveryProfileRemove", "DeliveryProfileRemove"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires asynchronous job payload semantics, default-profile restrictions, and downstream profile/catalog absence before support."
+  },
+  {
+    "name": "deliveryProfileUpdate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["deliveryProfileUpdate", "DeliveryProfileUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires nested diff semantics for groups, zones, method definitions, variant/selling-plan associations, legacy-mode transitions, and downstream profile reads before support."
+  },
+  {
+    "name": "orderEditAddShippingLine",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["orderEditAddShippingLine", "OrderEditAddShippingLine"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Order edit support exists for variant quantity changes, but shipping-line edit roots need captured calculated-order shippingLine/totals behavior before support."
+  },
+  {
+    "name": "orderEditRemoveShippingLine",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["orderEditRemoveShippingLine", "OrderEditRemoveShippingLine"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires captured calculated-order removal semantics, total recalculation, and downstream order shippingLines visibility before support."
+  },
+  {
+    "name": "orderEditUpdateShippingLine",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["orderEditUpdateShippingLine", "OrderEditUpdateShippingLine"],
+    "runtimeTests": [],
+    "supportNotes": "Registry-only declared gap for future local staging. Requires captured calculated-order update semantics, tax/discount interactions, total recalculation, and downstream order shippingLines visibility before support."
   },
   {
     "name": "orderCreate",
@@ -1462,13 +2055,34 @@
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
   },
   {
+    "name": "discountCodeAppCreate",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["discountCodeAppCreate", "DiscountCodeAppCreate"],
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registry-only app-managed discount safety gap. Unsupported runtime requests still use the generic passthrough escape hatch, which would hit Shopify, because Shopify Functions app-discount staging requires captured appDiscountType/functionId fixtures and a local model that does not execute external Function logic."
+  },
+  {
     "name": "discountCodeAppUpdate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeAppUpdate", "DiscountCodeAppUpdate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registry-only app-managed discount safety gap. Unsupported runtime requests still use the generic passthrough escape hatch, which would hit Shopify, because Shopify Functions app-discount staging requires captured appDiscountType/functionId fixtures and a local model that does not execute external Function logic."
+  },
+  {
+    "name": "discountAutomaticAppCreate",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["discountAutomaticAppCreate", "DiscountAutomaticAppCreate"],
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registry-only app-managed discount safety gap. Unsupported runtime requests still use the generic passthrough escape hatch, which would hit Shopify, because Shopify Functions app-discount staging requires captured appDiscountType/functionId fixtures and a local model that does not execute external Function logic."
   },
   {
     "name": "discountAutomaticAppUpdate",
@@ -1477,7 +2091,8 @@
     "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountAutomaticAppUpdate", "DiscountAutomaticAppUpdate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registry-only app-managed discount safety gap. Unsupported runtime requests still use the generic passthrough escape hatch, which would hit Shopify, because Shopify Functions app-discount staging requires captured appDiscountType/functionId fixtures and a local model that does not execute external Function logic."
   },
   {
     "name": "marketingActivities",
