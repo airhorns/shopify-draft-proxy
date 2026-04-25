@@ -1,0 +1,77 @@
+query DiscountCatalogEmptyRead(
+  $query: String
+  $first: Int!
+  $sortKey: DiscountSortKeys
+  $reverse: Boolean
+  $countLimit: Int
+) {
+  discountNodes(first: $first, query: $query, sortKey: $sortKey, reverse: $reverse) {
+    nodes {
+      id
+      discount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          status
+          summary
+          startsAt
+          endsAt
+          createdAt
+          updatedAt
+          asyncUsageCount
+          discountClasses
+          combinesWith {
+            productDiscounts
+            orderDiscounts
+            shippingDiscounts
+          }
+          codes(first: 2) {
+            nodes {
+              code
+            }
+          }
+        }
+      }
+    }
+    edges {
+      cursor
+      node {
+        id
+        discount {
+          __typename
+          ... on DiscountCodeBasic {
+            title
+            status
+            summary
+            startsAt
+            endsAt
+            createdAt
+            updatedAt
+            asyncUsageCount
+            discountClasses
+            combinesWith {
+              productDiscounts
+              orderDiscounts
+              shippingDiscounts
+            }
+            codes(first: 2) {
+              nodes {
+                code
+              }
+            }
+          }
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  discountNodesCount(query: $query, limit: $countLimit) {
+    count
+    precision
+  }
+}

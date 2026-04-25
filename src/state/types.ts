@@ -366,6 +366,15 @@ export const customerRecordSchema = z.strictObject({
 });
 export type CustomerRecord = z.infer<typeof customerRecordSchema>;
 
+export const segmentRecordSchema = z.strictObject({
+  id: z.string(),
+  name: nullableStringSchema,
+  query: nullableStringSchema,
+  creationDate: nullableStringSchema,
+  lastEditDate: nullableStringSchema,
+});
+export type SegmentRecord = z.infer<typeof segmentRecordSchema>;
+
 export const businessEntityAddressRecordSchema = z.strictObject({
   address1: nullableStringSchema,
   address2: nullableStringSchema,
@@ -425,6 +434,33 @@ export const customerCatalogConnectionRecordSchema = z.strictObject({
   pageInfo: customerCatalogPageInfoRecordSchema,
 });
 export type CustomerCatalogConnectionRecord = z.infer<typeof customerCatalogConnectionRecordSchema>;
+
+export const discountCombinesWithRecordSchema = z.strictObject({
+  productDiscounts: z.boolean(),
+  orderDiscounts: z.boolean(),
+  shippingDiscounts: z.boolean(),
+});
+export type DiscountCombinesWithRecord = z.infer<typeof discountCombinesWithRecordSchema>;
+
+export const discountRecordSchema = z.strictObject({
+  id: z.string(),
+  typeName: z.string(),
+  method: z.enum(['code', 'automatic']),
+  title: z.string(),
+  status: nullableStringSchema,
+  summary: nullableStringSchema,
+  startsAt: nullableStringSchema,
+  endsAt: nullableStringSchema,
+  createdAt: nullableStringSchema,
+  updatedAt: nullableStringSchema,
+  asyncUsageCount: nullableNumberSchema,
+  discountClasses: z.array(z.string()),
+  combinesWith: discountCombinesWithRecordSchema,
+  codes: z.array(z.string()).default([]),
+  discountType: nullableStringSchema.optional(),
+  appId: nullableStringSchema.optional(),
+});
+export type DiscountRecord = z.infer<typeof discountRecordSchema>;
 
 export const customerMergeRequestRecordSchema = z.strictObject({
   jobId: z.string(),
@@ -872,6 +908,13 @@ export const shopRecordSchema = z.strictObject({
 });
 export type ShopRecord = z.infer<typeof shopRecordSchema>;
 
+export const marketRecordSchema = z.strictObject({
+  id: z.string(),
+  cursor: nullableStringSchema.optional(),
+  data: z.record(z.string(), jsonValueSchema),
+});
+export type MarketRecord = z.infer<typeof marketRecordSchema>;
+
 export const calculatedOrderRecordSchema = orderRecordSchema.extend({
   originalOrderId: z.string(),
 });
@@ -887,8 +930,12 @@ export const stateSnapshotSchema = z.strictObject({
   collections: z.record(z.string(), collectionRecordSchema),
   publications: z.record(z.string(), publicationRecordSchema).default({}),
   customers: z.record(z.string(), customerRecordSchema),
+  segments: z.record(z.string(), segmentRecordSchema).default({}),
+  discounts: z.record(z.string(), discountRecordSchema).default({}),
   businessEntities: z.record(z.string(), businessEntityRecordSchema).default({}),
   businessEntityOrder: z.array(z.string()).default([]),
+  markets: z.record(z.string(), marketRecordSchema).default({}),
+  marketOrder: z.array(z.string()).default([]),
   productCollections: z.record(z.string(), productCollectionRecordSchema),
   productMedia: z.record(z.string(), productMediaRecordSchema),
   files: z.record(z.string(), fileRecordSchema).default({}),
@@ -898,6 +945,7 @@ export const stateSnapshotSchema = z.strictObject({
   deletedFileIds: z.record(z.string(), z.literal(true)).default({}),
   deletedCollectionIds: z.record(z.string(), z.literal(true)),
   deletedCustomerIds: z.record(z.string(), z.literal(true)),
+  deletedDiscountIds: z.record(z.string(), z.literal(true)).default({}),
   mergedCustomerIds: z.record(z.string(), z.string()).default({}),
   customerMergeRequests: z.record(z.string(), customerMergeRequestRecordSchema).default({}),
 });

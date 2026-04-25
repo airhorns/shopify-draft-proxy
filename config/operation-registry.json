@@ -1179,18 +1179,18 @@
     "type": "query",
     "domain": "discounts",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountNodes", "DiscountNodes"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts"]
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/discount-query-shapes.test.ts"]
   },
   {
     "name": "discountNodesCount",
     "type": "query",
     "domain": "discounts",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountNodesCount", "DiscountNodesCount"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts"]
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/discount-query-shapes.test.ts"]
   },
   {
     "name": "discountNode",
@@ -1615,70 +1615,70 @@
     "type": "query",
     "domain": "segments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["segment", "Segment"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap. Requires read_customers and unrestricted/protected-customer-data capture for ID lookup nullability and segment field shape before snapshot or overlay support."
+    "runtimeTests": ["tests/integration/segment-query-shapes.test.ts"],
+    "supportNotes": "HAR-215 captured read_customers segment detail baseline. Snapshot mode serves captured selected fields locally and returns Shopify-like null plus NOT_FOUND for unknown segment IDs."
   },
   {
     "name": "segments",
     "type": "query",
     "domain": "segments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["segments", "Segments"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap. Requires read_customers and unrestricted/protected-customer-data capture for catalog pagination, filtering, and empty-connection behavior."
+    "runtimeTests": ["tests/integration/segment-query-shapes.test.ts"],
+    "supportNotes": "HAR-215 captured catalog baseline. Snapshot mode preserves captured cursor/pageInfo payloads when hydrated and otherwise returns an empty connection; broader search/sort grammar remains unsupported until captured."
   },
   {
     "name": "segmentsCount",
     "type": "query",
     "domain": "segments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["segmentsCount", "SegmentsCount"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap. Requires read_customers and unrestricted/protected-customer-data capture for count precision and empty-count behavior."
+    "runtimeTests": ["tests/integration/segment-query-shapes.test.ts"],
+    "supportNotes": "HAR-215 captured count precision baseline. Snapshot mode returns captured count/precision when hydrated and EXACT zero for empty local state."
   },
   {
     "name": "segmentFilters",
     "type": "query",
     "domain": "segments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["segmentFilters", "SegmentFilters"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap. Requires live catalog capture before snapshot support because Shopify owns filter availability and localization."
+    "runtimeTests": ["tests/integration/segment-query-shapes.test.ts"],
+    "supportNotes": "HAR-215 captured filter metadata baseline. Snapshot mode preserves captured selected filter fields or returns an empty connection when no metadata has been hydrated."
   },
   {
     "name": "segmentFilterSuggestions",
     "type": "query",
     "domain": "segments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["segmentFilterSuggestions", "SegmentFilterSuggestions"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap. Requires live suggestion capture for required search input behavior and empty suggestions before snapshot support."
+    "runtimeTests": ["tests/integration/segment-query-shapes.test.ts"],
+    "supportNotes": "HAR-215 captured filter suggestion baseline for a search argument. Snapshot mode preserves captured suggestion payloads or returns an empty connection; uncaptured search grammar remains unsupported."
   },
   {
     "name": "segmentValueSuggestions",
     "type": "query",
     "domain": "segments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["segmentValueSuggestions", "SegmentValueSuggestions"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap. Requires live suggestion capture for filter-specific values and empty suggestions before snapshot support."
+    "runtimeTests": ["tests/integration/segment-query-shapes.test.ts"],
+    "supportNotes": "HAR-215 captured value suggestion baseline for customer_tags. Snapshot mode preserves captured suggestion payloads or returns an empty connection; uncaptured filters remain unsupported."
   },
   {
     "name": "segmentMigrations",
     "type": "query",
     "domain": "segments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["segmentMigrations", "SegmentMigrations"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap. Requires live capture for migration catalog shape and empty/no-data behavior before snapshot support."
+    "runtimeTests": ["tests/integration/segment-query-shapes.test.ts"],
+    "supportNotes": "HAR-215 captured migration catalog baseline. Snapshot mode preserves captured migration connection shape or returns an empty connection."
   },
   {
     "name": "customerSegmentMembers",

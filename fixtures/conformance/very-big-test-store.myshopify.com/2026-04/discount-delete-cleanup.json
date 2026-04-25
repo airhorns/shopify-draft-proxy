@@ -1,0 +1,24 @@
+{
+  "variables": {
+    "id": "gid://shopify/DiscountCodeNode/1688770478313"
+  },
+  "response": {
+    "data": {
+      "discountCodeDelete": {
+        "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1688770478313",
+        "userErrors": []
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 10,
+        "actualQueryCost": 10,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1978,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}
