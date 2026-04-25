@@ -15,6 +15,9 @@ Overlay reads:
 - `priceLists`
 - `webPresences`
 - `marketsResolvedValues`
+- `marketLocalizableResource`
+- `marketLocalizableResources`
+- `marketLocalizableResourcesByIds`
 
 Stage-local mutations:
 
@@ -23,12 +26,12 @@ Stage-local mutations:
 - `marketDelete`
 - `webPresenceCreate`
 - `webPresenceUpdate`
+- `marketLocalizationsRegister`
+- `marketLocalizationsRemove`
 
 ## Unsupported roots still tracked by the registry
 
 - `webPresenceDelete`
-- `marketLocalizationsRegister`
-- `marketLocalizationsRemove`
 
 ## Behavior notes
 
@@ -47,11 +50,17 @@ Stage-local mutations:
 - Web presence root URL derivation is local-only. Subfolder presences derive locale URLs from the captured shop/web-presence domain when available and fall back to the proxy's synthetic shop URL; domain-ID-only presences synthesize a stable domain object because `WebPresenceCreateInput` does not carry a host.
 - Current-schema `webPresenceCreate` does not take a market ID. Market association remains modeled through market-side web presence references such as `marketUpdate` inputs that add web presence IDs. When a staged market references a modeled web presence, downstream top-level `webPresences`, nested `Market.webPresences`, `MarketsResolvedValues.webPresences` with a captured baseline, meta state, and the mutation log expose the local-only change.
 - Captured validation parity currently covers safe no-side-effect branches for blank `marketCreate` names and unknown IDs for `marketUpdate`/`marketDelete`. Additional success-path conformance should use disposable market setup/cleanup before touching shared buyer-facing market configuration.
+- Admin GraphQL 2026-04 currently exposes market-localizable resource filtering for `METAFIELD` and `METAOBJECT`, not direct `PRODUCT` or `COLLECTION` resource types. The local proxy supports the product-adjacent `METAFIELD` slice first by projecting product metafields as `MarketLocalizableResource` records with one localizable content entry: key `value`, current metafield value, and the metafield `compareDigest`.
+- `marketLocalizableResource(resourceId:)` resolves supported product metafield IDs from effective local state and returns `null` for unknown IDs. `marketLocalizableResources(resourceType: METAFIELD, ...)` and `marketLocalizableResourcesByIds(...)` preserve Shopify-like connection shape, cursor pagination, selected fields, unknown-id omission, and empty/no-data responses. `METAOBJECT` currently returns an empty local slice until metaobject state exists.
+- `marketLocalizationsRegister` stages market-specific values locally for product metafield resources only. It validates resource ID, market ID, key support, blank values, digest equality against `marketLocalizableContent.digest`, and empty input arrays, returning `TranslationUserError`-shaped `field`, `message`, and `code` values without proxying supported calls upstream.
+- Re-registering the same resource/key/market combination updates the staged localization value and timestamp. `marketLocalizationsRemove` removes staged values for requested keys and markets and returns the removed localization payloads. Downstream `marketLocalizableResource(...).marketLocalizations(marketId:)` reads observe staged register/remove changes; product reads do not invent unsupported localized product fields.
+- Current live evidence for these roots was captured against `harry-test-heelo.myshopify.com` on Admin GraphQL 2026-04. The empty read capture proves `read_translations` access for the read roots; no-side-effect unknown-resource mutation captures prove `write_translations` access and `RESOURCE_NOT_FOUND` semantics. Successful live localization writes remain intentionally avoided until a disposable setup/cleanup story exists for buyer-facing localized values.
 - `webPresenceDelete` is schema-current in 2026-04, and deprecated `marketWebPresenceCreate` / `marketWebPresenceUpdate` / `marketWebPresenceDelete` aliases remain visible in Shopify docs, but this repo does not mark them implemented without fixture-backed behavior for payload shape, association cleanup, and validation errors.
 
 ## Validation anchors
 
 - Runtime reads: `tests/integration/markets-query-shapes.test.ts`
 - Runtime lifecycle staging: `tests/integration/markets-lifecycle-flow.test.ts`
+- Runtime market localization staging: `tests/integration/markets-localization-flow.test.ts`
 - Conformance parity: `tests/unit/conformance-parity-scenarios.test.ts`
 - Conformance fixtures and requests: `config/parity-specs/market*.json`, `config/parity-specs/markets*.json`, `config/parity-specs/price-list*.json`, and matching files under `config/parity-requests/`
