@@ -31,6 +31,7 @@ import {
 } from '../src/proxy/customers.js';
 import { handleDiscountMutation, handleDiscountQuery } from '../src/proxy/discounts.js';
 import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
+import { handleMarketingQuery, hydrateMarketingFromUpstreamResponse } from '../src/proxy/marketing.js';
 import {
   handleMarketMutation,
   handleMarketsQuery,
@@ -921,6 +922,17 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleSegmentsQuery(document, variables),
+    };
+  }
+
+  if (capability.execution === 'overlay-read' && capability.domain === 'marketing') {
+    if (upstreamPayload !== undefined) {
+      hydrateMarketingFromUpstreamResponse(document, variables, upstreamPayload);
+    }
+
+    return {
+      status: 200,
+      body: handleMarketingQuery(document, variables),
     };
   }
 

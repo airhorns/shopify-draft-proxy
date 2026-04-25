@@ -2484,40 +2484,40 @@
     "type": "query",
     "domain": "marketing",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingActivities", "MarketingActivities"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap. Needs live marketing app-scoped capture for list, filtering, and empty-connection behavior before snapshot or overlay support."
+    "runtimeTests": ["tests/integration/marketing-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local read support for captured selected fields, empty connections, filtering, sorting, reverse ordering, and cursor/pageInfo shapes. No marketing mutation staging is included."
   },
   {
     "name": "marketingActivity",
     "type": "query",
     "domain": "marketing",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingActivity", "MarketingActivity"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap. Needs live capture for ID lookup nullability and activity field shape before snapshot or overlay support."
+    "runtimeTests": ["tests/integration/marketing-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local singular lookup support for captured selected fields. Missing IDs return null; no arbitrary marketing activity records are synthesized."
   },
   {
     "name": "marketingEvent",
     "type": "query",
     "domain": "marketing",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingEvent", "MarketingEvent"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap. Needs live capture for ID lookup nullability and event field shape before snapshot or overlay support."
+    "runtimeTests": ["tests/integration/marketing-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local singular lookup support for captured selected fields. Missing IDs return null; no arbitrary marketing event records are synthesized."
   },
   {
     "name": "marketingEvents",
     "type": "query",
     "domain": "marketing",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingEvents", "MarketingEvents"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap. Needs live marketing app-scoped capture for list, filtering, and empty-connection behavior before snapshot or overlay support."
+    "runtimeTests": ["tests/integration/marketing-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local read support for captured selected fields, empty connections, filtering, sorting, reverse ordering, and cursor/pageInfo shapes. No marketing mutation staging is included."
   },
   {
     "name": "marketingActivityCreate",
