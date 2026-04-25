@@ -16,6 +16,10 @@ const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
 const marketDetailOutputPath = path.join(outputDir, 'market-detail.json');
 const marketsCatalogOutputPath = path.join(outputDir, 'markets-catalog.json');
 const marketCatalogsOutputPath = path.join(outputDir, 'market-catalogs.json');
+const marketCatalogDetailOutputPath = path.join(outputDir, 'market-catalog-detail.json');
+const priceListDetailOutputPath = path.join(outputDir, 'price-list-detail.json');
+const priceListsOutputPath = path.join(outputDir, 'price-lists.json');
+const priceListPricesFilteredOutputPath = path.join(outputDir, 'price-list-prices-filtered.json');
 const marketWebPresencesOutputPath = path.join(outputDir, 'market-web-presences.json');
 const marketsResolvedValuesOutputPath = path.join(outputDir, 'markets-resolved-values.json');
 const marketsBaselineOutputPath = path.join(outputDir, 'markets-baseline.json');
@@ -156,7 +160,14 @@ const marketCatalogFields = `#graphql
       id
       autoPublish
     }
+    operations {
+      __typename
+    }
     ... on MarketCatalog {
+      marketsCount {
+        count
+        precision
+      }
       markets(first: 5) {
         edges {
           cursor
@@ -174,6 +185,57 @@ const marketCatalogFields = `#graphql
           startCursor
           endCursor
         }
+      }
+    }
+  }
+`;
+
+const priceListFields = `#graphql
+  fragment PriceListReadFields on PriceList {
+    __typename
+    id
+    name
+    currency
+    fixedPricesCount
+    parent {
+      adjustment {
+        type
+        value
+      }
+    }
+    catalog {
+      id
+      title
+      status
+    }
+    prices(first: 5, query: $priceQuery, originType: $originType) {
+      edges {
+        cursor
+        node {
+          price {
+            amount
+            currencyCode
+          }
+          compareAtPrice {
+            amount
+            currencyCode
+          }
+          originType
+          variant {
+            id
+            sku
+            product {
+              id
+              title
+            }
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
       }
     }
   }
@@ -271,6 +333,71 @@ const marketCatalogsQuery = `#graphql
         startCursor
         endCursor
       }
+    }
+  }
+`;
+
+const marketCatalogDetailQuery = `#graphql
+  ${marketCatalogFields}
+  query MarketCatalogDetailRead($catalogId: ID!, $catalogCountLimit: Int) {
+    catalog(id: $catalogId) {
+      ...MarketCatalogReadFields
+    }
+    catalogsCount(type: MARKET, limit: $catalogCountLimit) {
+      count
+      precision
+    }
+  }
+`;
+
+const priceListDetailQuery = `#graphql
+  ${priceListFields}
+  query PriceListDetailRead($priceListId: ID!, $priceQuery: String, $originType: PriceListPriceOriginType) {
+    priceList(id: $priceListId) {
+      ...PriceListReadFields
+    }
+  }
+`;
+
+const priceListsQuery = `#graphql
+  query PriceListsRead($first: Int!) {
+    priceLists(first: $first) {
+      edges {
+        cursor
+        node {
+          __typename
+          id
+          name
+          currency
+          fixedPricesCount
+          parent {
+            adjustment {
+              type
+              value
+            }
+          }
+          catalog {
+            id
+            title
+            status
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+`;
+
+const priceListPricesFilteredQuery = `#graphql
+  ${priceListFields}
+  query PriceListPricesFilteredRead($priceListId: ID!, $priceQuery: String, $originType: PriceListPriceOriginType) {
+    priceList(id: $priceListId) {
+      ...PriceListReadFields
     }
   }
 `;
@@ -417,6 +544,14 @@ const schemaInventoryQuery = `#graphql
         }
       }
     }
+    priceListType: __type(name: "PriceList") {
+      fields {
+        name
+        type {
+          ...TypeRef
+        }
+      }
+    }
     marketWebPresenceType: __type(name: "MarketWebPresence") {
       fields {
         name
@@ -471,6 +606,8 @@ const marketsQueryRoots = [
   'catalog',
   'catalogs',
   'catalogsCount',
+  'priceList',
+  'priceLists',
   'webPresences',
   'marketsResolvedValues',
   'availableBackupRegions',
@@ -543,6 +680,32 @@ const marketDetail =
     ? await runGraphql(marketDetailQuery, { id: firstMarketId })
     : { data: { market: null } };
 const marketCatalogs = await runGraphql(marketCatalogsQuery, { first });
+const firstCatalog = marketCatalogs.data?.catalogs?.edges?.[0]?.node ?? null;
+const firstCatalogId = typeof firstCatalog?.id === 'string' && firstCatalog.id.length > 0 ? firstCatalog.id : null;
+const firstPriceListId =
+  typeof firstCatalog?.priceList?.id === 'string' && firstCatalog.priceList.id.length > 0
+    ? firstCatalog.priceList.id
+    : null;
+const marketCatalogDetail =
+  typeof firstCatalogId === 'string'
+    ? await runGraphql(marketCatalogDetailQuery, { catalogId: firstCatalogId, catalogCountLimit: null })
+    : { data: { catalog: null, catalogsCount: { count: 0, precision: 'EXACT' } } };
+const priceListDetail =
+  typeof firstPriceListId === 'string'
+    ? await runGraphql(priceListDetailQuery, { priceListId: firstPriceListId, priceQuery: null, originType: null })
+    : { data: { priceList: null } };
+const priceLists = await runGraphql(priceListsQuery, { first });
+const firstPriceNode = priceListDetail.data?.priceList?.prices?.edges?.[0]?.node ?? null;
+const firstVariantId = typeof firstPriceNode?.variant?.id === 'string' ? firstPriceNode.variant.id : null;
+const firstVariantLegacyId = firstVariantId?.split('/').at(-1) ?? null;
+const priceListPricesFiltered =
+  typeof firstPriceListId === 'string'
+    ? await runGraphql(priceListPricesFilteredQuery, {
+        priceListId: firstPriceListId,
+        priceQuery: firstVariantLegacyId ? `variant_id:${firstVariantLegacyId}` : 'variant_id:0',
+        originType: null,
+      })
+    : { data: { priceList: null } };
 const marketWebPresences = await runGraphql(marketWebPresencesQuery, { first });
 const marketsResolvedValues = await runGraphql(marketsResolvedValuesQuery, { first, buyerSignal });
 const localeScopeProbe = await runGraphqlProbe(localeScopeProbeQuery, { first });
@@ -558,6 +721,7 @@ const marketsBaseline = {
       market: schemaInventory.data?.marketType ?? null,
       marketConditions: schemaInventory.data?.marketConditionsType ?? null,
       marketCatalog: schemaInventory.data?.marketCatalogType ?? null,
+      priceList: schemaInventory.data?.priceListType ?? null,
       marketWebPresence: schemaInventory.data?.marketWebPresenceType ?? null,
       marketsResolvedValues: schemaInventory.data?.marketsResolvedValuesType ?? null,
       buyerSignalInput: schemaInventory.data?.buyerSignalInput ?? null,
@@ -567,6 +731,10 @@ const marketsBaseline = {
     markets: marketsCatalog,
     market: marketDetail,
     catalogs: marketCatalogs,
+    catalog: marketCatalogDetail,
+    priceList: priceListDetail,
+    priceLists,
+    priceListPricesFiltered,
     webPresences: marketWebPresences,
     marketsResolvedValues,
   },
@@ -583,6 +751,10 @@ const marketsBaseline = {
 await writeFile(marketsCatalogOutputPath, `${JSON.stringify(marketsCatalog, null, 2)}\n`, 'utf8');
 await writeFile(marketDetailOutputPath, `${JSON.stringify(marketDetail, null, 2)}\n`, 'utf8');
 await writeFile(marketCatalogsOutputPath, `${JSON.stringify(marketCatalogs, null, 2)}\n`, 'utf8');
+await writeFile(marketCatalogDetailOutputPath, `${JSON.stringify(marketCatalogDetail, null, 2)}\n`, 'utf8');
+await writeFile(priceListDetailOutputPath, `${JSON.stringify(priceListDetail, null, 2)}\n`, 'utf8');
+await writeFile(priceListsOutputPath, `${JSON.stringify(priceLists, null, 2)}\n`, 'utf8');
+await writeFile(priceListPricesFilteredOutputPath, `${JSON.stringify(priceListPricesFiltered, null, 2)}\n`, 'utf8');
 await writeFile(marketWebPresencesOutputPath, `${JSON.stringify(marketWebPresences, null, 2)}\n`, 'utf8');
 await writeFile(marketsResolvedValuesOutputPath, `${JSON.stringify(marketsResolvedValues, null, 2)}\n`, 'utf8');
 await writeFile(marketsBaselineOutputPath, `${JSON.stringify(marketsBaseline, null, 2)}\n`, 'utf8');
@@ -597,6 +769,10 @@ console.log(
         'market-detail.json',
         'markets-catalog.json',
         'market-catalogs.json',
+        'market-catalog-detail.json',
+        'price-list-detail.json',
+        'price-lists.json',
+        'price-list-prices-filtered.json',
         'market-web-presences.json',
         'markets-resolved-values.json',
         'markets-baseline.json',
@@ -604,6 +780,10 @@ console.log(
       first,
       buyerSignal,
       firstMarketId,
+      firstCatalogId,
+      firstPriceListId,
+      firstVariantId,
+      firstVariantLegacyId,
       localeScopeProbeStatus: localeScopeProbe.status,
       localeScopeProbeError:
         Array.isArray(localeScopeProbe.payload?.errors) && localeScopeProbe.payload.errors.length > 0

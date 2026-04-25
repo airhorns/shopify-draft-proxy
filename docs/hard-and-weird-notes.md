@@ -2145,3 +2145,56 @@ Credential and fixture limitation:
 - the existing discount capture flow creates temporary native basic discounts only; it does not safely create Shopify Functions app discounts
 - capture app-discount read fixtures only when a safe existing app discount or disposable Function-backed setup is available, and document the exact `appDiscountType` shape captured
 - supporting app-discount writes later must stage locally without invoking external Shopify Function logic during normal proxy runtime
+
+## 59. Payment-area roots are mostly sensitive scaffolds, not runtime support
+
+HAR-219 refreshed the payment-area root inventory against the checked-in 2025-01 Admin root introspection fixture and the 2026-04 `latest` Admin docs. The registry now declares the roots as coverage scaffolds without registering permanent passthrough support or adding planned-only parity specs.
+
+Observed current-version surface:
+
+- read roots: `customerPaymentMethod`, `orderPaymentStatus`, `paymentCustomization`, `paymentCustomizations`, `paymentTermsTemplates`, `shopPayPaymentRequestReceipt`, `shopPayPaymentRequestReceipts`, `shopifyPaymentsAccount`, and `tenderTransactions`
+- scaffold-only mutation roots: customer payment method create/update/revoke/update-url/duplication roots, `orderCapture`, `orderCreateMandatePayment`, payment customization create/update/delete/activation, `paymentReminderSend`, payment terms create/update/delete, `shopifyPaymentsPayoutAlternateCurrencyCreate`, and `transactionVoid`
+- already implemented payment-adjacent slice: `orderCreateManualPayment` remains the captured access-denied local staging branch covered by `tests/integration/order-lifecycle-payment-customer-flow.test.ts`
+
+2026-04-25 live probe on `harry-test-heelo.myshopify.com`:
+
+- the stale workspace `.env` copy still pointed at `very-big-test-store.myshopify.com`; linking `.env` to the canonical repo env restored `corepack pnpm conformance:probe`
+- root introspection confirmed all read and mutation roots above are present on Admin GraphQL 2025-01 for the refreshed store/app
+- safe read probes can now capture `paymentTermsTemplates`, `paymentCustomizations(first: 1)`, `paymentCustomization(id:)` null behavior, `tenderTransactions(first: 1)`, `shopPayPaymentRequestReceipts(first: 1)`, `shopPayPaymentRequestReceipt(token:)` null behavior, and `orderPaymentStatus` unknown-id null behavior
+- the current store returned an empty `paymentCustomizations` connection, an empty `tenderTransactions` connection, an empty Shop Pay receipt connection, and the standard payment-terms template catalog
+- `shopifyPaymentsAccount` still returns field-level `ACCESS_DENIED`; Shopify requires `read_shopify_payments` or `read_shopify_payments_accounts`, and the refreshed app scopes only include dispute/payout sub-scopes
+- `customerPaymentMethod(id:)` still returns field-level `ACCESS_DENIED`; Shopify requires `read_customers` plus `read_customer_payment_methods`, and the refreshed app scopes still lack `read_customer_payment_methods`
+
+Capture prerequisites and safety constraints:
+
+- Shopify Payments account and payout roots require Shopify Payments account-level access such as `read_shopify_payments` / `read_shopify_payments_accounts`; the current credential does not have that top-level access, so do not synthesize balances, payout history, bank accounts, disputes, statement descriptors, or money movement from adjacent Store properties reads
+- payment customization reads are currently capture-ready for empty/null behavior with `read_payment_customizations`; writes have `write_payment_customizations` on the app manifest but still require a disposable Shopify Function/payment customization setup and cleanup because they can change checkout payment behavior
+- customer payment method reads remain blocked on `read_customer_payment_methods` even though `read_customers` is present; writes require `write_customers` plus `write_customer_payment_methods` and must use isolated test customers/payment methods because card sessions, duplication data, update URLs, revocation, and remote gateway identifiers are sensitive
+- order payment captures and voids require order write scopes plus merchant permissions (`capture_payments_for_orders` for capture and cancel-order permission for void) and an isolated authorized transaction because successful paths capture or void real payment authorization
+- mandate payment requires `write_payment_mandate`, `pay_orders_by_vaulted_card` permission, mandate-backed schedule data, idempotency-key coverage, and Shopify Plus coverage for amount-specific branches
+- payment terms template reads are currently capture-ready; payment terms writes have `write_payment_terms` on the app manifest but still require order or draft-order access and an isolated order/payment schedule because they change due dates and payment status
+- payment reminders require `write_orders` and a no-recipient or otherwise safe email plan because the happy path sends customer-visible mail
+- Shop Pay payment request receipt reads and tender transaction reads are currently capture-ready for empty/null behavior, but capture should avoid creating customer-visible payment requests just to produce receipt data
+
+Practical rule:
+
+- keep scaffold-only payment roots out of capability routing until captured evidence and local modeling exist for each family
+- do not add parity specs or parity request placeholders for payment roots until there is captured interaction evidence that can run as working conformance coverage
+- future runtime support must stage supported payment mutations locally and preserve raw mutation order for commit; unknown unsupported operations can still fall through the generic passthrough escape hatch with observability
+
+## 60. MarketCatalog and PriceList reads connect catalogs, publications, and contextual prices
+
+HAR-178 expanded Markets read parity with Admin GraphQL 2026-04 captures from `harry-test-heelo.myshopify.com`. The useful detail is not just the root availability; the captured graph links a `MarketCatalog` to a `Publication`, a `PriceList`, associated `Market` rows, and `PriceList.prices` rows that point back to product variants.
+
+Captured facts:
+
+- `catalog(id:)` on a MarketCatalog can return `operations: []`, `marketsCount`, `markets`, `publication`, and `priceList` in one read.
+- `catalogsCount(type: MARKET)` returns a `Count` object with `count` and `precision`.
+- `priceList(id:)` returns `fixedPricesCount`, `parent.adjustment`, nullable `catalog`, and `prices`.
+- The captured Mexico price list had `fixedPricesCount: 0` but still returned `PriceList.prices` rows with `originType: RELATIVE`, variant IDs, product IDs, and product titles.
+- Shopify's `PriceList.prices(query:)` expects numeric IDs for `variant_id` and `product_id`; a GID-shaped `variant_id:` query produced search warnings and no rows.
+
+Practical rule:
+
+- model catalog and price-list reads from captured normalized records, but keep quantity rules and price-list write surfaces unsupported until captures prove the non-empty shape.
+- when testing price filters, use numeric Shopify legacy IDs in search strings even though the returned nodes use GIDs.

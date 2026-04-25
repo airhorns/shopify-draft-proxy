@@ -1,0 +1,25 @@
+{
+  "scenarioId": "market-catalog-detail-read",
+  "operationNames": ["catalog", "catalogsCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "market-catalog-interface", "count-shape"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/market-catalog-detail.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/market-catalog-detail-read.graphql",
+    "variablesPath": "config/parity-requests/market-catalog-detail-read.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live `catalog(id:)` and `catalogsCount(type: MARKET)` capture for Admin GraphQL 2026-04. The selected MarketCatalog slice covers operations, marketsCount, MarketCatalog.markets, publication, and priceList fields without mutating catalog state.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "market-catalog-detail-data",
+        "capturePath": "$.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}
