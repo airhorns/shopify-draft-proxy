@@ -1973,3 +1973,29 @@ Practical rule:
 
 - model the 2026-04 nested default contact fields as the conformance-backed read shape, and keep direct `emailMarketingConsent` / `smsMarketingConsent` serialization only as a compatibility branch for callers that still request the older field names
 - do not route either supported consent update mutation upstream during normal runtime; the local stage must update the normalized customer contact consent state and preserve the original raw mutation in the meta log for commit replay
+
+## 53. Customer sub-resource reads need a split between safe empty state and live hydration
+
+HAR-160 expanded the `customer(id:)` detail surface beyond scalar/card fields. The Admin GraphQL customer object exposes several directly related nested fields, but they do not all have the same safe local treatment.
+
+Captured evidence:
+
+- `corepack pnpm conformance:capture-customers` writes `customer-nested-subresources.json`
+- the current credential can capture `addresses`, `addressesV2`, `companyContactProfiles`, `orders`, `events`, singular `metafield`, `metafields`, and `lastOrder`
+- the sampled customer has non-empty `addresses`, `addressesV2`, `orders`, `events`, and `lastOrder`, while `companyContactProfiles`, singular `metafield(namespace: "custom", key: "tier")`, and `metafields(first: 2)` were empty/null
+- the same credential returned field-level `ACCESS_DENIED` for `storeCreditAccounts`, `paymentMethods`, and `subscriptionContracts`, so those remain documented deferrals for live capture/hydration until a credential with the required scopes is available
+
+Current local classification:
+
+- empty/no-data only: `addresses`, `addressesV2`, `companyContactProfiles`, `events`, `orders`, `lastOrder`, `paymentMethods`, `storeCreditAccounts`, and `subscriptionContracts`
+- customer-metafield local replay: singular `metafield(namespace:, key:)` and the `metafields` connection are backed by the customer-owned metafield model added for `customerUpdate`
+- hydrate-and-replay candidate: captured nested `addresses` / `addressesV2`, `orders` / `lastOrder`, `events`, and non-empty metafield shapes, but broad non-empty replay still requires normalized state for each sub-resource family
+- staged-overlay capable later: customer-owned addresses once their mutation roots are staged locally
+- deferred: store credit accounts, payment methods, subscription contracts, customer statistics, mergeability, and product subscriber status until captured fixture evidence settles access, empty-state, and non-empty shapes
+
+Practical rule for the proxy:
+
+- snapshot and staged customer reads should return Shopify-like empty structures for absent directly related records rather than `null` for non-null connection/list fields
+- do not fabricate order, event, store credit, payment method, subscription, company-contact, address, or unrelated metafield records after staged customer CRUD
+- keep customer-order overlap narrow: local customer reads may expose empty `orders` / `lastOrder` when the customer graph has no modeled order relationship, while real order lifecycle behavior remains in the order-domain notes and tests
+- any future non-empty nested customer replay must first add normalized state for that sub-resource and compare against captured fixtures instead of reusing the HAR-160 empty/no-data serializer branch
