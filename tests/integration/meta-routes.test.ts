@@ -27,6 +27,7 @@ const emptySnapshot = {
   businessEntities: {},
   businessEntityOrder: [],
   markets: {},
+  marketLocalizations: {},
   marketOrder: [],
   catalogs: {},
   catalogOrder: [],

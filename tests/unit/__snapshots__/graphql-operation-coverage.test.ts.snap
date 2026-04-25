@@ -207,8 +207,6 @@ exports[`GraphQL operation coverage > snapshots introspected Admin GraphQL mutat
   "marketingActivityUpsertExternal",
   "marketingEngagementCreate",
   "marketingEngagementsDelete",
-  "marketLocalizationsRegister",
-  "marketLocalizationsRemove",
   "menuCreate",
   "menuDelete",
   "menuUpdate",
