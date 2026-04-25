@@ -1,6 +1,7 @@
 import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
+import { parseSearchQuery, type SearchQueryNode, type SearchQueryTerm } from '../search-query-parser.js';
 import {
   getFieldResponseKey,
   getSelectedChildFields,
@@ -934,161 +935,6 @@ function listCustomersForConnection(catalogConnection: CustomerCatalogConnection
   return [...orderedCustomers, ...extraCustomers];
 }
 
-type CustomerQueryToken =
-  | { type: 'term'; value: string }
-  | { type: 'or' }
-  | { type: 'lparen' }
-  | { type: 'rparen' }
-  | { type: 'not' };
-
-type CustomerQueryNode =
-  | { type: 'term'; value: string }
-  | { type: 'and'; children: CustomerQueryNode[] }
-  | { type: 'or'; children: CustomerQueryNode[] }
-  | { type: 'not'; child: CustomerQueryNode };
-
-function tokenizeCustomerQuery(query: string): CustomerQueryToken[] {
-  const tokens: CustomerQueryToken[] = [];
-  let current = '';
-  let inQuotes = false;
-
-  const flushCurrent = (): void => {
-    const value = current.trim();
-    if (!value) {
-      current = '';
-      return;
-    }
-
-    if (value.toUpperCase() === 'OR') {
-      tokens.push({ type: 'or' });
-    } else {
-      tokens.push({ type: 'term', value });
-    }
-    current = '';
-  };
-
-  for (let index = 0; index < query.length; index += 1) {
-    const character = query[index] ?? '';
-
-    if (character === '"') {
-      inQuotes = !inQuotes;
-      continue;
-    }
-
-    if (!inQuotes && /\s/u.test(character)) {
-      flushCurrent();
-      continue;
-    }
-
-    if (!inQuotes && character === '(') {
-      flushCurrent();
-      tokens.push({ type: 'lparen' });
-      continue;
-    }
-
-    if (!inQuotes && character === ')') {
-      flushCurrent();
-      tokens.push({ type: 'rparen' });
-      continue;
-    }
-
-    if (!inQuotes && character === '-' && !current) {
-      const nextCharacter = query[index + 1] ?? '';
-      if (nextCharacter === '(') {
-        tokens.push({ type: 'not' });
-        continue;
-      }
-    }
-
-    current += character;
-  }
-
-  flushCurrent();
-  return tokens;
-}
-
-function parseCustomerQuery(query: string): CustomerQueryNode | null {
-  const tokens = tokenizeCustomerQuery(query);
-  if (tokens.length === 0) {
-    return null;
-  }
-
-  let index = 0;
-
-  const parseOrExpression = (): CustomerQueryNode | null => {
-    const firstChild = parseAndExpression();
-    if (!firstChild) {
-      return null;
-    }
-
-    const children: CustomerQueryNode[] = [firstChild];
-    while (tokens[index]?.type === 'or') {
-      index += 1;
-      const nextChild = parseAndExpression();
-      if (!nextChild) {
-        break;
-      }
-      children.push(nextChild);
-    }
-
-    return children.length === 1 ? (children[0] ?? null) : { type: 'or', children };
-  };
-
-  const parseAndExpression = (): CustomerQueryNode | null => {
-    const children: CustomerQueryNode[] = [];
-
-    while (index < tokens.length) {
-      const token = tokens[index];
-      if (!token || token.type === 'or' || token.type === 'rparen') {
-        break;
-      }
-
-      const child = parseUnaryExpression();
-      if (!child) {
-        break;
-      }
-      children.push(child);
-    }
-
-    if (children.length === 0) {
-      return null;
-    }
-
-    return children.length === 1 ? (children[0] ?? null) : { type: 'and', children };
-  };
-
-  const parseUnaryExpression = (): CustomerQueryNode | null => {
-    const token = tokens[index];
-    if (!token) {
-      return null;
-    }
-
-    if (token.type === 'not') {
-      index += 1;
-      const child = parseUnaryExpression();
-      return child ? { type: 'not', child } : null;
-    }
-
-    if (token.type === 'term') {
-      index += 1;
-      return { type: 'term', value: token.value };
-    }
-
-    if (token.type === 'lparen') {
-      index += 1;
-      const child = parseOrExpression();
-      if (tokens[index]?.type === 'rparen') {
-        index += 1;
-      }
-      return child;
-    }
-
-    return null;
-  };
-
-  return parseOrExpression();
-}
-
 function normalizeCustomerSearchValue(value: string | null | undefined): string {
   return (value ?? '').trim().toLowerCase();
 }
@@ -1225,14 +1071,20 @@ function customerMatchesBareToken(customer: CustomerRecord, token: string): bool
   return haystacks.some((value) => matchesStringValue(value, normalizedToken, 'includes'));
 }
 
-function customerMatchesPositiveQueryTerm(customer: CustomerRecord, term: string): boolean {
-  const separatorIndex = term.indexOf(':');
-  if (separatorIndex <= 0) {
-    return customerMatchesBareToken(customer, term);
+function searchTermValue(term: SearchQueryTerm): string {
+  return term.comparator === null ? term.value : `${term.comparator}${term.value}`;
+}
+
+function customerMatchesPositiveQueryTerm(customer: CustomerRecord, term: SearchQueryTerm): boolean {
+  if (term.field === null) {
+    return customerMatchesBareToken(customer, term.value);
+  }
+  if (term.field === '') {
+    return customerMatchesBareToken(customer, term.raw);
   }
 
-  const rawField = term.slice(0, separatorIndex);
-  const rawValue = term.slice(separatorIndex + 1);
+  const rawField = term.field;
+  const rawValue = searchTermValue(term);
   const field = normalizeCustomerSearchValue(rawField);
 
   switch (field) {
@@ -1254,17 +1106,15 @@ function customerMatchesPositiveQueryTerm(customer: CustomerRecord, term: string
     case 'display_name':
       return matchesStringValue(customer.displayName, rawValue, 'includes');
     default:
-      return customerMatchesBareToken(customer, term);
+      return customerMatchesBareToken(customer, term.raw);
   }
 }
 
-function customerMatchesQueryNode(customer: CustomerRecord, node: CustomerQueryNode): boolean {
+function customerMatchesQueryNode(customer: CustomerRecord, node: SearchQueryNode): boolean {
   switch (node.type) {
     case 'term': {
-      const negated = node.value.startsWith('-') && node.value.length > 1;
-      const term = negated ? node.value.slice(1) : node.value;
-      const matches = customerMatchesPositiveQueryTerm(customer, term);
-      return negated ? !matches : matches;
+      const matches = customerMatchesPositiveQueryTerm(customer, node.term);
+      return node.term.negated ? !matches : matches;
     }
     case 'and':
       return node.children.every((child) => customerMatchesQueryNode(customer, child));
@@ -1282,7 +1132,7 @@ function filterCustomersByQuery(customers: CustomerRecord[], rawQuery: unknown):
     return customers;
   }
 
-  const parsedQuery = parseCustomerQuery(rawQuery);
+  const parsedQuery = parseSearchQuery(rawQuery, { quoteCharacters: ['"'] });
   if (!parsedQuery) {
     return customers;
   }
