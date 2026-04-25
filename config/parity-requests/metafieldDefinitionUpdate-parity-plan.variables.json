@@ -1,9 +1,0 @@
-{
-  "definition": {
-    "ownerType": "PRODUCT",
-    "namespace": "custom",
-    "key": "har_140_material",
-    "name": "HAR 140 material updated",
-    "description": "Updated conformance scaffold for product metafield definition lifecycle."
-  }
-}
