@@ -7,6 +7,7 @@ This endpoint group is a coverage map for Admin GraphQL shipping, fulfillment, f
 Local staged mutations currently live under the orders group because they operate on order-scoped fulfillment records and downstream `order(id:)` reads:
 
 - `fulfillmentCreate`
+- `fulfillmentEventCreate`
 - `fulfillmentTrackingInfoUpdate`
 - `fulfillmentCancel`
 - `fulfillmentOrderHold`
@@ -26,7 +27,9 @@ Top-level fulfillment and fulfillment-order reads are implemented as snapshot/lo
 - `assignedFulfillmentOrders`
 - `manualHoldsFulfillmentOrders`
 
-`fulfillment(id:)` and `fulfillmentOrder(id:)` resolve only records already present on local `Order.fulfillments` / `Order.fulfillmentOrders` data and return `null` for missing IDs. They do not invent fulfillment records, fulfillment orders, holds, or lifecycle replacement records absent from the snapshot or staged order graph.
+`fulfillment(id:)` and `fulfillmentOrder(id:)` resolve only records already present on local `Order.fulfillments` / `Order.fulfillmentOrders` data and return `null` for missing IDs. Fulfillment detail reads serialize captured shipment fields including `events`, `deliveredAt`, `estimatedDeliveryAt`, `inTransitAt`, `service`, `location`, `originAddress`, `trackingInfo(first:)`, and fulfillment line items from the same order-backed fulfillment record used by nested `Order.fulfillments`. They do not invent fulfillment records, fulfillment orders, holds, delivery methods, or lifecycle replacement records absent from the snapshot or staged order graph.
+
+`fulfillmentEventCreate` stages local events against an existing order-backed fulfillment and makes them immediately visible in both top-level and nested fulfillment detail reads. Captured 2026-04 behavior showed an `IN_TRANSIT` event updating `Fulfillment.displayStatus`, `estimatedDeliveryAt`, and `inTransitAt`; local staging mirrors that captured shipment-milestone slice while preserving the original raw mutation for commit replay and without contacting Shopify at runtime.
 
 `FulfillmentOrder.deliveryMethod` is an optional local fixture field. When a normalized fulfillment-order record carries delivery-method data, the serializer returns the stored `DeliveryMethod` scalar fields selected by the query; when the record lacks delivery-method data, the field returns `null`. The proxy still does not generate delivery methods from order shipping lines, delivery profiles, or fulfillment-order lifecycle mutations without a captured scenario.
 
@@ -42,7 +45,7 @@ HAR-234 adds fulfillment-order lifecycle staging backed by `fixtures/conformance
 
 HAR-234 captured but does not mark full support for `fulfillmentOrderReschedule`, `fulfillmentOrderClose`, or `fulfillmentOrdersReroute`. The current disposable merchant-managed setup returns `Fulfillment order must be scheduled.` for reschedule, `The fulfillment order's assigned fulfillment service must be of api type` for close, and a Shopify internal error for the attempted included-location reroute success branch. The proxy mirrors the captured guardrails locally where modeled, but these roots remain registry-unimplemented until success-path setup and downstream read behavior are captured.
 
-Captured HAR-232 evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/fulfillment-top-level-reads.json` with parity coverage in `config/parity-specs/fulfillment-top-level-reads.json`. Runtime coverage is in `tests/integration/order-query-shapes.test.ts`.
+Captured HAR-232 evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/fulfillment-top-level-reads.json` with parity coverage in `config/parity-specs/fulfillment-top-level-reads.json`. HAR-235 detail/event evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/fulfillment-detail-events-lifecycle.json` with parity coverage in `config/parity-specs/fulfillment-detail-events-lifecycle.json`. Runtime coverage is in `tests/integration/order-query-shapes.test.ts` and `tests/integration/order-fulfillment-flow.test.ts`.
 
 Fulfillment service reads and lifecycle writes are implemented as a shipping/fulfillments slice because they create and mutate service-managed locations:
 
@@ -103,8 +106,6 @@ Delivery-profile writes are implemented for a deliberately bounded, conformance-
 
 These roots are known Admin GraphQL shipping/fulfillment surface area, but they are not locally implemented. They are registered with `implemented: false` as explicit future local-model commitments, not as supported passthrough behavior.
 
-- `fulfillmentEventCreate`
-
 Fulfillment-order mutations:
 
 - `fulfillmentOrderAcceptCancellationRequest`
@@ -138,7 +139,7 @@ Shipping-line order-edit roots:
 ## Behavior boundaries
 
 - The proxy must not treat any registry-only root above as supported runtime behavior. Until a root has local state modeling and executable tests, unsupported mutations remain on the generic unsupported path and must stay visible in observability.
-- Top-level `fulfillment(id:)` now has missing-id, tracking-info, and line-item shape evidence for records already present on the local order graph. Fulfillment events and broader access-scope behavior still need separate captures before expansion.
+- Top-level `fulfillment(id:)` now has missing-id, tracking-info, line-item, detail, and event-history shape evidence for records already present on the local order graph. Broader access-scope behavior still needs separate captures before expansion.
 - Fulfillment orders are created by Shopify after order routing, not by a direct create mutation. Local support needs to model fulfillment-order generation from order/draft-order creation, location assignment, line-item grouping, status/requestStatus, holds, merchant requests, and delivery methods.
 - Fulfillment-order visibility is scope-sensitive. `assignedFulfillmentOrders`, `fulfillmentOrders`, and `Order.fulfillmentOrders` can return different subsets depending on assigned, merchant-managed, third-party, and marketplace fulfillment-order scopes.
 - Fulfillment-order lifecycle mutations can create replacement orders, split or merge line items, change assigned locations, add/release holds, change deadlines, and update request status. Do not model one of these as a simple status patch without captured downstream reads.

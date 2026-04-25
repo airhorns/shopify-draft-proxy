@@ -15,5 +15,6 @@
       "id": "gid://shopify/ProductOptionValue/300",
       "name": "Crimson"
     }
-  ]
+  ],
+  "optionValuesToDelete": ["gid://shopify/ProductOptionValue/301"]
 }

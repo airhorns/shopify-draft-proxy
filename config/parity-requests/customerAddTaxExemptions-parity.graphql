@@ -1,0 +1,23 @@
+mutation CustomerAddTaxExemptionsParity($customerId: ID!, $taxExemptions: [TaxExemption!]!) {
+  customerAddTaxExemptions(customerId: $customerId, taxExemptions: $taxExemptions) {
+    customer {
+      id
+      firstName
+      lastName
+      displayName
+      email
+      taxExempt
+      taxExemptions
+      tags
+      defaultEmailAddress {
+        emailAddress
+      }
+      createdAt
+      updatedAt
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -1,6 +1,6 @@
 # Webhooks
 
-HAR-267 adds conformance evidence for Admin GraphQL webhook subscription roots, but does not implement local runtime support yet.
+HAR-267 adds conformance evidence for Admin GraphQL webhook subscription roots. HAR-268 adds local runtime read support for API-created webhook subscription records while leaving create/update/delete staging unsupported.
 
 ## Registered Roots
 
@@ -11,7 +11,22 @@ HAR-267 adds conformance evidence for Admin GraphQL webhook subscription roots, 
 - `webhookSubscriptionUpdate(id:, webhookSubscription:)`
 - `webhookSubscriptionDelete(id:)`
 
-All six roots are registered under the `webhooks` domain with `implemented: false`. The query roots remain unknown-operation passthrough at runtime, and the mutation roots must not be treated as supported local staging until a webhook subscription state model exists.
+The three query roots are registered under the `webhooks` domain as implemented `overlay-read` operations:
+
+- `webhookSubscription(id:)`
+- `webhookSubscriptions(...)`
+- `webhookSubscriptionsCount(...)`
+
+The mutation roots remain registered but unimplemented. They must not be treated as supported local staging until a webhook subscription mutation lifecycle model exists.
+
+## Local Read Behavior
+
+- Webhook subscription reads are backed by normalized `webhookSubscriptions` state plus `webhookSubscriptionOrder`.
+- Snapshot mode returns `null` for unknown `webhookSubscription(id:)`, an empty `webhookSubscriptions` connection, and `{ count: 0, precision: "EXACT" }` for `webhookSubscriptionsCount` when no records are present.
+- Local records preserve captured fields: `id`, `topic`, `format`, `includeFields`, `metafieldNamespaces`, `filter`, `createdAt`, `updatedAt`, and endpoint-specific fields for `WebhookHttpEndpoint`, `WebhookEventBridgeEndpoint`, and `WebhookPubSubEndpoint`.
+- `webhookSubscriptions` uses shared connection helpers for `nodes`, `edges`, selected `pageInfo`, stable synthetic cursors, `first`/`last`, `before`/`after`, `sortKey: ID`, and `reverse`.
+- `webhookSubscriptionsCount` supports count `limit` semantics with `EXACT` / `AT_LEAST` precision and simple captured query filtering such as `id:<legacy id>`.
+- Live-hybrid reads hydrate upstream webhook subscription nodes into normalized base state and overlay staged local records when present.
 
 ## Captured Evidence
 
@@ -37,11 +52,12 @@ The lifecycle capture uses `SHOP_UPDATE` because it is available in the topic en
 
 App configuration/TOML webhooks remain out of scope. Shopify's Admin GraphQL subscription roots are being treated here as the API-created subscription lifecycle surface; future evidence must prove otherwise before TOML/app-config webhooks are modeled through these roots.
 
-Runtime staging is also out of scope for this ticket. Future support should add a normalized webhook subscription graph, local connection/count serialization, create/update/delete staging, read-after-write effects, raw mutation log retention, and tests showing supported mutations do not hit Shopify at runtime.
+Runtime mutation staging is still out of scope. Future support should add create/update/delete staging, read-after-write effects from those mutation handlers, raw mutation log retention, and tests showing supported webhook mutations do not hit Shopify at runtime.
 
 ## Validation
 
 - `corepack pnpm conformance:check`
 - `corepack pnpm conformance:parity`
 - `corepack pnpm typecheck`
+- `corepack pnpm vitest run tests/integration/webhook-subscription-query-shapes.test.ts`
 - `corepack pnpm vitest run tests/unit/webhook-subscription-conformance-fixture.test.ts`

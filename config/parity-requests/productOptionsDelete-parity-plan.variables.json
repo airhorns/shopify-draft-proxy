@@ -1,4 +1,4 @@
 {
   "productId": "gid://shopify/Product/100",
-  "options": ["gid://shopify/ProductOption/200"]
+  "options": ["gid://shopify/ProductOption/201", "gid://shopify/ProductOption/200"]
 }
