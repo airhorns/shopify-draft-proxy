@@ -22,7 +22,8 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discount-free-shipping-lifecycle.json"
   ],
-  "comparisonMode": "capture-only",
+  "runtimeTestFiles": ["tests/integration/discount-free-shipping-lifecycle-flow.test.ts"],
+  "comparisonMode": "captured-fixture",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

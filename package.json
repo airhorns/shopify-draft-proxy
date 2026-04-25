@@ -37,10 +37,12 @@
     "conformance:capture-inventory-linkage-mutations": "tsx ./scripts/capture-inventory-linkage-mutation-conformance.mts",
     "conformance:probe-product-variant-compatibility-roots": "tsx ./scripts/probe-product-variant-compatibility-roots.mts",
     "conformance:capture-product-metafield-mutations": "tsx ./scripts/capture-product-metafield-mutation-conformance.mts",
+    "conformance:capture-metafield-definition-pinning": "tsx ./scripts/capture-metafield-definition-pinning-conformance.mts",
     "conformance:capture-product-graph-mutations": "tsx ./scripts/capture-product-graph-mutation-conformance.mts",
     "conformance:capture-product-inventory-reads": "tsx ./scripts/capture-product-inventory-read-conformance.mts",
     "conformance:capture-inventory-adjustments": "tsx ./scripts/capture-inventory-adjustment-conformance.mts",
     "conformance:capture-markets": "tsx ./scripts/capture-market-conformance.mts",
+    "conformance:capture-marketing": "tsx ./scripts/capture-marketing-conformance.mts",
     "conformance:capture-collections": "tsx ./scripts/capture-collection-conformance.mts",
     "conformance:capture-collection-mutations": "tsx ./scripts/capture-collection-mutation-conformance.mts",
     "conformance:capture-collection-publications": "tsx ./scripts/capture-collection-mutation-conformance.mts",
@@ -55,7 +57,8 @@
     "conformance:capture-discount-lifecycle": "SHOPIFY_CONFORMANCE_API_VERSION=2026-04 tsx ./scripts/capture-discount-code-basic-lifecycle-conformance.ts",
     "conformance:capture-discount-free-shipping-lifecycle": "SHOPIFY_CONFORMANCE_API_VERSION=2026-04 tsx ./scripts/capture-discount-free-shipping-lifecycle-conformance.ts",
     "conformance:capture-discount-validation": "tsx ./scripts/capture-discount-validation-conformance.ts",
-    "conformance:capture-order-refunds": "tsx ./scripts/capture-order-refund-conformance.mts"
+    "conformance:capture-order-refunds": "tsx ./scripts/capture-order-refund-conformance.mts",
+    "conformance:capture-delivery-profiles": "tsx ./scripts/capture-delivery-profile-conformance.ts"
   },
   "dependencies": {
     "@koa/router": "^15.4.0",

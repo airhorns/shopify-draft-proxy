@@ -11,6 +11,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/fulfillment-service-lifecycle.json"
   ],
+  "runtimeTestFiles": ["tests/integration/fulfillment-service-flow.test.ts"],
   "comparisonMode": "captured-fixture",
   "notes": "Captured evidence covers Admin GraphQL 2026-04 fulfillment-service detail null behavior, create validation, create/update/delete lifecycle payloads, shop.fulfillmentServices visibility, and associated Location visibility/deletion. Runtime parity is covered by integration tests while the generic parity runner lacks multi-step mutation chaining for this service/location lifecycle fixture.",
   "comparison": {

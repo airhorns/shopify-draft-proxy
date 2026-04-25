@@ -55,6 +55,10 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 - Expose and test the meta API.
 - Add tests for every supported operation.
 - Prefer conformance fixtures over hand-wavy comments about expected behavior.
+- Conformance/test shops are disposable fidelity targets. When a ticket needs
+  real Shopify evidence, agents may modify those test shops deeply as needed
+  to create, update, activate, delete, and clean up realistic fixtures; do not
+  avoid necessary live setup just because it changes test-shop data.
 - Do not add tests that only reassert self-evident properties of checked-in
   metadata, such as exact fields in registry or parity-spec JSON files. Test
   executable behavior, schema validation, discovery semantics, or comparison
@@ -73,6 +77,11 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
   Ticket-specific requests for scaffold files do not override this rule; for
   coverage-map-only work, update the operation registry and the Linear/workpad
   notes without adding parity spec or parity request placeholders.
+- Captured scenarios checked into `config/parity-specs` must be executable
+  evidence by schema and inventory validation: either a proxy request with
+  strict comparison targets that runs in the `conformance:parity` script, or
+  an explicitly runtime-test-backed fixture mode for multi-step flows the
+  generic parity runner cannot yet replay.
 - Conformance parity scenarios are discovered by convention from `config/parity-specs/*.json` and executed by the single vitest suite at `tests/unit/conformance-parity-scenarios.test.ts` (also exposed as `pnpm conformance:parity`). Do not add per-scenario `it(...)` blocks that re-run one scenario — the iterator already covers it. Encode scenario-specific expectations in the parity spec.
 - Treat conformance `expectedDifferences` as a last resort after modeling or
   fixture seeding has been exhausted; do not add them merely to make parity
