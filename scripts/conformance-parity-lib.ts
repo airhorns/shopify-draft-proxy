@@ -3038,6 +3038,25 @@ function readCapturedDraftOrderShippingLine(
   };
 }
 
+function readCapturedDraftOrderPaymentTerms(
+  draftOrder: Record<string, unknown> | null,
+): DraftOrderRecord['paymentTerms'] {
+  const paymentTerms = readRecordField(draftOrder, 'paymentTerms');
+  if (!paymentTerms) {
+    return null;
+  }
+
+  return {
+    id: readStringField(paymentTerms, 'id') ?? 'gid://shopify/PaymentTerms/conformance',
+    due: readBooleanField(paymentTerms, 'due') ?? false,
+    overdue: readBooleanField(paymentTerms, 'overdue') ?? false,
+    dueInDays: readNumberField(paymentTerms, 'dueInDays'),
+    paymentTermsName: readStringField(paymentTerms, 'paymentTermsName') ?? '',
+    paymentTermsType: readStringField(paymentTerms, 'paymentTermsType') ?? '',
+    translatedName: readStringField(paymentTerms, 'translatedName') ?? '',
+  };
+}
+
 function makeSeedDraftOrder(draftOrderId: string, source: Record<string, unknown> | null = null): DraftOrderRecord {
   const now = '2026-04-19T00:00:00.000Z';
   return {
@@ -3053,7 +3072,7 @@ function makeSeedDraftOrder(draftOrderId: string, source: Record<string, unknown
     taxExempt: readBooleanField(source, 'taxExempt') ?? false,
     taxesIncluded: readBooleanField(source, 'taxesIncluded') ?? false,
     reserveInventoryUntil: readStringField(source, 'reserveInventoryUntil'),
-    paymentTerms: null,
+    paymentTerms: readCapturedDraftOrderPaymentTerms(source),
     appliedDiscount: readCapturedDraftOrderAppliedDiscount(source),
     customAttributes: readArrayField(source, 'customAttributes')
       .filter(isPlainObject)
