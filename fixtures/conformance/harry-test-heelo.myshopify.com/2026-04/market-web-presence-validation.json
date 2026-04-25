@@ -1,0 +1,68 @@
+{
+  "capturedAt": "2026-04-25T16:34:00.000Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "cases": [
+    {
+      "name": "webPresenceCreateInvalidRouting",
+      "query": "#graphql\nmutation WebPresenceCreateInvalidRouting($input: WebPresenceCreateInput!) {\n  webPresenceCreate(input: $input) {\n    webPresence { id }\n    userErrors { field message code }\n  }\n}",
+      "variables": {
+        "input": {
+          "domainId": "gid://shopify/Domain/93049946345",
+          "defaultLocale": "english",
+          "alternateLocales": ["en", "en"],
+          "subfolderSuffix": "../ca"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webPresenceCreate": {
+              "webPresence": null,
+              "userErrors": [
+                {
+                  "field": ["input", "domainId"],
+                  "message": "Domain does not exist",
+                  "code": "DOMAIN_NOT_FOUND"
+                },
+                {
+                  "field": ["input", "defaultLocale"],
+                  "message": "Invalid locale codes: english",
+                  "code": "INVALID"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "webPresenceUpdateUnknownId",
+      "query": "#graphql\nmutation WebPresenceUpdateUnknownId($id: ID!, $input: WebPresenceUpdateInput!) {\n  webPresenceUpdate(id: $id, input: $input) {\n    webPresence { id }\n    userErrors { field message code }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/MarketWebPresence/999999999999",
+        "input": {
+          "defaultLocale": "en"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webPresenceUpdate": {
+              "webPresence": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "The market web presence wasn't found.",
+                  "code": "WEB_PRESENCE_NOT_FOUND"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
+}

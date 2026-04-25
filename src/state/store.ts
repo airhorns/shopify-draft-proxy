@@ -25,6 +25,7 @@ import type {
   SegmentRecord,
   ShopRecord,
   StateSnapshot,
+  WebPresenceRecord,
 } from './types.js';
 import { compareShopifyResourceIds } from '../shopify/resource-ids.js';
 
@@ -55,6 +56,8 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   businessEntityOrder: [],
   markets: {},
   marketOrder: [],
+  webPresences: {},
+  webPresenceOrder: [],
   productCollections: {},
   productMedia: {},
   files: {},
@@ -66,6 +69,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedCustomerIds: {},
   deletedDiscountIds: {},
   deletedMarketIds: {},
+  deletedWebPresenceIds: {},
   mergedCustomerIds: {},
   customerMergeRequests: {},
 };
@@ -537,6 +541,102 @@ export class InMemoryStore {
     delete this.stagedState.markets[marketId];
     this.stagedState.marketOrder = this.stagedState.marketOrder.filter((id) => id !== marketId);
     this.stagedState.deletedMarketIds[marketId] = true;
+  }
+
+  upsertBaseWebPresences(
+    webPresences: Array<WebPresenceRecord | { webPresence: unknown; cursor?: string | null } | unknown>,
+  ): void {
+    for (const candidate of webPresences) {
+      if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+        continue;
+      }
+
+      const entry = candidate as Record<string, unknown>;
+      const rawWebPresence = 'webPresence' in entry ? entry['webPresence'] : candidate;
+      const rawCursor = 'cursor' in entry ? entry['cursor'] : null;
+      if (!rawWebPresence || typeof rawWebPresence !== 'object' || Array.isArray(rawWebPresence)) {
+        continue;
+      }
+
+      const webPresence = rawWebPresence as Record<string, unknown>;
+      const id = webPresence['id'];
+      if (typeof id === 'string' && id.length > 0) {
+        delete this.baseState.deletedWebPresenceIds[id];
+        delete this.stagedState.deletedWebPresenceIds[id];
+        const previous = this.baseState.webPresences[id];
+        const cursor = typeof rawCursor === 'string' && rawCursor.length > 0 ? rawCursor : (previous?.cursor ?? null);
+        this.baseState.webPresences[id] = {
+          id,
+          cursor,
+          data: previous
+            ? ({ ...structuredClone(previous.data), ...structuredClone(webPresence) } as WebPresenceRecord['data'])
+            : (structuredClone(webPresence) as WebPresenceRecord['data']),
+        };
+
+        if (!this.baseState.webPresenceOrder.includes(id)) {
+          this.baseState.webPresenceOrder.push(id);
+        }
+      }
+    }
+  }
+
+  stageCreateWebPresence(webPresence: WebPresenceRecord): WebPresenceRecord {
+    delete this.stagedState.deletedWebPresenceIds[webPresence.id];
+    this.stagedState.webPresences[webPresence.id] = structuredClone(webPresence);
+    if (!this.stagedState.webPresenceOrder.includes(webPresence.id)) {
+      this.stagedState.webPresenceOrder.push(webPresence.id);
+    }
+    return structuredClone(webPresence);
+  }
+
+  stageUpdateWebPresence(webPresence: WebPresenceRecord): WebPresenceRecord {
+    delete this.stagedState.deletedWebPresenceIds[webPresence.id];
+    this.stagedState.webPresences[webPresence.id] = structuredClone(webPresence);
+    if (
+      !this.baseState.webPresenceOrder.includes(webPresence.id) &&
+      !this.stagedState.webPresenceOrder.includes(webPresence.id)
+    ) {
+      this.stagedState.webPresenceOrder.push(webPresence.id);
+    }
+    return structuredClone(webPresence);
+  }
+
+  getEffectiveWebPresenceRecordById(webPresenceId: string): WebPresenceRecord | null {
+    if (this.stagedState.deletedWebPresenceIds[webPresenceId]) {
+      return null;
+    }
+
+    const webPresence =
+      this.stagedState.webPresences[webPresenceId] ?? this.baseState.webPresences[webPresenceId] ?? null;
+    return webPresence ? structuredClone(webPresence) : null;
+  }
+
+  getEffectiveWebPresenceById(webPresenceId: string): unknown | null {
+    return this.getEffectiveWebPresenceRecordById(webPresenceId)?.data ?? null;
+  }
+
+  listEffectiveWebPresences(): WebPresenceRecord[] {
+    const mergedWebPresences = new Map<string, WebPresenceRecord>();
+    const orderedIds = [...this.baseState.webPresenceOrder, ...this.stagedState.webPresenceOrder];
+
+    for (const id of orderedIds) {
+      const webPresence = this.getEffectiveWebPresenceRecordById(id);
+      if (webPresence) {
+        mergedWebPresences.set(id, webPresence);
+      }
+    }
+
+    for (const webPresence of [
+      ...Object.values(this.baseState.webPresences),
+      ...Object.values(this.stagedState.webPresences),
+    ]) {
+      if (mergedWebPresences.has(webPresence.id) || this.stagedState.deletedWebPresenceIds[webPresence.id]) {
+        continue;
+      }
+      mergedWebPresences.set(webPresence.id, structuredClone(webPresence));
+    }
+
+    return Array.from(mergedWebPresences.values());
   }
 
   getEffectiveMarketRecordById(marketId: string): MarketRecord | null {

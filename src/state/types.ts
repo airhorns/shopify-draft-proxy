@@ -1000,6 +1000,13 @@ export const marketRecordSchema = z.strictObject({
 });
 export type MarketRecord = z.infer<typeof marketRecordSchema>;
 
+export const webPresenceRecordSchema = z.strictObject({
+  id: z.string(),
+  cursor: nullableStringSchema.optional(),
+  data: z.record(z.string(), jsonValueSchema),
+});
+export type WebPresenceRecord = z.infer<typeof webPresenceRecordSchema>;
+
 export const calculatedOrderRecordSchema = orderRecordSchema.extend({
   originalOrderId: z.string(),
 });
@@ -1021,6 +1028,8 @@ export const stateSnapshotSchema = z.strictObject({
   businessEntityOrder: z.array(z.string()).default([]),
   markets: z.record(z.string(), marketRecordSchema).default({}),
   marketOrder: z.array(z.string()).default([]),
+  webPresences: z.record(z.string(), webPresenceRecordSchema).default({}),
+  webPresenceOrder: z.array(z.string()).default([]),
   productCollections: z.record(z.string(), productCollectionRecordSchema),
   productMedia: z.record(z.string(), productMediaRecordSchema),
   files: z.record(z.string(), fileRecordSchema).default({}),
@@ -1032,6 +1041,7 @@ export const stateSnapshotSchema = z.strictObject({
   deletedCustomerIds: z.record(z.string(), z.literal(true)),
   deletedDiscountIds: z.record(z.string(), z.literal(true)).default({}),
   deletedMarketIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedWebPresenceIds: z.record(z.string(), z.literal(true)).default({}),
   mergedCustomerIds: z.record(z.string(), z.string()).default({}),
   customerMergeRequests: z.record(z.string(), customerMergeRequestRecordSchema).default({}),
 });

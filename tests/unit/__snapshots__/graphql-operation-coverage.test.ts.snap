@@ -387,8 +387,6 @@ exports[`GraphQL operation coverage > snapshots introspected Admin GraphQL mutat
   "webPixelCreate",
   "webPixelDelete",
   "webPixelUpdate",
-  "webPresenceCreate",
   "webPresenceDelete",
-  "webPresenceUpdate",
 ]
 `;
