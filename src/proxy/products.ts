@@ -122,11 +122,13 @@ function getOperationPathLabel(document: string): string {
   return operation.name ? `${operationType} ${operation.name.value}` : operationType;
 }
 
+const maxProductHandleLength = 255;
+
 function normalizeHandleParts(value: string): string {
   return value
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
     .replace(/^-+|-+$/g, '');
 }
 
@@ -149,7 +151,8 @@ function stripHtmlToDescription(value: string): string {
 
 type ExplicitHandleResolution =
   | { kind: 'normalized-explicit'; handle: string }
-  | { kind: 'fallback-explicit'; handle: string };
+  | { kind: 'fallback-explicit'; handle: string }
+  | { kind: 'invalid'; error: { field: string[]; message: string } };
 
 function readProductInput(raw: unknown): Record<string, unknown> {
   return isObject(raw) ? raw : {};
@@ -173,6 +176,16 @@ function readExplicitHandle(input: Record<string, unknown>): ExplicitHandleResol
   const normalized = normalizeHandleParts(trimmedHandle);
   if (!normalized) {
     return { kind: 'fallback-explicit', handle: 'product' };
+  }
+
+  if (Array.from(normalized).length > maxProductHandleLength) {
+    return {
+      kind: 'invalid',
+      error: {
+        field: ['handle'],
+        message: `Handle is too long (maximum is ${maxProductHandleLength} characters)`,
+      },
+    };
   }
 
   return { kind: 'normalized-explicit', handle: normalized };
@@ -223,6 +236,10 @@ function prepareProductInputWithResolvedHandle(
 ): { input: Record<string, unknown>; error: { field: string[]; message: string } | null } {
   const explicitHandle = readExplicitHandle(input);
   if (explicitHandle) {
+    if (explicitHandle.kind === 'invalid') {
+      return { input, error: explicitHandle.error };
+    }
+
     if (explicitHandle.kind === 'normalized-explicit') {
       if (productHandleInUse(explicitHandle.handle, existing?.id)) {
         return { input, error: productHandleConflictError(explicitHandle.handle) };
