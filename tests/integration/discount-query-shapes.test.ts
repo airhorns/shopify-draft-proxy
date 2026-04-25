@@ -539,7 +539,7 @@ describe('discount query shapes', () => {
     });
   });
 
-  it('makes unsupported app-discount detail fields explicit instead of inventing app data', async () => {
+  it('preserves captured app-discount detail fields without inventing missing app data', async () => {
     store.upsertBaseDiscounts([
       buildDiscount({
         id: 'gid://shopify/DiscountCodeNode/192003',
@@ -547,6 +547,30 @@ describe('discount query shapes', () => {
         method: 'code',
         title: 'App discount boundary',
         appId: 'gid://shopify/App/1',
+        discountId: 'gid://shopify/DiscountCodeNode/192003',
+        appDiscountType: {
+          appKey: 'app-client-id',
+          functionId: '11111111-1111-4111-8111-111111111111',
+          title: 'Volume discount',
+          description: 'App-managed volume discount',
+        },
+      }),
+      buildAutomaticDiscount({
+        id: 'gid://shopify/DiscountAutomaticNode/192004',
+        typeName: 'DiscountAutomaticApp',
+        method: 'automatic',
+        title: 'Automatic app discount boundary',
+        status: 'SCHEDULED',
+        combinesWith: {
+          productDiscounts: false,
+          orderDiscounts: true,
+          shippingDiscounts: true,
+        },
+        appDiscountType: {
+          appKey: 'automatic-app-client-id',
+          functionId: '22222222-2222-4222-8222-222222222222',
+          title: 'Automatic volume discount',
+        },
       }),
     ]);
 
@@ -554,13 +578,45 @@ describe('discount query shapes', () => {
     const response = await request(app)
       .post('/admin/api/2026-04/graphql.json')
       .send({
-        query: `query($id: ID!) {
-          codeDiscountNode(id: $id) {
+        query: `query($codeId: ID!, $automaticId: ID!) {
+          codeDiscountNode(id: $codeId) {
             codeDiscount {
               __typename
               ... on DiscountCodeApp {
                 title
+                status
+                discountId
+                combinesWith {
+                  productDiscounts
+                  orderDiscounts
+                  shippingDiscounts
+                }
                 appDiscountType {
+                  appKey
+                  functionId
+                  title
+                  description
+                }
+                errorHistory {
+                  firstOccurredAt
+                }
+              }
+            }
+          }
+          automaticDiscountNode(id: $automaticId) {
+            automaticDiscount {
+              __typename
+              ... on DiscountAutomaticApp {
+                title
+                status
+                combinesWith {
+                  productDiscounts
+                  orderDiscounts
+                  shippingDiscounts
+                }
+                appDiscountType {
+                  appKey
+                  functionId
                   title
                 }
               }
@@ -568,26 +624,45 @@ describe('discount query shapes', () => {
           }
         }`,
         variables: {
-          id: 'gid://shopify/DiscountCodeNode/192003',
+          codeId: 'gid://shopify/DiscountCodeNode/192003',
+          automaticId: 'gid://shopify/DiscountAutomaticNode/192004',
         },
       });
 
     expect(response.body.data.codeDiscountNode.codeDiscount).toEqual({
       __typename: 'DiscountCodeApp',
       title: 'App discount boundary',
-      appDiscountType: null,
-    });
-    expect(response.body.errors).toEqual([
-      {
-        message: 'Local discount detail does not model app-managed field appDiscountType.',
-        path: ['codeDiscountNode', 'codeDiscount', 'appDiscountType'],
-        extensions: {
-          code: 'UNSUPPORTED_APP_DISCOUNT_FIELD',
-          fieldName: 'appDiscountType',
-          typeName: 'DiscountCodeApp',
-        },
+      status: 'ACTIVE',
+      discountId: 'gid://shopify/DiscountCodeNode/192003',
+      combinesWith: {
+        productDiscounts: true,
+        orderDiscounts: false,
+        shippingDiscounts: false,
       },
-    ]);
+      appDiscountType: {
+        appKey: 'app-client-id',
+        functionId: '11111111-1111-4111-8111-111111111111',
+        title: 'Volume discount',
+        description: 'App-managed volume discount',
+      },
+      errorHistory: null,
+    });
+    expect(response.body.data.automaticDiscountNode.automaticDiscount).toEqual({
+      __typename: 'DiscountAutomaticApp',
+      title: 'Automatic app discount boundary',
+      status: 'SCHEDULED',
+      combinesWith: {
+        productDiscounts: false,
+        orderDiscounts: true,
+        shippingDiscounts: true,
+      },
+      appDiscountType: {
+        appKey: 'automatic-app-client-id',
+        functionId: '22222222-2222-4222-8222-222222222222',
+        title: 'Automatic volume discount',
+      },
+    });
+    expect(response.body.errors).toBeUndefined();
   });
 
   it('paginates and reverses discount catalog reads over the effective local discount graph', async () => {

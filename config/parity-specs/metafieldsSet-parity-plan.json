@@ -3,7 +3,7 @@
   "operationNames": ["metafieldsSet"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
-  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/metafields-set-parity.json"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields-set-parity.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/metafieldsSet-parity-plan.graphql",
     "variablesPath": "config/parity-requests/metafieldsSet-parity-plan.variables.json",
@@ -23,6 +23,26 @@
         "path": "$.product.metafields.pageInfo.endCursor",
         "matcher": "non-empty-string",
         "reason": "Shopify returns opaque base64 cursors while the local serializer uses stable synthetic cursors for staged metafields."
+      },
+      {
+        "path": "$.metafieldsSet.metafields[*].compareDigest",
+        "matcher": "non-empty-string",
+        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
+      },
+      {
+        "path": "$.product.primarySpec.compareDigest",
+        "matcher": "non-empty-string",
+        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
+      },
+      {
+        "path": "$.product.origin.compareDigest",
+        "matcher": "non-empty-string",
+        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
+      },
+      {
+        "path": "$.product.metafields.nodes[*].compareDigest",
+        "matcher": "non-empty-string",
+        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
       }
     ],
     "targets": [
@@ -36,9 +56,7 @@
         "capturePath": "$.downstreamRead.data",
         "proxyRequest": {
           "documentPath": "config/parity-requests/metafieldsSet-downstream-read.graphql",
-          "variables": {
-            "id": "gid://shopify/Product/9264622174441"
-          }
+          "variablesCapturePath": "$.downstreamReadVariables"
         },
         "proxyPath": "$.data"
       }
