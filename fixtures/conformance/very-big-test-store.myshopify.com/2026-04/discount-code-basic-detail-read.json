@@ -1,0 +1,263 @@
+{
+  "variables": {
+    "id": "gid://shopify/DiscountCodeNode/1688847450345",
+    "code": "HAR192DETAIL1777130925428"
+  },
+  "create": {
+    "data": {
+      "discountCodeBasicCreate": {
+        "codeDiscountNode": {
+          "id": "gid://shopify/DiscountCodeNode/1688847450345",
+          "codeDiscount": {
+            "__typename": "DiscountCodeBasic",
+            "title": "HAR-192 detail code 1777130925428",
+            "status": "ACTIVE",
+            "summary": "10% off entire order • Minimum purchase of $1.00",
+            "startsAt": "2026-04-25T00:00:00Z",
+            "endsAt": null,
+            "createdAt": "2026-04-25T15:28:45Z",
+            "updatedAt": "2026-04-25T15:28:45Z",
+            "asyncUsageCount": 0,
+            "discountClasses": ["ORDER"],
+            "combinesWith": {
+              "productDiscounts": false,
+              "orderDiscounts": true,
+              "shippingDiscounts": false
+            },
+            "codes": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/DiscountRedeemCode/20453209080041",
+                  "code": "HAR192DETAIL1777130925428",
+                  "asyncUsageCount": 0
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoyMDQ1MzIwOTA4MDA0MSwibGFzdF92YWx1ZSI6IjIwNDUzMjA5MDgwMDQxIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoyMDQ1MzIwOTA4MDA0MSwibGFzdF92YWx1ZSI6IjIwNDUzMjA5MDgwMDQxIn0="
+              }
+            },
+            "context": {
+              "__typename": "DiscountBuyerSelectionAll",
+              "all": "ALL"
+            },
+            "customerGets": {
+              "value": {
+                "__typename": "DiscountPercentage",
+                "percentage": 0.1
+              },
+              "items": {
+                "__typename": "AllDiscountItems",
+                "allItems": true
+              },
+              "appliesOnOneTimePurchase": true,
+              "appliesOnSubscription": false
+            },
+            "minimumRequirement": {
+              "__typename": "DiscountMinimumSubtotal",
+              "greaterThanOrEqualToSubtotal": {
+                "amount": "1.0",
+                "currencyCode": "CAD"
+              }
+            }
+          }
+        },
+        "userErrors": []
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 20,
+        "actualQueryCost": 20,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1980,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "response": {
+    "data": {
+      "discountNode": {
+        "id": "gid://shopify/DiscountCodeNode/1688847450345",
+        "discount": {
+          "__typename": "DiscountCodeBasic",
+          "title": "HAR-192 detail code 1777130925428",
+          "status": "ACTIVE",
+          "summary": "10% off entire order • Minimum purchase of $1.00",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "endsAt": null,
+          "createdAt": "2026-04-25T15:28:45Z",
+          "updatedAt": "2026-04-25T15:28:45Z",
+          "asyncUsageCount": 0,
+          "discountClasses": ["ORDER"],
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "codes": {
+            "nodes": [
+              {
+                "id": "gid://shopify/DiscountRedeemCode/20453209080041",
+                "code": "HAR192DETAIL1777130925428",
+                "asyncUsageCount": 0
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoyMDQ1MzIwOTA4MDA0MSwibGFzdF92YWx1ZSI6IjIwNDUzMjA5MDgwMDQxIn0=",
+              "endCursor": "eyJsYXN0X2lkIjoyMDQ1MzIwOTA4MDA0MSwibGFzdF92YWx1ZSI6IjIwNDUzMjA5MDgwMDQxIn0="
+            }
+          },
+          "context": {
+            "__typename": "DiscountBuyerSelectionAll",
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "__typename": "DiscountPercentage",
+              "percentage": 0.1
+            },
+            "items": {
+              "__typename": "AllDiscountItems",
+              "allItems": true
+            },
+            "appliesOnOneTimePurchase": true,
+            "appliesOnSubscription": false
+          },
+          "minimumRequirement": {
+            "__typename": "DiscountMinimumSubtotal",
+            "greaterThanOrEqualToSubtotal": {
+              "amount": "1.0",
+              "currencyCode": "CAD"
+            }
+          }
+        },
+        "metafield": null,
+        "metafields": {
+          "nodes": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+          }
+        },
+        "events": {
+          "edges": [
+            {
+              "cursor": "eyJsYXN0X2lkIjoxNTg3NjY3NjExNDg2NDksImxhc3RfdmFsdWUiOiIxNTg3NjY3NjExNDg2NDkifQ==",
+              "node": {
+                "__typename": "BasicEvent",
+                "id": "gid://shopify/BasicEvent/158766761148649",
+                "action": "create",
+                "message": "hermes-conformance-products created this discount.",
+                "createdAt": "2026-04-25T15:28:45Z",
+                "subjectId": "gid://shopify/PriceRule/1688847450345",
+                "subjectType": "PRICE_RULE"
+              }
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjoxNTg3NjY3NjExODE0MTcsImxhc3RfdmFsdWUiOiIxNTg3NjY3NjExODE0MTcifQ==",
+              "node": {
+                "__typename": "BasicEvent",
+                "id": "gid://shopify/BasicEvent/158766761181417",
+                "action": "update",
+                "message": "Discount was edited.",
+                "createdAt": "2026-04-25T15:28:45Z",
+                "subjectId": "gid://shopify/PriceRule/1688847450345",
+                "subjectType": "PRICE_RULE"
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjoxNTg3NjY3NjExNDg2NDksImxhc3RfdmFsdWUiOiIxNTg3NjY3NjExNDg2NDkifQ==",
+            "endCursor": "eyJsYXN0X2lkIjoxNTg3NjY3NjExODE0MTcsImxhc3RfdmFsdWUiOiIxNTg3NjY3NjExODE0MTcifQ=="
+          }
+        }
+      },
+      "codeDiscountNode": {
+        "id": "gid://shopify/DiscountCodeNode/1688847450345",
+        "codeDiscount": {
+          "__typename": "DiscountCodeBasic",
+          "title": "HAR-192 detail code 1777130925428",
+          "status": "ACTIVE",
+          "summary": "10% off entire order • Minimum purchase of $1.00",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "endsAt": null,
+          "createdAt": "2026-04-25T15:28:45Z",
+          "updatedAt": "2026-04-25T15:28:45Z",
+          "asyncUsageCount": 0,
+          "discountClasses": ["ORDER"],
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "codes": {
+            "nodes": [
+              {
+                "id": "gid://shopify/DiscountRedeemCode/20453209080041",
+                "code": "HAR192DETAIL1777130925428",
+                "asyncUsageCount": 0
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoyMDQ1MzIwOTA4MDA0MSwibGFzdF92YWx1ZSI6IjIwNDUzMjA5MDgwMDQxIn0=",
+              "endCursor": "eyJsYXN0X2lkIjoyMDQ1MzIwOTA4MDA0MSwibGFzdF92YWx1ZSI6IjIwNDUzMjA5MDgwMDQxIn0="
+            }
+          }
+        }
+      },
+      "codeDiscountNodeByCode": {
+        "id": "gid://shopify/DiscountCodeNode/1688847450345",
+        "codeDiscount": {
+          "__typename": "DiscountCodeBasic",
+          "title": "HAR-192 detail code 1777130925428"
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 26,
+        "actualQueryCost": 26,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1971,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountCodeDelete": {
+          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1688847450345",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

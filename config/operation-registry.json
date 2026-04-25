@@ -1196,9 +1196,9 @@
     "type": "query",
     "domain": "discounts",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountNode", "DiscountNode"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts"]
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/discount-query-shapes.test.ts"]
   },
   {
     "name": "codeDiscountNodes",
@@ -1214,18 +1214,18 @@
     "type": "query",
     "domain": "discounts",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["codeDiscountNode", "CodeDiscountNode"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts"]
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/discount-query-shapes.test.ts"]
   },
   {
     "name": "codeDiscountNodeByCode",
     "type": "query",
     "domain": "discounts",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["codeDiscountNodeByCode", "CodeDiscountNodeByCode"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts"]
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/discount-query-shapes.test.ts"]
   },
   {
     "name": "automaticDiscountNodes",
@@ -1241,9 +1241,9 @@
     "type": "query",
     "domain": "discounts",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["automaticDiscountNode", "AutomaticDiscountNode"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts"]
+    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/discount-query-shapes.test.ts"]
   },
   {
     "name": "discountCodeBasicCreate",

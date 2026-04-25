@@ -1,0 +1,199 @@
+{
+  "variables": {
+    "id": "gid://shopify/DiscountAutomaticNode/1688847483113"
+  },
+  "create": {
+    "data": {
+      "discountAutomaticBasicCreate": {
+        "automaticDiscountNode": {
+          "id": "gid://shopify/DiscountAutomaticNode/1688847483113",
+          "automaticDiscount": {
+            "__typename": "DiscountAutomaticBasic",
+            "title": "HAR-192 detail automatic 1777130925428",
+            "status": "ACTIVE",
+            "summary": "15% off entire order • Minimum quantity of 2",
+            "startsAt": "2026-04-25T00:00:00Z",
+            "endsAt": null,
+            "createdAt": "2026-04-25T15:28:46Z",
+            "updatedAt": "2026-04-25T15:28:46Z",
+            "asyncUsageCount": 0,
+            "discountClasses": ["ORDER"],
+            "combinesWith": {
+              "productDiscounts": false,
+              "orderDiscounts": true,
+              "shippingDiscounts": false
+            },
+            "context": {
+              "__typename": "DiscountBuyerSelectionAll",
+              "all": "ALL"
+            },
+            "customerGets": {
+              "value": {
+                "__typename": "DiscountPercentage",
+                "percentage": 0.15
+              },
+              "items": {
+                "__typename": "AllDiscountItems",
+                "allItems": true
+              },
+              "appliesOnOneTimePurchase": true,
+              "appliesOnSubscription": false
+            },
+            "minimumRequirement": {
+              "__typename": "DiscountMinimumQuantity",
+              "greaterThanOrEqualToQuantity": "2"
+            }
+          }
+        },
+        "userErrors": []
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 17,
+        "actualQueryCost": 17,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1983,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "response": {
+    "data": {
+      "discountNode": {
+        "id": "gid://shopify/DiscountAutomaticNode/1688847483113",
+        "discount": {
+          "__typename": "DiscountAutomaticBasic",
+          "title": "HAR-192 detail automatic 1777130925428",
+          "status": "ACTIVE",
+          "summary": "15% off entire order • Minimum quantity of 2",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "endsAt": null,
+          "createdAt": "2026-04-25T15:28:46Z",
+          "updatedAt": "2026-04-25T15:28:46Z",
+          "asyncUsageCount": 0,
+          "discountClasses": ["ORDER"],
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "__typename": "DiscountBuyerSelectionAll",
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "__typename": "DiscountPercentage",
+              "percentage": 0.15
+            },
+            "items": {
+              "__typename": "AllDiscountItems",
+              "allItems": true
+            },
+            "appliesOnOneTimePurchase": true,
+            "appliesOnSubscription": false
+          },
+          "minimumRequirement": {
+            "__typename": "DiscountMinimumQuantity",
+            "greaterThanOrEqualToQuantity": "2"
+          }
+        }
+      },
+      "automaticDiscountNode": {
+        "id": "gid://shopify/DiscountAutomaticNode/1688847483113",
+        "automaticDiscount": {
+          "__typename": "DiscountAutomaticBasic",
+          "title": "HAR-192 detail automatic 1777130925428",
+          "status": "ACTIVE",
+          "summary": "15% off entire order • Minimum quantity of 2",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "endsAt": null,
+          "asyncUsageCount": 0,
+          "discountClasses": ["ORDER"],
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "customerGets": {
+            "value": {
+              "__typename": "DiscountPercentage",
+              "percentage": 0.15
+            }
+          },
+          "minimumRequirement": {
+            "__typename": "DiscountMinimumQuantity",
+            "greaterThanOrEqualToQuantity": "2"
+          }
+        },
+        "metafields": {
+          "edges": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+          }
+        },
+        "events": {
+          "edges": [
+            {
+              "cursor": "eyJsYXN0X2lkIjoxNTg3NjY3NjE4MDQwMDksImxhc3RfdmFsdWUiOiIxNTg3NjY3NjE4MDQwMDkifQ==",
+              "node": {
+                "__typename": "BasicEvent",
+                "id": "gid://shopify/BasicEvent/158766761804009",
+                "action": "create",
+                "message": "hermes-conformance-products created this discount.",
+                "createdAt": "2026-04-25T15:28:46Z",
+                "subjectId": "gid://shopify/PriceRule/1688847483113",
+                "subjectType": "PRICE_RULE"
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjoxNTg3NjY3NjE4MDQwMDksImxhc3RfdmFsdWUiOiIxNTg3NjY3NjE4MDQwMDkifQ==",
+            "endCursor": "eyJsYXN0X2lkIjoxNTg3NjY3NjE4MDQwMDksImxhc3RfdmFsdWUiOiIxNTg3NjY3NjE4MDQwMDkifQ=="
+          }
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 19,
+        "actualQueryCost": 19,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1981,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountAutomaticDelete": {
+          "deletedAutomaticDiscountId": "gid://shopify/DiscountAutomaticNode/1688847483113",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}
