@@ -12,9 +12,15 @@ import { getOperationCapability } from '../../src/proxy/capabilities.js';
 
 const repoRoot = resolve(import.meta.dirname, '../..');
 
-const storePropertiesQueryRoots = ['location', 'locationByIdentifier', 'cashManagementLocationSummary'] as const;
+const storePropertiesQueryRoots = ['cashManagementLocationSummary'] as const;
 
-const implementedStorePropertiesQueryRoots = ['shop', 'businessEntities', 'businessEntity'] as const;
+const implementedStorePropertiesQueryRoots = [
+  'shop',
+  'location',
+  'locationByIdentifier',
+  'businessEntities',
+  'businessEntity',
+] as const;
 
 const storePropertiesMutationRoots = [
   'locationAdd',
@@ -188,6 +194,28 @@ describe('Store properties registry scaffold', () => {
       domain: 'store-properties',
       execution: 'overlay-read',
       operationName: 'BusinessEntity',
+      type: 'query',
+    });
+  });
+
+  it('routes implemented location reads through the Store properties overlay', () => {
+    expect(getOperationCapability({ type: 'query', name: 'Location', rootFields: ['location'] })).toEqual({
+      domain: 'store-properties',
+      execution: 'overlay-read',
+      operationName: 'Location',
+      type: 'query',
+    });
+
+    expect(
+      getOperationCapability({
+        type: 'query',
+        name: 'LocationByIdentifier',
+        rootFields: ['locationByIdentifier'],
+      }),
+    ).toEqual({
+      domain: 'store-properties',
+      execution: 'overlay-read',
+      operationName: 'LocationByIdentifier',
       type: 'query',
     });
   });

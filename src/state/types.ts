@@ -108,6 +108,59 @@ export const inventoryLevelRecordSchema = z.strictObject({
 });
 export type InventoryLevelRecord = z.infer<typeof inventoryLevelRecordSchema>;
 
+export const locationAddressRecordSchema = z.strictObject({
+  address1: nullableStringSchema,
+  address2: nullableStringSchema,
+  city: nullableStringSchema,
+  country: nullableStringSchema,
+  countryCode: nullableStringSchema,
+  formatted: z.array(z.string()),
+  latitude: nullableNumberSchema,
+  longitude: nullableNumberSchema,
+  phone: nullableStringSchema,
+  province: nullableStringSchema,
+  provinceCode: nullableStringSchema,
+  zip: nullableStringSchema,
+});
+export type LocationAddressRecord = z.infer<typeof locationAddressRecordSchema>;
+
+export const locationSuggestedAddressRecordSchema = z.strictObject({
+  address1: nullableStringSchema,
+  countryCode: nullableStringSchema,
+  formatted: z.array(z.string()),
+});
+export type LocationSuggestedAddressRecord = z.infer<typeof locationSuggestedAddressRecordSchema>;
+
+export const locationFulfillmentServiceRecordSchema = z.strictObject({
+  id: nullableStringSchema,
+  handle: nullableStringSchema,
+  serviceName: nullableStringSchema,
+});
+export type LocationFulfillmentServiceRecord = z.infer<typeof locationFulfillmentServiceRecordSchema>;
+
+export const locationRecordSchema = z.strictObject({
+  id: z.string(),
+  name: nullableStringSchema,
+  legacyResourceId: nullableStringSchema.optional(),
+  activatable: nullableBooleanSchema.optional(),
+  addressVerified: nullableBooleanSchema.optional(),
+  createdAt: nullableStringSchema.optional(),
+  deactivatable: nullableBooleanSchema.optional(),
+  deactivatedAt: nullableStringSchema.optional(),
+  deletable: nullableBooleanSchema.optional(),
+  fulfillmentService: locationFulfillmentServiceRecordSchema.nullable().optional(),
+  fulfillsOnlineOrders: nullableBooleanSchema.optional(),
+  hasActiveInventory: nullableBooleanSchema.optional(),
+  hasUnfulfilledOrders: nullableBooleanSchema.optional(),
+  isActive: nullableBooleanSchema.optional(),
+  isFulfillmentService: nullableBooleanSchema.optional(),
+  shipsInventory: nullableBooleanSchema.optional(),
+  updatedAt: nullableStringSchema.optional(),
+  address: locationAddressRecordSchema.nullable().optional(),
+  suggestedAddresses: z.array(locationSuggestedAddressRecordSchema).optional(),
+});
+export type LocationRecord = z.infer<typeof locationRecordSchema>;
+
 export const inventoryItemRecordSchema = z.strictObject({
   id: z.string(),
   tracked: nullableBooleanSchema,
@@ -194,6 +247,8 @@ export const productMediaRecordSchema = z.strictObject({
   status: nullableStringSchema.optional(),
   productImageId: nullableStringSchema.optional(),
   imageUrl: nullableStringSchema.optional(),
+  imageWidth: nullableNumberSchema.optional(),
+  imageHeight: nullableNumberSchema.optional(),
   previewImageUrl: nullableStringSchema,
   sourceUrl: nullableStringSchema.optional(),
 });
@@ -391,6 +446,19 @@ export const discountRecordSchema = z.strictObject({
   appId: nullableStringSchema.optional(),
 });
 export type DiscountRecord = z.infer<typeof discountRecordSchema>;
+
+export const customerMergeRequestRecordSchema = z.strictObject({
+  jobId: z.string(),
+  resultingCustomerId: z.string(),
+  status: z.enum(['IN_PROGRESS', 'COMPLETED', 'FAILED']),
+  customerMergeErrors: z.array(
+    z.strictObject({
+      errorFields: z.array(z.string()),
+      message: z.string(),
+    }),
+  ),
+});
+export type CustomerMergeRequestRecord = z.infer<typeof customerMergeRequestRecordSchema>;
 
 export const draftOrderAttributeRecordSchema = z.strictObject({
   key: z.string(),
@@ -835,6 +903,8 @@ export const stateSnapshotSchema = z.strictObject({
   products: z.record(z.string(), productRecordSchema),
   productVariants: z.record(z.string(), productVariantRecordSchema),
   productOptions: z.record(z.string(), productOptionRecordSchema),
+  locations: z.record(z.string(), locationRecordSchema).default({}),
+  locationOrder: z.array(z.string()).default([]),
   collections: z.record(z.string(), collectionRecordSchema),
   publications: z.record(z.string(), publicationRecordSchema).default({}),
   customers: z.record(z.string(), customerRecordSchema),
@@ -851,6 +921,8 @@ export const stateSnapshotSchema = z.strictObject({
   deletedCollectionIds: z.record(z.string(), z.literal(true)),
   deletedCustomerIds: z.record(z.string(), z.literal(true)),
   deletedDiscountIds: z.record(z.string(), z.literal(true)).default({}),
+  mergedCustomerIds: z.record(z.string(), z.string()).default({}),
+  customerMergeRequests: z.record(z.string(), customerMergeRequestRecordSchema).default({}),
 });
 export type StateSnapshot = z.infer<typeof stateSnapshotSchema>;
 

@@ -166,6 +166,7 @@ Current customer-domain state deliberately stays narrower than the product model
 - `CustomerRecord` carries scalar/detail fields plus `taxExemptions` as a separate list from the boolean `taxExempt`
 - customer-owned metafields live in a customer-scoped `customerMetafields` bucket instead of reusing product metafield storage or broadening `metafieldsSet` owner support without separate evidence
 - staged `customerUpdate(input.metafields)` computes against the effective customer metafield set and replaces the staged customer-owned set, so downstream `customer.metafield(...)` and `customer.metafields(...)` reads stay consistent
+- staged `customerMerge` updates the normalized resulting customer row, marks the source customer deleted, records the source-to-result customer id redirect in `mergedCustomerIds`, and records the observed merge job/result shape in `customerMergeRequests`
 
 Current discount-domain read support is intentionally catalog-first:
 
@@ -220,6 +221,7 @@ Current implementation note:
 - loading that file seeds the in-memory base state before the server handles requests
 - `POST /__meta/reset` restores that startup snapshot baseline, including captured connection cursor/pageInfo baselines, rather than wiping snapshot mode back to an empty store
 - customer identifier reads resolve `customerByIdentifier(identifier:)` from the same effective normalized customer graph as `customer(id:)` and `customers`, including staged customer creates/updates and hydrated live-hybrid customers
+- customer merge reads resolve `customerMergePreview` and `customerMergeJobStatus` from normalized customer/merge-request state; the first local merge slice supports customers already present in staged state or hydrated base state and does not fetch unknown customer ids during the supported mutation path
 
 Snapshot misses should return the same kind of empty/null structure Shopify returns when the backing store has no matching data.
 
@@ -253,6 +255,12 @@ Collection publication implementation note:
 - `publishedOnCurrentPublication` is not inferred from aggregate publication count for collections; captured Online Store publishable writes leave it false when the app's current publication is not the target
 - local `publishablePublish` / `publishableUnpublish` currently stages Product and Collection publishables only; broader publishable implementers remain unsupported passthrough
 - top-level `collections(query: "published_status:...")` applies the locally modeled aggregate collection publication state for staged/snapshot reads
+
+Store properties location implementation note:
+
+- snapshot `location` / `locationByIdentifier` detail reads are served by the Store properties overlay, using a narrow normalized location metadata slice for captured address/lifecycle scalars while still deriving nested inventory-level connections from the same effective inventory-level graph that powers top-level `locations`
+- the first location detail slice supports primary-location fallback when `location(id:)` omits `id`, identifier lookup by `LocationIdentifierInput.id`, unknown-location null behavior, address and lifecycle scalar shapes, empty metafield/suggested-address structures, and nested `inventoryLevel` / `inventoryLevels` selections
+- location creation/update/deletion remains unsupported runtime scope; location metadata is read-only baseline state and staged inventory remains the source of truth for read-after-write inventory visibility
 
 Commit response should include:
 
