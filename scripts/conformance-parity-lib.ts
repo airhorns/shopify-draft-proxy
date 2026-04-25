@@ -1119,6 +1119,57 @@ function seedCustomerMutationPreconditions(
   return true;
 }
 
+function readCustomerCreatePayloadFromCapture(
+  capture: Record<string, unknown>,
+  key: string,
+): Record<string, unknown> | null {
+  return readRecordField(
+    readRecordField(
+      readRecordField(readRecordField(readRecordField(capture, 'precondition'), key), 'response'),
+      'data',
+    ),
+    'customerCreate',
+  );
+}
+
+function seedCustomerMergePreconditions(
+  capture: unknown,
+  _variables: Record<string, unknown>,
+  mutationName: string | null,
+): boolean {
+  if (mutationName !== 'customerMerge' || !isPlainObject(capture)) {
+    return false;
+  }
+
+  const seedCustomers: CustomerRecord[] = [];
+  for (const key of ['createOne', 'createTwo']) {
+    const customerPayload = readRecordField(readCustomerCreatePayloadFromCapture(capture, key), 'customer');
+    const customerId = readStringField(customerPayload, 'id');
+    if (customerId) {
+      seedCustomers.push(makeSeedCustomer(customerId, customerPayload));
+    }
+  }
+
+  const downstreamData = readRecordField(
+    readRecordField(readRecordField(capture, 'downstreamRead'), 'response'),
+    'data',
+  );
+  const downstreamCount = readNumberField(readRecordField(downstreamData, 'customersCount'), 'count');
+  if (downstreamCount !== null) {
+    const placeholderCount = Math.max(0, downstreamCount - 1);
+    for (let index = 0; index < placeholderCount; index += 1) {
+      seedCustomers.push(makePlaceholderCustomer(index));
+    }
+  }
+
+  if (seedCustomers.length === 0) {
+    return false;
+  }
+
+  store.upsertBaseCustomers(seedCustomers);
+  return true;
+}
+
 function seedCustomerByIdentifierPreconditions(capture: unknown): boolean {
   const positiveAndMissingData = readRecordField(
     readRecordField(capture as Record<string, unknown>, 'positiveAndMissing'),
@@ -2877,6 +2928,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
 
   const payload = mutationPayloadFromCapture(capture);
   const mutationName = mutationNameFromCapture(capture);
+  if (seedCustomerMergePreconditions(capture, variables, mutationName)) {
+    return;
+  }
+
   if (seedCustomerMutationPreconditions(capture, variables, mutationName, payload)) {
     return;
   }

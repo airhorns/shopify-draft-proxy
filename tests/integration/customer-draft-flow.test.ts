@@ -413,6 +413,310 @@ describe('customer draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('stages customerMerge locally and keeps downstream customer reads aligned', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('customerMerge should not hit upstream fetch');
+    });
+
+    const app = createApp(snapshotConfig).callback();
+    const createMutation = `mutation CustomerCreate($input: CustomerInput!) {
+      customerCreate(input: $input) {
+        customer { id firstName lastName displayName email note tags defaultEmailAddress { emailAddress } createdAt updatedAt }
+        userErrors { field message }
+      }
+    }`;
+
+    const createOneResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: createMutation,
+        variables: {
+          input: {
+            email: 'merge-one@example.com',
+            firstName: 'Merge',
+            lastName: 'One',
+            note: 'one note',
+            tags: ['merge-one'],
+          },
+        },
+      });
+    const createTwoResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: createMutation,
+        variables: {
+          input: {
+            email: 'merge-two@example.com',
+            firstName: 'Merge',
+            lastName: 'Two',
+            note: 'two note',
+            tags: ['merge-two'],
+          },
+        },
+      });
+
+    const customerOneId = createOneResponse.body.data.customerCreate.customer.id;
+    const customerTwoId = createTwoResponse.body.data.customerCreate.customer.id;
+
+    const previewResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query CustomerMergePreview($one: ID!, $two: ID!) {
+          customerMergePreview(customerOneId: $one, customerTwoId: $two) {
+            resultingCustomerId
+            defaultFields {
+              firstName
+              lastName
+              email { emailAddress }
+              note
+              tags
+            }
+            alternateFields {
+              firstName
+              lastName
+              email { emailAddress }
+            }
+            blockingFields { note tags }
+            customerMergeErrors { errorFields message }
+          }
+        }`,
+        variables: { one: customerOneId, two: customerTwoId },
+      });
+
+    expect(previewResponse.status).toBe(200);
+    expect(previewResponse.body.data.customerMergePreview).toEqual({
+      resultingCustomerId: customerTwoId,
+      defaultFields: {
+        firstName: 'Merge',
+        lastName: 'Two',
+        email: { emailAddress: 'merge-two@example.com' },
+        note: 'two note one note',
+        tags: ['merge-one', 'merge-two'],
+      },
+      alternateFields: {
+        firstName: 'Merge',
+        lastName: 'One',
+        email: { emailAddress: 'merge-one@example.com' },
+      },
+      blockingFields: null,
+      customerMergeErrors: null,
+    });
+
+    const mergeResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CustomerMerge($one: ID!, $two: ID!, $override: CustomerMergeOverrideFields) {
+          customerMerge(customerOneId: $one, customerTwoId: $two, overrideFields: $override) {
+            resultingCustomerId
+            job { id done }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          one: customerOneId,
+          two: customerTwoId,
+          override: {
+            customerIdOfEmailToKeep: customerTwoId,
+            customerIdOfFirstNameToKeep: customerOneId,
+            customerIdOfLastNameToKeep: customerTwoId,
+            note: 'merged note',
+            tags: ['merged'],
+          },
+        },
+      });
+
+    expect(mergeResponse.status).toBe(200);
+    expect(mergeResponse.body.data.customerMerge).toMatchObject({
+      resultingCustomerId: customerTwoId,
+      job: { done: false },
+      userErrors: [],
+    });
+    expect(mergeResponse.body.data.customerMerge.job.id).toMatch(/^gid:\/\/shopify\/Job\//);
+    const jobId = mergeResponse.body.data.customerMerge.job.id;
+
+    const downstreamResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query CustomerMergeDownstream($one: ID!, $two: ID!, $jobId: ID!) {
+          source: customer(id: $one) { id email }
+          result: customer(id: $two) { id firstName lastName displayName email note tags defaultEmailAddress { emailAddress } }
+          oldEmail: customerByIdentifier(identifier: { emailAddress: "merge-one@example.com" }) { id email }
+          newEmail: customerByIdentifier(identifier: { emailAddress: "merge-two@example.com" }) { id email }
+          catalog: customers(first: 10) { nodes { id email note tags } }
+          counts: customersCount { count precision }
+          mergeStatus: customerMergeJobStatus(jobId: $jobId) {
+            jobId
+            resultingCustomerId
+            status
+            customerMergeErrors { errorFields message }
+          }
+        }`,
+        variables: { one: customerOneId, two: customerTwoId, jobId },
+      });
+
+    expect(downstreamResponse.status).toBe(200);
+    expect(downstreamResponse.body).toEqual({
+      data: {
+        source: null,
+        result: {
+          id: customerTwoId,
+          firstName: 'Merge',
+          lastName: 'Two',
+          displayName: 'Merge Two',
+          email: 'merge-two@example.com',
+          note: 'merged note',
+          tags: ['merged'],
+          defaultEmailAddress: { emailAddress: 'merge-two@example.com' },
+        },
+        oldEmail: null,
+        newEmail: {
+          id: customerTwoId,
+          email: 'merge-two@example.com',
+        },
+        catalog: {
+          nodes: [
+            {
+              id: customerTwoId,
+              email: 'merge-two@example.com',
+              note: 'merged note',
+              tags: ['merged'],
+            },
+          ],
+        },
+        counts: {
+          count: 1,
+          precision: 'EXACT',
+        },
+        mergeStatus: {
+          jobId,
+          resultingCustomerId: customerTwoId,
+          status: 'COMPLETED',
+          customerMergeErrors: [],
+        },
+      },
+    });
+
+    const metaState = await request(app).get('/__meta/state');
+    expect(metaState.body.stagedState.deletedCustomerIds).toEqual({ [customerOneId]: true });
+    expect(metaState.body.stagedState.mergedCustomerIds).toEqual({ [customerOneId]: customerTwoId });
+    expect(metaState.body.stagedState.customerMergeRequests[jobId]).toMatchObject({
+      jobId,
+      resultingCustomerId: customerTwoId,
+      status: 'COMPLETED',
+    });
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(logResponse.body.entries.map((entry: { operationName: string }) => entry.operationName)).toEqual([
+      'CustomerCreate',
+      'CustomerCreate',
+      'CustomerMerge',
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns fixture-backed customerMerge validation errors locally', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('customerMerge validation should not hit upstream fetch');
+    });
+    store.upsertBaseCustomers([
+      {
+        id: 'gid://shopify/Customer/901',
+        firstName: 'Validation',
+        lastName: 'Customer',
+        displayName: 'Validation Customer',
+        email: 'merge-validation@example.com',
+        legacyResourceId: '901',
+        locale: 'en',
+        note: null,
+        canDelete: true,
+        verifiedEmail: true,
+        taxExempt: false,
+        state: 'DISABLED',
+        tags: [],
+        numberOfOrders: 0,
+        amountSpent: null,
+        defaultEmailAddress: { emailAddress: 'merge-validation@example.com' },
+        defaultPhoneNumber: null,
+        defaultAddress: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
+      },
+    ]);
+
+    const app = createApp(snapshotConfig).callback();
+    const selfMergeResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation SelfMerge($id: ID!) {
+          customerMerge(customerOneId: $id, customerTwoId: $id) {
+            resultingCustomerId
+            job { id done }
+            userErrors { field message code }
+          }
+        }`,
+        variables: { id: 'gid://shopify/Customer/901' },
+      });
+    expect(selfMergeResponse.body.data.customerMerge).toEqual({
+      resultingCustomerId: null,
+      job: null,
+      userErrors: [
+        {
+          field: null,
+          message: 'Customers IDs should not match',
+          code: 'INVALID_CUSTOMER_ID',
+        },
+      ],
+    });
+
+    const unknownMergeResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation UnknownMerge($one: ID!, $two: ID!) {
+          customerMerge(customerOneId: $one, customerTwoId: $two) {
+            resultingCustomerId
+            job { id done }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          one: 'gid://shopify/Customer/901',
+          two: 'gid://shopify/Customer/999999999999999',
+        },
+      });
+    expect(unknownMergeResponse.body.data.customerMerge.userErrors).toEqual([
+      {
+        field: ['customerTwoId'],
+        message: 'Customer does not exist with ID 999999999999999',
+        code: 'INVALID_CUSTOMER_ID',
+      },
+    ]);
+
+    const missingArgumentResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation MissingMerge($one: ID!) {
+          customerMerge(customerOneId: $one) {
+            resultingCustomerId
+            userErrors { field message code }
+          }
+        }`,
+        variables: { one: 'gid://shopify/Customer/901' },
+      });
+    expect(missingArgumentResponse.body.errors).toEqual([
+      {
+        message: "Field 'customerMerge' is missing required arguments: customerTwoId",
+        path: ['customerMerge'],
+        extensions: {
+          code: 'missingRequiredArguments',
+          className: 'Field',
+          name: 'customerMerge',
+          arguments: 'customerTwoId',
+        },
+      },
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('overlays staged customerByIdentifier lookups in live-hybrid mode when Shopify has no match yet', async () => {
     const app = createApp({ ...snapshotConfig, readMode: 'live-hybrid' }).callback();
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
