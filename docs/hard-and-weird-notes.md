@@ -1794,3 +1794,28 @@ Safety traps:
 Practical rule:
 
 - keep Store properties registry inventory separate from runtime support; do not flip these roots to implemented until there is captured fixture evidence plus local model behavior for the specific root family
+
+## 48. Customer sub-resource reads need a split between safe empty state and live hydration
+
+HAR-160 expanded the `customer(id:)` detail surface beyond scalar/card fields. The Admin GraphQL customer object exposes several directly related nested fields, but they do not all have the same safe local treatment.
+
+Captured evidence:
+
+- `corepack pnpm conformance:capture-customers` now writes `customer-nested-subresources.json`
+- the current credential can capture `addresses`, `addressesV2`, `companyContactProfiles`, `orders`, `events`, singular `metafield`, `metafields`, and `lastOrder`
+- the sampled customer has non-empty `addresses`, `addressesV2`, `orders`, `events`, and `lastOrder`, while `companyContactProfiles`, singular `metafield(namespace: "custom", key: "tier")`, and `metafields(first: 2)` were empty/null
+- the same credential returned field-level `ACCESS_DENIED` for `storeCreditAccounts`, `paymentMethods`, and `subscriptionContracts`, so those remain documented deferrals for live capture/hydration until a credential with the required scopes is available
+
+Current local classification:
+
+- empty/no-data only: `addresses`, `addressesV2`, `companyContactProfiles`, `events`, `metafield`, `metafields`, `orders`, `lastOrder`, `paymentMethods`, `storeCreditAccounts`, and `subscriptionContracts`
+- hydrate-and-replay candidate: captured nested `addresses` / `addressesV2`, `orders` / `lastOrder`, `events`, and metafield shapes, but not implemented in HAR-160 because that would require customer-address, order, event, and metafield graph modeling
+- staged-overlay capable later: customer-owned addresses and metafields once their mutation roots are staged locally
+- deferred: store credit accounts, payment methods, subscription contracts, customer statistics, mergeability, and product subscriber status until captured fixture evidence settles access, empty-state, and non-empty shapes
+
+Practical rule for the proxy:
+
+- snapshot and staged customer reads should return Shopify-like empty structures for absent directly related records rather than `null` for non-null connection/list fields
+- do not fabricate order, event, store credit, payment method, subscription, company-contact, address, or metafield records after staged customer CRUD
+- keep customer-order overlap narrow: local customer reads may expose empty `orders` / `lastOrder` when the customer graph has no modeled order relationship, while real order lifecycle behavior remains in the order-domain notes and tests
+- any future non-empty nested customer replay must first add normalized state for that sub-resource and compare against captured fixtures instead of reusing the HAR-160 empty/no-data serializer branch

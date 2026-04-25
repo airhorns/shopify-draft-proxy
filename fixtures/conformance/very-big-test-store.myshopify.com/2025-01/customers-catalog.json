@@ -15,9 +15,9 @@
             "verifiedEmail": true,
             "taxExempt": false,
             "state": "DISABLED",
-            "numberOfOrders": "12",
+            "numberOfOrders": "13",
             "amountSpent": {
-              "amount": "1.6",
+              "amount": "39.85",
               "currencyCode": "CAD"
             },
             "defaultEmailAddress": {
@@ -35,7 +35,7 @@
               "formattedArea": "Maubeuge, Eritrea"
             },
             "createdAt": "2022-04-06T14:51:36Z",
-            "updatedAt": "2024-03-14T01:55:09Z"
+            "updatedAt": "2026-04-24T23:51:30Z"
           }
         },
         {

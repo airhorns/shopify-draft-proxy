@@ -99,6 +99,31 @@ describe('customer draft flow', () => {
             email
             note
             defaultPhoneNumber { phoneNumber }
+            orders(first: 1) {
+              nodes { id }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            events(first: 1) {
+              nodes { id }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            metafields(first: 1) {
+              nodes { id namespace key }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            storeCreditAccounts(first: 1) {
+              nodes { id }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            paymentMethods(first: 1) {
+              nodes { id }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            subscriptionContracts(first: 1) {
+              nodes { id }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            lastOrder { id }
           }
           catalog: customers(first: 10) {
             nodes {
@@ -116,6 +141,15 @@ describe('customer draft flow', () => {
       });
 
     expect(readResponse.status).toBe(200);
+    const emptyConnection = {
+      nodes: [],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: null,
+        endCursor: null,
+      },
+    };
     expect(readResponse.body).toEqual({
       data: {
         detail: {
@@ -124,6 +158,13 @@ describe('customer draft flow', () => {
           email: 'draft-customer@example.com',
           note: 'created locally',
           defaultPhoneNumber: { phoneNumber: '+14155550123' },
+          orders: emptyConnection,
+          events: emptyConnection,
+          metafields: emptyConnection,
+          storeCreditAccounts: emptyConnection,
+          paymentMethods: emptyConnection,
+          subscriptionContracts: emptyConnection,
+          lastOrder: null,
         },
         catalog: {
           nodes: [

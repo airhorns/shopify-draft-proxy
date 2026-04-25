@@ -5,7 +5,7 @@ import 'dotenv/config';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { runAdminGraphql, runAdminGraphqlRequest } from './conformance-graphql-client.mjs';
+import { runAdminGraphql, runAdminGraphqlRequest } from './conformance-graphql-client.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 const requiredVars = ['SHOPIFY_CONFORMANCE_STORE_DOMAIN', 'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
@@ -18,8 +18,8 @@ if (missingVars.length > 0) {
 
 const storeDomain = process.env['SHOPIFY_CONFORMANCE_STORE_DOMAIN'];
 const adminOrigin = process.env['SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
-const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || '2025-01';
+const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
 const pendingDir = path.join('pending');
 const blockerPath = path.join(pendingDir, 'customer-conformance-protected-data-blocker.md');
@@ -133,6 +133,103 @@ const customerDetailQuery = `#graphql
       }
       createdAt
       updatedAt
+    }
+  }
+`;
+
+const customerNestedSubresourcesQuery = `#graphql
+  query CustomerNestedSubresourcesConformance($id: ID!) {
+    customer(id: $id) {
+      id
+      addresses {
+        address1
+        city
+      }
+      addressesV2(first: 2) {
+        nodes {
+          address1
+          city
+        }
+        edges {
+          cursor
+          node {
+            address1
+            city
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+      companyContactProfiles {
+        id
+      }
+      orders(first: 2) {
+        nodes {
+          id
+        }
+        edges {
+          cursor
+          node {
+            id
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+      events(first: 2) {
+        nodes {
+          id
+        }
+        edges {
+          cursor
+          node {
+            id
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+      metafield(namespace: "custom", key: "tier") {
+        id
+        namespace
+        key
+      }
+      metafields(first: 2) {
+        nodes {
+          id
+          namespace
+          key
+        }
+        edges {
+          cursor
+          node {
+            id
+            namespace
+            key
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+      lastOrder {
+        id
+      }
     }
   }
 `;
@@ -505,6 +602,7 @@ try {
   }
 
   const detail = await runGraphql(customerDetailQuery, { id: firstCustomerId });
+  const nestedSubresources = await runGraphql(customerNestedSubresourcesQuery, { id: firstCustomerId });
   const search = await runGraphql(customersSearchQuery, { first: 2, query: 'state:DISABLED' });
   const advancedSearch = await runGraphql(customersAdvancedSearchQuery, {
     prefixQuery: 'How*',
@@ -520,6 +618,11 @@ try {
 
   await writeFile(path.join(outputDir, 'customers-catalog.json'), `${JSON.stringify(catalog, null, 2)}\n`, 'utf8');
   await writeFile(path.join(outputDir, 'customer-detail.json'), `${JSON.stringify(detail, null, 2)}\n`, 'utf8');
+  await writeFile(
+    path.join(outputDir, 'customer-nested-subresources.json'),
+    `${JSON.stringify(nestedSubresources, null, 2)}\n`,
+    'utf8',
+  );
   await writeFile(path.join(outputDir, 'customers-search.json'), `${JSON.stringify(search, null, 2)}\n`, 'utf8');
   await writeFile(
     path.join(outputDir, 'customers-advanced-search.json'),
@@ -543,6 +646,7 @@ try {
         files: [
           'customers-catalog.json',
           'customer-detail.json',
+          'customer-nested-subresources.json',
           'customers-search.json',
           'customers-advanced-search.json',
           'customers-sort-keys.json',

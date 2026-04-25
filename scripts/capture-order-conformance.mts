@@ -5,7 +5,7 @@ import 'dotenv/config';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { runAdminGraphqlRequest } from './conformance-graphql-client.mjs';
+import { runAdminGraphqlRequest } from './conformance-graphql-client.js';
 import { extractManualStoreAuthTokenSummary } from './product-publication-conformance-lib.mjs';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 

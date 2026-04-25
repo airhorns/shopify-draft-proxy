@@ -1,0 +1,94 @@
+query CustomerNestedSubresourcesRead($id: ID!) {
+  customer(id: $id) {
+    id
+    addresses {
+      address1
+      city
+    }
+    addressesV2(first: 2) {
+      nodes {
+        address1
+        city
+      }
+      edges {
+        cursor
+        node {
+          address1
+          city
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    companyContactProfiles {
+      id
+    }
+    orders(first: 2) {
+      nodes {
+        id
+      }
+      edges {
+        cursor
+        node {
+          id
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    events(first: 2) {
+      nodes {
+        id
+      }
+      edges {
+        cursor
+        node {
+          id
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    metafield(namespace: "custom", key: "tier") {
+      id
+      namespace
+      key
+    }
+    metafields(first: 2) {
+      nodes {
+        id
+        namespace
+        key
+      }
+      edges {
+        cursor
+        node {
+          id
+          namespace
+          key
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    lastOrder {
+      id
+    }
+  }
+}

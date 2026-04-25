@@ -83,6 +83,119 @@ describe('customer query shapes', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('returns Shopify-like empty directly related customer sub-resource shapes in snapshot mode', async () => {
+    store.upsertBaseCustomers([
+      {
+        id: 'gid://shopify/Customer/777',
+        firstName: 'Nested',
+        lastName: 'Probe',
+        displayName: 'Nested Probe',
+        email: 'nested@example.com',
+        legacyResourceId: '777',
+        locale: 'en',
+        note: null,
+        canDelete: true,
+        verifiedEmail: true,
+        taxExempt: false,
+        state: 'DISABLED',
+        tags: [],
+        numberOfOrders: 0,
+        amountSpent: { amount: '0.0', currencyCode: 'USD' },
+        defaultEmailAddress: { emailAddress: 'nested@example.com' },
+        defaultPhoneNumber: null,
+        defaultAddress: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
+      },
+    ]);
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('snapshot customer sub-resource reads should not hit upstream fetch');
+    });
+
+    const app = createApp(config).callback();
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query CustomerNestedEmpty($id: ID!) {
+          customer(id: $id) {
+            id
+            addresses { address1 city }
+            addressesV2(first: 2) {
+              nodes { address1 city }
+              edges { cursor node { address1 city } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            companyContactProfiles { id }
+            orders(first: 2) {
+              nodes { id }
+              edges { cursor node { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            events(first: 2) {
+              nodes { id }
+              edges { cursor node { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            metafield(namespace: "custom", key: "tier") { id namespace key }
+            metafields(first: 2) {
+              nodes { id namespace key }
+              edges { cursor node { id namespace key } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            storeCreditAccounts(first: 2) {
+              nodes { id }
+              edges { cursor node { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            paymentMethods(first: 2) {
+              nodes { id }
+              edges { cursor node { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            subscriptionContracts(first: 2) {
+              nodes { id }
+              edges { cursor node { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            lastOrder { id }
+          }
+        }`,
+        variables: { id: 'gid://shopify/Customer/777' },
+      });
+
+    const emptyConnection = {
+      nodes: [],
+      edges: [],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: null,
+        endCursor: null,
+      },
+    };
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        customer: {
+          id: 'gid://shopify/Customer/777',
+          addresses: [],
+          addressesV2: emptyConnection,
+          companyContactProfiles: [],
+          orders: emptyConnection,
+          events: emptyConnection,
+          metafield: null,
+          metafields: emptyConnection,
+          storeCreditAccounts: emptyConnection,
+          paymentMethods: emptyConnection,
+          subscriptionContracts: emptyConnection,
+          lastOrder: null,
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('treats unsupported customersCount query fields as no-op filters in snapshot mode without hitting upstream', async () => {
     store.upsertBaseCustomers([
       {
