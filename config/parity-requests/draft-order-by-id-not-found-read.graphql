@@ -1,0 +1,8 @@
+query DraftOrderByIdNotFound($missingDraftOrderId: ID!) {
+  missingDraftOrder: draftOrder(id: $missingDraftOrderId) {
+    id
+    name
+    status
+    invoiceUrl
+  }
+}
