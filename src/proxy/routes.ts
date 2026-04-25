@@ -11,6 +11,7 @@ import { getOperationCapability, type OperationCapability } from './capabilities
 import { findOperationRegistryEntry } from './operation-registry.js';
 import { handleMediaMutation } from './media.js';
 import { handleCustomerMutation, handleCustomerQuery, hydrateCustomersFromUpstreamResponse } from './customers.js';
+import { handleDeliveryProfileQuery } from './delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from './discounts.js';
 import { handleMarketMutation, handleMarketsQuery, hydrateMarketsFromUpstreamResponse } from './markets.js';
 import { handleOrderMutation, handleOrderQuery, shouldServeDraftOrderCatalogLocally } from './orders.js';
@@ -647,6 +648,12 @@ export function createProxyRouter(config: AppConfig): Router {
 
     if (capability.execution === 'overlay-read' && capability.domain === 'shipping-fulfillments') {
       if (config.readMode === 'snapshot') {
+        if (primaryRootField === 'deliveryProfile' || primaryRootField === 'deliveryProfiles') {
+          ctx.status = 200;
+          ctx.body = handleDeliveryProfileQuery(body.query, variables);
+          return;
+        }
+
         ctx.status = 200;
         ctx.body = handleStorePropertiesQuery(body.query, variables);
         return;

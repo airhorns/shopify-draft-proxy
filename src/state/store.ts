@@ -9,6 +9,7 @@ import type {
   CustomerMetafieldRecord,
   CustomerPaymentMethodRecord,
   CustomerRecord,
+  DeliveryProfileRecord,
   DiscountRecord,
   DraftOrderRecord,
   FileRecord,
@@ -76,6 +77,8 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   catalogOrder: [],
   priceLists: {},
   priceListOrder: [],
+  deliveryProfiles: {},
+  deliveryProfileOrder: [],
   productCollections: {},
   productMedia: {},
   files: {},
@@ -942,6 +945,32 @@ export class InMemoryStore {
         }
       }
     }
+  }
+
+  upsertBaseDeliveryProfiles(deliveryProfiles: DeliveryProfileRecord[]): void {
+    for (const profile of deliveryProfiles) {
+      this.baseState.deliveryProfiles[profile.id] = structuredClone(profile);
+      if (!this.baseState.deliveryProfileOrder.includes(profile.id)) {
+        this.baseState.deliveryProfileOrder.push(profile.id);
+      }
+    }
+  }
+
+  getBaseDeliveryProfileById(profileId: string): DeliveryProfileRecord | null {
+    const profile = this.baseState.deliveryProfiles[profileId] ?? null;
+    return profile ? structuredClone(profile) : null;
+  }
+
+  listBaseDeliveryProfiles(): DeliveryProfileRecord[] {
+    const orderedIds = new Set(this.baseState.deliveryProfileOrder);
+    const orderedProfiles = this.baseState.deliveryProfileOrder
+      .map((id) => this.baseState.deliveryProfiles[id] ?? null)
+      .filter((profile): profile is DeliveryProfileRecord => profile !== null);
+    const unorderedProfiles = Object.values(this.baseState.deliveryProfiles)
+      .filter((profile) => !orderedIds.has(profile.id))
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
+
+    return structuredClone([...orderedProfiles, ...unorderedProfiles]);
   }
 
   getBasePriceListRecordById(priceListId: string): PriceListRecord | null {

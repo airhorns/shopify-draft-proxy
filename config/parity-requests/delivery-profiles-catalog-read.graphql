@@ -1,0 +1,41 @@
+query DeliveryProfilesCatalog(
+  $first: Int
+  $last: Int
+  $after: String
+  $before: String
+  $reverse: Boolean
+  $merchantOwnedOnly: Boolean
+) {
+  deliveryProfiles(
+    first: $first
+    last: $last
+    after: $after
+    before: $before
+    reverse: $reverse
+    merchantOwnedOnly: $merchantOwnedOnly
+  ) {
+    edges {
+      cursor
+      node {
+        id
+        name
+        default
+        version
+        activeMethodDefinitionsCount
+        locationsWithoutRatesCount
+        originLocationCount
+        zoneCountryCount
+        productVariantsCount {
+          count
+          precision
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

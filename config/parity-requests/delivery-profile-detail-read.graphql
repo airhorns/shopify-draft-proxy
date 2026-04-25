@@ -1,0 +1,183 @@
+query DeliveryProfileDetail($id: ID!) {
+  deliveryProfile(id: $id) {
+    id
+    name
+    default
+    version
+    activeMethodDefinitionsCount
+    locationsWithoutRatesCount
+    originLocationCount
+    zoneCountryCount
+    productVariantsCount {
+      count
+      precision
+    }
+    sellingPlanGroups(first: 2) {
+      nodes {
+        id
+        name
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    profileItems(first: 2) {
+      nodes {
+        product {
+          id
+          title
+        }
+        variants(first: 2) {
+          nodes {
+            id
+            title
+          }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+            startCursor
+            endCursor
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    profileLocationGroups {
+      countriesInAnyZone {
+        zone
+        country {
+          id
+          name
+          translatedName
+          code {
+            countryCode
+            restOfWorld
+          }
+          provinces {
+            id
+            name
+            code
+          }
+        }
+      }
+      locationGroup {
+        id
+        locations(first: 2) {
+          nodes {
+            id
+            name
+          }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+            startCursor
+            endCursor
+          }
+        }
+        locationsCount {
+          count
+          precision
+        }
+      }
+      locationGroupZones(first: 2) {
+        nodes {
+          zone {
+            id
+            name
+            countries {
+              id
+              name
+              translatedName
+              code {
+                countryCode
+                restOfWorld
+              }
+              provinces {
+                id
+                name
+                code
+              }
+            }
+          }
+          methodDefinitions(first: 2) {
+            nodes {
+              id
+              name
+              active
+              description
+              rateProvider {
+                ... on DeliveryRateDefinition {
+                  id
+                  price {
+                    amount
+                    currencyCode
+                  }
+                }
+                ... on DeliveryParticipant {
+                  id
+                  fixedFee {
+                    amount
+                    currencyCode
+                  }
+                  percentageOfRateFee
+                }
+              }
+              methodConditions {
+                id
+                field
+                operator
+                conditionCriteria {
+                  __typename
+                  ... on MoneyV2 {
+                    amount
+                    currencyCode
+                  }
+                  ... on Weight {
+                    unit
+                    value
+                  }
+                }
+              }
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+              startCursor
+              endCursor
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+    unassignedLocationsPaginated(first: 2) {
+      nodes {
+        id
+        name
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    unassignedLocations {
+      id
+      name
+    }
+  }
+}
