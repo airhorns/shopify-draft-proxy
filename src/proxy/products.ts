@@ -4809,6 +4809,25 @@ function serializeMediaImageSelectionSet(
   return result;
 }
 
+function getProductMediaTypename(media: ProductMediaRecord): string {
+  switch (media.mediaContentType) {
+    case 'IMAGE':
+      return 'MediaImage';
+    case 'VIDEO':
+      return 'Video';
+    case 'EXTERNAL_VIDEO':
+      return 'ExternalVideo';
+    case 'MODEL_3D':
+      return 'Model3d';
+    default:
+      return 'Media';
+  }
+}
+
+function mediaInlineFragmentApplies(media: ProductMediaRecord, typeName: string): boolean {
+  return typeName === 'Media' || typeName === getProductMediaTypename(media);
+}
+
 function serializeMediaSelectionSet(
   media: ProductMediaRecord,
   selections: readonly SelectionNode[],
@@ -4817,27 +4836,12 @@ function serializeMediaSelectionSet(
 
   for (const selection of selections) {
     if (selection.kind === Kind.INLINE_FRAGMENT) {
-      if (selection.typeCondition?.name.value !== 'MediaImage') {
+      const typeName = selection.typeCondition?.name.value;
+      if (!typeName || !mediaInlineFragmentApplies(media, typeName)) {
         continue;
       }
 
-      for (const fragmentSelection of selection.selectionSet.selections) {
-        if (fragmentSelection.kind !== Kind.FIELD) {
-          continue;
-        }
-
-        const fragmentKey = fragmentSelection.alias?.value ?? fragmentSelection.name.value;
-        switch (fragmentSelection.name.value) {
-          case 'image':
-            result[fragmentKey] = serializeMediaImageSelectionSet(
-              media.imageUrl ?? media.previewImageUrl,
-              fragmentSelection.selectionSet?.selections ?? [],
-            );
-            break;
-          default:
-            result[fragmentKey] = null;
-        }
-      }
+      Object.assign(result, serializeMediaSelectionSet(media, selection.selectionSet.selections));
       continue;
     }
 
@@ -4847,6 +4851,9 @@ function serializeMediaSelectionSet(
 
     const key = selection.alias?.value ?? selection.name.value;
     switch (selection.name.value) {
+      case '__typename':
+        result[key] = getProductMediaTypename(media);
+        break;
       case 'id':
         result[key] = media.id ?? null;
         break;
@@ -4878,6 +4885,12 @@ function serializeMediaSelectionSet(
                   return [previewKey, null];
               }
             }),
+        );
+        break;
+      case 'image':
+        result[key] = serializeMediaImageSelectionSet(
+          media.imageUrl ?? media.previewImageUrl,
+          selection.selectionSet?.selections ?? [],
         );
         break;
       default:
