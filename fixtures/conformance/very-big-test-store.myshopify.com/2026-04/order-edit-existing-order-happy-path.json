@@ -1,0 +1,161 @@
+{
+  "variables": {
+    "id": "gid://shopify/Order/6834565087465"
+  },
+  "seedOrder": {
+    "id": "gid://shopify/Order/6834565087465",
+    "name": "#1331",
+    "updatedAt": "2026-04-25T00:27:42Z",
+    "note": "merchant realistic draft order create parity probe",
+    "lineItems": {
+      "nodes": [
+        {
+          "id": "gid://shopify/LineItem/16209970561257",
+          "title": "Custom installation service",
+          "quantity": 2,
+          "currentQuantity": 2,
+          "sku": "hermes-custom-service-1777076856718",
+          "variant": null,
+          "originalUnitPriceSet": {
+            "shopMoney": {
+              "amount": "20.0",
+              "currencyCode": "CAD"
+            }
+          }
+        },
+        {
+          "id": "gid://shopify/LineItem/16209970594025",
+          "title": "Test Product - 6635",
+          "quantity": 1,
+          "currentQuantity": 1,
+          "sku": null,
+          "variant": {
+            "id": "gid://shopify/ProductVariant/48540157378793"
+          },
+          "originalUnitPriceSet": {
+            "shopMoney": {
+              "amount": "0.0",
+              "currencyCode": "CAD"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "seedProducts": [
+    {
+      "id": "gid://shopify/Product/8397254426857",
+      "title": "VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE",
+      "variants": {
+        "nodes": [
+          {
+            "id": "gid://shopify/ProductVariant/46789254021353",
+            "title": "4 / burgandy",
+            "sku": "VN-01-burgandy-4",
+            "price": "29.00"
+          }
+        ]
+      }
+    }
+  ],
+  "mutation": {
+    "response": {
+      "data": {
+        "orderEditBegin": {
+          "calculatedOrder": {
+            "id": "gid://shopify/CalculatedOrder/221172236521",
+            "originalOrder": {
+              "id": "gid://shopify/Order/6834565087465",
+              "name": "#1331"
+            }
+          },
+          "orderEditSession": {
+            "id": "gid://shopify/OrderEditSession/221172236521"
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "addVariant": {
+    "variables": {
+      "variantId": "gid://shopify/ProductVariant/46789254021353",
+      "quantity": 1,
+      "locationId": "gid://shopify/Location/68509171945",
+      "allowDuplicates": false
+    },
+    "response": {
+      "data": {
+        "orderEditAddVariant": {
+          "calculatedLineItem": {
+            "title": "VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE",
+            "quantity": 1,
+            "currentQuantity": 1,
+            "sku": "VN-01-burgandy-4",
+            "variant": {
+              "id": "gid://shopify/ProductVariant/46789254021353"
+            },
+            "originalUnitPriceSet": {
+              "shopMoney": {
+                "amount": "29.0",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "orderEditSession": {
+            "id": "gid://shopify/OrderEditSession/221172236521"
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "commitAdd": {
+    "variables": {
+      "notifyCustomer": false,
+      "staffNote": "HAR-115 order edit add capture"
+    },
+    "response": {
+      "data": {
+        "orderEditCommit": {
+          "order": {
+            "id": "gid://shopify/Order/6834565087465",
+            "name": "#1331",
+            "note": "merchant realistic draft order create parity probe",
+            "lineItems": {
+              "nodes": [
+                {
+                  "title": "Custom installation service",
+                  "quantity": 2,
+                  "currentQuantity": 2,
+                  "sku": "hermes-custom-service-1777076856718",
+                  "variant": null
+                },
+                {
+                  "title": "Test Product - 6635",
+                  "quantity": 1,
+                  "currentQuantity": 1,
+                  "sku": null,
+                  "variant": {
+                    "id": "gid://shopify/ProductVariant/48540157378793"
+                  }
+                },
+                {
+                  "title": "VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE",
+                  "quantity": 1,
+                  "currentQuantity": 1,
+                  "sku": "VN-01-burgandy-4",
+                  "variant": {
+                    "id": "gid://shopify/ProductVariant/46789254021353"
+                  }
+                }
+              ]
+            }
+          },
+          "successMessages": ["Order updated"],
+          "userErrors": []
+        }
+      }
+    }
+  }
+}

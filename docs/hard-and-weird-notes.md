@@ -518,8 +518,13 @@ Current live findings on this host:
   - `orderEditBegin` clones a staged/local order into a synthetic `CalculatedOrder` session with synthetic `CalculatedLineItem` ids for the current editable line set
   - `orderEditAddVariant` can append a variant-derived calculated line item using the effective local product/variant graph
   - `orderEditSetQuantity` can update quantities on those synthetic calculated line items
-  - `orderEditCommit` can apply the edited line set back onto the staged synthetic order and optionally store the provided `staffNote` on `order.note`
+  - `orderEditCommit` can apply the edited line set back onto the staged synthetic order
   - keep this slice explicitly narrow: it is not proof of live Shopify unknown-id/session parity, only a useful local staging behavior for synthetic/local orders in snapshot mode and live-hybrid
+- fresh 2026-04 `write_order_edits` capture for HAR-115 changed the local-runtime target:
+  - `orderEditBegin` returns both `calculatedOrder.id` and `orderEditSession.id`; the session id uses the same numeric suffix with the `OrderEditSession` GID type
+  - `orderEditCommit` returned `successMessages: ["Order updated"]`, and the captured `staffNote` did not overwrite `order.note`
+  - `orderEditSetQuantity(... quantity: 0, restock: true)` on an existing line did not remove the historical line node from `order.lineItems`; downstream `quantity` stayed at the historical value while `currentQuantity` became `0`
+  - duplicate `orderEditAddVariant` with `allowDuplicates: false` still returned an added calculated line item and no `userErrors` in the captured branch, so do not model that argument as a blanket duplicate rejection
 
 ## 9. The first fulfillment root on this host is _not_ blocked the same way as the rest of the fulfillment lifecycle
 
@@ -1046,6 +1051,7 @@ The first staged media-write increment surfaced a few durable modeling constrain
 - the real root fields are `productCreateMedia`, `productUpdateMedia`, and `productDeleteMedia`
 - mutation payloads commonly ask for media node fields that the earlier read slice did not expose yet, especially `id`, `status`, and `... on MediaImage { image { url } }`
 - inline fragments on media nodes matter immediately because Shopify examples routinely request image URLs through `MediaImage.image.url`, not only through `preview.image.url`
+- product media reads should preserve polymorphic identity when selected; for the current image-backed slice that means returning `__typename: "MediaImage"` and applying `MediaImage` fragments, while broader non-image media subtypes need their own conformance evidence before deeper field modeling
 - newly created image media does **not** immediately expose those image urls in the mutation payload; live Shopify returned `status: UPLOADED` with both `preview.image` and `MediaImage.image` still `null`
 - the immediate downstream `product.media` read can already move that same asset into a null-url `PROCESSING` state before it later becomes `READY`
 - `productUpdateMedia` is not always immediately writable after create; Shopify returned `mediaUserErrors` (`Non-ready media cannot be updated.`) until the asset reached `READY`
@@ -1766,6 +1772,23 @@ Live evidence refreshed on this host:
 - custom collections return `ruleSet: null`; the captured smart collection returns a `ruleSet` with `appliedDisjunctively: false` and a `TITLE CONTAINS VANS` rule
 - both captured custom and smart collections currently return `sortOrder: BEST_SELLING`; the custom collection's blank description comes back as empty strings for both `description` and `descriptionHtml`, not `null`
 - the catalog fixture now selects the same rich metadata fields so `collections` parity covers the captured null/empty shapes alongside nested product connection shape
+
+### 45a. Collection catalog filters should run over the effective collection graph
+
+The catalog search/sort increment for `collections` exposed a familiar ordering trap: filtering has to happen against the merged standalone-collection plus product-membership view before cursor pagination.
+
+Current local rule:
+
+- top-level `collections` and nested `product.collections` apply supported `query`, `sortKey`, `reverse`, `first`/`after`/`last`/`before` in one pipeline: effective graph -> filters -> sort -> cursor window
+- supported local filters are default text, `title`, `handle`, `id`, `collection_type:custom|smart`, `product_id`, and `updated_at` ranges
+- publication-status filters run through the collection publication model when that state is present; `savedSearchId` is still not modeled because the proxy has no saved-search state yet
+- `sortKey: RELEVANCE` without a query falls back to deterministic ID order; with a query, local replay preserves the filtered order rather than inventing a fake relevance scorer
+- empty unmatched collection searches return a non-null connection with empty `edges`/`nodes`, false page booleans, and null cursors
+
+Live evidence refreshed on this host:
+
+- `collections-catalog.json` now captures title wildcard search, `collection_type:custom`, `collection_type:smart`, `UPDATED_AT` reverse sorting, `product_id` filtering, and an unmatched empty query
+- local parity replays those captured branches from the seeded snapshot graph; expected differences are limited to Shopify's opaque collection cursors versus local synthetic cursors
 
 ## 46. Customer-area registry coverage needs to separate likely local staging from side-effect roots
 

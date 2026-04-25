@@ -1,6 +1,7 @@
 import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 import type { ReadMode } from '../config.js';
 import { getFieldArguments, getRootField, getRootFieldArguments, getRootFields } from '../graphql/root-field.js';
+import { paginateConnectionItems, serializeConnectionPageInfo } from './graphql-helpers.js';
 import { makeProxySyntheticGid, makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type {
@@ -4086,96 +4087,6 @@ function serializeOptionSelectionSet(
   return result;
 }
 
-function readConnectionSizeArgument(raw: unknown): number | null {
-  return typeof raw === 'number' && Number.isInteger(raw) && raw >= 0 ? raw : null;
-}
-
-function readConnectionCursor(raw: unknown): string | null {
-  if (typeof raw !== 'string') {
-    return null;
-  }
-
-  if (raw.startsWith('cursor:')) {
-    const cursorValue = raw.slice('cursor:'.length);
-    return cursorValue.length > 0 ? cursorValue : null;
-  }
-
-  return raw.length > 0 ? raw : null;
-}
-
-function paginateConnectionItems<T>(
-  items: T[],
-  field: FieldNode,
-  variables: Record<string, unknown>,
-  getCursorValue: (item: T) => string,
-): { items: T[]; hasNextPage: boolean; hasPreviousPage: boolean } {
-  const args = getFieldArguments(field, variables);
-  const first = readConnectionSizeArgument(args['first']);
-  const last = readConnectionSizeArgument(args['last']);
-  const after = readConnectionCursor(args['after']);
-  const before = readConnectionCursor(args['before']);
-
-  const startIndex = after === null ? 0 : items.findIndex((item) => getCursorValue(item) === after) + 1;
-  const beforeIndex = before === null ? items.length : items.findIndex((item) => getCursorValue(item) === before);
-  const windowStart = Math.max(0, startIndex);
-  const windowEnd = Math.max(windowStart, beforeIndex >= 0 ? beforeIndex : items.length);
-  const paginatedItems = items.slice(windowStart, windowEnd);
-
-  let limitedItems = paginatedItems;
-  let hasNextPage = windowEnd < items.length;
-  let hasPreviousPage = windowStart > 0;
-
-  if (first !== null) {
-    hasNextPage = hasNextPage || paginatedItems.length > first;
-    limitedItems = limitedItems.slice(0, first);
-  }
-
-  if (last !== null) {
-    hasPreviousPage = hasPreviousPage || limitedItems.length > last;
-    limitedItems = limitedItems.slice(Math.max(0, limitedItems.length - last));
-  }
-
-  return {
-    items: limitedItems,
-    hasNextPage,
-    hasPreviousPage,
-  };
-}
-
-function serializeConnectionPageInfo<T>(
-  selection: FieldNode,
-  items: T[],
-  hasNextPage: boolean,
-  hasPreviousPage: boolean,
-  getCursorValue: (item: T) => string,
-  options: { prefixCursors?: boolean } = {},
-): Record<string, unknown> {
-  const formatCursor = (item: T): string => {
-    const cursor = getCursorValue(item);
-    return options.prefixCursors === false ? cursor : `cursor:${cursor}`;
-  };
-
-  return Object.fromEntries(
-    (selection.selectionSet?.selections ?? [])
-      .filter((pageInfoSelection): pageInfoSelection is FieldNode => pageInfoSelection.kind === Kind.FIELD)
-      .map((pageInfoSelection) => {
-        const pageInfoKey = pageInfoSelection.alias?.value ?? pageInfoSelection.name.value;
-        switch (pageInfoSelection.name.value) {
-          case 'hasNextPage':
-            return [pageInfoKey, hasNextPage];
-          case 'hasPreviousPage':
-            return [pageInfoKey, hasPreviousPage];
-          case 'startCursor':
-            return [pageInfoKey, items[0] ? formatCursor(items[0]) : null];
-          case 'endCursor':
-            return [pageInfoKey, items.length > 0 ? formatCursor(items[items.length - 1]!) : null];
-          default:
-            return [pageInfoKey, null];
-        }
-      }),
-  );
-}
-
 function serializeVariantsConnection(
   productId: string,
   field: FieldNode,
@@ -4518,7 +4429,13 @@ function serializeCollectionsConnection(
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const allCollections = store.getEffectiveCollectionsByProductId(productId);
+  const args = getFieldArguments(field, variables);
+  const allCollections = sortCollections(
+    applyCollectionsQuery(store.getEffectiveCollectionsByProductId(productId), args['query']),
+    args['sortKey'],
+    args['reverse'],
+    args['query'],
+  );
   const {
     items: collections,
     hasNextPage,
@@ -4618,7 +4535,12 @@ function serializeTopLevelCollectionsConnection(
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
-  const allCollections = filterCollectionsByQuery(listEffectiveCollections(), args['query']);
+  const allCollections = sortCollections(
+    applyCollectionsQuery(filterCollectionsByQuery(listEffectiveCollections(), args['query']), args['query']),
+    args['sortKey'],
+    args['reverse'],
+    args['query'],
+  );
   const {
     items: collections,
     hasNextPage,
@@ -4935,6 +4857,25 @@ function serializeMediaImageSelectionSet(
   return result;
 }
 
+function getProductMediaTypename(media: ProductMediaRecord): string {
+  switch (media.mediaContentType) {
+    case 'IMAGE':
+      return 'MediaImage';
+    case 'VIDEO':
+      return 'Video';
+    case 'EXTERNAL_VIDEO':
+      return 'ExternalVideo';
+    case 'MODEL_3D':
+      return 'Model3d';
+    default:
+      return 'Media';
+  }
+}
+
+function mediaInlineFragmentApplies(media: ProductMediaRecord, typeName: string): boolean {
+  return typeName === 'Media' || typeName === getProductMediaTypename(media);
+}
+
 function serializeMediaSelectionSet(
   media: ProductMediaRecord,
   selections: readonly SelectionNode[],
@@ -4943,27 +4884,12 @@ function serializeMediaSelectionSet(
 
   for (const selection of selections) {
     if (selection.kind === Kind.INLINE_FRAGMENT) {
-      if (selection.typeCondition?.name.value !== 'MediaImage') {
+      const typeName = selection.typeCondition?.name.value;
+      if (!typeName || !mediaInlineFragmentApplies(media, typeName)) {
         continue;
       }
 
-      for (const fragmentSelection of selection.selectionSet.selections) {
-        if (fragmentSelection.kind !== Kind.FIELD) {
-          continue;
-        }
-
-        const fragmentKey = fragmentSelection.alias?.value ?? fragmentSelection.name.value;
-        switch (fragmentSelection.name.value) {
-          case 'image':
-            result[fragmentKey] = serializeMediaImageSelectionSet(
-              media.imageUrl ?? media.previewImageUrl,
-              fragmentSelection.selectionSet?.selections ?? [],
-            );
-            break;
-          default:
-            result[fragmentKey] = null;
-        }
-      }
+      Object.assign(result, serializeMediaSelectionSet(media, selection.selectionSet.selections));
       continue;
     }
 
@@ -4973,6 +4899,9 @@ function serializeMediaSelectionSet(
 
     const key = selection.alias?.value ?? selection.name.value;
     switch (selection.name.value) {
+      case '__typename':
+        result[key] = getProductMediaTypename(media);
+        break;
       case 'id':
         result[key] = media.id ?? null;
         break;
@@ -5004,6 +4933,12 @@ function serializeMediaSelectionSet(
                   return [previewKey, null];
               }
             }),
+        );
+        break;
+      case 'image':
+        result[key] = serializeMediaImageSelectionSet(
+          media.imageUrl ?? media.previewImageUrl,
+          selection.selectionSet?.selections ?? [],
         );
         break;
       default:
@@ -5805,6 +5740,223 @@ function applyProductsQuery(products: ProductRecord[], rawQuery: unknown): Produ
   }
 
   return products.filter((product) => matchesProductsQueryNode(product, parsedQuery));
+}
+
+function collectionIsSmart(collection: CollectionRecord | ProductCollectionRecord): boolean {
+  return collection.isSmart === true || Boolean(collection.ruleSet);
+}
+
+function matchesResourceIdValue(resourceId: string, rawValue: string): boolean {
+  const normalizedValue = stripSearchValueQuotes(rawValue).trim();
+  if (!normalizedValue) {
+    return true;
+  }
+
+  if (normalizedValue.startsWith('gid://')) {
+    return resourceId === normalizedValue;
+  }
+
+  return readLegacyResourceIdFromGid(resourceId) === normalizedValue;
+}
+
+function matchesResourceIdRange(resourceId: string, rawValue: string): boolean {
+  const match = rawValue.match(/^(<=|>=|<|>|=)?\s*(.+)$/);
+  if (!match) {
+    return matchesResourceIdValue(resourceId, rawValue);
+  }
+
+  const operator = match[1] ?? '=';
+  const thresholdValue = stripSearchValueQuotes(match[2]?.trim() ?? '');
+  if (!thresholdValue) {
+    return true;
+  }
+
+  if (operator === '=') {
+    return matchesResourceIdValue(resourceId, thresholdValue);
+  }
+
+  const resourceNumericId = Number.parseInt(resourceId.split('/').at(-1) ?? '', 10);
+  const thresholdNumericId = Number.parseInt(thresholdValue.split('/').at(-1) ?? thresholdValue, 10);
+  if (!Number.isFinite(resourceNumericId) || !Number.isFinite(thresholdNumericId)) {
+    return true;
+  }
+
+  switch (operator) {
+    case '<=':
+      return resourceNumericId <= thresholdNumericId;
+    case '>=':
+      return resourceNumericId >= thresholdNumericId;
+    case '<':
+      return resourceNumericId < thresholdNumericId;
+    case '>':
+      return resourceNumericId > thresholdNumericId;
+    default:
+      return true;
+  }
+}
+
+function collectionHasProduct(collection: CollectionRecord | ProductCollectionRecord, rawValue: string): boolean {
+  return listEffectiveProductsForCollection(collection.id).some((product) =>
+    matchesResourceIdValue(product.id, rawValue),
+  );
+}
+
+function matchesCollectionSearchText(
+  collection: CollectionRecord | ProductCollectionRecord,
+  rawValue: string,
+): boolean {
+  const searchableValues = [
+    collection.title,
+    collection.handle,
+    collection.description ?? '',
+    collection.descriptionHtml ? stripHtmlToDescription(collection.descriptionHtml) : '',
+  ];
+
+  return searchableValues.some((candidate) => matchesStringValue(candidate, rawValue, 'includes'));
+}
+
+function matchesPositiveCollectionQueryTerm(
+  collection: CollectionRecord | ProductCollectionRecord,
+  term: string,
+): boolean {
+  const separatorIndex = term.indexOf(':');
+  if (separatorIndex === -1) {
+    return matchesCollectionSearchText(collection, term);
+  }
+
+  const field = term.slice(0, separatorIndex).toLowerCase();
+  const value = term.slice(separatorIndex + 1);
+
+  switch (field) {
+    case 'title':
+      return matchesStringValue(collection.title, value, 'includes');
+    case 'handle':
+      return matchesStringValue(collection.handle, value, 'exact');
+    case 'collection_type': {
+      const normalizedValue = stripSearchValueQuotes(value).trim().toLowerCase();
+      if (normalizedValue === 'smart') {
+        return collectionIsSmart(collection);
+      }
+      if (normalizedValue === 'custom') {
+        return !collectionIsSmart(collection);
+      }
+      return true;
+    }
+    case 'id':
+      return matchesResourceIdRange(collection.id, value);
+    case 'product_id':
+      return collectionHasProduct(collection, value);
+    case 'updated_at':
+      return matchesNullableProductTimestampTerm(collection.updatedAt ?? null, value);
+    case 'product_publication_status':
+    case 'publishable_status':
+    case 'published_at':
+    case 'published_status':
+      return true;
+    default:
+      return true;
+  }
+}
+
+function matchesCollectionQueryTerm(collection: CollectionRecord | ProductCollectionRecord, rawTerm: string): boolean {
+  const term = rawTerm.trim();
+  if (!term) {
+    return true;
+  }
+
+  const isNegated = term.startsWith('-');
+  const normalizedTerm = isNegated ? term.slice(1).trim() : term;
+  if (!normalizedTerm) {
+    return true;
+  }
+
+  const matches = matchesPositiveCollectionQueryTerm(collection, normalizedTerm);
+  return isNegated ? !matches : matches;
+}
+
+function matchesCollectionsQueryNode(
+  collection: CollectionRecord | ProductCollectionRecord,
+  node: ProductsQueryNode,
+): boolean {
+  switch (node.type) {
+    case 'term':
+      return matchesCollectionQueryTerm(collection, node.value);
+    case 'and':
+      return node.children.every((child) => matchesCollectionsQueryNode(collection, child));
+    case 'or':
+      return node.children.some((child) => matchesCollectionsQueryNode(collection, child));
+    case 'not':
+      return !matchesCollectionsQueryNode(collection, node.child);
+    default:
+      return true;
+  }
+}
+
+function applyCollectionsQuery<T extends CollectionRecord | ProductCollectionRecord>(
+  collections: T[],
+  rawQuery: unknown,
+): T[] {
+  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
+    return collections;
+  }
+
+  const parsedQuery = parseProductsQuery(rawQuery);
+  if (!parsedQuery) {
+    return collections;
+  }
+
+  return collections.filter((collection) => matchesCollectionsQueryNode(collection, parsedQuery));
+}
+
+function compareCollectionIds(leftId: string, rightId: string): number {
+  const leftTail = Number.parseInt(leftId.split('/').at(-1) ?? '', 10);
+  const rightTail = Number.parseInt(rightId.split('/').at(-1) ?? '', 10);
+
+  if (Number.isFinite(leftTail) && Number.isFinite(rightTail)) {
+    return leftTail - rightTail;
+  }
+
+  return leftId.localeCompare(rightId);
+}
+
+function compareCollectionsBySortKey<T extends CollectionRecord | ProductCollectionRecord>(
+  left: T,
+  right: T,
+  rawSortKey: unknown,
+): number {
+  switch (rawSortKey) {
+    case 'TITLE':
+      return (
+        left.title.localeCompare(right.title) ||
+        compareCollectionIds(left.id, right.id) ||
+        left.id.localeCompare(right.id)
+      );
+    case 'UPDATED_AT':
+      return (
+        (left.updatedAt ?? '').localeCompare(right.updatedAt ?? '') ||
+        compareCollectionIds(left.id, right.id) ||
+        left.id.localeCompare(right.id)
+      );
+    case 'ID':
+    default:
+      return compareCollectionIds(left.id, right.id) || left.id.localeCompare(right.id);
+  }
+}
+
+function sortCollections<T extends CollectionRecord | ProductCollectionRecord>(
+  collections: T[],
+  rawSortKey: unknown,
+  rawReverse: unknown,
+  rawQuery: unknown,
+): T[] {
+  const hasQuery = typeof rawQuery === 'string' && rawQuery.trim().length > 0;
+  const effectiveSortKey = rawSortKey === 'RELEVANCE' && hasQuery ? null : rawSortKey;
+  const sortedCollections =
+    effectiveSortKey === null
+      ? [...collections]
+      : [...collections].sort((left, right) => compareCollectionsBySortKey(left, right, effectiveSortKey));
+
+  return rawReverse === true ? sortedCollections.reverse() : sortedCollections;
 }
 
 function buildProductSearchConnectionKey(rawQuery: unknown, rawSortKey: unknown, rawReverse: unknown): string | null {

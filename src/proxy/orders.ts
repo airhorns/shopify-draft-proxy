@@ -2,6 +2,15 @@ import { Kind, type FieldNode, type ObjectValueNode } from 'graphql';
 
 import type { ReadMode } from '../config.js';
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
+import {
+  buildSyntheticCursor,
+  getFieldResponseKey,
+  getSelectedChildFields as getGraphQLSelectedChildFields,
+  readNullableIntArgument,
+  readNullableStringArgument,
+  serializeConnectionPageInfo,
+  serializeEmptyConnectionPageInfo as serializePageInfo,
+} from './graphql-helpers.js';
 import { store } from '../state/store.js';
 import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import type {
@@ -33,24 +42,8 @@ import type {
   OrderTransactionRecord,
 } from '../state/types.js';
 
-function getFieldResponseKey(field: FieldNode): string {
-  return field.alias?.value ?? field.name.value;
-}
-
 function getSelectedChildFields(field: FieldNode): FieldNode[] {
-  return (field.selectionSet?.selections ?? []).flatMap((selection) => {
-    if (selection.kind === Kind.FIELD) {
-      return [selection];
-    }
-
-    if (selection.kind === Kind.INLINE_FRAGMENT) {
-      return selection.selectionSet.selections.filter(
-        (inlineSelection): inlineSelection is FieldNode => inlineSelection.kind === Kind.FIELD,
-      );
-    }
-
-    return [];
-  });
+  return getGraphQLSelectedChildFields(field, { includeInlineFragments: true });
 }
 
 function normalizeMoney(amount: string | null, currencyCode: string | null): MoneyV2Record {
@@ -466,6 +459,7 @@ function normalizeOrderLineItems(raw: unknown, currencyCode: string): OrderLineI
               ? product.title
               : (variant?.title ?? null),
         quantity: typeof lineItem['quantity'] === 'number' ? lineItem['quantity'] : 0,
+        currentQuantity: typeof lineItem['currentQuantity'] === 'number' ? lineItem['currentQuantity'] : undefined,
         sku: typeof lineItem['sku'] === 'string' ? lineItem['sku'] : (variant?.sku ?? null),
         variantId,
         variantTitle:
@@ -1119,6 +1113,8 @@ function cloneOrderLineItemsForCalculatedOrder(order: OrderRecord): OrderLineIte
   return order.lineItems.map((lineItem) => ({
     ...structuredClone(lineItem),
     id: makeSyntheticGid('CalculatedLineItem'),
+    originalLineItemId: lineItem.id,
+    isAdded: false,
   }));
 }
 
@@ -1300,8 +1296,11 @@ function buildCalculatedLineItemFromVariant(variantId: string, quantity: number)
   const currencyCode = 'CAD';
   return {
     id: makeSyntheticGid('CalculatedLineItem'),
+    originalLineItemId: null,
+    isAdded: true,
     title: product?.title ?? variant.title,
     quantity,
+    currentQuantity: quantity,
     sku: variant.sku,
     variantId,
     variantTitle: variant.title,
@@ -2129,51 +2128,6 @@ function serializeDraftOrderNode(field: FieldNode, draftOrder: DraftOrderRecord)
   return result;
 }
 
-function readNullableIntArgument(
-  field: FieldNode,
-  argumentName: string,
-  variables: Record<string, unknown>,
-): number | null {
-  const argument = field.arguments?.find((candidate) => candidate.name.value === argumentName);
-  if (!argument) {
-    return null;
-  }
-
-  if (argument.value.kind === Kind.INT) {
-    const parsed = Number.parseInt(argument.value.value, 10);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-
-  if (argument.value.kind === Kind.VARIABLE) {
-    const rawValue = variables[argument.value.name.value];
-    return typeof rawValue === 'number' && Number.isFinite(rawValue) ? rawValue : null;
-  }
-
-  return null;
-}
-
-function readNullableStringArgument(
-  field: FieldNode,
-  argumentName: string,
-  variables: Record<string, unknown>,
-): string | null {
-  const argument = field.arguments?.find((candidate) => candidate.name.value === argumentName);
-  if (!argument) {
-    return null;
-  }
-
-  if (argument.value.kind === Kind.STRING) {
-    return argument.value.value;
-  }
-
-  if (argument.value.kind === Kind.VARIABLE) {
-    const rawValue = variables[argument.value.name.value];
-    return typeof rawValue === 'string' ? rawValue : null;
-  }
-
-  return null;
-}
-
 type OrderSearchExtensionEntry = {
   path: string[];
   query: string;
@@ -2187,10 +2141,6 @@ type OrderSearchExtensionEntry = {
     code: string;
   }>;
 };
-
-function buildSyntheticCursor(id: string): string {
-  return `cursor:${id}`;
-}
 
 function buildDraftOrderInvalidSearchExtension(rawQuery: unknown, path: string[]): OrderSearchExtensionEntry | null {
   if (typeof rawQuery !== 'string') {
@@ -2378,6 +2328,25 @@ function matchesTimestampTerm(timestamp: string, rawValue: string): boolean {
     default:
       return false;
   }
+}
+
+function normalizeSearchValue(rawValue: string): string {
+  const trimmed = rawValue.trim();
+  const firstCharacter = trimmed[0];
+  const lastCharacter = trimmed[trimmed.length - 1];
+  if ((firstCharacter === '"' || firstCharacter === "'") && firstCharacter === lastCharacter) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+function matchesStringValueIncludingContains(candidate: string | null | undefined, rawValue: string): boolean {
+  if (!candidate) {
+    return false;
+  }
+
+  const value = normalizeSearchValue(rawValue).toLowerCase();
+  return value.length === 0 || candidate.toLowerCase().includes(value);
 }
 
 function matchesDraftOrderSource(draftOrder: DraftOrderRecord, rawValue: string): boolean {
@@ -2570,27 +2539,13 @@ function serializeDraftOrdersConnection(
         result[key] = visibleRecords.map((draftOrder) => serializeDraftOrderNode(selection, draftOrder));
         break;
       case 'pageInfo':
-        result[key] = Object.fromEntries(
-          getSelectedChildFields(selection).map((pageInfoSelection) => {
-            const pageInfoKey = getFieldResponseKey(pageInfoSelection);
-            switch (pageInfoSelection.name.value) {
-              case 'hasNextPage':
-                return [pageInfoKey, hasNextPage];
-              case 'hasPreviousPage':
-                return [pageInfoKey, hasPreviousPage];
-              case 'startCursor':
-                return [pageInfoKey, visibleRecords[0] ? buildSyntheticCursor(visibleRecords[0].id) : null];
-              case 'endCursor':
-                return [
-                  pageInfoKey,
-                  visibleRecords.length > 0
-                    ? buildSyntheticCursor(visibleRecords[visibleRecords.length - 1]!.id)
-                    : null,
-                ];
-              default:
-                return [pageInfoKey, null];
-            }
-          }),
+        result[key] = serializeConnectionPageInfo(
+          selection,
+          visibleRecords,
+          hasNextPage,
+          hasPreviousPage,
+          (draftOrder) => buildSyntheticCursor(draftOrder.id),
+          { prefixCursors: false, includeInlineFragments: true },
         );
         break;
       default:
@@ -2797,6 +2752,14 @@ function serializeOrderLineItemNode(field: FieldNode, lineItem: OrderLineItemRec
         break;
       case 'quantity':
         result[key] = lineItem.quantity;
+        break;
+      case 'currentQuantity':
+        result[key] = lineItem.currentQuantity ?? lineItem.quantity;
+        break;
+      case 'refundableQuantity':
+      case 'fulfillableQuantity':
+      case 'unfulfilledQuantity':
+        result[key] = Math.max(0, lineItem.currentQuantity ?? lineItem.quantity);
         break;
       case 'sku':
         result[key] = lineItem.sku;
@@ -3811,10 +3774,40 @@ function serializeOrderNode(field: FieldNode, order: OrderRecord): Record<string
 }
 
 function serializeCalculatedOrder(field: FieldNode, calculatedOrder: CalculatedOrderRecord): Record<string, unknown> {
-  return serializeOrderNode(field, calculatedOrder);
+  const result: Record<string, unknown> = {};
+  const originalOrder = store.getOrderById(calculatedOrder.originalOrderId);
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'originalOrder':
+        result[key] = originalOrder ? serializeOrderNode(selection, originalOrder) : null;
+        break;
+      case 'addedLineItems':
+        result[key] = serializeOrderLineItemsConnection(
+          selection,
+          calculatedOrder.lineItems.filter((lineItem) => lineItem.isAdded === true),
+        );
+        break;
+      default:
+        result[key] = serializeOrderNode(
+          {
+            ...field,
+            selectionSet: {
+              kind: Kind.SELECTION_SET,
+              selections: [selection],
+            },
+          },
+          calculatedOrder,
+        )[key];
+        break;
+    }
+  }
+
+  return result;
 }
 
-function serializeOrderCount(field: FieldNode, count = 0): Record<string, unknown> {
+function serializeOrderCount(field: FieldNode, count = 0, precision = 'EXACT'): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
   for (const selection of getSelectedChildFields(field)) {
@@ -3824,30 +3817,7 @@ function serializeOrderCount(field: FieldNode, count = 0): Record<string, unknow
         result[key] = count;
         break;
       case 'precision':
-        result[key] = 'EXACT';
-        break;
-      default:
-        result[key] = null;
-        break;
-    }
-  }
-
-  return result;
-}
-
-function serializePageInfo(field: FieldNode): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-
-  for (const selection of getSelectedChildFields(field)) {
-    const key = getFieldResponseKey(selection);
-    switch (selection.name.value) {
-      case 'hasNextPage':
-      case 'hasPreviousPage':
-        result[key] = false;
-        break;
-      case 'startCursor':
-      case 'endCursor':
-        result[key] = null;
+        result[key] = precision;
         break;
       default:
         result[key] = null;
@@ -3863,23 +3833,26 @@ function serializeOrdersConnection(
   orders: OrderRecord[],
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const first = readNullableIntArgument(field, 'first', variables);
-  const visibleOrders = first === null ? orders : orders.slice(0, Math.max(0, first));
-  const hasNextPage = first !== null && orders.length > visibleOrders.length;
-  const hasPreviousPage = false;
+  const args = getFieldArguments(field, variables);
+  const filteredOrders =
+    typeof args['savedSearchId'] === 'string' && args['savedSearchId'].trim()
+      ? []
+      : applyOrdersQuery(orders, args['query']);
+  const orderedOrders = sortOrdersForConnection(filteredOrders, field, variables);
+  const { visibleRecords, hasNextPage, hasPreviousPage } = applySyntheticCursorWindow(orderedOrders, field, variables);
   const result: Record<string, unknown> = {};
 
   for (const selection of getSelectedChildFields(field)) {
     const key = getFieldResponseKey(selection);
     switch (selection.name.value) {
       case 'edges':
-        result[key] = visibleOrders.map((order) => {
+        result[key] = visibleRecords.map((order) => {
           const edgeResult: Record<string, unknown> = {};
           for (const edgeSelection of getSelectedChildFields(selection)) {
             const edgeKey = getFieldResponseKey(edgeSelection);
             switch (edgeSelection.name.value) {
               case 'cursor':
-                edgeResult[edgeKey] = `cursor:${order.id}`;
+                edgeResult[edgeKey] = buildSyntheticCursor(order.id);
                 break;
               case 'node':
                 edgeResult[edgeKey] = serializeOrderNode(edgeSelection, order);
@@ -3893,28 +3866,16 @@ function serializeOrdersConnection(
         });
         break;
       case 'nodes':
-        result[key] = visibleOrders.map((order) => serializeOrderNode(selection, order));
+        result[key] = visibleRecords.map((order) => serializeOrderNode(selection, order));
         break;
       case 'pageInfo':
-        result[key] = Object.fromEntries(
-          getSelectedChildFields(selection).map((pageInfoSelection) => {
-            const pageInfoKey = getFieldResponseKey(pageInfoSelection);
-            switch (pageInfoSelection.name.value) {
-              case 'hasNextPage':
-                return [pageInfoKey, hasNextPage];
-              case 'hasPreviousPage':
-                return [pageInfoKey, hasPreviousPage];
-              case 'startCursor':
-                return [pageInfoKey, visibleOrders[0] ? `cursor:${visibleOrders[0].id}` : null];
-              case 'endCursor':
-                return [
-                  pageInfoKey,
-                  visibleOrders.length > 0 ? `cursor:${visibleOrders[visibleOrders.length - 1]!.id}` : null,
-                ];
-              default:
-                return [pageInfoKey, null];
-            }
-          }),
+        result[key] = serializeConnectionPageInfo(
+          selection,
+          visibleRecords,
+          hasNextPage,
+          hasPreviousPage,
+          (order) => buildSyntheticCursor(order.id),
+          { prefixCursors: false, includeInlineFragments: true },
         );
         break;
       default:
@@ -3924,6 +3885,240 @@ function serializeOrdersConnection(
   }
 
   return result;
+}
+
+function serializeOrdersCount(
+  field: FieldNode,
+  orders: OrderRecord[],
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const filteredOrders =
+    typeof args['savedSearchId'] === 'string' && args['savedSearchId'].trim()
+      ? []
+      : applyOrdersQuery(orders, args['query']);
+  const rawLimit = args['limit'];
+  const limit = typeof rawLimit === 'number' && Number.isFinite(rawLimit) && rawLimit >= 0 ? rawLimit : null;
+  const count = limit === null ? filteredOrders.length : Math.min(filteredOrders.length, limit);
+
+  return serializeOrderCount(field, count, limit !== null && filteredOrders.length > limit ? 'AT_LEAST' : 'EXACT');
+}
+
+function readOrderNumericId(order: OrderRecord): number | null {
+  const parsed = Number.parseInt(order.id.split('/').at(-1) ?? '', 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeOrderStatusValue(rawValue: string): string {
+  return normalizeSearchValue(rawValue).replace(/-/gu, '_').toUpperCase();
+}
+
+function matchesOrderStatus(candidate: string | null | undefined, rawValue: string): boolean {
+  if (!candidate) {
+    return false;
+  }
+
+  const normalizedCandidate = candidate.replace(/-/gu, '_').toUpperCase();
+  const normalizedValue = normalizeOrderStatusValue(rawValue);
+  return normalizedCandidate === normalizedValue;
+}
+
+function matchesOrderFulfillmentStatus(order: OrderRecord, rawValue: string): boolean {
+  const normalizedValue = normalizeOrderStatusValue(rawValue);
+  const normalizedCandidate = order.displayFulfillmentStatus?.replace(/-/gu, '_').toUpperCase() ?? null;
+  if (normalizedValue === 'UNSHIPPED') {
+    return normalizedCandidate === 'UNFULFILLED';
+  }
+  return normalizedCandidate === normalizedValue;
+}
+
+function matchesOrderLifecycleStatus(order: OrderRecord, rawValue: string): boolean {
+  const value = normalizeSearchValue(rawValue).toLowerCase();
+  switch (value) {
+    case 'open':
+      return order.cancelledAt === null && order.closedAt === null && order.closed !== true;
+    case 'closed':
+      return order.closed === true || order.closedAt !== null;
+    case 'cancelled':
+    case 'canceled':
+      return order.cancelledAt !== null;
+    case 'not_closed':
+      return order.closed !== true && order.closedAt === null;
+    default:
+      return false;
+  }
+}
+
+function matchesOrderSearchTerm(order: OrderRecord, term: string): boolean {
+  const separatorIndex = term.indexOf(':');
+  if (separatorIndex <= 0) {
+    return (
+      matchesStringValueIncludingContains(order.name, term) ||
+      matchesStringValueIncludingContains(order.email ?? order.customer?.email, term) ||
+      matchesStringValueIncludingContains(order.note, term) ||
+      order.tags.some((tag) => matchesStringValueIncludingContains(tag, term))
+    );
+  }
+
+  const field = term.slice(0, separatorIndex).toLowerCase();
+  const value = term.slice(separatorIndex + 1);
+
+  switch (field) {
+    case 'name':
+      return matchesStringValueIncludingContains(order.name.replace(/^#/u, ''), value);
+    case 'tag':
+      return order.tags.some((tag) => matchesStringValue(tag, normalizeSearchValue(value)));
+    case 'tag_not':
+      return !order.tags.some((tag) => matchesStringValue(tag, normalizeSearchValue(value)));
+    case 'email':
+      return matchesStringValueIncludingContains(order.email ?? order.customer?.email, value);
+    case 'financial_status':
+      return matchesOrderStatus(order.displayFinancialStatus, value);
+    case 'fulfillment_status':
+      return matchesOrderFulfillmentStatus(order, value);
+    case 'status':
+      return matchesOrderLifecycleStatus(order, value);
+    case 'id':
+      return order.id === normalizeSearchValue(value) || matchesNumericTerm(readOrderNumericId(order), value);
+    case 'created_at':
+      return matchesTimestampTerm(order.createdAt, value);
+    case 'updated_at':
+    case 'processed_at':
+      return matchesTimestampTerm(order.updatedAt, value);
+    case 'customer_id':
+      return (
+        order.customer?.id === normalizeSearchValue(value) || matchesNumericTerm(readCustomerNumericId(order), value)
+      );
+    case 'po_number':
+      return matchesStringValueIncludingContains(order.poNumber, value);
+    case 'source_name':
+    case 'source':
+      return matchesStringValue(order.sourceName ?? '', normalizeSearchValue(value));
+    case 'gateway':
+      return (order.paymentGatewayNames ?? []).some((gateway) => matchesStringValueIncludingContains(gateway, value));
+    case 'sku':
+      return order.lineItems.some((lineItem) => matchesStringValueIncludingContains(lineItem.sku, value));
+    case 'discount_code':
+      return (order.discountCodes ?? []).some((discountCode) =>
+        matchesStringValueIncludingContains(discountCode, value),
+      );
+    default:
+      return false;
+  }
+}
+
+function readCustomerNumericId(order: OrderRecord): number | null {
+  const parsed = Number.parseInt(order.customer?.id.split('/').at(-1) ?? '', 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function tokenizeOrderSearchQuery(query: string): string[] {
+  const terms: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  const flushCurrent = (): void => {
+    const value = current.trim();
+    if (value && value.toUpperCase() !== 'AND') {
+      terms.push(value);
+    }
+    current = '';
+  };
+
+  for (const character of query) {
+    if (character === '"') {
+      inQuotes = !inQuotes;
+      current += character;
+      continue;
+    }
+
+    if (!inQuotes && /\s/u.test(character)) {
+      flushCurrent();
+      continue;
+    }
+
+    current += character;
+  }
+
+  flushCurrent();
+  return terms;
+}
+
+function applyOrdersQuery(orders: OrderRecord[], rawQuery: unknown): OrderRecord[] {
+  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
+    return orders;
+  }
+
+  const terms = tokenizeOrderSearchQuery(rawQuery.trim());
+  if (terms.length === 0) {
+    return orders;
+  }
+
+  return orders.filter((order) => terms.every((term) => matchesOrderSearchTerm(order, term)));
+}
+
+function compareOrderIds(leftId: string, rightId: string): number {
+  const leftTail = Number.parseInt(leftId.split('/').at(-1) ?? '', 10);
+  const rightTail = Number.parseInt(rightId.split('/').at(-1) ?? '', 10);
+  if (Number.isFinite(leftTail) && Number.isFinite(rightTail)) {
+    return leftTail - rightTail;
+  }
+
+  return leftId.localeCompare(rightId);
+}
+
+function compareNullableStrings(left: string | null | undefined, right: string | null | undefined): number {
+  return (left ?? '').localeCompare(right ?? '');
+}
+
+function readMoneyAmount(raw: { shopMoney: MoneyV2Record | null } | null | undefined): number {
+  return parseDecimalAmount(raw?.shopMoney?.amount);
+}
+
+function sortOrdersForConnection(
+  orders: OrderRecord[],
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): OrderRecord[] {
+  const args = getFieldArguments(field, variables);
+  const sortKey = typeof args['sortKey'] === 'string' ? args['sortKey'] : null;
+  const reverse = args['reverse'] === true;
+
+  if (!sortKey) {
+    return reverse ? [...orders].reverse() : orders;
+  }
+
+  const sorted = [...orders].sort((left, right) => {
+    switch (sortKey) {
+      case 'CREATED_AT':
+      case 'PROCESSED_AT':
+        return left.createdAt.localeCompare(right.createdAt) || compareOrderIds(left.id, right.id);
+      case 'UPDATED_AT':
+        return left.updatedAt.localeCompare(right.updatedAt) || compareOrderIds(left.id, right.id);
+      case 'NAME':
+        return left.name.localeCompare(right.name) || compareOrderIds(left.id, right.id);
+      case 'TOTAL_PRICE':
+        return (
+          readMoneyAmount(left.currentTotalPriceSet ?? left.totalPriceSet) -
+            readMoneyAmount(right.currentTotalPriceSet ?? right.totalPriceSet) || compareOrderIds(left.id, right.id)
+        );
+      case 'FINANCIAL_STATUS':
+        return (
+          compareNullableStrings(left.displayFinancialStatus, right.displayFinancialStatus) ||
+          compareOrderIds(left.id, right.id)
+        );
+      case 'FULFILLMENT_STATUS':
+        return (
+          compareNullableStrings(left.displayFulfillmentStatus, right.displayFulfillmentStatus) ||
+          compareOrderIds(left.id, right.id)
+        );
+      case 'ID':
+      default:
+        return compareOrderIds(left.id, right.id);
+    }
+  });
+
+  return reverse ? sorted.reverse() : sorted;
 }
 
 function readOrderUpdateInput(variables: Record<string, unknown>): Record<string, unknown> {
@@ -4399,6 +4594,55 @@ function buildOrderEditCommitMissingIdError(): Record<string, unknown> {
   return buildOrderEditMissingIdError();
 }
 
+function serializeOrderEditSession(field: FieldNode, calculatedOrder: CalculatedOrderRecord): Record<string, unknown> {
+  const sessionId = calculatedOrder.id.replace('/CalculatedOrder/', '/OrderEditSession/');
+  return Object.fromEntries(
+    getSelectedChildFields(field).map((selection) => {
+      const key = getFieldResponseKey(selection);
+      switch (selection.name.value) {
+        case 'id':
+          return [key, sessionId];
+        default:
+          return [key, null];
+      }
+    }),
+  );
+}
+
+function buildOrderEditInvalidVariantUserErrors(): Array<{ field: string[]; message: string }> {
+  return [
+    {
+      field: ['variantId'],
+      message: "can't convert Integer[0] to a positive Integer to use as an untrusted id",
+    },
+  ];
+}
+
+function buildCommittedOrderLineItems(
+  originalOrder: OrderRecord,
+  calculatedOrder: CalculatedOrderRecord,
+): OrderLineItemRecord[] {
+  return calculatedOrder.lineItems.map((lineItem) => {
+    const originalLineItem = lineItem.originalLineItemId
+      ? (originalOrder.lineItems.find((candidate) => candidate.id === lineItem.originalLineItemId) ?? null)
+      : null;
+
+    if (lineItem.quantity === 0 && originalLineItem) {
+      return {
+        ...structuredClone(originalLineItem),
+        currentQuantity: 0,
+      };
+    }
+
+    return {
+      ...structuredClone(lineItem),
+      currentQuantity: lineItem.quantity,
+      isAdded: false,
+      originalLineItemId: lineItem.originalLineItemId ?? lineItem.id,
+    };
+  });
+}
+
 function buildOrderUpdateMissingInlineIdError(): Record<string, unknown> {
   return {
     message: "Argument 'id' on InputObject 'OrderInput' is required. Expected type ID!",
@@ -4678,7 +4922,7 @@ export function handleOrderQuery(
         data[key] = serializeOrdersConnection(field, orders, variables);
         break;
       case 'ordersCount':
-        data[key] = serializeOrderCount(field, orders.length);
+        data[key] = serializeOrdersCount(field, orders, variables);
         break;
       case 'draftOrder': {
         const id = typeof variables['id'] === 'string' ? variables['id'] : null;
@@ -5417,6 +5661,9 @@ export function handleOrderMutation(
           case 'calculatedOrder':
             payload[selectionKey] = serializeCalculatedOrder(selection, calculatedOrder);
             break;
+          case 'orderEditSession':
+            payload[selectionKey] = serializeOrderEditSession(selection, calculatedOrder);
+            break;
           case 'userErrors':
             payload[selectionKey] = [];
             break;
@@ -5448,6 +5695,26 @@ export function handleOrderMutation(
 
       const calculatedLineItem = buildCalculatedLineItemFromVariant(variantId, quantity);
       if (!calculatedLineItem) {
+        handled = true;
+        const userErrors = buildOrderEditInvalidVariantUserErrors();
+        const payload: Record<string, unknown> = {};
+        for (const selection of getSelectedChildFields(field)) {
+          const selectionKey = getFieldResponseKey(selection);
+          switch (selection.name.value) {
+            case 'calculatedOrder':
+            case 'calculatedLineItem':
+            case 'orderEditSession':
+              payload[selectionKey] = null;
+              break;
+            case 'userErrors':
+              payload[selectionKey] = userErrors;
+              break;
+            default:
+              payload[selectionKey] = null;
+              break;
+          }
+        }
+        data[key] = payload;
         continue;
       }
 
@@ -5467,6 +5734,9 @@ export function handleOrderMutation(
             break;
           case 'calculatedLineItem':
             payload[selectionKey] = serializeOrderLineItemNode(selection, calculatedLineItem);
+            break;
+          case 'orderEditSession':
+            payload[selectionKey] = serializeOrderEditSession(selection, updatedCalculatedOrder);
             break;
           case 'userErrors':
             payload[selectionKey] = [];
@@ -5507,7 +5777,7 @@ export function handleOrderMutation(
         recalculateOrderTotals({
           ...calculatedOrder,
           lineItems: calculatedOrder.lineItems.map((lineItem) =>
-            lineItem.id === lineItemId ? { ...lineItem, quantity } : lineItem,
+            lineItem.id === lineItemId ? { ...lineItem, quantity, currentQuantity: quantity } : lineItem,
           ),
         }) as CalculatedOrderRecord,
       );
@@ -5522,6 +5792,9 @@ export function handleOrderMutation(
             break;
           case 'calculatedLineItem':
             payload[selectionKey] = serializeOrderLineItemNode(selection, updatedCalculatedLineItem);
+            break;
+          case 'orderEditSession':
+            payload[selectionKey] = serializeOrderEditSession(selection, updatedCalculatedOrder);
             break;
           case 'userErrors':
             payload[selectionKey] = [];
@@ -5551,13 +5824,12 @@ export function handleOrderMutation(
       }
 
       handled = true;
-      const staffNote = typeof variables['staffNote'] === 'string' ? variables['staffNote'] : calculatedOrder.note;
+      const originalOrder = store.getOrderById(calculatedOrder.originalOrderId)!;
       const committedOrder = store.updateOrder(
         recalculateOrderTotals({
-          ...store.getOrderById(calculatedOrder.originalOrderId)!,
+          ...originalOrder,
           updatedAt: makeSyntheticTimestamp(),
-          note: staffNote,
-          lineItems: structuredClone(calculatedOrder.lineItems),
+          lineItems: buildCommittedOrderLineItems(originalOrder, calculatedOrder),
         }),
       );
       store.discardCalculatedOrder(calculatedOrder.id);
@@ -5571,6 +5843,9 @@ export function handleOrderMutation(
             break;
           case 'userErrors':
             payload[selectionKey] = [];
+            break;
+          case 'successMessages':
+            payload[selectionKey] = ['Order updated'];
             break;
           default:
             payload[selectionKey] = null;
