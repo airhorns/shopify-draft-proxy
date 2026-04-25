@@ -7,6 +7,18 @@
       "values": [
         {
           "name": "Red"
+        },
+        {
+          "name": "Green"
+        }
+      ]
+    },
+    {
+      "name": "Size",
+      "position": 2,
+      "values": [
+        {
+          "name": "Small"
         }
       ]
     }

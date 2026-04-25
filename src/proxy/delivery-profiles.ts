@@ -1,6 +1,7 @@
 import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
+import { makeSyntheticGid } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type {
   DeliveryProfileCountryAndZoneRecord,
@@ -19,6 +20,28 @@ import type {
   ProductVariantRecord,
 } from '../state/types.js';
 import { paginateConnectionItems, serializeConnection } from './graphql-helpers.js';
+
+interface DeliveryProfileUserError {
+  field: string[] | null;
+  message: string;
+}
+
+interface DeliveryProfileMutationPayload {
+  profile: DeliveryProfileRecord | null;
+  userErrors: DeliveryProfileUserError[];
+}
+
+interface DeliveryProfileRemovePayload {
+  job: { id: string; done: boolean } | null;
+  userErrors: DeliveryProfileUserError[];
+}
+
+export interface DeliveryProfileMutationResult {
+  response: Record<string, unknown>;
+  staged: boolean;
+  stagedResourceIds: string[];
+  notes: string;
+}
 
 function responseKey(selection: FieldNode): string {
   return selection.alias?.value ?? selection.name.value;
@@ -135,6 +158,391 @@ function serializeCount(
     }
   }
   return result;
+}
+
+function readString(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+function readNullableString(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
+function readBoolean(value: unknown): boolean | null {
+  return typeof value === 'boolean' ? value : null;
+}
+
+function readRecordArray(value: unknown): Array<Record<string, unknown>> {
+  return Array.isArray(value) ? value.filter((item): item is Record<string, unknown> => isRecord(item)) : [];
+}
+
+function readStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values)];
+}
+
+function blankProfileNameError(): DeliveryProfileUserError {
+  return {
+    field: ['profile', 'name'],
+    message: 'Add a profile name',
+  };
+}
+
+function normalizeMoneyAmount(value: unknown): string {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+
+  if (typeof value !== 'string') {
+    return '0.0';
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? String(parsed) : value;
+}
+
+const countryNamesByCode: Record<string, string> = {
+  CA: 'Canada',
+  GB: 'United Kingdom',
+  US: 'United States',
+};
+
+function makeDeliveryCountry(input: Record<string, unknown>): DeliveryProfileCountryRecord {
+  const restOfWorld = readBoolean(input['restOfWorld']) === true;
+  const countryCode = restOfWorld ? null : (readString(input['code']) ?? null);
+  const name = restOfWorld ? 'Rest of world' : (countryNamesByCode[countryCode ?? ''] ?? countryCode ?? 'Unknown');
+  const provinces = readRecordArray(input['provinces']).map((province): DeliveryProfileProvinceRecord => {
+    const code = readString(province['code']) ?? '';
+    return {
+      id: makeSyntheticGid('DeliveryProvince'),
+      name: code,
+      code,
+    };
+  });
+
+  return {
+    id: makeSyntheticGid('DeliveryCountry'),
+    name,
+    translatedName: name,
+    code: {
+      countryCode,
+      restOfWorld,
+    },
+    provinces,
+  };
+}
+
+function makeRateProvider(
+  input: Record<string, unknown>,
+  existing?: DeliveryProfileMethodDefinitionRecord,
+): DeliveryProfileMethodDefinitionRecord['rateProvider'] {
+  const rateDefinition = isRecord(input['rateDefinition']) ? input['rateDefinition'] : null;
+  if (!rateDefinition) {
+    return structuredClone(
+      existing?.rateProvider ?? {
+        __typename: 'DeliveryRateDefinition',
+        id: makeSyntheticGid('DeliveryRateDefinition'),
+        price: {
+          amount: '0.0',
+          currencyCode: 'USD',
+        },
+      },
+    );
+  }
+
+  const price = isRecord(rateDefinition['price']) ? rateDefinition['price'] : {};
+  return {
+    __typename: 'DeliveryRateDefinition',
+    id: readString(rateDefinition['id']) ?? makeSyntheticGid('DeliveryRateDefinition'),
+    price: {
+      amount: normalizeMoneyAmount(price['amount']),
+      currencyCode: readString(price['currencyCode']) ?? 'USD',
+    },
+  };
+}
+
+function conditionOperatorSlug(operator: string): string {
+  return operator.toLowerCase().replaceAll('_', '-').replaceAll('-', '_');
+}
+
+function makeConditionId(operator: string): string {
+  return `${makeSyntheticGid('DeliveryCondition')}?operator=${conditionOperatorSlug(operator)}`;
+}
+
+function makeWeightCondition(input: Record<string, unknown>): DeliveryProfileMethodConditionRecord {
+  const criteria = isRecord(input['criteria']) ? input['criteria'] : {};
+  const operator = readString(input['operator']) ?? 'GREATER_THAN_OR_EQUAL_TO';
+  return {
+    id: makeConditionId(operator),
+    field: 'TOTAL_WEIGHT',
+    operator,
+    conditionCriteria: {
+      __typename: 'Weight',
+      unit: readString(criteria['unit']) ?? 'KILOGRAMS',
+      value: typeof criteria['value'] === 'number' ? criteria['value'] : Number(criteria['value'] ?? 0),
+    },
+  };
+}
+
+function makePriceCondition(input: Record<string, unknown>): DeliveryProfileMethodConditionRecord {
+  const criteria = isRecord(input['criteria']) ? input['criteria'] : {};
+  const operator = readString(input['operator']) ?? 'GREATER_THAN_OR_EQUAL_TO';
+  return {
+    id: makeConditionId(operator),
+    field: 'TOTAL_PRICE',
+    operator,
+    conditionCriteria: {
+      __typename: 'MoneyV2',
+      amount: normalizeMoneyAmount(criteria['amount']),
+      currencyCode: readString(criteria['currencyCode']) ?? 'USD',
+    },
+  };
+}
+
+function applyConditionUpdates(
+  conditions: DeliveryProfileMethodConditionRecord[],
+  updates: Array<Record<string, unknown>>,
+): DeliveryProfileMethodConditionRecord[] {
+  const next = conditions.map((condition) => structuredClone(condition));
+  for (const update of updates) {
+    const id = readString(update['id']);
+    if (!id) {
+      continue;
+    }
+
+    const existing = next.find((condition) => condition.id === id);
+    if (!existing) {
+      continue;
+    }
+
+    const field = readString(update['field']);
+    const operator = readString(update['operator']);
+    if (field) {
+      existing.field = field;
+    }
+    if (operator) {
+      existing.operator = operator;
+    }
+
+    if (typeof update['criteria'] === 'number') {
+      if (existing.field === 'TOTAL_PRICE') {
+        existing.conditionCriteria = {
+          __typename: 'MoneyV2',
+          amount: normalizeMoneyAmount(update['criteria']),
+          currencyCode: readString(update['criteriaUnit']) ?? 'USD',
+        };
+      } else {
+        existing.conditionCriteria = {
+          __typename: 'Weight',
+          unit: readString(update['criteriaUnit']) ?? 'KILOGRAMS',
+          value: update['criteria'],
+        };
+      }
+    }
+  }
+  return next;
+}
+
+function makeMethodDefinition(
+  input: Record<string, unknown>,
+  existing?: DeliveryProfileMethodDefinitionRecord,
+): DeliveryProfileMethodDefinitionRecord {
+  const weightConditions = readRecordArray(input['weightConditionsToCreate']).map(makeWeightCondition);
+  const priceConditions = readRecordArray(input['priceConditionsToCreate']).map(makePriceCondition);
+  const updatedConditions = applyConditionUpdates(
+    existing?.methodConditions ?? [],
+    readRecordArray(input['conditionsToUpdate']),
+  );
+
+  return {
+    id: readString(input['id']) ?? existing?.id ?? makeSyntheticGid('DeliveryMethodDefinition'),
+    name: readNullableString(input['name']) ?? existing?.name ?? 'Standard',
+    active: readBoolean(input['active']) ?? existing?.active ?? true,
+    description: readNullableString(input['description']) ?? existing?.description ?? null,
+    rateProvider: makeRateProvider(input, existing),
+    methodConditions: [...updatedConditions, ...weightConditions, ...priceConditions],
+    cursor: existing?.cursor,
+  };
+}
+
+function makeLocationGroupZone(
+  input: Record<string, unknown>,
+  existing?: DeliveryProfileLocationGroupZoneRecord,
+): DeliveryProfileLocationGroupZoneRecord {
+  const updatedMethods = (existing?.methodDefinitions ?? []).map((method) => structuredClone(method));
+  for (const methodInput of readRecordArray(input['methodDefinitionsToUpdate'])) {
+    const id = readString(methodInput['id']);
+    const index = id ? updatedMethods.findIndex((method) => method.id === id) : -1;
+    if (index !== -1) {
+      updatedMethods[index] = makeMethodDefinition(methodInput, updatedMethods[index]);
+    }
+  }
+
+  const createdMethods = readRecordArray(input['methodDefinitionsToCreate']).map((methodInput) =>
+    makeMethodDefinition(methodInput),
+  );
+  const countries =
+    input['countries'] === undefined
+      ? (existing?.zone.countries.map((country) => structuredClone(country)) ?? [])
+      : readRecordArray(input['countries']).map(makeDeliveryCountry);
+
+  return {
+    zone: {
+      id: readString(input['id']) ?? existing?.zone.id ?? makeSyntheticGid('DeliveryZone'),
+      name: readNullableString(input['name']) ?? existing?.zone.name ?? 'Shipping zone',
+      countries,
+    },
+    methodDefinitions: [...updatedMethods, ...createdMethods],
+    cursor: existing?.cursor,
+  };
+}
+
+function makeLocationGroup(
+  input: Record<string, unknown>,
+  existing?: DeliveryProfileLocationGroupRecord,
+): DeliveryProfileLocationGroupRecord {
+  const explicitLocations = readStringArray(input['locations']);
+  const locations =
+    explicitLocations.length > 0
+      ? explicitLocations
+      : uniqueStrings([...(existing?.locationIds ?? []), ...readStringArray(input['locationsToAdd'])]).filter(
+          (locationId) => !readStringArray(input['locationsToRemove']).includes(locationId),
+        );
+
+  const updatedZones = (existing?.locationGroupZones ?? []).map((zone) => structuredClone(zone));
+  for (const zoneInput of readRecordArray(input['zonesToUpdate'])) {
+    const id = readString(zoneInput['id']);
+    const index = id ? updatedZones.findIndex((zone) => zone.zone.id === id) : -1;
+    if (index !== -1) {
+      updatedZones[index] = makeLocationGroupZone(zoneInput, updatedZones[index]);
+    }
+  }
+
+  const createdZones = readRecordArray(input['zonesToCreate']).map((zoneInput) => makeLocationGroupZone(zoneInput));
+
+  return {
+    id: readString(input['id']) ?? existing?.id ?? makeSyntheticGid('DeliveryLocationGroup'),
+    locationIds: locations,
+    locationCursors: existing?.locationCursors,
+    countriesInAnyZone: [...updatedZones, ...createdZones].flatMap((zone) =>
+      zone.zone.countries.map((country) => ({
+        zone: zone.zone.name,
+        country: structuredClone(country),
+      })),
+    ),
+    locationGroupZones: [...updatedZones, ...createdZones],
+  };
+}
+
+function countProfileVariants(profile: DeliveryProfileRecord): number {
+  return profile.profileItems.reduce((sum, item) => sum + item.variantIds.length, 0);
+}
+
+function recomputeProfileDerivedFields(profile: DeliveryProfileRecord): DeliveryProfileRecord {
+  const locationIds = new Set<string>();
+  let activeMethodDefinitionsCount = 0;
+  let zoneCountryCount = 0;
+  let locationsWithoutRatesCount = 0;
+
+  for (const group of profile.profileLocationGroups) {
+    for (const locationId of group.locationIds) {
+      locationIds.add(locationId);
+    }
+
+    const groupMethodCount = group.locationGroupZones.reduce((sum, zone) => sum + zone.methodDefinitions.length, 0);
+    if (groupMethodCount === 0) {
+      locationsWithoutRatesCount += group.locationIds.length;
+    }
+
+    for (const zone of group.locationGroupZones) {
+      zoneCountryCount += zone.zone.countries.length;
+      activeMethodDefinitionsCount += zone.methodDefinitions.filter((method) => method.active).length;
+    }
+  }
+
+  return {
+    ...profile,
+    activeMethodDefinitionsCount,
+    locationsWithoutRatesCount,
+    originLocationCount: locationIds.size,
+    zoneCountryCount,
+    productVariantsCount: {
+      count: countProfileVariants(profile),
+      precision: 'EXACT',
+    },
+  };
+}
+
+function removeVariantsFromProfile(profile: DeliveryProfileRecord, variantIds: string[]): DeliveryProfileRecord {
+  if (variantIds.length === 0) {
+    return profile;
+  }
+
+  return recomputeProfileDerivedFields({
+    ...profile,
+    profileItems: profile.profileItems
+      .map((item) => ({
+        ...item,
+        variantIds: item.variantIds.filter((variantId) => !variantIds.includes(variantId)),
+        variantCursors: item.variantCursors
+          ? Object.fromEntries(
+              Object.entries(item.variantCursors).filter(([variantId]) => !variantIds.includes(variantId)),
+            )
+          : undefined,
+      }))
+      .filter((item) => item.variantIds.length > 0),
+  });
+}
+
+function associateVariantsWithProfile(profile: DeliveryProfileRecord, variantIds: string[]): DeliveryProfileRecord {
+  const next = structuredClone(profile);
+  for (const variantId of variantIds) {
+    const variant = store.getEffectiveVariantById(variantId);
+    if (!variant) {
+      continue;
+    }
+
+    let item = next.profileItems.find((candidate) => candidate.productId === variant.productId);
+    if (!item) {
+      item = {
+        productId: variant.productId,
+        variantIds: [],
+        cursor: variant.productId,
+        variantCursors: {},
+      };
+      next.profileItems.push(item);
+    }
+
+    if (!item.variantIds.includes(variantId)) {
+      item.variantIds.push(variantId);
+    }
+    item.variantCursors = {
+      ...item.variantCursors,
+      [variantId]: item.variantCursors?.[variantId] ?? variantId,
+    };
+  }
+
+  return recomputeProfileDerivedFields(next);
+}
+
+function stageVariantReassignment(targetProfileId: string, variantIds: string[]): void {
+  if (variantIds.length === 0) {
+    return;
+  }
+
+  for (const profile of store.listEffectiveDeliveryProfiles()) {
+    if (profile.id === targetProfileId) {
+      continue;
+    }
+
+    const updatedProfile = removeVariantsFromProfile(profile, variantIds);
+    if (countProfileVariants(updatedProfile) !== countProfileVariants(profile)) {
+      store.stageUpdateDeliveryProfile(updatedProfile);
+    }
+  }
 }
 
 function serializeProduct(productId: string, selections: readonly SelectionNode[]): Record<string, unknown> | null {
@@ -781,7 +1189,7 @@ function serializeDeliveryProfile(
 
 function profilesForConnection(field: FieldNode, variables: Record<string, unknown>): DeliveryProfileRecord[] {
   const merchantOwnedOnly = readBooleanArgument(field, 'merchantOwnedOnly', variables);
-  const profiles = store.listBaseDeliveryProfiles().filter((profile) => {
+  const profiles = store.listEffectiveDeliveryProfiles().filter((profile) => {
     if (merchantOwnedOnly === true) {
       return profile.merchantOwned;
     }
@@ -810,6 +1218,383 @@ function serializeDeliveryProfilesConnection(
   });
 }
 
+function serializeUserError(
+  userError: DeliveryProfileUserError,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const field of selectedFields(selections)) {
+    const key = responseKey(field);
+    switch (field.name.value) {
+      case 'field':
+        result[key] = userError.field;
+        break;
+      case 'message':
+        result[key] = userError.message;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeDeliveryProfileMutationPayload(
+  payload: DeliveryProfileMutationPayload,
+  typeName: string,
+  selections: readonly SelectionNode[],
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== typeName) {
+        continue;
+      }
+      Object.assign(
+        result,
+        serializeDeliveryProfileMutationPayload(payload, typeName, selection.selectionSet.selections, variables),
+      );
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = typeName;
+        break;
+      case 'profile':
+        result[key] = payload.profile
+          ? serializeDeliveryProfile(payload.profile, selection.selectionSet?.selections ?? [], variables)
+          : null;
+        break;
+      case 'userErrors':
+        result[key] = payload.userErrors.map((userError) =>
+          serializeUserError(userError, selection.selectionSet?.selections ?? []),
+        );
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeJob(
+  job: NonNullable<DeliveryProfileRemovePayload['job']>,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const field of selectedFields(selections)) {
+    const key = responseKey(field);
+    switch (field.name.value) {
+      case '__typename':
+        result[key] = 'Job';
+        break;
+      case 'id':
+        result[key] = job.id;
+        break;
+      case 'done':
+        result[key] = job.done;
+        break;
+      case 'query':
+        result[key] = null;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeDeliveryProfileRemovePayload(
+  payload: DeliveryProfileRemovePayload,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (
+        selection.typeCondition?.name.value &&
+        selection.typeCondition.name.value !== 'DeliveryProfileRemovePayload'
+      ) {
+        continue;
+      }
+      Object.assign(result, serializeDeliveryProfileRemovePayload(payload, selection.selectionSet.selections));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'DeliveryProfileRemovePayload';
+        break;
+      case 'job':
+        result[key] = payload.job ? serializeJob(payload.job, selection.selectionSet?.selections ?? []) : null;
+        break;
+      case 'userErrors':
+        result[key] = payload.userErrors.map((userError) =>
+          serializeUserError(userError, selection.selectionSet?.selections ?? []),
+        );
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function readProfileInput(args: Record<string, unknown>): Record<string, unknown> | null {
+  return isRecord(args['profile']) ? args['profile'] : null;
+}
+
+function makeEmptyProfile(input: Record<string, unknown>): DeliveryProfileRecord {
+  const groups = [
+    ...readRecordArray(input['profileLocationGroups']),
+    ...readRecordArray(input['locationGroupsToCreate']),
+  ].map((groupInput) => makeLocationGroup(groupInput));
+  const profile = recomputeProfileDerivedFields({
+    id: makeSyntheticGid('DeliveryProfile'),
+    name: readString(input['name']) ?? '',
+    default: false,
+    merchantOwned: true,
+    version: 1,
+    activeMethodDefinitionsCount: 0,
+    locationsWithoutRatesCount: 0,
+    originLocationCount: 0,
+    zoneCountryCount: 0,
+    productVariantsCount: { count: 0, precision: 'EXACT' },
+    profileItems: [],
+    profileLocationGroups: groups,
+    unassignedLocationIds: [],
+    sellingPlanGroups: [],
+  });
+
+  return associateVariantsWithProfile(profile, readStringArray(input['variantsToAssociate']));
+}
+
+function applyProfileInput(existing: DeliveryProfileRecord, input: Record<string, unknown>): DeliveryProfileRecord {
+  let next = structuredClone(existing);
+  const name = readNullableString(input['name']);
+  if (name !== null) {
+    next.name = name;
+  }
+
+  next = associateVariantsWithProfile(next, readStringArray(input['variantsToAssociate']));
+  next = removeVariantsFromProfile(next, readStringArray(input['variantsToDissociate']));
+
+  const groupsToDelete = readStringArray(input['locationGroupsToDelete']);
+  if (groupsToDelete.length > 0) {
+    next.profileLocationGroups = next.profileLocationGroups.filter((group) => !groupsToDelete.includes(group.id));
+  }
+
+  const zonesToDelete = readStringArray(input['zonesToDelete']);
+  const methodDefinitionsToDelete = readStringArray(input['methodDefinitionsToDelete']);
+  const conditionsToDelete = readStringArray(input['conditionsToDelete']);
+  if (zonesToDelete.length > 0 || methodDefinitionsToDelete.length > 0 || conditionsToDelete.length > 0) {
+    next.profileLocationGroups = next.profileLocationGroups.map((group) => ({
+      ...group,
+      locationGroupZones: group.locationGroupZones
+        .filter((zone) => !zonesToDelete.includes(zone.zone.id))
+        .map((zone) => ({
+          ...zone,
+          methodDefinitions: zone.methodDefinitions
+            .filter((method) => !methodDefinitionsToDelete.includes(method.id))
+            .map((method) => ({
+              ...method,
+              methodConditions: method.methodConditions.filter(
+                (condition) => !conditionsToDelete.includes(condition.id),
+              ),
+            })),
+        })),
+    }));
+  }
+
+  for (const groupInput of readRecordArray(input['locationGroupsToUpdate'])) {
+    const id = readString(groupInput['id']);
+    const index = id ? next.profileLocationGroups.findIndex((group) => group.id === id) : -1;
+    if (index !== -1) {
+      next.profileLocationGroups[index] = makeLocationGroup(groupInput, next.profileLocationGroups[index]);
+    }
+  }
+
+  next.profileLocationGroups.push(
+    ...readRecordArray(input['locationGroupsToCreate']).map((groupInput) => makeLocationGroup(groupInput)),
+  );
+
+  const sellingPlanGroupsToAssociate = readStringArray(input['sellingPlanGroupsToAssociate']);
+  const sellingPlanGroupsToDissociate = readStringArray(input['sellingPlanGroupsToDissociate']);
+  if (sellingPlanGroupsToAssociate.length > 0 || sellingPlanGroupsToDissociate.length > 0) {
+    const current = next.sellingPlanGroups.filter((group) => {
+      const id = readString(group['id']);
+      return id ? !sellingPlanGroupsToDissociate.includes(id) : true;
+    });
+    for (const id of sellingPlanGroupsToAssociate) {
+      if (!current.some((group) => group['id'] === id)) {
+        current.push({ id, name: null });
+      }
+    }
+    next.sellingPlanGroups = current;
+  }
+
+  return recomputeProfileDerivedFields({
+    ...next,
+    version: next.version + 1,
+  });
+}
+
+function stageDeliveryProfileCreate(args: Record<string, unknown>): DeliveryProfileMutationPayload {
+  const input = readProfileInput(args);
+  const name = input ? readString(input['name']) : null;
+  if (!input || !name) {
+    return {
+      profile: null,
+      userErrors: [blankProfileNameError()],
+    };
+  }
+
+  const profile = makeEmptyProfile(input);
+  stageVariantReassignment(profile.id, readStringArray(input['variantsToAssociate']));
+  return {
+    profile: store.stageCreateDeliveryProfile(profile),
+    userErrors: [],
+  };
+}
+
+function stageDeliveryProfileUpdate(args: Record<string, unknown>): DeliveryProfileMutationPayload {
+  const id = readString(args['id']);
+  const input = readProfileInput(args);
+  const existing = id ? store.getEffectiveDeliveryProfileById(id) : null;
+  if (!existing || !input) {
+    return {
+      profile: null,
+      userErrors: [{ field: null, message: 'Profile could not be updated.' }],
+    };
+  }
+
+  if (readNullableString(input['name']) === '') {
+    return {
+      profile: null,
+      userErrors: [blankProfileNameError()],
+    };
+  }
+
+  stageVariantReassignment(existing.id, readStringArray(input['variantsToAssociate']));
+  return {
+    profile: store.stageUpdateDeliveryProfile(applyProfileInput(existing, input)),
+    userErrors: [],
+  };
+}
+
+function stageDeliveryProfileRemove(args: Record<string, unknown>): DeliveryProfileRemovePayload {
+  const id = readString(args['id']);
+  const existing = id ? store.getEffectiveDeliveryProfileById(id) : null;
+  if (!existing) {
+    return {
+      job: null,
+      userErrors: [{ field: null, message: 'The Delivery Profile cannot be found for the shop.' }],
+    };
+  }
+
+  if (existing.default) {
+    return {
+      job: null,
+      userErrors: [{ field: null, message: 'Cannot delete the default profile.' }],
+    };
+  }
+
+  store.stageDeleteDeliveryProfile(existing.id);
+  return {
+    job: {
+      id: makeSyntheticGid('Job'),
+      done: false,
+    },
+    userErrors: [],
+  };
+}
+
+export function handleDeliveryProfileMutation(
+  document: string,
+  variables: Record<string, unknown>,
+): DeliveryProfileMutationResult | null {
+  const data: Record<string, unknown> = {};
+  let staged = false;
+  const stagedResourceIds: string[] = [];
+  const notes: string[] = [];
+
+  for (const field of getRootFields(document)) {
+    const key = responseKey(field);
+    const args = getFieldArguments(field, variables);
+    switch (field.name.value) {
+      case 'deliveryProfileCreate': {
+        const payload = stageDeliveryProfileCreate(args);
+        data[key] = serializeDeliveryProfileMutationPayload(
+          payload,
+          'DeliveryProfileCreatePayload',
+          field.selectionSet?.selections ?? [],
+          variables,
+        );
+        if (payload.profile) {
+          staged = true;
+          stagedResourceIds.push(payload.profile.id);
+          notes.push('created delivery profile');
+        }
+        break;
+      }
+      case 'deliveryProfileUpdate': {
+        const payload = stageDeliveryProfileUpdate(args);
+        data[key] = serializeDeliveryProfileMutationPayload(
+          payload,
+          'DeliveryProfileUpdatePayload',
+          field.selectionSet?.selections ?? [],
+          variables,
+        );
+        if (payload.profile) {
+          staged = true;
+          stagedResourceIds.push(payload.profile.id);
+          notes.push('updated delivery profile');
+        }
+        break;
+      }
+      case 'deliveryProfileRemove': {
+        const id = readString(args['id']);
+        const payload = stageDeliveryProfileRemove(args);
+        data[key] = serializeDeliveryProfileRemovePayload(payload, field.selectionSet?.selections ?? []);
+        if (payload.job) {
+          staged = true;
+          stagedResourceIds.push(...[id, payload.job.id].filter((value): value is string => typeof value === 'string'));
+          notes.push('removed delivery profile');
+        }
+        break;
+      }
+      default:
+        return null;
+    }
+  }
+
+  return {
+    response: { data },
+    staged,
+    stagedResourceIds,
+    notes:
+      notes.length > 0
+        ? `Staged locally in the in-memory delivery profile draft store: ${notes.join(', ')}.`
+        : 'Handled locally as a delivery profile validation branch without staging state.',
+  };
+}
+
 export function handleDeliveryProfileQuery(
   document: string,
   variables: Record<string, unknown>,
@@ -822,7 +1607,7 @@ export function handleDeliveryProfileQuery(
       case 'deliveryProfile': {
         const args = getFieldArguments(field, variables);
         const id = typeof args['id'] === 'string' ? args['id'] : null;
-        const profile = id ? store.getBaseDeliveryProfileById(id) : null;
+        const profile = id ? store.getEffectiveDeliveryProfileById(id) : null;
         data[key] = profile ? serializeDeliveryProfile(profile, field.selectionSet?.selections ?? [], variables) : null;
         break;
       }

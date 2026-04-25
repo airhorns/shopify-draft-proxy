@@ -59,6 +59,11 @@ function readRecord(value: unknown, key: string): JsonRecord | null {
   return asRecord(asRecord(value)?.[key]);
 }
 
+function readArray(value: unknown, key: string): unknown[] {
+  const fieldValue = asRecord(value)?.[key];
+  return Array.isArray(fieldValue) ? fieldValue : [];
+}
+
 function readString(value: unknown, key: string): string | null {
   const fieldValue = asRecord(value)?.[key];
   return typeof fieldValue === 'string' && fieldValue.length > 0 ? fieldValue : null;
@@ -109,6 +114,7 @@ const draftOrderCompleteDocument = await readText('config/parity-requests/draftO
 const draftOrderDownstreamReadDocument = await readText(
   'config/parity-requests/draftOrderCreate-downstream-read.graphql',
 );
+const draftOrderDetailReadDocument = await readText('config/parity-requests/draftOrder-read-parity-plan.graphql');
 const draftOrderCreateFromOrderDownstreamReadDocument = await readText(
   'config/parity-requests/draftOrderCreateFromOrder-downstream-read.graphql',
 );
@@ -141,8 +147,87 @@ const draftOrderCreateFromOrderBaseVariables = await readJson(
 
 const stamp = Date.now();
 
+type DraftOrderSeedReferences = {
+  customerId: string | null;
+  variantId: string | null;
+};
+
+async function readDraftOrderSeedReferences(): Promise<DraftOrderSeedReferences> {
+  const response = await runGraphql<JsonRecord>(
+    `#graphql
+      query DraftOrderFamilySeedReferences {
+        customers(first: 10) {
+          nodes {
+            id
+          }
+        }
+        products(first: 20) {
+          nodes {
+            variants(first: 20) {
+              nodes {
+                id
+              }
+            }
+          }
+        }
+      }
+    `,
+    {},
+  );
+  const data = responseData(response);
+  const customerId =
+    readArray(readRecord(data, 'customers'), 'nodes')
+      .map((customer) => readString(customer, 'id'))
+      .find((id): id is string => id !== null) ?? null;
+  const variantId =
+    readArray(readRecord(data, 'products'), 'nodes')
+      .flatMap((product) => readArray(readRecord(product, 'variants'), 'nodes'))
+      .map((variant) => readString(variant, 'id'))
+      .find((id): id is string => id !== null) ?? null;
+
+  return { customerId, variantId };
+}
+
+function applyDraftOrderSeedReferences(variables: JsonRecord, seedReferences: DraftOrderSeedReferences): void {
+  const input = readRecord(variables, 'input');
+  if (!input) {
+    return;
+  }
+
+  if (seedReferences.customerId) {
+    input['purchasingEntity'] = {
+      ...readRecord(input, 'purchasingEntity'),
+      customerId: seedReferences.customerId,
+    };
+  } else {
+    delete input['purchasingEntity'];
+  }
+
+  const lineItems = input['lineItems'];
+  if (!Array.isArray(lineItems)) {
+    return;
+  }
+
+  if (!seedReferences.variantId) {
+    input['lineItems'] = lineItems.filter(
+      (lineItem) => !(typeof lineItem === 'object' && lineItem !== null && 'variantId' in lineItem),
+    );
+    return;
+  }
+
+  const variantLineItem = lineItems.find(
+    (lineItem): lineItem is JsonRecord => typeof lineItem === 'object' && lineItem !== null && 'variantId' in lineItem,
+  );
+  if (variantLineItem) {
+    variantLineItem['variantId'] = seedReferences.variantId;
+  }
+}
+
+const draftOrderSeedReferences = await readDraftOrderSeedReferences();
+
 async function createDraftOrder(label: string): Promise<CapturedDraftOrderSetup & { id: string }> {
   const variables = cloneRecord(draftOrderCreateBaseVariables);
+  applyDraftOrderSeedReferences(variables, draftOrderSeedReferences);
   const input = readRecord(variables, 'input');
   if (!input) {
     throw new Error('draftOrderCreate parity variables are missing input.');
@@ -166,6 +251,15 @@ async function createDraftOrder(label: string): Promise<CapturedDraftOrderSetup 
       response: downstreamRead,
     },
   };
+}
+
+async function captureDraftOrderDetail(): Promise<void> {
+  const setup = await createDraftOrder('detail');
+  const response = await runGraphql<JsonRecord>(draftOrderDetailReadDocument, { id: setup.id });
+  await writeJson(path.join(fixtureDir, 'draft-order-detail.json'), {
+    variables: { id: setup.id },
+    response,
+  });
 }
 
 async function completeDraftOrder(label: string): Promise<
@@ -308,6 +402,7 @@ async function captureDraftOrderCreateFromOrder(): Promise<void> {
   });
 }
 
+await captureDraftOrderDetail();
 await captureDraftOrderUpdate();
 await captureDraftOrderDuplicate();
 await captureDraftOrderDelete();
@@ -321,6 +416,7 @@ console.log(
       storeDomain,
       apiVersion,
       files: [
+        path.join(fixtureDir, 'draft-order-detail.json'),
         path.join(fixtureDir, 'draft-order-update-parity.json'),
         path.join(fixtureDir, 'draft-order-duplicate-parity.json'),
         path.join(fixtureDir, 'draft-order-delete-parity.json'),

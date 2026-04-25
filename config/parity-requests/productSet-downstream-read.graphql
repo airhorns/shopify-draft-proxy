@@ -1,4 +1,10 @@
-query ProductSetDownstreamRead($id: ID!) {
+query ProductSetDownstreamRead(
+  $id: ID!
+  $variantOneId: ID!
+  $inventoryItemOneId: ID!
+  $variantTwoId: ID!
+  $inventoryItemTwoId: ID!
+) {
   product(id: $id) {
     id
     title
@@ -7,6 +13,7 @@ query ProductSetDownstreamRead($id: ID!) {
     vendor
     productType
     tags
+    totalInventory
     descriptionHtml
     templateSuffix
     seo {
@@ -53,6 +60,20 @@ query ProductSetDownstreamRead($id: ID!) {
           countryCodeOfOrigin
           provinceCodeOfOrigin
           harmonizedSystemCode
+          inventoryLevels(first: 10) {
+            nodes {
+              id
+              location {
+                id
+                name
+              }
+              quantities(names: ["available", "on_hand", "incoming"]) {
+                name
+                quantity
+                updatedAt
+              }
+            }
+          }
         }
       }
     }
@@ -88,6 +109,106 @@ query ProductSetDownstreamRead($id: ID!) {
         key
         type
         value
+      }
+    }
+  }
+  variantOne: productVariant(id: $variantOneId) {
+    id
+    inventoryQuantity
+    inventoryItem {
+      id
+      inventoryLevels(first: 10) {
+        nodes {
+          id
+          location {
+            id
+            name
+          }
+          quantities(names: ["available", "on_hand", "incoming"]) {
+            name
+            quantity
+            updatedAt
+          }
+        }
+      }
+    }
+    product {
+      id
+      totalInventory
+    }
+  }
+  stockOne: inventoryItem(id: $inventoryItemOneId) {
+    id
+    inventoryLevels(first: 10) {
+      nodes {
+        id
+        location {
+          id
+          name
+        }
+        quantities(names: ["available", "on_hand", "incoming"]) {
+          name
+          quantity
+          updatedAt
+        }
+      }
+    }
+    variant {
+      id
+      inventoryQuantity
+      product {
+        id
+        totalInventory
+      }
+    }
+  }
+  variantTwo: productVariant(id: $variantTwoId) {
+    id
+    inventoryQuantity
+    inventoryItem {
+      id
+      inventoryLevels(first: 10) {
+        nodes {
+          id
+          location {
+            id
+            name
+          }
+          quantities(names: ["available", "on_hand", "incoming"]) {
+            name
+            quantity
+            updatedAt
+          }
+        }
+      }
+    }
+    product {
+      id
+      totalInventory
+    }
+  }
+  stockTwo: inventoryItem(id: $inventoryItemTwoId) {
+    id
+    inventoryLevels(first: 10) {
+      nodes {
+        id
+        location {
+          id
+          name
+        }
+        quantities(names: ["available", "on_hand", "incoming"]) {
+          name
+          quantity
+          updatedAt
+        }
+      }
+    }
+    variant {
+      id
+      inventoryQuantity
+      product {
+        id
+        totalInventory
       }
     }
   }

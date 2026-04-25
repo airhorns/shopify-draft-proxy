@@ -1,0 +1,27 @@
+mutation WebhookSubscriptionValidationBranches($unknownId: ID!, $unknownUpdateInput: WebhookSubscriptionInput!) {
+  updateUnknown: webhookSubscriptionUpdate(id: $unknownId, webhookSubscription: $unknownUpdateInput) {
+    webhookSubscription {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  deleteUnknown: webhookSubscriptionDelete(id: $unknownId) {
+    deletedWebhookSubscriptionId
+    userErrors {
+      field
+      message
+    }
+  }
+  createMissingUri: webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { format: JSON }) {
+    webhookSubscription {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
