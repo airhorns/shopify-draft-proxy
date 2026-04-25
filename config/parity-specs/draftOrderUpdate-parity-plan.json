@@ -1,25 +1,43 @@
 {
   "scenarioId": "draft-order-update-live-parity",
   "operationNames": ["draftOrderUpdate"],
-  "scenarioStatus": "planned",
+  "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
-  "liveCaptureFiles": [],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-update-parity.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/draftOrderUpdate-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/draftOrderUpdate-parity-plan.variables.json"
+    "variablesPath": "config/parity-requests/draftOrderUpdate-parity-plan.variables.json",
+    "variablesCapturePath": "$.variables"
   },
-  "comparisonMode": "planned",
-  "blocker": {
-    "kind": "missing-live-draft-order-update-capture",
-    "blockerPath": null,
-    "details": {
-      "requiredScopes": ["write_draft_orders"],
-      "probeRoots": ["draftOrderUpdate"],
-      "blockedMutations": ["draftOrderUpdate"],
-      "requiredPermissions": ["manage-draft-orders"],
-      "docsUrl": "https://shopify.dev/docs/api/admin-graphql/latest/mutations/draftOrderUpdate",
-      "failingMessage": "Safe validation capture was attempted on this host, but the stored Shopify conformance access token is invalid and refresh failed: This request requires an active refresh_token."
-    }
-  },
-  "notes": "Planned happy-path draft order update parity. The proxy request updates a staged draft order's email, note, tags, shipping line, and line items, then expects downstream `draftOrder(id:)` replay to reflect the staged mutation without sending the supported mutation upstream. Safe missing-variable validation is covered locally until live capture auth is repaired."
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live capture updates a dedicated draft order's email, tags, custom attributes, and shipping line, then verifies immediate downstream `draftOrder(id:)` visibility. The proxy request replays captured variables against a locally seeded setup draft without sending the supported mutation upstream.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-user-errors",
+        "capturePath": "$.mutation.response.data.draftOrderUpdate.userErrors",
+        "proxyPath": "$.data.draftOrderUpdate.userErrors"
+      },
+      {
+        "name": "mutation-draft-order",
+        "capturePath": "$.mutation.response.data.draftOrderUpdate.draftOrder",
+        "proxyPath": "$.data.draftOrderUpdate.draftOrder"
+      },
+      {
+        "name": "downstream-draft-order",
+        "capturePath": "$.downstreamRead.response.data.draftOrder",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/draftOrderCreate-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderUpdate.draftOrder.id"
+            }
+          }
+        },
+        "proxyPath": "$.data.draftOrder"
+      }
+    ]
+  }
 }

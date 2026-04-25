@@ -1,0 +1,31 @@
+query DraftOrderCreateFromOrderDownstreamRead($id: ID!) {
+  draftOrder(id: $id) {
+    id
+    name
+    invoiceUrl
+    status
+    ready
+    email
+    tags
+    subtotalPriceSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+    totalPriceSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+    lineItems(first: 5) {
+      nodes {
+        id
+        title
+        quantity
+        sku
+      }
+    }
+  }
+}
