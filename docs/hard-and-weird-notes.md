@@ -1090,6 +1090,18 @@ The read fixture proves `definition: null` for the captured product-owned metafi
 
 This is another case where the serializer layer needs field-specific handling rather than one generic nested-object rule.
 
+## 19a. Product metafield definitions are schema records, but counts come from owner metafields
+
+HAR-144 captured product-owner `metafieldDefinition` and `metafieldDefinitions` reads against the 2025-01 conformance store while checking the 2026-04 docs for the latest field surface. The useful fidelity points were:
+
+- absent `metafieldDefinition(identifier:)` returns `null`
+- an unmatched `metafieldDefinitions(ownerType: PRODUCT, namespace: ...)` filter returns a non-null empty connection
+- `sortKey: PINNED_POSITION` returned pinned position `2` before pinned position `1` in the live capture
+- definition records carry schema fields (`type`, `validations`, `access`, `capabilities`, `constraints`, `pinnedPosition`, `validationStatus`) separately from actual metafield rows
+- `metafieldsCount` and the definition `metafields` connection should be derived from effective product-owned metafields matching the definition namespace/key, so staged product metafield writes become visible through existing definitions
+
+Keep definition lifecycle mutations out of this read slice; create/update/delete/pin/unpin need their own mutation evidence and local staging semantics.
+
 ## 18a. Staged metafield writes need product-scoped replacement semantics, not id-wise merge
 
 Adding `metafieldsSet` / `metafieldDelete` exposed a subtle state-model trap:
