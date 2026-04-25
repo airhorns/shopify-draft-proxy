@@ -3,6 +3,12 @@ mutation FulfillmentCancelParityPlan($id: ID!) {
     fulfillment {
       id
       status
+      displayStatus
+      trackingInfo {
+        number
+        url
+        company
+      }
     }
     userErrors {
       field
