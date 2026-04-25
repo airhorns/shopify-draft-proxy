@@ -5,20 +5,11 @@ import 'dotenv/config';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { runAdminGraphql, runAdminGraphqlRequest } from './conformance-graphql-client.js';
+import { createAdminGraphqlClient } from './conformance-graphql-client.js';
+import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
-const requiredVars = ['SHOPIFY_CONFORMANCE_STORE_DOMAIN', 'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
-
-const missingVars = requiredVars.filter((name) => !process.env[name]);
-if (missingVars.length > 0) {
-  console.error(`Missing required environment variables: ${missingVars.join(', ')}`);
-  process.exit(1);
-}
-
-const storeDomain = process.env['SHOPIFY_CONFORMANCE_STORE_DOMAIN'];
-const adminOrigin = process.env['SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
-const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || '2025-01';
+const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
 
@@ -29,21 +20,11 @@ const marketWebPresencesOutputPath = path.join(outputDir, 'market-web-presences.
 const marketsResolvedValuesOutputPath = path.join(outputDir, 'markets-resolved-values.json');
 const marketsBaselineOutputPath = path.join(outputDir, 'markets-baseline.json');
 
-async function runGraphql(query, variables = {}) {
-  return runAdminGraphql(
-    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(adminAccessToken) },
-    query,
-    variables,
-  );
-}
-
-async function runGraphqlProbe(query, variables = {}) {
-  return runAdminGraphqlRequest(
-    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(adminAccessToken) },
-    query,
-    variables,
-  );
-}
+const { runGraphql, runGraphqlRequest: runGraphqlProbe } = createAdminGraphqlClient({
+  adminOrigin,
+  apiVersion,
+  headers: buildAdminAuthHeaders(adminAccessToken),
+});
 
 const marketFields = `#graphql
   fragment MarketReadFields on Market {
