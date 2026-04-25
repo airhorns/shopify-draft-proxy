@@ -191,20 +191,20 @@
     "type": "query",
     "domain": "payments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["paymentCustomization", "PaymentCustomization"],
-    "runtimeTests": [],
-    "supportNotes": "Payment customization scaffold only. The 2026-04-25 harry-test-heelo probe can capture unknown-id null behavior with read_payment_customizations; future capture should record no-data/null behavior before local overlay support."
+    "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
+    "supportNotes": "Snapshot-mode payment customization detail reads are modeled from normalized state. Unknown ids return null; function ownership and error-history selections only replay captured normalized values."
   },
   {
     "name": "paymentCustomizations",
     "type": "query",
     "domain": "payments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["paymentCustomizations", "PaymentCustomizations"],
-    "runtimeTests": [],
-    "supportNotes": "Payment customization scaffold only. The 2026-04-25 harry-test-heelo probe can capture an empty connection with read_payment_customizations; future capture should record connection filters, empty pages, and pagination shape before local overlay support."
+    "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
+    "supportNotes": "Snapshot-mode payment customization catalog reads are modeled from normalized state with empty/no-data connections, cursor pagination, reverse ordering, and captured-safe enabled/function_id/id filters. No lifecycle mutations are supported."
   },
   {
     "name": "paymentTermsTemplates",
@@ -1380,40 +1380,40 @@
     "type": "mutation",
     "domain": "payments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["paymentCustomizationActivation", "PaymentCustomizationActivation"],
-    "runtimeTests": [],
-    "supportNotes": "Payment customization scaffold only. Future capture requires write_payment_customizations and disposable customization records because activation changes checkout payment behavior."
+    "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
+    "supportNotes": "Payment customization activation is staged locally against normalized payment customization records. Unknown ids mirror captured PAYMENT_CUSTOMIZATION_NOT_FOUND userErrors; existing records update enabled without invoking Shopify Functions or checkout payment behavior."
   },
   {
     "name": "paymentCustomizationCreate",
     "type": "mutation",
     "domain": "payments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["paymentCustomizationCreate", "PaymentCustomizationCreate"],
-    "runtimeTests": [],
-    "supportNotes": "Payment customization scaffold only. Future capture requires write_payment_customizations, a test Shopify Function handle, and cleanup for created checkout payment configuration."
+    "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
+    "supportNotes": "Payment customization create stages a normalized record locally with selected metafields, stable synthetic ids, and downstream detail/catalog visibility. Captured missing required fields and missing Function id validation are handled locally without runtime Shopify writes."
   },
   {
     "name": "paymentCustomizationDelete",
     "type": "mutation",
     "domain": "payments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["paymentCustomizationDelete", "PaymentCustomizationDelete"],
-    "runtimeTests": [],
-    "supportNotes": "Payment customization scaffold only. Future capture requires write_payment_customizations and disposable customization records because delete is destructive."
+    "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
+    "supportNotes": "Payment customization delete marks normalized records deleted locally. Unknown ids mirror captured PAYMENT_CUSTOMIZATION_NOT_FOUND userErrors, and downstream reads return Shopify-like null/empty structures."
   },
   {
     "name": "paymentCustomizationUpdate",
     "type": "mutation",
     "domain": "payments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["paymentCustomizationUpdate", "PaymentCustomizationUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "Payment customization scaffold only. Future capture requires write_payment_customizations and disposable customization records because updates can change checkout payment behavior."
+    "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
+    "supportNotes": "Payment customization update stages local scalar/metafield changes over normalized records. Unknown ids and captured missing Function ids return Shopify-like PaymentCustomizationError payloads without proxying runtime writes upstream."
   },
   {
     "name": "paymentReminderSend",
@@ -2484,40 +2484,40 @@
     "type": "query",
     "domain": "marketing",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingActivities", "MarketingActivities"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap. Needs live marketing app-scoped capture for list, filtering, and empty-connection behavior before snapshot or overlay support."
+    "runtimeTests": ["tests/integration/marketing-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local read support for captured selected fields, empty connections, filtering, sorting, reverse ordering, and cursor/pageInfo shapes. No marketing mutation staging is included."
   },
   {
     "name": "marketingActivity",
     "type": "query",
     "domain": "marketing",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingActivity", "MarketingActivity"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap. Needs live capture for ID lookup nullability and activity field shape before snapshot or overlay support."
+    "runtimeTests": ["tests/integration/marketing-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local singular lookup support for captured selected fields. Missing IDs return null; no arbitrary marketing activity records are synthesized."
   },
   {
     "name": "marketingEvent",
     "type": "query",
     "domain": "marketing",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingEvent", "MarketingEvent"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap. Needs live capture for ID lookup nullability and event field shape before snapshot or overlay support."
+    "runtimeTests": ["tests/integration/marketing-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local singular lookup support for captured selected fields. Missing IDs return null; no arbitrary marketing event records are synthesized."
   },
   {
     "name": "marketingEvents",
     "type": "query",
     "domain": "marketing",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingEvents", "MarketingEvents"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap. Needs live marketing app-scoped capture for list, filtering, and empty-connection behavior before snapshot or overlay support."
+    "runtimeTests": ["tests/integration/marketing-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local read support for captured selected fields, empty connections, filtering, sorting, reverse ordering, and cursor/pageInfo shapes. No marketing mutation staging is included."
   },
   {
     "name": "marketingActivityCreate",

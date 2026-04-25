@@ -1,0 +1,93 @@
+#graphql
+mutation PaymentCustomizationValidation(
+  $badCreate: PaymentCustomizationInput!
+  $missingFunction: PaymentCustomizationInput!
+  $missingTitle: PaymentCustomizationInput!
+  $missingEnabled: PaymentCustomizationInput!
+  $unknownId: ID!
+  $badUpdate: PaymentCustomizationInput!
+  $activationIds: [ID!]!
+  $emptyActivationIds: [ID!]!
+  $enabled: Boolean!
+) {
+  badCreate: paymentCustomizationCreate(paymentCustomization: $badCreate) {
+    paymentCustomization {
+      id
+      title
+      enabled
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  missingFunction: paymentCustomizationCreate(paymentCustomization: $missingFunction) {
+    paymentCustomization {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  missingTitle: paymentCustomizationCreate(paymentCustomization: $missingTitle) {
+    paymentCustomization {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  missingEnabled: paymentCustomizationCreate(paymentCustomization: $missingEnabled) {
+    paymentCustomization {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  unknownUpdate: paymentCustomizationUpdate(id: $unknownId, paymentCustomization: $badUpdate) {
+    paymentCustomization {
+      id
+      title
+      enabled
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  unknownActivation: paymentCustomizationActivation(ids: $activationIds, enabled: $enabled) {
+    ids
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  emptyActivation: paymentCustomizationActivation(ids: $emptyActivationIds, enabled: $enabled) {
+    ids
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  unknownDelete: paymentCustomizationDelete(id: $unknownId) {
+    deletedId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

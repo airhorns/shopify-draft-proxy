@@ -32,6 +32,7 @@ import {
 import { handleDeliveryProfileQuery } from '../src/proxy/delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from '../src/proxy/discounts.js';
 import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
+import { handleMarketingQuery, hydrateMarketingFromUpstreamResponse } from '../src/proxy/marketing.js';
 import {
   handleMarketMutation,
   handleMarketsQuery,
@@ -46,6 +47,7 @@ import {
   hydrateProductsFromUpstreamResponse,
 } from '../src/proxy/products.js';
 import { handleMetafieldDefinitionQuery } from '../src/proxy/metafield-definitions.js';
+import { handlePaymentMutation, handlePaymentQuery } from '../src/proxy/payments.js';
 import {
   handleSegmentMutation,
   handleSegmentsQuery,
@@ -135,6 +137,13 @@ interface CompiledRule extends ExpectedDifference {
 }
 
 type PathSegment = string | number | '*';
+
+const PAYMENT_CUSTOMIZATION_MUTATION_ROOTS = new Set([
+  'paymentCustomizationActivation',
+  'paymentCustomizationCreate',
+  'paymentCustomizationDelete',
+  'paymentCustomizationUpdate',
+]);
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -787,6 +796,29 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (
+    capability.execution === 'stage-locally' &&
+    capability.domain === 'payments' &&
+    parsed.rootFields.some((rootField) => PAYMENT_CUSTOMIZATION_MUTATION_ROOTS.has(rootField))
+  ) {
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2025-01/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: handlePaymentMutation(document, variables),
+    };
+  }
+
   if (capability.execution === 'overlay-read' && capability.domain === 'products') {
     if (upstreamPayload !== undefined) {
       hydrateProductsFromUpstreamResponse(document, variables, upstreamPayload);
@@ -856,6 +888,13 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'overlay-read' && capability.domain === 'payments') {
+    return {
+      status: 200,
+      body: handlePaymentQuery(document, variables),
+    };
+  }
+
   if (capability.execution === 'overlay-read' && capability.domain === 'store-properties') {
     return {
       status: 200,
@@ -903,6 +942,17 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleSegmentsQuery(document, variables),
+    };
+  }
+
+  if (capability.execution === 'overlay-read' && capability.domain === 'marketing') {
+    if (upstreamPayload !== undefined) {
+      hydrateMarketingFromUpstreamResponse(document, variables, upstreamPayload);
+    }
+
+    return {
+      status: 200,
+      body: handleMarketingQuery(document, variables),
     };
   }
 

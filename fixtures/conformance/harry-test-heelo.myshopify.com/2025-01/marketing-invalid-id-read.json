@@ -1,0 +1,44 @@
+{
+  "errors": [
+    {
+      "message": "Variable $activityId of type ID! was provided invalid value",
+      "locations": [
+        {
+          "line": 2,
+          "column": 32
+        }
+      ],
+      "extensions": {
+        "code": "INVALID_VARIABLE",
+        "value": "not-a-shopify-marketing-activity-gid",
+        "problems": [
+          {
+            "path": [],
+            "explanation": "Invalid global id 'not-a-shopify-marketing-activity-gid'",
+            "message": "Invalid global id 'not-a-shopify-marketing-activity-gid'"
+          }
+        ]
+      }
+    },
+    {
+      "message": "Variable $eventId of type ID! was provided invalid value",
+      "locations": [
+        {
+          "line": 2,
+          "column": 50
+        }
+      ],
+      "extensions": {
+        "code": "INVALID_VARIABLE",
+        "value": "not-a-shopify-marketing-event-gid",
+        "problems": [
+          {
+            "path": [],
+            "explanation": "Invalid global id 'not-a-shopify-marketing-event-gid'",
+            "message": "Invalid global id 'not-a-shopify-marketing-event-gid'"
+          }
+        ]
+      }
+    }
+  ]
+}

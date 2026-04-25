@@ -1,0 +1,31 @@
+query PaymentCustomizationEmptyRead($first: Int!, $query: String, $unknownId: ID!) {
+  paymentCustomizations(first: $first, query: $query) {
+    nodes {
+      id
+      title
+      enabled
+      functionId
+    }
+    edges {
+      cursor
+      node {
+        id
+        title
+        enabled
+        functionId
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  paymentCustomization(id: $unknownId) {
+    id
+    title
+    enabled
+    functionId
+  }
+}
