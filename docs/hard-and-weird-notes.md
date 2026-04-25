@@ -574,6 +574,25 @@ Practical rule:
 - preserve the original service handle on update unless a broader capture proves a handle-changing input exists
 - do not invoke callback, stock fetch, tracking fetch, or fulfillment-order notification endpoints while staging locally; capture only enough metadata to make downstream reads coherent
 
+### 9b. Carrier services are simple records, but their userErrors and callbacks are easy to over-model
+
+HAR-237 live probes against Admin GraphQL 2026-04 on `harry-test-heelo.myshopify.com` showed a narrower carrier-service shape than fulfillment services:
+
+- top-level current-schema roots are `carrierService`, `carrierServices`, `availableCarrierServices`, `carrierServiceCreate`, `carrierServiceUpdate`, and `carrierServiceDelete`
+- `carrierService(id:)` returns `null` for an unknown `DeliveryCarrierService` ID
+- an empty store returns an empty `carrierServices` connection with empty `nodes`/`edges`, false page booleans, and null cursors
+- `carrierServiceCreate` accepted an inactive app service with `callbackUrl: "https://mock.shop/..."`, returned `formattedName: "<name> (Rates provided by app)"`, and did not need any associated `Location` modeling
+- `carrierServiceUpdate` can change `name`, `callbackUrl`, `active`, and `supportsServiceDiscovery`; immediate downstream detail reads and `carrierServices(query: "active:true")` / `carrierServices(query: "id:<numeric id>")` reflected the update
+- blank create name returned `userErrors[{ field: null, message: "Shipping rate provider name can't be blank" }]`
+- unknown update returned `userErrors[{ field: null, message: "The carrier or app could not be found." }]`, while unknown delete returned the same message with `field: ["id"]`
+- `carrierServiceDelete` is present in the 2026-04 schema and returned `deletedId` as the full `DeliveryCarrierService` GID; downstream detail and id-filtered catalog reads were empty after cleanup
+
+Practical rule:
+
+- model carrier services as standalone rate-provider records, not service-plus-location records
+- derive `formattedName` from the local service name for app-backed staged records
+- never invoke rate callback URLs, service discovery callbacks, or checkout-rate side effects while staging locally; persist those inputs only so read-after-write behavior is coherent
+
 ## 10. Pagination and sorting are going to get gnarly fast
 
 Current `products(first: N)` support no longer stops at the default `createdAt desc` order. Overlay reads now also cover an explicit sort-key slice including:
@@ -2265,6 +2284,29 @@ Practical rule:
 - keep the implementation constrained to native code-basic discounts until separate conformance evidence exists for BXGY, free-shipping, automatic, app-discount, and bulk-job happy paths
 - preserve original raw mutation bodies for commit replay, and rely on the existing synthetic ID mapper so create responses map staged `DiscountCodeNode` IDs before later update/activate/deactivate/delete replays
 - continue using captured `DiscountUserError` branches for known invalid input rather than proxying those requests upstream
+
+## 62. Free-shipping discounts are a shipping model, not amount-off `customerGets`
+
+HAR-196 captured native code and automatic free-shipping lifecycle behavior against Admin GraphQL 2026-04.
+
+Captured shape:
+
+- `DiscountCodeFreeShippingInput.maximumShippingPrice` and `DiscountAutomaticFreeShippingInput.maximumShippingPrice` are `Decimal` scalars, but response fields serialize as nullable `MoneyV2` objects.
+- response objects expose `destinationSelection`, not `destination`; `destination: { all: true }` becomes `DiscountCountryAll { allCountries: true }`.
+- `destination: { countries: { add: ['US', 'CA'], includeRestOfWorld: false } }` came back as `DiscountCountries { countries: ['CA', 'US'], includeRestOfWorld: false }`.
+- free-shipping discount records use `discountClasses: ['SHIPPING']` and do not expose amount-off `customerGets`.
+- code free shipping has `appliesOncePerCustomer`, `usageLimit`, redeem-code connection fields, one-time/subscription applicability, and nullable `recurringCycleLimit`.
+- automatic free shipping has one-time/subscription applicability and non-null `recurringCycleLimit`, but no redeem-code connection, `usageLimit`, or `appliesOncePerCustomer`.
+
+Captured validation quirks:
+
+- setting both minimum subtotal and minimum quantity on a free-shipping update returns two mutation-scoped `CONFLICT` user errors, one for each requirement branch.
+- on the current conformance store, setting `countries.includeRestOfWorld: true` while selecting countries produced a top-level `NOT_FOUND` error: `Could not find rest of the world in shipping zones defined for the shop`.
+
+Practical rule:
+
+- model free-shipping Admin visibility through destination/minimum/max-shipping/applicability fields and keep checkout shipping-rate application out of scope until a separate capture proves that behavior.
+- do not broaden destination or money validation beyond captured branches without another live fixture; store-specific shipping-zone setup can change destination error behavior.
 
 Observed current-version surface:
 

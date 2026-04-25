@@ -2,11 +2,14 @@ import { Kind, type FieldNode, type SelectionNode, type ValueNode } from 'graphq
 
 import { logger } from '../logger.js';
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
+import { parseSearchQueryTerms, normalizeSearchQueryValue, type SearchQueryTerm } from '../search-query-parser.js';
+import { compareShopifyResourceIds } from '../shopify/resource-ids.js';
 import { makeProxySyntheticGid, makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type {
   BusinessEntityAddressRecord,
   BusinessEntityRecord,
+  CarrierServiceRecord,
   FulfillmentServiceRecord,
   InventoryLevelRecord,
   LocationAddressRecord,
@@ -67,6 +70,11 @@ interface LocationUserErrorRecord {
 }
 
 interface FulfillmentServiceUserErrorRecord {
+  field: string[] | null;
+  message: string;
+}
+
+interface CarrierServiceUserErrorRecord {
   field: string[] | null;
   message: string;
 }
@@ -527,6 +535,56 @@ function serializeFulfillmentService(
         break;
       case 'type':
         result[key] = service.type;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeCarrierService(
+  service: CarrierServiceRecord,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'DeliveryCarrierService') {
+        continue;
+      }
+      Object.assign(result, serializeCarrierService(service, selection.selectionSet.selections));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'DeliveryCarrierService';
+        break;
+      case 'id':
+        result[key] = service.id;
+        break;
+      case 'name':
+        result[key] = service.name;
+        break;
+      case 'formattedName':
+        result[key] = service.formattedName;
+        break;
+      case 'callbackUrl':
+        result[key] = service.callbackUrl;
+        break;
+      case 'active':
+        result[key] = service.active;
+        break;
+      case 'supportsServiceDiscovery':
+        result[key] = service.supportsServiceDiscovery;
         break;
       default:
         result[key] = null;
@@ -2419,6 +2477,310 @@ function normalizeFulfillmentServiceHandle(name: string): string {
   return handle.length > 0 ? handle : 'fulfillment-service';
 }
 
+function carrierServiceNumericId(id: string): string {
+  return id.split('/').at(-1)?.split('?')[0] ?? id;
+}
+
+function carrierServiceFormattedName(name: string | null): string | null {
+  return name ? `${name} (Rates provided by app)` : null;
+}
+
+function carrierServiceMatchesTerm(service: CarrierServiceRecord, term: SearchQueryTerm): boolean {
+  const normalizedValue = normalizeSearchQueryValue(term.value);
+  let matches = true;
+
+  switch (term.field) {
+    case 'active':
+      matches = normalizedValue === String(service.active);
+      break;
+    case 'id':
+      matches =
+        normalizedValue === normalizeSearchQueryValue(service.id) ||
+        normalizedValue === carrierServiceNumericId(service.id);
+      break;
+    default:
+      matches = true;
+      break;
+  }
+
+  return term.negated ? !matches : matches;
+}
+
+function filterCarrierServicesByQuery(services: CarrierServiceRecord[], rawQuery: unknown): CarrierServiceRecord[] {
+  if (typeof rawQuery !== 'string' || rawQuery.trim().length === 0) {
+    return services;
+  }
+
+  const terms = parseSearchQueryTerms(rawQuery.trim(), { ignoredKeywords: ['AND'] }).filter(
+    (term) => term.field === 'active' || term.field === 'id',
+  );
+  return terms.length === 0
+    ? services
+    : services.filter((service) => terms.every((term) => carrierServiceMatchesTerm(service, term)));
+}
+
+function compareCarrierServices(left: CarrierServiceRecord, right: CarrierServiceRecord, sortKey: unknown): number {
+  switch (sortKey) {
+    case 'CREATED_AT':
+      return Date.parse(left.createdAt) - Date.parse(right.createdAt) || compareShopifyResourceIds(left.id, right.id);
+    case 'UPDATED_AT':
+      return Date.parse(left.updatedAt) - Date.parse(right.updatedAt) || compareShopifyResourceIds(left.id, right.id);
+    case 'ID':
+    default:
+      return compareShopifyResourceIds(left.id, right.id);
+  }
+}
+
+function listCarrierServicesForConnection(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): CarrierServiceRecord[] {
+  const args = getFieldArguments(field, variables);
+  const reverse = args['reverse'] === true;
+  const sortedServices = filterCarrierServicesByQuery(store.listEffectiveCarrierServices(), args['query']).sort(
+    (left, right) => compareCarrierServices(left, right, args['sortKey']),
+  );
+
+  return reverse ? sortedServices.reverse() : sortedServices;
+}
+
+function serializeCarrierServicesConnection(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const services = listCarrierServicesForConnection(field, variables);
+  const getCursor = (service: CarrierServiceRecord): string => service.id;
+  const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(services, field, variables, getCursor);
+
+  return serializeConnection(field, {
+    items,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: getCursor,
+    serializeNode: (service, selection) => serializeCarrierService(service, selection.selectionSet?.selections ?? []),
+  });
+}
+
+function readCarrierServiceInput(args: Record<string, unknown>): Record<string, unknown> {
+  const input = args['input'];
+  return input && typeof input === 'object' && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
+}
+
+function readCarrierServiceCallbackUrl(input: Record<string, unknown>): string | null {
+  const value = input['callbackUrl'];
+  return typeof value === 'string' && value.trim().length > 0 ? value : null;
+}
+
+function validateCarrierServiceName(name: string | null): CarrierServiceUserErrorRecord[] {
+  if (typeof name !== 'string' || name.trim().length === 0) {
+    return [{ field: null, message: "Shipping rate provider name can't be blank" }];
+  }
+
+  return [];
+}
+
+function stageCarrierServiceCreate(args: Record<string, unknown>): {
+  carrierService: CarrierServiceRecord | null;
+  userErrors: CarrierServiceUserErrorRecord[];
+} {
+  const input = readCarrierServiceInput(args);
+  const name = typeof input['name'] === 'string' ? input['name'].trim() : null;
+  const userErrors = validateCarrierServiceName(name);
+  if (userErrors.length > 0 || !name) {
+    return { carrierService: null, userErrors };
+  }
+
+  const now = makeSyntheticTimestamp();
+  const service: CarrierServiceRecord = {
+    id: makeProxySyntheticGid('DeliveryCarrierService'),
+    name,
+    formattedName: carrierServiceFormattedName(name),
+    callbackUrl: readCarrierServiceCallbackUrl(input),
+    active: input['active'] === true,
+    supportsServiceDiscovery: input['supportsServiceDiscovery'] === true,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  return { carrierService: store.stageCreateCarrierService(service), userErrors: [] };
+}
+
+function carrierServiceNotFoundForUpdate(): CarrierServiceUserErrorRecord {
+  return { field: null, message: 'The carrier or app could not be found.' };
+}
+
+function carrierServiceNotFoundForDelete(): CarrierServiceUserErrorRecord {
+  return { field: ['id'], message: 'The carrier or app could not be found.' };
+}
+
+function stageCarrierServiceUpdate(args: Record<string, unknown>): {
+  carrierService: CarrierServiceRecord | null;
+  userErrors: CarrierServiceUserErrorRecord[];
+} {
+  const input = readCarrierServiceInput(args);
+  const id = typeof input['id'] === 'string' ? input['id'] : null;
+  const existing = id ? store.getEffectiveCarrierServiceById(id) : null;
+  if (!id || !existing) {
+    return { carrierService: null, userErrors: [carrierServiceNotFoundForUpdate()] };
+  }
+
+  const nextName = typeof input['name'] === 'string' ? input['name'].trim() : existing.name;
+  const userErrors = validateCarrierServiceName(nextName);
+  if (userErrors.length > 0) {
+    return { carrierService: null, userErrors };
+  }
+
+  const carrierService: CarrierServiceRecord = {
+    ...existing,
+    name: nextName,
+    formattedName: carrierServiceFormattedName(nextName),
+    callbackUrl: Object.prototype.hasOwnProperty.call(input, 'callbackUrl')
+      ? readCarrierServiceCallbackUrl(input)
+      : existing.callbackUrl,
+    active: typeof input['active'] === 'boolean' ? input['active'] : existing.active,
+    supportsServiceDiscovery:
+      typeof input['supportsServiceDiscovery'] === 'boolean'
+        ? input['supportsServiceDiscovery']
+        : existing.supportsServiceDiscovery,
+    updatedAt: makeSyntheticTimestamp(),
+  };
+
+  return { carrierService: store.stageUpdateCarrierService(carrierService), userErrors: [] };
+}
+
+function stageCarrierServiceDelete(args: Record<string, unknown>): {
+  deletedId: string | null;
+  userErrors: CarrierServiceUserErrorRecord[];
+} {
+  const id = typeof args['id'] === 'string' ? args['id'] : null;
+  const existing = id ? store.getEffectiveCarrierServiceById(id) : null;
+  if (!id || !existing) {
+    return { deletedId: null, userErrors: [carrierServiceNotFoundForDelete()] };
+  }
+
+  store.stageDeleteCarrierService(id);
+  return { deletedId: id, userErrors: [] };
+}
+
+function serializeCarrierServiceUserErrors(
+  userErrors: CarrierServiceUserErrorRecord[],
+  selections: readonly SelectionNode[],
+): Array<Record<string, unknown>> {
+  return userErrors.map((userError) => {
+    const result: Record<string, unknown> = {};
+
+    for (const selection of selections) {
+      if (selection.kind === Kind.INLINE_FRAGMENT) {
+        Object.assign(result, serializeCarrierServiceUserErrors([userError], selection.selectionSet.selections)[0]);
+        continue;
+      }
+
+      if (selection.kind !== Kind.FIELD) {
+        continue;
+      }
+
+      const key = responseKey(selection);
+      switch (selection.name.value) {
+        case '__typename':
+          result[key] = 'UserError';
+          break;
+        case 'field':
+          result[key] = userError.field ? structuredClone(userError.field) : null;
+          break;
+        case 'message':
+          result[key] = userError.message;
+          break;
+        default:
+          result[key] = null;
+      }
+    }
+
+    return result;
+  });
+}
+
+function serializeCarrierServiceMutationPayload(
+  payload: { carrierService: CarrierServiceRecord | null; userErrors: CarrierServiceUserErrorRecord[] },
+  payloadTypename: string,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== payloadTypename) {
+        continue;
+      }
+      Object.assign(
+        result,
+        serializeCarrierServiceMutationPayload(payload, payloadTypename, selection.selectionSet.selections),
+      );
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = payloadTypename;
+        break;
+      case 'carrierService':
+        result[key] = payload.carrierService
+          ? serializeCarrierService(payload.carrierService, selection.selectionSet?.selections ?? [])
+          : null;
+        break;
+      case 'userErrors':
+        result[key] = serializeCarrierServiceUserErrors(payload.userErrors, selection.selectionSet?.selections ?? []);
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeCarrierServiceDeletePayload(
+  payload: { deletedId: string | null; userErrors: CarrierServiceUserErrorRecord[] },
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'CarrierServiceDeletePayload') {
+        continue;
+      }
+      Object.assign(result, serializeCarrierServiceDeletePayload(payload, selection.selectionSet.selections));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'CarrierServiceDeletePayload';
+        break;
+      case 'deletedId':
+        result[key] = payload.deletedId;
+        break;
+      case 'userErrors':
+        result[key] = serializeCarrierServiceUserErrors(payload.userErrors, selection.selectionSet?.selections ?? []);
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
 function isAllowedFulfillmentServiceCallbackUrl(callbackUrl: string | null): boolean {
   if (callbackUrl === null || callbackUrl.trim().length === 0) {
     return true;
@@ -2918,6 +3280,32 @@ export function handleStorePropertiesMutation(
   for (const field of fields) {
     const key = responseKey(field);
     switch (field.name.value) {
+      case 'carrierServiceCreate': {
+        const args = getFieldArguments(field, variables);
+        data[key] = serializeCarrierServiceMutationPayload(
+          stageCarrierServiceCreate(args),
+          'CarrierServiceCreatePayload',
+          field.selectionSet?.selections ?? [],
+        );
+        break;
+      }
+      case 'carrierServiceUpdate': {
+        const args = getFieldArguments(field, variables);
+        data[key] = serializeCarrierServiceMutationPayload(
+          stageCarrierServiceUpdate(args),
+          'CarrierServiceUpdatePayload',
+          field.selectionSet?.selections ?? [],
+        );
+        break;
+      }
+      case 'carrierServiceDelete': {
+        const args = getFieldArguments(field, variables);
+        data[key] = serializeCarrierServiceDeletePayload(
+          stageCarrierServiceDelete(args),
+          field.selectionSet?.selections ?? [],
+        );
+        break;
+      }
       case 'fulfillmentServiceCreate': {
         const args = getFieldArguments(field, variables);
         data[key] = serializeFulfillmentServiceMutationPayload(
@@ -3124,6 +3512,17 @@ export function handleStorePropertiesQuery(
           : null;
         break;
       }
+      case 'carrierService': {
+        const args = getFieldArguments(field, variables);
+        const rawId = args['id'];
+        const id = typeof rawId === 'string' && rawId.length > 0 ? rawId : null;
+        const service = id ? store.getEffectiveCarrierServiceById(id) : null;
+        data[key] = service ? serializeCarrierService(service, field.selectionSet?.selections ?? []) : null;
+        break;
+      }
+      case 'carrierServices':
+        data[key] = serializeCarrierServicesConnection(field, variables);
+        break;
       case 'fulfillmentService': {
         const args = getFieldArguments(field, variables);
         const rawId = args['id'];

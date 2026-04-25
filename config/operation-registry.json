@@ -1858,70 +1858,70 @@
     "type": "query",
     "domain": "shipping-fulfillments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["carrierService", "CarrierService"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL DeliveryCarrierService ID lookup root. Registry-only declared gap until callback URL, active/service discovery flags, app ownership, and missing-service nullability are captured."
+    "runtimeTests": ["tests/integration/carrier-service-flow.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 DeliveryCarrierService ID lookup root. Snapshot reads resolve from the local carrier-service graph and return null for missing IDs; staged create/update/delete effects are visible without invoking callback URLs."
   },
   {
     "name": "carrierServices",
     "type": "query",
     "domain": "shipping-fulfillments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["carrierServices", "CarrierServices"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL DeliveryCarrierService catalog root. Registry-only declared gap until active-only behavior, sort keys, pagination, and app/scopes visibility are captured."
+    "runtimeTests": ["tests/integration/carrier-service-flow.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 DeliveryCarrierService connection root. Local support covers empty/no-data behavior, active/id query filters, ID/created/updated sorting, reverse ordering, and cursor pagination for snapshot plus staged carrier services."
   },
   {
     "name": "carrierServiceCreate",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["carrierServiceCreate", "CarrierServiceCreate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_shipping access behavior, plan eligibility userErrors, callback URL validation, and downstream carrier-service reads before support."
+    "runtimeTests": ["tests/integration/carrier-service-flow.test.ts"],
+    "supportNotes": "Locally stages DeliveryCarrierService creation with name, callback URL, active status, and service-discovery flags. The original raw mutation is retained for commit replay and callback/service-discovery endpoints are not invoked at runtime."
   },
   {
     "name": "carrierServiceDelete",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["carrierServiceDelete", "CarrierServiceDelete"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires app ownership checks, deletedId/userErrors behavior, and downstream catalog absence before support."
+    "runtimeTests": ["tests/integration/carrier-service-flow.test.ts"],
+    "supportNotes": "Locally stages DeliveryCarrierService deletion with captured unknown-id userError behavior and downstream catalog/detail absence. Delete root presence was verified against Admin GraphQL 2026-04 before enabling support."
   },
   {
     "name": "carrierServiceUpdate",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["carrierServiceUpdate", "CarrierServiceUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires app ownership checks, callback/active/service discovery field validation, and downstream read visibility before support."
+    "runtimeTests": ["tests/integration/carrier-service-flow.test.ts"],
+    "supportNotes": "Locally stages DeliveryCarrierService updates for name, callback URL, active status, and service-discovery flags. Unknown IDs mirror the captured app ownership/not-found userError and downstream reads observe the staged values."
   },
   {
     "name": "deliveryProfile",
     "type": "query",
     "domain": "shipping-fulfillments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["deliveryProfile", "DeliveryProfile"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 DeliveryProfile ID lookup root. Registry-only declared gap until nested location groups, zones, method definitions, product variant assignments, and missing-profile nullability are captured."
+    "runtimeTests": ["tests/integration/delivery-profile-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 DeliveryProfile ID lookup root is fixture-backed in snapshot mode for captured scalar fields, nested location groups, zones, method definitions, product/variant assignments, unassigned locations, and missing-profile nullability. Delivery-profile writes remain unsupported until local staging models asynchronous removal jobs and nested validation behavior."
   },
   {
     "name": "deliveryProfiles",
     "type": "query",
     "domain": "shipping-fulfillments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["deliveryProfiles", "DeliveryProfiles"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 DeliveryProfile catalog root. Registry-only declared gap until merchantOwnedOnly, pagination, default profile behavior, legacy mode, and empty/permission behavior are captured."
+    "runtimeTests": ["tests/integration/delivery-profile-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 DeliveryProfile catalog root is fixture-backed in snapshot mode for first/last cursor windows, reverse ordering, merchantOwnedOnly filtering, and empty/no-data connection behavior. The local model does not invent delivery profiles when normalized fixtures are absent."
   },
   {
     "name": "locationsAvailableForDeliveryProfilesConnection",
@@ -2262,19 +2262,21 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountCodeFreeShippingCreate", "DiscountCodeFreeShippingCreate"],
-    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
-    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
+    "runtimeTests": [
+      "tests/integration/discount-mutation-validation.test.ts",
+      "tests/integration/discount-free-shipping-lifecycle-flow.test.ts"
+    ]
   },
   {
     "name": "discountCodeFreeShippingUpdate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountCodeFreeShippingUpdate", "DiscountCodeFreeShippingUpdate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-free-shipping-lifecycle-flow.test.ts"]
   },
   {
     "name": "discountCodeActivate",
@@ -2406,19 +2408,21 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticFreeShippingCreate", "DiscountAutomaticFreeShippingCreate"],
-    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
-    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
+    "runtimeTests": [
+      "tests/integration/discount-mutation-validation.test.ts",
+      "tests/integration/discount-free-shipping-lifecycle-flow.test.ts"
+    ]
   },
   {
     "name": "discountAutomaticFreeShippingUpdate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticFreeShippingUpdate", "DiscountAutomaticFreeShippingUpdate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-free-shipping-lifecycle-flow.test.ts"]
   },
   {
     "name": "discountAutomaticActivate",
