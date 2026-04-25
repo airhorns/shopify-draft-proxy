@@ -271,7 +271,8 @@ export type FileRecord = z.infer<typeof fileRecordSchema>;
 
 export const productMetafieldRecordSchema = z.strictObject({
   id: z.string(),
-  productId: z.string(),
+  productId: z.string().optional(),
+  ownerId: z.string().optional(),
   namespace: z.string(),
   key: z.string(),
   type: nullableStringSchema,
