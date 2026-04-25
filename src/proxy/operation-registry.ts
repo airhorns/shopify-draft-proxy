@@ -9,6 +9,7 @@ export type CapabilityDomain =
   | 'store-properties'
   | 'discounts'
   | 'marketing'
+  | 'privacy'
   | 'segments'
   | 'shipping-fulfillments'
   | 'markets'

@@ -45,6 +45,7 @@ export const operationRegistryEntrySchema = z.strictObject({
     'store-properties',
     'discounts',
     'marketing',
+    'privacy',
     'segments',
     'shipping-fulfillments',
     'metafields',
