@@ -1,0 +1,60 @@
+query CustomerByIdentifierConformance(
+  $idIdentifier: CustomerIdentifierInput!
+  $emailIdentifier: CustomerIdentifierInput!
+  $phoneIdentifier: CustomerIdentifierInput!
+  $missingIdentifier: CustomerIdentifierInput!
+) {
+  byId: customerByIdentifier(identifier: $idIdentifier) {
+    id
+    firstName
+    lastName
+    displayName
+    email
+    legacyResourceId
+    locale
+    note
+    canDelete
+    verifiedEmail
+    taxExempt
+    state
+    tags
+    numberOfOrders
+    amountSpent {
+      amount
+      currencyCode
+    }
+    defaultEmailAddress {
+      emailAddress
+    }
+    defaultPhoneNumber {
+      phoneNumber
+    }
+    defaultAddress {
+      address1
+      city
+      province
+      country
+      zip
+      formattedArea
+    }
+    createdAt
+    updatedAt
+  }
+  byEmail: customerByIdentifier(identifier: $emailIdentifier) {
+    id
+    email
+    defaultEmailAddress {
+      emailAddress
+    }
+  }
+  byPhone: customerByIdentifier(identifier: $phoneIdentifier) {
+    id
+    defaultPhoneNumber {
+      phoneNumber
+    }
+  }
+  missingEmail: customerByIdentifier(identifier: $missingIdentifier) {
+    id
+    email
+  }
+}

@@ -890,15 +890,28 @@ function recalculateDraftOrderTotals(draftOrder: DraftOrderRecord): DraftOrderRe
     draftOrder.subtotalPriceSet?.shopMoney.currencyCode ??
     draftOrder.shippingLine?.originalPriceSet?.shopMoney.currencyCode ??
     'CAD';
-  const subtotal = formatDecimalAmount(
-    draftOrder.lineItems.reduce(
-      (sum, lineItem) => sum + parseDecimalAmount(lineItem.originalUnitPriceSet?.shopMoney.amount) * lineItem.quantity,
-      0,
-    ),
+  const lineDiscountTotal = draftOrder.lineItems.reduce(
+    (sum, lineItem) => sum + parseDecimalAmount(lineItem.totalDiscountSet?.shopMoney.amount),
+    0,
   );
+  const discountedLineSubtotal = formatDecimalAmount(
+    draftOrder.lineItems.reduce((sum, lineItem) => {
+      const discountedTotal = lineItem.discountedTotalSet?.shopMoney.amount;
+      const fallbackTotal = formatDecimalAmount(
+        parseDecimalAmount(lineItem.originalUnitPriceSet?.shopMoney.amount) * lineItem.quantity,
+      );
+      return sum + parseDecimalAmount(discountedTotal ?? fallbackTotal);
+    }, 0),
+  );
+  const orderDiscountTotal = calculateDraftOrderDiscountAmount(
+    draftOrder.appliedDiscount,
+    parseDecimalAmount(discountedLineSubtotal),
+  );
+  const subtotal = formatDecimalAmount(Math.max(0, parseDecimalAmount(discountedLineSubtotal) - orderDiscountTotal));
   const shippingTotal = formatDecimalAmount(
     parseDecimalAmount(draftOrder.shippingLine?.originalPriceSet?.shopMoney.amount),
   );
+  const totalDiscount = formatDecimalAmount(lineDiscountTotal + orderDiscountTotal);
   const total = formatDecimalAmount(parseDecimalAmount(subtotal) + parseDecimalAmount(shippingTotal));
 
   return {
@@ -908,6 +921,12 @@ function recalculateDraftOrderTotals(draftOrder: DraftOrderRecord): DraftOrderRe
     },
     totalPriceSet: {
       shopMoney: normalizeMoney(total, currencyCode),
+    },
+    totalDiscountsSet: {
+      shopMoney: normalizeMoney(totalDiscount, currencyCode),
+    },
+    totalShippingPriceSet: {
+      shopMoney: normalizeMoney(shippingTotal, currencyCode),
     },
   };
 }
@@ -957,7 +976,7 @@ function duplicateDraftOrder(draftOrder: DraftOrderRecord, shopifyAdminOrigin: s
   const createdAt = makeSyntheticTimestamp();
   const invoiceId = draftOrderId.split('/').at(-1) ?? 'draft-order';
 
-  return {
+  return recalculateDraftOrderTotals({
     ...structuredClone(draftOrder),
     id: draftOrderId,
     name: `#D${store.getDraftOrders().length + 1}`,
@@ -965,14 +984,23 @@ function duplicateDraftOrder(draftOrder: DraftOrderRecord, shopifyAdminOrigin: s
     completedAt: null,
     invoiceUrl: `${shopifyAdminOrigin.replace(/\/$/, '')}/draft_orders/${invoiceId}/invoice`,
     status: 'OPEN',
-    ready: false,
+    ready: true,
+    taxExempt: false,
+    reserveInventoryUntil: null,
+    appliedDiscount: null,
+    shippingLine: null,
     createdAt,
     updatedAt: createdAt,
     lineItems: draftOrder.lineItems.map((lineItem) => ({
       ...structuredClone(lineItem),
       id: makeSyntheticGid('DraftOrderLineItem'),
+      appliedDiscount: null,
+      discountedTotalSet: structuredClone(lineItem.originalTotalSet),
+      totalDiscountSet: {
+        shopMoney: normalizeMoney('0.0', lineItem.originalUnitPriceSet?.shopMoney.currencyCode ?? 'CAD'),
+      },
     })),
-  };
+  });
 }
 
 function buildDraftOrderFromOrder(order: OrderRecord, shopifyAdminOrigin: string): DraftOrderRecord {
@@ -981,20 +1009,14 @@ function buildDraftOrderFromOrder(order: OrderRecord, shopifyAdminOrigin: string
   const invoiceId = draftOrderId.split('/').at(-1) ?? 'draft-order';
   const currencyCode =
     order.totalPriceSet?.shopMoney.currencyCode ?? order.subtotalPriceSet?.shopMoney.currencyCode ?? 'CAD';
-  const totalShipping = formatDecimalAmount(
-    order.shippingLines.reduce(
-      (sum, shippingLine) => sum + parseDecimalAmount(shippingLine.originalPriceSet?.shopMoney.amount),
-      0,
-    ),
-  );
 
   return {
     id: draftOrderId,
     name: `#D${store.getDraftOrders().length + 1}`,
     invoiceUrl: `${shopifyAdminOrigin.replace(/\/$/, '')}/draft_orders/${invoiceId}/invoice`,
     status: 'OPEN',
-    ready: false,
-    email: order.customer?.email ?? null,
+    ready: true,
+    email: order.email ?? order.customer?.email ?? null,
     note: order.note,
     tags: structuredClone(order.tags),
     customer: order.customer
@@ -1012,17 +1034,39 @@ function buildDraftOrderFromOrder(order: OrderRecord, shopifyAdminOrigin: string
     customAttributes: structuredClone(order.customAttributes),
     billingAddress: structuredClone(order.billingAddress),
     shippingAddress: structuredClone(order.shippingAddress),
-    shippingLine: order.shippingLines[0] ? structuredClone(order.shippingLines[0]) : null,
+    shippingLine: null,
     createdAt,
     updatedAt: createdAt,
-    subtotalPriceSet: structuredClone(order.subtotalPriceSet),
+    subtotalPriceSet: {
+      shopMoney: normalizeMoney(
+        formatDecimalAmount(
+          order.lineItems.reduce(
+            (sum, lineItem) =>
+              sum + parseDecimalAmount(lineItem.originalUnitPriceSet?.shopMoney.amount) * lineItem.quantity,
+            0,
+          ),
+        ),
+        currencyCode,
+      ),
+    },
     totalDiscountsSet: {
       shopMoney: normalizeMoney('0.0', currencyCode),
     },
     totalShippingPriceSet: {
-      shopMoney: normalizeMoney(totalShipping, currencyCode),
+      shopMoney: normalizeMoney('0.0', currencyCode),
     },
-    totalPriceSet: structuredClone(order.totalPriceSet),
+    totalPriceSet: {
+      shopMoney: normalizeMoney(
+        formatDecimalAmount(
+          order.lineItems.reduce(
+            (sum, lineItem) =>
+              sum + parseDecimalAmount(lineItem.originalUnitPriceSet?.shopMoney.amount) * lineItem.quantity,
+            0,
+          ),
+        ),
+        currencyCode,
+      ),
+    },
     lineItems: order.lineItems.map((lineItem) => ({
       id: makeSyntheticGid('DraftOrderLineItem'),
       title: lineItem.title,
@@ -1030,16 +1074,34 @@ function buildDraftOrderFromOrder(order: OrderRecord, shopifyAdminOrigin: string
       quantity: lineItem.quantity,
       sku: lineItem.sku,
       variantTitle: lineItem.variantTitle,
-      variantId: null,
+      variantId: lineItem.variantId ?? null,
       productId: null,
-      custom: true,
+      custom: !lineItem.variantId,
       requiresShipping: true,
       taxable: true,
       customAttributes: [],
       appliedDiscount: null,
       originalUnitPriceSet: structuredClone(lineItem.originalUnitPriceSet),
-      originalTotalSet: structuredClone(lineItem.originalUnitPriceSet),
-      discountedTotalSet: structuredClone(lineItem.originalUnitPriceSet),
+      originalTotalSet: lineItem.originalUnitPriceSet
+        ? {
+            shopMoney: normalizeMoney(
+              formatDecimalAmount(
+                parseDecimalAmount(lineItem.originalUnitPriceSet.shopMoney.amount) * lineItem.quantity,
+              ),
+              lineItem.originalUnitPriceSet.shopMoney.currencyCode,
+            ),
+          }
+        : null,
+      discountedTotalSet: lineItem.originalUnitPriceSet
+        ? {
+            shopMoney: normalizeMoney(
+              formatDecimalAmount(
+                parseDecimalAmount(lineItem.originalUnitPriceSet.shopMoney.amount) * lineItem.quantity,
+              ),
+              lineItem.originalUnitPriceSet.shopMoney.currencyCode,
+            ),
+          }
+        : null,
       totalDiscountSet: {
         shopMoney: normalizeMoney('0.0', currencyCode),
       },
@@ -1140,7 +1202,7 @@ function buildOrderLineItemsFromDraftOrder(draftOrder: DraftOrderRecord): OrderL
     quantity: lineItem.quantity,
     sku: lineItem.sku === '' ? null : lineItem.sku,
     variantId: null,
-    variantTitle: lineItem.variantTitle,
+    variantTitle: lineItem.variantTitle === 'Default Title' ? null : lineItem.variantTitle,
     originalUnitPriceSet: structuredClone(lineItem.originalUnitPriceSet),
     taxLines: [],
   }));

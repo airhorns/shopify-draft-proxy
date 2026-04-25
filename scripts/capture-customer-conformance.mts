@@ -125,6 +125,77 @@ const customerDetailQuery = `#graphql
   }
 `;
 
+const customerByIdentifierQuery = `#graphql
+  query CustomerByIdentifierConformance(
+    $idIdentifier: CustomerIdentifierInput!
+    $emailIdentifier: CustomerIdentifierInput!
+    $phoneIdentifier: CustomerIdentifierInput!
+    $missingIdentifier: CustomerIdentifierInput!
+  ) {
+    byId: customerByIdentifier(identifier: $idIdentifier) {
+      id
+      firstName
+      lastName
+      displayName
+      email
+      legacyResourceId
+      locale
+      note
+      canDelete
+      verifiedEmail
+      taxExempt
+      state
+      tags
+      numberOfOrders
+      amountSpent {
+        amount
+        currencyCode
+      }
+      defaultEmailAddress {
+        emailAddress
+      }
+      defaultPhoneNumber {
+        phoneNumber
+      }
+      defaultAddress {
+        address1
+        city
+        province
+        country
+        zip
+        formattedArea
+      }
+      createdAt
+      updatedAt
+    }
+    byEmail: customerByIdentifier(identifier: $emailIdentifier) {
+      id
+      email
+      defaultEmailAddress {
+        emailAddress
+      }
+    }
+    byPhone: customerByIdentifier(identifier: $phoneIdentifier) {
+      id
+      defaultPhoneNumber {
+        phoneNumber
+      }
+    }
+    missingEmail: customerByIdentifier(identifier: $missingIdentifier) {
+      id
+      email
+    }
+  }
+`;
+
+const customerByCustomIdentifierQuery = `#graphql
+  query CustomerByCustomIdentifierConformance($identifier: CustomerIdentifierInput!) {
+    customId: customerByIdentifier(identifier: $identifier) {
+      id
+    }
+  }
+`;
+
 const customersSearchQuery = `#graphql
   query CustomersSearchConformance($first: Int!, $query: String!) {
     customers(first: $first, query: $query, sortKey: UPDATED_AT, reverse: true) {
@@ -440,7 +511,7 @@ function renderProtectedCustomerDataBlocker({ message, accessScopeHandles, custo
   ].join('\n');
 }
 
-try {
+{
   await mkdir(outputDir, { recursive: true });
   await mkdir(pendingDir, { recursive: true });
 
@@ -489,6 +560,39 @@ try {
   }
 
   const detail = await runGraphql(customerDetailQuery, { id: firstCustomerId });
+  const detailCustomer = detail.data?.customer;
+  const firstCustomerEmail = detailCustomer?.email ?? detailCustomer?.defaultEmailAddress?.emailAddress;
+  const firstCustomerPhone = detailCustomer?.defaultPhoneNumber?.phoneNumber;
+  if (typeof firstCustomerEmail !== 'string' || !firstCustomerEmail) {
+    throw new Error('Customer detail capture returned no email for customerByIdentifier capture.');
+  }
+  if (typeof firstCustomerPhone !== 'string' || !firstCustomerPhone) {
+    throw new Error('Customer detail capture returned no default phone for customerByIdentifier capture.');
+  }
+
+  const customerByIdentifierVariables = {
+    idIdentifier: { id: firstCustomerId },
+    emailIdentifier: { emailAddress: firstCustomerEmail },
+    phoneIdentifier: { phoneNumber: firstCustomerPhone },
+    missingIdentifier: { emailAddress: 'missing-har-150@example.com' },
+  };
+  const customerByIdentifier = {
+    proxyVariables: customerByIdentifierVariables,
+    positiveAndMissing: await runGraphql(customerByIdentifierQuery, customerByIdentifierVariables),
+    customIdMissing: await runGraphqlResult(customerByCustomIdentifierQuery, {
+      identifier: {
+        customId: {
+          namespace: 'custom',
+          key: 'har_150_missing',
+          value: 'missing',
+        },
+      },
+    }),
+    emptyIdentifier: await runGraphqlResult(customerByIdentifierQuery, {
+      ...customerByIdentifierVariables,
+      idIdentifier: {},
+    }),
+  };
   const search = await runGraphql(customersSearchQuery, { first: 2, query: 'state:DISABLED' });
   const advancedSearch = await runGraphql(customersAdvancedSearchQuery, {
     prefixQuery: 'How*',
@@ -504,6 +608,11 @@ try {
 
   await writeFile(path.join(outputDir, 'customers-catalog.json'), `${JSON.stringify(catalog, null, 2)}\n`, 'utf8');
   await writeFile(path.join(outputDir, 'customer-detail.json'), `${JSON.stringify(detail, null, 2)}\n`, 'utf8');
+  await writeFile(
+    path.join(outputDir, 'customer-by-identifier.json'),
+    `${JSON.stringify(customerByIdentifier, null, 2)}\n`,
+    'utf8',
+  );
   await writeFile(path.join(outputDir, 'customers-search.json'), `${JSON.stringify(search, null, 2)}\n`, 'utf8');
   await writeFile(
     path.join(outputDir, 'customers-advanced-search.json'),
@@ -527,6 +636,7 @@ try {
         files: [
           'customers-catalog.json',
           'customer-detail.json',
+          'customer-by-identifier.json',
           'customers-search.json',
           'customers-advanced-search.json',
           'customers-sort-keys.json',
@@ -539,6 +649,4 @@ try {
       2,
     ),
   );
-} catch (error) {
-  throw error;
 }

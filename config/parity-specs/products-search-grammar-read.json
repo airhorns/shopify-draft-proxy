@@ -8,14 +8,18 @@
     "documentPath": "config/parity-requests/products-search-grammar-read.graphql",
     "variablesPath": "config/parity-requests/products-search-grammar-read.variables.json"
   },
-  "comparisonMode": "capture-only",
-  "notes": "Live product search-grammar capture keeps the quoted-phrase, bare-term, term-local negation, `NOT` modifier, `tag_not`, and `published_at:*` exists slices separate from the broader grouped/prefix advanced-search fixture so later parity work can compare those merchant-facing grammar increments directly. The `NOT`/`tag_not` request also uses PUBLISHED_AT ordering, which is modelable from normalized product state.",
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity coverage for the captured product search grammar slice: compares the quoted-phrase query count and product result fields preserved in the Shopify response fixture.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "products-search-grammar-data",
+        "capturePath": "$.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.response"
+      }
+    ]
   }
 }

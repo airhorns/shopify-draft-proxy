@@ -1363,6 +1363,15 @@
     "runtimeTests": ["tests/integration/media-draft-flow.test.ts"]
   },
   {
+    "name": "fileUpdate",
+    "type": "mutation",
+    "domain": "media",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["fileUpdate", "FileUpdate"],
+    "runtimeTests": ["tests/integration/media-draft-flow.test.ts"]
+  },
+  {
     "name": "fileDelete",
     "type": "mutation",
     "domain": "media",

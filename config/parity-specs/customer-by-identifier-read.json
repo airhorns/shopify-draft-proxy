@@ -1,0 +1,25 @@
+{
+  "scenarioId": "customer-by-identifier-read",
+  "operationNames": ["customerByIdentifier"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "null-empty-behavior"],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customer-by-identifier.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customer-by-identifier-read.graphql",
+    "variablesCapturePath": "$.proxyVariables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict comparison target covers `customerByIdentifier` id, email, phone, and no-match branches from a captured customer record. The custom-id validation branch is captured in the same fixture but remains runtime-tested because local state does not model Shopify unique metafield definitions.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "customer-by-identifier-data",
+        "capturePath": "$.positiveAndMissing.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}

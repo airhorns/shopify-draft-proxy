@@ -1093,6 +1093,86 @@ function normalizeCustomerSearchValue(value: string | null | undefined): string 
   return (value ?? '').trim().toLowerCase();
 }
 
+function normalizeCustomerIdentifierValue(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+}
+
+function findCustomerByIdentifier(identifier: Record<string, unknown>): CustomerRecord | null {
+  const id = normalizeCustomerIdentifierValue(identifier['id']);
+  if (id) {
+    return store.getEffectiveCustomerById(id);
+  }
+
+  const emailAddress = normalizeCustomerIdentifierValue(identifier['emailAddress']);
+  if (emailAddress) {
+    const normalizedEmailAddress = emailAddress.toLowerCase();
+    return (
+      store
+        .listEffectiveCustomers()
+        .find(
+          (customer) =>
+            customer.email?.trim().toLowerCase() === normalizedEmailAddress ||
+            customer.defaultEmailAddress?.emailAddress?.trim().toLowerCase() === normalizedEmailAddress,
+        ) ?? null
+    );
+  }
+
+  const phoneNumber = normalizeCustomerIdentifierValue(identifier['phoneNumber']);
+  if (phoneNumber) {
+    return (
+      store
+        .listEffectiveCustomers()
+        .find((customer) => customer.defaultPhoneNumber?.phoneNumber?.trim() === phoneNumber) ?? null
+    );
+  }
+
+  return null;
+}
+
+function countProvidedCustomerIdentifiers(identifier: Record<string, unknown>): number {
+  return ['id', 'emailAddress', 'phoneNumber', 'customId'].filter((key) => identifier[key] !== undefined).length;
+}
+
+function buildInvalidCustomerIdentifierError(identifier: Record<string, unknown>): Record<string, unknown> {
+  const providedCount = countProvidedCustomerIdentifiers(identifier);
+  return {
+    message: 'Variable $identifier of type CustomerIdentifierInput! was provided invalid value',
+    extensions: {
+      code: 'INVALID_VARIABLE',
+      value: structuredClone(identifier),
+      problems: [
+        {
+          path: [],
+          explanation: `'CustomerIdentifierInput' requires exactly one argument, but ${providedCount} were provided.`,
+        },
+      ],
+    },
+  };
+}
+
+function buildMissingCustomerIdentifierArgumentError(field: FieldNode): Record<string, unknown> {
+  return {
+    message: "Field 'customerByIdentifier' is missing required arguments: identifier",
+    path: [getFieldResponseKey(field)],
+    extensions: {
+      code: 'missingRequiredArguments',
+      className: 'Field',
+      name: 'customerByIdentifier',
+      arguments: 'identifier',
+    },
+  };
+}
+
+function buildCustomerCustomIdentifierError(field: FieldNode): Record<string, unknown> {
+  return {
+    message: "Metafield definition of type 'id' is required when using custom ids.",
+    path: [getFieldResponseKey(field)],
+    extensions: {
+      code: 'NOT_FOUND',
+    },
+  };
+}
+
 function isPrefixPattern(rawValue: string): boolean {
   return rawValue.endsWith('*');
 }
@@ -1529,16 +1609,28 @@ function normalizeCustomerCatalogPageInfo(raw: unknown): CustomerCatalogPageInfo
   };
 }
 
-function collectHydratableCustomers(raw: unknown): CustomerRecord[] {
+function collectHydratableCustomers(document: string, raw: unknown): CustomerRecord[] {
   if (!isObject(raw)) {
     return [];
   }
 
-  const directCustomer = normalizeCustomer(raw['customer']);
-  const identifiedCustomer = normalizeCustomer(raw['customerByIdentifier']);
-  const customersConnection = raw['customers'];
-  const connectionCustomers = isObject(customersConnection)
-    ? [
+  const customers: CustomerRecord[] = [];
+  for (const field of getRootFields(document)) {
+    const responseKey = getFieldResponseKey(field);
+    if (field.name.value === 'customer' || field.name.value === 'customerByIdentifier') {
+      const customer = normalizeCustomer(raw[responseKey]);
+      if (customer) {
+        customers.push(customer);
+      }
+    }
+
+    if (field.name.value === 'customers') {
+      const customersConnection = raw[responseKey];
+      if (!isObject(customersConnection)) {
+        continue;
+      }
+
+      const connectionCustomers = [
         ...(Array.isArray(customersConnection['nodes']) ? customersConnection['nodes'] : []),
         ...(Array.isArray(customersConnection['edges'])
           ? customersConnection['edges']
@@ -1547,12 +1639,12 @@ function collectHydratableCustomers(raw: unknown): CustomerRecord[] {
           : []),
       ]
         .map((candidate) => normalizeCustomer(candidate))
-        .filter((candidate): candidate is CustomerRecord => candidate !== null)
-    : [];
+        .filter((candidate): candidate is CustomerRecord => candidate !== null);
+      customers.push(...connectionCustomers);
+    }
+  }
 
-  return [directCustomer, identifiedCustomer, ...connectionCustomers].filter(
-    (candidate): candidate is CustomerRecord => candidate !== null,
-  );
+  return customers;
 }
 
 function collectCustomerMetafieldsFromSelection(
@@ -1739,42 +1831,6 @@ function collectCustomerSearchConnections(
   }
 
   return connections;
-}
-
-function resolveCustomerByIdentifier(rawIdentifier: unknown): CustomerRecord | null {
-  if (!isObject(rawIdentifier)) {
-    return null;
-  }
-
-  const id = typeof rawIdentifier['id'] === 'string' ? rawIdentifier['id'] : null;
-  if (id) {
-    return store.getEffectiveCustomerById(id);
-  }
-
-  const emailAddress =
-    typeof rawIdentifier['emailAddress'] === 'string' ? rawIdentifier['emailAddress'].trim().toLowerCase() : null;
-  if (emailAddress) {
-    return (
-      store
-        .listEffectiveCustomers()
-        .find(
-          (customer) =>
-            customer.email?.trim().toLowerCase() === emailAddress ||
-            customer.defaultEmailAddress?.emailAddress?.trim().toLowerCase() === emailAddress,
-        ) ?? null
-    );
-  }
-
-  const phoneNumber = typeof rawIdentifier['phoneNumber'] === 'string' ? rawIdentifier['phoneNumber'].trim() : null;
-  if (phoneNumber) {
-    return (
-      store
-        .listEffectiveCustomers()
-        .find((customer) => customer.defaultPhoneNumber?.phoneNumber?.trim() === phoneNumber) ?? null
-    );
-  }
-
-  return null;
 }
 
 type CustomerMutationUserError = {
@@ -2414,7 +2470,7 @@ export function hydrateCustomersFromUpstreamResponse(
     return;
   }
 
-  const customers = collectHydratableCustomers(upstreamBody['data']);
+  const customers = collectHydratableCustomers(document, upstreamBody['data']);
   if (customers.length > 0) {
     store.upsertBaseCustomers(customers);
   }
@@ -2438,9 +2494,14 @@ export function hydrateCustomersFromUpstreamResponse(
 export function handleCustomerQuery(
   document: string,
   variables: Record<string, unknown> = {},
-): { data: Record<string, unknown>; extensions?: { search: CustomerSearchExtensionEntry[] } } {
+): {
+  data?: Record<string, unknown>;
+  errors?: Array<Record<string, unknown>>;
+  extensions?: { search: CustomerSearchExtensionEntry[] };
+} {
   const rootFields = getRootFields(document);
   const data: Record<string, unknown> = {};
+  const errors: Array<Record<string, unknown>> = [];
   const searchExtensions: CustomerSearchExtensionEntry[] = [];
 
   for (const field of rootFields) {
@@ -2455,7 +2516,30 @@ export function handleCustomerQuery(
 
     if (field.name.value === 'customerByIdentifier') {
       const args = getFieldArguments(field, variables);
-      const customer = resolveCustomerByIdentifier(args['identifier']);
+      if (!hasOwnField(args, 'identifier')) {
+        errors.push(buildMissingCustomerIdentifierArgumentError(field));
+        continue;
+      }
+
+      const identifier = args['identifier'];
+      if (!isObject(identifier)) {
+        errors.push(buildInvalidCustomerIdentifierError({}));
+        continue;
+      }
+
+      const providedIdentifierCount = countProvidedCustomerIdentifiers(identifier);
+      if (providedIdentifierCount !== 1) {
+        errors.push(buildInvalidCustomerIdentifierError(identifier));
+        continue;
+      }
+
+      if (identifier['customId'] !== undefined) {
+        data[key] = null;
+        errors.push(buildCustomerCustomIdentifierError(field));
+        continue;
+      }
+
+      const customer = findCustomerByIdentifier(identifier);
       data[key] = customer ? serializeCustomerSelection(customer, field, variables) : null;
       continue;
     }
@@ -2478,11 +2562,15 @@ export function handleCustomerQuery(
   if (searchExtensions.length > 0) {
     return {
       data,
+      ...(errors.length > 0 ? { errors } : {}),
       extensions: {
         search: searchExtensions,
       },
     };
   }
 
-  return { data };
+  return {
+    ...(Object.keys(data).length > 0 ? { data } : {}),
+    ...(errors.length > 0 ? { errors } : {}),
+  };
 }

@@ -222,7 +222,8 @@ curl -sS -X POST "$PROXY/__meta/commit" \
 
 The commit endpoint replays pending `staged` mutations to Shopify in original
 order and stops at the first failure. The response includes each upstream
-attempt and the real Shopify response body.
+attempt, an explicit `success` flag, and either the real Shopify response body
+or a transport error.
 
 For this simple demo, commit only the staged `productCreate`. The proxy keeps
 original raw mutations for replay, so a later staged `productUpdate` that uses
@@ -232,7 +233,7 @@ Extract the real Shopify product ID returned by the committed `productCreate`:
 
 ```sh
 export COMMITTED_PRODUCT_ID="$(
-  node -e "const fs = require('node:fs'); const body = JSON.parse(fs.readFileSync('/tmp/proxy-commit.json', 'utf8')); console.log(body.attempts[0].responseBody.data.productCreate.product.id);"
+  node -e "const fs = require('node:fs'); const body = JSON.parse(fs.readFileSync('/tmp/proxy-commit.json', 'utf8')); console.log(body.attempts[0].upstreamBody.data.productCreate.product.id);"
 )"
 echo "$COMMITTED_PRODUCT_ID"
 ```
