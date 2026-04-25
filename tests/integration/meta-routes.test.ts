@@ -27,6 +27,7 @@ const emptySnapshot = {
   discounts: {},
   paymentCustomizations: {},
   paymentCustomizationOrder: [],
+  deletedPaymentCustomizationIds: {},
   customerMetafields: {},
   businessEntities: {},
   businessEntityOrder: [],

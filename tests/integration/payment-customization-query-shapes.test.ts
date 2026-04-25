@@ -282,4 +282,381 @@ describe('payment customization query shapes', () => {
     });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it('stages payment customization lifecycle mutations locally with downstream read visibility', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('payment customization mutations should not hit upstream fetch');
+    });
+    const app = createApp(config).callback();
+
+    const createResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .set('x-shopify-access-token', 'shpat_test')
+      .send({
+        query: `mutation CreatePaymentCustomization($input: PaymentCustomizationInput!) {
+          paymentCustomizationCreate(paymentCustomization: $input) {
+            paymentCustomization {
+              id
+              title
+              enabled
+              functionId
+              metafields(first: 5) {
+                nodes { id namespace key type value jsonValue ownerType }
+              }
+            }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          input: {
+            title: 'Local payment rule',
+            enabled: false,
+            functionId: 'gid://shopify/ShopifyFunction/function-local',
+            metafields: [
+              {
+                namespace: 'settings',
+                key: 'label',
+                type: 'json',
+                value: '{"label":"Local"}',
+              },
+            ],
+          },
+        },
+      });
+
+    expect(createResponse.status).toBe(200);
+    expect(createResponse.body.data.paymentCustomizationCreate.userErrors).toEqual([]);
+    const created = createResponse.body.data.paymentCustomizationCreate.paymentCustomization;
+    expect(created).toEqual({
+      id: 'gid://shopify/PaymentCustomization/1',
+      title: 'Local payment rule',
+      enabled: false,
+      functionId: 'gid://shopify/ShopifyFunction/function-local',
+      metafields: {
+        nodes: [
+          {
+            id: 'gid://shopify/Metafield/2',
+            namespace: 'settings',
+            key: 'label',
+            type: 'json',
+            value: '{"label":"Local"}',
+            jsonValue: { label: 'Local' },
+            ownerType: 'PAYMENT_CUSTOMIZATION',
+          },
+        ],
+      },
+    });
+
+    const updateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation UpdatePaymentCustomization($id: ID!, $input: PaymentCustomizationInput!) {
+          paymentCustomizationUpdate(id: $id, paymentCustomization: $input) {
+            paymentCustomization {
+              id
+              title
+              enabled
+              functionId
+              metafield(namespace: "settings", key: "label") {
+                value
+                jsonValue
+              }
+            }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          id: created.id,
+          input: {
+            title: 'Updated payment rule',
+            enabled: true,
+            metafields: [
+              {
+                namespace: 'settings',
+                key: 'label',
+                type: 'json',
+                value: '{"label":"Updated"}',
+              },
+            ],
+          },
+        },
+      });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body.data.paymentCustomizationUpdate).toEqual({
+      paymentCustomization: {
+        id: created.id,
+        title: 'Updated payment rule',
+        enabled: true,
+        functionId: 'gid://shopify/ShopifyFunction/function-local',
+        metafield: {
+          value: '{"label":"Updated"}',
+          jsonValue: { label: 'Updated' },
+        },
+      },
+      userErrors: [],
+    });
+
+    const activationResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation ActivatePaymentCustomization($ids: [ID!]!, $enabled: Boolean!) {
+          paymentCustomizationActivation(ids: $ids, enabled: $enabled) {
+            ids
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          ids: [created.id],
+          enabled: false,
+        },
+      });
+
+    expect(activationResponse.status).toBe(200);
+    expect(activationResponse.body.data.paymentCustomizationActivation).toEqual({
+      ids: [created.id],
+      userErrors: [],
+    });
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ReadPaymentCustomization($id: ID!) {
+          paymentCustomization(id: $id) {
+            id
+            title
+            enabled
+            functionId
+          }
+          paymentCustomizations(first: 5, query: "enabled:false") {
+            nodes { id title enabled }
+          }
+        }`,
+        variables: { id: created.id },
+      });
+
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body.data).toEqual({
+      paymentCustomization: {
+        id: created.id,
+        title: 'Updated payment rule',
+        enabled: false,
+        functionId: 'gid://shopify/ShopifyFunction/function-local',
+      },
+      paymentCustomizations: {
+        nodes: [{ id: created.id, title: 'Updated payment rule', enabled: false }],
+      },
+    });
+
+    const deleteResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation DeletePaymentCustomization($id: ID!) {
+          paymentCustomizationDelete(id: $id) {
+            deletedId
+            userErrors { field message code }
+          }
+        }`,
+        variables: { id: created.id },
+      });
+
+    expect(deleteResponse.status).toBe(200);
+    expect(deleteResponse.body.data.paymentCustomizationDelete).toEqual({
+      deletedId: created.id,
+      userErrors: [],
+    });
+
+    const deletedReadResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query DeletedPaymentCustomization($id: ID!) {
+          paymentCustomization(id: $id) { id }
+          paymentCustomizations(first: 5) {
+            nodes { id }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }`,
+        variables: { id: created.id },
+      });
+
+    expect(deletedReadResponse.status).toBe(200);
+    expect(deletedReadResponse.body.data).toEqual({
+      paymentCustomization: null,
+      paymentCustomizations: {
+        nodes: [],
+        pageInfo: {
+          hasNextPage: false,
+          hasPreviousPage: false,
+          startCursor: null,
+          endCursor: null,
+        },
+      },
+    });
+    expect(store.getLog().map((entry) => entry.status)).toEqual(['staged', 'staged', 'staged', 'staged']);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('mirrors captured payment customization validation branches locally', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('payment customization validation should not hit upstream fetch');
+    });
+    const app = createApp(config).callback();
+
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation PaymentCustomizationValidation(
+          $badCreate: PaymentCustomizationInput!
+          $missingFunction: PaymentCustomizationInput!
+          $missingTitle: PaymentCustomizationInput!
+          $missingEnabled: PaymentCustomizationInput!
+          $unknownId: ID!
+          $badUpdate: PaymentCustomizationInput!
+          $activationIds: [ID!]!
+          $emptyActivationIds: [ID!]!
+          $enabled: Boolean!
+        ) {
+          badCreate: paymentCustomizationCreate(paymentCustomization: $badCreate) {
+            paymentCustomization { id title enabled functionId }
+            userErrors { field message code }
+          }
+          missingFunction: paymentCustomizationCreate(paymentCustomization: $missingFunction) {
+            paymentCustomization { id }
+            userErrors { field message code }
+          }
+          missingTitle: paymentCustomizationCreate(paymentCustomization: $missingTitle) {
+            paymentCustomization { id }
+            userErrors { field message code }
+          }
+          missingEnabled: paymentCustomizationCreate(paymentCustomization: $missingEnabled) {
+            paymentCustomization { id }
+            userErrors { field message code }
+          }
+          unknownUpdate: paymentCustomizationUpdate(id: $unknownId, paymentCustomization: $badUpdate) {
+            paymentCustomization { id title enabled functionId }
+            userErrors { field message code }
+          }
+          unknownActivation: paymentCustomizationActivation(ids: $activationIds, enabled: $enabled) {
+            ids
+            userErrors { field message code }
+          }
+          emptyActivation: paymentCustomizationActivation(ids: $emptyActivationIds, enabled: $enabled) {
+            ids
+            userErrors { field message code }
+          }
+          unknownDelete: paymentCustomizationDelete(id: $unknownId) {
+            deletedId
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          badCreate: {
+            title: 'Hermes invalid payment customization',
+            enabled: true,
+            functionId: 'gid://shopify/ShopifyFunction/0',
+          },
+          missingFunction: {
+            title: 'Hermes missing function',
+            enabled: true,
+          },
+          missingTitle: {
+            enabled: true,
+            functionId: 'gid://shopify/ShopifyFunction/0',
+          },
+          missingEnabled: {
+            title: 'Hermes missing enabled',
+            functionId: 'gid://shopify/ShopifyFunction/0',
+          },
+          unknownId: 'gid://shopify/PaymentCustomization/0',
+          badUpdate: {
+            title: 'Hermes unknown update',
+            enabled: false,
+            functionId: 'gid://shopify/ShopifyFunction/0',
+          },
+          activationIds: ['gid://shopify/PaymentCustomization/0'],
+          emptyActivationIds: [],
+          enabled: true,
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual({
+      badCreate: {
+        paymentCustomization: null,
+        userErrors: [
+          {
+            field: ['paymentCustomization', 'functionId'],
+            message:
+              'Function gid://shopify/ShopifyFunction/0 not found. Ensure that it is released in the current app (347082227713), and that the app is installed.',
+            code: 'FUNCTION_NOT_FOUND',
+          },
+        ],
+      },
+      missingFunction: {
+        paymentCustomization: null,
+        userErrors: [
+          {
+            field: ['paymentCustomization', 'functionId'],
+            message: 'Required input field must be present.',
+            code: 'REQUIRED_INPUT_FIELD',
+          },
+        ],
+      },
+      missingTitle: {
+        paymentCustomization: null,
+        userErrors: [
+          {
+            field: ['paymentCustomization', 'title'],
+            message: 'Required input field must be present.',
+            code: 'REQUIRED_INPUT_FIELD',
+          },
+        ],
+      },
+      missingEnabled: {
+        paymentCustomization: null,
+        userErrors: [
+          {
+            field: ['paymentCustomization', 'enabled'],
+            message: 'Required input field must be present.',
+            code: 'REQUIRED_INPUT_FIELD',
+          },
+        ],
+      },
+      unknownUpdate: {
+        paymentCustomization: null,
+        userErrors: [
+          {
+            field: ['id'],
+            message: 'Could not find PaymentCustomization with id: gid://shopify/PaymentCustomization/0',
+            code: 'PAYMENT_CUSTOMIZATION_NOT_FOUND',
+          },
+        ],
+      },
+      unknownActivation: {
+        ids: [],
+        userErrors: [
+          {
+            field: ['ids'],
+            message: 'Could not find payment customizations with IDs: gid://shopify/PaymentCustomization/0',
+            code: 'PAYMENT_CUSTOMIZATION_NOT_FOUND',
+          },
+        ],
+      },
+      emptyActivation: {
+        ids: [],
+        userErrors: [],
+      },
+      unknownDelete: {
+        deletedId: null,
+        userErrors: [
+          {
+            field: ['id'],
+            message: 'Could not find PaymentCustomization with id: gid://shopify/PaymentCustomization/0',
+            code: 'PAYMENT_CUSTOMIZATION_NOT_FOUND',
+          },
+        ],
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });

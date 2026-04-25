@@ -6,8 +6,12 @@ This endpoint group tracks Admin GraphQL payment-area roots whose behavior is se
 
 - `paymentCustomization(id:)`
 - `paymentCustomizations(...)`
+- `paymentCustomizationCreate`
+- `paymentCustomizationUpdate`
+- `paymentCustomizationDelete`
+- `paymentCustomizationActivation`
 
-The supported slice is read-only and snapshot/local. Lifecycle mutation roots such as `paymentCustomizationCreate`, `paymentCustomizationUpdate`, `paymentCustomizationDelete`, and `paymentCustomizationActivation` remain unsupported until they have a disposable Shopify Function/payment customization fixture and a local staging model that does not mutate checkout behavior at runtime.
+Payment customization writes are local-only once supported. They must not invoke Shopify Functions or mutate checkout payment behavior at runtime; commit replay keeps the original raw mutation for an explicit later commit.
 
 ## Payment customizations
 
@@ -27,9 +31,20 @@ Local cursors use the proxy's synthetic `cursor:<gid>` form. Shopify's opaque cu
 
 Selected scalar detail fields currently include `id`, `legacyResourceId`, `title`, `enabled`, and `functionId`. `shopifyFunction` and `errorHistory` are replayed from captured normalized JSON only; when those slices are absent the serializer returns `null` rather than inventing Function ownership or failure history. Owner-scoped `metafield(namespace:, key:)` and `metafields(...)` selections serialize from the payment customization's captured metafield rows using the shared metafield serializer.
 
+Lifecycle mutations stage against the same normalized records:
+
+- `paymentCustomizationCreate(paymentCustomization:)` creates a synthetic local `PaymentCustomization` record with selected metafields when required `title`, `enabled`, and `functionId` values are present.
+- `paymentCustomizationUpdate(id:, paymentCustomization:)` merges scalar/metafield input over an existing normalized record.
+- `paymentCustomizationActivation(ids:, enabled:)` toggles `enabled` on existing normalized records and returns the updated ids.
+- `paymentCustomizationDelete(id:)` marks a normalized record deleted so downstream detail reads return `null` and catalog reads omit it.
+
+Captured validation branches are modeled locally for missing create fields, missing Function id `gid://shopify/ShopifyFunction/0`, unknown update/delete ids, unknown activation ids, and empty activation id lists. The current local model does not maintain a full Shopify Function catalog; successful create/update paths preserve the provided `functionId` and return `shopifyFunction` only if that field was present in normalized state.
+
 ## Access Scopes And Capture Notes
 
-HAR-219 recorded that the refreshed 2026-04-25 conformance app can safely read payment customization empty/null behavior with `read_payment_customizations`, and HAR-223 captured that current empty/null slice in `payment-customization-empty-read`. Non-empty detail, Function ownership, and error-history behavior should be promoted into fixtures/parity specs only after real interactions exist and the comparison contract is ready.
+HAR-219 recorded that the refreshed 2026-04-25 conformance app can safely read payment customization empty/null behavior with `read_payment_customizations`, and HAR-223 captured that current empty/null slice in `payment-customization-empty-read`. The same conformance credential has `write_payment_customizations`; HAR-223 captured validation/error branches for missing Function ownership and unknown ids in `payment-customization-validation`.
+
+The current test store had no released `ShopifyFunction` nodes at capture time, so non-empty live happy-path create/update/delete/activation remains local-runtime evidence rather than a live Shopify parity contract. HAR-223 added and deployed the repo-local `conformance-payment-customization` Function extension to the conformance app, but the existing store install still returned an empty `shopifyFunctions` catalog afterward; a future live happy-path capture likely needs a refreshed app install/grant that can see the released Function. Non-empty detail, Function ownership, and error-history behavior should be promoted into fixtures/parity specs only after real interactions exist and the comparison contract is ready.
 
 Do not add planned-only parity specs for payment roots. Keep unsupported payment-area reads and writes as registry/workpad gaps until captured evidence can back local behavior.
 

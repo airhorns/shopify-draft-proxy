@@ -678,4 +678,26 @@ describe('getOperationCapability', () => {
       type: 'query',
     });
   });
+
+  it('routes implemented payment customization mutations through local staging', () => {
+    for (const rootField of [
+      'paymentCustomizationActivation',
+      'paymentCustomizationCreate',
+      'paymentCustomizationDelete',
+      'paymentCustomizationUpdate',
+    ]) {
+      expect(
+        getOperationCapability({
+          type: 'mutation',
+          name: `${rootField[0]?.toUpperCase() ?? ''}${rootField.slice(1)}`,
+          rootFields: [rootField],
+        }),
+      ).toEqual({
+        domain: 'payments',
+        execution: 'stage-locally',
+        operationName: `${rootField[0]?.toUpperCase() ?? ''}${rootField.slice(1)}`,
+        type: 'mutation',
+      });
+    }
+  });
 });

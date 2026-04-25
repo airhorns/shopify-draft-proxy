@@ -45,7 +45,7 @@ import {
   hydrateProductsFromUpstreamResponse,
 } from '../src/proxy/products.js';
 import { handleMetafieldDefinitionQuery } from '../src/proxy/metafield-definitions.js';
-import { handlePaymentQuery } from '../src/proxy/payments.js';
+import { handlePaymentMutation, handlePaymentQuery } from '../src/proxy/payments.js';
 import {
   handleSegmentMutation,
   handleSegmentsQuery,
@@ -130,6 +130,13 @@ interface CompiledRule extends ExpectedDifference {
 }
 
 type PathSegment = string | number | '*';
+
+const PAYMENT_CUSTOMIZATION_MUTATION_ROOTS = new Set([
+  'paymentCustomizationActivation',
+  'paymentCustomizationCreate',
+  'paymentCustomizationDelete',
+  'paymentCustomizationUpdate',
+]);
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -779,6 +786,29 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleStorePropertiesMutation(document, variables),
+    };
+  }
+
+  if (
+    capability.execution === 'stage-locally' &&
+    capability.domain === 'payments' &&
+    parsed.rootFields.some((rootField) => PAYMENT_CUSTOMIZATION_MUTATION_ROOTS.has(rootField))
+  ) {
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2025-01/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: handlePaymentMutation(document, variables),
     };
   }
 

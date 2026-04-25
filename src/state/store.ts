@@ -94,6 +94,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedCustomerAddressIds: {},
   deletedSegmentIds: {},
   deletedDiscountIds: {},
+  deletedPaymentCustomizationIds: {},
   deletedMarketIds: {},
   deletedCatalogIds: {},
   deletedWebPresenceIds: {},
@@ -557,11 +558,29 @@ export class InMemoryStore {
 
   upsertBasePaymentCustomizations(paymentCustomizations: PaymentCustomizationRecord[]): void {
     for (const customization of paymentCustomizations) {
+      delete this.baseState.deletedPaymentCustomizationIds[customization.id];
+      delete this.stagedState.deletedPaymentCustomizationIds[customization.id];
       this.baseState.paymentCustomizations[customization.id] = structuredClone(customization);
       if (!this.baseState.paymentCustomizationOrder.includes(customization.id)) {
         this.baseState.paymentCustomizationOrder.push(customization.id);
       }
     }
+  }
+
+  upsertStagedPaymentCustomization(paymentCustomization: PaymentCustomizationRecord): void {
+    delete this.stagedState.deletedPaymentCustomizationIds[paymentCustomization.id];
+    this.stagedState.paymentCustomizations[paymentCustomization.id] = structuredClone(paymentCustomization);
+    if (
+      !this.baseState.paymentCustomizationOrder.includes(paymentCustomization.id) &&
+      !this.stagedState.paymentCustomizationOrder.includes(paymentCustomization.id)
+    ) {
+      this.stagedState.paymentCustomizationOrder.push(paymentCustomization.id);
+    }
+  }
+
+  deleteStagedPaymentCustomization(paymentCustomizationId: string): void {
+    delete this.stagedState.paymentCustomizations[paymentCustomizationId];
+    this.stagedState.deletedPaymentCustomizationIds[paymentCustomizationId] = true;
   }
 
   upsertBaseBusinessEntities(businessEntities: BusinessEntityRecord[]): void {
@@ -1911,6 +1930,10 @@ export class InMemoryStore {
   }
 
   getEffectivePaymentCustomizationById(paymentCustomizationId: string): PaymentCustomizationRecord | null {
+    if (this.stagedState.deletedPaymentCustomizationIds[paymentCustomizationId]) {
+      return null;
+    }
+
     const customization =
       this.stagedState.paymentCustomizations[paymentCustomizationId] ??
       this.baseState.paymentCustomizations[paymentCustomizationId] ??
@@ -1931,6 +1954,7 @@ export class InMemoryStore {
       ...this.stagedState.paymentCustomizations,
     })
       .filter((customization) => !orderedIds.has(customization.id))
+      .filter((customization) => !this.stagedState.deletedPaymentCustomizationIds[customization.id])
       .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
 
     return structuredClone([...orderedCustomizations, ...unorderedCustomizations]);
@@ -1963,7 +1987,8 @@ export class InMemoryStore {
   hasPaymentCustomizations(): boolean {
     return (
       Object.keys(this.baseState.paymentCustomizations).length > 0 ||
-      Object.keys(this.stagedState.paymentCustomizations).length > 0
+      Object.keys(this.stagedState.paymentCustomizations).length > 0 ||
+      Object.keys(this.stagedState.deletedPaymentCustomizationIds).length > 0
     );
   }
 

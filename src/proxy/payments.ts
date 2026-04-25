@@ -3,8 +3,9 @@ import type { FieldNode } from 'graphql';
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import type { JsonValue } from '../json-schemas.js';
 import { normalizeSearchQueryValue, parseSearchQueryTerms, type SearchQueryTerm } from '../search-query-parser.js';
+import { makeSyntheticGid } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
-import type { PaymentCustomizationRecord } from '../state/types.js';
+import type { PaymentCustomizationMetafieldRecord, PaymentCustomizationRecord } from '../state/types.js';
 import {
   getFieldResponseKey,
   getSelectedChildFields,
@@ -12,7 +13,28 @@ import {
   serializeConnectionPageInfo,
   serializeEmptyConnectionPageInfo,
 } from './graphql-helpers.js';
-import { serializeMetafieldSelection, serializeMetafieldsConnection } from './metafields.js';
+import {
+  readMetafieldInputObjects,
+  serializeMetafieldSelection,
+  serializeMetafieldsConnection,
+  upsertOwnerMetafields,
+} from './metafields.js';
+
+interface PaymentCustomizationUserError {
+  field: string[] | null;
+  message: string;
+  code: string | null;
+}
+
+const CAPTURED_PAYMENT_CUSTOMIZATION_APP_ID = '347082227713';
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function hasOwnField(value: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
 
 function parsePaymentCustomizationQuery(rawQuery: unknown): SearchQueryTerm[] {
   if (typeof rawQuery !== 'string' || rawQuery.trim().length === 0) {
@@ -27,6 +49,10 @@ function parsePaymentCustomizationQuery(rawQuery: unknown): SearchQueryTerm[] {
 function gidTail(id: string | null | undefined): string | null {
   const tail = id?.split('/').at(-1) ?? null;
   return tail && tail.length > 0 ? tail : null;
+}
+
+function isCapturedMissingFunctionId(functionId: string): boolean {
+  return gidTail(functionId) === '0';
 }
 
 function matchesIdentifier(id: string | null | undefined, expected: string): boolean {
@@ -176,6 +202,33 @@ function serializePaymentCustomization(
   return result;
 }
 
+function serializePaymentCustomizationUserErrors(
+  errors: PaymentCustomizationUserError[],
+  field: FieldNode,
+): Array<Record<string, unknown>> {
+  return errors.map((error) => {
+    const result: Record<string, unknown> = {};
+    for (const selection of getSelectedChildFields(field)) {
+      const key = getFieldResponseKey(selection);
+      switch (selection.name.value) {
+        case 'field':
+          result[key] = error.field;
+          break;
+        case 'message':
+          result[key] = error.message;
+          break;
+        case 'code':
+          result[key] = error.code;
+          break;
+        default:
+          result[key] = null;
+          break;
+      }
+    }
+    return result;
+  });
+}
+
 function serializePaymentCustomizationsConnection(
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -255,6 +308,269 @@ function serializeEmptyPaymentCustomizationsConnection(field: FieldNode): Record
   return connection;
 }
 
+function requiredPaymentCustomizationInputError(fieldName: string): PaymentCustomizationUserError {
+  return {
+    field: ['paymentCustomization', fieldName],
+    message: 'Required input field must be present.',
+    code: 'REQUIRED_INPUT_FIELD',
+  };
+}
+
+function functionNotFoundError(functionId: string): PaymentCustomizationUserError {
+  return {
+    field: ['paymentCustomization', 'functionId'],
+    message: `Function ${functionId} not found. Ensure that it is released in the current app (${CAPTURED_PAYMENT_CUSTOMIZATION_APP_ID}), and that the app is installed.`,
+    code: 'FUNCTION_NOT_FOUND',
+  };
+}
+
+function paymentCustomizationNotFoundError(fieldName: string, id: string): PaymentCustomizationUserError {
+  return {
+    field: [fieldName],
+    message: `Could not find PaymentCustomization with id: ${id}`,
+    code: 'PAYMENT_CUSTOMIZATION_NOT_FOUND',
+  };
+}
+
+function paymentCustomizationActivationNotFoundError(ids: string[]): PaymentCustomizationUserError {
+  return {
+    field: ['ids'],
+    message: `Could not find payment customizations with IDs: ${ids.join(', ')}`,
+    code: 'PAYMENT_CUSTOMIZATION_NOT_FOUND',
+  };
+}
+
+function validateCreateInput(input: Record<string, unknown>): PaymentCustomizationUserError[] {
+  if (!hasOwnField(input, 'title')) {
+    return [requiredPaymentCustomizationInputError('title')];
+  }
+
+  if (!hasOwnField(input, 'enabled')) {
+    return [requiredPaymentCustomizationInputError('enabled')];
+  }
+
+  if (!hasOwnField(input, 'functionId')) {
+    return [requiredPaymentCustomizationInputError('functionId')];
+  }
+
+  const functionId = input['functionId'];
+  if (typeof functionId === 'string' && isCapturedMissingFunctionId(functionId)) {
+    return [functionNotFoundError(functionId)];
+  }
+
+  return [];
+}
+
+function applyMetafieldInputs(
+  ownerId: string,
+  input: Record<string, unknown>,
+  existing: PaymentCustomizationMetafieldRecord[] = [],
+): PaymentCustomizationMetafieldRecord[] {
+  const inputs = readMetafieldInputObjects(input['metafields']);
+  if (inputs.length === 0) {
+    return existing;
+  }
+
+  return upsertOwnerMetafields('paymentCustomizationId', ownerId, inputs, existing, {
+    allowIdLookup: true,
+    ownerType: 'PAYMENT_CUSTOMIZATION',
+    trimIdentity: true,
+  }).metafields;
+}
+
+function buildPaymentCustomizationFromInput(input: Record<string, unknown>): PaymentCustomizationRecord {
+  const id = makeSyntheticGid('PaymentCustomization');
+  const customization: PaymentCustomizationRecord = {
+    id,
+    title: typeof input['title'] === 'string' ? input['title'] : null,
+    enabled: typeof input['enabled'] === 'boolean' ? input['enabled'] : null,
+    functionId: typeof input['functionId'] === 'string' ? input['functionId'] : null,
+    metafields: [],
+  };
+  customization.metafields = applyMetafieldInputs(id, input, []);
+  return customization;
+}
+
+function updatePaymentCustomizationFromInput(
+  current: PaymentCustomizationRecord,
+  input: Record<string, unknown>,
+): PaymentCustomizationRecord {
+  const next: PaymentCustomizationRecord = structuredClone(current);
+  if (typeof input['title'] === 'string') {
+    next.title = input['title'];
+  }
+  if (typeof input['enabled'] === 'boolean') {
+    next.enabled = input['enabled'];
+  }
+  if (typeof input['functionId'] === 'string') {
+    next.functionId = input['functionId'];
+    next.shopifyFunction = undefined;
+  }
+  next.metafields = applyMetafieldInputs(current.id, input, current.metafields ?? []);
+  return next;
+}
+
+function serializePaymentCustomizationMutationPayload(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  payload: { paymentCustomization: PaymentCustomizationRecord | null; userErrors: PaymentCustomizationUserError[] },
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'paymentCustomization':
+        result[key] = payload.paymentCustomization
+          ? serializePaymentCustomization(payload.paymentCustomization, selection, variables)
+          : null;
+        break;
+      case 'userErrors':
+        result[key] = serializePaymentCustomizationUserErrors(payload.userErrors, selection);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializePaymentCustomizationDeletePayload(
+  field: FieldNode,
+  payload: { deletedId: string | null; userErrors: PaymentCustomizationUserError[] },
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'deletedId':
+        result[key] = payload.deletedId;
+        break;
+      case 'userErrors':
+        result[key] = serializePaymentCustomizationUserErrors(payload.userErrors, selection);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializePaymentCustomizationActivationPayload(
+  field: FieldNode,
+  payload: { ids: string[]; userErrors: PaymentCustomizationUserError[] },
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'ids':
+        result[key] = payload.ids;
+        break;
+      case 'userErrors':
+        result[key] = serializePaymentCustomizationUserErrors(payload.userErrors, selection);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function createPaymentCustomization(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const input = isPlainObject(args['paymentCustomization']) ? args['paymentCustomization'] : {};
+  const userErrors = validateCreateInput(input);
+  if (userErrors.length > 0) {
+    return serializePaymentCustomizationMutationPayload(field, variables, {
+      paymentCustomization: null,
+      userErrors,
+    });
+  }
+
+  const customization = buildPaymentCustomizationFromInput(input);
+  store.upsertStagedPaymentCustomization(customization);
+  return serializePaymentCustomizationMutationPayload(field, variables, {
+    paymentCustomization: customization,
+    userErrors: [],
+  });
+}
+
+function updatePaymentCustomization(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const id = typeof args['id'] === 'string' ? args['id'] : '';
+  const current = store.getEffectivePaymentCustomizationById(id);
+  if (!current) {
+    return serializePaymentCustomizationMutationPayload(field, variables, {
+      paymentCustomization: null,
+      userErrors: [paymentCustomizationNotFoundError('id', id)],
+    });
+  }
+
+  const input = isPlainObject(args['paymentCustomization']) ? args['paymentCustomization'] : {};
+  const functionId = input['functionId'];
+  if (typeof functionId === 'string' && isCapturedMissingFunctionId(functionId)) {
+    return serializePaymentCustomizationMutationPayload(field, variables, {
+      paymentCustomization: null,
+      userErrors: [functionNotFoundError(functionId)],
+    });
+  }
+
+  const customization = updatePaymentCustomizationFromInput(current, input);
+  store.upsertStagedPaymentCustomization(customization);
+  return serializePaymentCustomizationMutationPayload(field, variables, {
+    paymentCustomization: customization,
+    userErrors: [],
+  });
+}
+
+function deletePaymentCustomization(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const id = typeof args['id'] === 'string' ? args['id'] : '';
+  const current = store.getEffectivePaymentCustomizationById(id);
+  if (!current) {
+    return serializePaymentCustomizationDeletePayload(field, {
+      deletedId: null,
+      userErrors: [paymentCustomizationNotFoundError('id', id)],
+    });
+  }
+
+  store.deleteStagedPaymentCustomization(id);
+  return serializePaymentCustomizationDeletePayload(field, {
+    deletedId: id,
+    userErrors: [],
+  });
+}
+
+function activatePaymentCustomizations(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const ids = Array.isArray(args['ids']) ? args['ids'].filter((id): id is string => typeof id === 'string') : [];
+  const enabled = args['enabled'] === true;
+  const updatedIds: string[] = [];
+  const missingIds: string[] = [];
+
+  for (const id of ids) {
+    const current = store.getEffectivePaymentCustomizationById(id);
+    if (!current) {
+      missingIds.push(id);
+      continue;
+    }
+
+    store.upsertStagedPaymentCustomization({
+      ...current,
+      enabled,
+    });
+    updatedIds.push(id);
+  }
+
+  return serializePaymentCustomizationActivationPayload(field, {
+    ids: updatedIds,
+    userErrors: missingIds.length > 0 ? [paymentCustomizationActivationNotFoundError(missingIds)] : [],
+  });
+}
+
 export function handlePaymentQuery(document: string, variables: Record<string, unknown>): Record<string, unknown> {
   const data: Record<string, unknown> = {};
 
@@ -275,6 +591,33 @@ export function handlePaymentQuery(document: string, variables: Record<string, u
                 return customization ? serializePaymentCustomization(customization, field, variables) : null;
               })()
             : null;
+        break;
+      default:
+        data[key] = null;
+        break;
+    }
+  }
+
+  return { data };
+}
+
+export function handlePaymentMutation(document: string, variables: Record<string, unknown>): Record<string, unknown> {
+  const data: Record<string, unknown> = {};
+
+  for (const field of getRootFields(document)) {
+    const key = getFieldResponseKey(field);
+    switch (field.name.value) {
+      case 'paymentCustomizationCreate':
+        data[key] = createPaymentCustomization(field, variables);
+        break;
+      case 'paymentCustomizationUpdate':
+        data[key] = updatePaymentCustomization(field, variables);
+        break;
+      case 'paymentCustomizationDelete':
+        data[key] = deletePaymentCustomization(field, variables);
+        break;
+      case 'paymentCustomizationActivation':
+        data[key] = activatePaymentCustomizations(field, variables);
         break;
       default:
         data[key] = null;

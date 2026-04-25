@@ -1380,40 +1380,40 @@
     "type": "mutation",
     "domain": "payments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["paymentCustomizationActivation", "PaymentCustomizationActivation"],
-    "runtimeTests": [],
-    "supportNotes": "Payment customization scaffold only. Future capture requires write_payment_customizations and disposable customization records because activation changes checkout payment behavior."
+    "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
+    "supportNotes": "Payment customization activation is staged locally against normalized payment customization records. Unknown ids mirror captured PAYMENT_CUSTOMIZATION_NOT_FOUND userErrors; existing records update enabled without invoking Shopify Functions or checkout payment behavior."
   },
   {
     "name": "paymentCustomizationCreate",
     "type": "mutation",
     "domain": "payments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["paymentCustomizationCreate", "PaymentCustomizationCreate"],
-    "runtimeTests": [],
-    "supportNotes": "Payment customization scaffold only. Future capture requires write_payment_customizations, a test Shopify Function handle, and cleanup for created checkout payment configuration."
+    "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
+    "supportNotes": "Payment customization create stages a normalized record locally with selected metafields, stable synthetic ids, and downstream detail/catalog visibility. Captured missing required fields and missing Function id validation are handled locally without runtime Shopify writes."
   },
   {
     "name": "paymentCustomizationDelete",
     "type": "mutation",
     "domain": "payments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["paymentCustomizationDelete", "PaymentCustomizationDelete"],
-    "runtimeTests": [],
-    "supportNotes": "Payment customization scaffold only. Future capture requires write_payment_customizations and disposable customization records because delete is destructive."
+    "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
+    "supportNotes": "Payment customization delete marks normalized records deleted locally. Unknown ids mirror captured PAYMENT_CUSTOMIZATION_NOT_FOUND userErrors, and downstream reads return Shopify-like null/empty structures."
   },
   {
     "name": "paymentCustomizationUpdate",
     "type": "mutation",
     "domain": "payments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["paymentCustomizationUpdate", "PaymentCustomizationUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "Payment customization scaffold only. Future capture requires write_payment_customizations and disposable customization records because updates can change checkout payment behavior."
+    "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
+    "supportNotes": "Payment customization update stages local scalar/metafield changes over normalized records. Unknown ids and captured missing Function ids return Shopify-like PaymentCustomizationError payloads without proxying runtime writes upstream."
   },
   {
     "name": "paymentReminderSend",

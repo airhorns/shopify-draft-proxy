@@ -16,7 +16,7 @@ import { handleMarketMutation, handleMarketsQuery, hydrateMarketsFromUpstreamRes
 import { handleOrderMutation, handleOrderQuery, shouldServeDraftOrderCatalogLocally } from './orders.js';
 import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamResponse } from './products.js';
 import { handleMetafieldDefinitionQuery } from './metafield-definitions.js';
-import { handlePaymentQuery } from './payments.js';
+import { handlePaymentMutation, handlePaymentQuery } from './payments.js';
 import { handleSegmentMutation, handleSegmentsQuery, hydrateSegmentsFromUpstreamResponse } from './segments.js';
 import { handleStorePropertiesMutation, handleStorePropertiesQuery } from './store-properties.js';
 
@@ -35,6 +35,13 @@ const APP_DISCOUNT_MUTATION_ROOTS = new Set([
 ]);
 
 const ORDER_PAYMENT_MUTATION_ROOTS = new Set(['orderCapture', 'transactionVoid', 'orderCreateMandatePayment']);
+
+const PAYMENT_CUSTOMIZATION_MUTATION_ROOTS = new Set([
+  'paymentCustomizationActivation',
+  'paymentCustomizationCreate',
+  'paymentCustomizationDelete',
+  'paymentCustomizationUpdate',
+]);
 
 const FULFILLMENT_SERVICE_MUTATION_ROOTS = new Set([
   'fulfillmentServiceCreate',
@@ -378,6 +385,32 @@ export function createProxyRouter(config: AppConfig): Router {
         ctx.body = responseBody;
         return;
       }
+    }
+
+    if (
+      capability.execution === 'stage-locally' &&
+      capability.domain === 'payments' &&
+      PAYMENT_CUSTOMIZATION_MUTATION_ROOTS.has(primaryRootField ?? '')
+    ) {
+      const responseBody = handlePaymentMutation(body.query, variables);
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: ctx.path,
+        query: body.query,
+        variables,
+        requestBody,
+        stagedResourceIds: collectProxySyntheticGids(responseBody),
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        notes:
+          'Staged locally in the in-memory payment customization draft store; Shopify Functions and checkout payment behavior are not invoked.',
+      });
+
+      ctx.status = 200;
+      ctx.body = responseBody;
+      return;
     }
 
     if (capability.execution === 'stage-locally' && capability.domain === 'markets') {
