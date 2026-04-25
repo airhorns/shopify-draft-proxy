@@ -142,6 +142,7 @@ function writeSnapshot(shop: ShopRecord | null): string {
       deletedFileIds: {},
       deletedCollectionIds: {},
       deletedCustomerIds: {},
+      deletedSegmentIds: {},
       deletedDiscountIds: {},
       deletedMarketIds: {},
       mergedCustomerIds: {},

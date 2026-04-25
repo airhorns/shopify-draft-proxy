@@ -1724,30 +1724,30 @@
     "type": "mutation",
     "domain": "segments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["segmentCreate", "SegmentCreate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_customers and protected-customer-data captures for ShopifyQL validation, unique names, and downstream segment catalog reads."
+    "runtimeTests": ["tests/integration/segment-lifecycle-flow.test.ts"],
+    "supportNotes": "HAR-216 stages segment creation locally with synthetic IDs/timestamps, captured blank/invalid-query validation, Shopify-like duplicate-name suffixing, and downstream segment catalog/count/detail reads."
   },
   {
     "name": "segmentUpdate",
     "type": "mutation",
     "domain": "segments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["segmentUpdate", "SegmentUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_customers and protected-customer-data captures for ShopifyQL validation, rename behavior, and downstream member recalculation."
+    "runtimeTests": ["tests/integration/segment-lifecycle-flow.test.ts"],
+    "supportNotes": "HAR-216 stages segment updates locally with captured unknown-ID/validation userErrors, query/name replacement, duplicate-name suffixing, and read-after-write visibility."
   },
   {
     "name": "segmentDelete",
     "type": "mutation",
     "domain": "segments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["segmentDelete", "SegmentDelete"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_customers and protected-customer-data captures for deletion payloads, unknown IDs, and downstream absence behavior."
+    "runtimeTests": ["tests/integration/segment-lifecycle-flow.test.ts"],
+    "supportNotes": "HAR-216 stages segment deletion locally, returns captured unknown-ID userErrors, and removes deleted segments from downstream detail/catalog/count reads."
   },
   {
     "name": "market",
