@@ -287,15 +287,21 @@ describe('meta routes', () => {
         expect.objectContaining({
           operationName: 'productCreate',
           path: '/admin/api/2025-01/graphql.json',
+          success: true,
           status: 'committed',
           upstreamStatus: 200,
+          upstreamBody: { data: { productCreate: { product: { id: 'gid://shopify/Product/1' }, userErrors: [] } } },
+          upstreamError: null,
           responseBody: { data: { productCreate: { product: { id: 'gid://shopify/Product/1' }, userErrors: [] } } },
         }),
         expect.objectContaining({
           operationName: 'productCreate',
           path: '/admin/api/2025-01/graphql.json',
+          success: false,
           status: 'failed',
           upstreamStatus: 200,
+          upstreamBody: { errors: [{ message: 'write scope denied' }] },
+          upstreamError: null,
           responseBody: { errors: [{ message: 'write scope denied' }] },
         }),
       ],
@@ -388,8 +394,10 @@ describe('meta routes', () => {
         expect.objectContaining({
           operationName: 'productCreate',
           path: '/admin/api/2025-01/graphql.json',
+          success: true,
           status: 'committed',
           upstreamStatus: 200,
+          upstreamError: null,
         }),
       ],
     });
@@ -525,18 +533,24 @@ describe('meta routes', () => {
       attempts: [
         expect.objectContaining({
           operationName: 'productCreate',
+          success: true,
           status: 'committed',
           upstreamStatus: 200,
+          upstreamError: null,
         }),
         expect.objectContaining({
           operationName: 'productPublish',
+          success: true,
           status: 'committed',
           upstreamStatus: 200,
+          upstreamError: null,
         }),
         expect.objectContaining({
           operationName: 'productSet',
+          success: true,
           status: 'committed',
           upstreamStatus: 200,
+          upstreamError: null,
         }),
       ],
     });
@@ -625,8 +639,11 @@ describe('meta routes', () => {
         expect.objectContaining({
           operationName: 'productCreate',
           path: '/admin/api/2025-01/graphql.json',
+          success: false,
           status: 'failed',
           upstreamStatus: null,
+          upstreamBody: null,
+          upstreamError: { message: 'network down' },
           responseBody: { errors: [{ message: 'network down' }] },
         }),
       ],
