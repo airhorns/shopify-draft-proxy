@@ -8,14 +8,18 @@
     "documentPath": "config/parity-requests/products-relevance-search-read.graphql",
     "variablesPath": "config/parity-requests/products-relevance-search-read.variables.json"
   },
-  "comparisonMode": "capture-only",
-  "notes": "Live product relevance capture preserves Shopify opaque cursors and RELEVANCE ordering for a concrete merchant-facing query so staged overlay replay can reuse the hydrated baseline order instead of inventing a synthetic scorer.",
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity coverage for product RELEVANCE ordering: compares the captured merchant-facing query result, selected fields, opaque cursors, and pageInfo shape.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "products-relevance-search-data",
+        "capturePath": "$.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.response"
+      }
+    ]
   }
 }
