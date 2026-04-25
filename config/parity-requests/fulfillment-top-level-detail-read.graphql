@@ -1,0 +1,133 @@
+query FulfillmentTopLevelDetails(
+  $orderId: ID!
+  $fulfillmentId: ID!
+  $fulfillmentOrderId: ID!
+  $missingFulfillmentId: ID!
+  $missingFulfillmentOrderId: ID!
+) {
+  fulfillment(id: $fulfillmentId) {
+    id
+    status
+    displayStatus
+    createdAt
+    updatedAt
+    trackingInfo {
+      number
+      url
+      company
+    }
+    fulfillmentLineItems(first: 5) {
+      nodes {
+        id
+        quantity
+        lineItem {
+          id
+          title
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+  fulfillmentOrder(id: $fulfillmentOrderId) {
+    id
+    status
+    requestStatus
+    assignedLocation {
+      name
+    }
+    lineItems(first: 5) {
+      nodes {
+        id
+        totalQuantity
+        remainingQuantity
+        lineItem {
+          id
+          title
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+  missingFulfillment: fulfillment(id: $missingFulfillmentId) {
+    id
+    status
+  }
+  missingFulfillmentOrder: fulfillmentOrder(id: $missingFulfillmentOrderId) {
+    id
+    status
+  }
+  order(id: $orderId) {
+    id
+    fulfillments(first: 5) {
+      id
+      status
+      displayStatus
+      createdAt
+      updatedAt
+      trackingInfo {
+        number
+        url
+        company
+      }
+      fulfillmentLineItems(first: 5) {
+        nodes {
+          id
+          quantity
+          lineItem {
+            id
+            title
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+    fulfillmentOrders(first: 5) {
+      nodes {
+        id
+        status
+        requestStatus
+        assignedLocation {
+          name
+        }
+        lineItems(first: 5) {
+          nodes {
+            id
+            totalQuantity
+            remainingQuantity
+            lineItem {
+              id
+              title
+            }
+          }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+            startCursor
+            endCursor
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}

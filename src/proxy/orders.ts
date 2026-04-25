@@ -7,6 +7,7 @@ import {
   buildSyntheticCursor,
   getFieldResponseKey,
   getSelectedChildFields as getGraphQLSelectedChildFields,
+  paginateConnectionItems,
   readNullableIntArgument,
   readNullableStringArgument,
   serializeConnection,
@@ -3365,17 +3366,148 @@ function serializeOrderFulfillmentOrder(
 function serializeOrderFulfillmentOrdersConnection(
   field: FieldNode,
   fulfillmentOrders: OrderFulfillmentOrderRecord[],
+  variables: Record<string, unknown> = {},
+  options: { includeCursors?: boolean } = {},
 ): Record<string, unknown> {
+  const window = paginateConnectionItems(
+    fulfillmentOrders,
+    field,
+    variables,
+    (fulfillmentOrder) => fulfillmentOrder.id,
+  );
   return serializeConnection(field, {
-    items: fulfillmentOrders,
-    hasNextPage: false,
-    hasPreviousPage: false,
+    items: window.items,
+    hasNextPage: window.hasNextPage,
+    hasPreviousPage: window.hasPreviousPage,
     getCursorValue: (fulfillmentOrder) => fulfillmentOrder.id,
     serializeNode: (fulfillmentOrder, selection) => serializeOrderFulfillmentOrder(selection, fulfillmentOrder),
     pageInfoOptions: {
-      includeCursors: false,
+      includeCursors: options.includeCursors ?? false,
     },
   });
+}
+
+function listOrderFulfillments(orders: OrderRecord[]): OrderFulfillmentRecord[] {
+  return orders.flatMap((order) => order.fulfillments ?? []);
+}
+
+function listOrderFulfillmentOrders(orders: OrderRecord[]): OrderFulfillmentOrderRecord[] {
+  return orders.flatMap((order) => order.fulfillmentOrders ?? []);
+}
+
+function compareFulfillmentOrderIds(leftId: string, rightId: string): number {
+  const leftTail = Number.parseInt(leftId.split('/').at(-1) ?? '', 10);
+  const rightTail = Number.parseInt(rightId.split('/').at(-1) ?? '', 10);
+  if (Number.isFinite(leftTail) && Number.isFinite(rightTail)) {
+    return leftTail - rightTail;
+  }
+
+  return leftId.localeCompare(rightId);
+}
+
+function matchesFulfillmentOrderStatus(status: string | null | undefined, rawValue: string): boolean {
+  const value = normalizeSearchValue(rawValue).toUpperCase();
+  return status?.toUpperCase() === value;
+}
+
+function readFulfillmentOrderNumericId(fulfillmentOrder: OrderFulfillmentOrderRecord): number | null {
+  const parsed = Number.parseInt(fulfillmentOrder.id.split('/').at(-1) ?? '', 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function matchesFulfillmentOrderSearchTerm(
+  fulfillmentOrder: OrderFulfillmentOrderRecord,
+  term: SearchQueryTerm,
+): boolean {
+  if (term.field === null || term.field === '') {
+    return (
+      matchesStringValueIncludingContains(fulfillmentOrder.id, term.value) ||
+      matchesStringValueIncludingContains(fulfillmentOrder.status, term.value) ||
+      matchesStringValueIncludingContains(fulfillmentOrder.requestStatus, term.value)
+    );
+  }
+
+  const field = term.field.toLowerCase();
+  const value = searchTermValue(term);
+
+  switch (field) {
+    case 'id':
+      return (
+        fulfillmentOrder.id === normalizeSearchValue(value) ||
+        matchesNumericTerm(readFulfillmentOrderNumericId(fulfillmentOrder), value)
+      );
+    case 'status':
+      return matchesFulfillmentOrderStatus(fulfillmentOrder.status, value);
+    case 'request_status':
+    case 'requeststatus':
+      return matchesFulfillmentOrderStatus(fulfillmentOrder.requestStatus, value);
+    default:
+      return false;
+  }
+}
+
+function applyFulfillmentOrdersQuery(
+  fulfillmentOrders: OrderFulfillmentOrderRecord[],
+  rawQuery: unknown,
+): OrderFulfillmentOrderRecord[] {
+  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
+    return fulfillmentOrders;
+  }
+
+  const terms = parseSearchQueryTerms(rawQuery.trim(), {
+    quoteCharacters: ['"'],
+    preserveQuotesInTerms: true,
+    ignoredKeywords: ['AND'],
+  });
+  if (terms.length === 0) {
+    return fulfillmentOrders;
+  }
+
+  return fulfillmentOrders.filter((fulfillmentOrder) =>
+    terms.every((term) => matchesFulfillmentOrderSearchTerm(fulfillmentOrder, term)),
+  );
+}
+
+function sortFulfillmentOrdersForConnection(
+  fulfillmentOrders: OrderFulfillmentOrderRecord[],
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): OrderFulfillmentOrderRecord[] {
+  const args = getFieldArguments(field, variables);
+  const sortKey = typeof args['sortKey'] === 'string' ? args['sortKey'] : 'ID';
+  const reverse = args['reverse'] === true;
+  const sorted = [...fulfillmentOrders].sort((left, right) => {
+    switch (sortKey) {
+      case 'STATUS':
+        return (
+          compareNullableStrings(left.status, right.status) ||
+          compareNullableStrings(left.requestStatus, right.requestStatus) ||
+          compareFulfillmentOrderIds(left.id, right.id)
+        );
+      case 'ID':
+      default:
+        return compareFulfillmentOrderIds(left.id, right.id);
+    }
+  });
+
+  return reverse ? sorted.reverse() : sorted;
+}
+
+function prepareTopLevelFulfillmentOrders(
+  field: FieldNode,
+  fulfillmentOrders: OrderFulfillmentOrderRecord[],
+  variables: Record<string, unknown>,
+): OrderFulfillmentOrderRecord[] {
+  const args = getFieldArguments(field, variables);
+  const includeClosed = args['includeClosed'] === true;
+  const visibleFulfillmentOrders = includeClosed
+    ? fulfillmentOrders
+    : fulfillmentOrders.filter((fulfillmentOrder) => fulfillmentOrder.status !== 'CLOSED');
+  return sortFulfillmentOrdersForConnection(
+    applyFulfillmentOrdersQuery(visibleFulfillmentOrders, args['query']),
+    field,
+    variables,
+  );
 }
 
 function serializeOrderTransaction(field: FieldNode, transaction: OrderTransactionRecord): Record<string, unknown> {
@@ -4952,6 +5084,8 @@ export function handleOrderQuery(
 ): { data: Record<string, unknown>; extensions?: { search: OrderSearchExtensionEntry[] } } {
   const data: Record<string, unknown> = {};
   const orders = store.getOrders();
+  const fulfillments = listOrderFulfillments(orders);
+  const fulfillmentOrders = listOrderFulfillmentOrders(orders);
   const searchExtensions: OrderSearchExtensionEntry[] = [];
 
   for (const field of getRootFields(document)) {
@@ -4959,7 +5093,7 @@ export function handleOrderQuery(
 
     switch (field.name.value) {
       case 'order': {
-        const id = typeof variables['id'] === 'string' ? variables['id'] : null;
+        const id = readNullableStringArgument(field, 'id', variables);
         const order = id ? store.getOrderById(id) : null;
         data[key] = order ? serializeOrderNode(field, order) : null;
         break;
@@ -4970,8 +5104,32 @@ export function handleOrderQuery(
       case 'ordersCount':
         data[key] = serializeOrdersCount(field, orders, variables);
         break;
+      case 'fulfillment': {
+        const id = readNullableStringArgument(field, 'id', variables);
+        const fulfillment = id ? (fulfillments.find((candidate) => candidate.id === id) ?? null) : null;
+        data[key] = fulfillment ? serializeOrderFulfillment(field, fulfillment) : null;
+        break;
+      }
+      case 'fulfillmentOrder': {
+        const id = readNullableStringArgument(field, 'id', variables);
+        const fulfillmentOrder = id ? (fulfillmentOrders.find((candidate) => candidate.id === id) ?? null) : null;
+        data[key] = fulfillmentOrder ? serializeOrderFulfillmentOrder(field, fulfillmentOrder) : null;
+        break;
+      }
+      case 'fulfillmentOrders':
+        data[key] = serializeOrderFulfillmentOrdersConnection(
+          field,
+          prepareTopLevelFulfillmentOrders(field, fulfillmentOrders, variables),
+          variables,
+          { includeCursors: true },
+        );
+        break;
+      case 'assignedFulfillmentOrders':
+      case 'manualHoldsFulfillmentOrders':
+        data[key] = serializeOrderFulfillmentOrdersConnection(field, [], variables, { includeCursors: true });
+        break;
       case 'draftOrder': {
-        const id = typeof variables['id'] === 'string' ? variables['id'] : null;
+        const id = readNullableStringArgument(field, 'id', variables);
         const draftOrder = id ? store.getDraftOrderById(id) : null;
         data[key] = draftOrder ? serializeDraftOrderNode(field, draftOrder) : null;
         break;

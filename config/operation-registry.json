@@ -1618,10 +1618,10 @@
     "type": "query",
     "domain": "shipping-fulfillments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillment", "Fulfillment"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 Fulfillment read root. Registry-only declared gap until fulfillment records are modeled as first-class local state outside order-scoped downstream reads."
+    "runtimeTests": ["tests/integration/order-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 Fulfillment read root. Snapshot reads resolve from fulfillment records already present on the local order graph, return null for missing IDs, and keep top-level detail serialization aligned with nested Order.fulfillments; broader event/history fields remain unknown as null until captured."
   },
   {
     "name": "fulfillmentEventCreate",
@@ -1638,40 +1638,40 @@
     "type": "query",
     "domain": "shipping-fulfillments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["assignedFulfillmentOrders", "AssignedFulfillmentOrders"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 fulfillment-order assignment catalog root. Registry-only declared gap until access-scope filtering, assignmentStatus behavior, location filters, and empty-connection semantics are captured."
+    "runtimeTests": ["tests/integration/order-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 fulfillment-order assignment catalog root. Snapshot support is intentionally limited to Shopify-like empty connections for local data with no fulfillment-service assignment model; captured live evidence records the current credential blocker when the app is not associated with a fulfillment service."
   },
   {
     "name": "fulfillmentOrder",
     "type": "query",
     "domain": "shipping-fulfillments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrder", "FulfillmentOrder"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 FulfillmentOrder ID lookup root. Registry-only declared gap until fulfillment-order identity, status/requestStatus, line items, holds, deliveryMethod, and access-scope null/error behavior are modeled."
+    "runtimeTests": ["tests/integration/order-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 FulfillmentOrder ID lookup root. Snapshot reads resolve from fulfillment-order records already present on the local order graph, return null for missing IDs, and keep detail serialization aligned with nested Order.fulfillmentOrders; holds, deliveryMethod, and lifecycle replacement semantics remain out of scope."
   },
   {
     "name": "fulfillmentOrders",
     "type": "query",
     "domain": "shipping-fulfillments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrders", "FulfillmentOrders"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 all-fulfillment-orders catalog root. Registry-only declared gap until includeClosed, search filters, sort keys, scope-restricted visibility, and cursor/pageInfo behavior are captured."
+    "runtimeTests": ["tests/integration/order-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 all-fulfillment-orders catalog root. Snapshot support lists fulfillment orders already present on the local order graph, excludes CLOSED rows unless includeClosed is true, supports local ID/status/request_status query terms, ID/status sorting, reverse, and cursor pagination without inventing absent records."
   },
   {
     "name": "manualHoldsFulfillmentOrders",
     "type": "query",
     "domain": "shipping-fulfillments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["manualHoldsFulfillmentOrders", "ManualHoldsFulfillmentOrders"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 held fulfillment-order catalog root. Registry-only declared gap until hold filtering, supported order query filters, and no-hold empty connection behavior are captured."
+    "runtimeTests": ["tests/integration/order-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 held fulfillment-order catalog root. Snapshot support is currently limited to captured no-hold empty connection behavior because the local fulfillment-order model does not yet store hold records or hold-specific filters."
   },
   {
     "name": "fulfillmentOrderAcceptCancellationRequest",
