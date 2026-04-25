@@ -87,8 +87,14 @@ jobs:
       - name: Build
         run: corepack pnpm build
 
-      - name: Test
-        run: corepack pnpm test
+      - name: Unit tests
+        run: corepack pnpm test:unit
+
+      - name: Integration tests
+        run: corepack pnpm test:integration
+
+      - name: Conformance parity scenarios
+        run: corepack pnpm conformance:parity
 
       - name: Upload main conformance baseline
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
