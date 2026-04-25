@@ -1,0 +1,76 @@
+{
+  "data": {
+    "marketsResolvedValues": {
+      "currencyCode": "CAD",
+      "priceInclusivity": {
+        "dutiesIncluded": false,
+        "taxesIncluded": false
+      },
+      "catalogs": {
+        "edges": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      },
+      "webPresences": {
+        "edges": [
+          {
+            "cursor": "eyJsYXN0X2lkIjo2Mjg0Mjc2NTYxOCwibGFzdF92YWx1ZSI6NjI4NDI3NjU2MTh9",
+            "node": {
+              "id": "gid://shopify/MarketWebPresence/62842765618",
+              "subfolderSuffix": null,
+              "domain": {
+                "id": "gid://shopify/Domain/157391388978",
+                "host": "harry-test-heelo.myshopify.com",
+                "url": "https://harry-test-heelo.myshopify.com",
+                "sslEnabled": true
+              },
+              "rootUrls": [
+                {
+                  "locale": "en",
+                  "url": "https://harry-test-heelo.myshopify.com/"
+                }
+              ],
+              "defaultLocale": {
+                "locale": "en",
+                "name": "English",
+                "primary": true,
+                "published": true
+              },
+              "alternateLocales": [],
+              "markets": {
+                "edges": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": "eyJsYXN0X2lkIjo2Mjg0Mjc2NTYxOCwibGFzdF92YWx1ZSI6NjI4NDI3NjU2MTh9",
+          "endCursor": "eyJsYXN0X2lkIjo2Mjg0Mjc2NTYxOCwibGFzdF92YWx1ZSI6NjI4NDI3NjU2MTh9"
+        }
+      }
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 64,
+      "actualQueryCost": 12,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1893,
+        "restoreRate": 100
+      }
+    }
+  }
+}

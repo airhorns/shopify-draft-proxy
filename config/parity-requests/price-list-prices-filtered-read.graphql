@@ -1,0 +1,54 @@
+fragment PriceListFilteredPriceFields on PriceList {
+  __typename
+  id
+  name
+  currency
+  fixedPricesCount
+  parent {
+    adjustment {
+      type
+      value
+    }
+  }
+  catalog {
+    id
+    title
+    status
+  }
+  prices(first: 5, query: $priceQuery, originType: $originType) {
+    edges {
+      cursor
+      node {
+        price {
+          amount
+          currencyCode
+        }
+        compareAtPrice {
+          amount
+          currencyCode
+        }
+        originType
+        variant {
+          id
+          sku
+          product {
+            id
+            title
+          }
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}
+
+query PriceListPricesFilteredRead($priceListId: ID!, $priceQuery: String, $originType: PriceListPriceOriginType) {
+  priceList(id: $priceListId) {
+    ...PriceListFilteredPriceFields
+  }
+}

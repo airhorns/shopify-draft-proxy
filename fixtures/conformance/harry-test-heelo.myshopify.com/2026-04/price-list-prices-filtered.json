@@ -1,0 +1,62 @@
+{
+  "data": {
+    "priceList": {
+      "__typename": "PriceList",
+      "id": "gid://shopify/PriceList/31575408946",
+      "name": "Mexico Buyers",
+      "currency": "MXN",
+      "fixedPricesCount": 0,
+      "parent": {
+        "adjustment": {
+          "type": "PERCENTAGE_DECREASE",
+          "value": 5
+        }
+      },
+      "catalog": {
+        "id": "gid://shopify/MarketCatalog/128893452594",
+        "title": "Mexico",
+        "status": "ACTIVE"
+      },
+      "prices": {
+        "edges": [
+          {
+            "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTI5NjY5MCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Mjk2NjkwIn0=",
+            "node": {
+              "price": {
+                "amount": "902.45",
+                "currencyCode": "CAD"
+              },
+              "compareAtPrice": null,
+              "originType": "RELATIVE",
+              "variant": {
+                "id": "gid://shopify/ProductVariant/49875425296690",
+                "sku": "sku-untracked-1",
+                "product": {
+                  "id": "gid://shopify/Product/9801098789170",
+                  "title": "The Inventory Not Tracked Snowboard"
+                }
+              }
+            }
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTI5NjY5MCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Mjk2NjkwIn0=",
+          "endCursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTI5NjY5MCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Mjk2NjkwIn0="
+        }
+      }
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 15,
+      "actualQueryCost": 10,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1892,
+        "restoreRate": 100
+      }
+    }
+  }
+}

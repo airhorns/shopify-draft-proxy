@@ -11,7 +11,7 @@ import {
 import { store } from '../state/store.js';
 import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import type { JsonValue } from '../json-schemas.js';
-import type { MarketRecord } from '../state/types.js';
+import type { CatalogRecord, MarketRecord, PriceListRecord } from '../state/types.js';
 
 function responseKey(selection: FieldNode): string {
   return selection.alias?.value ?? selection.name.value;
@@ -71,6 +71,27 @@ function emptyConnection(): Record<string, unknown> {
       endCursor: null,
     },
   };
+}
+
+function serializeCountSelection(field: FieldNode, count: number, precision = 'EXACT'): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'count':
+        result[key] = count;
+        break;
+      case 'precision':
+        result[key] = precision;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+
+  return result;
 }
 
 function connectionFromNodes(nodes: unknown[]): Record<string, unknown> {
@@ -161,6 +182,34 @@ function projectObject(
       continue;
     }
 
+    if (source['__typename'] === 'MarketCatalog') {
+      if (fieldName === 'marketsCount') {
+        result[key] = serializeCountSelection(selection, readConnectionEdges(source['markets']).length);
+        continue;
+      }
+      if (fieldName === 'operations') {
+        result[key] = projectValue(
+          source['operations'] ?? [],
+          selection.selectionSet?.selections ?? [],
+          fragments,
+          variables,
+        );
+        continue;
+      }
+    }
+
+    if (source['__typename'] === 'PriceList') {
+      if (fieldName === 'prices') {
+        result[key] = projectPriceListPricesConnection(source['prices'], selection, fragments, variables);
+        continue;
+      }
+      if (fieldName === 'quantityRules') {
+        const quantityRules = isPlainObject(source['quantityRules']) ? source['quantityRules'] : emptyConnection();
+        result[key] = projectConnectionPayload(quantityRules, selection, fragments, variables);
+        continue;
+      }
+    }
+
     const value = source[fieldName];
     result[key] = selection.selectionSet
       ? projectSelectedFieldValue(value, selection, fragments, variables)
@@ -168,6 +217,83 @@ function projectObject(
   }
 
   return result;
+}
+
+function priceListPriceNodeMatchesQuery(node: unknown, rawQuery: unknown): boolean {
+  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
+    return true;
+  }
+
+  const parsedQuery = parseSearchQuery(rawQuery, { recognizeNotKeyword: true });
+  if (!parsedQuery) {
+    return true;
+  }
+
+  const matchesTerm = (term: SearchQueryTerm): boolean => {
+    if (!term.raw) {
+      return true;
+    }
+
+    if (!isPlainObject(node)) {
+      return false;
+    }
+
+    const variant = isPlainObject(node['variant']) ? node['variant'] : null;
+    const product = isPlainObject(variant?.['product']) ? variant['product'] : null;
+    const field = term.field?.toLowerCase() ?? null;
+    const value = stripSearchValueQuotes(searchTermValue(term));
+    const variantId = typeof variant?.['id'] === 'string' ? variant['id'] : null;
+    const productId = typeof product?.['id'] === 'string' ? product['id'] : null;
+    const matches =
+      field === 'variant_id'
+        ? matchesStringValue(variantId, value, 'exact') ||
+          (variantId !== null && String(resourceNumericId(variantId)) === value)
+        : field === 'product_id'
+          ? matchesStringValue(productId, value, 'exact') ||
+            (productId !== null && String(resourceNumericId(productId)) === value)
+          : true;
+
+    return term.negated ? !matches : matches;
+  };
+
+  const matchesNode = (queryNode: SearchQueryNode): boolean => {
+    switch (queryNode.type) {
+      case 'term':
+        return matchesTerm(queryNode.term);
+      case 'and':
+        return queryNode.children.every((child) => matchesNode(child));
+      case 'or':
+        return queryNode.children.some((child) => matchesNode(child));
+      case 'not':
+        return !matchesNode(queryNode.child);
+    }
+  };
+
+  return matchesNode(parsedQuery);
+}
+
+function projectPriceListPricesConnection(
+  value: unknown,
+  selection: FieldNode,
+  fragments: FragmentMap,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const args = getFieldArguments(selection, variables);
+  const originType = typeof args['originType'] === 'string' ? args['originType'] : null;
+  if (originType === null && (typeof args['query'] !== 'string' || !args['query'].trim()) && isPlainObject(value)) {
+    return projectConnectionPayload(value, selection, fragments, variables);
+  }
+
+  const edges = readConnectionEdges(value).filter((edge) => {
+    if (!isPlainObject(edge.node)) {
+      return false;
+    }
+    return (
+      (originType === null || edge.node['originType'] === originType) &&
+      priceListPriceNodeMatchesQuery(edge.node, args['query'])
+    );
+  });
+  return projectConnectionPayload({ edges }, selection, fragments, variables);
 }
 
 type ConnectionEdge = {
@@ -202,6 +328,15 @@ function projectConnectionPayload(
 ): Record<string, unknown> {
   const edges = readConnectionEdges(value);
   const window = paginateConnectionItems(edges, selection, variables, (edge) => edge.cursor);
+  const args = getFieldArguments(selection, variables);
+  const first = typeof args['first'] === 'number' && Number.isInteger(args['first']) ? args['first'] : null;
+  const preservesCapturedPageInfo =
+    isPlainObject(value['pageInfo']) &&
+    args['after'] === undefined &&
+    args['before'] === undefined &&
+    args['last'] === undefined &&
+    (first === null || first >= edges.length) &&
+    window.items.length === edges.length;
   const result: Record<string, unknown> = {};
 
   for (const childSelection of getSelectedChildFields(selection)) {
@@ -216,14 +351,16 @@ function projectConnectionPayload(
         result[key] = window.items.map((edge) => projectEdge(edge, childSelection, fragments, variables));
         break;
       case 'pageInfo':
-        result[key] = serializeConnectionPageInfo(
-          childSelection,
-          window.items,
-          window.hasNextPage,
-          window.hasPreviousPage,
-          (edge) => edge.cursor,
-          { prefixCursors: false },
-        );
+        result[key] = preservesCapturedPageInfo
+          ? projectValue(value['pageInfo'], childSelection.selectionSet?.selections ?? [], fragments, variables)
+          : serializeConnectionPageInfo(
+              childSelection,
+              window.items,
+              window.hasNextPage,
+              window.hasPreviousPage,
+              (edge) => edge.cursor,
+              { prefixCursors: false },
+            );
         break;
       default:
         result[key] = value[childSelection.name.value] ?? null;
@@ -285,6 +422,16 @@ type MarketHydrationEntry = {
   cursor: string | null;
 };
 
+type CatalogHydrationEntry = {
+  catalog: Record<string, unknown>;
+  cursor: string | null;
+};
+
+type PriceListHydrationEntry = {
+  priceList: Record<string, unknown>;
+  cursor: string | null;
+};
+
 function collectMarketNodes(
   value: unknown,
   markets: MarketHydrationEntry[] = [],
@@ -327,6 +474,94 @@ function collectMarketNodes(
   return markets;
 }
 
+function collectCatalogNodes(
+  value: unknown,
+  catalogs: CatalogHydrationEntry[] = [],
+  cursor: string | null = null,
+): CatalogHydrationEntry[] {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectCatalogNodes(item, catalogs, cursor);
+    }
+    return catalogs;
+  }
+
+  if (!isPlainObject(value)) {
+    return catalogs;
+  }
+
+  if (Array.isArray(value['edges'])) {
+    for (const edge of value['edges']) {
+      if (!isPlainObject(edge)) {
+        continue;
+      }
+
+      const edgeCursor = typeof edge['cursor'] === 'string' && edge['cursor'].length > 0 ? edge['cursor'] : null;
+      collectCatalogNodes(edge['node'], catalogs, edgeCursor);
+    }
+  }
+
+  const id = value['id'];
+  if (
+    typeof id === 'string' &&
+    /gid:\/\/shopify\/(?:MarketCatalog|CompanyLocationCatalog|AppCatalog|Catalog)\//u.test(id)
+  ) {
+    const catalog = { __typename: 'MarketCatalog', ...value };
+    catalogs.push({ catalog, cursor });
+  }
+
+  for (const [key, child] of Object.entries(value)) {
+    if (key === 'edges') {
+      continue;
+    }
+    collectCatalogNodes(child, catalogs, null);
+  }
+
+  return catalogs;
+}
+
+function collectPriceListNodes(
+  value: unknown,
+  priceLists: PriceListHydrationEntry[] = [],
+  cursor: string | null = null,
+): PriceListHydrationEntry[] {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectPriceListNodes(item, priceLists, cursor);
+    }
+    return priceLists;
+  }
+
+  if (!isPlainObject(value)) {
+    return priceLists;
+  }
+
+  if (Array.isArray(value['edges'])) {
+    for (const edge of value['edges']) {
+      if (!isPlainObject(edge)) {
+        continue;
+      }
+
+      const edgeCursor = typeof edge['cursor'] === 'string' && edge['cursor'].length > 0 ? edge['cursor'] : null;
+      collectPriceListNodes(edge['node'], priceLists, edgeCursor);
+    }
+  }
+
+  const id = value['id'];
+  if (typeof id === 'string' && id.startsWith('gid://shopify/PriceList/')) {
+    priceLists.push({ priceList: { __typename: 'PriceList', ...value }, cursor });
+  }
+
+  for (const [key, child] of Object.entries(value)) {
+    if (key === 'edges') {
+      continue;
+    }
+    collectPriceListNodes(child, priceLists, null);
+  }
+
+  return priceLists;
+}
+
 function readRootPayload(upstreamPayload: unknown, rootField: string): unknown {
   if (!isPlainObject(upstreamPayload)) {
     return null;
@@ -345,13 +580,25 @@ export function hydrateMarketsFromUpstreamResponse(
   _variables: Record<string, unknown>,
   upstreamPayload: unknown,
 ): void {
-  for (const rootField of ['markets', 'market', 'catalogs', 'webPresences', 'marketsResolvedValues']) {
+  for (const rootField of [
+    'markets',
+    'market',
+    'catalog',
+    'catalogs',
+    'catalogsCount',
+    'priceList',
+    'priceLists',
+    'webPresences',
+    'marketsResolvedValues',
+  ]) {
     const rootPayload = readRootPayload(upstreamPayload, rootField);
     if (rootPayload === null) {
       continue;
     }
 
     store.setBaseMarketsRootPayload(rootField, rootPayload);
+    store.upsertBaseCatalogs(collectCatalogNodes(rootPayload));
+    store.upsertBasePriceLists(collectPriceListNodes(rootPayload));
 
     if (rootField === 'markets' || rootField === 'catalogs' || rootField === 'webPresences') {
       store.upsertBaseMarkets(collectMarketNodes(rootPayload));
@@ -547,6 +794,257 @@ function compareMarketsBySortKey(left: MarketRecord, right: MarketRecord, rawSor
     default:
       return compareNullableStrings(left.data['name'], right.data['name']) || left.id.localeCompare(right.id);
   }
+}
+
+function resourceNumericId(resourceId: string): number | null {
+  const match = resourceId.match(/\/(\d+)$/u);
+  if (!match) {
+    return null;
+  }
+
+  const id = Number.parseInt(match[1] ?? '', 10);
+  return Number.isFinite(id) ? id : null;
+}
+
+function catalogMarkets(catalog: CatalogRecord): ConnectionEdge[] {
+  return readConnectionEdges(catalog.data['markets']);
+}
+
+function catalogHasType(catalog: CatalogRecord, rawType: unknown): boolean {
+  if (typeof rawType !== 'string' || rawType.length === 0) {
+    return true;
+  }
+
+  if (rawType === 'MARKET') {
+    return catalog.data['__typename'] === 'MarketCatalog' || catalog.id.startsWith('gid://shopify/MarketCatalog/');
+  }
+
+  return matchesStringValue(catalog.data['__typename'], `${rawType[0]}${rawType.slice(1).toLowerCase()}Catalog`);
+}
+
+function compareCatalogId(catalogId: number, rawValue: string): boolean {
+  const match = stripSearchValueQuotes(rawValue).match(
+    /^(<=|>=|<|>|=)?\s*(?:gid:\/\/shopify\/(?:MarketCatalog|CompanyLocationCatalog|AppCatalog|Catalog)\/)?(\d+)$/u,
+  );
+  if (!match) {
+    return false;
+  }
+
+  const operator = match[1] ?? '=';
+  const value = Number.parseInt(match[2] ?? '', 10);
+  switch (operator) {
+    case '<=':
+      return catalogId <= value;
+    case '>=':
+      return catalogId >= value;
+    case '<':
+      return catalogId < value;
+    case '>':
+      return catalogId > value;
+    case '=':
+      return catalogId === value;
+    default:
+      return false;
+  }
+}
+
+function matchesCatalogQueryTerm(catalog: CatalogRecord, term: SearchQueryTerm): boolean {
+  if (!term.raw) {
+    return true;
+  }
+
+  const value = searchTermValue(term);
+  const field = term.field?.toLowerCase() ?? null;
+  const matches =
+    field === null
+      ? matchesStringValue(catalog.data['title'], value, 'includes') ||
+        matchesStringValue(catalog.id, value, 'includes')
+      : field === 'id'
+        ? matchesStringValue(catalog.id, value, 'exact') ||
+          (resourceNumericId(catalog.id) !== null && compareCatalogId(resourceNumericId(catalog.id)!, value))
+        : field === 'title'
+          ? matchesStringValue(catalog.data['title'], value, 'includes')
+          : field === 'status'
+            ? matchesStringValue(catalog.data['status'], value, 'exact')
+            : field === 'market_id'
+              ? catalogMarkets(catalog).some(
+                  (edge) =>
+                    isPlainObject(edge.node) &&
+                    typeof edge.node['id'] === 'string' &&
+                    matchesStringValue(edge.node['id'], value, 'exact'),
+                )
+              : true;
+
+  return term.negated ? !matches : matches;
+}
+
+function matchesCatalogQueryNode(catalog: CatalogRecord, node: SearchQueryNode): boolean {
+  switch (node.type) {
+    case 'term':
+      return matchesCatalogQueryTerm(catalog, node.term);
+    case 'and':
+      return node.children.every((child) => matchesCatalogQueryNode(catalog, child));
+    case 'or':
+      return node.children.some((child) => matchesCatalogQueryNode(catalog, child));
+    case 'not':
+      return !matchesCatalogQueryNode(catalog, node.child);
+  }
+}
+
+function applyCatalogsQuery(catalogs: CatalogRecord[], rawQuery: unknown): CatalogRecord[] {
+  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
+    return catalogs;
+  }
+
+  const parsedQuery = parseSearchQuery(rawQuery, { recognizeNotKeyword: true });
+  if (!parsedQuery) {
+    return catalogs;
+  }
+
+  return catalogs.filter((catalog) => matchesCatalogQueryNode(catalog, parsedQuery));
+}
+
+function compareCatalogsBySortKey(left: CatalogRecord, right: CatalogRecord, rawSortKey: unknown): number {
+  const sortKey = typeof rawSortKey === 'string' ? rawSortKey : 'ID';
+  switch (sortKey) {
+    case 'TITLE':
+      return compareNullableStrings(left.data['title'], right.data['title']) || left.id.localeCompare(right.id);
+    case 'STATUS':
+      return compareNullableStrings(left.data['status'], right.data['status']) || left.id.localeCompare(right.id);
+    case 'ID':
+    default:
+      return (resourceNumericId(left.id) ?? 0) - (resourceNumericId(right.id) ?? 0) || left.id.localeCompare(right.id);
+  }
+}
+
+function listCatalogsForConnection(field: FieldNode, variables: Record<string, unknown>): CatalogRecord[] {
+  const args = getFieldArguments(field, variables);
+  const filteredCatalogs = applyCatalogsQuery(
+    store.listBaseCatalogs().filter((catalog) => catalogHasType(catalog, args['type'])),
+    args['query'],
+  );
+  const sortedCatalogs = [...filteredCatalogs].sort((left, right) =>
+    compareCatalogsBySortKey(left, right, args['sortKey']),
+  );
+
+  return args['reverse'] === true ? sortedCatalogs.reverse() : sortedCatalogs;
+}
+
+function catalogCursor(catalog: CatalogRecord): string {
+  return catalog.cursor ?? catalog.id;
+}
+
+function serializeCatalogsConnection(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): Record<string, unknown> {
+  const catalogs = listCatalogsForConnection(field, variables);
+  const window = paginateConnectionItems(catalogs, field, variables, catalogCursor);
+  const result: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'nodes':
+        result[key] = window.items.map((catalog) =>
+          projectValue(catalog.data, selection.selectionSet?.selections ?? [], fragments, variables),
+        );
+        break;
+      case 'edges':
+        result[key] = window.items.map((catalog) =>
+          projectEdge({ cursor: catalogCursor(catalog), node: catalog.data }, selection, fragments, variables),
+        );
+        break;
+      case 'pageInfo':
+        result[key] = serializeConnectionPageInfo(
+          selection,
+          window.items,
+          window.hasNextPage,
+          window.hasPreviousPage,
+          catalogCursor,
+          { prefixCursors: false },
+        );
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeCatalogsCount(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const count = listCatalogsForConnection(field, variables).length;
+  const rawLimit = args['limit'];
+  const limit = typeof rawLimit === 'number' && Number.isFinite(rawLimit) && rawLimit >= 0 ? rawLimit : null;
+  const visibleCount = limit === null ? count : Math.min(count, limit);
+  const precision = limit !== null && count > limit ? 'AT_LEAST' : 'EXACT';
+  return serializeCountSelection(field, visibleCount, precision);
+}
+
+function comparePriceListsBySortKey(left: PriceListRecord, right: PriceListRecord, rawSortKey: unknown): number {
+  const sortKey = typeof rawSortKey === 'string' ? rawSortKey : 'ID';
+  switch (sortKey) {
+    case 'NAME':
+      return compareNullableStrings(left.data['name'], right.data['name']) || left.id.localeCompare(right.id);
+    case 'ID':
+    default:
+      return (resourceNumericId(left.id) ?? 0) - (resourceNumericId(right.id) ?? 0) || left.id.localeCompare(right.id);
+  }
+}
+
+function listPriceListsForConnection(field: FieldNode, variables: Record<string, unknown>): PriceListRecord[] {
+  const args = getFieldArguments(field, variables);
+  const sortedPriceLists = [...store.listBasePriceLists()].sort((left, right) =>
+    comparePriceListsBySortKey(left, right, args['sortKey']),
+  );
+  return args['reverse'] === true ? sortedPriceLists.reverse() : sortedPriceLists;
+}
+
+function priceListCursor(priceList: PriceListRecord): string {
+  return priceList.cursor ?? priceList.id;
+}
+
+function serializePriceListsConnection(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): Record<string, unknown> {
+  const priceLists = listPriceListsForConnection(field, variables);
+  const window = paginateConnectionItems(priceLists, field, variables, priceListCursor);
+  const result: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'nodes':
+        result[key] = window.items.map((priceList) =>
+          projectValue(priceList.data, selection.selectionSet?.selections ?? [], fragments, variables),
+        );
+        break;
+      case 'edges':
+        result[key] = window.items.map((priceList) =>
+          projectEdge({ cursor: priceListCursor(priceList), node: priceList.data }, selection, fragments, variables),
+        );
+        break;
+      case 'pageInfo':
+        result[key] = serializeConnectionPageInfo(
+          selection,
+          window.items,
+          window.hasNextPage,
+          window.hasPreviousPage,
+          priceListCursor,
+          { prefixCursors: false },
+        );
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
 }
 
 function normalizeHandleParts(value: string): string {
@@ -1152,7 +1650,22 @@ function rootPayloadForField(field: FieldNode, variables: Record<string, unknown
     }
     case 'markets':
       return serializeMarketsConnection(field, variables, fragments);
+    case 'catalog': {
+      const args = getFieldArguments(field, variables);
+      const id = typeof args['id'] === 'string' ? args['id'] : null;
+      return id ? store.getBaseCatalogById(id) : null;
+    }
     case 'catalogs':
+      return serializeCatalogsConnection(field, variables, fragments);
+    case 'catalogsCount':
+      return serializeCatalogsCount(field, variables);
+    case 'priceList': {
+      const args = getFieldArguments(field, variables);
+      const id = typeof args['id'] === 'string' ? args['id'] : null;
+      return id ? store.getBasePriceListById(id) : null;
+    }
+    case 'priceLists':
+      return serializePriceListsConnection(field, variables, fragments);
     case 'webPresences':
       return store.getBaseMarketsRootPayload(field.name.value) ?? emptyConnection();
     case 'marketsResolvedValues':
@@ -1170,7 +1683,10 @@ export function handleMarketsQuery(document: string, variables: Record<string, u
     const key = responseKey(field);
     const rootPayload = rootPayloadForField(field, variables, fragments);
     data[key] =
-      field.name.value === 'markets'
+      field.name.value === 'markets' ||
+      field.name.value === 'catalogs' ||
+      field.name.value === 'catalogsCount' ||
+      field.name.value === 'priceLists'
         ? rootPayload
         : field.selectionSet
           ? projectValue(rootPayload, field.selectionSet.selections, fragments, variables)
@@ -1206,7 +1722,17 @@ export function handleMarketMutation(document: string, variables: Record<string,
 }
 
 export function seedMarketsFromCapture(capture: unknown): boolean {
-  const roots = ['markets', 'market', 'catalogs', 'webPresences', 'marketsResolvedValues'];
+  const roots = [
+    'markets',
+    'market',
+    'catalog',
+    'catalogs',
+    'catalogsCount',
+    'priceList',
+    'priceLists',
+    'webPresences',
+    'marketsResolvedValues',
+  ];
   const seededPayload: Record<string, unknown> = { data: {} };
   const data = seededPayload['data'] as Record<string, unknown>;
   let seeded = false;
