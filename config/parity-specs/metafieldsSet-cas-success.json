@@ -4,7 +4,7 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "compare-digest-parity", "downstream-read-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/metafields-set-cas-success-parity.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields-set-cas-success-parity.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/metafieldsSet-parity-plan.graphql",

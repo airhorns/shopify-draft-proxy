@@ -2,9 +2,9 @@
   "preconditionRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/9264634331369",
+        "id": "gid://shopify/Product/10170499498290",
         "primarySpec": {
-          "id": "gid://shopify/Metafield/35330423423209",
+          "id": "gid://shopify/Metafield/42952330379570",
           "namespace": "custom",
           "key": "material",
           "type": "single_line_text_field",
@@ -12,7 +12,7 @@
           "compareDigest": "5952dd0f37ffcaec42383c46cf932a085d1c5e8885b88435f988ebd547271318"
         },
         "origin": {
-          "id": "gid://shopify/Metafield/35330423455977",
+          "id": "gid://shopify/Metafield/42952330412338",
           "namespace": "details",
           "key": "origin",
           "type": "single_line_text_field",
@@ -20,7 +20,7 @@
           "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3"
         },
         "season": {
-          "id": "gid://shopify/Metafield/35330423587049",
+          "id": "gid://shopify/Metafield/42952330445106",
           "namespace": "details",
           "key": "season",
           "type": "single_line_text_field",
@@ -30,7 +30,7 @@
         "metafields": {
           "nodes": [
             {
-              "id": "gid://shopify/Metafield/35330423423209",
+              "id": "gid://shopify/Metafield/42952330379570",
               "namespace": "custom",
               "key": "material",
               "type": "single_line_text_field",
@@ -38,7 +38,7 @@
               "compareDigest": "5952dd0f37ffcaec42383c46cf932a085d1c5e8885b88435f988ebd547271318"
             },
             {
-              "id": "gid://shopify/Metafield/35330423455977",
+              "id": "gid://shopify/Metafield/42952330412338",
               "namespace": "details",
               "key": "origin",
               "type": "single_line_text_field",
@@ -46,7 +46,7 @@
               "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3"
             },
             {
-              "id": "gid://shopify/Metafield/35330423587049",
+              "id": "gid://shopify/Metafield/42952330445106",
               "namespace": "details",
               "key": "season",
               "type": "single_line_text_field",
@@ -54,7 +54,7 @@
               "compareDigest": "f1425e64410adace8ddc7c055fb7f8e45b07a3d25b99ed49e4d58230fa241899"
             },
             {
-              "id": "gid://shopify/Metafield/35330423619817",
+              "id": "gid://shopify/Metafield/42952330543410",
               "namespace": "app--347082227713",
               "key": "missing_namespace",
               "type": "single_line_text_field",
@@ -65,8 +65,8 @@
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjozNTMzMDQyMzQyMzIwOSwibGFzdF92YWx1ZSI6IjM1MzMwNDIzNDIzMjA5In0=",
-            "endCursor": "eyJsYXN0X2lkIjozNTMzMDQyMzYxOTgxNywibGFzdF92YWx1ZSI6IjM1MzMwNDIzNjE5ODE3In0="
+            "startCursor": "eyJsYXN0X2lkIjo0Mjk1MjMzMDM3OTU3MCwibGFzdF92YWx1ZSI6IjQyOTUyMzMwMzc5NTcwIn0=",
+            "endCursor": "eyJsYXN0X2lkIjo0Mjk1MjMzMDU0MzQxMCwibGFzdF92YWx1ZSI6IjQyOTUyMzMwNTQzNDEwIn0="
           }
         }
       }
@@ -87,182 +87,182 @@
     "variables": {
       "metafields": [
         {
-          "ownerId": "gid://shopify/Product/9264634331369",
+          "ownerId": "gid://shopify/Product/10170499498290",
           "namespace": "bulk",
           "key": "over_limit_0",
           "type": "single_line_text_field",
           "value": "Over limit 0"
         },
         {
-          "ownerId": "gid://shopify/Product/9264634331369",
+          "ownerId": "gid://shopify/Product/10170499498290",
           "namespace": "bulk",
           "key": "over_limit_1",
           "type": "single_line_text_field",
           "value": "Over limit 1"
         },
         {
-          "ownerId": "gid://shopify/Product/9264634331369",
+          "ownerId": "gid://shopify/Product/10170499498290",
           "namespace": "bulk",
           "key": "over_limit_2",
           "type": "single_line_text_field",
           "value": "Over limit 2"
         },
         {
-          "ownerId": "gid://shopify/Product/9264634331369",
+          "ownerId": "gid://shopify/Product/10170499498290",
           "namespace": "bulk",
           "key": "over_limit_3",
           "type": "single_line_text_field",
           "value": "Over limit 3"
         },
         {
-          "ownerId": "gid://shopify/Product/9264634331369",
+          "ownerId": "gid://shopify/Product/10170499498290",
           "namespace": "bulk",
           "key": "over_limit_4",
           "type": "single_line_text_field",
           "value": "Over limit 4"
         },
         {
-          "ownerId": "gid://shopify/Product/9264634331369",
+          "ownerId": "gid://shopify/Product/10170499498290",
           "namespace": "bulk",
           "key": "over_limit_5",
           "type": "single_line_text_field",
           "value": "Over limit 5"
         },
         {
-          "ownerId": "gid://shopify/Product/9264634331369",
+          "ownerId": "gid://shopify/Product/10170499498290",
           "namespace": "bulk",
           "key": "over_limit_6",
           "type": "single_line_text_field",
           "value": "Over limit 6"
         },
         {
-          "ownerId": "gid://shopify/Product/9264634331369",
+          "ownerId": "gid://shopify/Product/10170499498290",
           "namespace": "bulk",
           "key": "over_limit_7",
           "type": "single_line_text_field",
           "value": "Over limit 7"
         },
         {
-          "ownerId": "gid://shopify/Product/9264634331369",
+          "ownerId": "gid://shopify/Product/10170499498290",
           "namespace": "bulk",
           "key": "over_limit_8",
           "type": "single_line_text_field",
           "value": "Over limit 8"
         },
         {
-          "ownerId": "gid://shopify/Product/9264634331369",
+          "ownerId": "gid://shopify/Product/10170499498290",
           "namespace": "bulk",
           "key": "over_limit_9",
           "type": "single_line_text_field",
           "value": "Over limit 9"
         },
         {
-          "ownerId": "gid://shopify/Product/9264634331369",
+          "ownerId": "gid://shopify/Product/10170499498290",
           "namespace": "bulk",
           "key": "over_limit_10",
           "type": "single_line_text_field",
           "value": "Over limit 10"
         },
         {
-          "ownerId": "gid://shopify/Product/9264634331369",
+          "ownerId": "gid://shopify/Product/10170499498290",
           "namespace": "bulk",
           "key": "over_limit_11",
           "type": "single_line_text_field",
           "value": "Over limit 11"
         },
         {
-          "ownerId": "gid://shopify/Product/9264634331369",
+          "ownerId": "gid://shopify/Product/10170499498290",
           "namespace": "bulk",
           "key": "over_limit_12",
           "type": "single_line_text_field",
           "value": "Over limit 12"
         },
         {
-          "ownerId": "gid://shopify/Product/9264634331369",
+          "ownerId": "gid://shopify/Product/10170499498290",
           "namespace": "bulk",
           "key": "over_limit_13",
           "type": "single_line_text_field",
           "value": "Over limit 13"
         },
         {
-          "ownerId": "gid://shopify/Product/9264634331369",
+          "ownerId": "gid://shopify/Product/10170499498290",
           "namespace": "bulk",
           "key": "over_limit_14",
           "type": "single_line_text_field",
           "value": "Over limit 14"
         },
         {
-          "ownerId": "gid://shopify/Product/9264634331369",
+          "ownerId": "gid://shopify/Product/10170499498290",
           "namespace": "bulk",
           "key": "over_limit_15",
           "type": "single_line_text_field",
           "value": "Over limit 15"
         },
         {
-          "ownerId": "gid://shopify/Product/9264634331369",
+          "ownerId": "gid://shopify/Product/10170499498290",
           "namespace": "bulk",
           "key": "over_limit_16",
           "type": "single_line_text_field",
           "value": "Over limit 16"
         },
         {
-          "ownerId": "gid://shopify/Product/9264634331369",
+          "ownerId": "gid://shopify/Product/10170499498290",
           "namespace": "bulk",
           "key": "over_limit_17",
           "type": "single_line_text_field",
           "value": "Over limit 17"
         },
         {
-          "ownerId": "gid://shopify/Product/9264634331369",
+          "ownerId": "gid://shopify/Product/10170499498290",
           "namespace": "bulk",
           "key": "over_limit_18",
           "type": "single_line_text_field",
           "value": "Over limit 18"
         },
         {
-          "ownerId": "gid://shopify/Product/9264634331369",
+          "ownerId": "gid://shopify/Product/10170499498290",
           "namespace": "bulk",
           "key": "over_limit_19",
           "type": "single_line_text_field",
           "value": "Over limit 19"
         },
         {
-          "ownerId": "gid://shopify/Product/9264634331369",
+          "ownerId": "gid://shopify/Product/10170499498290",
           "namespace": "bulk",
           "key": "over_limit_20",
           "type": "single_line_text_field",
           "value": "Over limit 20"
         },
         {
-          "ownerId": "gid://shopify/Product/9264634331369",
+          "ownerId": "gid://shopify/Product/10170499498290",
           "namespace": "bulk",
           "key": "over_limit_21",
           "type": "single_line_text_field",
           "value": "Over limit 21"
         },
         {
-          "ownerId": "gid://shopify/Product/9264634331369",
+          "ownerId": "gid://shopify/Product/10170499498290",
           "namespace": "bulk",
           "key": "over_limit_22",
           "type": "single_line_text_field",
           "value": "Over limit 22"
         },
         {
-          "ownerId": "gid://shopify/Product/9264634331369",
+          "ownerId": "gid://shopify/Product/10170499498290",
           "namespace": "bulk",
           "key": "over_limit_23",
           "type": "single_line_text_field",
           "value": "Over limit 23"
         },
         {
-          "ownerId": "gid://shopify/Product/9264634331369",
+          "ownerId": "gid://shopify/Product/10170499498290",
           "namespace": "bulk",
           "key": "over_limit_24",
           "type": "single_line_text_field",
           "value": "Over limit 24"
         },
         {
-          "ownerId": "gid://shopify/Product/9264634331369",
+          "ownerId": "gid://shopify/Product/10170499498290",
           "namespace": "bulk",
           "key": "over_limit_25",
           "type": "single_line_text_field",
@@ -298,14 +298,14 @@
     }
   },
   "downstreamReadVariables": {
-    "id": "gid://shopify/Product/9264634331369"
+    "id": "gid://shopify/Product/10170499498290"
   },
   "downstreamRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/9264634331369",
+        "id": "gid://shopify/Product/10170499498290",
         "primarySpec": {
-          "id": "gid://shopify/Metafield/35330423423209",
+          "id": "gid://shopify/Metafield/42952330379570",
           "namespace": "custom",
           "key": "material",
           "type": "single_line_text_field",
@@ -313,7 +313,7 @@
           "compareDigest": "5952dd0f37ffcaec42383c46cf932a085d1c5e8885b88435f988ebd547271318"
         },
         "origin": {
-          "id": "gid://shopify/Metafield/35330423455977",
+          "id": "gid://shopify/Metafield/42952330412338",
           "namespace": "details",
           "key": "origin",
           "type": "single_line_text_field",
@@ -321,7 +321,7 @@
           "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3"
         },
         "season": {
-          "id": "gid://shopify/Metafield/35330423587049",
+          "id": "gid://shopify/Metafield/42952330445106",
           "namespace": "details",
           "key": "season",
           "type": "single_line_text_field",
@@ -331,7 +331,7 @@
         "metafields": {
           "nodes": [
             {
-              "id": "gid://shopify/Metafield/35330423423209",
+              "id": "gid://shopify/Metafield/42952330379570",
               "namespace": "custom",
               "key": "material",
               "type": "single_line_text_field",
@@ -339,7 +339,7 @@
               "compareDigest": "5952dd0f37ffcaec42383c46cf932a085d1c5e8885b88435f988ebd547271318"
             },
             {
-              "id": "gid://shopify/Metafield/35330423455977",
+              "id": "gid://shopify/Metafield/42952330412338",
               "namespace": "details",
               "key": "origin",
               "type": "single_line_text_field",
@@ -347,7 +347,7 @@
               "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3"
             },
             {
-              "id": "gid://shopify/Metafield/35330423587049",
+              "id": "gid://shopify/Metafield/42952330445106",
               "namespace": "details",
               "key": "season",
               "type": "single_line_text_field",
@@ -355,7 +355,7 @@
               "compareDigest": "f1425e64410adace8ddc7c055fb7f8e45b07a3d25b99ed49e4d58230fa241899"
             },
             {
-              "id": "gid://shopify/Metafield/35330423619817",
+              "id": "gid://shopify/Metafield/42952330543410",
               "namespace": "app--347082227713",
               "key": "missing_namespace",
               "type": "single_line_text_field",
@@ -366,8 +366,8 @@
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjozNTMzMDQyMzQyMzIwOSwibGFzdF92YWx1ZSI6IjM1MzMwNDIzNDIzMjA5In0=",
-            "endCursor": "eyJsYXN0X2lkIjozNTMzMDQyMzYxOTgxNywibGFzdF92YWx1ZSI6IjM1MzMwNDIzNjE5ODE3In0="
+            "startCursor": "eyJsYXN0X2lkIjo0Mjk1MjMzMDM3OTU3MCwibGFzdF92YWx1ZSI6IjQyOTUyMzMwMzc5NTcwIn0=",
+            "endCursor": "eyJsYXN0X2lkIjo0Mjk1MjMzMDU0MzQxMCwibGFzdF92YWx1ZSI6IjQyOTUyMzMwNTQzNDEwIn0="
           }
         }
       }
@@ -378,7 +378,7 @@
         "actualQueryCost": 8,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1992,
+          "currentlyAvailable": 1989,
           "restoreRate": 100
         }
       }

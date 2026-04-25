@@ -3,14 +3,14 @@
     "variables": {
       "metafields": [
         {
-          "ownerId": "gid://shopify/Product/9264622174441",
+          "ownerId": "gid://shopify/Product/10170499498290",
           "namespace": "custom",
           "key": "material",
           "type": "single_line_text_field",
           "value": "Canvas"
         },
         {
-          "ownerId": "gid://shopify/Product/9264622174441",
+          "ownerId": "gid://shopify/Product/10170499498290",
           "namespace": "details",
           "key": "origin",
           "type": "single_line_text_field",
@@ -23,18 +23,20 @@
         "metafieldsSet": {
           "metafields": [
             {
-              "id": "gid://shopify/Metafield/35330177695977",
+              "id": "gid://shopify/Metafield/42952330379570",
               "namespace": "custom",
               "key": "material",
               "type": "single_line_text_field",
-              "value": "Canvas"
+              "value": "Canvas",
+              "compareDigest": "5604f34413e7aa54d8576ec602e7824b1ddbba13c2ce6799e333fe4594278b64"
             },
             {
-              "id": "gid://shopify/Metafield/35330177728745",
+              "id": "gid://shopify/Metafield/42952330412338",
               "namespace": "details",
               "key": "origin",
               "type": "single_line_text_field",
-              "value": "VN"
+              "value": "VN",
+              "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3"
             }
           ],
           "userErrors": []
@@ -53,57 +55,65 @@
       }
     }
   },
+  "downstreamReadVariables": {
+    "id": "gid://shopify/Product/10170499498290"
+  },
   "downstreamRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/9264622174441",
+        "id": "gid://shopify/Product/10170499498290",
         "primarySpec": {
-          "id": "gid://shopify/Metafield/35330177695977",
+          "id": "gid://shopify/Metafield/42952330379570",
           "namespace": "custom",
           "key": "material",
           "type": "single_line_text_field",
-          "value": "Canvas"
+          "value": "Canvas",
+          "compareDigest": "5604f34413e7aa54d8576ec602e7824b1ddbba13c2ce6799e333fe4594278b64"
         },
         "origin": {
-          "id": "gid://shopify/Metafield/35330177728745",
+          "id": "gid://shopify/Metafield/42952330412338",
           "namespace": "details",
           "key": "origin",
           "type": "single_line_text_field",
-          "value": "VN"
+          "value": "VN",
+          "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3"
         },
+        "season": null,
         "metafields": {
           "nodes": [
             {
-              "id": "gid://shopify/Metafield/35330177695977",
+              "id": "gid://shopify/Metafield/42952330379570",
               "namespace": "custom",
               "key": "material",
               "type": "single_line_text_field",
-              "value": "Canvas"
+              "value": "Canvas",
+              "compareDigest": "5604f34413e7aa54d8576ec602e7824b1ddbba13c2ce6799e333fe4594278b64"
             },
             {
-              "id": "gid://shopify/Metafield/35330177728745",
+              "id": "gid://shopify/Metafield/42952330412338",
               "namespace": "details",
               "key": "origin",
               "type": "single_line_text_field",
-              "value": "VN"
+              "value": "VN",
+              "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3"
             }
           ],
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjozNTMzMDE3NzY5NTk3NywibGFzdF92YWx1ZSI6IjM1MzMwMTc3Njk1OTc3In0=",
-            "endCursor": "eyJsYXN0X2lkIjozNTMzMDE3NzcyODc0NSwibGFzdF92YWx1ZSI6IjM1MzMwMTc3NzI4NzQ1In0="
+            "startCursor": "eyJsYXN0X2lkIjo0Mjk1MjMzMDM3OTU3MCwibGFzdF92YWx1ZSI6IjQyOTUyMzMwMzc5NTcwIn0=",
+            "endCursor": "eyJsYXN0X2lkIjo0Mjk1MjMzMDQxMjMzOCwibGFzdF92YWx1ZSI6IjQyOTUyMzMwNDEyMzM4In0="
           }
         }
       }
     },
     "extensions": {
       "cost": {
-        "requestedQueryCost": 9,
-        "actualQueryCost": 7,
+        "requestedQueryCost": 10,
+        "actualQueryCost": 8,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1993,
+          "currentlyAvailable": 1992,
           "restoreRate": 100
         }
       }
