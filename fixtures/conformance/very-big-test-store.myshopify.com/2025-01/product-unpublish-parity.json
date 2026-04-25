@@ -1,14 +1,14 @@
 {
   "seedProduct": {
-    "id": "gid://shopify/Product/9264098443497",
-    "title": "Hermes Product Publication Conformance 1777077438702",
+    "id": "gid://shopify/Product/9264105488617",
+    "title": "Hermes Product Publication Conformance 1777078193573",
     "status": "DRAFT"
   },
   "mutation": {
     "queryShape": "minimal-user-errors-only",
     "variables": {
       "input": {
-        "id": "gid://shopify/Product/9264098443497",
+        "id": "gid://shopify/Product/9264105488617",
         "productPublications": [
           {
             "publicationId": "gid://shopify/Publication/82090459369"
@@ -42,7 +42,7 @@
         "data": {
           "productUnpublish": {
             "product": {
-              "id": "gid://shopify/Product/9264098443497",
+              "id": "gid://shopify/Product/9264105488617",
               "publishedOnCurrentPublication": false,
               "availablePublicationsCount": {
                 "count": 0,
@@ -77,7 +77,7 @@
       "payload": {
         "data": {
           "product": {
-            "id": "gid://shopify/Product/9264098443497",
+            "id": "gid://shopify/Product/9264105488617",
             "publishedOnCurrentPublication": false,
             "availablePublicationsCount": {
               "count": 0,

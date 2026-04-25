@@ -19,7 +19,7 @@
   },
   "mutation": {
     "variables": {
-      "id": "gid://shopify/Collection/468787495145",
+      "id": "gid://shopify/Collection/468787757289",
       "input": [
         {
           "publicationId": "gid://shopify/Publication/82090459369"
@@ -31,9 +31,9 @@
       "data": {
         "publishablePublish": {
           "publishable": {
-            "id": "gid://shopify/Collection/468787495145",
-            "title": "Hermes Collection Conformance 1777077452757",
-            "handle": "hermes-collection-conformance-1777077452757",
+            "id": "gid://shopify/Collection/468787757289",
+            "title": "Hermes Collection Conformance 1777078204269",
+            "handle": "hermes-collection-conformance-1777078204269",
             "publishedOnCurrentPublication": false,
             "publishedOnPublication": true,
             "availablePublicationsCount": {
@@ -63,7 +63,7 @@
   },
   "publishMutation": {
     "variables": {
-      "id": "gid://shopify/Collection/468787495145",
+      "id": "gid://shopify/Collection/468787757289",
       "input": [
         {
           "publicationId": "gid://shopify/Publication/82090459369"
@@ -75,9 +75,9 @@
       "data": {
         "publishablePublish": {
           "publishable": {
-            "id": "gid://shopify/Collection/468787495145",
-            "title": "Hermes Collection Conformance 1777077452757",
-            "handle": "hermes-collection-conformance-1777077452757",
+            "id": "gid://shopify/Collection/468787757289",
+            "title": "Hermes Collection Conformance 1777078204269",
+            "handle": "hermes-collection-conformance-1777078204269",
             "publishedOnCurrentPublication": false,
             "publishedOnPublication": true,
             "availablePublicationsCount": {
@@ -108,9 +108,9 @@
   "postCreatePublicationRead": {
     "data": {
       "collection": {
-        "id": "gid://shopify/Collection/468787495145",
-        "title": "Hermes Collection Conformance 1777077452757",
-        "handle": "hermes-collection-conformance-1777077452757",
+        "id": "gid://shopify/Collection/468787757289",
+        "title": "Hermes Collection Conformance 1777078204269",
+        "handle": "hermes-collection-conformance-1777078204269",
         "publishedOnCurrentPublication": false,
         "publishedOnPublication": false,
         "availablePublicationsCount": {
@@ -219,9 +219,9 @@
             }
           },
           {
-            "id": "gid://shopify/Collection/468787495145",
-            "title": "Hermes Collection Conformance 1777077452757",
-            "handle": "hermes-collection-conformance-1777077452757",
+            "id": "gid://shopify/Collection/468787757289",
+            "title": "Hermes Collection Conformance 1777078204269",
+            "handle": "hermes-collection-conformance-1777078204269",
             "publishedOnCurrentPublication": false,
             "publishedOnPublication": false,
             "availablePublicationsCount": {
@@ -242,7 +242,7 @@
         "actualQueryCost": 20,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1969,
+          "currentlyAvailable": 1968,
           "restoreRate": 100
         }
       }
@@ -251,9 +251,9 @@
   "postPublishRead": {
     "data": {
       "collection": {
-        "id": "gid://shopify/Collection/468787495145",
-        "title": "Hermes Collection Conformance 1777077452757",
-        "handle": "hermes-collection-conformance-1777077452757",
+        "id": "gid://shopify/Collection/468787757289",
+        "title": "Hermes Collection Conformance 1777078204269",
+        "handle": "hermes-collection-conformance-1777078204269",
         "publishedOnCurrentPublication": false,
         "publishedOnPublication": true,
         "availablePublicationsCount": {
@@ -370,7 +370,7 @@
         "actualQueryCost": 19,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1975,
+          "currentlyAvailable": 1971,
           "restoreRate": 100
         }
       }
@@ -378,7 +378,7 @@
   },
   "unpublishMutation": {
     "variables": {
-      "id": "gid://shopify/Collection/468787495145",
+      "id": "gid://shopify/Collection/468787757289",
       "input": [
         {
           "publicationId": "gid://shopify/Publication/82090459369"
@@ -390,9 +390,9 @@
       "data": {
         "publishableUnpublish": {
           "publishable": {
-            "id": "gid://shopify/Collection/468787495145",
-            "title": "Hermes Collection Conformance 1777077452757",
-            "handle": "hermes-collection-conformance-1777077452757",
+            "id": "gid://shopify/Collection/468787757289",
+            "title": "Hermes Collection Conformance 1777078204269",
+            "handle": "hermes-collection-conformance-1777078204269",
             "publishedOnCurrentPublication": false,
             "publishedOnPublication": false,
             "availablePublicationsCount": {
@@ -413,7 +413,7 @@
           "actualQueryCost": 12,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1977,
+            "currentlyAvailable": 1972,
             "restoreRate": 100
           }
         }
@@ -423,9 +423,9 @@
   "postUnpublishRead": {
     "data": {
       "collection": {
-        "id": "gid://shopify/Collection/468787495145",
-        "title": "Hermes Collection Conformance 1777077452757",
-        "handle": "hermes-collection-conformance-1777077452757",
+        "id": "gid://shopify/Collection/468787757289",
+        "title": "Hermes Collection Conformance 1777078204269",
+        "handle": "hermes-collection-conformance-1777078204269",
         "publishedOnCurrentPublication": false,
         "publishedOnPublication": false,
         "availablePublicationsCount": {
@@ -534,9 +534,9 @@
             }
           },
           {
-            "id": "gid://shopify/Collection/468787495145",
-            "title": "Hermes Collection Conformance 1777077452757",
-            "handle": "hermes-collection-conformance-1777077452757",
+            "id": "gid://shopify/Collection/468787757289",
+            "title": "Hermes Collection Conformance 1777078204269",
+            "handle": "hermes-collection-conformance-1777078204269",
             "publishedOnCurrentPublication": false,
             "publishedOnPublication": false,
             "availablePublicationsCount": {
@@ -557,7 +557,7 @@
         "actualQueryCost": 20,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1980,
+          "currentlyAvailable": 1970,
           "restoreRate": 100
         }
       }
