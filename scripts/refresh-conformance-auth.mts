@@ -7,17 +7,13 @@ import {
   refreshConformanceAccessToken,
   resolveDefaultAppEnvPath,
 } from './shopify-conformance-auth.mjs';
-import { runAdminGraphqlRequest } from './conformance-graphql-client.mjs';
+import { createAdminGraphqlClient } from './conformance-graphql-client.js';
+import { readConformanceScriptConfig } from './conformance-script-config.js';
 
-const storeDomain = process.env['SHOPIFY_CONFORMANCE_STORE_DOMAIN'];
-
-if (!storeDomain) {
-  console.error('Missing required environment variable: SHOPIFY_CONFORMANCE_STORE_DOMAIN');
-  process.exit(1);
-}
-
-const adminOrigin = process.env['SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'] || `https://${storeDomain}`;
-const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || '2025-01';
+const { adminOrigin, apiVersion } = readConformanceScriptConfig({
+  exitOnMissing: true,
+  requireAdminOrigin: false,
+});
 const credentialPath = SHOPIFY_CONFORMANCE_AUTH_PATH;
 const appEnvPath = resolveDefaultAppEnvPath();
 
@@ -50,8 +46,12 @@ function recommendedNextStep(error: unknown): string {
 }
 
 async function runProbe(accessToken: string) {
-  const result = await runAdminGraphqlRequest(
-    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(accessToken) },
+  const { runGraphqlRequest } = createAdminGraphqlClient({
+    adminOrigin,
+    apiVersion,
+    headers: buildAdminAuthHeaders(accessToken),
+  });
+  const result = await runGraphqlRequest(
     `#graphql
         query RefreshProbe {
           shop {
