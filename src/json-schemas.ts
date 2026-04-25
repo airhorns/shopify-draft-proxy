@@ -45,6 +45,7 @@ export const operationRegistryEntrySchema = z.strictObject({
     'store-properties',
     'discounts',
     'metafields',
+    'markets',
     'unknown',
   ]),
   execution: z.enum(['overlay-read', 'stage-locally']),
