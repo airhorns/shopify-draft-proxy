@@ -2257,27 +2257,27 @@
     "type": "mutation",
     "domain": "markets",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketCreate", "MarketCreate"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
   },
   {
     "name": "marketUpdate",
     "type": "mutation",
     "domain": "markets",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketUpdate", "MarketUpdate"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
   },
   {
     "name": "marketDelete",
     "type": "mutation",
     "domain": "markets",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketDelete", "MarketDelete"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
   },
   {
     "name": "webPresenceCreate",
