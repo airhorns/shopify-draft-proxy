@@ -1,32 +1,71 @@
 {
   "scenarioId": "fulfillment-cancel-live-parity",
   "operationNames": ["fulfillmentCancel"],
-  "scenarioStatus": "planned",
+  "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
-  "liveCaptureFiles": [],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/fulfillment-cancel-parity.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/fulfillmentCancel-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/fulfillmentCancel-parity-plan.variables.json"
+    "variablesCapturePath": "$.variables"
   },
-  "comparisonMode": "planned",
-  "blocker": {
-    "kind": "missing-live-fulfillment-cancel-access",
-    "blockerPath": null,
-    "details": {
-      "linearIssue": "HAR-187",
-      "requiredScopes": [],
-      "requiredPermissions": [],
-      "probeRoots": ["fulfillmentCancel"],
-      "blockedMutations": ["fulfillmentCancel"],
-      "failingMessage": "Access denied for fulfillmentCancel field.",
-      "activeCredentialTokenFamily": "shpca",
-      "activeCredentialHeaderMode": "raw-x-shopify-access-token",
-      "activeCredentialSummary": "the active conformance credential is a Shopify user access token (`shpca_...`) sent as raw `X-Shopify-Access-Token` on this host",
-      "manualStoreAuthStatus": "missing",
-      "manualStoreAuthTokenPath": ".manual-store-auth-token.json",
-      "manualStoreAuthCachedScopes": [],
-      "manualStoreAuthAssociatedUserScopes": []
-    }
-  },
-  "notes": "First fulfillment lifecycle parity scaffold for `fulfillmentCancel`. Live capture stays blocked until the conformance credential can cancel fulfillments."
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured HAR-187 happy-path `fulfillmentCancel` slice after fulfillment access was restored. The fixture records the safe setup fulfillment/tracking update, the cancel mutation payload, and immediate downstream order fulfillment visibility.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-fulfillment-id",
+        "capturePath": "$.mutation.response.data.fulfillmentCancel.fulfillment.id",
+        "proxyPath": "$.data.fulfillmentCancel.fulfillment.id"
+      },
+      {
+        "name": "mutation-fulfillment-status",
+        "capturePath": "$.mutation.response.data.fulfillmentCancel.fulfillment.status",
+        "proxyPath": "$.data.fulfillmentCancel.fulfillment.status"
+      },
+      {
+        "name": "mutation-fulfillment-display-status",
+        "capturePath": "$.mutation.response.data.fulfillmentCancel.fulfillment.displayStatus",
+        "proxyPath": "$.data.fulfillmentCancel.fulfillment.displayStatus"
+      },
+      {
+        "name": "mutation-tracking-info",
+        "capturePath": "$.mutation.response.data.fulfillmentCancel.fulfillment.trackingInfo",
+        "proxyPath": "$.data.fulfillmentCancel.fulfillment.trackingInfo"
+      },
+      {
+        "name": "mutation-user-errors",
+        "capturePath": "$.mutation.response.data.fulfillmentCancel.userErrors",
+        "proxyPath": "$.data.fulfillmentCancel.userErrors"
+      },
+      {
+        "name": "downstream-cancelled-fulfillment-status",
+        "capturePath": "$.downstreamRead.response.data.order.fulfillments[0].status",
+        "proxyPath": "$.data.order.fulfillments[0].status",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/order-fulfillment-lifecycle-read.graphql",
+          "variablesCapturePath": "$.downstreamRead.variables"
+        }
+      },
+      {
+        "name": "downstream-cancelled-fulfillment-display-status",
+        "capturePath": "$.downstreamRead.response.data.order.fulfillments[0].displayStatus",
+        "proxyPath": "$.data.order.fulfillments[0].displayStatus",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/order-fulfillment-lifecycle-read.graphql",
+          "variablesCapturePath": "$.downstreamRead.variables"
+        }
+      },
+      {
+        "name": "downstream-cancelled-fulfillment-tracking-info",
+        "capturePath": "$.downstreamRead.response.data.order.fulfillments[0].trackingInfo",
+        "proxyPath": "$.data.order.fulfillments[0].trackingInfo",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/order-fulfillment-lifecycle-read.graphql",
+          "variablesCapturePath": "$.downstreamRead.variables"
+        }
+      }
+    ]
+  }
 }

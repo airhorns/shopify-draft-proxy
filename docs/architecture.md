@@ -170,6 +170,16 @@ This allows:
 - commit replay from original raw mutation documents
 - future conformance instrumentation per command type
 
+Current implementation note:
+
+- order fulfillment mutations include local snapshot-mode staging for
+  `fulfillmentCreate` validation slices plus happy-path
+  `fulfillmentTrackingInfoUpdate` and `fulfillmentCancel`; the tracking/cancel
+  flows update seeded fulfillment records locally, return Shopify-shaped
+  `userErrors`, and expose the staged state through immediate downstream order
+  fulfillment reads without sending those supported mutations to Shopify at
+  runtime
+
 ## Response overlay strategy
 
 In live-hybrid mode:

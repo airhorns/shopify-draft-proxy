@@ -1099,6 +1099,61 @@ function readCapturedOrderFulfillments(order: Record<string, unknown> | null): O
     }));
 }
 
+function readFulfillmentPayloadFromSetup(capture: unknown, pathName: string): Record<string, unknown> | null {
+  return readRecordField(
+    readRecordField(
+      readRecordField(
+        readRecordField(
+          readRecordField(readRecordField(capture as Record<string, unknown>, 'setup'), pathName),
+          'response',
+        ),
+        'data',
+      ),
+      pathName,
+    ),
+    'fulfillment',
+  );
+}
+
+function seedFulfillmentLifecyclePreconditions(capture: unknown, mutationName: string | null): boolean {
+  if (mutationName !== 'fulfillmentTrackingInfoUpdate' && mutationName !== 'fulfillmentCancel') {
+    return false;
+  }
+
+  const setup = readRecordField(capture as Record<string, unknown>, 'setup');
+  const candidate = readRecordField(setup, 'candidate');
+  const orderSource = readRecordField(candidate, 'order');
+  const orderId = readStringField(orderSource, 'id');
+  if (!orderId) {
+    return false;
+  }
+
+  const createFulfillment = readFulfillmentPayloadFromSetup(capture, 'fulfillmentCreate');
+  const updateFulfillment = readFulfillmentPayloadFromSetup(capture, 'fulfillmentTrackingInfoUpdate');
+  const seedFulfillmentSource =
+    mutationName === 'fulfillmentCancel' && updateFulfillment
+      ? {
+          ...createFulfillment,
+          ...updateFulfillment,
+          fulfillmentLineItems:
+            readRecordField(updateFulfillment, 'fulfillmentLineItems') ??
+            readRecordField(createFulfillment, 'fulfillmentLineItems'),
+        }
+      : createFulfillment;
+  const seedFulfillment = readCapturedOrderFulfillments({ fulfillments: [seedFulfillmentSource] })[0];
+  if (!seedFulfillment) {
+    return false;
+  }
+
+  const order = makeSeedOrder(orderId, orderSource);
+  order.fulfillments = [
+    seedFulfillment,
+    ...(order.fulfillments ?? []).filter((fulfillment) => fulfillment.id !== seedFulfillment.id),
+  ];
+  store.upsertBaseOrders([order]);
+  return true;
+}
+
 function readCapturedFulfillmentOrderLineItems(
   source: Record<string, unknown> | null,
 ): OrderFulfillmentOrderLineItemRecord[] {
@@ -2331,6 +2386,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
 
   const payload = mutationPayloadFromCapture(capture);
   const mutationName = mutationNameFromCapture(capture);
+  if (seedFulfillmentLifecyclePreconditions(capture, mutationName)) {
+    return;
+  }
+
   if (seedCustomerMutationPreconditions(capture, variables, mutationName, payload)) {
     return;
   }

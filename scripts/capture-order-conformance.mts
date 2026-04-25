@@ -5,7 +5,7 @@ import 'dotenv/config';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { runAdminGraphqlRequest } from './conformance-graphql-client.mjs';
+import { runAdminGraphqlRequest } from './conformance-graphql-client.js';
 import { extractManualStoreAuthTokenSummary } from './product-publication-conformance-lib.mjs';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
@@ -51,6 +51,11 @@ const fulfillmentTrackingInfoUpdateMissingIdFixturePath = path.join(
 const fulfillmentCancelInlineMissingIdFixturePath = path.join(fixtureDir, 'fulfillment-cancel-inline-missing-id.json');
 const fulfillmentCancelInlineNullIdFixturePath = path.join(fixtureDir, 'fulfillment-cancel-inline-null-id.json');
 const fulfillmentCancelMissingIdFixturePath = path.join(fixtureDir, 'fulfillment-cancel-missing-id.json');
+const fulfillmentTrackingInfoUpdateParityFixturePath = path.join(
+  fixtureDir,
+  'fulfillment-tracking-info-update-parity.json',
+);
+const fulfillmentCancelParityFixturePath = path.join(fixtureDir, 'fulfillment-cancel-parity.json');
 const orderCreateInlineMissingOrderFixturePath = path.join(fixtureDir, 'order-create-inline-missing-order.json');
 const orderCreateInlineNullOrderFixturePath = path.join(fixtureDir, 'order-create-inline-null-order.json');
 const orderCreateMissingOrderFixturePath = path.join(fixtureDir, 'order-create-missing-order.json');
@@ -270,9 +275,65 @@ async function writeJson(filePath, payload) {
   await writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`);
 }
 
+function readPayloadRoot(result, rootName) {
+  return result?.payload?.data?.[rootName] ?? null;
+}
+
+function readUserErrors(result, rootName) {
+  const userErrors = readPayloadRoot(result, rootName)?.userErrors;
+  return Array.isArray(userErrors) ? userErrors : [];
+}
+
+function hasTopLevelErrors(result) {
+  return Boolean(result?.payload?.errors);
+}
+
+function hasEmptyUserErrors(result, rootName) {
+  return !hasTopLevelErrors(result) && readUserErrors(result, rootName).length === 0;
+}
+
+function findFulfillmentLifecycleCandidate(result) {
+  const orders = result?.payload?.data?.orders?.nodes;
+  if (!Array.isArray(orders)) {
+    return null;
+  }
+
+  for (const order of orders) {
+    if (order?.cancelledAt || order?.closed) {
+      continue;
+    }
+
+    const fulfillmentOrders = order?.fulfillmentOrders?.nodes;
+    if (!Array.isArray(fulfillmentOrders)) {
+      continue;
+    }
+
+    for (const fulfillmentOrder of fulfillmentOrders) {
+      const supportedActions = Array.isArray(fulfillmentOrder?.supportedActions)
+        ? fulfillmentOrder.supportedActions
+        : [];
+      const canCreateFulfillment = supportedActions.some((action) => action?.action === 'CREATE_FULFILLMENT');
+      const lineItems = fulfillmentOrder?.lineItems?.nodes;
+      const lineItem = Array.isArray(lineItems)
+        ? lineItems.find((candidateLineItem) => (candidateLineItem?.remainingQuantity ?? 0) > 0)
+        : null;
+
+      if (fulfillmentOrder?.status === 'OPEN' && canCreateFulfillment && lineItem) {
+        return {
+          order,
+          fulfillmentOrder,
+          lineItem,
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
 function mergeRuntimeBlockerDetails(existingDetails, credential, manualStoreAuthSummary) {
   return {
-    ...(existingDetails ?? {}),
+    ...existingDetails,
     activeCredentialTokenFamily: credential.family,
     activeCredentialHeaderMode: credential.headerMode,
     activeCredentialSummary: credential.summary,
@@ -587,6 +648,7 @@ const fulfillmentTrackingInfoUpdateInlineNullIdProbe = `#graphql
       fulfillment {
         id
         status
+        displayStatus
         trackingInfo {
           number
           url
@@ -694,12 +756,175 @@ const fulfillmentCancelMissingIdProbe = `#graphql
   }
 `;
 
+const fulfillmentLifecycleCandidateRead = `#graphql
+  query FulfillmentLifecycleCandidate($first: Int!) {
+    orders(first: $first, sortKey: CREATED_AT, reverse: true) {
+      nodes {
+        id
+        name
+        createdAt
+        updatedAt
+        displayFinancialStatus
+        displayFulfillmentStatus
+        cancelledAt
+        closed
+        note
+        tags
+        currentTotalPriceSet { shopMoney { amount currencyCode } }
+        lineItems(first: 5) {
+          nodes {
+            id
+            title
+            quantity
+          }
+        }
+        fulfillments(first: 5) {
+          id
+          status
+          displayStatus
+          createdAt
+          updatedAt
+          trackingInfo {
+            number
+            url
+            company
+          }
+          fulfillmentLineItems(first: 5) {
+            nodes {
+              id
+              quantity
+              lineItem {
+                id
+                title
+              }
+            }
+          }
+        }
+        fulfillmentOrders(first: 5) {
+          nodes {
+            id
+            status
+            requestStatus
+            supportedActions {
+              action
+            }
+            assignedLocation {
+              name
+            }
+            lineItems(first: 5) {
+              nodes {
+                id
+                totalQuantity
+                remainingQuantity
+                lineItem {
+                  id
+                  title
+                  quantity
+                  fulfillableQuantity
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
+const fulfillmentCreateLiveProbe = `#graphql
+  mutation FulfillmentLifecycleCreate($fulfillment: FulfillmentInput!, $message: String) {
+    fulfillmentCreate(fulfillment: $fulfillment, message: $message) {
+      fulfillment {
+        id
+        status
+        displayStatus
+        trackingInfo {
+          number
+          url
+          company
+        }
+        fulfillmentLineItems(first: 5) {
+          nodes {
+            id
+            quantity
+            lineItem {
+              id
+              title
+            }
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const orderReadAfterFulfillmentLifecycle = `#graphql
+  query OrderReadAfterFulfillmentLifecycle($id: ID!) {
+    order(id: $id) {
+      id
+      name
+      updatedAt
+      displayFulfillmentStatus
+      fulfillments(first: 5) {
+        id
+        status
+        displayStatus
+        createdAt
+        updatedAt
+        trackingInfo {
+          number
+          url
+          company
+        }
+        fulfillmentLineItems(first: 5) {
+          nodes {
+            id
+            quantity
+            lineItem {
+              id
+              title
+            }
+          }
+        }
+      }
+      fulfillmentOrders(first: 5) {
+        nodes {
+          id
+          status
+          requestStatus
+          lineItems(first: 5) {
+            nodes {
+              id
+              totalQuantity
+              remainingQuantity
+              lineItem {
+                id
+                title
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
 const fulfillmentCancelProbe = `#graphql
   mutation FulfillmentCancelProbe($id: ID!) {
     fulfillmentCancel(id: $id) {
       fulfillment {
         id
         status
+        displayStatus
+        trackingInfo {
+          number
+          url
+          company
+        }
       }
       userErrors {
         field
@@ -1637,6 +1862,75 @@ async function main() {
   const fulfillmentCancelInlineNullIdResult = await runGraphql(fulfillmentCancelInlineNullIdProbe, {});
   const fulfillmentCancelMissingIdResult = await runGraphql(fulfillmentCancelMissingIdProbe, {});
   const fulfillmentCancelResult = await runGraphql(fulfillmentCancelProbe, fulfillmentCancelVariables);
+  const fulfillmentLifecycleCandidateResult = await runGraphql(fulfillmentLifecycleCandidateRead, { first: 25 });
+  const fulfillmentLifecycleCandidate = findFulfillmentLifecycleCandidate(fulfillmentLifecycleCandidateResult);
+  const fulfillmentLifecycleStamp = new Date()
+    .toISOString()
+    .replace(/[-:.TZ]/gu, '')
+    .slice(0, 14);
+  const fulfillmentCreateLiveVariables = fulfillmentLifecycleCandidate
+    ? {
+        fulfillment: {
+          notifyCustomer: false,
+          trackingInfo: {
+            number: `HERMES-CREATE-${fulfillmentLifecycleStamp}`,
+            url: `https://example.com/track/HERMES-CREATE-${fulfillmentLifecycleStamp}`,
+            company: 'Hermes',
+          },
+          lineItemsByFulfillmentOrder: [
+            {
+              fulfillmentOrderId: fulfillmentLifecycleCandidate.fulfillmentOrder.id,
+              fulfillmentOrderLineItems: [
+                {
+                  id: fulfillmentLifecycleCandidate.lineItem.id,
+                  quantity: 1,
+                },
+              ],
+            },
+          ],
+        },
+        message: `HAR-187 fulfillment lifecycle capture ${fulfillmentLifecycleStamp}`,
+      }
+    : null;
+  const fulfillmentCreateLiveResult = fulfillmentCreateLiveVariables
+    ? await runGraphql(fulfillmentCreateLiveProbe, fulfillmentCreateLiveVariables)
+    : null;
+  const createdFulfillmentId = fulfillmentCreateLiveResult?.payload?.data?.fulfillmentCreate?.fulfillment?.id ?? null;
+  const fulfillmentTrackingInfoUpdateLiveVariables =
+    typeof createdFulfillmentId === 'string'
+      ? {
+          fulfillmentId: createdFulfillmentId,
+          notifyCustomer: false,
+          trackingInfoInput: {
+            number: `HERMES-UPDATE-${fulfillmentLifecycleStamp}`,
+            url: `https://example.com/track/HERMES-UPDATE-${fulfillmentLifecycleStamp}`,
+            company: 'Hermes',
+          },
+        }
+      : null;
+  const fulfillmentTrackingInfoUpdateLiveResult = fulfillmentTrackingInfoUpdateLiveVariables
+    ? await runGraphql(fulfillmentTrackingInfoUpdateProbe, fulfillmentTrackingInfoUpdateLiveVariables)
+    : null;
+  const fulfillmentReadAfterTrackingUpdateResult = fulfillmentLifecycleCandidate
+    ? await runGraphql(orderReadAfterFulfillmentLifecycle, { id: fulfillmentLifecycleCandidate.order.id })
+    : null;
+  const fulfillmentCancelLiveVariables =
+    typeof createdFulfillmentId === 'string'
+      ? {
+          id: createdFulfillmentId,
+        }
+      : null;
+  const fulfillmentCancelLiveResult = fulfillmentCancelLiveVariables
+    ? await runGraphql(fulfillmentCancelProbe, fulfillmentCancelLiveVariables)
+    : null;
+  const fulfillmentReadAfterCancelResult = fulfillmentLifecycleCandidate
+    ? await runGraphql(orderReadAfterFulfillmentLifecycle, { id: fulfillmentLifecycleCandidate.order.id })
+    : null;
+  const fulfillmentLifecycleCaptured =
+    Boolean(fulfillmentLifecycleCandidate) &&
+    hasEmptyUserErrors(fulfillmentCreateLiveResult, 'fulfillmentCreate') &&
+    hasEmptyUserErrors(fulfillmentTrackingInfoUpdateLiveResult, 'fulfillmentTrackingInfoUpdate') &&
+    hasEmptyUserErrors(fulfillmentCancelLiveResult, 'fulfillmentCancel');
   const orderCreateInlineMissingOrderResult = await runGraphql(orderCreateInlineMissingOrderProbe, {});
   const orderCreateInlineNullOrderResult = await runGraphql(orderCreateInlineNullOrderProbe, {});
   const orderCreateMissingOrderResult = await runGraphql(orderCreateMissingOrderProbe, {});
@@ -1714,6 +2008,12 @@ async function main() {
     getAuthFailureMessage(fulfillmentCreateInvalidIdResult) ??
     getAuthFailureMessage(fulfillmentTrackingInfoUpdateResult) ??
     getAuthFailureMessage(fulfillmentCancelResult) ??
+    getAuthFailureMessage(fulfillmentLifecycleCandidateResult) ??
+    getAuthFailureMessage(fulfillmentCreateLiveResult) ??
+    getAuthFailureMessage(fulfillmentTrackingInfoUpdateLiveResult) ??
+    getAuthFailureMessage(fulfillmentReadAfterTrackingUpdateResult) ??
+    getAuthFailureMessage(fulfillmentCancelLiveResult) ??
+    getAuthFailureMessage(fulfillmentReadAfterCancelResult) ??
     getAuthFailureMessage(orderCreateInlineMissingOrderResult) ??
     getAuthFailureMessage(orderCreateInlineNullOrderResult) ??
     getAuthFailureMessage(orderCreateMissingOrderResult) ??
@@ -1822,6 +2122,59 @@ async function main() {
         response: fulfillmentCancelMissingIdResult.payload,
       },
     });
+    if (
+      fulfillmentLifecycleCaptured &&
+      fulfillmentLifecycleCandidate &&
+      fulfillmentCreateLiveVariables &&
+      fulfillmentCreateLiveResult &&
+      fulfillmentTrackingInfoUpdateLiveVariables &&
+      fulfillmentTrackingInfoUpdateLiveResult &&
+      fulfillmentCancelLiveVariables &&
+      fulfillmentCancelLiveResult
+    ) {
+      const setup = {
+        candidate: fulfillmentLifecycleCandidate,
+        fulfillmentCreate: {
+          query: fulfillmentCreateLiveProbe.replace(/^#graphql\n/, '').trim(),
+          variables: fulfillmentCreateLiveVariables,
+          response: fulfillmentCreateLiveResult.payload,
+        },
+      };
+
+      await writeJson(fulfillmentTrackingInfoUpdateParityFixturePath, {
+        query: fulfillmentTrackingInfoUpdateProbe.replace(/^#graphql\n/, '').trim(),
+        variables: fulfillmentTrackingInfoUpdateLiveVariables,
+        setup,
+        mutation: {
+          response: fulfillmentTrackingInfoUpdateLiveResult.payload,
+        },
+        downstreamRead: {
+          query: orderReadAfterFulfillmentLifecycle.replace(/^#graphql\n/, '').trim(),
+          variables: { id: fulfillmentLifecycleCandidate.order.id },
+          response: fulfillmentReadAfterTrackingUpdateResult?.payload ?? null,
+        },
+      });
+      await writeJson(fulfillmentCancelParityFixturePath, {
+        query: fulfillmentCancelProbe.replace(/^#graphql\n/, '').trim(),
+        variables: fulfillmentCancelLiveVariables,
+        setup: {
+          ...setup,
+          fulfillmentTrackingInfoUpdate: {
+            query: fulfillmentTrackingInfoUpdateProbe.replace(/^#graphql\n/, '').trim(),
+            variables: fulfillmentTrackingInfoUpdateLiveVariables,
+            response: fulfillmentTrackingInfoUpdateLiveResult.payload,
+          },
+        },
+        mutation: {
+          response: fulfillmentCancelLiveResult.payload,
+        },
+        downstreamRead: {
+          query: orderReadAfterFulfillmentLifecycle.replace(/^#graphql\n/, '').trim(),
+          variables: { id: fulfillmentLifecycleCandidate.order.id },
+          response: fulfillmentReadAfterCancelResult?.payload ?? null,
+        },
+      });
+    }
     await writeJson(orderCreateInlineMissingOrderFixturePath, {
       query: orderCreateInlineMissingOrderProbe.replace(/^#graphql\n/, '').trim(),
       variables: {},
@@ -2245,7 +2598,10 @@ Refresh this note with \`corepack pnpm conformance:capture-orders\` after any cr
     await rm(draftOrderReadBlockerNotePath, { force: true });
   }
 
-  const fulfillmentLifecycleNote = `# Fulfillment lifecycle conformance blocker
+  if (fulfillmentLifecycleCaptured) {
+    await rm(fulfillmentLifecycleBlockerNotePath, { force: true });
+  } else {
+    const fulfillmentLifecycleNote = `# Fulfillment lifecycle conformance blocker
 
 ## What this run checked
 
@@ -2308,8 +2664,9 @@ Practical next step for fulfillment lifecycle parity:
 4. only after live write evidence exists should the proxy start staging tracking-update/cancel semantics or downstream fulfillment read effects locally
 `;
 
-  await mkdir(path.dirname(fulfillmentLifecycleBlockerNotePath), { recursive: true });
-  await writeFile(fulfillmentLifecycleBlockerNotePath, `${fulfillmentLifecycleNote}\n`);
+    await mkdir(path.dirname(fulfillmentLifecycleBlockerNotePath), { recursive: true });
+    await writeFile(fulfillmentLifecycleBlockerNotePath, `${fulfillmentLifecycleNote}\n`);
+  }
 
   console.log(
     JSON.stringify(
@@ -2333,7 +2690,12 @@ Practical next step for fulfillment lifecycle parity:
         orderCreationBlockerNotePath,
         orderEditingBlockerNotePath,
         draftOrderReadBlockerNotePath: authRegressed ? draftOrderReadBlockerNotePath : null,
-        fulfillmentLifecycleBlockerNotePath,
+        fulfillmentLifecycleCaptured,
+        fulfillmentTrackingInfoUpdateParityFixturePath: fulfillmentLifecycleCaptured
+          ? fulfillmentTrackingInfoUpdateParityFixturePath
+          : null,
+        fulfillmentCancelParityFixturePath: fulfillmentLifecycleCaptured ? fulfillmentCancelParityFixturePath : null,
+        fulfillmentLifecycleBlockerNotePath: fulfillmentLifecycleCaptured ? null : fulfillmentLifecycleBlockerNotePath,
       },
       null,
       2,

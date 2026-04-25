@@ -7,7 +7,7 @@ import {
   refreshConformanceAccessToken,
   resolveDefaultAppEnvPath,
 } from './shopify-conformance-auth.mjs';
-import { runAdminGraphqlRequest } from './conformance-graphql-client.mjs';
+import { runAdminGraphqlRequest } from './conformance-graphql-client.js';
 
 const storeDomain = process.env['SHOPIFY_CONFORMANCE_STORE_DOMAIN'];
 

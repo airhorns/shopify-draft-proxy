@@ -1,36 +1,50 @@
 {
   "scenarioId": "fulfillment-tracking-info-update-live-parity",
   "operationNames": ["fulfillmentTrackingInfoUpdate"],
-  "scenarioStatus": "planned",
+  "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
-  "liveCaptureFiles": [],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/fulfillment-tracking-info-update-parity.json"
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/fulfillmentTrackingInfoUpdate-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/fulfillmentTrackingInfoUpdate-parity-plan.variables.json"
+    "variablesCapturePath": "$.variables"
   },
-  "comparisonMode": "planned",
-  "blocker": {
-    "kind": "missing-live-fulfillment-tracking-update-access",
-    "blockerPath": null,
-    "details": {
-      "linearIssue": "HAR-187",
-      "requiredScopes": [
-        "write_assigned_fulfillment_orders",
-        "write_merchant_managed_fulfillment_orders",
-        "write_third_party_fulfillment_orders"
-      ],
-      "requiredPermissions": ["fulfill_and_ship_orders"],
-      "probeRoots": ["fulfillmentTrackingInfoUpdate"],
-      "blockedMutations": ["fulfillmentTrackingInfoUpdate"],
-      "failingMessage": "Access denied for fulfillmentTrackingInfoUpdate field. Required access: One of `write_assigned_fulfillment_orders`, `write_merchant_managed_fulfillment_orders`, or `write_third_party_fulfillment_orders` access scopes. Also: The user must have permission to fulfill and ship orders.",
-      "activeCredentialTokenFamily": "shpca",
-      "activeCredentialHeaderMode": "raw-x-shopify-access-token",
-      "activeCredentialSummary": "the active conformance credential is a Shopify user access token (`shpca_...`) sent as raw `X-Shopify-Access-Token` on this host",
-      "manualStoreAuthStatus": "missing",
-      "manualStoreAuthTokenPath": ".manual-store-auth-token.json",
-      "manualStoreAuthCachedScopes": [],
-      "manualStoreAuthAssociatedUserScopes": []
-    }
-  },
-  "notes": "First fulfillment lifecycle parity scaffold for `fulfillmentTrackingInfoUpdate`. Live capture stays blocked until the conformance credential can update fulfillment tracking info."
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured HAR-187 happy-path `fulfillmentTrackingInfoUpdate` slice after fulfillment access was restored. The fixture records the safe live setup fulfillment, the tracking update mutation payload, and immediate downstream order fulfillment visibility.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-fulfillment-id",
+        "capturePath": "$.mutation.response.data.fulfillmentTrackingInfoUpdate.fulfillment.id",
+        "proxyPath": "$.data.fulfillmentTrackingInfoUpdate.fulfillment.id"
+      },
+      {
+        "name": "mutation-fulfillment-status",
+        "capturePath": "$.mutation.response.data.fulfillmentTrackingInfoUpdate.fulfillment.status",
+        "proxyPath": "$.data.fulfillmentTrackingInfoUpdate.fulfillment.status"
+      },
+      {
+        "name": "mutation-tracking-info",
+        "capturePath": "$.mutation.response.data.fulfillmentTrackingInfoUpdate.fulfillment.trackingInfo",
+        "proxyPath": "$.data.fulfillmentTrackingInfoUpdate.fulfillment.trackingInfo"
+      },
+      {
+        "name": "mutation-user-errors",
+        "capturePath": "$.mutation.response.data.fulfillmentTrackingInfoUpdate.userErrors",
+        "proxyPath": "$.data.fulfillmentTrackingInfoUpdate.userErrors"
+      },
+      {
+        "name": "downstream-updated-fulfillment-tracking-info",
+        "capturePath": "$.downstreamRead.response.data.order.fulfillments[0].trackingInfo",
+        "proxyPath": "$.data.order.fulfillments[0].trackingInfo",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/order-fulfillment-lifecycle-read.graphql",
+          "variablesCapturePath": "$.downstreamRead.variables"
+        }
+      }
+    ]
+  }
 }

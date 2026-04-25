@@ -4388,8 +4388,74 @@ function readFulfillmentTrackingInfoUpdateId(variables: Record<string, unknown>)
   return typeof variables['fulfillmentId'] === 'string' ? variables['fulfillmentId'] : null;
 }
 
+function readFulfillmentTrackingInfoInput(
+  variables: Record<string, unknown>,
+): NonNullable<OrderFulfillmentRecord['trackingInfo']>[number] | null {
+  const trackingInfoInput = variables['trackingInfoInput'];
+  if (typeof trackingInfoInput !== 'object' || trackingInfoInput === null) {
+    return null;
+  }
+
+  const input = trackingInfoInput as Record<string, unknown>;
+  return {
+    number: typeof input['number'] === 'string' ? input['number'] : null,
+    url: typeof input['url'] === 'string' ? input['url'] : null,
+    company: typeof input['company'] === 'string' ? input['company'] : null,
+  };
+}
+
 function readFulfillmentCancelId(variables: Record<string, unknown>): string | null {
   return typeof variables['id'] === 'string' ? variables['id'] : null;
+}
+
+function findOrderWithFulfillment(
+  fulfillmentId: string,
+): { order: OrderRecord; fulfillment: OrderFulfillmentRecord } | null {
+  for (const order of store.getOrders()) {
+    const fulfillment = (order.fulfillments ?? []).find((candidate) => candidate.id === fulfillmentId);
+    if (fulfillment) {
+      return { order, fulfillment };
+    }
+  }
+
+  return null;
+}
+
+function serializeFulfillmentMutationPayload(
+  field: FieldNode,
+  fulfillment: OrderFulfillmentRecord | null,
+  userErrors: Array<{ field: string[]; message: string }>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const selectionKey = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'fulfillment':
+        payload[selectionKey] = fulfillment ? serializeOrderFulfillment(selection, fulfillment) : null;
+        break;
+      case 'userErrors':
+        payload[selectionKey] = userErrors.map((userError) =>
+          Object.fromEntries(
+            getSelectedChildFields(selection).map((userErrorSelection) => {
+              const userErrorKey = getFieldResponseKey(userErrorSelection);
+              switch (userErrorSelection.name.value) {
+                case 'field':
+                  return [userErrorKey, userError.field];
+                case 'message':
+                  return [userErrorKey, userError.message];
+                default:
+                  return [userErrorKey, null];
+              }
+            }),
+          ),
+        );
+        break;
+      default:
+        payload[selectionKey] = null;
+        break;
+    }
+  }
+  return payload;
 }
 
 function serializeSelectedOrderMutationPayload(field: FieldNode): Record<string, unknown> {
@@ -5298,6 +5364,32 @@ export function handleOrderMutation(
       const fulfillmentId = readFulfillmentTrackingInfoUpdateId(variables);
       if (inlineIdArgument.value.kind === Kind.VARIABLE && fulfillmentId === null) {
         errors.push(buildFulfillmentTrackingInfoUpdateMissingIdError());
+        continue;
+      }
+
+      if (fulfillmentId) {
+        const trackingInfo = readFulfillmentTrackingInfoInput(variables);
+        const match = findOrderWithFulfillment(fulfillmentId);
+        if (!match || !trackingInfo) {
+          data[key] = serializeFulfillmentMutationPayload(field, null, [
+            { field: ['fulfillmentId'], message: 'Fulfillment does not exist.' },
+          ]);
+          continue;
+        }
+
+        const updatedFulfillment: OrderFulfillmentRecord = {
+          ...match.fulfillment,
+          updatedAt: makeSyntheticTimestamp(),
+          trackingInfo: [trackingInfo],
+        };
+        store.updateOrder({
+          ...match.order,
+          updatedAt: makeSyntheticTimestamp(),
+          fulfillments: (match.order.fulfillments ?? []).map((fulfillment) =>
+            fulfillment.id === fulfillmentId ? updatedFulfillment : fulfillment,
+          ),
+        });
+        data[key] = serializeFulfillmentMutationPayload(field, updatedFulfillment, []);
       }
       continue;
     }
@@ -5319,6 +5411,32 @@ export function handleOrderMutation(
       const fulfillmentId = readFulfillmentCancelId(variables);
       if (inlineIdArgument.value.kind === Kind.VARIABLE && fulfillmentId === null) {
         errors.push(buildFulfillmentCancelMissingIdError());
+        continue;
+      }
+
+      if (fulfillmentId) {
+        const match = findOrderWithFulfillment(fulfillmentId);
+        if (!match) {
+          data[key] = serializeFulfillmentMutationPayload(field, null, [
+            { field: ['id'], message: 'Fulfillment not found.' },
+          ]);
+          continue;
+        }
+
+        const cancelledFulfillment: OrderFulfillmentRecord = {
+          ...match.fulfillment,
+          status: 'CANCELLED',
+          displayStatus: 'CANCELED',
+          updatedAt: makeSyntheticTimestamp(),
+        };
+        store.updateOrder({
+          ...match.order,
+          updatedAt: makeSyntheticTimestamp(),
+          fulfillments: (match.order.fulfillments ?? []).map((fulfillment) =>
+            fulfillment.id === fulfillmentId ? cancelledFulfillment : fulfillment,
+          ),
+        });
+        data[key] = serializeFulfillmentMutationPayload(field, cancelledFulfillment, []);
       }
       continue;
     }
