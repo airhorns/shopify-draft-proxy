@@ -1,0 +1,135 @@
+{
+  "capturedAt": "2026-04-25T21:54:43.609Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "setup": {
+    "productCreate": {
+      "data": {
+        "productCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10170568147250",
+            "title": "Hermes Media Reorder Conformance 1777154081659"
+          },
+          "userErrors": []
+        }
+      }
+    },
+    "productCreateMedia": {
+      "variables": {
+        "productId": "gid://shopify/Product/10170568147250",
+        "media": [
+          {
+            "mediaContentType": "IMAGE",
+            "originalSource": "https://placehold.co/600x400/png",
+            "alt": "Front"
+          },
+          {
+            "mediaContentType": "IMAGE",
+            "originalSource": "https://placehold.co/600x401/png",
+            "alt": "Back"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "productCreateMedia": {
+            "media": [
+              {
+                "id": "gid://shopify/MediaImage/43607668588850",
+                "alt": "Front",
+                "mediaContentType": "IMAGE",
+                "status": "UPLOADED",
+                "preview": {
+                  "image": null
+                },
+                "image": null
+              },
+              {
+                "id": "gid://shopify/MediaImage/43607668621618",
+                "alt": "Back",
+                "mediaContentType": "IMAGE",
+                "status": "PROCESSING",
+                "preview": {
+                  "image": null
+                },
+                "image": null
+              }
+            ],
+            "mediaUserErrors": [],
+            "product": {
+              "id": "gid://shopify/Product/10170568147250",
+              "media": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/MediaImage/43607668588850",
+                    "alt": "Front",
+                    "mediaContentType": "IMAGE",
+                    "status": "UPLOADED"
+                  },
+                  {
+                    "id": "gid://shopify/MediaImage/43607668621618",
+                    "alt": "Back",
+                    "mediaContentType": "IMAGE",
+                    "status": "PROCESSING"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "mutation": {
+    "variables": {
+      "id": "gid://shopify/Product/10170568147250",
+      "moves": [
+        {
+          "id": "gid://shopify/MediaImage/43607668621618",
+          "newPosition": "0"
+        },
+        {
+          "id": "gid://shopify/MediaImage/43607668588850",
+          "newPosition": "99"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "productReorderMedia": {
+          "job": {
+            "id": "gid://shopify/Job/6fbf9e34-5092-4420-923c-dd7a81128f59",
+            "done": false
+          },
+          "mediaUserErrors": []
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/10170568147250",
+        "media": {
+          "nodes": [
+            {
+              "id": "gid://shopify/MediaImage/43607668621618",
+              "alt": "Back",
+              "mediaContentType": "IMAGE",
+              "status": "PROCESSING"
+            },
+            {
+              "id": "gid://shopify/MediaImage/43607668588850",
+              "alt": "Front",
+              "mediaContentType": "IMAGE",
+              "status": "PROCESSING"
+            }
+          ]
+        },
+        "images": {
+          "nodes": []
+        }
+      }
+    }
+  }
+}

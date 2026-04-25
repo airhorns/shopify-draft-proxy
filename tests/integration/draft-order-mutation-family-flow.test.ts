@@ -25,10 +25,39 @@ const draftOrderSelection = `{
   ready
   email
   note
+  customer {
+    id
+    email
+    displayName
+  }
+  taxExempt
+  taxesIncluded
+  reserveInventoryUntil
+  paymentTerms {
+    id
+    due
+    overdue
+    dueInDays
+    paymentTermsName
+    paymentTermsType
+    translatedName
+  }
   tags
   customAttributes {
     key
     value
+  }
+  appliedDiscount {
+    title
+    description
+    value
+    valueType
+    amountSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
   }
   billingAddress {
     firstName
@@ -53,7 +82,14 @@ const draftOrderSelection = `{
   shippingLine {
     title
     code
+    custom
     originalPriceSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+    discountedPriceSet {
       shopMoney {
         amount
         currencyCode
@@ -68,24 +104,80 @@ const draftOrderSelection = `{
       currencyCode
     }
   }
+  totalDiscountsSet {
+    shopMoney {
+      amount
+      currencyCode
+    }
+  }
+  totalShippingPriceSet {
+    shopMoney {
+      amount
+      currencyCode
+    }
+  }
   totalPriceSet {
     shopMoney {
       amount
       currencyCode
     }
   }
+  totalQuantityOfLineItems
   lineItems(first: 5) {
     nodes {
       id
       title
+      name
       quantity
       sku
       variantTitle
+      custom
+      requiresShipping
+      taxable
+      customAttributes {
+        key
+        value
+      }
+      appliedDiscount {
+        title
+        description
+        value
+        valueType
+        amountSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
       originalUnitPriceSet {
         shopMoney {
           amount
           currencyCode
         }
+      }
+      originalTotalSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      discountedTotalSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalDiscountSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      variant {
+        id
+        title
+        sku
       }
     }
   }
@@ -242,12 +334,46 @@ describe('draft-order mutation family flow', () => {
       id: draftOrderId,
       email: 'updated-draft-family@example.com',
       note: 'updated note',
+      taxExempt: false,
+      taxesIncluded: false,
+      reserveInventoryUntil: null,
+      paymentTerms: null,
       tags: ['draft', 'updated'],
       customAttributes: [{ key: 'source', value: 'har-118-update' }],
+      appliedDiscount: null,
+      createdAt: expect.any(String),
+      updatedAt: expect.any(String),
+      billingAddress: {
+        firstName: 'Draft',
+        lastName: 'Family',
+        address1: '123 Queen St W',
+        city: 'Toronto',
+        provinceCode: 'ON',
+        countryCodeV2: 'CA',
+        zip: 'M5H 2M9',
+        phone: '+14165550101',
+      },
+      shippingAddress: {
+        firstName: 'Ship',
+        lastName: 'Family',
+        address1: '456 King St W',
+        city: 'Toronto',
+        provinceCode: 'ON',
+        countryCodeV2: 'CA',
+        zip: 'M5V 1K4',
+        phone: '+14165550102',
+      },
       shippingLine: {
         title: 'Standard',
         code: 'STD',
+        custom: true,
         originalPriceSet: {
+          shopMoney: {
+            amount: '5.0',
+            currencyCode: 'CAD',
+          },
+        },
+        discountedPriceSet: {
           shopMoney: {
             amount: '5.0',
             currencyCode: 'CAD',
@@ -260,18 +386,63 @@ describe('draft-order mutation family flow', () => {
           currencyCode: 'CAD',
         },
       },
+      totalDiscountsSet: {
+        shopMoney: {
+          amount: '0.0',
+          currencyCode: 'CAD',
+        },
+      },
+      totalShippingPriceSet: {
+        shopMoney: {
+          amount: '5.0',
+          currencyCode: 'CAD',
+        },
+      },
       totalPriceSet: {
         shopMoney: {
           amount: '30.0',
           currencyCode: 'CAD',
         },
       },
+      totalQuantityOfLineItems: 2,
     });
     expect(updateResponse.body.data.draftOrderUpdate.draftOrder.lineItems.nodes).toEqual([
       expect.objectContaining({
         title: 'Updated custom item',
+        name: 'Updated custom item',
         quantity: 2,
         sku: 'HAR-118-UPDATED',
+        variantTitle: null,
+        custom: true,
+        requiresShipping: true,
+        taxable: true,
+        customAttributes: [],
+        appliedDiscount: null,
+        originalUnitPriceSet: {
+          shopMoney: {
+            amount: '12.5',
+            currencyCode: 'CAD',
+          },
+        },
+        originalTotalSet: {
+          shopMoney: {
+            amount: '25.0',
+            currencyCode: 'CAD',
+          },
+        },
+        discountedTotalSet: {
+          shopMoney: {
+            amount: '25.0',
+            currencyCode: 'CAD',
+          },
+        },
+        totalDiscountSet: {
+          shopMoney: {
+            amount: '0.0',
+            currencyCode: 'CAD',
+          },
+        },
+        variant: null,
       }),
     ]);
 
@@ -300,7 +471,20 @@ describe('draft-order mutation family flow', () => {
       ready: true,
       email: 'updated-draft-family@example.com',
       note: 'updated note',
+      taxExempt: false,
+      reserveInventoryUntil: null,
+      paymentTerms: null,
       tags: ['draft', 'updated'],
+      appliedDiscount: null,
+      createdAt: expect.any(String),
+      updatedAt: expect.any(String),
+      shippingLine: null,
+      totalShippingPriceSet: {
+        shopMoney: {
+          amount: '0.0',
+          currencyCode: 'CAD',
+        },
+      },
     });
     expect(duplicatedDraftOrder.id).not.toBe(draftOrderId);
     expect(duplicatedDraftOrder.lineItems.nodes[0].id).not.toBe(
@@ -673,6 +857,14 @@ describe('draft-order mutation family flow', () => {
       status: 'OPEN',
       email: 'source-order@example.com',
       note: 'source order note',
+      taxExempt: false,
+      taxesIncluded: false,
+      paymentTerms: null,
+      appliedDiscount: null,
+      shippingLine: null,
+      createdAt: expect.any(String),
+      updatedAt: expect.any(String),
+      totalQuantityOfLineItems: 1,
       tags: ['source-order'],
       lineItems: {
         nodes: [
@@ -680,6 +872,12 @@ describe('draft-order mutation family flow', () => {
             title: 'Source item',
             quantity: 1,
             sku: 'HAR-118-SOURCE',
+            originalUnitPriceSet: {
+              shopMoney: {
+                amount: '20.0',
+                currencyCode: 'CAD',
+              },
+            },
           }),
         ],
       },
