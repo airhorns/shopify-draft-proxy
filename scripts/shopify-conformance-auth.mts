@@ -7,6 +7,8 @@ import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
 
+import { runAdminGraphqlRequest } from './conformance-graphql-client.js';
+
 export const SHOPIFY_CONFORMANCE_AUTH_DIR = path.join(homedir(), '.shopify-draft-proxy');
 export const SHOPIFY_CONFORMANCE_AUTH_PATH = path.join(SHOPIFY_CONFORMANCE_AUTH_DIR, 'conformance-admin-auth.json');
 export const SHOPIFY_CONFORMANCE_PKCE_PATH = path.join(
@@ -164,18 +166,18 @@ async function parseResponsePayload(response) {
 }
 
 async function probeAccessToken({ adminOrigin, apiVersion = DEFAULT_API_VERSION, accessToken, fetchImpl = fetch }) {
-  const response = await fetchImpl(`${adminOrigin}/admin/api/${apiVersion}/graphql.json`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...buildAdminAuthHeaders(accessToken),
+  const { status, payload } = await runAdminGraphqlRequest(
+    {
+      adminOrigin,
+      apiVersion,
+      headers: buildAdminAuthHeaders(accessToken),
+      fetchImpl,
     },
-    body: JSON.stringify({ query: PROBE_QUERY }),
-  });
-  const payload = await parseResponsePayload(response);
+    PROBE_QUERY,
+  );
   return {
-    ok: response.ok && !payload?.errors,
-    status: response.status,
+    ok: status >= 200 && status < 300 && !payload?.errors,
+    status,
     payload,
   };
 }
