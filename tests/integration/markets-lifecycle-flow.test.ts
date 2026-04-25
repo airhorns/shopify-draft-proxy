@@ -1,10 +1,17 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createApp } from '../../src/app.js';
 import type { AppConfig } from '../../src/config.js';
+import { hydrateMarketsFromUpstreamResponse } from '../../src/proxy/markets.js';
 import { resetSyntheticIdentity } from '../../src/state/synthetic-identity.js';
 import { store } from '../../src/state/store.js';
+
+const repoRoot = process.cwd();
+const fixtureRoot = 'fixtures/conformance/very-big-test-store.myshopify.com/2026-04';
 
 const config: AppConfig = {
   port: 3000,
@@ -99,6 +106,54 @@ const MARKET_FIELDS = `#graphql
     }
   }
 `;
+
+const WEB_PRESENCE_FIELDS = `#graphql
+  fragment LifecycleWebPresenceFields on MarketWebPresence {
+    id
+    subfolderSuffix
+    domain {
+      id
+      host
+      url
+      sslEnabled
+    }
+    rootUrls {
+      locale
+      url
+    }
+    defaultLocale {
+      locale
+      name
+      primary
+      published
+    }
+    alternateLocales {
+      locale
+      name
+      primary
+      published
+    }
+    markets(first: 5) {
+      nodes {
+        id
+        name
+        handle
+        status
+        type
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+`;
+
+function readJson<T>(relativePath: string): T {
+  return JSON.parse(readFileSync(resolve(repoRoot, relativePath), 'utf8')) as T;
+}
 
 describe('Markets lifecycle staging', () => {
   beforeEach(() => {
@@ -609,6 +664,340 @@ describe('Markets lifecycle staging', () => {
       ],
     });
 
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('stages webPresenceCreate and webPresenceUpdate locally with read-after-write and meta visibility', async () => {
+    hydrateMarketsFromUpstreamResponse(
+      'query SeedMarketsResolvedValues { marketsResolvedValues { webPresences { edges { node { id } } } } }',
+      {},
+      readJson(`${fixtureRoot}/markets-resolved-values.json`),
+    );
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('web presence staging must not proxy'));
+    const app = createApp(config).callback();
+    const marketId = 'gid://shopify/Market/35532308713';
+
+    const createResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `${WEB_PRESENCE_FIELDS}
+          mutation CreateWebPresence($input: WebPresenceCreateInput!) {
+            webPresenceCreate(input: $input) {
+              webPresence {
+                ...LifecycleWebPresenceFields
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          input: {
+            defaultLocale: 'en',
+            alternateLocales: ['fr'],
+            subfolderSuffix: 'ca',
+          },
+        },
+      });
+
+    expect(createResponse.status).toBe(200);
+    expect(createResponse.body.data.webPresenceCreate.userErrors).toEqual([]);
+    expect(createResponse.body.data.webPresenceCreate.webPresence).toMatchObject({
+      id: expect.stringMatching(/^gid:\/\/shopify\/MarketWebPresence\//),
+      subfolderSuffix: 'ca',
+      domain: null,
+      rootUrls: [
+        { locale: 'en', url: 'https://very-big-test-store.myshopify.com/en-ca' },
+        { locale: 'fr', url: 'https://very-big-test-store.myshopify.com/fr-ca' },
+      ],
+      defaultLocale: {
+        locale: 'en',
+        name: 'English',
+        primary: true,
+        published: true,
+      },
+      alternateLocales: [
+        {
+          locale: 'fr',
+          name: 'French',
+          primary: false,
+          published: true,
+        },
+      ],
+      markets: {
+        nodes: [],
+      },
+    });
+
+    const webPresenceId = createResponse.body.data.webPresenceCreate.webPresence.id as string;
+    const associateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation AssociateWebPresence($id: ID!, $input: MarketUpdateInput!) {
+            marketUpdate(id: $id, input: $input) {
+              market {
+                id
+                webPresences(first: 5) {
+                  nodes {
+                    id
+                    subfolderSuffix
+                  }
+                }
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          id: marketId,
+          input: {
+            webPresencesToAdd: [webPresenceId],
+          },
+        },
+      });
+
+    expect(associateResponse.status).toBe(200);
+    expect(associateResponse.body.data.marketUpdate).toMatchObject({
+      market: {
+        id: marketId,
+        webPresences: {
+          nodes: expect.arrayContaining([{ id: webPresenceId, subfolderSuffix: 'ca' }]),
+        },
+      },
+      userErrors: [],
+    });
+
+    const updateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `${WEB_PRESENCE_FIELDS}
+          mutation UpdateWebPresence($id: ID!, $input: WebPresenceUpdateInput!) {
+            webPresenceUpdate(id: $id, input: $input) {
+              webPresence {
+                ...LifecycleWebPresenceFields
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          id: webPresenceId,
+          input: {
+            defaultLocale: 'fr',
+            alternateLocales: ['en'],
+            subfolderSuffix: 'fr-ca',
+          },
+        },
+      });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body.data.webPresenceUpdate).toMatchObject({
+      webPresence: {
+        id: webPresenceId,
+        subfolderSuffix: 'fr-ca',
+        rootUrls: [
+          { locale: 'fr', url: 'https://very-big-test-store.myshopify.com/fr-fr-ca' },
+          { locale: 'en', url: 'https://very-big-test-store.myshopify.com/en-fr-ca' },
+        ],
+        markets: {
+          nodes: [
+            {
+              id: marketId,
+              name: 'Conformance US',
+              handle: 'conformance-us',
+              status: 'ACTIVE',
+              type: 'REGION',
+            },
+          ],
+        },
+      },
+      userErrors: [],
+    });
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `${WEB_PRESENCE_FIELDS}
+          query ReadWebPresenceAfterWrite($marketId: ID!) {
+            webPresences(first: 5) {
+              nodes {
+                ...LifecycleWebPresenceFields
+              }
+            }
+            market(id: $marketId) {
+              id
+              webPresences(first: 5) {
+                nodes {
+                  id
+                  subfolderSuffix
+                  defaultLocale {
+                    locale
+                  }
+                }
+              }
+            }
+            marketsResolvedValues(buyerSignal: { countryCode: US }) {
+              webPresences(first: 5) {
+                nodes {
+                  id
+                  subfolderSuffix
+                }
+              }
+            }
+          }
+        `,
+        variables: { marketId },
+      });
+
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body.data.webPresences.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: webPresenceId,
+          subfolderSuffix: 'fr-ca',
+          defaultLocale: expect.objectContaining({ locale: 'fr' }),
+          markets: {
+            nodes: [
+              expect.objectContaining({
+                id: marketId,
+              }),
+            ],
+            pageInfo: expect.any(Object),
+          },
+        }),
+      ]),
+    );
+    expect(readResponse.body.data.market.webPresences.nodes).toEqual(
+      expect.arrayContaining([{ id: webPresenceId, subfolderSuffix: 'fr-ca', defaultLocale: { locale: 'fr' } }]),
+    );
+    expect(readResponse.body.data.marketsResolvedValues.webPresences.nodes).toEqual(
+      expect.arrayContaining([{ id: webPresenceId, subfolderSuffix: 'fr-ca' }]),
+    );
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(logResponse.body.entries.map((entry: { operationName: string }) => entry.operationName)).toEqual([
+      'webPresenceCreate',
+      'marketUpdate',
+      'webPresenceUpdate',
+    ]);
+    expect(logResponse.body.entries.map((entry: { status: string }) => entry.status)).toEqual([
+      'staged',
+      'staged',
+      'staged',
+    ]);
+
+    const stateResponse = await request(app).get('/__meta/state');
+    expect(stateResponse.body.stagedState.webPresences[webPresenceId].data).toMatchObject({
+      id: webPresenceId,
+      subfolderSuffix: 'fr-ca',
+    });
+    expect(stateResponse.body.stagedState.markets[marketId].data.webPresences.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          node: expect.objectContaining({
+            id: webPresenceId,
+            subfolderSuffix: 'fr-ca',
+          }),
+        }),
+      ]),
+    );
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns MarketUserError shapes for invalid web presence inputs without staging records', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('web presence validation must not proxy'));
+    const app = createApp(config).callback();
+
+    const invalidCreateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation InvalidWebPresenceCreate($input: WebPresenceCreateInput!) {
+            webPresenceCreate(input: $input) {
+              webPresence {
+                id
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          input: {
+            domainId: 'gid://shopify/Domain/93049946345',
+            defaultLocale: 'english',
+            alternateLocales: ['en', 'en'],
+            subfolderSuffix: '../ca',
+          },
+        },
+      });
+
+    expect(invalidCreateResponse.status).toBe(200);
+    expect(invalidCreateResponse.body.data.webPresenceCreate).toEqual({
+      webPresence: null,
+      userErrors: [
+        { field: ['input', 'domainId'], message: 'Domain does not exist', code: 'DOMAIN_NOT_FOUND' },
+        { field: ['input', 'defaultLocale'], message: 'Invalid locale codes: english', code: 'INVALID' },
+      ],
+    });
+
+    const unknownUpdateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation UnknownWebPresenceUpdate($id: ID!, $input: WebPresenceUpdateInput!) {
+            webPresenceUpdate(id: $id, input: $input) {
+              webPresence {
+                id
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          id: 'gid://shopify/MarketWebPresence/999999',
+          input: {
+            defaultLocale: 'en',
+          },
+        },
+      });
+
+    expect(unknownUpdateResponse.status).toBe(200);
+    expect(unknownUpdateResponse.body.data.webPresenceUpdate).toEqual({
+      webPresence: null,
+      userErrors: [
+        {
+          field: ['id'],
+          message: "The market web presence wasn't found.",
+          code: 'WEB_PRESENCE_NOT_FOUND',
+        },
+      ],
+    });
+
+    expect(store.getLog()).toHaveLength(2);
+    expect(store.getLog().map((entry) => entry.status)).toEqual(['staged', 'staged']);
+    expect(store.getLog().map((entry) => entry.operationName)).toEqual(['webPresenceCreate', 'webPresenceUpdate']);
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 });

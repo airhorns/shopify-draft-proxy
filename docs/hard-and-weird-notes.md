@@ -1090,6 +1090,18 @@ The read fixture proves `definition: null` for the captured product-owned metafi
 
 This is another case where the serializer layer needs field-specific handling rather than one generic nested-object rule.
 
+## 19a. Product metafield definitions are schema records, but counts come from owner metafields
+
+HAR-144 captured product-owner `metafieldDefinition` and `metafieldDefinitions` reads against the 2025-01 conformance store while checking the 2026-04 docs for the latest field surface. The useful fidelity points were:
+
+- absent `metafieldDefinition(identifier:)` returns `null`
+- an unmatched `metafieldDefinitions(ownerType: PRODUCT, namespace: ...)` filter returns a non-null empty connection
+- `sortKey: PINNED_POSITION` returned pinned position `2` before pinned position `1` in the live capture
+- definition records carry schema fields (`type`, `validations`, `access`, `capabilities`, `constraints`, `pinnedPosition`, `validationStatus`) separately from actual metafield rows
+- `metafieldsCount` and the definition `metafields` connection should be derived from effective product-owned metafields matching the definition namespace/key, so staged product metafield writes become visible through existing definitions
+
+Keep definition lifecycle mutations out of this read slice; create/update/delete/pin/unpin need their own mutation evidence and local staging semantics.
+
 ## 18a. Staged metafield writes need product-scoped replacement semantics, not id-wise merge
 
 Adding `metafieldsSet` / `metafieldDelete` exposed a subtle state-model trap:
@@ -2242,3 +2254,22 @@ Practical rule:
 - validate the full `metafieldsSet` input batch before replacing the staged product metafield set when any resolver-level error is present
 - keep required-input GraphQL validation branches separate from resolver `userErrors`
 - do not broaden owner support from this evidence; these fixtures remain product-owned metafield coverage
+
+## 62. Admin customer address roots use MailingAddress payloads and split validation styles
+
+HAR-152 captured customer address lifecycle evidence on Admin GraphQL 2025-01 with `corepack pnpm conformance:capture-customer-addresses`.
+
+Captured facts:
+
+- `customerAddressCreate(customerId:, address:, setAsDefault:)` and `customerAddressUpdate(customerId:, addressId:, address:, setAsDefault:)` return payload field `address`, not `customerAddress`, and that object is a `MailingAddress`
+- `customerAddressDelete(customerId:, addressId:)` returns `deletedAddressId`
+- `customerUpdateDefaultAddress(customerId:, addressId:)` returns a `customer` payload with `defaultAddress` and `addressesV2`
+- `MailingAddressInput` accepts `countryCode` and `provinceCode`; the response expands those to full `country` / `province` strings plus `countryCodeV2` / `provinceCode`
+- unknown customer ids on address create return payload `userErrors` with `field: ["customerId"]` and message `Customer does not exist`
+- unknown address ids on update, delete, and default-address selection return top-level GraphQL errors with message `invalid id`, extension code `RESOURCE_NOT_FOUND`, and `data.<root>: null`
+
+Practical rule:
+
+- locally stage address lifecycle roots against a normalized customer-owned address graph and keep `Customer.defaultAddress` synchronized from the selected address row
+- use fixture-backed top-level errors for unknown address ids instead of turning those branches into payload `userErrors`
+- keep broader address validation, normalization, and territory-specific postal validation out of local support until new fixtures capture those branches

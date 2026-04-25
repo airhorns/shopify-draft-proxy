@@ -44,6 +44,7 @@ import {
   handleProductQuery,
   hydrateProductsFromUpstreamResponse,
 } from '../src/proxy/products.js';
+import { handleMetafieldDefinitionQuery } from '../src/proxy/metafield-definitions.js';
 import {
   handleSegmentMutation,
   handleSegmentsQuery,
@@ -72,6 +73,7 @@ import type {
   OrderRecord,
   OrderShippingLineRecord,
   ProductCollectionRecord,
+  MetafieldDefinitionRecord,
   ProductMetafieldRecord,
   ProductMediaRecord,
   ProductOptionRecord,
@@ -786,6 +788,13 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'overlay-read' && capability.domain === 'metafields') {
+    return {
+      status: 200,
+      body: handleMetafieldDefinitionQuery(document, variables),
+    };
+  }
+
   if (capability.execution === 'overlay-read' && capability.domain === 'customers') {
     if (upstreamPayload !== undefined) {
       hydrateCustomersFromUpstreamResponse(document, variables, upstreamPayload);
@@ -877,6 +886,7 @@ function hasStagedState(): boolean {
     Object.keys(stagedState.productMedia).length > 0 ||
     Object.keys(stagedState.files).length > 0 ||
     Object.keys(stagedState.productMetafields).length > 0 ||
+    Object.keys(stagedState.metafieldDefinitions).length > 0 ||
     Object.keys(stagedState.deletedProductIds).length > 0 ||
     Object.keys(stagedState.deletedFileIds).length > 0 ||
     Object.keys(stagedState.deletedCollectionIds).length > 0 ||
@@ -3505,6 +3515,146 @@ function readCapturedOwnerMetafields(
   );
 }
 
+function readMetafieldDefinitionCapability(source: Record<string, unknown> | null): {
+  enabled: boolean;
+  eligible: boolean;
+  status?: string | null;
+} {
+  const status = readNullableStringField(source, 'status');
+  return {
+    enabled: readBooleanField(source, 'enabled') ?? false,
+    eligible: readBooleanField(source, 'eligible') ?? false,
+    ...(status !== null ? { status } : {}),
+  };
+}
+
+function readCapturedMetafieldDefinition(source: Record<string, unknown> | null): MetafieldDefinitionRecord | null {
+  const id = readStringField(source, 'id');
+  const name = readStringField(source, 'name');
+  const namespace = readStringField(source, 'namespace');
+  const key = readStringField(source, 'key');
+  const ownerType = readStringField(source, 'ownerType');
+  const type = readRecordField(source, 'type');
+  const typeName = readStringField(type, 'name');
+  if (!id || !name || !namespace || !key || !ownerType || !typeName) {
+    return null;
+  }
+
+  const capabilities = readRecordField(source, 'capabilities');
+  const constraints = readRecordField(source, 'constraints');
+  const constraintValuesConnection = readRecordField(constraints, 'values');
+
+  return {
+    id,
+    name,
+    namespace,
+    key,
+    ownerType,
+    type: {
+      name: typeName,
+      category: readNullableStringField(type, 'category'),
+    },
+    description: readNullableStringField(source, 'description'),
+    validations: readArrayField(source, 'validations')
+      .filter(isPlainObject)
+      .map((validation) => ({
+        name: readStringField(validation, 'name') ?? '',
+        value: readNullableStringField(validation, 'value'),
+      }))
+      .filter((validation) => validation.name.length > 0),
+    access: (readRecordField(source, 'access') ?? {}) as MetafieldDefinitionRecord['access'],
+    capabilities: {
+      adminFilterable: readMetafieldDefinitionCapability(readRecordField(capabilities, 'adminFilterable')),
+      smartCollectionCondition: readMetafieldDefinitionCapability(
+        readRecordField(capabilities, 'smartCollectionCondition'),
+      ),
+      uniqueValues: readMetafieldDefinitionCapability(readRecordField(capabilities, 'uniqueValues')),
+    },
+    constraints: constraints
+      ? {
+          key: readNullableStringField(constraints, 'key'),
+          values: readArrayField(constraintValuesConnection, 'nodes')
+            .filter(isPlainObject)
+            .map((value) => ({ value: readStringField(value, 'value') ?? '' }))
+            .filter((value) => value.value.length > 0),
+        }
+      : null,
+    pinnedPosition: readNullableNumberField(source, 'pinnedPosition'),
+    validationStatus: readStringField(source, 'validationStatus') ?? 'ALL_VALID',
+  };
+}
+
+function readCapturedMetafieldDefinitionProductMetafields(
+  definition: Record<string, unknown>,
+): ProductMetafieldRecord[] {
+  const connection = readRecordField(definition, 'metafields');
+  return readArrayField(connection, 'nodes')
+    .filter(isPlainObject)
+    .flatMap((metafield): ProductMetafieldRecord[] => {
+      const owner = readRecordField(metafield, 'owner');
+      const productId = readStringField(owner, 'id');
+      const id = readStringField(metafield, 'id');
+      const namespace = readStringField(metafield, 'namespace');
+      const key = readStringField(metafield, 'key');
+      if (!productId?.startsWith('gid://shopify/Product/') || !id || !namespace || !key) {
+        return [];
+      }
+
+      return [
+        {
+          id,
+          productId,
+          namespace,
+          key,
+          type: readStringField(metafield, 'type'),
+          value: readStringField(metafield, 'value'),
+          ownerType: readStringField(metafield, 'ownerType') ?? 'PRODUCT',
+        },
+      ];
+    });
+}
+
+function seedMetafieldDefinitionPreconditions(capture: unknown): boolean {
+  const responseData = readRecordField(readRecordField(capture as Record<string, unknown>, 'response'), 'data');
+  const definitionNodes = ['metafieldDefinitions', 'seedCatalog']
+    .flatMap((fieldName) => readArrayField(readRecordField(responseData, fieldName), 'nodes'))
+    .filter(isPlainObject);
+  const singularDefinition = readRecordField(responseData, 'byIdentifier');
+  const definitions = [
+    ...definitionNodes.map(readCapturedMetafieldDefinition),
+    readCapturedMetafieldDefinition(singularDefinition),
+  ].filter((definition): definition is MetafieldDefinitionRecord => definition !== null);
+
+  if (definitions.length === 0) {
+    return false;
+  }
+
+  store.upsertBaseMetafieldDefinitions(definitions);
+
+  const metafieldsByProductId = new Map<string, ProductMetafieldRecord[]>();
+  for (const metafield of [
+    ...definitionNodes.flatMap(readCapturedMetafieldDefinitionProductMetafields),
+    ...(singularDefinition ? readCapturedMetafieldDefinitionProductMetafields(singularDefinition) : []),
+  ]) {
+    if (!metafield.productId) {
+      continue;
+    }
+
+    const metafields = metafieldsByProductId.get(metafield.productId) ?? [];
+    if (!metafields.some((candidate) => candidate.id === metafield.id)) {
+      metafields.push(metafield);
+    }
+    metafieldsByProductId.set(metafield.productId, metafields);
+  }
+
+  for (const [productId, metafields] of metafieldsByProductId) {
+    store.upsertBaseProducts([makeSeedProduct(productId)]);
+    store.replaceBaseMetafieldsForProduct(productId, metafields);
+  }
+
+  return true;
+}
+
 function readCapturedProductMetafields(productId: string, product: Record<string, unknown>): ProductMetafieldRecord[] {
   return readCapturedOwnerMetafields(productId, 'PRODUCT', product);
 }
@@ -3546,6 +3696,7 @@ function readCapturedProductMedia(
 
 function seedPreconditionsFromCapture(capture: unknown, variables: Record<string, unknown>): void {
   seedProductMetafieldsReadPreconditions(capture);
+  seedMetafieldDefinitionPreconditions(capture);
   if (seedInventoryLinkagePreconditions(capture)) {
     return;
   }

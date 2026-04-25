@@ -19,6 +19,7 @@ import {
 import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type {
+  CustomerAddressRecord,
   CustomerCatalogConnectionRecord,
   CustomerCatalogPageInfoRecord,
   CustomerMergeRequestRecord,
@@ -185,6 +186,18 @@ const VALID_CUSTOMER_METAFIELD_TYPE_MESSAGE = `Type must be one of the following
   ...CUSTOMER_METAFIELD_LIST_TYPES,
 ].join(', ')}.`;
 
+const COUNTRY_NAMES_BY_CODE: Record<string, string> = {
+  CA: 'Canada',
+  US: 'United States',
+};
+
+const PROVINCE_NAMES_BY_COUNTRY_CODE: Record<string, Record<string, string>> = {
+  CA: {
+    ON: 'Ontario',
+    QC: 'Quebec',
+  },
+};
+
 function isValidCustomerMetafieldType(type: string): boolean {
   return VALID_CUSTOMER_METAFIELD_TYPES.has(type) || CUSTOMER_METAFIELD_LIST_TYPES.includes(type);
 }
@@ -285,6 +298,27 @@ function buildCustomerDisplayName(
 
 function maskPhoneNumber(phone: string | null): string | null {
   return phone;
+}
+
+function resolveCountryName(countryCode: string | null, fallback: string | null): string | null {
+  return countryCode ? (COUNTRY_NAMES_BY_CODE[countryCode] ?? fallback ?? countryCode) : fallback;
+}
+
+function resolveProvinceName(
+  countryCode: string | null,
+  provinceCode: string | null,
+  fallback: string | null,
+): string | null {
+  if (!countryCode || !provinceCode) {
+    return fallback;
+  }
+
+  return PROVINCE_NAMES_BY_COUNTRY_CODE[countryCode]?.[provinceCode] ?? fallback ?? provinceCode;
+}
+
+function buildFormattedArea(city: string | null, provinceCode: string | null, country: string | null): string | null {
+  const cityRegion = [city, provinceCode].filter(Boolean).join(' ');
+  return [cityRegion || null, country].filter(Boolean).join(', ') || null;
 }
 
 function normalizeMoney(raw: unknown, fallback: CustomerRecord['amountSpent'] = null): CustomerRecord['amountSpent'] {
@@ -428,12 +462,104 @@ function normalizeDefaultAddress(
   }
 
   return {
+    id: normalizeStringField(raw, 'id'),
+    firstName: normalizeStringField(raw, 'firstName'),
+    lastName: normalizeStringField(raw, 'lastName'),
     address1: normalizeStringField(raw, 'address1'),
+    address2: normalizeStringField(raw, 'address2'),
     city: normalizeStringField(raw, 'city'),
+    company: normalizeStringField(raw, 'company'),
     province: normalizeStringField(raw, 'province'),
+    provinceCode: normalizeStringField(raw, 'provinceCode'),
     country: normalizeStringField(raw, 'country'),
+    countryCodeV2: normalizeStringField(raw, 'countryCodeV2'),
     zip: normalizeStringField(raw, 'zip'),
+    phone: normalizeStringField(raw, 'phone'),
+    name: normalizeStringField(raw, 'name'),
     formattedArea: normalizeStringField(raw, 'formattedArea'),
+  };
+}
+
+function normalizeCustomerAddress(
+  customerId: string,
+  raw: unknown,
+  options: { fallback?: CustomerAddressRecord | null; cursor?: string | null; position?: number } = {},
+): CustomerAddressRecord | null {
+  if (!isObject(raw)) {
+    return null;
+  }
+
+  const rawId = raw['id'];
+  const id = typeof rawId === 'string' && rawId ? rawId : (options.fallback?.id ?? makeSyntheticGid('CustomerAddress'));
+  const firstName = normalizeStringField(raw, 'firstName', options.fallback?.firstName ?? null);
+  const lastName = normalizeStringField(raw, 'lastName', options.fallback?.lastName ?? null);
+  const address1 = normalizeStringField(raw, 'address1', options.fallback?.address1 ?? null);
+  const address2 = normalizeStringField(raw, 'address2', options.fallback?.address2 ?? null);
+  const city = normalizeStringField(raw, 'city', options.fallback?.city ?? null);
+  const company = normalizeStringField(raw, 'company', options.fallback?.company ?? null);
+  const provinceCode = normalizeStringField(raw, 'provinceCode', options.fallback?.provinceCode ?? null);
+  const countryCodeV2 =
+    normalizeStringField(raw, 'countryCodeV2', options.fallback?.countryCodeV2 ?? null) ??
+    normalizeStringField(raw, 'countryCode', options.fallback?.countryCodeV2 ?? null);
+  const country = normalizeStringField(
+    raw,
+    'country',
+    resolveCountryName(countryCodeV2, options.fallback?.country ?? null),
+  );
+  const province = normalizeStringField(
+    raw,
+    'province',
+    resolveProvinceName(countryCodeV2, provinceCode, options.fallback?.province ?? null),
+  );
+  const zip = normalizeStringField(raw, 'zip', options.fallback?.zip ?? null);
+  const phone = normalizeStringField(raw, 'phone', options.fallback?.phone ?? null);
+  const rawName = normalizeStringField(raw, 'name', options.fallback?.name ?? null);
+  const fallbackName = [firstName, lastName].filter(Boolean).join(' ') || null;
+  const name = rawName ?? fallbackName;
+
+  return {
+    id,
+    customerId,
+    cursor: options.cursor ?? options.fallback?.cursor ?? null,
+    position: options.position ?? options.fallback?.position ?? 0,
+    firstName,
+    lastName,
+    address1,
+    address2,
+    city,
+    company,
+    province,
+    provinceCode,
+    country,
+    countryCodeV2,
+    zip,
+    phone,
+    name,
+    formattedArea: normalizeStringField(
+      raw,
+      'formattedArea',
+      options.fallback?.formattedArea ?? buildFormattedArea(city, provinceCode, country),
+    ),
+  };
+}
+
+function customerAddressToDefaultAddress(address: CustomerAddressRecord): CustomerRecord['defaultAddress'] {
+  return {
+    id: address.id,
+    firstName: address.firstName,
+    lastName: address.lastName,
+    address1: address.address1,
+    address2: address.address2,
+    city: address.city,
+    company: address.company,
+    province: address.province,
+    provinceCode: address.provinceCode,
+    country: address.country,
+    countryCodeV2: address.countryCodeV2,
+    zip: address.zip,
+    phone: address.phone,
+    name: address.name,
+    formattedArea: address.formattedArea,
   };
 }
 
@@ -613,23 +739,62 @@ function serializeDefaultAddressSelection(
   for (const selection of getSelectedChildFields(field)) {
     const key = getFieldResponseKey(selection);
     switch (selection.name.value) {
+      case 'id':
+        result[key] = value.id ?? null;
+        break;
+      case 'firstName':
+        result[key] = value.firstName ?? null;
+        break;
+      case 'lastName':
+        result[key] = value.lastName ?? null;
+        break;
       case 'address1':
         result[key] = value.address1;
+        break;
+      case 'address2':
+        result[key] = value.address2 ?? null;
         break;
       case 'city':
         result[key] = value.city;
         break;
+      case 'company':
+        result[key] = value.company ?? null;
+        break;
       case 'province':
         result[key] = value.province;
+        break;
+      case 'provinceCode':
+        result[key] = value.provinceCode ?? null;
         break;
       case 'country':
         result[key] = value.country;
         break;
+      case 'countryCodeV2':
+        result[key] = value.countryCodeV2 ?? null;
+        break;
       case 'zip':
         result[key] = value.zip;
         break;
+      case 'phone':
+        result[key] = value.phone ?? null;
+        break;
+      case 'name':
+        result[key] = value.name ?? null;
+        break;
       case 'formattedArea':
         result[key] = value.formattedArea;
+        break;
+      case 'formatted':
+        result[key] = [value.address1, value.city, value.province, value.zip, value.country].filter(Boolean);
+        break;
+      case 'coordinatesValidated':
+        result[key] = false;
+        break;
+      case 'latitude':
+      case 'longitude':
+      case 'timeZone':
+      case 'validationResultSummary':
+        result[key] = null;
         break;
       default:
         result[key] = null;
@@ -637,6 +802,135 @@ function serializeDefaultAddressSelection(
     }
   }
   return result;
+}
+
+function serializeCustomerAddressSelection(field: FieldNode, address: CustomerAddressRecord): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = address.id;
+        break;
+      case 'firstName':
+        result[key] = address.firstName;
+        break;
+      case 'lastName':
+        result[key] = address.lastName;
+        break;
+      case 'address1':
+        result[key] = address.address1;
+        break;
+      case 'address2':
+        result[key] = address.address2;
+        break;
+      case 'city':
+        result[key] = address.city;
+        break;
+      case 'company':
+        result[key] = address.company;
+        break;
+      case 'province':
+        result[key] = address.province;
+        break;
+      case 'provinceCode':
+        result[key] = address.provinceCode;
+        break;
+      case 'country':
+        result[key] = address.country;
+        break;
+      case 'countryCodeV2':
+        result[key] = address.countryCodeV2;
+        break;
+      case 'zip':
+        result[key] = address.zip;
+        break;
+      case 'phone':
+        result[key] = address.phone;
+        break;
+      case 'name':
+        result[key] = address.name;
+        break;
+      case 'formattedArea':
+        result[key] = address.formattedArea;
+        break;
+      case 'formatted':
+        result[key] = [address.address1, address.city, address.province, address.zip, address.country].filter(Boolean);
+        break;
+      case 'coordinatesValidated':
+        result[key] = false;
+        break;
+      case 'latitude':
+      case 'longitude':
+      case 'timeZone':
+      case 'validationResultSummary':
+        result[key] = null;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeCustomerAddressesConnectionSelection(
+  customerId: string,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const first =
+    typeof args['first'] === 'number' && Number.isFinite(args['first']) ? Math.max(0, Math.floor(args['first'])) : null;
+  const addresses = store.listEffectiveCustomerAddresses(customerId);
+  const visibleAddresses = first === null ? addresses : addresses.slice(0, first);
+  const hasNextPage = first !== null && addresses.length > visibleAddresses.length;
+  const connection: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'nodes':
+        connection[key] = visibleAddresses.map((address) => serializeCustomerAddressSelection(selection, address));
+        break;
+      case 'edges':
+        connection[key] = visibleAddresses.map((address, index) => {
+          const cursor = address.cursor ?? `customer-address-${customerId}-${index}`;
+          const edge: Record<string, unknown> = {};
+          for (const edgeSelection of getSelectedChildFields(selection)) {
+            const edgeKey = getFieldResponseKey(edgeSelection);
+            switch (edgeSelection.name.value) {
+              case 'cursor':
+                edge[edgeKey] = cursor;
+                break;
+              case 'node':
+                edge[edgeKey] = serializeCustomerAddressSelection(edgeSelection, address);
+                break;
+              default:
+                edge[edgeKey] = null;
+                break;
+            }
+          }
+          return edge;
+        });
+        break;
+      case 'pageInfo':
+        connection[key] = serializeConnectionPageInfo(
+          selection,
+          visibleAddresses,
+          hasNextPage,
+          false,
+          (address) => address.cursor ?? `customer-address-${customerId}-${address.id}`,
+          { prefixCursors: false },
+        );
+        break;
+      default:
+        connection[key] = null;
+        break;
+    }
+  }
+
+  return connection;
 }
 
 function serializeEmptyConnectionSelection(field: FieldNode): Record<string, unknown> {
@@ -738,6 +1032,8 @@ function serializeCustomerSelection(
         result[key] = [];
         break;
       case 'addressesV2':
+        result[key] = serializeCustomerAddressesConnectionSelection(customer.id, selection, variables);
+        break;
       case 'events':
       case 'orders':
       case 'paymentMethods':
@@ -1436,6 +1732,75 @@ function collectHydratableCustomers(document: string, raw: unknown): CustomerRec
   return customers;
 }
 
+function collectCustomerAddressesFromRawCustomer(rawCustomer: unknown): CustomerAddressRecord[] {
+  if (!isObject(rawCustomer) || typeof rawCustomer['id'] !== 'string') {
+    return [];
+  }
+
+  const customerId = rawCustomer['id'];
+  const addressesV2 = rawCustomer['addressesV2'];
+  if (!isObject(addressesV2)) {
+    return [];
+  }
+
+  const addresses: CustomerAddressRecord[] = [];
+  const seenAddressIds = new Set<string>();
+  const addAddress = (rawAddress: unknown, cursor: string | null, position: number): void => {
+    const address = normalizeCustomerAddress(customerId, rawAddress, { cursor, position });
+    if (!address || seenAddressIds.has(address.id)) {
+      return;
+    }
+    seenAddressIds.add(address.id);
+    addresses.push(address);
+  };
+
+  if (Array.isArray(addressesV2['nodes'])) {
+    addressesV2['nodes'].forEach((node, index) => addAddress(node, null, index));
+  }
+
+  if (Array.isArray(addressesV2['edges'])) {
+    addressesV2['edges'].forEach((edge, index) => {
+      if (!isObject(edge)) {
+        return;
+      }
+      addAddress(edge['node'], typeof edge['cursor'] === 'string' ? edge['cursor'] : null, index);
+    });
+  }
+
+  return addresses;
+}
+
+function collectCustomerAddresses(document: string, raw: unknown): CustomerAddressRecord[] {
+  if (!isObject(raw)) {
+    return [];
+  }
+
+  const addresses: CustomerAddressRecord[] = [];
+  for (const field of getRootFields(document)) {
+    const responseKey = getFieldResponseKey(field);
+    if (field.name.value === 'customer' || field.name.value === 'customerByIdentifier') {
+      addresses.push(...collectCustomerAddressesFromRawCustomer(raw[responseKey]));
+    }
+
+    if (field.name.value === 'customers') {
+      const customersConnection = raw[responseKey];
+      if (!isObject(customersConnection)) {
+        continue;
+      }
+      for (const customer of Array.isArray(customersConnection['nodes']) ? customersConnection['nodes'] : []) {
+        addresses.push(...collectCustomerAddressesFromRawCustomer(customer));
+      }
+      for (const edge of Array.isArray(customersConnection['edges']) ? customersConnection['edges'] : []) {
+        if (isObject(edge)) {
+          addresses.push(...collectCustomerAddressesFromRawCustomer(edge['node']));
+        }
+      }
+    }
+  }
+
+  return addresses;
+}
+
 function collectCustomerMetafieldsFromSelection(
   customerId: string,
   rawCustomer: Record<string, unknown>,
@@ -1829,6 +2194,55 @@ function upsertMetafieldsForCustomer(customerId: string, inputs: Record<string, 
   }).metafields;
 }
 
+function readCustomerAddressInput(raw: unknown): Record<string, unknown> {
+  return isObject(raw) ? raw : {};
+}
+
+function buildCreatedCustomerAddress(customerId: string, input: Record<string, unknown>): CustomerAddressRecord {
+  const position = store.listEffectiveCustomerAddresses(customerId).length;
+  return normalizeCustomerAddress(customerId, input, {
+    position,
+    cursor: `customer-address-${customerId}-${position}`,
+  })!;
+}
+
+function buildUpdatedCustomerAddress(
+  existing: CustomerAddressRecord,
+  input: Record<string, unknown>,
+): CustomerAddressRecord {
+  return normalizeCustomerAddress(existing.customerId, input, {
+    fallback: existing,
+    cursor: existing.cursor ?? `customer-address-${existing.customerId}-${existing.position}`,
+    position: existing.position,
+  })!;
+}
+
+function buildCustomerWithDefaultAddress(
+  customer: CustomerRecord,
+  defaultAddress: CustomerAddressRecord | null,
+): CustomerRecord {
+  return {
+    ...customer,
+    defaultAddress: defaultAddress ? customerAddressToDefaultAddress(defaultAddress) : null,
+    updatedAt: makeSyntheticTimestamp(),
+  };
+}
+
+function buildMissingCustomerAddressCustomerError(fieldPath: string[]): CustomerMutationUserError {
+  return {
+    field: fieldPath,
+    message: 'Customer does not exist',
+  };
+}
+
+function buildCustomerAddressResourceNotFoundError(field: FieldNode): Record<string, unknown> {
+  return {
+    message: 'invalid id',
+    path: [getFieldResponseKey(field)],
+    extensions: { code: 'RESOURCE_NOT_FOUND' },
+  };
+}
+
 function buildCreatedCustomer(input: Record<string, unknown>): CustomerRecord {
   const id = makeSyntheticGid('Customer');
   const timestamp = makeSyntheticTimestamp();
@@ -2201,7 +2615,9 @@ function serializeCustomerMutationPayload(
   field: FieldNode,
   payload: {
     customer?: CustomerRecord | null;
+    customerAddress?: CustomerAddressRecord | null;
     deletedCustomerId?: string | null;
+    deletedCustomerAddressId?: string | null;
     resultingCustomerId?: string | null;
     job?: { id: string; done: boolean } | null;
     shop?: boolean;
@@ -2216,8 +2632,18 @@ function serializeCustomerMutationPayload(
       case 'customer':
         result[key] = payload.customer ? serializeCustomerSelection(payload.customer, selection, variables) : null;
         break;
+      case 'customerAddress':
+      case 'address':
+        result[key] = payload.customerAddress
+          ? serializeCustomerAddressSelection(selection, payload.customerAddress)
+          : null;
+        break;
       case 'deletedCustomerId':
         result[key] = payload.deletedCustomerId ?? null;
+        break;
+      case 'deletedCustomerAddressId':
+      case 'deletedAddressId':
+        result[key] = payload.deletedCustomerAddressId ?? null;
         break;
       case 'resultingCustomerId':
         result[key] = payload.resultingCustomerId ?? null;
@@ -2477,6 +2903,130 @@ export function handleCustomerMutation(
       continue;
     }
 
+    if (field.name.value === 'customerAddressCreate') {
+      const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
+      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      if (!customerId || !existingCustomer) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customerAddress: null,
+            userErrors: [buildMissingCustomerAddressCustomerError(['customerId'])],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      const address = store.stageUpsertCustomerAddress(
+        buildCreatedCustomerAddress(customerId, readCustomerAddressInput(args['address'])),
+      );
+      if (!existingCustomer.defaultAddress || args['setAsDefault'] === true) {
+        store.stageUpdateCustomer(buildCustomerWithDefaultAddress(existingCustomer, address));
+      }
+      data[key] = serializeCustomerMutationPayload(field, { customerAddress: address, userErrors: [] }, variables);
+      continue;
+    }
+
+    if (field.name.value === 'customerAddressUpdate') {
+      const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
+      const addressId =
+        typeof args['id'] === 'string' ? args['id'] : typeof args['addressId'] === 'string' ? args['addressId'] : null;
+      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      const existingAddress = addressId ? store.getEffectiveCustomerAddressById(addressId) : null;
+      if (!customerId || !existingCustomer) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customerAddress: null,
+            userErrors: [buildMissingCustomerAddressCustomerError(['customerId'])],
+          },
+          variables,
+        );
+        continue;
+      }
+      if (!existingAddress || existingAddress.customerId !== customerId) {
+        data[key] = null;
+        errors.push(buildCustomerAddressResourceNotFoundError(field));
+        continue;
+      }
+
+      const address = store.stageUpsertCustomerAddress(
+        buildUpdatedCustomerAddress(existingAddress, readCustomerAddressInput(args['address'])),
+      );
+      if (existingCustomer.defaultAddress?.id === address.id || args['setAsDefault'] === true) {
+        store.stageUpdateCustomer(buildCustomerWithDefaultAddress(existingCustomer, address));
+      }
+      data[key] = serializeCustomerMutationPayload(field, { customerAddress: address, userErrors: [] }, variables);
+      continue;
+    }
+
+    if (field.name.value === 'customerAddressDelete') {
+      const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
+      const addressId =
+        typeof args['id'] === 'string' ? args['id'] : typeof args['addressId'] === 'string' ? args['addressId'] : null;
+      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      const existingAddress = addressId ? store.getEffectiveCustomerAddressById(addressId) : null;
+      if (!customerId || !existingCustomer) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            deletedCustomerAddressId: null,
+            userErrors: [buildMissingCustomerAddressCustomerError(['customerId'])],
+          },
+          variables,
+        );
+        continue;
+      }
+      if (!addressId || !existingAddress || existingAddress.customerId !== customerId) {
+        data[key] = null;
+        errors.push(buildCustomerAddressResourceNotFoundError(field));
+        continue;
+      }
+
+      store.stageDeleteCustomerAddress(addressId);
+      if (existingCustomer.defaultAddress?.id === addressId) {
+        const nextDefaultAddress = store.listEffectiveCustomerAddresses(customerId)[0] ?? null;
+        store.stageUpdateCustomer(buildCustomerWithDefaultAddress(existingCustomer, nextDefaultAddress));
+      }
+      data[key] = serializeCustomerMutationPayload(
+        field,
+        {
+          deletedCustomerAddressId: addressId,
+          userErrors: [],
+        },
+        variables,
+      );
+      continue;
+    }
+
+    if (field.name.value === 'customerUpdateDefaultAddress') {
+      const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
+      const addressId = typeof args['addressId'] === 'string' ? args['addressId'] : null;
+      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      const existingAddress = addressId ? store.getEffectiveCustomerAddressById(addressId) : null;
+      if (!customerId || !existingCustomer) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customer: null,
+            userErrors: [buildMissingCustomerAddressCustomerError(['customerId'])],
+          },
+          variables,
+        );
+        continue;
+      }
+      if (!existingAddress || existingAddress.customerId !== customerId) {
+        data[key] = null;
+        errors.push(buildCustomerAddressResourceNotFoundError(field));
+        continue;
+      }
+
+      const customer = store.stageUpdateCustomer(buildCustomerWithDefaultAddress(existingCustomer, existingAddress));
+      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
+      continue;
+    }
+
     if (field.name.value === 'customerDelete') {
       const input = readCustomerInput(args['input']);
       const customerId = typeof input['id'] === 'string' ? input['id'] : null;
@@ -2611,6 +3161,11 @@ export function hydrateCustomersFromUpstreamResponse(
   const customers = collectHydratableCustomers(document, upstreamBody['data']);
   if (customers.length > 0) {
     store.upsertBaseCustomers(customers);
+  }
+
+  const customerAddresses = collectCustomerAddresses(document, upstreamBody['data']);
+  if (customerAddresses.length > 0) {
+    store.upsertBaseCustomerAddresses(customerAddresses);
   }
 
   const customerMetafields = collectCustomerMetafields(document, upstreamBody['data']);
