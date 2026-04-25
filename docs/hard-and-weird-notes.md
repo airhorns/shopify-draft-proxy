@@ -2124,7 +2124,29 @@ Practical rule:
 - use `discountNode(id:)` for family-agnostic detail reads
 - keep parity scenarios for `codeDiscountNode(id:)` and `automaticDiscountNode(id:)` on matching ID families; do not use mismatched-family calls as ordinary null-read evidence
 
-## 58. MarketCatalog and PriceList reads connect catalogs, publications, and contextual prices
+## 58. Shopify Functions app discounts are read-preserve, write-unsafe
+
+HAR-199 settled the first local safety stance for app-managed discount roots. `DiscountCodeApp` and `DiscountAutomaticApp` are backed by Shopify Functions and external Function IDs, so local write support cannot be guessed from the native discount model.
+
+Observed documentation facts from Admin GraphQL 2026-04/latest docs:
+
+- `discountCodeAppCreate`, `discountCodeAppUpdate`, `discountAutomaticAppCreate`, and `discountAutomaticAppUpdate` require `write_discounts` and operate on app-managed discounts backed by Shopify Functions
+- `DiscountCodeApp.appDiscountType` and `DiscountAutomaticApp.appDiscountType` expose app extension metadata, including app/client identity and `functionId`
+- mutation examples select `appDiscountType { appKey functionId }`, which means downstream reads and mutation payloads can expose stable Function identity without executing the Function itself
+
+Current local rule:
+
+- app-discount create/update roots are registry-only local-staging gaps with `implemented: false`; do not mark them as supported until captured fixtures and a local staging model exist
+- runtime requests for those roots still use the unsupported mutation escape hatch and would hit Shopify, but the proxy log/meta mutation log now include `registeredOperation` and `unsupported-app-discount-function-mutation` safety metadata
+- app-discount read serializers should preserve captured fields such as `title`, `status`, `combinesWith`, `discountId`, and selected `appDiscountType` fields including `functionId`; if app Function metadata is absent from normalized state, return `null` plus `UNSUPPORTED_APP_DISCOUNT_FIELD` instead of inventing it
+
+Credential and fixture limitation:
+
+- the existing discount capture flow creates temporary native basic discounts only; it does not safely create Shopify Functions app discounts
+- capture app-discount read fixtures only when a safe existing app discount or disposable Function-backed setup is available, and document the exact `appDiscountType` shape captured
+- supporting app-discount writes later must stage locally without invoking external Shopify Function logic during normal proxy runtime
+
+## 59. MarketCatalog and PriceList reads connect catalogs, publications, and contextual prices
 
 HAR-178 expanded Markets read parity with Admin GraphQL 2026-04 captures from `harry-test-heelo.myshopify.com`. The useful detail is not just the root availability; the captured graph links a `MarketCatalog` to a `Publication`, a `PriceList`, associated `Market` rows, and `PriceList.prices` rows that point back to product variants.
 
