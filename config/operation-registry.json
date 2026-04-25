@@ -714,6 +714,66 @@
     "supportNotes": "HAR-250 registry-only privacy mutation coverage. Keep unimplemented until live capture and a local privacy feature staging model exist; registry presence must not make this a supported passthrough."
   },
   {
+    "name": "bulkOperation",
+    "type": "query",
+    "domain": "bulk-operations",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["bulkOperation", "BulkOperation"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-261 root-level Bulk Operations API read gap. Requires a local BulkOperation job model for query exports and mutation imports, missing-id/null behavior, and status/result fields before overlay-read support; this is separate from product variant, inventory, discount, and metaobject bulk roots."
+  },
+  {
+    "name": "bulkOperations",
+    "type": "query",
+    "domain": "bulk-operations",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["bulkOperations", "BulkOperations"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-261 root-level Bulk Operations API catalog read gap. Requires captured pagination, filtering by id/status/operation_type, CREATED_AT sorting, empty connection behavior, and app-scoped job visibility before overlay-read support."
+  },
+  {
+    "name": "currentBulkOperation",
+    "type": "query",
+    "domain": "bulk-operations",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["currentBulkOperation", "CurrentBulkOperation"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-261 deprecated root-level Bulk Operations read gap. Keep unimplemented until the proxy can derive the most recent query or mutation BulkOperation from local job state; current Shopify docs point new callers to bulkOperations with a status filter."
+  },
+  {
+    "name": "bulkOperationRunQuery",
+    "type": "mutation",
+    "domain": "bulk-operations",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["bulkOperationRunQuery", "BulkOperationRunQuery"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-261 root-level Bulk Operations export mutation gap. Future support must stage a local asynchronous query-export job, preserve the original raw mutation for commit, and emulate payload/userErrors/status/read-after-write effects without sending supported runtime requests to Shopify."
+  },
+  {
+    "name": "bulkOperationRunMutation",
+    "type": "mutation",
+    "domain": "bulk-operations",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["bulkOperationRunMutation", "BulkOperationRunMutation"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-261 root-level Bulk Operations import mutation gap. Future support must stage a local asynchronous mutation-import job from stagedUploadPath/clientIdentifier inputs, model BulkOperation results and failures, and avoid runtime Shopify writes until explicit commit replay."
+  },
+  {
+    "name": "bulkOperationCancel",
+    "type": "mutation",
+    "domain": "bulk-operations",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["bulkOperationCancel", "BulkOperationCancel"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-261 root-level Bulk Operations cancellation gap. Future support must stage canceling/canceled transitions against local BulkOperation jobs and downstream reads without treating this declared root as a permanent passthrough capability."
+  },
+  {
     "name": "productOptionsCreate",
     "type": "mutation",
     "domain": "products",
