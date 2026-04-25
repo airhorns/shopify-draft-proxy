@@ -685,6 +685,32 @@ export const discountRecordSchema = z.strictObject({
 });
 export type DiscountRecord = z.infer<typeof discountRecordSchema>;
 
+export const paymentCustomizationMetafieldRecordSchema = z.strictObject({
+  id: z.string(),
+  paymentCustomizationId: z.string(),
+  namespace: z.string(),
+  key: z.string(),
+  type: nullableStringSchema,
+  value: nullableStringSchema,
+  compareDigest: nullableStringSchema.optional(),
+  jsonValue: jsonValueSchema.optional(),
+  createdAt: nullableStringSchema.optional(),
+  updatedAt: nullableStringSchema.optional(),
+  ownerType: nullableStringSchema.optional(),
+});
+export type PaymentCustomizationMetafieldRecord = z.infer<typeof paymentCustomizationMetafieldRecordSchema>;
+
+export const paymentCustomizationRecordSchema = z.strictObject({
+  id: z.string(),
+  title: nullableStringSchema,
+  enabled: nullableBooleanSchema,
+  functionId: nullableStringSchema,
+  shopifyFunction: jsonObjectSchema.optional(),
+  errorHistory: jsonValueSchema.optional(),
+  metafields: z.array(paymentCustomizationMetafieldRecordSchema).optional(),
+});
+export type PaymentCustomizationRecord = z.infer<typeof paymentCustomizationRecordSchema>;
+
 export const customerMergeRequestRecordSchema = z.strictObject({
   jobId: z.string(),
   resultingCustomerId: z.string(),
@@ -1210,6 +1236,8 @@ export const stateSnapshotSchema = z.strictObject({
   marketingEvents: z.record(z.string(), marketingRecordSchema).default({}),
   marketingEventOrder: z.array(z.string()).default([]),
   discounts: z.record(z.string(), discountRecordSchema).default({}),
+  paymentCustomizations: z.record(z.string(), paymentCustomizationRecordSchema).default({}),
+  paymentCustomizationOrder: z.array(z.string()).default([]),
   businessEntities: z.record(z.string(), businessEntityRecordSchema).default({}),
   businessEntityOrder: z.array(z.string()).default([]),
   markets: z.record(z.string(), marketRecordSchema).default({}),
@@ -1236,6 +1264,7 @@ export const stateSnapshotSchema = z.strictObject({
   deletedCustomerAddressIds: z.record(z.string(), z.literal(true)).default({}),
   deletedSegmentIds: z.record(z.string(), z.literal(true)).default({}),
   deletedDiscountIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedPaymentCustomizationIds: z.record(z.string(), z.literal(true)).default({}),
   deletedMarketIds: z.record(z.string(), z.literal(true)).default({}),
   deletedCatalogIds: z.record(z.string(), z.literal(true)).default({}),
   deletedWebPresenceIds: z.record(z.string(), z.literal(true)).default({}),

@@ -61,6 +61,22 @@ describe('getOperationCapability anonymous operations', () => {
     });
   });
 
+  it('classifies anonymous payment customization mutations by root field name', () => {
+    for (const rootField of [
+      'paymentCustomizationActivation',
+      'paymentCustomizationCreate',
+      'paymentCustomizationDelete',
+      'paymentCustomizationUpdate',
+    ]) {
+      expect(getOperationCapability({ type: 'mutation', name: null, rootFields: [rootField] })).toEqual({
+        domain: 'payments',
+        execution: 'stage-locally',
+        operationName: rootField,
+        type: 'mutation',
+      });
+    }
+  });
+
   it('classifies anonymous product option mutations by root field name', () => {
     expect(getOperationCapability({ type: 'mutation', name: null, rootFields: ['productOptionsCreate'] })).toEqual({
       domain: 'products',

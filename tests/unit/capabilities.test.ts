@@ -552,9 +552,9 @@ describe('getOperationCapability', () => {
     expect(
       getOperationCapability({ type: 'mutation', name: 'CreateDiscount', rootFields: ['discountCodeBasicCreate'] }),
     ).toEqual({
-      domain: 'unknown',
-      execution: 'passthrough',
-      operationName: 'CreateDiscount',
+      domain: 'discounts',
+      execution: 'stage-locally',
+      operationName: 'discountCodeBasicCreate',
       type: 'mutation',
     });
 
@@ -649,5 +649,55 @@ describe('getOperationCapability', () => {
       operationName: 'MetafieldDefinition',
       type: 'query',
     });
+  });
+
+  it('routes implemented payment customization read roots through the local overlay', () => {
+    expect(
+      getOperationCapability({
+        type: 'query',
+        name: 'PaymentCustomizations',
+        rootFields: ['paymentCustomizations'],
+      }),
+    ).toEqual({
+      domain: 'payments',
+      execution: 'overlay-read',
+      operationName: 'PaymentCustomizations',
+      type: 'query',
+    });
+
+    expect(
+      getOperationCapability({
+        type: 'query',
+        name: 'PaymentCustomization',
+        rootFields: ['paymentCustomization'],
+      }),
+    ).toEqual({
+      domain: 'payments',
+      execution: 'overlay-read',
+      operationName: 'PaymentCustomization',
+      type: 'query',
+    });
+  });
+
+  it('routes implemented payment customization mutations through local staging', () => {
+    for (const rootField of [
+      'paymentCustomizationActivation',
+      'paymentCustomizationCreate',
+      'paymentCustomizationDelete',
+      'paymentCustomizationUpdate',
+    ]) {
+      expect(
+        getOperationCapability({
+          type: 'mutation',
+          name: `${rootField[0]?.toUpperCase() ?? ''}${rootField.slice(1)}`,
+          rootFields: [rootField],
+        }),
+      ).toEqual({
+        domain: 'payments',
+        execution: 'stage-locally',
+        operationName: `${rootField[0]?.toUpperCase() ?? ''}${rootField.slice(1)}`,
+        type: 'mutation',
+      });
+    }
   });
 });
