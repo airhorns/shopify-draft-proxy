@@ -2678,6 +2678,26 @@ function seedMetafieldsSetOwnerProducts(capture: unknown, variables: Record<stri
   }
 }
 
+function seedProductMetafieldsReadPreconditions(capture: unknown): boolean {
+  const responseProduct = readRecordField(
+    readRecordField(readRecordField(capture as Record<string, unknown>, 'response'), 'data'),
+    'product',
+  );
+  const legacyConnectionProduct = readRecordField(
+    readRecordField(readRecordField(capture as Record<string, unknown>, 'connection'), 'data'),
+    'product',
+  );
+  const product = responseProduct ?? legacyConnectionProduct;
+  const productId = readStringField(product, 'id');
+  if (!product || !productId?.startsWith('gid://shopify/Product/')) {
+    return false;
+  }
+
+  store.upsertBaseProducts([makeSeedProduct(productId, product)]);
+  store.replaceBaseMetafieldsForProduct(productId, readCapturedProductMetafields(productId, product));
+  return true;
+}
+
 function seedMetafieldsDeleteOwnerProducts(capture: unknown, variables: Record<string, unknown>): boolean {
   if (mutationNameFromCapture(capture) !== 'metafieldsDelete') {
     return false;
@@ -2721,6 +2741,11 @@ function seedMetafieldsDeleteOwnerProducts(capture: unknown, variables: Record<s
         key,
         type: 'single_line_text_field',
         value: null,
+        compareDigest: null,
+        jsonValue: null,
+        createdAt: null,
+        updatedAt: null,
+        ownerType: 'PRODUCT',
       };
     })
     .filter((metafield): metafield is ProductMetafieldRecord => metafield !== null);
@@ -2800,6 +2825,13 @@ function readCapturedProductMetafields(productId: string, product: Record<string
       key,
       type: readStringField(candidate, 'type'),
       value: readStringField(candidate, 'value'),
+      compareDigest: readStringField(candidate, 'compareDigest'),
+      jsonValue: Object.prototype.hasOwnProperty.call(candidate, 'jsonValue')
+        ? (candidate['jsonValue'] as ProductMetafieldRecord['jsonValue'])
+        : undefined,
+      createdAt: readStringField(candidate, 'createdAt'),
+      updatedAt: readStringField(candidate, 'updatedAt'),
+      ownerType: readStringField(candidate, 'ownerType') ?? 'PRODUCT',
     });
   };
 
@@ -2807,12 +2839,14 @@ function readCapturedProductMetafields(productId: string, product: Record<string
     addMetafield(value);
   }
 
-  const metafieldsConnection = readRecordField(product, 'metafields');
-  for (const node of readArrayField(metafieldsConnection, 'nodes')) {
-    addMetafield(node);
-  }
-  for (const edge of readArrayField(metafieldsConnection, 'edges').filter(isPlainObject)) {
-    addMetafield(readRecordField(edge, 'node'));
+  for (const value of Object.values(product)) {
+    const connection = isPlainObject(value) ? value : null;
+    for (const node of readArrayField(connection, 'nodes')) {
+      addMetafield(node);
+    }
+    for (const edge of readArrayField(connection, 'edges').filter(isPlainObject)) {
+      addMetafield(readRecordField(edge, 'node'));
+    }
   }
 
   return Array.from(byIdentity.values()).sort(
@@ -2859,6 +2893,7 @@ function readCapturedProductMedia(
 }
 
 function seedPreconditionsFromCapture(capture: unknown, variables: Record<string, unknown>): void {
+  seedProductMetafieldsReadPreconditions(capture);
   if (seedInventoryLinkagePreconditions(capture)) {
     return;
   }

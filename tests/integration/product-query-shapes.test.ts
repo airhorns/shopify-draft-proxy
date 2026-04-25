@@ -1072,6 +1072,11 @@ describe('product query shapes', () => {
                 key: 'material',
                 type: 'single_line_text_field',
                 value: 'Canvas',
+                compareDigest: 'compare-digest-9001',
+                jsonValue: 'Canvas',
+                createdAt: '2024-01-02T00:00:00Z',
+                updatedAt: '2024-01-03T00:00:00Z',
+                ownerType: 'PRODUCT',
               },
               metafields: {
                 edges: [
@@ -1082,6 +1087,11 @@ describe('product query shapes', () => {
                       key: 'material',
                       type: 'single_line_text_field',
                       value: 'Canvas',
+                      compareDigest: 'compare-digest-9001',
+                      jsonValue: 'Canvas',
+                      createdAt: '2024-01-02T00:00:00Z',
+                      updatedAt: '2024-01-03T00:00:00Z',
+                      ownerType: 'PRODUCT',
                     },
                   },
                   {
@@ -1091,6 +1101,11 @@ describe('product query shapes', () => {
                       key: 'origin',
                       type: 'single_line_text_field',
                       value: 'VN',
+                      compareDigest: 'compare-digest-9002',
+                      jsonValue: 'VN',
+                      createdAt: '2024-01-04T00:00:00Z',
+                      updatedAt: '2024-01-05T00:00:00Z',
+                      ownerType: 'PRODUCT',
                     },
                   },
                 ],
@@ -1113,7 +1128,7 @@ describe('product query shapes', () => {
       .post('/admin/api/2025-01/graphql.json')
       .send({
         query:
-          'query ($id: ID!) { product(id: $id) { id title primarySpec: metafield(namespace: "custom", key: "material") { id namespace key type value } metafields(first: 10) { edges { cursor node { id namespace key type value } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }',
+          'query ($id: ID!) { product(id: $id) { id title primarySpec: metafield(namespace: "custom", key: "material") { id namespace key type value compareDigest jsonValue createdAt updatedAt ownerType definition { id name } } metafields(first: 10) { edges { cursor node { id namespace key type value compareDigest jsonValue createdAt updatedAt ownerType } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }',
         variables: { id: 'gid://shopify/Product/8397256720617' },
       });
 
@@ -1125,6 +1140,12 @@ describe('product query shapes', () => {
       key: 'material',
       type: 'single_line_text_field',
       value: 'Canvas',
+      compareDigest: 'compare-digest-9001',
+      jsonValue: 'Canvas',
+      createdAt: '2024-01-02T00:00:00Z',
+      updatedAt: '2024-01-03T00:00:00Z',
+      ownerType: 'PRODUCT',
+      definition: null,
     });
     expect(response.body.data.product.metafields.edges).toEqual([
       {
@@ -1135,6 +1156,11 @@ describe('product query shapes', () => {
           key: 'material',
           type: 'single_line_text_field',
           value: 'Canvas',
+          compareDigest: 'compare-digest-9001',
+          jsonValue: 'Canvas',
+          createdAt: '2024-01-02T00:00:00Z',
+          updatedAt: '2024-01-03T00:00:00Z',
+          ownerType: 'PRODUCT',
         },
       },
       {
@@ -1145,6 +1171,11 @@ describe('product query shapes', () => {
           key: 'origin',
           type: 'single_line_text_field',
           value: 'VN',
+          compareDigest: 'compare-digest-9002',
+          jsonValue: 'VN',
+          createdAt: '2024-01-04T00:00:00Z',
+          updatedAt: '2024-01-05T00:00:00Z',
+          ownerType: 'PRODUCT',
         },
       },
     ]);
@@ -1153,6 +1184,88 @@ describe('product query shapes', () => {
       hasPreviousPage: false,
       startCursor: 'cursor:gid://shopify/Metafield/9001',
       endCursor: 'cursor:gid://shopify/Metafield/9002',
+    });
+  });
+
+  it('serializes staged product metafield read fields through singular and nodes selections', async () => {
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const createResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Canvas Sneaker" }) { product { id } userErrors { field message } } }',
+    });
+    const productId = createResponse.body.data.productCreate.product.id as string;
+
+    await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation SetMetafields($metafields: [MetafieldsSetInput!]!) { metafieldsSet(metafields: $metafields) { metafields { id namespace key type value } userErrors { field message } } }',
+        variables: {
+          metafields: [
+            {
+              ownerId: productId,
+              namespace: 'custom',
+              key: 'material',
+              type: 'single_line_text_field',
+              value: 'Canvas',
+            },
+            {
+              ownerId: productId,
+              namespace: 'details',
+              key: 'dimensions',
+              type: 'json',
+              value: '{"height":12,"width":8}',
+            },
+          ],
+        },
+      });
+
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query ($id: ID!) { product(id: $id) { material: metafield(namespace: "custom", key: "material") { id namespace key type value compareDigest jsonValue createdAt updatedAt ownerType definition { id } } metafields(first: 2) { nodes { id namespace key type value compareDigest jsonValue createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }',
+        variables: { id: productId },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.product.material).toMatchObject({
+      namespace: 'custom',
+      key: 'material',
+      type: 'single_line_text_field',
+      value: 'Canvas',
+      compareDigest: expect.stringMatching(/^draft:/),
+      jsonValue: 'Canvas',
+      ownerType: 'PRODUCT',
+      definition: null,
+    });
+    expect(response.body.data.product.material.createdAt).toEqual(response.body.data.product.material.updatedAt);
+    expect(response.body.data.product.metafields.nodes).toEqual([
+      expect.objectContaining({
+        namespace: 'custom',
+        key: 'material',
+        type: 'single_line_text_field',
+        value: 'Canvas',
+        compareDigest: expect.stringMatching(/^draft:/),
+        jsonValue: 'Canvas',
+        createdAt: response.body.data.product.material.createdAt,
+        updatedAt: response.body.data.product.material.updatedAt,
+        ownerType: 'PRODUCT',
+      }),
+      expect.objectContaining({
+        namespace: 'details',
+        key: 'dimensions',
+        type: 'json',
+        value: '{"height":12,"width":8}',
+        compareDigest: expect.stringMatching(/^draft:/),
+        jsonValue: { height: 12, width: 8 },
+        ownerType: 'PRODUCT',
+      }),
+    ]);
+    expect(response.body.data.product.metafields.pageInfo).toMatchObject({
+      hasNextPage: false,
+      hasPreviousPage: false,
     });
   });
 

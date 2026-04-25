@@ -120,6 +120,101 @@ const downstreamReadQuery = `#graphql
   }
 `;
 
+const productMetafieldsReadQuery = `#graphql
+  query ProductMetafieldsRead($id: ID!, $namespace: String!, $key: String!, $after: String) {
+    product(id: $id) {
+      id
+      title
+      primarySpec: metafield(namespace: $namespace, key: $key) {
+        id
+        namespace
+        key
+        type
+        value
+        compareDigest
+        jsonValue
+        createdAt
+        updatedAt
+        ownerType
+        definition {
+          id
+          name
+        }
+      }
+      metafields(first: 1) {
+        nodes {
+          id
+          namespace
+          key
+          type
+          value
+          compareDigest
+          jsonValue
+          createdAt
+          updatedAt
+          ownerType
+        }
+        edges {
+          cursor
+          node {
+            id
+            namespace
+            key
+            type
+            value
+            compareDigest
+            jsonValue
+            createdAt
+            updatedAt
+            ownerType
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+      nextMetafields: metafields(first: 1, after: $after) {
+        nodes {
+          id
+          namespace
+          key
+          type
+          value
+          compareDigest
+          jsonValue
+          createdAt
+          updatedAt
+          ownerType
+        }
+        edges {
+          cursor
+          node {
+            id
+            namespace
+            key
+            type
+            value
+            compareDigest
+            jsonValue
+            createdAt
+            updatedAt
+            ownerType
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+  }
+`;
+
 function buildCreateProductVariables(runId) {
   return {
     product: {
@@ -198,6 +293,14 @@ try {
   const metafieldsSetVariables = buildMetafieldsSetVariables(createdProductId);
   const metafieldsSetResponse = await runGraphql(metafieldsSetMutation, metafieldsSetVariables);
   const postSetRead = await runGraphql(downstreamReadQuery, { id: createdProductId });
+  const firstMetafieldCursor = postSetRead.data?.product?.metafields?.pageInfo?.startCursor ?? null;
+  const productMetafieldsReadVariables = {
+    id: createdProductId,
+    namespace: 'custom',
+    key: 'material',
+    after: typeof firstMetafieldCursor === 'string' ? firstMetafieldCursor : null,
+  };
+  const productMetafieldsRead = await runGraphql(productMetafieldsReadQuery, productMetafieldsReadVariables);
   const metafieldsDeleteVariables = buildMetafieldsDeleteVariables(createdProductId);
   const metafieldsDeleteResponse = await runGraphql(metafieldsDeleteMutation, metafieldsDeleteVariables);
   const postDeleteRead = await runGraphql(downstreamReadQuery, { id: createdProductId });
@@ -236,12 +339,26 @@ try {
     'utf8',
   );
 
+  const readCaptureFile = 'product-metafields.json';
+  await writeFile(
+    path.join(outputDir, readCaptureFile),
+    `${JSON.stringify(
+      {
+        variables: productMetafieldsReadVariables,
+        response: productMetafieldsRead,
+      },
+      null,
+      2,
+    )}\n`,
+    'utf8',
+  );
+
   console.log(
     JSON.stringify(
       {
         ok: true,
         outputDir,
-        files: [setCaptureFile, deleteCaptureFile],
+        files: [setCaptureFile, deleteCaptureFile, readCaptureFile],
         productId: createdProductId,
       },
       null,

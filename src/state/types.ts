@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { jsonValueSchema } from '../json-schemas.js';
 
 const nullableStringSchema = z.string().nullable();
 const nullableNumberSchema = z.number().nullable();
@@ -220,6 +221,11 @@ export const productMetafieldRecordSchema = z.strictObject({
   key: z.string(),
   type: nullableStringSchema,
   value: nullableStringSchema,
+  compareDigest: nullableStringSchema.optional(),
+  jsonValue: jsonValueSchema.optional(),
+  createdAt: nullableStringSchema.optional(),
+  updatedAt: nullableStringSchema.optional(),
+  ownerType: nullableStringSchema.optional(),
 });
 export type ProductMetafieldRecord = z.infer<typeof productMetafieldRecordSchema>;
 
