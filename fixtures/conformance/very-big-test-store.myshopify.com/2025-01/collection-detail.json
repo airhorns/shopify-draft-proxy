@@ -5,7 +5,7 @@
       "legacyResourceId": "402476531945",
       "title": "Home page",
       "handle": "frontpage",
-      "updatedAt": "2026-04-17T12:52:37Z",
+      "updatedAt": "2026-04-24T21:10:53Z",
       "description": "",
       "descriptionHtml": "",
       "image": null,
@@ -31,7 +31,13 @@
               "handle": "vans-authentic-lo-pro-burgandy-white",
               "vendor": "VANS",
               "productType": "SHOES",
-              "tags": ["egnition-sample-data", "men", "sale", "summer", "vans"],
+              "tags": [
+                "egnition-sample-data",
+                "men",
+                "sale",
+                "summer",
+                "vans"
+              ],
               "totalInventory": 25,
               "tracksInventory": true
             }
@@ -50,7 +56,7 @@
       "legacyResourceId": "429826146537",
       "title": "VANS",
       "handle": "vans",
-      "updatedAt": "2026-04-17T12:52:37Z",
+      "updatedAt": "2026-04-24T21:10:53Z",
       "description": "Vans collection",
       "descriptionHtml": "Vans collection",
       "image": {
@@ -91,7 +97,12 @@
               "handle": "vans-old-skool-butterfly-true-white-black",
               "vendor": "VANS",
               "productType": "SHOES",
-              "tags": ["egnition-sample-data", "men", "summer", "vans"],
+              "tags": [
+                "egnition-sample-data",
+                "men",
+                "summer",
+                "vans"
+              ],
               "totalInventory": 62,
               "tracksInventory": true
             }
@@ -104,7 +115,12 @@
               "handle": "vans-authentic-multi-eyelets-gradient-crimson",
               "vendor": "VANS",
               "productType": "SHOES",
-              "tags": ["egnition-sample-data", "men", "summer", "vans"],
+              "tags": [
+                "egnition-sample-data",
+                "men",
+                "summer",
+                "vans"
+              ],
               "totalInventory": 48,
               "tracksInventory": true
             }
@@ -117,7 +133,12 @@
               "handle": "vans-classic-slip-on-perforated-suede",
               "vendor": "VANS",
               "productType": "SHOES",
-              "tags": ["egnition-sample-data", "men", "summer", "vans"],
+              "tags": [
+                "egnition-sample-data",
+                "men",
+                "summer",
+                "vans"
+              ],
               "totalInventory": 69,
               "tracksInventory": true
             }
@@ -138,7 +159,7 @@
       "actualQueryCost": 15,
       "throttleStatus": {
         "maximumAvailable": 2000,
-        "currentlyAvailable": 1985,
+        "currentlyAvailable": 1969,
         "restoreRate": 100
       }
     }

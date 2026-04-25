@@ -284,8 +284,6 @@ exports[`GraphQL operation coverage > snapshots introspected Admin GraphQL mutat
   "publicationCreate",
   "publicationDelete",
   "publicationUpdate",
-  "publishablePublish",
-  "publishableUnpublish",
   "pubSubServerPixelUpdate",
   "quantityPricingByVariantUpdate",
   "quantityRulesAdd",
