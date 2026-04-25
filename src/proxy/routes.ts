@@ -91,6 +91,14 @@ function interpretMutationLogEntry(
   };
 }
 
+function isProductLocalMutationCapability(capability: OperationCapability): boolean {
+  return (
+    capability.execution === 'stage-locally' &&
+    (capability.domain === 'products' ||
+      (capability.domain === 'store-properties' && capability.operationName?.startsWith('publishable') === true))
+  );
+}
+
 export function createProxyRouter(config: AppConfig): Router {
   const router = new Router();
   const upstream = createUpstreamGraphQLClient(config.shopifyAdminOrigin);
@@ -111,7 +119,7 @@ export function createProxyRouter(config: AppConfig): Router {
     const capability = getOperationCapability(parsed);
     const primaryRootField = parsed.rootFields[0] ?? capability.operationName;
 
-    if (capability.execution === 'stage-locally' && capability.domain === 'products') {
+    if (isProductLocalMutationCapability(capability)) {
       proxyLogger.debug(
         {
           execution: capability.execution,

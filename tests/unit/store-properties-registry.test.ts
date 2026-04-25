@@ -61,7 +61,7 @@ function readRegistry() {
 }
 
 describe('Store properties registry scaffold', () => {
-  it('tracks Store properties roots without enabling runtime support prematurely', () => {
+  it('tracks Store properties roots without enabling broad runtime support prematurely', () => {
     const registry = readRegistry();
     const entriesByName = new Map(registry.map((entry) => [entry.name, entry]));
 
@@ -69,23 +69,39 @@ describe('Store properties registry scaffold', () => {
       const entry = entriesByName.get(root);
       expect(entry, `${root} should be declared in the operation registry`).toBeDefined();
       expect(entry?.domain, `${root} should be grouped under Store properties`).toBe('store-properties');
-      expect(entry?.implemented, `${root} should remain scaffold-only`).toBe(false);
-      expect(entry?.runtimeTests, `${root} should not claim runtime coverage`).toEqual([]);
     }
 
     for (const root of storePropertiesQueryRoots) {
       expect(entriesByName.get(root)?.execution, `${root} should be a planned overlay read`).toBe('overlay-read');
+      expect(entriesByName.get(root)?.implemented, `${root} should remain scaffold-only`).toBe(false);
+      expect(entriesByName.get(root)?.runtimeTests, `${root} should not claim runtime coverage`).toEqual([]);
     }
 
     for (const root of storePropertiesLocalStagingMutationRoots) {
       expect(entriesByName.get(root)?.execution, `${root} should be planned for local staging before support`).toBe(
         'stage-locally',
       );
+      expect(entriesByName.get(root)?.implemented, `${root} should remain scaffold-only`).toBe(false);
+      expect(entriesByName.get(root)?.runtimeTests, `${root} should not claim runtime coverage`).toEqual([]);
     }
 
     for (const root of genericPublishableMutationRoots) {
-      expect(entriesByName.get(root)?.execution, `${root} should be explicit tracked passthrough`).toBe('passthrough');
+      expect(entriesByName.get(root)?.execution, `${root} should stage locally for product targets`).toBe(
+        'stage-locally',
+      );
+      expect(entriesByName.get(root)?.implemented, `${root} should expose the product-scoped slice`).toBe(true);
+      expect(entriesByName.get(root)?.runtimeTests, `${root} should declare runtime coverage`).toContain(
+        'tests/integration/product-draft-flow.test.ts',
+      );
+      expect(entriesByName.get(root)?.supportNotes, `${root} should explain the product-scoped support`).toEqual(
+        expect.stringContaining('Product'),
+      );
     }
+  });
+
+  it('does not register permanent passthrough capabilities', () => {
+    const registry = JSON.parse(readText('config/operation-registry.json')) as Array<{ execution?: string }>;
+    expect(registry.some((entry) => entry.execution === 'passthrough')).toBe(false);
   });
 
   it('keeps planned local-staging scaffolds out of capability routing until they are implemented', () => {
@@ -115,11 +131,11 @@ describe('Store properties registry scaffold', () => {
     });
   });
 
-  it('routes generic publishable roots as observable Store properties passthrough', () => {
+  it('routes generic publishable roots as Store properties local staging', () => {
     for (const root of genericPublishableMutationRoots) {
       expect(getOperationCapability({ type: 'mutation', name: root, rootFields: [root] })).toEqual({
         domain: 'store-properties',
-        execution: 'passthrough',
+        execution: 'stage-locally',
         operationName: root,
         type: 'mutation',
       });
@@ -131,7 +147,7 @@ describe('Store properties registry scaffold', () => {
     const scenarioOperations = new Set(scenarios.flatMap((scenario) => scenario.operationNames));
     const statusDocument = buildConformanceStatusDocument(repoRoot);
 
-    for (const root of storePropertiesRoots) {
+    for (const root of [...storePropertiesQueryRoots, ...storePropertiesLocalStagingMutationRoots]) {
       expect(scenarioOperations.has(root), `${root} should wait for captured evidence or executable comparison`).toBe(
         false,
       );

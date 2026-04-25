@@ -1,0 +1,29 @@
+{
+  "scenarioId": "publishableUnpublishToCurrentChannel-product-parity",
+  "operationNames": ["publishableUnpublishToCurrentChannel"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-unpublish-parity.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/publishableUnpublishToCurrentChannel-product-parity.graphql",
+    "variablesPath": "config/parity-requests/publishableUnpublishToCurrentChannel-product-parity.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Product-scoped current-publication generic unpublish support uses the same captured DRAFT product aggregate publication expectations as the product unpublication fixture; the local model removes a current-publication placeholder without exposing upstream writes.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "publishable product aggregate payload",
+        "capturePath": "$.aggregateSelection.response.payload.data.productUnpublish.product",
+        "proxyPath": "$.data.publishableUnpublishToCurrentChannel.publishable"
+      },
+      {
+        "name": "user errors",
+        "capturePath": "$.aggregateSelection.response.payload.data.productUnpublish.userErrors",
+        "proxyPath": "$.data.publishableUnpublishToCurrentChannel.userErrors"
+      }
+    ]
+  }
+}
