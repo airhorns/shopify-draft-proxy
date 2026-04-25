@@ -1,16 +1,16 @@
 {
   "variables": {
-    "id": "gid://shopify/DraftOrder/1249077690674"
+    "id": "gid://shopify/DraftOrder/1249078149426"
   },
   "response": {
     "data": {
       "draftOrder": {
-        "id": "gid://shopify/DraftOrder/1249077690674",
-        "name": "#D23",
-        "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/2dff2dae9abf4670aded72dbc27b2548",
+        "id": "gid://shopify/DraftOrder/1249078149426",
+        "name": "#D30",
+        "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/79e5272b282be7984abb61341783ddc0",
         "status": "OPEN",
         "ready": true,
-        "email": "hermes-draft-order-detail-1777156828932@example.com",
+        "email": "hermes-draft-order-detail-1777156988943@example.com",
         "customer": {
           "id": "gid://shopify/Customer/9522206933298",
           "email": "karine.ruby@example.com",
@@ -80,8 +80,8 @@
             }
           }
         },
-        "createdAt": "2026-04-25T22:40:29Z",
-        "updatedAt": "2026-04-25T22:40:29Z",
+        "createdAt": "2026-04-25T22:43:09Z",
+        "updatedAt": "2026-04-25T22:43:09Z",
         "subtotalPriceSet": {
           "shopMoney": {
             "amount": "980.95",
@@ -110,7 +110,7 @@
         "lineItems": {
           "nodes": [
             {
-              "id": "gid://shopify/DraftOrderLineItem/58580566081842",
+              "id": "gid://shopify/DraftOrderLineItem/58580566901042",
               "title": "Custom installation service",
               "name": "Custom installation service",
               "quantity": 2,
@@ -164,7 +164,7 @@
               "variant": null
             },
             {
-              "id": "gid://shopify/DraftOrderLineItem/58580566114610",
+              "id": "gid://shopify/DraftOrderLineItem/58580566933810",
               "title": "The Inventory Not Tracked Snowboard",
               "name": "The Inventory Not Tracked Snowboard",
               "quantity": 1,
@@ -215,7 +215,7 @@
         "actualQueryCost": 15,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1984,
+          "currentlyAvailable": 1983,
           "restoreRate": 100
         }
       }

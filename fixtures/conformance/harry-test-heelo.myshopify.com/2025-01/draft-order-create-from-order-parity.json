@@ -6,7 +6,7 @@
           "purchasingEntity": {
             "customerId": "gid://shopify/Customer/9522206933298"
           },
-          "email": "hermes-draft-order-create-from-order-1777156828932@example.com",
+          "email": "hermes-draft-order-create-from-order-1777156988943@example.com",
           "note": "draft order create-from-order setup",
           "taxExempt": true,
           "reserveInventoryUntil": "2026-05-23T12:00:00Z",
@@ -89,11 +89,11 @@
           "data": {
             "draftOrderCreate": {
               "draftOrder": {
-                "id": "gid://shopify/DraftOrder/1249077854514",
-                "name": "#D28",
+                "id": "gid://shopify/DraftOrder/1249078313266",
+                "name": "#D35",
                 "status": "OPEN",
                 "ready": true,
-                "email": "hermes-draft-order-create-from-order-1777156828932@example.com",
+                "email": "hermes-draft-order-create-from-order-1777156988943@example.com",
                 "customer": {
                   "id": "gid://shopify/Customer/9522206933298",
                   "email": "karine.ruby@example.com",
@@ -104,7 +104,7 @@
                 "reserveInventoryUntil": "2026-05-23T12:00:00Z",
                 "paymentTerms": null,
                 "tags": ["create-from-order", "draft-order-family", "parity-capture"],
-                "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/74fbe41192453a9bb2b68537b13f1eb1",
+                "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/22b0f9e361a6d0b1a124952932e75281",
                 "customAttributes": [
                   {
                     "key": "source",
@@ -190,7 +190,7 @@
                 "lineItems": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/DraftOrderLineItem/58580566409522",
+                      "id": "gid://shopify/DraftOrderLineItem/58580567261490",
                       "title": "Custom installation service",
                       "name": "Custom installation service",
                       "quantity": 2,
@@ -244,7 +244,7 @@
                       "variant": null
                     },
                     {
-                      "id": "gid://shopify/DraftOrderLineItem/58580566442290",
+                      "id": "gid://shopify/DraftOrderLineItem/58580567294258",
                       "title": "The Inventory Not Tracked Snowboard",
                       "name": "The Inventory Not Tracked Snowboard",
                       "quantity": 1,
@@ -306,16 +306,16 @@
       },
       "downstreamRead": {
         "variables": {
-          "id": "gid://shopify/DraftOrder/1249077854514"
+          "id": "gid://shopify/DraftOrder/1249078313266"
         },
         "response": {
           "data": {
             "draftOrder": {
-              "id": "gid://shopify/DraftOrder/1249077854514",
-              "name": "#D28",
+              "id": "gid://shopify/DraftOrder/1249078313266",
+              "name": "#D35",
               "status": "OPEN",
               "ready": true,
-              "email": "hermes-draft-order-create-from-order-1777156828932@example.com",
+              "email": "hermes-draft-order-create-from-order-1777156988943@example.com",
               "customer": {
                 "id": "gid://shopify/Customer/9522206933298",
                 "email": "karine.ruby@example.com",
@@ -326,7 +326,7 @@
               "reserveInventoryUntil": "2026-05-23T12:00:00Z",
               "paymentTerms": null,
               "tags": ["create-from-order", "draft-order-family", "parity-capture"],
-              "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/74fbe41192453a9bb2b68537b13f1eb1",
+              "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/22b0f9e361a6d0b1a124952932e75281",
               "customAttributes": [
                 {
                   "key": "source",
@@ -412,7 +412,7 @@
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/DraftOrderLineItem/58580566409522",
+                    "id": "gid://shopify/DraftOrderLineItem/58580567261490",
                     "title": "Custom installation service",
                     "name": "Custom installation service",
                     "quantity": 2,
@@ -466,7 +466,7 @@
                     "variant": null
                   },
                   {
-                    "id": "gid://shopify/DraftOrderLineItem/58580566442290",
+                    "id": "gid://shopify/DraftOrderLineItem/58580567294258",
                     "title": "The Inventory Not Tracked Snowboard",
                     "name": "The Inventory Not Tracked Snowboard",
                     "quantity": 1,
@@ -527,7 +527,7 @@
     },
     "draftOrderComplete": {
       "variables": {
-        "id": "gid://shopify/DraftOrder/1249077854514",
+        "id": "gid://shopify/DraftOrder/1249078313266",
         "paymentGatewayId": null,
         "sourceName": "hermes-cron-orders",
         "paymentPending": false
@@ -537,12 +537,12 @@
           "data": {
             "draftOrderComplete": {
               "draftOrder": {
-                "id": "gid://shopify/DraftOrder/1249077854514",
-                "name": "#D28",
+                "id": "gid://shopify/DraftOrder/1249078313266",
+                "name": "#D35",
                 "status": "COMPLETED",
                 "ready": true,
-                "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/74fbe41192453a9bb2b68537b13f1eb1",
-                "completedAt": "2026-04-25T22:40:38Z",
+                "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/22b0f9e361a6d0b1a124952932e75281",
+                "completedAt": "2026-04-25T22:43:18Z",
                 "totalPriceSet": {
                   "shopMoney": {
                     "amount": "988.2",
@@ -552,13 +552,13 @@
                 "lineItems": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/DraftOrderLineItem/58580566409522",
+                      "id": "gid://shopify/DraftOrderLineItem/58580567261490",
                       "title": "Custom installation service",
                       "quantity": 2,
                       "sku": "CUSTOM-INSTALL"
                     },
                     {
-                      "id": "gid://shopify/DraftOrderLineItem/58580566442290",
+                      "id": "gid://shopify/DraftOrderLineItem/58580567294258",
                       "title": "The Inventory Not Tracked Snowboard",
                       "quantity": 1,
                       "sku": "sku-untracked-1"
@@ -566,8 +566,8 @@
                   ]
                 },
                 "order": {
-                  "id": "gid://shopify/Order/8710697222450",
-                  "name": "#1021",
+                  "id": "gid://shopify/Order/8710700237106",
+                  "name": "#1022",
                   "sourceName": "347082227713",
                   "paymentGatewayNames": ["manual"],
                   "displayFinancialStatus": "PAID",
@@ -583,7 +583,7 @@
                   "lineItems": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/LineItem/19268090462514",
+                        "id": "gid://shopify/LineItem/19268097179954",
                         "title": "Custom installation service",
                         "quantity": 2,
                         "sku": "CUSTOM-INSTALL",
@@ -596,7 +596,7 @@
                         }
                       },
                       {
-                        "id": "gid://shopify/LineItem/19268090495282",
+                        "id": "gid://shopify/LineItem/19268097212722",
                         "title": "The Inventory Not Tracked Snowboard",
                         "quantity": 1,
                         "sku": "sku-untracked-1",
@@ -631,14 +631,14 @@
     },
     "downstreamOrderRead": {
       "variables": {
-        "id": "gid://shopify/Order/8710697222450"
+        "id": "gid://shopify/Order/8710700237106"
       },
       "response": {
         "data": {
           "order": {
-            "id": "gid://shopify/Order/8710697222450",
-            "name": "#1021",
-            "email": "hermes-draft-order-create-from-order-1777156828932@example.com",
+            "id": "gid://shopify/Order/8710700237106",
+            "name": "#1022",
+            "email": "hermes-draft-order-create-from-order-1777156988943@example.com",
             "note": "draft order create-from-order setup",
             "tags": ["create-from-order", "draft-order-family", "parity-capture"],
             "customAttributes": [
@@ -727,19 +727,19 @@
     }
   },
   "variables": {
-    "orderId": "gid://shopify/Order/8710697222450"
+    "orderId": "gid://shopify/Order/8710700237106"
   },
   "mutation": {
     "response": {
       "data": {
         "draftOrderCreateFromOrder": {
           "draftOrder": {
-            "id": "gid://shopify/DraftOrder/1249077887282",
-            "name": "#D29",
-            "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/1581d4f48fa76bb89d4d99b7ea972517",
+            "id": "gid://shopify/DraftOrder/1249078346034",
+            "name": "#D36",
+            "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/d2f4693cdf65fd19f76cd67a90c0af0b",
             "status": "OPEN",
             "ready": true,
-            "email": "hermes-draft-order-create-from-order-1777156828932@example.com",
+            "email": "hermes-draft-order-create-from-order-1777156988943@example.com",
             "tags": ["create-from-order", "draft-order-family", "parity-capture"],
             "subtotalPriceSet": {
               "shopMoney": {
@@ -756,13 +756,13 @@
             "lineItems": {
               "nodes": [
                 {
-                  "id": "gid://shopify/DraftOrderLineItem/58580566475058",
+                  "id": "gid://shopify/DraftOrderLineItem/58580567327026",
                   "title": "Custom installation service",
                   "quantity": 2,
                   "sku": "CUSTOM-INSTALL"
                 },
                 {
-                  "id": "gid://shopify/DraftOrderLineItem/58580566507826",
+                  "id": "gid://shopify/DraftOrderLineItem/58580567359794",
                   "title": "The Inventory Not Tracked Snowboard",
                   "quantity": 1,
                   "sku": "sku-untracked-1"
@@ -788,17 +788,17 @@
   },
   "downstreamRead": {
     "variables": {
-      "id": "gid://shopify/DraftOrder/1249077887282"
+      "id": "gid://shopify/DraftOrder/1249078346034"
     },
     "response": {
       "data": {
         "draftOrder": {
-          "id": "gid://shopify/DraftOrder/1249077887282",
-          "name": "#D29",
-          "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/1581d4f48fa76bb89d4d99b7ea972517",
+          "id": "gid://shopify/DraftOrder/1249078346034",
+          "name": "#D36",
+          "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/d2f4693cdf65fd19f76cd67a90c0af0b",
           "status": "OPEN",
           "ready": true,
-          "email": "hermes-draft-order-create-from-order-1777156828932@example.com",
+          "email": "hermes-draft-order-create-from-order-1777156988943@example.com",
           "tags": ["create-from-order", "draft-order-family", "parity-capture"],
           "subtotalPriceSet": {
             "shopMoney": {
@@ -815,13 +815,13 @@
           "lineItems": {
             "nodes": [
               {
-                "id": "gid://shopify/DraftOrderLineItem/58580566475058",
+                "id": "gid://shopify/DraftOrderLineItem/58580567327026",
                 "title": "Custom installation service",
                 "quantity": 2,
                 "sku": "CUSTOM-INSTALL"
               },
               {
-                "id": "gid://shopify/DraftOrderLineItem/58580566507826",
+                "id": "gid://shopify/DraftOrderLineItem/58580567359794",
                 "title": "The Inventory Not Tracked Snowboard",
                 "quantity": 1,
                 "sku": "sku-untracked-1"

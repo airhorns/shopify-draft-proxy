@@ -29,7 +29,7 @@ import {
   handleCustomerQuery,
   hydrateCustomersFromUpstreamResponse,
 } from '../src/proxy/customers.js';
-import { handleDeliveryProfileQuery } from '../src/proxy/delivery-profiles.js';
+import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from '../src/proxy/delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from '../src/proxy/discounts.js';
 import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
 import { handleMarketingQuery, hydrateMarketingFromUpstreamResponse } from '../src/proxy/marketing.js';
@@ -863,6 +863,46 @@ async function executeGraphQLAgainstLocalProxy(
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
       path: '/admin/api/2025-01/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: handleStorePropertiesMutation(document, variables),
+    };
+  }
+
+  if (capability.execution === 'stage-locally' && capability.domain === 'shipping-fulfillments') {
+    const deliveryProfileMutation = handleDeliveryProfileMutation(document, variables);
+    if (deliveryProfileMutation) {
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: '/admin/api/2026-04/graphql.json',
+        query: document,
+        variables,
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        stagedResourceIds: deliveryProfileMutation.stagedResourceIds,
+        notes: deliveryProfileMutation.notes,
+      });
+
+      return {
+        status: 200,
+        body: deliveryProfileMutation.response,
+      };
+    }
+
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2026-04/graphql.json',
       query: document,
       variables,
       status: 'staged',
@@ -2643,6 +2683,100 @@ function seedDeliveryProfilePreconditions(capture: unknown): boolean {
   }
 
   store.upsertBaseDeliveryProfiles(profiles);
+  return true;
+}
+
+function seedDeliveryProfileWritePreconditions(capture: unknown): boolean {
+  const mutations = readRecordField(capture as Record<string, unknown>, 'mutations');
+  const nestedCreate = readRecordField(mutations, 'nestedCreate');
+  const nestedCreateData = readRecordField(
+    readRecordField(readRecordField(readRecordField(nestedCreate, 'result'), 'payload'), 'data'),
+    'deliveryProfileCreate',
+  );
+  const createdProfile = readRecordField(nestedCreateData, 'profile');
+  if (!createdProfile) {
+    return false;
+  }
+
+  const profileItems = readConnectionNodes(readRecordField(createdProfile, 'profileItems'));
+  for (const profileItem of profileItems) {
+    const product = readRecordField(profileItem, 'product');
+    const productId = readStringField(product, 'id');
+    if (!productId) {
+      continue;
+    }
+
+    store.upsertBaseProducts([makeSeedProduct(productId, product, 'Delivery profile write seed product')]);
+    const variants = readConnectionNodes(readRecordField(profileItem, 'variants'))
+      .map((variant, index) => makeDeliveryProfileSeedVariant(productId, variant, index))
+      .filter((variant): variant is ProductVariantRecord => variant !== null);
+    store.replaceBaseVariantsForProduct(productId, variants);
+  }
+
+  const locationIds = new Set<string>();
+  for (const groupInput of readArrayField(
+    readRecordField(readRecordField(nestedCreate, 'variables'), 'profile'),
+    'locationGroupsToCreate',
+  )) {
+    if (!isPlainObject(groupInput)) {
+      continue;
+    }
+    for (const locationId of readArrayField(groupInput, 'locations')) {
+      if (typeof locationId === 'string' && locationId.startsWith('gid://shopify/Location/')) {
+        locationIds.add(locationId);
+      }
+    }
+  }
+
+  const nestedUpdate = readRecordField(mutations, 'nestedUpdate');
+  for (const groupInput of readArrayField(
+    readRecordField(readRecordField(nestedUpdate, 'variables'), 'profile'),
+    'locationGroupsToUpdate',
+  )) {
+    if (!isPlainObject(groupInput)) {
+      continue;
+    }
+    for (const locationId of readArrayField(groupInput, 'locationsToAdd')) {
+      if (typeof locationId === 'string' && locationId.startsWith('gid://shopify/Location/')) {
+        locationIds.add(locationId);
+      }
+    }
+  }
+
+  store.upsertBaseLocations(
+    [...locationIds].map(
+      (id, index): LocationRecord => ({
+        id,
+        name: `Delivery profile write location ${index + 1}`,
+        isActive: true,
+        shipsInventory: true,
+      }),
+    ),
+  );
+
+  const defaultRemove = readRecordField(mutations, 'defaultRemove');
+  const defaultProfileId = readStringField(readRecordField(defaultRemove, 'variables'), 'id');
+  if (defaultProfileId) {
+    store.upsertBaseDeliveryProfiles([
+      {
+        id: defaultProfileId,
+        name: 'General profile',
+        default: true,
+        merchantOwned: true,
+        version: 1,
+        activeMethodDefinitionsCount: 0,
+        locationsWithoutRatesCount: 0,
+        originLocationCount: 0,
+        zoneCountryCount: 0,
+        productVariantsCount: { count: 0, precision: 'EXACT' },
+        profileItems: [],
+        profileLocationGroups: [],
+        unassignedLocationIds: [],
+        sellingPlanGroups: [],
+      },
+    ]);
+  }
+
   return true;
 }
 
@@ -4431,6 +4565,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   }
 
   if (seedDeliveryProfilePreconditions(capture)) {
+    return;
+  }
+
+  if (seedDeliveryProfileWritePreconditions(capture)) {
     return;
   }
 

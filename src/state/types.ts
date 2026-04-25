@@ -966,11 +966,23 @@ export const orderFulfillmentOrderLineItemRecordSchema = z.strictObject({
 });
 export type OrderFulfillmentOrderLineItemRecord = z.infer<typeof orderFulfillmentOrderLineItemRecordSchema>;
 
+export const orderFulfillmentOrderDeliveryMethodRecordSchema = z.strictObject({
+  id: z.string(),
+  methodType: z.string(),
+  presentedName: nullableStringSchema.optional(),
+  serviceCode: nullableStringSchema.optional(),
+  minDeliveryDateTime: nullableStringSchema.optional(),
+  maxDeliveryDateTime: nullableStringSchema.optional(),
+  sourceReference: nullableStringSchema.optional(),
+});
+export type OrderFulfillmentOrderDeliveryMethodRecord = z.infer<typeof orderFulfillmentOrderDeliveryMethodRecordSchema>;
+
 export const orderFulfillmentOrderRecordSchema = z.strictObject({
   id: z.string(),
   status: nullableStringSchema,
   requestStatus: nullableStringSchema.optional(),
   assignedLocation: orderFulfillmentOrderAssignedLocationRecordSchema.nullable().optional(),
+  deliveryMethod: orderFulfillmentOrderDeliveryMethodRecordSchema.nullable().optional(),
   lineItems: z.array(orderFulfillmentOrderLineItemRecordSchema).optional(),
 });
 export type OrderFulfillmentOrderRecord = z.infer<typeof orderFulfillmentOrderRecordSchema>;
@@ -1025,6 +1037,7 @@ export const orderRefundRecordSchema = z.strictObject({
   createdAt: z.string(),
   updatedAt: z.string(),
   totalRefundedSet: moneySetSchema.nullable(),
+  totalRefundedShippingSet: moneySetSchema.nullable().optional(),
   refundLineItems: z.array(orderRefundLineItemRecordSchema),
   transactions: z.array(orderTransactionRecordSchema),
 });
@@ -1421,6 +1434,7 @@ export const stateSnapshotSchema = z.strictObject({
   deletedMarketIds: z.record(z.string(), z.literal(true)).default({}),
   deletedCatalogIds: z.record(z.string(), z.literal(true)).default({}),
   deletedWebPresenceIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedDeliveryProfileIds: z.record(z.string(), z.literal(true)).default({}),
   mergedCustomerIds: z.record(z.string(), z.string()).default({}),
   customerMergeRequests: z.record(z.string(), customerMergeRequestRecordSchema).default({}),
 });

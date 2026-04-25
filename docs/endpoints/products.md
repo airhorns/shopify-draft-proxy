@@ -71,6 +71,7 @@ Local staged mutations:
 - Top-level `collections(query: "published_status:...")` applies locally modeled aggregate collection publication state for staged and snapshot reads.
 - `collectionByIdentifier` supports id and handle identifier branches against effective local collection state. `customId` returns `null` until collection unique-metafield evidence exists.
 - `collectionByHandle` is a deprecated Shopify root but is supported as a handle lookup over effective local collection state.
+- Missing product-adjacent by-id roots return `null` without inventing records. The `product-related-by-id-not-found-read` parity scenario captures this for `collection(id:)`, `productVariant(id:)`, `inventoryItem(id:)`, and `inventoryLevel(id:)`.
 
 ## Validation anchors
 
