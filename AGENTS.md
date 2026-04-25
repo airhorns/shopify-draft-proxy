@@ -84,6 +84,13 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
   Ticket-specific requests for scaffold files do not override this rule; for
   coverage-map-only work, update the operation registry and the Linear/workpad
   notes without adding parity spec or parity request placeholders.
+- Do not add capture-only parity specs as a shortcut for expensive local
+  implementation. Capture-only specs should be rare and limited to cases where
+  proxy implementation is hard-blocked or close to impossible with the current
+  harness. If implementation work is merely large, defer it in Linear instead:
+  find or create the follow-up issue(s), keep them in the appropriate workflow
+  state, and mention those issue identifiers in the capture-only spec
+  description/notes if a capture-only spec is truly justified.
 - Captured scenarios checked into `config/parity-specs` must be executable
   evidence by schema and inventory validation: either a proxy request with
   strict comparison targets that runs in the `conformance:parity` script, or
