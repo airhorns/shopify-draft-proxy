@@ -801,6 +801,16 @@
     "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
+    "name": "productOptionsReorder",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["productOptionsReorder", "ProductOptionsReorder"],
+    "runtimeTests": [],
+    "supportNotes": "Live schema introspection confirms `productOptionsReorder(productId: ID!, options: [OptionReorderInput!]!)` returns `product` plus `userErrors`. Keep unimplemented until option/value reorder semantics and the resulting variant order recalculation are backed by conformance evidence; registry presence must not make this a supported passthrough."
+  },
+  {
     "name": "productVariantsBulkCreate",
     "type": "mutation",
     "domain": "products",
@@ -826,6 +836,16 @@
     "implemented": true,
     "matchNames": ["productVariantsBulkDelete", "ProductVariantsBulkDelete"],
     "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
+  },
+  {
+    "name": "productVariantsBulkReorder",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["productVariantsBulkReorder", "ProductVariantsBulkReorder"],
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
+    "supportNotes": "Local staging reorders the effective product variant list by `ProductVariantPositionInput.position` and exposes the new order through product variant connections without runtime Shopify writes."
   },
   {
     "name": "productVariantCreate",
@@ -880,6 +900,16 @@
     "implemented": true,
     "matchNames": ["productDeleteMedia", "ProductDeleteMedia"],
     "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
+  },
+  {
+    "name": "productReorderMedia",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["productReorderMedia", "ProductReorderMedia"],
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
+    "supportNotes": "Local staging applies `MoveInput` media moves to the effective product media order, returns an async-style `Job`, and exposes the reordered media/image connections without runtime Shopify writes."
   },
   {
     "name": "inventoryItemUpdate",
@@ -1621,17 +1651,17 @@
     "implemented": true,
     "matchNames": ["fulfillment", "Fulfillment"],
     "runtimeTests": ["tests/integration/order-query-shapes.test.ts"],
-    "supportNotes": "Admin GraphQL 2026-04 Fulfillment read root. Snapshot reads resolve from fulfillment records already present on the local order graph, return null for missing IDs, and keep top-level detail serialization aligned with nested Order.fulfillments; broader event/history fields remain unknown as null until captured."
+    "supportNotes": "Admin GraphQL 2026-04 Fulfillment read root. Snapshot reads resolve from fulfillment records already present on the local order graph, return null for missing IDs, and keep top-level detail/event serialization aligned with nested Order.fulfillments."
   },
   {
     "name": "fulfillmentEventCreate",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentEventCreate", "FulfillmentEventCreate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires fulfillment event status semantics, tracking/shipment-state transitions, and downstream fulfillment/order read visibility before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "Locally stages events against order-backed fulfillments, exposes them through Fulfillment.events and nested Order.fulfillments, and updates captured shipment milestone fields without proxying the supported mutation upstream."
   },
   {
     "name": "assignedFulfillmentOrders",

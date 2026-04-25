@@ -1,0 +1,202 @@
+{
+  "probe": {
+    "storeDomain": "harry-test-heelo.myshopify.com",
+    "apiVersion": "2025-01",
+    "runId": "1777153541365",
+    "cleanup": "All products created by this probe were deleted after capture."
+  },
+  "reservedLikeCreates": [
+    {
+      "name": "admin",
+      "variables": {
+        "product": {
+          "title": "HAR-22 reserved-admin 1777153541365",
+          "handle": "admin",
+          "status": "DRAFT"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10170566934834",
+              "title": "HAR-22 reserved-admin 1777153541365",
+              "handle": "admin"
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    {
+      "name": "products",
+      "variables": {
+        "product": {
+          "title": "HAR-22 reserved-products 1777153541365",
+          "handle": "products",
+          "status": "DRAFT"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10170566967602",
+              "title": "HAR-22 reserved-products 1777153541365",
+              "handle": "products"
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    {
+      "name": "cart",
+      "variables": {
+        "product": {
+          "title": "HAR-22 reserved-cart 1777153541365",
+          "handle": "cart",
+          "status": "DRAFT"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10170567033138",
+              "title": "HAR-22 reserved-cart 1777153541365",
+              "handle": "cart"
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    {
+      "name": "checkout",
+      "variables": {
+        "product": {
+          "title": "HAR-22 reserved-checkout 1777153541365",
+          "handle": "checkout",
+          "status": "DRAFT"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10170567065906",
+              "title": "HAR-22 reserved-checkout 1777153541365",
+              "handle": "checkout"
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    {
+      "name": "new",
+      "variables": {
+        "product": {
+          "title": "HAR-22 reserved-new 1777153541365",
+          "handle": "new",
+          "status": "DRAFT"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10170567098674",
+              "title": "HAR-22 reserved-new 1777153541365",
+              "handle": "new"
+            },
+            "userErrors": []
+          }
+        }
+      }
+    }
+  ],
+  "unicodeCreate": {
+    "variables": {
+      "product": {
+        "title": "HAR-22 unicode-only 1777153541365",
+        "handle": "東京",
+        "status": "DRAFT"
+      }
+    },
+    "response": {
+      "data": {
+        "productCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10170567131442",
+            "title": "HAR-22 unicode-only 1777153541365",
+            "handle": "東京"
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "tooLongCreate": {
+    "variables": {
+      "product": {
+        "title": "HAR-22 too-long-260 1777153541365",
+        "handle": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "DRAFT"
+      }
+    },
+    "response": {
+      "data": {
+        "productCreate": {
+          "product": null,
+          "userErrors": [
+            {
+              "field": ["handle"],
+              "message": "Handle is too long (maximum is 255 characters)"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "seedProducts": [
+    {
+      "id": "gid://shopify/Product/10170567196978",
+      "title": "HAR-22 update seed 1777153541365",
+      "handle": "har-22-update-seed-1777153541365",
+      "status": "DRAFT"
+    }
+  ],
+  "seedProduct": {
+    "id": "gid://shopify/Product/10170567196978",
+    "title": "HAR-22 update seed 1777153541365",
+    "handle": "har-22-update-seed-1777153541365",
+    "status": "DRAFT"
+  },
+  "tooLongUpdate": {
+    "variables": {
+      "product": {
+        "id": "gid://shopify/Product/10170567196978",
+        "handle": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    },
+    "response": {
+      "data": {
+        "productUpdate": {
+          "product": {
+            "id": "gid://shopify/Product/10170567196978",
+            "title": "HAR-22 update seed 1777153541365",
+            "handle": "har-22-update-seed-1777153541365"
+          },
+          "userErrors": [
+            {
+              "field": ["handle"],
+              "message": "Handle is too long (maximum is 255 characters)"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1139,9 +1139,11 @@ export function createProxyRouter(config: AppConfig): Router {
       }
     }
 
+    const orderBackedLocalFulfillmentMutation = primaryRootField === 'fulfillmentEventCreate';
     if (
       capability.execution === 'stage-locally' &&
-      capability.domain === 'orders' &&
+      (capability.domain === 'orders' ||
+        (capability.domain === 'shipping-fulfillments' && orderBackedLocalFulfillmentMutation)) &&
       (config.readMode === 'snapshot' || primaryRootField === 'draftOrderCreate')
     ) {
       store.appendLog({
@@ -1154,7 +1156,9 @@ export function createProxyRouter(config: AppConfig): Router {
         requestBody,
         status: 'staged',
         interpreted: interpretMutationLogEntry(parsed, capability),
-        notes: 'Staged locally in the in-memory order draft store.',
+        notes: orderBackedLocalFulfillmentMutation
+          ? 'Staged locally in the in-memory order-backed fulfillment store.'
+          : 'Staged locally in the in-memory order draft store.',
       });
 
       ctx.status = 200;
@@ -1164,7 +1168,8 @@ export function createProxyRouter(config: AppConfig): Router {
 
     if (
       capability.execution === 'stage-locally' &&
-      capability.domain === 'orders' &&
+      (capability.domain === 'orders' ||
+        (capability.domain === 'shipping-fulfillments' && orderBackedLocalFulfillmentMutation)) &&
       config.readMode === 'live-hybrid' &&
       (primaryRootField === 'orderCreate' ||
         primaryRootField === 'refundCreate' ||
@@ -1189,6 +1194,7 @@ export function createProxyRouter(config: AppConfig): Router {
         primaryRootField === 'draftOrderInvoiceSend' ||
         primaryRootField === 'draftOrderCreateFromOrder' ||
         primaryRootField === 'fulfillmentCreate' ||
+        primaryRootField === 'fulfillmentEventCreate' ||
         primaryRootField === 'fulfillmentTrackingInfoUpdate' ||
         primaryRootField === 'fulfillmentCancel')
     ) {
@@ -1237,6 +1243,8 @@ export function createProxyRouter(config: AppConfig): Router {
           draftOrderCreateFromOrder:
             'Locally staged draftOrderCreateFromOrder in live-hybrid mode for a synthetic/local order.',
           fulfillmentCreate: 'Locally short-circuited captured fulfillmentCreate validation in live-hybrid mode.',
+          fulfillmentEventCreate:
+            'Locally staged fulfillmentEventCreate in live-hybrid mode for an order-backed local fulfillment.',
         };
 
         store.appendLog({

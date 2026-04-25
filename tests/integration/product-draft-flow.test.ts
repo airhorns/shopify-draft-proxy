@@ -11,6 +11,73 @@ const config: AppConfig = {
   readMode: 'passthrough',
 };
 
+function makeBaseProduct(id: string, title: string, handle: string) {
+  const legacyResourceId = id.split('/').at(-1) ?? id;
+  return {
+    id,
+    legacyResourceId,
+    title,
+    handle,
+    status: 'ACTIVE' as const,
+    publicationIds: [],
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-02T00:00:00.000Z',
+    vendor: null,
+    productType: null,
+    tags: [],
+    totalInventory: null,
+    tracksInventory: null,
+    descriptionHtml: null,
+    onlineStorePreviewUrl: null,
+    templateSuffix: null,
+    seo: { title: null, description: null },
+    category: null,
+  };
+}
+
+function makeBaseVariant(productId: string, id: string, title: string, sku: string) {
+  return {
+    id,
+    productId,
+    title,
+    sku,
+    barcode: null,
+    price: null,
+    compareAtPrice: null,
+    taxable: null,
+    inventoryPolicy: null,
+    inventoryQuantity: 0,
+    selectedOptions: [{ name: 'Title', value: title }],
+    inventoryItem: {
+      id: id.replace('/ProductVariant/', '/InventoryItem/'),
+      tracked: false,
+      requiresShipping: true,
+      measurement: null,
+      countryCodeOfOrigin: null,
+      provinceCodeOfOrigin: null,
+      harmonizedSystemCode: null,
+    },
+  };
+}
+
+function makeBaseImageMedia(productId: string, id: string, position: number, alt: string) {
+  const url = `https://cdn.example.com/${id.split('/').at(-1)}.jpg`;
+  return {
+    key: `${productId}:media:${position}`,
+    productId,
+    position,
+    id,
+    mediaContentType: 'IMAGE',
+    alt,
+    status: 'READY',
+    productImageId: id.replace('/MediaImage/', '/ProductImage/'),
+    imageUrl: url,
+    imageWidth: null,
+    imageHeight: null,
+    previewImageUrl: url,
+  };
+}
+
 describe('product draft flow', () => {
   beforeEach(() => {
     store.reset();
@@ -892,6 +959,141 @@ describe('product draft flow', () => {
       handle: secondHandle,
     });
     expect(firstProductId).not.toBe(secondProductId);
+  });
+
+  it('accepts reserved-looking and Unicode explicit productCreate handles captured from Shopify', async () => {
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const reservedResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateProduct($product: ProductCreateInput!) { productCreate(product: $product) { product { id title handle } userErrors { field message } } }',
+        variables: {
+          product: {
+            title: 'Reserved Looking Handle Owner',
+            handle: 'admin',
+          },
+        },
+      });
+
+    const unicodeResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateProduct($product: ProductCreateInput!) { productCreate(product: $product) { product { id title handle } userErrors { field message } } }',
+        variables: {
+          product: {
+            title: 'Unicode Handle Owner',
+            handle: '東京',
+          },
+        },
+      });
+
+    expect(reservedResponse.status).toBe(200);
+    expect(unicodeResponse.status).toBe(200);
+    expect(reservedResponse.body.data.productCreate).toEqual({
+      product: {
+        id: expect.any(String),
+        title: 'Reserved Looking Handle Owner',
+        handle: 'admin',
+      },
+      userErrors: [],
+    });
+    expect(unicodeResponse.body.data.productCreate).toEqual({
+      product: {
+        id: expect.any(String),
+        title: 'Unicode Handle Owner',
+        handle: '東京',
+      },
+      userErrors: [],
+    });
+  });
+
+  it('rejects explicit productCreate handles longer than Shopify allows without staging a product', async () => {
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const createResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateProduct($product: ProductCreateInput!) { productCreate(product: $product) { product { id title handle } userErrors { field message } } }',
+        variables: {
+          product: {
+            title: 'Too Long Handle Owner',
+            handle: 'a'.repeat(260),
+          },
+        },
+      });
+
+    expect(createResponse.status).toBe(200);
+    expect(createResponse.body.data.productCreate).toEqual({
+      product: null,
+      userErrors: [{ field: ['handle'], message: 'Handle is too long (maximum is 255 characters)' }],
+    });
+
+    const queryResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query: 'query { products(first: 10) { nodes { id title handle } } }',
+    });
+
+    expect(queryResponse.status).toBe(200);
+    expect(queryResponse.body.data.products.nodes).toEqual([]);
+  });
+
+  it('rejects explicit productUpdate handles longer than Shopify allows and preserves the current handle', async () => {
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const createResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateProduct($product: ProductCreateInput!) { productCreate(product: $product) { product { id title handle } userErrors { field message } } }',
+        variables: {
+          product: {
+            title: 'Update Too Long Handle Owner',
+            handle: 'update-too-long-handle-owner',
+          },
+        },
+      });
+
+    const productId = createResponse.body.data.productCreate.product.id as string;
+
+    const updateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation UpdateProduct($product: ProductUpdateInput!) { productUpdate(product: $product) { product { id title handle } userErrors { field message } } }',
+        variables: {
+          product: {
+            id: productId,
+            handle: 'b'.repeat(260),
+          },
+        },
+      });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body.data.productUpdate).toEqual({
+      product: {
+        id: productId,
+        title: 'Update Too Long Handle Owner',
+        handle: 'update-too-long-handle-owner',
+      },
+      userErrors: [{ field: ['handle'], message: 'Handle is too long (maximum is 255 characters)' }],
+    });
+
+    const queryResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: 'query ReadProduct($id: ID!) { product(id: $id) { id title handle } }',
+        variables: { id: productId },
+      });
+
+    expect(queryResponse.status).toBe(200);
+    expect(queryResponse.body.data.product).toEqual({
+      id: productId,
+      title: 'Update Too Long Handle Owner',
+      handle: 'update-too-long-handle-owner',
+    });
   });
 
   it('stages tagsAdd locally for product resources and keeps downstream tag-filtered reads aligned', async () => {
@@ -3075,6 +3277,117 @@ describe('product draft flow', () => {
     });
   });
 
+  it('stages productVariantsBulkReorder locally with downstream variant connection order and raw log preservation', async () => {
+    const productId = 'gid://shopify/Product/260';
+    const variantOneId = 'gid://shopify/ProductVariant/2601';
+    const variantTwoId = 'gid://shopify/ProductVariant/2602';
+    const variantThreeId = 'gid://shopify/ProductVariant/2603';
+    store.upsertBaseProducts([makeBaseProduct(productId, 'Variant Reorder Hat', 'variant-reorder-hat')]);
+    store.replaceBaseVariantsForProduct(productId, [
+      makeBaseVariant(productId, variantOneId, 'Small', 'VRH-S'),
+      makeBaseVariant(productId, variantTwoId, 'Medium', 'VRH-M'),
+      makeBaseVariant(productId, variantThreeId, 'Large', 'VRH-L'),
+    ]);
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+    const query =
+      'mutation ReorderVariants($productId: ID!, $positions: [ProductVariantPositionInput!]!) { productVariantsBulkReorder(productId: $productId, positions: $positions) { product { id variants(first: 10) { nodes { id title sku } } } userErrors { field message } } }';
+    const variables = {
+      productId,
+      positions: [
+        { id: variantThreeId, position: 1 },
+        { id: variantOneId, position: 99 },
+      ],
+    };
+
+    const reorderResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query,
+      variables,
+    });
+
+    expect(reorderResponse.status).toBe(200);
+    expect(reorderResponse.body).toEqual({
+      data: {
+        productVariantsBulkReorder: {
+          product: {
+            id: productId,
+            variants: {
+              nodes: [
+                { id: variantThreeId, title: 'Large', sku: 'VRH-L' },
+                { id: variantTwoId, title: 'Medium', sku: 'VRH-M' },
+                { id: variantOneId, title: 'Small', sku: 'VRH-S' },
+              ],
+            },
+          },
+          userErrors: [],
+        },
+      },
+    });
+
+    const downstreamResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query VariantOrder($productId: ID!, $variantId: ID!) { product(id: $productId) { id variants(first: 2) { edges { cursor node { id title } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } productVariant(id: $variantId) { id title sku } }',
+        variables: {
+          productId,
+          variantId: variantOneId,
+        },
+      });
+
+    expect(downstreamResponse.status).toBe(200);
+    expect(downstreamResponse.body).toEqual({
+      data: {
+        product: {
+          id: productId,
+          variants: {
+            edges: [
+              {
+                cursor: `cursor:${variantThreeId}`,
+                node: { id: variantThreeId, title: 'Large' },
+              },
+              {
+                cursor: `cursor:${variantTwoId}`,
+                node: { id: variantTwoId, title: 'Medium' },
+              },
+            ],
+            pageInfo: {
+              hasNextPage: true,
+              hasPreviousPage: false,
+              startCursor: `cursor:${variantThreeId}`,
+              endCursor: `cursor:${variantTwoId}`,
+            },
+          },
+        },
+        productVariant: {
+          id: variantOneId,
+          title: 'Small',
+          sku: 'VRH-S',
+        },
+      },
+    });
+    expect(store.getEffectiveVariantsByProductId(productId).map((variant) => variant.id)).toEqual([
+      variantThreeId,
+      variantTwoId,
+      variantOneId,
+    ]);
+    expect(store.getLog()).toMatchObject([
+      {
+        operationName: 'productVariantsBulkReorder',
+        path: '/admin/api/2025-01/graphql.json',
+        query,
+        variables,
+        requestBody: {
+          query,
+          variables,
+        },
+        status: 'staged',
+      },
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('stages singular product variant create, update, and delete mutations locally via the same overlay model', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       return new Response(
@@ -5070,6 +5383,107 @@ describe('product draft flow', () => {
         hasPreviousPage: false,
       },
     });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('stages productReorderMedia locally with downstream media and image ordering', async () => {
+    const productId = 'gid://shopify/Product/460';
+    const mediaOneId = 'gid://shopify/MediaImage/4601';
+    const mediaTwoId = 'gid://shopify/MediaImage/4602';
+    const mediaThreeId = 'gid://shopify/MediaImage/4603';
+    store.upsertBaseProducts([makeBaseProduct(productId, 'Media Reorder Hat', 'media-reorder-hat')]);
+    store.replaceBaseMediaForProduct(productId, [
+      makeBaseImageMedia(productId, mediaOneId, 0, 'Front'),
+      makeBaseImageMedia(productId, mediaTwoId, 1, 'Side'),
+      makeBaseImageMedia(productId, mediaThreeId, 2, 'Back'),
+    ]);
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+    const query =
+      'mutation ReorderMedia($id: ID!, $moves: [MoveInput!]!) { productReorderMedia(id: $id, moves: $moves) { job { id done } mediaUserErrors { field message } } }';
+    const variables = {
+      id: productId,
+      moves: [
+        { id: mediaThreeId, newPosition: '0' },
+        { id: mediaOneId, newPosition: '99' },
+      ],
+    };
+
+    const reorderResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query,
+      variables,
+    });
+
+    expect(reorderResponse.status).toBe(200);
+    expect(reorderResponse.body).toEqual({
+      data: {
+        productReorderMedia: {
+          job: {
+            id: expect.stringMatching(/^gid:\/\/shopify\/Job\/.+$/),
+            done: false,
+          },
+          mediaUserErrors: [],
+        },
+      },
+    });
+
+    const downstreamResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query MediaOrder($productId: ID!) { product(id: $productId) { id media(first: 10) { nodes { id alt } pageInfo { hasNextPage hasPreviousPage } } images(first: 10) { nodes { id altText } pageInfo { hasNextPage hasPreviousPage } } } }',
+      variables: {
+        productId,
+      },
+    });
+
+    expect(downstreamResponse.status).toBe(200);
+    expect(downstreamResponse.body).toEqual({
+      data: {
+        product: {
+          id: productId,
+          media: {
+            nodes: [
+              { id: mediaThreeId, alt: 'Back' },
+              { id: mediaTwoId, alt: 'Side' },
+              { id: mediaOneId, alt: 'Front' },
+            ],
+            pageInfo: {
+              hasNextPage: false,
+              hasPreviousPage: false,
+            },
+          },
+          images: {
+            nodes: [
+              { id: mediaThreeId.replace('/MediaImage/', '/ProductImage/'), altText: 'Back' },
+              { id: mediaTwoId.replace('/MediaImage/', '/ProductImage/'), altText: 'Side' },
+              { id: mediaOneId.replace('/MediaImage/', '/ProductImage/'), altText: 'Front' },
+            ],
+            pageInfo: {
+              hasNextPage: false,
+              hasPreviousPage: false,
+            },
+          },
+        },
+      },
+    });
+    expect(store.getEffectiveMediaByProductId(productId).map((mediaRecord) => mediaRecord.id)).toEqual([
+      mediaThreeId,
+      mediaTwoId,
+      mediaOneId,
+    ]);
+    expect(store.getLog()).toMatchObject([
+      {
+        operationName: 'productReorderMedia',
+        path: '/admin/api/2025-01/graphql.json',
+        query,
+        variables,
+        requestBody: {
+          query,
+          variables,
+        },
+        status: 'staged',
+      },
+    ]);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

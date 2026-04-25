@@ -1019,14 +1019,64 @@ export const orderFulfillmentTrackingInfoRecordSchema = z.strictObject({
 });
 export type OrderFulfillmentTrackingInfoRecord = z.infer<typeof orderFulfillmentTrackingInfoRecordSchema>;
 
+export const orderFulfillmentEventRecordSchema = z.strictObject({
+  id: z.string(),
+  status: nullableStringSchema,
+  message: nullableStringSchema.optional(),
+  happenedAt: nullableStringSchema,
+  createdAt: nullableStringSchema.optional(),
+  estimatedDeliveryAt: nullableStringSchema.optional(),
+  city: nullableStringSchema.optional(),
+  province: nullableStringSchema.optional(),
+  country: nullableStringSchema.optional(),
+  zip: nullableStringSchema.optional(),
+  address1: nullableStringSchema.optional(),
+  latitude: z.number().nullable().optional(),
+  longitude: z.number().nullable().optional(),
+});
+export type OrderFulfillmentEventRecord = z.infer<typeof orderFulfillmentEventRecordSchema>;
+
+export const orderFulfillmentLocationRecordSchema = z.strictObject({
+  id: nullableStringSchema.optional(),
+  name: nullableStringSchema,
+});
+export type OrderFulfillmentLocationRecord = z.infer<typeof orderFulfillmentLocationRecordSchema>;
+
+export const orderFulfillmentOriginAddressRecordSchema = z.strictObject({
+  address1: nullableStringSchema.optional(),
+  address2: nullableStringSchema.optional(),
+  city: nullableStringSchema.optional(),
+  countryCode: nullableStringSchema,
+  provinceCode: nullableStringSchema.optional(),
+  zip: nullableStringSchema.optional(),
+});
+export type OrderFulfillmentOriginAddressRecord = z.infer<typeof orderFulfillmentOriginAddressRecordSchema>;
+
+export const orderFulfillmentServiceRecordSchema = z.strictObject({
+  id: nullableStringSchema,
+  handle: nullableStringSchema,
+  serviceName: nullableStringSchema,
+  trackingSupport: z.boolean().nullable().optional(),
+  type: nullableStringSchema.optional(),
+  location: orderFulfillmentLocationRecordSchema.nullable().optional(),
+});
+export type OrderFulfillmentServiceRecord = z.infer<typeof orderFulfillmentServiceRecordSchema>;
+
 export const orderFulfillmentRecordSchema = z.strictObject({
   id: z.string(),
   status: nullableStringSchema,
   displayStatus: nullableStringSchema.optional(),
   createdAt: nullableStringSchema.optional(),
   updatedAt: nullableStringSchema.optional(),
+  deliveredAt: nullableStringSchema.optional(),
+  estimatedDeliveryAt: nullableStringSchema.optional(),
+  inTransitAt: nullableStringSchema.optional(),
   trackingInfo: z.array(orderFulfillmentTrackingInfoRecordSchema).optional(),
+  events: z.array(orderFulfillmentEventRecordSchema).optional(),
   fulfillmentLineItems: z.array(orderFulfillmentLineItemRecordSchema).optional(),
+  service: orderFulfillmentServiceRecordSchema.nullable().optional(),
+  location: orderFulfillmentLocationRecordSchema.nullable().optional(),
+  originAddress: orderFulfillmentOriginAddressRecordSchema.nullable().optional(),
 });
 export type OrderFulfillmentRecord = z.infer<typeof orderFulfillmentRecordSchema>;
 

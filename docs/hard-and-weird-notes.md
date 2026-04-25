@@ -81,6 +81,13 @@ The current live-backed slice on this host now shows:
 - explicit colliding handles do **not** auto-rewrite silently
   - `productCreate` returns `product: null` plus `userErrors[{ field: ['input', 'handle'], message: "Handle '<handle>' already in use. Please provide a new handle." }]`
   - `productUpdate` and synchronous `productSet` return the unchanged existing product payload plus that same `['input', 'handle']` userError
+- a follow-up HAR-22 live probe found no product-handle reserved word rejection for common storefront/admin-looking handles including `admin`, `products`, `collections`, `cart`, `checkout`, and `new`
+  - those explicit handles were accepted as-is on `productCreate` when no product already owned the handle
+- explicit Unicode handles are not collapsed to the ASCII fallback path
+  - live `productCreate(handle: "東京")` and `productUpdate(handle: "大阪")` preserved those handles
+- explicit handles longer than 255 characters are rejected
+  - `productCreate` returns `product: null` plus `userErrors[{ field: ['handle'], message: 'Handle is too long (maximum is 255 characters)' }]`
+  - `productUpdate` returns the unchanged product payload plus the same `['handle']` userError
 - a title-only `productUpdate` against a product that already has an explicit handle keeps that current handle stable
   - on this host, updating the title of a product created with `handle: title-only-handle-probe-<runId>` returned the new title but preserved the same handle
   - practical consequence: do not regenerate handles from title-only updates once a product already has a concrete handle unless a broader live capture proves Shopify does something more specific for other edge cases
@@ -88,21 +95,11 @@ The current live-backed slice on this host now shows:
 Practical rule:
 
 - run explicit merchant-supplied handles through the same slug-normalization path before uniqueness checks; otherwise local create/update/productSet behavior drifts immediately from the live store
+- preserve Unicode letters/numbers during explicit handle normalization; do not treat non-ASCII handles as punctuation-only fallback input
 - keep explicit-handle collision handling separate from auto-generated-handle de-duplication after normalization
 - do not "fix" explicit collisions by silently inventing a new handle locally; Shopify surfaced a userError instead
 - when the source slug already ends in digits, de-duplication should increment that numeric tail instead of blindly appending another `-1`
 - keep title-only updates handle-stable in the first local parity slice rather than re-slugifying the new title
-
-What is still missing:
-
-- reserved/invalid handles
-- interaction with broader normalization quirks outside the captured collision cases
-
-Practical rule:
-
-- keep explicit-handle collision handling separate from auto-generated-handle de-duplication
-- do not "fix" explicit collisions by silently inventing a new handle locally; Shopify surfaced a userError instead
-- when the source slug already ends in digits, de-duplication should increment that numeric tail instead of blindly appending another `-1`
 
 ## 6. Product update semantics are under-modeled
 
