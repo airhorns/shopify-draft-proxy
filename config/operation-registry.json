@@ -1462,13 +1462,34 @@
     "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
   },
   {
+    "name": "discountCodeAppCreate",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["discountCodeAppCreate", "DiscountCodeAppCreate"],
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registry-only app-managed discount safety gap. Unsupported runtime requests still use the generic passthrough escape hatch, which would hit Shopify, because Shopify Functions app-discount staging requires captured appDiscountType/functionId fixtures and a local model that does not execute external Function logic."
+  },
+  {
     "name": "discountCodeAppUpdate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountCodeAppUpdate", "DiscountCodeAppUpdate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registry-only app-managed discount safety gap. Unsupported runtime requests still use the generic passthrough escape hatch, which would hit Shopify, because Shopify Functions app-discount staging requires captured appDiscountType/functionId fixtures and a local model that does not execute external Function logic."
+  },
+  {
+    "name": "discountAutomaticAppCreate",
+    "type": "mutation",
+    "domain": "discounts",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["discountAutomaticAppCreate", "DiscountAutomaticAppCreate"],
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registry-only app-managed discount safety gap. Unsupported runtime requests still use the generic passthrough escape hatch, which would hit Shopify, because Shopify Functions app-discount staging requires captured appDiscountType/functionId fixtures and a local model that does not execute external Function logic."
   },
   {
     "name": "discountAutomaticAppUpdate",
@@ -1477,7 +1498,8 @@
     "execution": "stage-locally",
     "implemented": false,
     "matchNames": ["discountAutomaticAppUpdate", "DiscountAutomaticAppUpdate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registry-only app-managed discount safety gap. Unsupported runtime requests still use the generic passthrough escape hatch, which would hit Shopify, because Shopify Functions app-discount staging requires captured appDiscountType/functionId fixtures and a local model that does not execute external Function logic."
   },
   {
     "name": "marketingActivities",

@@ -1,6 +1,7 @@
 import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
+import type { JsonValue } from '../json-schemas.js';
 import {
   matchesSearchQueryDate,
   matchesSearchQueryNumber,
@@ -727,6 +728,33 @@ function serializeMetafieldsConnection(
   return connection;
 }
 
+function isRecord(value: JsonValue | undefined): value is Record<string, JsonValue> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function serializeCapturedJsonValue(value: JsonValue | undefined, field: FieldNode): unknown {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => serializeCapturedJsonValue(item, field));
+  }
+
+  const selectedFields = getSelectedChildFields(field);
+  if (selectedFields.length === 0 || !isRecord(value)) {
+    return value;
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const selection of selectedFields) {
+    const key = getFieldResponseKey(selection);
+    result[key] = serializeCapturedJsonValue(value[selection.name.value], selection);
+  }
+
+  return result;
+}
+
 function serializeEvent(event: DiscountEventRecord, field: FieldNode): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const selection of selectedFieldsForConcreteType(field, event.typeName)) {
@@ -888,6 +916,43 @@ function serializeDiscountUnion(
       case 'combinesWith':
         result[key] = serializeCombinesWith(discount, selection);
         break;
+      case 'appDiscountType':
+        result[key] = serializeCapturedJsonValue(discount.appDiscountType, selection);
+        if (
+          result[key] === null &&
+          (discount.typeName === 'DiscountCodeApp' || discount.typeName === 'DiscountAutomaticApp')
+        ) {
+          context.errors.push({
+            message: `Local discount detail does not have captured app-managed field ${selection.name.value}.`,
+            path: [...context.path, key],
+            extensions: {
+              code: 'UNSUPPORTED_APP_DISCOUNT_FIELD',
+              fieldName: selection.name.value,
+              typeName: discount.typeName,
+            },
+          });
+        }
+        break;
+      case 'discountId':
+        result[key] = discount.discountId ?? null;
+        if (
+          result[key] === null &&
+          (discount.typeName === 'DiscountCodeApp' || discount.typeName === 'DiscountAutomaticApp')
+        ) {
+          context.errors.push({
+            message: `Local discount detail does not have captured app-managed field ${selection.name.value}.`,
+            path: [...context.path, key],
+            extensions: {
+              code: 'UNSUPPORTED_APP_DISCOUNT_FIELD',
+              fieldName: selection.name.value,
+              typeName: discount.typeName,
+            },
+          });
+        }
+        break;
+      case 'errorHistory':
+        result[key] = serializeCapturedJsonValue(discount.errorHistory, selection);
+        break;
       case 'codes':
         result[key] = serializeCodesConnection(discount, selection, variables);
         break;
@@ -905,22 +970,6 @@ function serializeDiscountUnion(
         break;
       case 'shareableUrls':
         result[key] = [];
-        break;
-      case 'appDiscountType':
-      case 'errorHistory':
-      case 'discountId':
-        result[key] = null;
-        if (discount.typeName === 'DiscountCodeApp' || discount.typeName === 'DiscountAutomaticApp') {
-          context.errors.push({
-            message: `Local discount detail does not model app-managed field ${selection.name.value}.`,
-            path: [...context.path, key],
-            extensions: {
-              code: 'UNSUPPORTED_APP_DISCOUNT_FIELD',
-              fieldName: selection.name.value,
-              typeName: discount.typeName,
-            },
-          });
-        }
         break;
       default:
         result[key] = null;
