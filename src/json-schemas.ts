@@ -47,6 +47,7 @@ export const operationRegistryEntrySchema = z.strictObject({
     'marketing',
     'segments',
     'metafields',
+    'markets',
     'unknown',
   ]),
   execution: z.enum(['overlay-read', 'stage-locally']),

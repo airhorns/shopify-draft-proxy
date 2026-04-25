@@ -245,6 +245,8 @@ export class InMemoryStore {
   private baseCustomerCatalogConnection: CustomerCatalogConnectionRecord | null = null;
   private baseCustomerSearchConnections: Record<string, CustomerCatalogConnectionRecord> = {};
   private baseOrders: Record<string, OrderRecord> = {};
+  private baseMarketsById: Record<string, unknown> = {};
+  private baseMarketsRootPayloads: Record<string, unknown> = {};
   private stagedOrders: Record<string, OrderRecord> = {};
   private calculatedOrders: Record<string, CalculatedOrderRecord> = {};
   private stagedDraftOrders: Record<string, DraftOrderRecord> = {};
@@ -274,6 +276,8 @@ export class InMemoryStore {
       : null;
     this.baseCustomerSearchConnections = structuredClone(this.initialCustomerSearchConnections);
     this.baseOrders = structuredClone(this.initialBaseOrders);
+    this.baseMarketsById = {};
+    this.baseMarketsRootPayloads = {};
     this.stagedOrders = {};
     this.calculatedOrders = {};
     this.stagedDraftOrders = structuredClone(this.initialDraftOrders);
@@ -386,6 +390,37 @@ export class InMemoryStore {
   getPrimaryBusinessEntity(): BusinessEntityRecord | null {
     const businessEntity = this.listEffectiveBusinessEntities().find((candidate) => candidate.primary) ?? null;
     return businessEntity ? structuredClone(businessEntity) : null;
+  }
+
+  upsertBaseMarkets(markets: unknown[]): void {
+    for (const market of markets) {
+      if (!market || typeof market !== 'object' || Array.isArray(market)) {
+        continue;
+      }
+
+      const id = (market as Record<string, unknown>)['id'];
+      if (typeof id === 'string' && id.length > 0) {
+        const previous = this.baseMarketsById[id];
+        this.baseMarketsById[id] =
+          previous && typeof previous === 'object' && !Array.isArray(previous)
+            ? { ...(structuredClone(previous) as Record<string, unknown>), ...(structuredClone(market) as object) }
+            : structuredClone(market);
+      }
+    }
+  }
+
+  setBaseMarketsRootPayload(rootField: string, payload: unknown): void {
+    this.baseMarketsRootPayloads[rootField] = structuredClone(payload);
+  }
+
+  getBaseMarketById(marketId: string): unknown | null {
+    const market = this.baseMarketsById[marketId];
+    return market === undefined ? null : structuredClone(market);
+  }
+
+  getBaseMarketsRootPayload(rootField: string): unknown | null {
+    const payload = this.baseMarketsRootPayloads[rootField];
+    return payload === undefined ? null : structuredClone(payload);
   }
 
   stageCreateCustomer(customer: CustomerRecord): CustomerRecord {

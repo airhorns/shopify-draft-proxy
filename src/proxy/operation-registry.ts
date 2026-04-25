@@ -10,6 +10,7 @@ export type CapabilityDomain =
   | 'discounts'
   | 'marketing'
   | 'segments'
+  | 'markets'
   | 'metafields'
   | 'unknown';
 export type CapabilityExecution = 'overlay-read' | 'stage-locally' | 'passthrough';
