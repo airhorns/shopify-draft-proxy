@@ -908,6 +908,13 @@ export const shopRecordSchema = z.strictObject({
 });
 export type ShopRecord = z.infer<typeof shopRecordSchema>;
 
+export const marketRecordSchema = z.strictObject({
+  id: z.string(),
+  cursor: nullableStringSchema.optional(),
+  data: z.record(z.string(), jsonValueSchema),
+});
+export type MarketRecord = z.infer<typeof marketRecordSchema>;
+
 export const calculatedOrderRecordSchema = orderRecordSchema.extend({
   originalOrderId: z.string(),
 });
@@ -927,6 +934,8 @@ export const stateSnapshotSchema = z.strictObject({
   discounts: z.record(z.string(), discountRecordSchema).default({}),
   businessEntities: z.record(z.string(), businessEntityRecordSchema).default({}),
   businessEntityOrder: z.array(z.string()).default([]),
+  markets: z.record(z.string(), marketRecordSchema).default({}),
+  marketOrder: z.array(z.string()).default([]),
   productCollections: z.record(z.string(), productCollectionRecordSchema),
   productMedia: z.record(z.string(), productMediaRecordSchema),
   files: z.record(z.string(), fileRecordSchema).default({}),

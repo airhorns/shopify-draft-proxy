@@ -10,6 +10,7 @@ import type {
   DraftOrderRecord,
   FileRecord,
   LocationRecord,
+  MarketRecord,
   MutationLogEntry,
   NormalizedStateSnapshotFile,
   OrderRecord,
@@ -52,6 +53,8 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   discounts: {},
   businessEntities: {},
   businessEntityOrder: [],
+  markets: {},
+  marketOrder: [],
   productCollections: {},
   productMedia: {},
   files: {},
@@ -247,7 +250,6 @@ export class InMemoryStore {
   private baseCustomerCatalogConnection: CustomerCatalogConnectionRecord | null = null;
   private baseCustomerSearchConnections: Record<string, CustomerCatalogConnectionRecord> = {};
   private baseOrders: Record<string, OrderRecord> = {};
-  private baseMarketsById: Record<string, unknown> = {};
   private baseMarketsRootPayloads: Record<string, unknown> = {};
   private baseSegmentsRootPayloads: Record<string, unknown> = {};
   private stagedOrders: Record<string, OrderRecord> = {};
@@ -279,7 +281,6 @@ export class InMemoryStore {
       : null;
     this.baseCustomerSearchConnections = structuredClone(this.initialCustomerSearchConnections);
     this.baseOrders = structuredClone(this.initialBaseOrders);
-    this.baseMarketsById = {};
     this.baseMarketsRootPayloads = {};
     this.baseSegmentsRootPayloads = {};
     this.stagedOrders = {};
@@ -452,19 +453,35 @@ export class InMemoryStore {
     return businessEntity ? structuredClone(businessEntity) : null;
   }
 
-  upsertBaseMarkets(markets: unknown[]): void {
-    for (const market of markets) {
-      if (!market || typeof market !== 'object' || Array.isArray(market)) {
+  upsertBaseMarkets(markets: Array<MarketRecord | { market: unknown; cursor?: string | null } | unknown>): void {
+    for (const candidate of markets) {
+      if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
         continue;
       }
 
-      const id = (market as Record<string, unknown>)['id'];
+      const entry = candidate as Record<string, unknown>;
+      const rawMarket = 'market' in entry ? entry['market'] : candidate;
+      const rawCursor = 'cursor' in entry ? entry['cursor'] : null;
+      if (!rawMarket || typeof rawMarket !== 'object' || Array.isArray(rawMarket)) {
+        continue;
+      }
+
+      const market = rawMarket as Record<string, unknown>;
+      const id = market['id'];
       if (typeof id === 'string' && id.length > 0) {
-        const previous = this.baseMarketsById[id];
-        this.baseMarketsById[id] =
-          previous && typeof previous === 'object' && !Array.isArray(previous)
-            ? { ...(structuredClone(previous) as Record<string, unknown>), ...(structuredClone(market) as object) }
-            : structuredClone(market);
+        const previous = this.baseState.markets[id];
+        const cursor = typeof rawCursor === 'string' && rawCursor.length > 0 ? rawCursor : (previous?.cursor ?? null);
+        this.baseState.markets[id] = {
+          id,
+          cursor,
+          data: previous
+            ? ({ ...structuredClone(previous.data), ...structuredClone(market) } as MarketRecord['data'])
+            : (structuredClone(market) as MarketRecord['data']),
+        };
+
+        if (!this.baseState.marketOrder.includes(id)) {
+          this.baseState.marketOrder.push(id);
+        }
       }
     }
   }
@@ -474,8 +491,20 @@ export class InMemoryStore {
   }
 
   getBaseMarketById(marketId: string): unknown | null {
-    const market = this.baseMarketsById[marketId];
-    return market === undefined ? null : structuredClone(market);
+    const market = this.baseState.markets[marketId];
+    return market === undefined ? null : structuredClone(market.data);
+  }
+
+  listBaseMarkets(): MarketRecord[] {
+    const orderedIds = new Set(this.baseState.marketOrder);
+    const orderedMarkets = this.baseState.marketOrder
+      .map((id) => this.baseState.markets[id] ?? null)
+      .filter((market): market is MarketRecord => market !== null);
+    const unorderedMarkets = Object.values(this.baseState.markets)
+      .filter((market) => !orderedIds.has(market.id))
+      .sort((left, right) => left.id.localeCompare(right.id));
+
+    return structuredClone([...orderedMarkets, ...unorderedMarkets]);
   }
 
   getBaseMarketsRootPayload(rootField: string): unknown | null {
