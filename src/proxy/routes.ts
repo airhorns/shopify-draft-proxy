@@ -7,6 +7,7 @@ import { store } from '../state/store.js';
 import type { MutationLogInterpretedMetadata } from '../state/types.js';
 import type { AppConfig } from '../config.js';
 import { createUpstreamGraphQLClient } from '../shopify/upstream-client.js';
+import { requestUpstreamGraphQL } from '../shopify/upstream-request.js';
 import { getOperationCapability, type OperationCapability } from './capabilities.js';
 import { findOperationRegistryEntry } from './operation-registry.js';
 import { handleMediaMutation } from './media.js';
@@ -673,12 +674,7 @@ export function createProxyRouter(config: AppConfig): Router {
         return;
       }
 
-      const response = await upstream.request({
-        path: ctx.path,
-        headers: {
-          'content-type': 'application/json',
-          'x-shopify-access-token': ctx.get('x-shopify-access-token'),
-        },
+      const response = await requestUpstreamGraphQL(upstream, ctx, {
         body: {
           query: body.query,
           variables,
@@ -701,12 +697,7 @@ export function createProxyRouter(config: AppConfig): Router {
       }
 
       if (config.readMode === 'live-hybrid') {
-        const response = await upstream.request({
-          path: ctx.path,
-          headers: {
-            'content-type': 'application/json',
-            'x-shopify-access-token': ctx.get('x-shopify-access-token'),
-          },
+        const response = await requestUpstreamGraphQL(upstream, ctx, {
           body: {
             query: body.query,
             variables,
@@ -762,12 +753,7 @@ export function createProxyRouter(config: AppConfig): Router {
           return;
         }
 
-        const response = await upstream.request({
-          path: ctx.path,
-          headers: {
-            'content-type': 'application/json',
-            'x-shopify-access-token': ctx.get('x-shopify-access-token'),
-          },
+        const response = await requestUpstreamGraphQL(upstream, ctx, {
           body: {
             query: body.query,
             variables,
@@ -808,12 +794,7 @@ export function createProxyRouter(config: AppConfig): Router {
           return;
         }
 
-        const response = await upstream.request({
-          path: ctx.path,
-          headers: {
-            'content-type': 'application/json',
-            'x-shopify-access-token': ctx.get('x-shopify-access-token'),
-          },
+        const response = await requestUpstreamGraphQL(upstream, ctx, {
           body: {
             query: body.query,
             variables,
@@ -855,12 +836,7 @@ export function createProxyRouter(config: AppConfig): Router {
         primaryRootField !== null &&
         orderBackedFulfillmentRoots.has(primaryRootField)
       ) {
-        const response = await upstream.request({
-          path: ctx.path,
-          headers: {
-            'content-type': 'application/json',
-            'x-shopify-access-token': ctx.get('x-shopify-access-token'),
-          },
+        const response = await requestUpstreamGraphQL(upstream, ctx, {
           body: {
             query: body.query,
             variables,
@@ -933,12 +909,7 @@ export function createProxyRouter(config: AppConfig): Router {
       }
 
       if (config.readMode === 'live-hybrid') {
-        const response = await upstream.request({
-          path: ctx.path,
-          headers: {
-            'content-type': 'application/json',
-            'x-shopify-access-token': ctx.get('x-shopify-access-token'),
-          },
+        const response = await requestUpstreamGraphQL(upstream, ctx, {
           body: {
             query: body.query,
             variables,
@@ -961,12 +932,7 @@ export function createProxyRouter(config: AppConfig): Router {
         return;
       }
 
-      const response = await upstream.request({
-        path: ctx.path,
-        headers: {
-          'content-type': 'application/json',
-          'x-shopify-access-token': ctx.get('x-shopify-access-token'),
-        },
+      const response = await requestUpstreamGraphQL(upstream, ctx, {
         body: {
           query: body.query,
           variables,
@@ -987,12 +953,7 @@ export function createProxyRouter(config: AppConfig): Router {
 
       if (config.readMode === 'live-hybrid') {
         const hadLocalDefinitions = store.hasEffectiveMetaobjectDefinitions();
-        const response = await upstream.request({
-          path: ctx.path,
-          headers: {
-            'content-type': 'application/json',
-            'x-shopify-access-token': ctx.get('x-shopify-access-token'),
-          },
+        const response = await requestUpstreamGraphQL(upstream, ctx, {
           body: {
             query: body.query,
             variables,
@@ -1033,12 +994,7 @@ export function createProxyRouter(config: AppConfig): Router {
       }
 
       if (config.readMode === 'live-hybrid') {
-        const response = await upstream.request({
-          path: ctx.path,
-          headers: {
-            'content-type': 'application/json',
-            'x-shopify-access-token': ctx.get('x-shopify-access-token'),
-          },
+        const response = await requestUpstreamGraphQL(upstream, ctx, {
           body: {
             query: body.query,
             variables,
@@ -1062,12 +1018,7 @@ export function createProxyRouter(config: AppConfig): Router {
       }
 
       if (config.readMode === 'live-hybrid') {
-        const response = await upstream.request({
-          path: ctx.path,
-          headers: {
-            'content-type': 'application/json',
-            'x-shopify-access-token': ctx.get('x-shopify-access-token'),
-          },
+        const response = await requestUpstreamGraphQL(upstream, ctx, {
           body: {
             query: body.query,
             variables,
@@ -1094,12 +1045,7 @@ export function createProxyRouter(config: AppConfig): Router {
       }
 
       if (config.readMode === 'live-hybrid') {
-        const response = await upstream.request({
-          path: ctx.path,
-          headers: {
-            'content-type': 'application/json',
-            'x-shopify-access-token': ctx.get('x-shopify-access-token'),
-          },
+        const response = await requestUpstreamGraphQL(upstream, ctx, {
           body: {
             query: body.query,
             variables,
@@ -1289,12 +1235,7 @@ export function createProxyRouter(config: AppConfig): Router {
       });
     }
 
-    const response = await upstream.request({
-      path: ctx.path,
-      headers: {
-        'content-type': 'application/json',
-        'x-shopify-access-token': ctx.get('x-shopify-access-token'),
-      },
+    const response = await requestUpstreamGraphQL(upstream, ctx, {
       body: {
         query: body.query,
         variables,
