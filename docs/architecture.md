@@ -241,9 +241,9 @@ Collection publication implementation note:
 
 Store properties location implementation note:
 
-- snapshot `location` / `locationByIdentifier` detail reads are served by the Store properties overlay, but they deliberately derive known locations and nested inventory-level connections from the same effective inventory-level graph that powers top-level `locations`
+- snapshot `location` / `locationByIdentifier` detail reads are served by the Store properties overlay, using a narrow normalized location metadata slice for captured address/lifecycle scalars while still deriving nested inventory-level connections from the same effective inventory-level graph that powers top-level `locations`
 - the first location detail slice supports primary-location fallback when `location(id:)` omits `id`, identifier lookup by `LocationIdentifierInput.id`, unknown-location null behavior, address and lifecycle scalar shapes, empty metafield/suggested-address structures, and nested `inventoryLevel` / `inventoryLevels` selections
-- location creation/update/deletion remains unsupported runtime scope; no standalone location table is introduced yet because staged inventory read-after-write consistency is the higher-value source of truth for this slice
+- location creation/update/deletion remains unsupported runtime scope; location metadata is read-only baseline state and staged inventory remains the source of truth for read-after-write inventory visibility
 
 Commit response should include:
 

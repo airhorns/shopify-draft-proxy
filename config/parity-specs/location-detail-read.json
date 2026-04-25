@@ -8,14 +8,17 @@
     "documentPath": "config/parity-requests/location-detail-read.graphql",
     "variablesPath": "config/parity-requests/location-detail-read.variables.json"
   },
-  "comparisonMode": "capture-only",
-  "notes": "Live Store properties capture covers primary `location` fallback, `location(id:)`, `locationByIdentifier(identifier: { id })`, unknown-location null behavior, address/activation/fulfillment-service/metafield scalar shapes, and nested `inventoryLevels` evidence for the captured location slice.",
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executed by the conformance parity runner against the local Store properties proxy harness with captured location metadata and inventory-level rows seeded from the Store properties baseline. The strict target covers primary `location` fallback, `location(id:)`, `locationByIdentifier(identifier: { id })`, unknown-location null behavior, address/activation/fulfillment-service/metafield scalar shapes, and nested `inventoryLevels` evidence for the captured location slice.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "location detail data",
+        "capturePath": "$.readOnlyBaselines.location.data",
+        "proxyPath": "$.data"
+      }
+    ]
   }
 }

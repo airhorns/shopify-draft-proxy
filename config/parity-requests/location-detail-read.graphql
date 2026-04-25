@@ -1,96 +1,270 @@
 query StorePropertiesLocationDetails($id: ID!, $unknownId: ID!) {
   primary: location {
-    id
-    legacyResourceId
-    name
-    activatable
-    addressVerified
-    deactivatable
-    deactivatedAt
-    deletable
-    fulfillsOnlineOrders
-    hasActiveInventory
-    hasUnfulfilledOrders
-    isActive
-    isFulfillmentService
-    shipsInventory
-    address {
-      address1
-      address2
-      city
-      country
-      countryCode
-      formatted
-      latitude
-      longitude
-      phone
-      province
-      provinceCode
-      zip
-    }
-    suggestedAddresses {
-      address1
-      countryCode
-      formatted
-    }
-    fulfillmentService {
+    ... on Location {
       id
-      handle
-      serviceName
-    }
-    metafield(namespace: "custom", key: "hours") {
-      id
-      namespace
-      key
-      value
-      type
-    }
-    metafields(first: 3) {
-      nodes {
+      legacyResourceId
+      name
+      activatable
+      addressVerified
+      createdAt
+      deactivatable
+      deactivatedAt
+      deletable
+      fulfillmentService {
+        id
+        handle
+        serviceName
+      }
+      fulfillsOnlineOrders
+      hasActiveInventory
+      hasUnfulfilledOrders
+      isActive
+      isFulfillmentService
+      shipsInventory
+      updatedAt
+      address {
+        address1
+        address2
+        city
+        country
+        countryCode
+        formatted
+        latitude
+        longitude
+        phone
+        province
+        provinceCode
+        zip
+      }
+      suggestedAddresses {
+        address1
+        countryCode
+        formatted
+      }
+      metafield(namespace: "custom", key: "hours") {
         id
         namespace
         key
         value
         type
       }
-      pageInfo {
-        hasNextPage
-        hasPreviousPage
-        startCursor
-        endCursor
-      }
-    }
-    inventoryLevels(first: 3) {
-      nodes {
-        id
-        item {
+      metafields(first: 3) {
+        nodes {
           id
+          namespace
+          key
+          value
+          type
         }
-        location {
-          id
-          name
-        }
-        quantities(names: ["available", "committed", "on_hand"]) {
-          name
-          quantity
-          updatedAt
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
         }
       }
-      pageInfo {
-        hasNextPage
-        hasPreviousPage
-        startCursor
-        endCursor
+      inventoryLevels(first: 3) {
+        nodes {
+          id
+          item {
+            id
+          }
+          location {
+            id
+            name
+          }
+          quantities(names: ["available", "committed", "on_hand"]) {
+            name
+            quantity
+            updatedAt
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
       }
     }
   }
   byId: location(id: $id) {
-    id
-    name
+    ... on Location {
+      id
+      legacyResourceId
+      name
+      activatable
+      addressVerified
+      createdAt
+      deactivatable
+      deactivatedAt
+      deletable
+      fulfillmentService {
+        id
+        handle
+        serviceName
+      }
+      fulfillsOnlineOrders
+      hasActiveInventory
+      hasUnfulfilledOrders
+      isActive
+      isFulfillmentService
+      shipsInventory
+      updatedAt
+      address {
+        address1
+        address2
+        city
+        country
+        countryCode
+        formatted
+        latitude
+        longitude
+        phone
+        province
+        provinceCode
+        zip
+      }
+      suggestedAddresses {
+        address1
+        countryCode
+        formatted
+      }
+      metafield(namespace: "custom", key: "hours") {
+        id
+        namespace
+        key
+        value
+        type
+      }
+      metafields(first: 3) {
+        nodes {
+          id
+          namespace
+          key
+          value
+          type
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+      inventoryLevels(first: 3) {
+        nodes {
+          id
+          item {
+            id
+          }
+          location {
+            id
+            name
+          }
+          quantities(names: ["available", "committed", "on_hand"]) {
+            name
+            quantity
+            updatedAt
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
   }
   byIdentifier: locationByIdentifier(identifier: { id: $id }) {
-    id
-    name
+    ... on Location {
+      id
+      legacyResourceId
+      name
+      activatable
+      addressVerified
+      createdAt
+      deactivatable
+      deactivatedAt
+      deletable
+      fulfillmentService {
+        id
+        handle
+        serviceName
+      }
+      fulfillsOnlineOrders
+      hasActiveInventory
+      hasUnfulfilledOrders
+      isActive
+      isFulfillmentService
+      shipsInventory
+      updatedAt
+      address {
+        address1
+        address2
+        city
+        country
+        countryCode
+        formatted
+        latitude
+        longitude
+        phone
+        province
+        provinceCode
+        zip
+      }
+      suggestedAddresses {
+        address1
+        countryCode
+        formatted
+      }
+      metafield(namespace: "custom", key: "hours") {
+        id
+        namespace
+        key
+        value
+        type
+      }
+      metafields(first: 3) {
+        nodes {
+          id
+          namespace
+          key
+          value
+          type
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+      inventoryLevels(first: 3) {
+        nodes {
+          id
+          item {
+            id
+          }
+          location {
+            id
+            name
+          }
+          quantities(names: ["available", "committed", "on_hand"]) {
+            name
+            quantity
+            updatedAt
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
   }
   unknownById: location(id: $unknownId) {
     id

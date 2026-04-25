@@ -8,6 +8,10 @@ import type {
   BusinessEntityAddressRecord,
   BusinessEntityRecord,
   InventoryLevelRecord,
+  LocationAddressRecord,
+  LocationFulfillmentServiceRecord,
+  LocationRecord,
+  LocationSuggestedAddressRecord,
   PaymentSettingsRecord,
   ProductVariantRecord,
   ShopifyPaymentsAccountRecord,
@@ -50,11 +54,6 @@ const DEFAULT_INVENTORY_LEVEL_LOCATION_ID = 'gid://shopify/Location/1';
 
 function responseKey(selection: FieldNode): string {
   return selection.alias?.value ?? selection.name.value;
-}
-
-interface LocationRecord {
-  id: string;
-  name: string | null;
 }
 
 interface LocationInventoryLevelRecord {
@@ -138,24 +137,53 @@ function listLocationInventoryLevels(): LocationInventoryLevelRecord[] {
     );
 }
 
+function locationRecordFromInventoryLocation(location: NonNullable<InventoryLevelRecord['location']>): LocationRecord {
+  return {
+    id: location.id,
+    name: location.name,
+  };
+}
+
+function mergeLocationRecord(base: LocationRecord, inventoryLocation: LocationRecord | null): LocationRecord {
+  return {
+    ...base,
+    name: base.name ?? inventoryLocation?.name ?? null,
+  };
+}
+
 function listEffectiveLocations(): LocationRecord[] {
+  const locationsById = new Map<string, LocationRecord>();
   const locations: LocationRecord[] = [];
   const seenLocationIds = new Set<string>();
 
+  for (const location of store.listBaseLocations()) {
+    locationsById.set(location.id, location);
+    seenLocationIds.add(location.id);
+    locations.push(location);
+  }
+
   for (const { level } of listLocationInventoryLevels()) {
-    const locationId = level.location?.id;
-    if (!locationId || seenLocationIds.has(locationId)) {
+    if (!level.location) {
       continue;
     }
 
-    seenLocationIds.add(locationId);
-    locations.push({
-      id: locationId,
-      name: level.location?.name ?? null,
-    });
+    const location = locationRecordFromInventoryLocation(level.location);
+    const existing = locationsById.get(location.id);
+    if (existing) {
+      locationsById.set(location.id, mergeLocationRecord(existing, location));
+      continue;
+    }
+
+    if (seenLocationIds.has(location.id)) {
+      continue;
+    }
+
+    seenLocationIds.add(location.id);
+    locationsById.set(location.id, location);
+    locations.push(location);
   }
 
-  return locations;
+  return locations.map((location) => locationsById.get(location.id) ?? location);
 }
 
 function findEffectiveLocationById(id: string): LocationRecord | null {
@@ -216,7 +244,10 @@ function serializeAddress(
   return result;
 }
 
-function serializeLocationAddress(selections: readonly SelectionNode[]): Record<string, unknown> {
+function serializeLocationAddress(
+  address: LocationAddressRecord | null,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
   for (const selection of selections) {
@@ -224,7 +255,7 @@ function serializeLocationAddress(selections: readonly SelectionNode[]): Record<
       if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'LocationAddress') {
         continue;
       }
-      Object.assign(result, serializeLocationAddress(selection.selectionSet.selections));
+      Object.assign(result, serializeLocationAddress(address, selection.selectionSet.selections));
       continue;
     }
 
@@ -238,20 +269,106 @@ function serializeLocationAddress(selections: readonly SelectionNode[]): Record<
         result[key] = 'LocationAddress';
         break;
       case 'formatted':
-        result[key] = [];
+        result[key] = address?.formatted ? structuredClone(address.formatted) : [];
         break;
       case 'address1':
+        result[key] = address?.address1 ?? null;
+        break;
       case 'address2':
+        result[key] = address?.address2 ?? null;
+        break;
       case 'city':
+        result[key] = address?.city ?? null;
+        break;
       case 'country':
+        result[key] = address?.country ?? null;
+        break;
       case 'countryCode':
+        result[key] = address?.countryCode ?? null;
+        break;
       case 'latitude':
+        result[key] = address?.latitude ?? null;
+        break;
       case 'longitude':
+        result[key] = address?.longitude ?? null;
+        break;
       case 'phone':
+        result[key] = address?.phone ?? null;
+        break;
       case 'province':
+        result[key] = address?.province ?? null;
+        break;
       case 'provinceCode':
+        result[key] = address?.provinceCode ?? null;
+        break;
       case 'zip':
+        result[key] = address?.zip ?? null;
+        break;
+      default:
         result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeLocationSuggestedAddress(
+  address: LocationSuggestedAddressRecord,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'LocationSuggestedAddress';
+        break;
+      case 'address1':
+        result[key] = address.address1;
+        break;
+      case 'countryCode':
+        result[key] = address.countryCode;
+        break;
+      case 'formatted':
+        result[key] = structuredClone(address.formatted);
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeLocationFulfillmentService(
+  service: LocationFulfillmentServiceRecord,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'FulfillmentService';
+        break;
+      case 'id':
+        result[key] = service.id;
+        break;
+      case 'handle':
+        result[key] = service.handle;
+        break;
+      case 'serviceName':
+        result[key] = service.serviceName;
         break;
       default:
         result[key] = null;
@@ -578,48 +695,62 @@ function serializeLocation(
         result[key] = location.id;
         break;
       case 'legacyResourceId':
-        result[key] = readLegacyResourceIdFromGid(location.id);
+        result[key] = location.legacyResourceId ?? readLegacyResourceIdFromGid(location.id);
         break;
       case 'name':
         result[key] = location.name;
         break;
       case 'activatable':
-        result[key] = true;
+        result[key] = location.activatable ?? true;
         break;
       case 'addressVerified':
-        result[key] = false;
+        result[key] = location.addressVerified ?? false;
         break;
       case 'createdAt':
+        result[key] = location.createdAt ?? null;
+        break;
       case 'updatedAt':
-        result[key] = null;
+        result[key] = location.updatedAt ?? null;
         break;
       case 'deactivatable':
-        result[key] = false;
+        result[key] = location.deactivatable ?? false;
         break;
       case 'deactivatedAt':
-        result[key] = null;
+        result[key] = location.deactivatedAt ?? null;
         break;
       case 'deletable':
-        result[key] = false;
+        result[key] = location.deletable ?? false;
         break;
       case 'fulfillmentService':
-        result[key] = null;
+        result[key] = location.fulfillmentService
+          ? serializeLocationFulfillmentService(location.fulfillmentService, selection.selectionSet?.selections ?? [])
+          : null;
         break;
       case 'fulfillsOnlineOrders':
+        result[key] = location.fulfillsOnlineOrders ?? true;
+        break;
       case 'hasActiveInventory':
+        result[key] = location.hasActiveInventory ?? true;
+        break;
       case 'isActive':
+        result[key] = location.isActive ?? true;
+        break;
       case 'shipsInventory':
-        result[key] = true;
+        result[key] = location.shipsInventory ?? true;
         break;
       case 'hasUnfulfilledOrders':
+        result[key] = location.hasUnfulfilledOrders ?? false;
+        break;
       case 'isFulfillmentService':
-        result[key] = false;
+        result[key] = location.isFulfillmentService ?? false;
         break;
       case 'address':
-        result[key] = serializeLocationAddress(selection.selectionSet?.selections ?? []);
+        result[key] = serializeLocationAddress(location.address ?? null, selection.selectionSet?.selections ?? []);
         break;
       case 'suggestedAddresses':
-        result[key] = [];
+        result[key] = (location.suggestedAddresses ?? []).map((address) =>
+          serializeLocationSuggestedAddress(address, selection.selectionSet?.selections ?? []),
+        );
         break;
       case 'metafield':
         result[key] = null;

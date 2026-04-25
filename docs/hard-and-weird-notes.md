@@ -1882,7 +1882,7 @@ Live evidence refreshed on this host:
 Practical rule for the proxy:
 
 - keep `location`, `locationByIdentifier`, and top-level `locations` aligned on the same effective inventory-level graph until there is a real local location mutation model
-- do not add a detached location table just to answer detail reads; without location writes, a separate table would drift from staged inventory activation/deactivation behavior
+- keep baseline location metadata narrow and read-only: it can preserve captured address and lifecycle scalars, but nested inventory-level connections should still come from the effective inventory graph so staged inventory activation/deactivation behavior does not drift
 - model unknown IDs as `null` and invalid identifier objects as GraphQL-style errors, not generic empty objects
 - preserve empty metafield/suggested-address shapes when the local snapshot has no location-owned metadata rather than inventing fake metafields or address suggestions
 
