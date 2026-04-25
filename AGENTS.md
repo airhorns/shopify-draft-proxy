@@ -55,6 +55,10 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 - Expose and test the meta API.
 - Add tests for every supported operation.
 - Prefer conformance fixtures over hand-wavy comments about expected behavior.
+- Conformance/test shops are disposable fidelity targets. When a ticket needs
+  real Shopify evidence, agents may modify those test shops deeply as needed
+  to create, update, activate, delete, and clean up realistic fixtures; do not
+  avoid necessary live setup just because it changes test-shop data.
 - Do not add tests that only reassert self-evident properties of checked-in
   metadata, such as exact fields in registry or parity-spec JSON files. Test
   executable behavior, schema validation, discovery semantics, or comparison
