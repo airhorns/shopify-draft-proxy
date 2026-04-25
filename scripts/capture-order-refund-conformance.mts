@@ -4,15 +4,9 @@ import 'dotenv/config';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { runAdminGraphqlRequest } from './conformance-graphql-client.js';
+import { createAdminGraphqlClient } from './conformance-graphql-client.js';
+import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mts';
-
-const requiredVars = ['SHOPIFY_CONFORMANCE_STORE_DOMAIN', 'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
-const missingVars = requiredVars.filter((name) => !process.env[name]);
-if (missingVars.length > 0) {
-  console.error(`Missing required environment variables: ${missingVars.join(', ')}`);
-  process.exit(1);
-}
 
 type JsonRecord = Record<string, any>;
 
@@ -36,31 +30,20 @@ interface CaptureScenarioOptions {
   fixturePath: string;
 }
 
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-  return value;
-}
-
-const storeDomain = requireEnv('SHOPIFY_CONFORMANCE_STORE_DOMAIN');
-const adminOrigin = requireEnv('SHOPIFY_CONFORMANCE_ADMIN_ORIGIN');
-const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || '2025-01';
+const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const fixtureDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
 
 const partialFixturePath = path.join(fixtureDir, 'refund-create-partial-shipping-restock-parity.json');
 const fullFixturePath = path.join(fixtureDir, 'refund-create-full-parity.json');
 const overRefundFixturePath = path.join(fixtureDir, 'refund-create-over-refund-user-errors.json');
-
-async function runGraphql(query: string, variables: Record<string, unknown> = {}): Promise<GraphqlResult> {
-  return runAdminGraphqlRequest<JsonRecord>(
-    { adminOrigin, apiVersion, headers: buildAdminAuthHeaders(adminAccessToken) },
-    query,
-    variables,
-  ) as Promise<GraphqlResult>;
-}
+const { runGraphqlRequest: runGraphql } = createAdminGraphqlClient({
+  adminOrigin,
+  apiVersion,
+  headers: buildAdminAuthHeaders(adminAccessToken),
+}) as {
+  runGraphqlRequest: (query: string, variables?: Record<string, unknown>) => Promise<GraphqlResult>;
+};
 
 async function writeJson(filePath: string, payload: unknown): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
