@@ -136,8 +136,27 @@ export const locationFulfillmentServiceRecordSchema = z.strictObject({
   id: nullableStringSchema,
   handle: nullableStringSchema,
   serviceName: nullableStringSchema,
+  callbackUrl: nullableStringSchema.optional(),
+  inventoryManagement: nullableBooleanSchema.optional(),
+  locationId: nullableStringSchema.optional(),
+  requiresShippingMethod: nullableBooleanSchema.optional(),
+  trackingSupport: nullableBooleanSchema.optional(),
+  type: nullableStringSchema.optional(),
 });
 export type LocationFulfillmentServiceRecord = z.infer<typeof locationFulfillmentServiceRecordSchema>;
+
+export const fulfillmentServiceRecordSchema = z.strictObject({
+  id: z.string(),
+  handle: z.string(),
+  serviceName: z.string(),
+  callbackUrl: nullableStringSchema,
+  inventoryManagement: z.boolean(),
+  locationId: nullableStringSchema,
+  requiresShippingMethod: z.boolean(),
+  trackingSupport: z.boolean(),
+  type: z.string(),
+});
+export type FulfillmentServiceRecord = z.infer<typeof fulfillmentServiceRecordSchema>;
 
 export const locationMetafieldRecordSchema = z.strictObject({
   id: z.string(),
@@ -896,8 +915,22 @@ export const orderTransactionRecordSchema = z.strictObject({
   status: nullableStringSchema,
   gateway: nullableStringSchema,
   amountSet: moneySetSchema.nullable(),
+  parentTransactionId: nullableStringSchema.optional(),
+  paymentId: nullableStringSchema.optional(),
+  paymentReferenceId: nullableStringSchema.optional(),
+  processedAt: nullableStringSchema.optional(),
 });
 export type OrderTransactionRecord = z.infer<typeof orderTransactionRecordSchema>;
+
+export const orderMandatePaymentRecordSchema = z.strictObject({
+  idempotencyKey: z.string(),
+  orderId: z.string(),
+  jobId: z.string(),
+  paymentReferenceId: z.string(),
+  transactionId: z.string(),
+  createdAt: z.string(),
+});
+export type OrderMandatePaymentRecord = z.infer<typeof orderMandatePaymentRecordSchema>;
 
 export const orderRefundLineItemRecordSchema = z.strictObject({
   id: z.string(),
@@ -955,6 +988,8 @@ export const orderRecordSchema = z.strictObject({
   currentTotalTaxSet: moneySetSchema.nullable().optional(),
   totalPriceSet: moneySetSchema.nullable(),
   totalOutstandingSet: moneySetSchema.nullable().optional(),
+  totalCapturableSet: moneySetSchema.nullable().optional(),
+  capturable: z.boolean().optional(),
   totalReceivedSet: moneySetSchema.nullable().optional(),
   netPaymentSet: moneySetSchema.nullable().optional(),
   totalRefundedSet: moneySetSchema.nullable(),
@@ -1154,6 +1189,8 @@ export const stateSnapshotSchema = z.strictObject({
   productOptions: z.record(z.string(), productOptionRecordSchema),
   locations: z.record(z.string(), locationRecordSchema).default({}),
   locationOrder: z.array(z.string()).default([]),
+  fulfillmentServices: z.record(z.string(), fulfillmentServiceRecordSchema).default({}),
+  fulfillmentServiceOrder: z.array(z.string()).default([]),
   collections: z.record(z.string(), collectionRecordSchema),
   publications: z.record(z.string(), publicationRecordSchema).default({}),
   customers: z.record(z.string(), customerRecordSchema),
@@ -1181,6 +1218,8 @@ export const stateSnapshotSchema = z.strictObject({
   deletedProductIds: z.record(z.string(), z.literal(true)),
   deletedFileIds: z.record(z.string(), z.literal(true)).default({}),
   deletedCollectionIds: z.record(z.string(), z.literal(true)),
+  deletedLocationIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedFulfillmentServiceIds: z.record(z.string(), z.literal(true)).default({}),
   deletedCustomerIds: z.record(z.string(), z.literal(true)),
   deletedCustomerAddressIds: z.record(z.string(), z.literal(true)).default({}),
   deletedSegmentIds: z.record(z.string(), z.literal(true)).default({}),
