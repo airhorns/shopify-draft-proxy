@@ -43,6 +43,7 @@ import {
   handleProductQuery,
   hydrateProductsFromUpstreamResponse,
 } from '../src/proxy/products.js';
+import { handleSegmentsQuery, hydrateSegmentsFromUpstreamResponse } from '../src/proxy/segments.js';
 import { handleStorePropertiesMutation, handleStorePropertiesQuery } from '../src/proxy/store-properties.js';
 import { makeSyntheticGid, makeSyntheticTimestamp, resetSyntheticIdentity } from '../src/state/synthetic-identity.js';
 import { store } from '../src/state/store.js';
@@ -802,6 +803,17 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleMarketsQuery(document, variables),
+    };
+  }
+
+  if (capability.execution === 'overlay-read' && capability.domain === 'segments') {
+    if (upstreamPayload !== undefined) {
+      hydrateSegmentsFromUpstreamResponse(document, variables, upstreamPayload);
+    }
+
+    return {
+      status: 200,
+      body: handleSegmentsQuery(document, variables),
     };
   }
 
@@ -3250,11 +3262,22 @@ function seedMetafieldsDeleteOwnerProducts(capture: unknown, variables: Record<s
   const existingKeys = new Set(retainedMetafields.map((metafield) => `${metafield.namespace}:${metafield.key}`));
   const primaryInput = readRecordField(variables, 'input');
   const singularDeleteId = readStringField(primaryInput, 'id');
+  const capturedDeletedMetafields = readArrayField(mutationPayloadFromCapture(capture), 'deletedMetafields');
+  const hasCapturedDeletedMetafields = capturedDeletedMetafields.length > 0;
   const deletedMetafields = deletedIdentifiers
     .map((identifier, index): ProductMetafieldRecord | null => {
-      const namespace = readStringField(identifier, 'namespace');
-      const key = readStringField(identifier, 'key');
-      const productId = readStringField(identifier, 'ownerId') ?? ownerId;
+      const capturedDeletedMetafield = hasCapturedDeletedMetafields
+        ? isPlainObject(capturedDeletedMetafields[index])
+          ? capturedDeletedMetafields[index]
+          : null
+        : identifier;
+      if (!capturedDeletedMetafield) {
+        return null;
+      }
+
+      const namespace = readStringField(capturedDeletedMetafield, 'namespace');
+      const key = readStringField(capturedDeletedMetafield, 'key');
+      const productId = readStringField(capturedDeletedMetafield, 'ownerId') ?? ownerId;
       if (!namespace || !key || !productId.startsWith('gid://shopify/Product/')) {
         return null;
       }

@@ -1,0 +1,8 @@
+{
+  "first": 3,
+  "knownSegmentId": "gid://shopify/Segment/462311981289",
+  "missingSegmentId": "gid://shopify/Segment/999999999999",
+  "filterSearch": "email",
+  "valueSearch": "",
+  "valueFilterQueryName": "customer_tags"
+}

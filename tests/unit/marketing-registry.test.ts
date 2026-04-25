@@ -38,6 +38,20 @@ const segmentQueryRoots = [
   'customerSegmentMembersQuery',
   'customerSegmentMembership',
 ] as const;
+const implementedSegmentQueryRoots = [
+  'segment',
+  'segments',
+  'segmentsCount',
+  'segmentFilters',
+  'segmentFilterSuggestions',
+  'segmentValueSuggestions',
+  'segmentMigrations',
+] as const;
+const scaffoldOnlySegmentQueryRoots = [
+  'customerSegmentMembers',
+  'customerSegmentMembersQuery',
+  'customerSegmentMembership',
+] as const;
 const segmentMutationRoots = [
   'customerSegmentMembersQueryCreate',
   'segmentCreate',
@@ -47,7 +61,11 @@ const segmentMutationRoots = [
 
 const marketingRoots = [...marketingQueryRoots, ...marketingMutationRoots] as const;
 const segmentRoots = [...segmentQueryRoots, ...segmentMutationRoots] as const;
-const marketingAndSegmentRoots = [...marketingRoots, ...segmentRoots] as const;
+const scaffoldOnlyMarketingAndSegmentRoots = [
+  ...marketingRoots,
+  ...scaffoldOnlySegmentQueryRoots,
+  ...segmentMutationRoots,
+] as const;
 
 const rootOperationIntrospectionFixtureSchema = z.object({
   introspection: z.object({
@@ -86,7 +104,7 @@ function readIntrospectionRoots() {
 }
 
 describe('Marketing and segment registry scaffold', () => {
-  it('tracks every HAR-211 root from Admin GraphQL introspection without enabling runtime support', () => {
+  it('tracks every marketing and segment root from Admin GraphQL introspection with accurate runtime support status', () => {
     const registry = readRegistry();
     const entriesByName = new Map(registry.map((entry) => [entry.name, entry]));
     const { queryRoots, mutationRoots } = readIntrospectionRoots();
@@ -111,12 +129,20 @@ describe('Marketing and segment registry scaffold', () => {
       expect(entry?.domain, `${root} should be grouped under Segments`).toBe('segments');
     }
 
-    for (const root of marketingAndSegmentRoots) {
+    for (const root of scaffoldOnlyMarketingAndSegmentRoots) {
       const entry = entriesByName.get(root);
       expect(entry?.implemented, `${root} should remain scaffold-only`).toBe(false);
       expect(entry?.runtimeTests, `${root} should not claim runtime coverage`).toEqual([]);
       expect(entry?.supportNotes, `${root} should identify future capture/parity work`).toEqual(
         expect.stringContaining('capture'),
+      );
+    }
+
+    for (const root of implementedSegmentQueryRoots) {
+      const entry = entriesByName.get(root);
+      expect(entry?.implemented, `${root} should be enabled by HAR-215 segment read coverage`).toBe(true);
+      expect(entry?.runtimeTests, `${root} should claim runtime segment read coverage`).toContain(
+        'tests/integration/segment-query-shapes.test.ts',
       );
     }
   });
@@ -163,8 +189,8 @@ describe('Marketing and segment registry scaffold', () => {
     });
 
     expect(getOperationCapability({ type: 'query', name: 'Segments', rootFields: ['segments'] })).toEqual({
-      domain: 'unknown',
-      execution: 'passthrough',
+      domain: 'segments',
+      execution: 'overlay-read',
       operationName: 'Segments',
       type: 'query',
     });
@@ -188,11 +214,16 @@ describe('Marketing and segment registry scaffold', () => {
     const scenarioOperations = new Set(scenarios.flatMap((scenario) => scenario.operationNames));
     const statusDocument = buildConformanceStatusDocument(repoRoot);
 
-    for (const root of marketingAndSegmentRoots) {
+    for (const root of scaffoldOnlyMarketingAndSegmentRoots) {
       expect(scenarioOperations.has(root), `${root} should wait for captured evidence or executable comparison`).toBe(
         false,
       );
       expect(statusDocument.implementedOperations.some((entry) => entry.name === root)).toBe(false);
+    }
+
+    for (const root of implementedSegmentQueryRoots) {
+      expect(scenarioOperations.has(root), `${root} should have executable segment parity coverage`).toBe(true);
+      expect(statusDocument.implementedOperations.some((entry) => entry.name === root)).toBe(true);
     }
   });
 });

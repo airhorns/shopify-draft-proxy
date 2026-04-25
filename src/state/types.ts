@@ -366,6 +366,15 @@ export const customerRecordSchema = z.strictObject({
 });
 export type CustomerRecord = z.infer<typeof customerRecordSchema>;
 
+export const segmentRecordSchema = z.strictObject({
+  id: z.string(),
+  name: nullableStringSchema,
+  query: nullableStringSchema,
+  creationDate: nullableStringSchema,
+  lastEditDate: nullableStringSchema,
+});
+export type SegmentRecord = z.infer<typeof segmentRecordSchema>;
+
 export const businessEntityAddressRecordSchema = z.strictObject({
   address1: nullableStringSchema,
   address2: nullableStringSchema,
@@ -984,6 +993,13 @@ export const shopRecordSchema = z.strictObject({
 });
 export type ShopRecord = z.infer<typeof shopRecordSchema>;
 
+export const marketRecordSchema = z.strictObject({
+  id: z.string(),
+  cursor: nullableStringSchema.optional(),
+  data: z.record(z.string(), jsonValueSchema),
+});
+export type MarketRecord = z.infer<typeof marketRecordSchema>;
+
 export const calculatedOrderRecordSchema = orderRecordSchema.extend({
   originalOrderId: z.string(),
 });
@@ -999,9 +1015,12 @@ export const stateSnapshotSchema = z.strictObject({
   collections: z.record(z.string(), collectionRecordSchema),
   publications: z.record(z.string(), publicationRecordSchema).default({}),
   customers: z.record(z.string(), customerRecordSchema),
+  segments: z.record(z.string(), segmentRecordSchema).default({}),
   discounts: z.record(z.string(), discountRecordSchema).default({}),
   businessEntities: z.record(z.string(), businessEntityRecordSchema).default({}),
   businessEntityOrder: z.array(z.string()).default([]),
+  markets: z.record(z.string(), marketRecordSchema).default({}),
+  marketOrder: z.array(z.string()).default([]),
   productCollections: z.record(z.string(), productCollectionRecordSchema),
   productMedia: z.record(z.string(), productMediaRecordSchema),
   files: z.record(z.string(), fileRecordSchema).default({}),

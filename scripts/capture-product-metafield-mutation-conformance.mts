@@ -16,7 +16,7 @@ const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, api
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
 const pendingDir = 'pending';
 const blockerPath = path.join(pendingDir, 'product-metafield-mutation-conformance-scope-blocker.md');
-const { runGraphql } = createAdminGraphqlClient({
+const { runGraphql, runGraphqlRaw } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
@@ -253,6 +253,34 @@ function buildMetafieldsDeleteVariables(productId) {
         namespace: 'custom',
         key: 'material',
       },
+      {
+        ownerId: productId,
+        namespace: 'custom',
+        key: 'missing',
+      },
+    ],
+  };
+}
+
+function buildMetafieldsDeleteNonexistentOwnerVariables() {
+  return {
+    metafields: [
+      {
+        ownerId: 'gid://shopify/Product/999999999999999',
+        namespace: 'custom',
+        key: 'material',
+      },
+    ],
+  };
+}
+
+function buildMetafieldsDeleteMissingKeyVariables(productId) {
+  return {
+    metafields: [
+      {
+        ownerId: productId,
+        namespace: 'custom',
+      },
     ],
   };
 }
@@ -304,6 +332,12 @@ try {
   const metafieldsDeleteVariables = buildMetafieldsDeleteVariables(createdProductId);
   const metafieldsDeleteResponse = await runGraphql(metafieldsDeleteMutation, metafieldsDeleteVariables);
   const postDeleteRead = await runGraphql(downstreamReadQuery, { id: createdProductId });
+  const nonexistentOwnerDeleteVariables = buildMetafieldsDeleteNonexistentOwnerVariables();
+  const nonexistentOwnerDeleteResponse = await runGraphqlRaw(metafieldsDeleteMutation, nonexistentOwnerDeleteVariables);
+  const emptyDeleteVariables = { metafields: [] };
+  const emptyDeleteResponse = await runGraphqlRaw(metafieldsDeleteMutation, emptyDeleteVariables);
+  const missingKeyDeleteVariables = buildMetafieldsDeleteMissingKeyVariables(createdProductId);
+  const missingKeyDeleteResponse = await runGraphqlRaw(metafieldsDeleteMutation, missingKeyDeleteVariables);
 
   const setCaptureFile = 'metafields-set-parity.json';
   await writeFile(
@@ -332,6 +366,20 @@ try {
           response: metafieldsDeleteResponse,
         },
         downstreamRead: postDeleteRead,
+        edgeCases: {
+          nonexistentOwner: {
+            variables: nonexistentOwnerDeleteVariables,
+            response: nonexistentOwnerDeleteResponse,
+          },
+          emptyInput: {
+            variables: emptyDeleteVariables,
+            response: emptyDeleteResponse,
+          },
+          missingKey: {
+            variables: missingKeyDeleteVariables,
+            response: missingKeyDeleteResponse,
+          },
+        },
       },
       null,
       2,
