@@ -1,4 +1,4 @@
-import { Kind, type FieldNode, type SelectionNode } from 'graphql';
+import { Kind, parse, type ASTNode, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import { parseSearchQuery, type SearchQueryNode, type SearchQueryTerm } from '../search-query-parser.js';
@@ -33,6 +33,31 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function hasOwnField(value: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+type GraphqlErrorLocation = { line: number; column: number };
+
+function getNodeLocation(node: ASTNode): GraphqlErrorLocation[] {
+  const token = node.loc?.startToken;
+  return token ? [{ line: token.line, column: token.column }] : [];
+}
+
+function getVariableDefinitionLocation(document: string, variableName: string): GraphqlErrorLocation[] {
+  const ast = parse(document);
+  for (const definition of ast.definitions) {
+    if (definition.kind !== Kind.OPERATION_DEFINITION) {
+      continue;
+    }
+
+    const variableDefinition = definition.variableDefinitions?.find(
+      (candidate) => candidate.variable.name.value === variableName,
+    );
+    if (variableDefinition) {
+      return getNodeLocation(variableDefinition);
+    }
+  }
+
+  return [];
 }
 
 const VALID_TAX_EXEMPTIONS = new Set([
@@ -2560,24 +2585,194 @@ function readConsentPayload(input: Record<string, unknown>, key: string): Record
   return isObject(value) ? value : {};
 }
 
-function validateMarketingState(
+const MARKETING_OPT_IN_LEVELS = ['SINGLE_OPT_IN', 'CONFIRMED_OPT_IN', 'UNKNOWN'];
+const EMAIL_MARKETING_STATE_ENUM_VALUES = [
+  'NOT_SUBSCRIBED',
+  'PENDING',
+  'SUBSCRIBED',
+  'UNSUBSCRIBED',
+  'REDACTED',
+  'INVALID',
+];
+const SMS_MARKETING_STATE_ENUM_VALUES = ['NOT_SUBSCRIBED', 'PENDING', 'SUBSCRIBED', 'UNSUBSCRIBED', 'REDACTED'];
+const CONSENT_INPUT_FIELDS = new Set(['marketingOptInLevel', 'marketingState', 'consentUpdatedAt', 'sourceLocationId']);
+
+function getRootFieldArgumentVariableName(field: FieldNode, argumentName: string): string | null {
+  const argument = field.arguments?.find((candidate) => candidate.name.value === argumentName);
+  return argument?.value.kind === Kind.VARIABLE ? argument.value.name.value : null;
+}
+
+function buildConsentInvalidVariableError(
+  document: string,
+  variableName: string,
+  variableType: string,
   input: Record<string, unknown>,
-  consentKey: string,
-  acceptedStates: string[],
-): CustomerMutationUserError[] {
-  const consent = readConsentPayload(input, consentKey);
-  const marketingState = consent['marketingState'];
-  if (typeof marketingState !== 'string' || !acceptedStates.includes(marketingState)) {
-    return [
-      {
-        field: ['input', consentKey, 'marketingState'],
-        message: 'Marketing state is invalid',
-        code: 'INVALID',
-      },
-    ];
+  path: Array<string | number>,
+  explanation: string,
+  options: { includeProblemMessage?: boolean } = {},
+): Record<string, unknown> {
+  const problem: Record<string, unknown> = { path, explanation };
+  if (options.includeProblemMessage === true) {
+    problem['message'] = explanation;
   }
 
-  return [];
+  return {
+    message: `Variable $${variableName} of type ${variableType} was provided invalid value for ${path.join('.')} (${explanation})`,
+    locations: getVariableDefinitionLocation(document, variableName),
+    extensions: {
+      code: 'INVALID_VARIABLE',
+      value: structuredClone(input),
+      problems: [problem],
+    },
+  };
+}
+
+function formatEnumValues(values: string[]): string {
+  return values.join(', ');
+}
+
+function validateConsentVariableInput(
+  document: string,
+  field: FieldNode,
+  input: Record<string, unknown>,
+  consentKey: 'emailMarketingConsent' | 'smsMarketingConsent',
+  variableType: 'CustomerEmailMarketingConsentUpdateInput!' | 'CustomerSmsMarketingConsentUpdateInput!',
+  marketingStateEnumValues: string[],
+): Record<string, unknown> | null {
+  const variableName = getRootFieldArgumentVariableName(field, 'input');
+  if (!variableName) {
+    return null;
+  }
+
+  const consentValue = input[consentKey];
+  if (!hasOwnField(input, consentKey) || consentValue === null || !isObject(consentValue)) {
+    return buildConsentInvalidVariableError(
+      document,
+      variableName,
+      variableType,
+      input,
+      [consentKey],
+      'Expected value to not be null',
+    );
+  }
+
+  for (const key of Object.keys(consentValue)) {
+    if (!CONSENT_INPUT_FIELDS.has(key)) {
+      return buildConsentInvalidVariableError(
+        document,
+        variableName,
+        variableType,
+        input,
+        [consentKey, key],
+        `Field is not defined on ${consentKey === 'emailMarketingConsent' ? 'CustomerEmailMarketingConsentInput' : 'CustomerSmsMarketingConsentInput'}`,
+      );
+    }
+  }
+
+  if (!hasOwnField(consentValue, 'marketingState') || consentValue['marketingState'] === null) {
+    return buildConsentInvalidVariableError(
+      document,
+      variableName,
+      variableType,
+      input,
+      [consentKey, 'marketingState'],
+      'Expected value to not be null',
+    );
+  }
+
+  const marketingState = consentValue['marketingState'];
+  if (typeof marketingState === 'string' && !marketingStateEnumValues.includes(marketingState)) {
+    return buildConsentInvalidVariableError(
+      document,
+      variableName,
+      variableType,
+      input,
+      [consentKey, 'marketingState'],
+      `Expected "${marketingState}" to be one of: ${formatEnumValues(marketingStateEnumValues)}`,
+    );
+  }
+
+  const marketingOptInLevel = consentValue['marketingOptInLevel'];
+  if (typeof marketingOptInLevel === 'string' && !MARKETING_OPT_IN_LEVELS.includes(marketingOptInLevel)) {
+    return buildConsentInvalidVariableError(
+      document,
+      variableName,
+      variableType,
+      input,
+      [consentKey, 'marketingOptInLevel'],
+      `Expected "${marketingOptInLevel}" to be one of: ${formatEnumValues(MARKETING_OPT_IN_LEVELS)}`,
+    );
+  }
+
+  const consentUpdatedAt = consentValue['consentUpdatedAt'];
+  if (
+    typeof consentUpdatedAt === 'string' &&
+    consentUpdatedAt.trim().length > 0 &&
+    Number.isNaN(Date.parse(consentUpdatedAt))
+  ) {
+    return buildConsentInvalidVariableError(
+      document,
+      variableName,
+      variableType,
+      input,
+      [consentKey, 'consentUpdatedAt'],
+      `invalid DateTime '${consentUpdatedAt}'`,
+      { includeProblemMessage: true },
+    );
+  }
+
+  return null;
+}
+
+function buildUnsupportedConsentMarketingStateError(field: FieldNode, marketingState: string): Record<string, unknown> {
+  return {
+    message: `Cannot specify ${marketingState} as a marketing state input`,
+    locations: getNodeLocation(field),
+    extensions: {
+      code: 'INVALID',
+    },
+    path: [field.name.value],
+  };
+}
+
+function buildConsentMarketingOptInLevelUserError(
+  consentKey: 'emailMarketingConsent' | 'smsMarketingConsent',
+): CustomerMutationUserError {
+  return {
+    field: ['input', consentKey, 'marketingOptInLevel'],
+    message: 'Marketing opt in level must be confirmed opt-in for pending consent state',
+    code: 'INVALID',
+  };
+}
+
+function buildConsentUpdatedAtFutureUserError(
+  consentKey: 'emailMarketingConsent' | 'smsMarketingConsent',
+): CustomerMutationUserError {
+  return {
+    field: ['input', consentKey, 'consentUpdatedAt'],
+    message: 'Consent updated at must not be in the future',
+    code: 'INVALID',
+  };
+}
+
+function isFutureConsentTimestamp(consent: Record<string, unknown>): boolean {
+  const value = consent['consentUpdatedAt'];
+  return typeof value === 'string' && value.trim().length > 0 && Date.parse(value) > Date.now();
+}
+
+function validateConsentResolverInput(
+  consent: Record<string, unknown>,
+  consentKey: 'emailMarketingConsent' | 'smsMarketingConsent',
+  resolvedMarketingOptInLevel: string | null,
+): CustomerMutationUserError[] {
+  const userErrors: CustomerMutationUserError[] = [];
+  if (consent['marketingState'] === 'PENDING' && resolvedMarketingOptInLevel !== 'CONFIRMED_OPT_IN') {
+    userErrors.push(buildConsentMarketingOptInLevelUserError(consentKey));
+  }
+  if (isFutureConsentTimestamp(consent)) {
+    userErrors.push(buildConsentUpdatedAtFutureUserError(consentKey));
+  }
+  return userErrors;
 }
 
 function buildEmailMarketingConsentUpdatedCustomer(
@@ -3032,6 +3227,18 @@ export function handleCustomerMutation(
 
     if (field.name.value === 'customerEmailMarketingConsentUpdate') {
       const input = readCustomerInput(args['input']);
+      const invalidVariableError = validateConsentVariableInput(
+        document,
+        field,
+        input,
+        'emailMarketingConsent',
+        'CustomerEmailMarketingConsentUpdateInput!',
+        EMAIL_MARKETING_STATE_ENUM_VALUES,
+      );
+      if (invalidVariableError) {
+        return { errors: [invalidVariableError] };
+      }
+
       const customerId = typeof input['customerId'] === 'string' ? input['customerId'] : null;
       const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
       if (!existingCustomer) {
@@ -3046,16 +3253,23 @@ export function handleCustomerMutation(
         continue;
       }
 
-      const userErrors = validateMarketingState(input, 'emailMarketingConsent', [
-        'NOT_SUBSCRIBED',
-        'PENDING',
-        'SUBSCRIBED',
-        'UNSUBSCRIBED',
-        'REDACTED',
-        'INVALID',
-      ]);
+      const consent = readConsentPayload(input, 'emailMarketingConsent');
+      const marketingState = consent['marketingState'];
+      if (marketingState === 'NOT_SUBSCRIBED' || marketingState === 'REDACTED' || marketingState === 'INVALID') {
+        data[key] = null;
+        errors.push(buildUnsupportedConsentMarketingStateError(field, marketingState));
+        continue;
+      }
+
+      const marketingOptInLevel =
+        typeof consent['marketingOptInLevel'] === 'string'
+          ? consent['marketingOptInLevel']
+          : (existingCustomer.emailMarketingConsent?.marketingOptInLevel ??
+            existingCustomer.defaultEmailAddress?.marketingOptInLevel ??
+            'SINGLE_OPT_IN');
+      const userErrors = validateConsentResolverInput(consent, 'emailMarketingConsent', marketingOptInLevel);
       if (userErrors.length > 0) {
-        data[key] = serializeCustomerMutationPayload(field, { customer: null, userErrors }, variables);
+        data[key] = serializeCustomerMutationPayload(field, { customer: existingCustomer, userErrors }, variables);
         continue;
       }
 
@@ -3066,6 +3280,18 @@ export function handleCustomerMutation(
 
     if (field.name.value === 'customerSmsMarketingConsentUpdate') {
       const input = readCustomerInput(args['input']);
+      const invalidVariableError = validateConsentVariableInput(
+        document,
+        field,
+        input,
+        'smsMarketingConsent',
+        'CustomerSmsMarketingConsentUpdateInput!',
+        SMS_MARKETING_STATE_ENUM_VALUES,
+      );
+      if (invalidVariableError) {
+        return { errors: [invalidVariableError] };
+      }
+
       const customerId = typeof input['customerId'] === 'string' ? input['customerId'] : null;
       const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
       if (!existingCustomer) {
@@ -3080,13 +3306,28 @@ export function handleCustomerMutation(
         continue;
       }
 
-      const userErrors = validateMarketingState(input, 'smsMarketingConsent', [
-        'NOT_SUBSCRIBED',
-        'PENDING',
-        'SUBSCRIBED',
-        'UNSUBSCRIBED',
-        'REDACTED',
-      ]);
+      const consent = readConsentPayload(input, 'smsMarketingConsent');
+      const marketingState = consent['marketingState'];
+      if (marketingState === 'NOT_SUBSCRIBED' || marketingState === 'REDACTED') {
+        data[key] = null;
+        errors.push(buildUnsupportedConsentMarketingStateError(field, marketingState));
+        continue;
+      }
+
+      const marketingOptInLevel =
+        typeof consent['marketingOptInLevel'] === 'string'
+          ? consent['marketingOptInLevel']
+          : (existingCustomer.smsMarketingConsent?.marketingOptInLevel ??
+            existingCustomer.defaultPhoneNumber?.marketingOptInLevel ??
+            'SINGLE_OPT_IN');
+      const userErrors = validateConsentResolverInput(consent, 'smsMarketingConsent', marketingOptInLevel);
+      if (!existingCustomer.defaultPhoneNumber?.phoneNumber) {
+        userErrors.push({
+          field: ['input', 'smsMarketingConsent'],
+          message: 'A phone number is required to set the SMS consent state.',
+          code: 'INVALID',
+        });
+      }
       if (userErrors.length > 0) {
         data[key] = serializeCustomerMutationPayload(field, { customer: null, userErrors }, variables);
         continue;
