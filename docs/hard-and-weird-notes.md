@@ -197,6 +197,13 @@ Current live findings on this host:
   - `draftOrderDuplicate` creates a new open, ready draft, allocates a new name/invoice URL/line-item IDs, copies customer/email/tags/custom attributes/addresses, but clears reserve inventory, shipping line, tax exemption, and discounts; totals recalculate from the undiscounted copied line items
   - `draftOrderDelete` returns the deleted draft ID and downstream `draftOrder(id:)` returns `null`
   - `draftOrderCreateFromOrder` can use an order produced by a setup `draftOrderComplete` flow and mirrors the duplicate-like clearing behavior for discounts/shipping while preserving the merchant-facing draft/order customer context
+- HAR-275 captured the `draftOrderInvoiceSend` safety slice on `harry-test-heelo.myshopify.com` / Admin GraphQL 2026-04 without sending a customer-visible invoice email:
+  - missing required variable still returns the normal GraphQL `INVALID_VARIABLE` path before resolver side effects
+  - omitted or inline-null `id` arguments fail at GraphQL validation before resolver side effects
+  - unknown and deleted draft IDs return `draftOrder: null` with `field: null`, `message: "Draft order not found"`
+  - an open draft with no recipient email returns the selected draft plus `field: null`, `message: "To can't be blank"`
+  - a completed draft with no recipient email returns the selected completed draft plus two userErrors: `"To can't be blank"` and `"Draft order Invoice can't be sent. This draft order is already paid."`
+  - this capture does not prove the success path should be emulated locally as delivered mail; local runtime must keep staging the raw mutation only and must not send email until explicit commit replay
 - easy schema/request traps from promoting those scenarios:
   - `DraftOrder.note` is not selectable on the current Admin GraphQL schema for these payloads, even though draft-order inputs can carry note-like data through local state
   - `DraftOrderInput.shippingLine` does not accept a `code` field; live updates accepted title and price fields, and Shopify returned `code: "custom"` on the resulting `shippingLine`
@@ -2144,11 +2151,12 @@ Captured evidence:
 
 Current local classification:
 
-- empty/no-data only: `addresses`, `addressesV2`, `companyContactProfiles`, `events`, `orders`, `lastOrder`, `paymentMethods`, `storeCreditAccounts`, and `subscriptionContracts`
+- empty/no-data only: `companyContactProfiles`, `events`, `orders`, `lastOrder`, `storeCreditAccounts`, and customer-level `subscriptionContracts`
 - customer-metafield local replay: singular `metafield(namespace:, key:)` and the `metafields` connection are backed by the customer-owned metafield model added for `customerUpdate`
 - hydrate-and-replay candidate: captured nested `addresses` / `addressesV2`, `orders` / `lastOrder`, `events`, and non-empty metafield shapes, but broad non-empty replay still requires normalized state for each sub-resource family
 - staged-overlay capable later: customer-owned addresses once their mutation roots are staged locally
-- deferred: store credit accounts, payment methods, subscription contracts, customer statistics, mergeability, and product subscriber status until captured fixture evidence settles access, empty-state, and non-empty shapes
+- seeded/local replay: `customerPaymentMethod(id:, showRevoked:)` and `Customer.paymentMethods(showRevoked:)` now serialize from normalized `customerPaymentMethods` state, including instrument union fragments, revoked filtering, and payment-method-owned `subscriptionContracts` links
+- deferred: store credit accounts, customer-level subscription contracts, customer statistics, mergeability, and product subscriber status until captured fixture evidence settles access, empty-state, and non-empty shapes
 
 Practical rule for the proxy:
 
@@ -2352,6 +2360,7 @@ Observed current-version surface:
 - the current store returned an empty `paymentCustomizations` connection, an empty `tenderTransactions` connection, an empty Shop Pay receipt connection, and the standard payment-terms template catalog
 - `shopifyPaymentsAccount` still returns field-level `ACCESS_DENIED`; Shopify requires `read_shopify_payments` or `read_shopify_payments_accounts`, and the refreshed app scopes only include dispute/payout sub-scopes
 - `customerPaymentMethod(id:)` still returns field-level `ACCESS_DENIED`; Shopify requires `read_customers` plus `read_customer_payment_methods`, and the refreshed app scopes still lack `read_customer_payment_methods`
+- local seeded-state reads are safe to model without vaulting because they only serialize already-captured or hand-seeded normalized state. Revoked payment methods must stay hidden from root and customer-owned lookups unless `showRevoked: true` is supplied.
 - HAR-220 re-ran the direct `shopifyPaymentsAccount` probe with the configured `harry-test-heelo.myshopify.com` 2025-01 credential on 2026-04-25. It still returned `shopifyPaymentsAccount: null` with `ACCESS_DENIED`, so the checked-in parity scenario compares only the null data branch while targeted runtime tests cover fixture-backed safe scalar and empty connection behavior.
 
 Capture prerequisites and safety constraints:
@@ -2366,7 +2375,10 @@ Capture prerequisites and safety constraints:
   - update/delete unknown `gid://shopify/PaymentCustomization/0` return `PAYMENT_CUSTOMIZATION_NOT_FOUND` under `['id']`; activation unknown ids return the same code under `['ids']` with an empty `ids` payload
   - activation with an empty `ids` list returns `ids: []` and no user errors
 - HAR-224 hardened the local runtime against the 2026-04 `PaymentCustomizationInput` docs: `functionHandle` is the current Function identifier, `functionId` remains deprecated but accepted for the captured parity branch, requests with both identifiers return `MULTIPLE_FUNCTION_IDENTIFIERS`, captured missing Function handles return `FUNCTION_NOT_FOUND`, malformed owner metafields return `INVALID_METAFIELDS`, and duplicate activation ids are handled idempotently
-- customer payment method reads remain blocked on `read_customer_payment_methods` even though `read_customers` is present; writes require `write_customers` plus `write_customer_payment_methods` and must use isolated test customers/payment methods because card sessions, duplication data, update URLs, revocation, and remote gateway identifiers are sensitive
+- customer payment method live captures remain blocked on `read_customer_payment_methods` even though `read_customers` is present; seeded-state reads are safe to model without vaulting because they only serialize already-captured or hand-seeded normalized state
+- customer payment method writes require `write_customers` plus `write_customer_payment_methods` and must use isolated test customers/payment methods because card sessions, duplication data, update URLs, revocation, and remote gateway identifiers are sensitive
+- customer payment method credit-card/PayPal create and update roots can eventually be staged locally only after isolated fixture evidence settles instrument payloads and read-after-write behavior. Remote create also needs polling/asynchronous status evidence through `customerPaymentMethod`. Duplication data and update URLs must be treated as sensitive ephemeral payment material. Revoke is destructive for recurring billing flows, and update-email is customer-visible mail, so both stay unsupported until a safe no-recipient or disposable-method plan exists.
+- Revoked payment methods must stay hidden from root and customer-owned lookups unless `showRevoked: true` is supplied. `customerPaymentMethodSendUpdateEmail` is locally buffered when the payment method exists in the local customer-payment graph; the runtime must not deliver customer email upstream outside explicit commit replay.
 - order payment captures and voids require order write scopes plus merchant permissions (`capture_payments_for_orders` for capture and cancel-order permission for void) and an isolated authorized transaction because successful paths capture or void real payment authorization
 - mandate payment requires `write_payment_mandate`, `pay_orders_by_vaulted_card` permission, mandate-backed schedule data, idempotency-key coverage, and Shopify Plus coverage for amount-specific branches
 - payment terms template reads are currently capture-ready; payment terms writes have `write_payment_terms` on the app manifest but still require order or draft-order access and an isolated order/payment schedule because they change due dates and payment status

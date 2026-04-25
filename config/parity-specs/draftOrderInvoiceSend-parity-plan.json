@@ -1,25 +1,16 @@
 {
-  "scenarioId": "draft-order-invoice-send-live-parity",
+  "scenarioId": "draft-order-invoice-send-safety",
   "operationNames": ["draftOrderInvoiceSend"],
-  "scenarioStatus": "planned",
+  "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "side-effect-safety"],
-  "liveCaptureFiles": [],
-  "proxyRequest": {
-    "documentPath": "config/parity-requests/draftOrderInvoiceSend-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/draftOrderInvoiceSend-parity-plan.variables.json"
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/draft-order-invoice-send-safety.json"
+  ],
+  "comparisonMode": "captured-fixture",
+  "runtimeTestFiles": ["tests/integration/draft-order-mutation-family-flow.test.ts"],
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
   },
-  "comparisonMode": "planned",
-  "blocker": {
-    "kind": "missing-live-draft-order-invoice-send-capture",
-    "blockerPath": null,
-    "details": {
-      "requiredScopes": ["write_draft_orders"],
-      "probeRoots": ["draftOrderInvoiceSend"],
-      "blockedMutations": ["draftOrderInvoiceSend"],
-      "requiredPermissions": ["manage-draft-orders"],
-      "docsUrl": "https://shopify.dev/docs/api/admin-graphql/latest/mutations/draftOrderInvoiceSend",
-      "failingMessage": "Safe validation capture was attempted on this host, but the stored Shopify conformance access token is invalid and refresh failed: This request requires an active refresh_token."
-    }
-  },
-  "notes": "Planned invoice-send parity and side-effect-safety scenario. Shopify sends an email for this root, so local runtime support intentionally does not send an invoice upstream or email a customer; it returns the staged draft plus an explicit local userError until a no-recipient/safe live fixture can settle exact behavior."
+  "notes": "Captured 2026-04 no-email safety evidence for missing/unknown draft IDs, deleted drafts, completed drafts, and no-recipient validation. Generic parity replay is intentionally fixture-backed through the draft-order mutation family runtime test because successful draftOrderInvoiceSend can send customer-visible email; local runtime never sends the mutation upstream and retains the original raw mutation for explicit commit replay."
 }
