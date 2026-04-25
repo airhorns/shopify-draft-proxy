@@ -509,8 +509,13 @@ Current live findings on this host:
   - `orderEditBegin` clones a staged/local order into a synthetic `CalculatedOrder` session with synthetic `CalculatedLineItem` ids for the current editable line set
   - `orderEditAddVariant` can append a variant-derived calculated line item using the effective local product/variant graph
   - `orderEditSetQuantity` can update quantities on those synthetic calculated line items
-  - `orderEditCommit` can apply the edited line set back onto the staged synthetic order and optionally store the provided `staffNote` on `order.note`
+  - `orderEditCommit` can apply the edited line set back onto the staged synthetic order
   - keep this slice explicitly narrow: it is not proof of live Shopify unknown-id/session parity, only a useful local staging behavior for synthetic/local orders in snapshot mode and live-hybrid
+- fresh 2026-04 `write_order_edits` capture for HAR-115 changed the local-runtime target:
+  - `orderEditBegin` returns both `calculatedOrder.id` and `orderEditSession.id`; the session id uses the same numeric suffix with the `OrderEditSession` GID type
+  - `orderEditCommit` returned `successMessages: ["Order updated"]`, and the captured `staffNote` did not overwrite `order.note`
+  - `orderEditSetQuantity(... quantity: 0, restock: true)` on an existing line did not remove the historical line node from `order.lineItems`; downstream `quantity` stayed at the historical value while `currentQuantity` became `0`
+  - duplicate `orderEditAddVariant` with `allowDuplicates: false` still returned an added calculated line item and no `userErrors` in the captured branch, so do not model that argument as a blanket duplicate rejection
 
 ## 9. The first fulfillment root on this host is _not_ blocked the same way as the rest of the fulfillment lifecycle
 

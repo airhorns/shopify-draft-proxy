@@ -459,6 +459,7 @@ function normalizeOrderLineItems(raw: unknown, currencyCode: string): OrderLineI
               ? product.title
               : (variant?.title ?? null),
         quantity: typeof lineItem['quantity'] === 'number' ? lineItem['quantity'] : 0,
+        currentQuantity: typeof lineItem['currentQuantity'] === 'number' ? lineItem['currentQuantity'] : undefined,
         sku: typeof lineItem['sku'] === 'string' ? lineItem['sku'] : (variant?.sku ?? null),
         variantId,
         variantTitle:
@@ -1050,6 +1051,8 @@ function cloneOrderLineItemsForCalculatedOrder(order: OrderRecord): OrderLineIte
   return order.lineItems.map((lineItem) => ({
     ...structuredClone(lineItem),
     id: makeSyntheticGid('CalculatedLineItem'),
+    originalLineItemId: lineItem.id,
+    isAdded: false,
   }));
 }
 
@@ -1231,8 +1234,11 @@ function buildCalculatedLineItemFromVariant(variantId: string, quantity: number)
   const currencyCode = 'CAD';
   return {
     id: makeSyntheticGid('CalculatedLineItem'),
+    originalLineItemId: null,
+    isAdded: true,
     title: product?.title ?? variant.title,
     quantity,
+    currentQuantity: quantity,
     sku: variant.sku,
     variantId,
     variantTitle: variant.title,
@@ -2666,6 +2672,14 @@ function serializeOrderLineItemNode(field: FieldNode, lineItem: OrderLineItemRec
       case 'quantity':
         result[key] = lineItem.quantity;
         break;
+      case 'currentQuantity':
+        result[key] = lineItem.currentQuantity ?? lineItem.quantity;
+        break;
+      case 'refundableQuantity':
+      case 'fulfillableQuantity':
+      case 'unfulfilledQuantity':
+        result[key] = Math.max(0, lineItem.currentQuantity ?? lineItem.quantity);
+        break;
       case 'sku':
         result[key] = lineItem.sku;
         break;
@@ -3679,7 +3693,37 @@ function serializeOrderNode(field: FieldNode, order: OrderRecord): Record<string
 }
 
 function serializeCalculatedOrder(field: FieldNode, calculatedOrder: CalculatedOrderRecord): Record<string, unknown> {
-  return serializeOrderNode(field, calculatedOrder);
+  const result: Record<string, unknown> = {};
+  const originalOrder = store.getOrderById(calculatedOrder.originalOrderId);
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'originalOrder':
+        result[key] = originalOrder ? serializeOrderNode(selection, originalOrder) : null;
+        break;
+      case 'addedLineItems':
+        result[key] = serializeOrderLineItemsConnection(
+          selection,
+          calculatedOrder.lineItems.filter((lineItem) => lineItem.isAdded === true),
+        );
+        break;
+      default:
+        result[key] = serializeOrderNode(
+          {
+            ...field,
+            selectionSet: {
+              kind: Kind.SELECTION_SET,
+              selections: [selection],
+            },
+          },
+          calculatedOrder,
+        )[key];
+        break;
+    }
+  }
+
+  return result;
 }
 
 function serializeOrderCount(field: FieldNode, count = 0): Record<string, unknown> {
@@ -4230,6 +4274,55 @@ function buildOrderEditSetQuantityMissingIdError(): Record<string, unknown> {
 
 function buildOrderEditCommitMissingIdError(): Record<string, unknown> {
   return buildOrderEditMissingIdError();
+}
+
+function serializeOrderEditSession(field: FieldNode, calculatedOrder: CalculatedOrderRecord): Record<string, unknown> {
+  const sessionId = calculatedOrder.id.replace('/CalculatedOrder/', '/OrderEditSession/');
+  return Object.fromEntries(
+    getSelectedChildFields(field).map((selection) => {
+      const key = getFieldResponseKey(selection);
+      switch (selection.name.value) {
+        case 'id':
+          return [key, sessionId];
+        default:
+          return [key, null];
+      }
+    }),
+  );
+}
+
+function buildOrderEditInvalidVariantUserErrors(): Array<{ field: string[]; message: string }> {
+  return [
+    {
+      field: ['variantId'],
+      message: "can't convert Integer[0] to a positive Integer to use as an untrusted id",
+    },
+  ];
+}
+
+function buildCommittedOrderLineItems(
+  originalOrder: OrderRecord,
+  calculatedOrder: CalculatedOrderRecord,
+): OrderLineItemRecord[] {
+  return calculatedOrder.lineItems.map((lineItem) => {
+    const originalLineItem = lineItem.originalLineItemId
+      ? (originalOrder.lineItems.find((candidate) => candidate.id === lineItem.originalLineItemId) ?? null)
+      : null;
+
+    if (lineItem.quantity === 0 && originalLineItem) {
+      return {
+        ...structuredClone(originalLineItem),
+        currentQuantity: 0,
+      };
+    }
+
+    return {
+      ...structuredClone(lineItem),
+      currentQuantity: lineItem.quantity,
+      isAdded: false,
+      originalLineItemId: lineItem.originalLineItemId ?? lineItem.id,
+    };
+  });
 }
 
 function buildOrderUpdateMissingInlineIdError(): Record<string, unknown> {
@@ -5250,6 +5343,9 @@ export function handleOrderMutation(
           case 'calculatedOrder':
             payload[selectionKey] = serializeCalculatedOrder(selection, calculatedOrder);
             break;
+          case 'orderEditSession':
+            payload[selectionKey] = serializeOrderEditSession(selection, calculatedOrder);
+            break;
           case 'userErrors':
             payload[selectionKey] = [];
             break;
@@ -5281,6 +5377,26 @@ export function handleOrderMutation(
 
       const calculatedLineItem = buildCalculatedLineItemFromVariant(variantId, quantity);
       if (!calculatedLineItem) {
+        handled = true;
+        const userErrors = buildOrderEditInvalidVariantUserErrors();
+        const payload: Record<string, unknown> = {};
+        for (const selection of getSelectedChildFields(field)) {
+          const selectionKey = getFieldResponseKey(selection);
+          switch (selection.name.value) {
+            case 'calculatedOrder':
+            case 'calculatedLineItem':
+            case 'orderEditSession':
+              payload[selectionKey] = null;
+              break;
+            case 'userErrors':
+              payload[selectionKey] = userErrors;
+              break;
+            default:
+              payload[selectionKey] = null;
+              break;
+          }
+        }
+        data[key] = payload;
         continue;
       }
 
@@ -5300,6 +5416,9 @@ export function handleOrderMutation(
             break;
           case 'calculatedLineItem':
             payload[selectionKey] = serializeOrderLineItemNode(selection, calculatedLineItem);
+            break;
+          case 'orderEditSession':
+            payload[selectionKey] = serializeOrderEditSession(selection, updatedCalculatedOrder);
             break;
           case 'userErrors':
             payload[selectionKey] = [];
@@ -5340,7 +5459,7 @@ export function handleOrderMutation(
         recalculateOrderTotals({
           ...calculatedOrder,
           lineItems: calculatedOrder.lineItems.map((lineItem) =>
-            lineItem.id === lineItemId ? { ...lineItem, quantity } : lineItem,
+            lineItem.id === lineItemId ? { ...lineItem, quantity, currentQuantity: quantity } : lineItem,
           ),
         }) as CalculatedOrderRecord,
       );
@@ -5355,6 +5474,9 @@ export function handleOrderMutation(
             break;
           case 'calculatedLineItem':
             payload[selectionKey] = serializeOrderLineItemNode(selection, updatedCalculatedLineItem);
+            break;
+          case 'orderEditSession':
+            payload[selectionKey] = serializeOrderEditSession(selection, updatedCalculatedOrder);
             break;
           case 'userErrors':
             payload[selectionKey] = [];
@@ -5384,13 +5506,12 @@ export function handleOrderMutation(
       }
 
       handled = true;
-      const staffNote = typeof variables['staffNote'] === 'string' ? variables['staffNote'] : calculatedOrder.note;
+      const originalOrder = store.getOrderById(calculatedOrder.originalOrderId)!;
       const committedOrder = store.updateOrder(
         recalculateOrderTotals({
-          ...store.getOrderById(calculatedOrder.originalOrderId)!,
+          ...originalOrder,
           updatedAt: makeSyntheticTimestamp(),
-          note: staffNote,
-          lineItems: structuredClone(calculatedOrder.lineItems),
+          lineItems: buildCommittedOrderLineItems(originalOrder, calculatedOrder),
         }),
       );
       store.discardCalculatedOrder(calculatedOrder.id);
@@ -5404,6 +5525,9 @@ export function handleOrderMutation(
             break;
           case 'userErrors':
             payload[selectionKey] = [];
+            break;
+          case 'successMessages':
+            payload[selectionKey] = ['Order updated'];
             break;
           default:
             payload[selectionKey] = null;

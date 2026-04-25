@@ -1,0 +1,33 @@
+mutation OrderEditExistingWorkflowCommit($id: ID!, $notifyCustomer: Boolean, $staffNote: String) {
+  orderEditCommit(id: $id, notifyCustomer: $notifyCustomer, staffNote: $staffNote) {
+    order {
+      id
+      name
+      updatedAt
+      note
+      lineItems(first: 10) {
+        nodes {
+          id
+          title
+          quantity
+          currentQuantity
+          sku
+          variant {
+            id
+          }
+          originalUnitPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+    }
+    successMessages
+    userErrors {
+      field
+      message
+    }
+  }
+}

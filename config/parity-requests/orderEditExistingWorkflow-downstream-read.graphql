@@ -1,0 +1,29 @@
+query OrderEditExistingWorkflowRead($id: ID!) {
+  order(id: $id) {
+    id
+    name
+    updatedAt
+    note
+    merchantEditable
+    merchantEditableErrors
+    currentSubtotalLineItemsQuantity
+    lineItems(first: 10) {
+      nodes {
+        id
+        title
+        quantity
+        currentQuantity
+        sku
+        variant {
+          id
+        }
+        originalUnitPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+  }
+}
