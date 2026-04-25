@@ -27,7 +27,7 @@ The serializer currently covers these selected definition fields:
 
 Catalog filters are intentionally limited to the fixture-backed product-owner slice: owner type, namespace, key, pinned status, constraint status/subtype, and search query terms for `id`, `namespace`, `key`, `owner_type`, and `type`. `sortKey: PINNED_POSITION` follows the captured Shopify ordering where higher pinned positions sort before lower pinned positions.
 
-Definition lifecycle mutations other than `standardMetafieldDefinitionEnable` remain unsupported and must not be registered as local staged capabilities until they are modeled and covered separately.
+Definition lifecycle mutations other than `standardMetafieldDefinitionEnable` and product-owner definition pinning remain unsupported and must not be registered as local staged capabilities until they are modeled and covered separately.
 
 ## Standard metafield definition enablement
 
@@ -47,3 +47,22 @@ HAR-257 captured safe no-side-effect validation behavior in `fixtures/conformanc
 - an unknown template ID returns `field: ["id"]`, `TEMPLATE_NOT_FOUND`
 - an unknown namespace/key selector returns `field: null`, `TEMPLATE_NOT_FOUND`
 - template ID `1` with incompatible owner type `CUSTOMER` returns the same invalid-template-ID branch
+
+## Metafield definition pinning
+
+The product-owner pinning slice supports local staging for existing normalized definition records:
+
+- `metafieldDefinitionPin(definitionId:)`
+- `metafieldDefinitionPin(identifier:)`
+- `metafieldDefinitionUnpin(definitionId:)`
+- `metafieldDefinitionUnpin(identifier:)`
+
+Captured 2025-01 live behavior shows pinning an unpinned product definition assigns the next owner-type pinned position after the highest existing product definition position. Pinned definition catalogs sorted with `sortKey: PINNED_POSITION` return higher pinned positions first. Unpinning clears the target definition's `pinnedPosition` and compacts any higher pinned positions down by one, so downstream `metafieldDefinition` detail reads plus `metafieldDefinitions(... pinnedStatus: PINNED|UNPINNED)` catalogs reflect the staged change.
+
+The local implementation intentionally covers pin/unpin for definitions already present in normalized snapshot or hydrated state. It does not create missing definitions, broaden definition lifecycle support, or model app-configuration-managed / unsupported-owner error branches yet. Create, update, and delete remain separate unsupported lifecycle gaps until their full local behavior and downstream read effects are modeled.
+
+Validation entry points:
+
+- `tests/integration/metafield-definition-query-shapes.test.ts`
+- `config/parity-specs/metafield-definition-pinning-parity.json`
+- `corepack pnpm conformance:capture-metafield-definition-pinning`

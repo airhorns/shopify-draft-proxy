@@ -489,4 +489,167 @@ describe('metafield definition query shapes', () => {
     expect(globalThis.fetch).not.toHaveBeenCalled();
     expect(store.listEffectiveMetafieldDefinitions()).toEqual([]);
   });
+
+  it('stages metafield definition pinning locally and updates downstream pinned reads', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('definition pinning must stay local'));
+    store.upsertBaseMetafieldDefinitions([
+      makeDefinition({
+        id: 'gid://shopify/MetafieldDefinition/10',
+        namespace: 'existing',
+        key: 'first',
+        pinnedPosition: 1,
+      }),
+      makeDefinition({
+        id: 'gid://shopify/MetafieldDefinition/11',
+        namespace: 'existing',
+        key: 'second',
+        pinnedPosition: 2,
+      }),
+      makeDefinition({
+        id: 'gid://shopify/MetafieldDefinition/300',
+        name: 'Fit',
+        namespace: 'custom',
+        key: 'fit',
+        pinnedPosition: null,
+      }),
+      makeDefinition({
+        id: 'gid://shopify/MetafieldDefinition/301',
+        name: 'Care',
+        namespace: 'custom',
+        key: 'care',
+        pinnedPosition: null,
+      }),
+    ]);
+    const app = createApp(config).callback();
+
+    const pinByIdentifierResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation PinByIdentifier($identifier: MetafieldDefinitionIdentifierInput!) {
+          metafieldDefinitionPin(identifier: $identifier) {
+            pinnedDefinition { id key pinnedPosition }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          identifier: {
+            ownerType: 'PRODUCT',
+            namespace: 'custom',
+            key: 'fit',
+          },
+        },
+      });
+
+    expect(pinByIdentifierResponse.status).toBe(200);
+    expect(pinByIdentifierResponse.body.data.metafieldDefinitionPin).toEqual({
+      pinnedDefinition: {
+        id: 'gid://shopify/MetafieldDefinition/300',
+        key: 'fit',
+        pinnedPosition: 3,
+      },
+      userErrors: [],
+    });
+
+    const pinByIdResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation PinById($definitionId: ID!) {
+          metafieldDefinitionPin(definitionId: $definitionId) {
+            pinnedDefinition { id key pinnedPosition }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          definitionId: 'gid://shopify/MetafieldDefinition/301',
+        },
+      });
+
+    expect(pinByIdResponse.status).toBe(200);
+    expect(pinByIdResponse.body.data.metafieldDefinitionPin.pinnedDefinition).toEqual({
+      id: 'gid://shopify/MetafieldDefinition/301',
+      key: 'care',
+      pinnedPosition: 4,
+    });
+
+    const afterPinsResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query {
+          pinned: metafieldDefinitions(ownerType: PRODUCT, first: 5, namespace: "custom", sortKey: PINNED_POSITION, pinnedStatus: PINNED) {
+            nodes { id key pinnedPosition }
+          }
+        }`,
+      });
+
+    expect(afterPinsResponse.body.data.pinned.nodes).toEqual([
+      {
+        id: 'gid://shopify/MetafieldDefinition/301',
+        key: 'care',
+        pinnedPosition: 4,
+      },
+      {
+        id: 'gid://shopify/MetafieldDefinition/300',
+        key: 'fit',
+        pinnedPosition: 3,
+      },
+    ]);
+
+    const unpinResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation UnpinByIdentifier($identifier: MetafieldDefinitionIdentifierInput!) {
+          metafieldDefinitionUnpin(identifier: $identifier) {
+            unpinnedDefinition { id key pinnedPosition }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          identifier: {
+            ownerType: 'PRODUCT',
+            namespace: 'custom',
+            key: 'fit',
+          },
+        },
+      });
+
+    expect(unpinResponse.status).toBe(200);
+    expect(unpinResponse.body.data.metafieldDefinitionUnpin).toEqual({
+      unpinnedDefinition: {
+        id: 'gid://shopify/MetafieldDefinition/300',
+        key: 'fit',
+        pinnedPosition: null,
+      },
+      userErrors: [],
+    });
+
+    const afterUnpinResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query {
+          pinned: metafieldDefinitions(ownerType: PRODUCT, first: 5, namespace: "custom", sortKey: PINNED_POSITION, pinnedStatus: PINNED) {
+            nodes { id key pinnedPosition }
+          }
+          unpinned: metafieldDefinitions(ownerType: PRODUCT, first: 5, namespace: "custom", sortKey: PINNED_POSITION, pinnedStatus: UNPINNED) {
+            nodes { id key pinnedPosition }
+          }
+        }`,
+      });
+
+    expect(afterUnpinResponse.body.data.pinned.nodes).toEqual([
+      {
+        id: 'gid://shopify/MetafieldDefinition/301',
+        key: 'care',
+        pinnedPosition: 3,
+      },
+    ]);
+    expect(afterUnpinResponse.body.data.unpinned.nodes).toEqual([
+      {
+        id: 'gid://shopify/MetafieldDefinition/300',
+        key: 'fit',
+        pinnedPosition: null,
+      },
+    ]);
+    expect(store.getLog()).toHaveLength(3);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
 });

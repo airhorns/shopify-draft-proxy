@@ -10,6 +10,7 @@ import { createUpstreamGraphQLClient } from '../shopify/upstream-client.js';
 import { getOperationCapability, type OperationCapability } from './capabilities.js';
 import { findOperationRegistryEntry } from './operation-registry.js';
 import { handleMediaMutation } from './media.js';
+import { handleMarketingQuery, hydrateMarketingFromUpstreamResponse } from './marketing.js';
 import { handleCustomerMutation, handleCustomerQuery, hydrateCustomersFromUpstreamResponse } from './customers.js';
 import { handleDiscountMutation, handleDiscountQuery } from './discounts.js';
 import { handleMarketMutation, handleMarketsQuery, hydrateMarketsFromUpstreamResponse } from './markets.js';
@@ -120,6 +121,47 @@ function interpretMutationLogEntry(
   };
 }
 
+function registeredOperationMetadata(
+  registryEntry: NonNullable<ReturnType<typeof findOperationRegistryEntry>>,
+): NonNullable<MutationLogInterpretedMetadata['registeredOperation']> {
+  return {
+    name: registryEntry.name,
+    domain: registryEntry.domain,
+    execution: registryEntry.execution,
+    implemented: registryEntry.implemented,
+    ...(registryEntry.supportNotes ? { supportNotes: registryEntry.supportNotes } : {}),
+  };
+}
+
+function buildLocalDiscountMutationLogMetadata(
+  parsed: ParsedOperation,
+  fallbackCapability: OperationCapability,
+): { operationName: string | null; interpreted: MutationLogInterpretedMetadata } {
+  const registryEntry = findOperationRegistryEntry(parsed.type, [...parsed.rootFields, parsed.name]);
+  if (!registryEntry || registryEntry.domain !== 'discounts') {
+    return {
+      operationName: fallbackCapability.operationName,
+      interpreted: interpretMutationLogEntry(parsed, fallbackCapability),
+    };
+  }
+
+  const operationName =
+    parsed.rootFields.find((rootField) => registryEntry.matchNames.includes(rootField)) ?? registryEntry.name;
+  const effectiveCapability: OperationCapability = {
+    type: parsed.type,
+    operationName,
+    domain: registryEntry.domain,
+    execution: registryEntry.execution,
+  };
+  const interpreted = interpretMutationLogEntry(parsed, effectiveCapability);
+
+  if (!registryEntry.implemented) {
+    interpreted.registeredOperation = registeredOperationMetadata(registryEntry);
+  }
+
+  return { operationName, interpreted };
+}
+
 function buildUnsupportedMutationObservability(parsed: ParsedOperation): Partial<MutationLogInterpretedMetadata> {
   const registryEntry = findOperationRegistryEntry(parsed.type, [...parsed.rootFields, parsed.name]);
   if (!registryEntry || registryEntry.implemented) {
@@ -127,13 +169,7 @@ function buildUnsupportedMutationObservability(parsed: ParsedOperation): Partial
   }
 
   const primaryRootField = parsed.rootFields[0] ?? registryEntry.name;
-  const registeredOperation = {
-    name: registryEntry.name,
-    domain: registryEntry.domain,
-    execution: registryEntry.execution,
-    implemented: registryEntry.implemented,
-    ...(registryEntry.supportNotes ? { supportNotes: registryEntry.supportNotes } : {}),
-  };
+  const registeredOperation = registeredOperationMetadata(registryEntry);
 
   if (APP_DISCOUNT_MUTATION_ROOTS.has(primaryRootField)) {
     return {
@@ -207,17 +243,18 @@ export function createProxyRouter(config: AppConfig): Router {
         );
 
         if (discountMutation.staged) {
+          const discountLogMetadata = buildLocalDiscountMutationLogMetadata(parsed, capability);
           store.appendLog({
             id: makeSyntheticGid('MutationLogEntry'),
             receivedAt: makeSyntheticTimestamp(),
-            operationName: capability.operationName,
+            operationName: discountLogMetadata.operationName,
             path: ctx.path,
             query: body.query,
             variables,
             requestBody,
             stagedResourceIds: discountMutation.stagedResourceIds,
             status: 'staged',
-            interpreted: interpretMutationLogEntry(parsed, capability),
+            interpreted: discountLogMetadata.interpreted,
             ...(discountMutation.notes ? { notes: discountMutation.notes } : {}),
           });
         }
@@ -490,6 +527,32 @@ export function createProxyRouter(config: AppConfig): Router {
         status: 'staged',
         interpreted: interpretMutationLogEntry(parsed, capability),
         notes: 'Staged locally in the in-memory segment draft store.',
+      });
+
+      ctx.status = 200;
+      ctx.body = responseBody;
+      return;
+    }
+
+    if (
+      capability.execution === 'stage-locally' &&
+      capability.domain === 'metafields' &&
+      (primaryRootField === 'metafieldDefinitionPin' || primaryRootField === 'metafieldDefinitionUnpin')
+    ) {
+      const responseBody = handleMetafieldDefinitionMutation(body.query, variables);
+
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: ctx.path,
+        query: body.query,
+        variables,
+        requestBody,
+        stagedResourceIds: collectProxySyntheticGids(responseBody),
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        notes: 'Staged locally in the in-memory metafield definition draft store.',
       });
 
       ctx.status = 200;
@@ -839,6 +902,35 @@ export function createProxyRouter(config: AppConfig): Router {
 
         ctx.status = response.status;
         ctx.body = store.hasStagedSegments() ? handleSegmentsQuery(body.query, variables) : upstreamBody;
+        return;
+      }
+    }
+
+    if (capability.execution === 'overlay-read' && capability.domain === 'marketing') {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleMarketingQuery(body.query, variables);
+        return;
+      }
+
+      if (config.readMode === 'live-hybrid') {
+        const response = await upstream.request({
+          path: ctx.path,
+          headers: {
+            'content-type': 'application/json',
+            'x-shopify-access-token': ctx.get('x-shopify-access-token'),
+          },
+          body: {
+            query: body.query,
+            variables,
+          },
+        });
+
+        const upstreamBody = await response.json();
+        hydrateMarketingFromUpstreamResponse(body.query, variables, upstreamBody);
+
+        ctx.status = response.status;
+        ctx.body = upstreamBody;
         return;
       }
     }

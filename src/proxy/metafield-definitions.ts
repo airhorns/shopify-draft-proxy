@@ -350,9 +350,9 @@ function sortDefinitions(
       case 'NAME':
         return left.name.localeCompare(right.name) || compareShopifyResourceIds(left.id, right.id);
       case 'PINNED_POSITION': {
-        const leftPosition = left.pinnedPosition ?? Number.POSITIVE_INFINITY;
-        const rightPosition = right.pinnedPosition ?? Number.POSITIVE_INFINITY;
-        return rightPosition - leftPosition || compareShopifyResourceIds(left.id, right.id);
+        const leftPosition = left.pinnedPosition ?? Number.NEGATIVE_INFINITY;
+        const rightPosition = right.pinnedPosition ?? Number.NEGATIVE_INFINITY;
+        return rightPosition - leftPosition || compareShopifyResourceIds(right.id, left.id);
       }
       case 'RELEVANCE':
       case 'ID':
@@ -795,6 +795,180 @@ function readDefinitionIdentifier(
   return { ownerType, namespace, key };
 }
 
+function getDefinitionReferenceField(args: Record<string, unknown>): string[] {
+  if (typeof args['definitionId'] === 'string') {
+    return ['definitionId'];
+  }
+
+  return ['identifier'];
+}
+
+function findDefinitionFromMutationArgs(args: Record<string, unknown>): MetafieldDefinitionRecord | null {
+  const definitionId = readString(args['definitionId']);
+  if (definitionId) {
+    return store.getEffectiveMetafieldDefinitionById(definitionId);
+  }
+
+  const identifier = readDefinitionIdentifier(args);
+  return identifier ? store.findEffectiveMetafieldDefinition(identifier) : null;
+}
+
+function serializeUserError(
+  selections: readonly SelectionNode[],
+  error: { field: string[]; message: string; code: string },
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'field':
+        result[key] = error.field;
+        break;
+      case 'message':
+        result[key] = error.message;
+        break;
+      case 'code':
+        result[key] = error.code;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+
+  return result;
+}
+
+function listPinnedDefinitions(ownerType: string): MetafieldDefinitionRecord[] {
+  return store
+    .listEffectiveMetafieldDefinitions()
+    .filter((definition) => definition.ownerType === ownerType && definition.pinnedPosition !== null);
+}
+
+function updatePinnedDefinitions(definitions: MetafieldDefinitionRecord[]): void {
+  if (definitions.length > 0) {
+    store.upsertStagedMetafieldDefinitions(definitions);
+  }
+}
+
+function pinDefinition(definition: MetafieldDefinitionRecord): MetafieldDefinitionRecord {
+  if (definition.pinnedPosition !== null) {
+    return definition;
+  }
+
+  const highestPinnedPosition = listPinnedDefinitions(definition.ownerType).reduce(
+    (highest, candidate) => Math.max(highest, candidate.pinnedPosition ?? 0),
+    0,
+  );
+  const pinnedDefinition = {
+    ...definition,
+    pinnedPosition: highestPinnedPosition + 1,
+  };
+  store.upsertStagedMetafieldDefinitions([pinnedDefinition]);
+
+  return pinnedDefinition;
+}
+
+function unpinDefinition(definition: MetafieldDefinitionRecord): MetafieldDefinitionRecord {
+  if (definition.pinnedPosition === null) {
+    return definition;
+  }
+
+  const removedPosition = definition.pinnedPosition;
+  const unpinnedDefinition = {
+    ...definition,
+    pinnedPosition: null,
+  };
+  const compactedDefinitions = listPinnedDefinitions(definition.ownerType)
+    .filter((candidate) => candidate.id !== definition.id && (candidate.pinnedPosition ?? 0) > removedPosition)
+    .map((candidate) => ({
+      ...candidate,
+      pinnedPosition: (candidate.pinnedPosition ?? 1) - 1,
+    }));
+
+  updatePinnedDefinitions([unpinnedDefinition, ...compactedDefinitions]);
+
+  return unpinnedDefinition;
+}
+
+function serializePinningPayload(
+  payloadFieldName: 'pinnedDefinition' | 'unpinnedDefinition',
+  definition: MetafieldDefinitionRecord | null,
+  userErrors: Array<{ field: string[]; message: string; code: string }>,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case payloadFieldName:
+        result[key] = definition
+          ? serializeDefinitionSelectionSet(definition, selection.selectionSet?.selections ?? [], variables)
+          : null;
+        break;
+      case 'userErrors':
+        result[key] = userErrors.map((error) => serializeUserError(selection.selectionSet?.selections ?? [], error));
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+
+  return result;
+}
+
+function serializeDefinitionPinRoot(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const definition = findDefinitionFromMutationArgs(args);
+  if (!definition) {
+    return serializePinningPayload(
+      'pinnedDefinition',
+      null,
+      [
+        {
+          field: getDefinitionReferenceField(args),
+          message: 'Definition not found.',
+          code: 'NOT_FOUND',
+        },
+      ],
+      field,
+      variables,
+    );
+  }
+
+  return serializePinningPayload('pinnedDefinition', pinDefinition(definition), [], field, variables);
+}
+
+function serializeDefinitionUnpinRoot(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const definition = findDefinitionFromMutationArgs(args);
+  if (!definition) {
+    return serializePinningPayload(
+      'unpinnedDefinition',
+      null,
+      [
+        {
+          field: getDefinitionReferenceField(args),
+          message: 'Definition not found.',
+          code: 'NOT_FOUND',
+        },
+      ],
+      field,
+      variables,
+    );
+  }
+
+  return serializePinningPayload('unpinnedDefinition', unpinDefinition(definition), [], field, variables);
+}
+
 function serializeMetafieldDefinitionRoot(
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -916,6 +1090,12 @@ export function handleMetafieldDefinitionMutation(
     switch (field.name.value) {
       case 'standardMetafieldDefinitionEnable':
         data[responseKey] = serializeStandardMetafieldDefinitionEnableMutation(field, variables);
+        break;
+      case 'metafieldDefinitionPin':
+        data[responseKey] = serializeDefinitionPinRoot(field, variables);
+        break;
+      case 'metafieldDefinitionUnpin':
+        data[responseKey] = serializeDefinitionUnpinRoot(field, variables);
         break;
       default:
         data[responseKey] = null;

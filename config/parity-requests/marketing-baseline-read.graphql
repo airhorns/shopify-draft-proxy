@@ -1,0 +1,155 @@
+query MarketingBaselineRead(
+  $activityId: ID!
+  $eventId: ID!
+  $first: Int!
+  $activityQuery: String!
+  $eventQuery: String!
+) {
+  marketingActivities(first: $first, sortKey: CREATED_AT, reverse: true) {
+    nodes {
+      id
+      title
+      createdAt
+      updatedAt
+      status
+      statusLabel
+      tactic
+      marketingChannelType
+      sourceAndMedium
+      isExternal
+      inMainWorkflowVersion
+      app {
+        id
+        title
+      }
+      marketingEvent {
+        id
+        type
+        remoteId
+        startedAt
+        endedAt
+        scheduledToEndAt
+        manageUrl
+        previewUrl
+        utmCampaign
+        utmMedium
+        utmSource
+        description
+        marketingChannelType
+        sourceAndMedium
+      }
+    }
+    edges {
+      cursor
+      node {
+        id
+        title
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  marketingActivitiesEmpty: marketingActivities(first: $first, query: $activityQuery, sortKey: TITLE) {
+    nodes {
+      id
+      title
+    }
+    edges {
+      cursor
+      node {
+        id
+        title
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  marketingActivity(id: $activityId) {
+    id
+    title
+    createdAt
+    updatedAt
+    status
+    statusLabel
+    tactic
+    marketingChannelType
+    sourceAndMedium
+    isExternal
+    inMainWorkflowVersion
+  }
+  marketingEvents(first: $first, sortKey: ID, reverse: true) {
+    nodes {
+      id
+      type
+      remoteId
+      startedAt
+      endedAt
+      scheduledToEndAt
+      manageUrl
+      previewUrl
+      utmCampaign
+      utmMedium
+      utmSource
+      description
+      marketingChannelType
+      sourceAndMedium
+    }
+    edges {
+      cursor
+      node {
+        id
+        type
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  marketingEventsEmpty: marketingEvents(first: $first, query: $eventQuery, sortKey: ID) {
+    nodes {
+      id
+      type
+      description
+    }
+    edges {
+      cursor
+      node {
+        id
+        type
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  marketingEvent(id: $eventId) {
+    id
+    type
+    remoteId
+    startedAt
+    endedAt
+    scheduledToEndAt
+    manageUrl
+    previewUrl
+    utmCampaign
+    utmMedium
+    utmSource
+    description
+    marketingChannelType
+    sourceAndMedium
+  }
+}

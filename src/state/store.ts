@@ -10,12 +10,14 @@ import type {
   CustomerPaymentMethodRecord,
   CustomerRecord,
   DiscountRecord,
+  DiscountBulkOperationRecord,
   DraftOrderRecord,
   FileRecord,
   FulfillmentServiceRecord,
   LocationRecord,
   MarketLocalizationRecord,
   MarketRecord,
+  MarketingRecord,
   MetafieldDefinitionRecord,
   MutationLogEntry,
   NormalizedStateSnapshotFile,
@@ -65,7 +67,12 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   customerAddresses: {},
   customerPaymentMethods: {},
   segments: {},
+  marketingActivities: {},
+  marketingActivityOrder: [],
+  marketingEvents: {},
+  marketingEventOrder: [],
   discounts: {},
+  discountBulkOperations: {},
   paymentCustomizations: {},
   paymentCustomizationOrder: [],
   businessEntities: {},
@@ -499,6 +506,87 @@ export class InMemoryStore {
         (left, right) =>
           (left.creationDate ?? '').localeCompare(right.creationDate ?? '') || left.id.localeCompare(right.id),
       );
+  }
+
+  private upsertBaseMarketingRecords(
+    bucket: Record<string, MarketingRecord>,
+    order: string[],
+    records: Array<MarketingRecord | { data: unknown; cursor?: string | null } | unknown>,
+  ): void {
+    for (const candidate of records) {
+      if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+        continue;
+      }
+
+      const entry = candidate as Record<string, unknown>;
+      const rawData = 'data' in entry ? entry['data'] : candidate;
+      if (!rawData || typeof rawData !== 'object' || Array.isArray(rawData)) {
+        continue;
+      }
+
+      const data = rawData as Record<string, unknown>;
+      const id = data['id'];
+      if (typeof id !== 'string' || id.length === 0) {
+        continue;
+      }
+
+      const previous = bucket[id];
+      const rawCursor = 'cursor' in entry ? entry['cursor'] : null;
+      const cursor = typeof rawCursor === 'string' && rawCursor.length > 0 ? rawCursor : (previous?.cursor ?? null);
+      bucket[id] = {
+        id,
+        cursor,
+        data: previous
+          ? ({ ...structuredClone(previous.data), ...structuredClone(data) } as MarketingRecord['data'])
+          : (structuredClone(data) as MarketingRecord['data']),
+      };
+
+      if (!order.includes(id)) {
+        order.push(id);
+      }
+    }
+  }
+
+  upsertBaseMarketingActivities(
+    records: Array<MarketingRecord | { data: unknown; cursor?: string | null } | unknown>,
+  ): void {
+    this.upsertBaseMarketingRecords(this.baseState.marketingActivities, this.baseState.marketingActivityOrder, records);
+  }
+
+  upsertBaseMarketingEvents(
+    records: Array<MarketingRecord | { data: unknown; cursor?: string | null } | unknown>,
+  ): void {
+    this.upsertBaseMarketingRecords(this.baseState.marketingEvents, this.baseState.marketingEventOrder, records);
+  }
+
+  getBaseMarketingActivityById(activityId: string): unknown | null {
+    const activity = this.baseState.marketingActivities[activityId];
+    return activity === undefined ? null : structuredClone(activity.data);
+  }
+
+  getBaseMarketingEventById(eventId: string): unknown | null {
+    const event = this.baseState.marketingEvents[eventId];
+    return event === undefined ? null : structuredClone(event.data);
+  }
+
+  listBaseMarketingActivities(): MarketingRecord[] {
+    return this.listBaseMarketingRecords(this.baseState.marketingActivities, this.baseState.marketingActivityOrder);
+  }
+
+  listBaseMarketingEvents(): MarketingRecord[] {
+    return this.listBaseMarketingRecords(this.baseState.marketingEvents, this.baseState.marketingEventOrder);
+  }
+
+  private listBaseMarketingRecords(bucket: Record<string, MarketingRecord>, order: string[]): MarketingRecord[] {
+    const orderedIds = new Set(order);
+    const orderedRecords = order
+      .map((id) => bucket[id] ?? null)
+      .filter((record): record is MarketingRecord => record !== null);
+    const unorderedRecords = Object.values(bucket)
+      .filter((record) => !orderedIds.has(record.id))
+      .sort((left, right) => left.id.localeCompare(right.id));
+
+    return structuredClone([...orderedRecords, ...unorderedRecords]);
   }
 
   stageCreateSegment(segment: SegmentRecord): SegmentRecord {
@@ -1271,6 +1359,11 @@ export class InMemoryStore {
     delete this.stagedState.deletedDiscountIds[discount.id];
     this.stagedState.discounts[discount.id] = structuredClone(discount);
     return structuredClone(discount);
+  }
+
+  stageDiscountBulkOperation(operation: DiscountBulkOperationRecord): DiscountBulkOperationRecord {
+    this.stagedState.discountBulkOperations[operation.id] = structuredClone(operation);
+    return structuredClone(operation);
   }
 
   stageDeleteDiscount(discountId: string): void {

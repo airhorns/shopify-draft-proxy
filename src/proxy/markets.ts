@@ -1,12 +1,18 @@
-import { Kind, parse, type FieldNode, type FragmentDefinitionNode, type SelectionNode } from 'graphql';
+import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import { parseSearchQuery, type SearchQueryNode, type SearchQueryTerm } from '../search-query-parser.js';
 import {
+  defaultGraphqlTypeConditionApplies,
+  getDocumentFragments,
   getFieldResponseKey,
   getSelectedChildFields,
+  isPlainObject,
   paginateConnectionItems,
+  projectGraphqlValue,
+  readGraphqlDataResponsePayload,
   serializeConnection,
+  type FragmentMap,
 } from './graphql-helpers.js';
 import { store } from '../state/store.js';
 import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
@@ -20,19 +26,10 @@ import type {
   WebPresenceRecord,
 } from '../state/types.js';
 
-function responseKey(selection: FieldNode): string {
-  return selection.alias?.value ?? selection.name.value;
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 function hasOwnProperty(value: object, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(value, key);
 }
 
-type FragmentMap = Map<string, FragmentDefinitionNode>;
 type MarketUserError = {
   field: string[];
   message: string;
@@ -144,123 +141,86 @@ function connectionFromNodes(nodes: unknown[]): Record<string, unknown> {
   };
 }
 
-function shouldApplyTypeCondition(source: Record<string, unknown>, typeCondition: string | undefined): boolean {
-  if (!typeCondition) {
-    return true;
-  }
-
+function marketTypeConditionApplies(source: Record<string, unknown>, typeCondition: string | undefined): boolean {
   const sourceTypename = typeof source['__typename'] === 'string' ? source['__typename'] : null;
   return (
-    !sourceTypename ||
-    sourceTypename === typeCondition ||
+    defaultGraphqlTypeConditionApplies(source, typeCondition) ||
     (typeCondition === 'Catalog' && sourceTypename === 'MarketCatalog')
   );
 }
 
-function projectValue(
+function projectMarketValue(
   value: unknown,
   selections: readonly SelectionNode[],
   fragments: FragmentMap,
   variables: Record<string, unknown>,
 ): unknown {
-  if (Array.isArray(value)) {
-    return value.map((item) => projectValue(item, selections, fragments, variables));
-  }
-
-  if (!isPlainObject(value)) {
-    return value ?? null;
-  }
-
-  return projectObject(value, selections, fragments, variables);
-}
-
-function projectObject(
-  source: Record<string, unknown>,
-  selections: readonly SelectionNode[],
-  fragments: FragmentMap,
-  variables: Record<string, unknown>,
-): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-
-  for (const selection of selections) {
-    if (selection.kind === Kind.INLINE_FRAGMENT) {
-      const typeCondition = selection.typeCondition?.name.value;
-      if (!shouldApplyTypeCondition(source, typeCondition)) {
-        continue;
+  return projectGraphqlValue(value, selections, fragments, {
+    shouldApplyTypeCondition: marketTypeConditionApplies,
+    projectFieldValue: ({ source, field, fieldName }) => {
+      if (
+        fieldName === 'catalogs' &&
+        typeof source['id'] === 'string' &&
+        source['id'].startsWith('gid://shopify/Market/')
+      ) {
+        return {
+          handled: true,
+          value: projectConnectionPayload(
+            catalogConnectionForMarket(source['id'], source['catalogs']),
+            field,
+            fragments,
+            variables,
+          ),
+        };
       }
-      Object.assign(result, projectObject(source, selection.selectionSet.selections, fragments, variables));
-      continue;
-    }
 
-    if (selection.kind === Kind.FRAGMENT_SPREAD) {
-      const fragment = fragments.get(selection.name.value);
-      if (!fragment || !shouldApplyTypeCondition(source, fragment.typeCondition.name.value)) {
-        continue;
+      if (source['__typename'] === 'MarketCatalog') {
+        if (fieldName === 'marketsCount') {
+          return {
+            handled: true,
+            value: serializeCountSelection(field, readConnectionEdges(source['markets']).length),
+          };
+        }
+        if (fieldName === 'operations') {
+          return {
+            handled: true,
+            value: projectMarketValue(
+              source['operations'] ?? [],
+              field.selectionSet?.selections ?? [],
+              fragments,
+              variables,
+            ),
+          };
+        }
       }
-      Object.assign(result, projectObject(source, fragment.selectionSet.selections, fragments, variables));
-      continue;
-    }
 
-    if (selection.kind !== Kind.FIELD) {
-      continue;
-    }
-
-    const fieldName = selection.name.value;
-    const key = responseKey(selection);
-    if (fieldName === '__typename') {
-      result[key] = source['__typename'] ?? null;
-      continue;
-    }
-
-    if (
-      fieldName === 'catalogs' &&
-      typeof source['id'] === 'string' &&
-      source['id'].startsWith('gid://shopify/Market/')
-    ) {
-      result[key] = projectConnectionPayload(
-        catalogConnectionForMarket(source['id'], source['catalogs']),
-        selection,
-        fragments,
-        variables,
-      );
-      continue;
-    }
-
-    if (source['__typename'] === 'MarketCatalog') {
-      if (fieldName === 'marketsCount') {
-        result[key] = serializeCountSelection(selection, readConnectionEdges(source['markets']).length);
-        continue;
+      if (source['__typename'] === 'PriceList') {
+        if (fieldName === 'prices') {
+          return {
+            handled: true,
+            value: projectPriceListPricesConnection(source['prices'], field, fragments, variables),
+          };
+        }
+        if (fieldName === 'quantityRules') {
+          const quantityRules = isPlainObject(source['quantityRules']) ? source['quantityRules'] : emptyConnection();
+          return {
+            handled: true,
+            value: projectConnectionPayload(quantityRules, field, fragments, variables),
+          };
+        }
       }
-      if (fieldName === 'operations') {
-        result[key] = projectValue(
-          source['operations'] ?? [],
-          selection.selectionSet?.selections ?? [],
-          fragments,
-          variables,
-        );
-        continue;
-      }
-    }
 
-    if (source['__typename'] === 'PriceList') {
-      if (fieldName === 'prices') {
-        result[key] = projectPriceListPricesConnection(source['prices'], selection, fragments, variables);
-        continue;
+      const value = source[fieldName];
+      if (isPlainObject(value) && Array.isArray(value['edges'])) {
+        return {
+          handled: true,
+          value: projectConnectionPayload(value, field, fragments, variables),
+        };
       }
-      if (fieldName === 'quantityRules') {
-        const quantityRules = isPlainObject(source['quantityRules']) ? source['quantityRules'] : emptyConnection();
-        result[key] = projectConnectionPayload(quantityRules, selection, fragments, variables);
-        continue;
-      }
-    }
 
-    const value = source[fieldName];
-    result[key] = selection.selectionSet
-      ? projectSelectedFieldValue(value, selection, fragments, variables)
-      : (value ?? null);
-  }
-
-  return result;
+      return { handled: false };
+    },
+  });
 }
 
 function priceListPriceNodeMatchesQuery(node: unknown, rawQuery: unknown): boolean {
@@ -388,13 +348,13 @@ function projectConnectionPayload(
     hasPreviousPage: window.hasPreviousPage,
     getCursorValue: (edge) => edge.cursor,
     serializeNode: (edge, nodeSelection) =>
-      projectValue(edge.node, nodeSelection.selectionSet?.selections ?? [], fragments, variables),
+      projectMarketValue(edge.node, nodeSelection.selectionSet?.selections ?? [], fragments, variables),
     pageInfoOptions: {
       prefixCursors: false,
     },
     serializePageInfo: (pageInfoSelection) =>
       preservesCapturedPageInfo
-        ? (projectValue(
+        ? (projectMarketValue(
             value['pageInfo'],
             pageInfoSelection.selectionSet?.selections ?? [],
             fragments,
@@ -403,28 +363,6 @@ function projectConnectionPayload(
         : undefined,
     serializeUnknownField: (childSelection) => value[childSelection.name.value] ?? null,
   });
-}
-
-function projectSelectedFieldValue(
-  value: unknown,
-  selection: FieldNode,
-  fragments: FragmentMap,
-  variables: Record<string, unknown>,
-): unknown {
-  if (isPlainObject(value) && Array.isArray(value['edges'])) {
-    return projectConnectionPayload(value, selection, fragments, variables);
-  }
-
-  return projectValue(value, selection.selectionSet?.selections ?? [], fragments, variables);
-}
-
-function getFragments(document: string): FragmentMap {
-  const ast = parse(document);
-  return new Map(
-    ast.definitions
-      .filter((definition): definition is FragmentDefinitionNode => definition.kind === Kind.FRAGMENT_DEFINITION)
-      .map((definition) => [definition.name.value, definition]),
-  );
 }
 
 type MarketHydrationEntry = {
@@ -619,19 +557,6 @@ function collectPriceListNodes(
   return priceLists;
 }
 
-function readRootPayload(upstreamPayload: unknown, rootField: string): unknown {
-  if (!isPlainObject(upstreamPayload)) {
-    return null;
-  }
-
-  const data = upstreamPayload['data'];
-  if (!isPlainObject(data)) {
-    return null;
-  }
-
-  return data[rootField] ?? null;
-}
-
 export function hydrateMarketsFromUpstreamResponse(
   _document: string,
   _variables: Record<string, unknown>,
@@ -651,7 +576,7 @@ export function hydrateMarketsFromUpstreamResponse(
     'marketLocalizableResources',
     'marketLocalizableResourcesByIds',
   ]) {
-    const rootPayload = readRootPayload(upstreamPayload, rootField);
+    const rootPayload = readGraphqlDataResponsePayload(upstreamPayload, rootField);
     if (rootPayload === null) {
       continue;
     }
@@ -1036,7 +961,7 @@ function serializeCatalogsConnection(
     hasPreviousPage: window.hasPreviousPage,
     getCursorValue: catalogCursor,
     serializeNode: (catalog, selection) =>
-      projectValue(catalog.data, selection.selectionSet?.selections ?? [], fragments, variables),
+      projectMarketValue(catalog.data, selection.selectionSet?.selections ?? [], fragments, variables),
     pageInfoOptions: {
       prefixCursors: false,
     },
@@ -1089,7 +1014,7 @@ function serializePriceListsConnection(
     hasPreviousPage: window.hasPreviousPage,
     getCursorValue: priceListCursor,
     serializeNode: (priceList, selection) =>
-      projectValue(priceList.data, selection.selectionSet?.selections ?? [], fragments, variables),
+      projectMarketValue(priceList.data, selection.selectionSet?.selections ?? [], fragments, variables),
     pageInfoOptions: {
       prefixCursors: false,
     },
@@ -1148,7 +1073,7 @@ function serializeMarketLocalizationMarket(
   variables: Record<string, unknown>,
 ): unknown {
   const market = store.getEffectiveMarketById(marketId);
-  return projectValue(market, selections, fragments, variables);
+  return projectMarketValue(market, selections, fragments, variables);
 }
 
 function serializeMarketLocalization(
@@ -1163,7 +1088,7 @@ function serializeMarketLocalization(
       continue;
     }
 
-    const key = responseKey(selection);
+    const key = getFieldResponseKey(selection);
     switch (selection.name.value) {
       case 'key':
         result[key] = localization.key;
@@ -1203,7 +1128,7 @@ function serializeMarketLocalizableContent(
         continue;
       }
 
-      const key = responseKey(selection);
+      const key = getFieldResponseKey(selection);
       switch (selection.name.value) {
         case 'key':
           result[key] = content.key;
@@ -1238,7 +1163,7 @@ function serializeMarketLocalizableResource(
       continue;
     }
 
-    const key = responseKey(selection);
+    const key = getFieldResponseKey(selection);
     switch (selection.name.value) {
       case 'resourceId':
         result[key] = resource.resourceId;
@@ -2102,7 +2027,9 @@ function projectMutationPayload(
   fragments: FragmentMap,
   variables: Record<string, unknown>,
 ): unknown {
-  return field.selectionSet ? projectValue(payload, field.selectionSet.selections, fragments, variables) : payload;
+  return field.selectionSet
+    ? projectMarketValue(payload, field.selectionSet.selections, fragments, variables)
+    : payload;
 }
 
 function handleMarketCreate(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
@@ -2676,7 +2603,7 @@ function projectMarketLocalizationMutationPayload(
           : null;
         break;
       case 'userErrors':
-        result[key] = projectValue(
+        result[key] = projectMarketValue(
           payload['userErrors'],
           selection.selectionSet?.selections ?? [],
           fragments,
@@ -2853,7 +2780,7 @@ function serializeMarketsConnection(
     hasPreviousPage: window.hasPreviousPage,
     getCursorValue: marketCursor,
     serializeNode: (market, selection) =>
-      projectValue(market.data, selection.selectionSet?.selections ?? [], fragments, variables),
+      projectMarketValue(market.data, selection.selectionSet?.selections ?? [], fragments, variables),
     pageInfoOptions: {
       prefixCursors: false,
     },
@@ -2879,7 +2806,7 @@ function serializeWebPresencesConnection(
     hasPreviousPage: window.hasPreviousPage,
     getCursorValue: webPresenceCursor,
     serializeNode: (webPresence, selection) =>
-      projectValue(webPresence.data, selection.selectionSet?.selections ?? [], fragments, variables),
+      projectMarketValue(webPresence.data, selection.selectionSet?.selections ?? [], fragments, variables),
     pageInfoOptions: {
       prefixCursors: false,
     },
@@ -2975,10 +2902,10 @@ function rootPayloadForField(field: FieldNode, variables: Record<string, unknown
 
 export function handleMarketsQuery(document: string, variables: Record<string, unknown>): Record<string, unknown> {
   const data: Record<string, unknown> = {};
-  const fragments = getFragments(document);
+  const fragments = getDocumentFragments(document);
 
   for (const field of getRootFields(document)) {
-    const key = responseKey(field);
+    const key = getFieldResponseKey(field);
     const rootPayload = rootPayloadForField(field, variables, fragments);
     data[key] =
       field.name.value === 'markets' ||
@@ -2991,7 +2918,7 @@ export function handleMarketsQuery(document: string, variables: Record<string, u
       field.name.value === 'webPresences'
         ? rootPayload
         : field.selectionSet
-          ? projectValue(rootPayload, field.selectionSet.selections, fragments, variables)
+          ? projectMarketValue(rootPayload, field.selectionSet.selections, fragments, variables)
           : rootPayload;
   }
 
@@ -3000,10 +2927,10 @@ export function handleMarketsQuery(document: string, variables: Record<string, u
 
 export function handleMarketMutation(document: string, variables: Record<string, unknown>): Record<string, unknown> {
   const data: Record<string, unknown> = {};
-  const fragments = getFragments(document);
+  const fragments = getDocumentFragments(document);
 
   for (const field of getRootFields(document)) {
-    const key = responseKey(field);
+    const key = getFieldResponseKey(field);
     switch (field.name.value) {
       case 'marketCreate':
         data[key] = handleMarketCreate(field, variables, fragments);
@@ -3067,7 +2994,7 @@ export function seedMarketsFromCapture(capture: unknown): boolean {
   let seeded = false;
 
   for (const root of roots) {
-    const payload = readRootPayload(capture, root);
+    const payload = readGraphqlDataResponsePayload(capture, root);
     if (payload === null) {
       continue;
     }

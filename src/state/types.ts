@@ -503,6 +503,13 @@ export const segmentRecordSchema = z.strictObject({
 });
 export type SegmentRecord = z.infer<typeof segmentRecordSchema>;
 
+export const marketingRecordSchema = z.strictObject({
+  id: z.string(),
+  cursor: nullableStringSchema.optional(),
+  data: z.record(z.string(), jsonValueSchema),
+});
+export type MarketingRecord = z.infer<typeof marketingRecordSchema>;
+
 export const businessEntityAddressRecordSchema = z.strictObject({
   address1: nullableStringSchema,
   address2: nullableStringSchema,
@@ -647,6 +654,22 @@ export const discountEventRecordSchema = z.strictObject({
   subjectType: nullableStringSchema.optional(),
 });
 export type DiscountEventRecord = z.infer<typeof discountEventRecordSchema>;
+
+export const discountBulkOperationRecordSchema = z.strictObject({
+  id: z.string(),
+  typeName: z.string(),
+  operation: z.enum(['discountRedeemCodeBulkAdd', 'discountCodeRedeemCodeBulkDelete']),
+  discountId: z.string(),
+  status: z.enum(['COMPLETED', 'FAILED', 'IN_PROGRESS']),
+  done: z.boolean(),
+  createdAt: z.string(),
+  completedAt: nullableStringSchema.optional(),
+  codesCount: z.number().int().nonnegative().optional(),
+  importedCount: z.number().int().nonnegative().optional(),
+  failedCount: z.number().int().nonnegative().optional(),
+  redeemCodeIds: z.array(z.string()).optional(),
+});
+export type DiscountBulkOperationRecord = z.infer<typeof discountBulkOperationRecordSchema>;
 
 export const discountRecordSchema = z.strictObject({
   id: z.string(),
@@ -1224,7 +1247,12 @@ export const stateSnapshotSchema = z.strictObject({
   customerAddresses: z.record(z.string(), customerAddressRecordSchema).default({}),
   customerPaymentMethods: z.record(z.string(), customerPaymentMethodRecordSchema).default({}),
   segments: z.record(z.string(), segmentRecordSchema).default({}),
+  marketingActivities: z.record(z.string(), marketingRecordSchema).default({}),
+  marketingActivityOrder: z.array(z.string()).default([]),
+  marketingEvents: z.record(z.string(), marketingRecordSchema).default({}),
+  marketingEventOrder: z.array(z.string()).default([]),
   discounts: z.record(z.string(), discountRecordSchema).default({}),
+  discountBulkOperations: z.record(z.string(), discountBulkOperationRecordSchema).default({}),
   paymentCustomizations: z.record(z.string(), paymentCustomizationRecordSchema).default({}),
   paymentCustomizationOrder: z.array(z.string()).default([]),
   businessEntities: z.record(z.string(), businessEntityRecordSchema).default({}),

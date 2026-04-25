@@ -7,6 +7,7 @@ import {
   classifyParityScenarioState,
   executeParityScenario,
   type ParitySpec,
+  validateParityScenarioInventoryEntry,
 } from '../../scripts/conformance-parity-lib.js';
 import { loadConformanceScenarios } from '../../scripts/conformance-scenario-registry.js';
 
@@ -26,6 +27,14 @@ const readyScenarios = discoveredScenarios.filter(
 );
 
 describe('conformance parity scenarios (convention-driven suite)', () => {
+  it('rejects checked-in captured scenarios without executable enforcement', () => {
+    const errors = discoveredScenarios.flatMap((scenario) =>
+      validateParityScenarioInventoryEntry(scenario, scenario.paritySpec),
+    );
+
+    expect(errors).toEqual([]);
+  });
+
   it('discovers at least one ready-for-comparison scenario by convention', () => {
     expect(readyScenarios.length).toBeGreaterThan(0);
   });

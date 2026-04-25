@@ -1,0 +1,7 @@
+{
+  "activityId": "gid://shopify/MarketingActivity/999999999999",
+  "eventId": "gid://shopify/MarketingEvent/999999999999",
+  "first": 3,
+  "activityQuery": "title:__har212_no_activity__",
+  "eventQuery": "description:__har212_no_event__"
+}

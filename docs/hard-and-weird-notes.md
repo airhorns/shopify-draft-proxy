@@ -1120,6 +1120,19 @@ HAR-144 captured product-owner `metafieldDefinition` and `metafieldDefinitions` 
 
 Keep definition lifecycle mutations out of this read slice; create/update/delete/pin/unpin need their own mutation evidence and local staging semantics.
 
+## 19b. Definition pinning uses owner-type positions and compacts on unpin
+
+HAR-256 captured `metafieldDefinitionPin` and `metafieldDefinitionUnpin` against the 2025-01 conformance store with two temporary product-owned definitions. Useful behavior:
+
+- both roots accept either `definitionId` or `identifier`
+- pin returns `pinnedDefinition`; unpin returns `unpinnedDefinition`
+- pinning an unpinned product definition assigns one greater than the current highest product-owner pinned position, not a namespace-local position
+- `sortKey: PINNED_POSITION` returns higher pinned positions before lower pinned positions
+- unpinning a lower pinned position compacts higher owner-type positions down by one
+- downstream `metafieldDefinition(identifier:)`, `pinnedStatus: PINNED`, and `pinnedStatus: UNPINNED` reads reflect the write immediately
+
+The implemented local slice is intentionally limited to existing normalized definitions. Keep create/update/delete and app-configuration-managed or unsupported-owner pinning branches separate until they have their own evidence.
+
 ## 18a. Staged metafield writes need product-scoped replacement semantics, not id-wise merge
 
 Adding `metafieldsSet` / `metafieldDelete` exposed a subtle state-model trap:
@@ -2388,3 +2401,20 @@ Practical rule:
 - keep support constrained to captured standard template IDs/namespaces until broader template catalog reads are modeled
 - validation-only live captures remain guardrails for error shapes; local success coverage comes from runtime tests because live success would create real Shopify schema state
 - do not broaden create/update/delete/pin/unpin definition lifecycle support from this enablement slice
+
+## 65. Discount redeem-code bulk support is narrow by design
+
+HAR-197 added a safe local model for code-basic redeem-code bulk operations without promoting broad discount bulk lifecycle roots.
+
+Useful constraints:
+
+- `discountRedeemCodeBulkAdd` is narrow and locally stageable because an explicit code list can be appended to one known code discount and reflected in `codes`, `codesCount`, `codeDiscountNodeByCode`, and catalog reads.
+- The introspected delete root is `discountCodeRedeemCodeBulkDelete`; the older `discountRedeemCodeBulkDelete` name remains a compatibility match alias, but new tests and docs should use the introspected root.
+- Local redeem-code bulk delete supports explicit redeem-code IDs only. Search and saved-search selectors are intentionally refused locally because they can describe broad destructive writes and need separate conformance evidence before staging.
+- The broad code/automatic bulk roots stay unimplemented. Blank search and no-selector destructive inputs are locally refused; other unsupported selector shapes still use the unsupported passthrough escape hatch so the mutation log records the registered unimplemented operation.
+- Local job-like payloads are completed immediately because the in-memory state change has already happened. Keep this scoped to selected fields with stable evidence (`id`, `done`, `query`, and bulk creation counts) until live captures justify modeling asynchronous progress or failure details.
+
+Practical rule:
+
+- do not mark broad discount bulk roots implemented until local staging covers the full selected lifecycle and downstream read effects without runtime Shopify writes
+- preserve raw bulk mutation bodies in the staged log so `__meta/commit` replays the original add/delete order exactly once
