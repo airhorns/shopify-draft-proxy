@@ -1881,3 +1881,20 @@ Practical rule:
 
 - snapshot mode should return `shop: null` when no normalized shop slice is present rather than inventing store identity
 - keep payment/account-sensitive shop feature fields out of the local baseline until the capture proves both access and shape
+
+## 51. Customer tax exemptions and metafields are part of customerUpdate, but not generic owner support yet
+
+The HAR-154 customer mutation capture added `taxExemptions`, `customer.metafield(...)`, and `customer.metafields(...)` to the existing customer CRUD parity fixture.
+
+Captured facts:
+
+- `customerUpdate(input.taxExemptions)` replaces the customer's applied tax exemption list independently from the boolean `taxExempt`
+- `CustomerInput.metafields` can create a customer-owned metafield and the immediate mutation payload plus downstream `customer(id:)` read expose it through both singular `metafield(namespace:, key:)` and the `metafields` connection
+- Shopify returns opaque cursors for `customer.metafields`; local replay should use stable synthetic cursors and keep only cursor values as expected differences
+- an invalid tax exemption string never reaches `userErrors`; Shopify rejects the GraphQL variable with `INVALID_VARIABLE` before mutation execution
+- an invalid customer metafield type returns `customer: null` with a `userErrors` entry at `['metafields', '0', 'type']`
+
+Practical rule:
+
+- model customer-owned metafields as a customer-scoped sub-model for `customerUpdate` before broadening shared `metafieldsSet` beyond the currently captured product owner slice
+- do not infer support for `customerAddTaxExemptions`, `customerRemoveTaxExemptions`, or `customerReplaceTaxExemptions` from this fixture; those roots still need their own local staging and conformance evidence

@@ -230,6 +230,7 @@ describe('customer query shapes', () => {
                         canDelete: false,
                         verifiedEmail: true,
                         taxExempt: false,
+                        taxExemptions: ['CA_BC_RESELLER_EXEMPTION'],
                         state: 'ENABLED',
                         tags: ['vip', 'wholesale'],
                         numberOfOrders: 3,
@@ -250,6 +251,23 @@ describe('customer query shapes', () => {
                           country: 'United Kingdom',
                           zip: 'SW1A 1AA',
                           formattedArea: 'London, United Kingdom',
+                        },
+                        metafields: {
+                          nodes: [
+                            {
+                              id: 'gid://shopify/Metafield/101',
+                              namespace: 'custom',
+                              key: 'loyalty',
+                              type: 'single_line_text_field',
+                              value: 'gold',
+                            },
+                          ],
+                          pageInfo: {
+                            hasNextPage: false,
+                            hasPreviousPage: false,
+                            startCursor: 'metafield-cursor-101',
+                            endCursor: 'metafield-cursor-101',
+                          },
                         },
                         createdAt: '2024-01-01T00:00:00.000Z',
                         updatedAt: '2024-01-02T00:00:00.000Z',
@@ -297,6 +315,7 @@ describe('customer query shapes', () => {
                 canDelete
                 verifiedEmail
                 taxExempt
+                taxExemptions
                 state
                 tags
                 numberOfOrders
@@ -310,6 +329,10 @@ describe('customer query shapes', () => {
                   country
                   zip
                   formattedArea
+                }
+                metafields(first: 5) {
+                  nodes { id namespace key type value }
+                  pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
                 }
                 createdAt
                 updatedAt
@@ -339,9 +362,21 @@ describe('customer query shapes', () => {
             canDelete
             verifiedEmail
             taxExempt
+            taxExemptions
             state
             tags
             numberOfOrders
+            loyalty: metafield(namespace: "custom", key: "loyalty") {
+              id
+              namespace
+              key
+              type
+              value
+            }
+            metafields(first: 5) {
+              nodes { id namespace key type value }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
             amountSpent { amount currencyCode }
             defaultEmailAddress { emailAddress }
             defaultPhoneNumber { phoneNumber }
@@ -375,9 +410,34 @@ describe('customer query shapes', () => {
           canDelete: false,
           verifiedEmail: true,
           taxExempt: false,
+          taxExemptions: ['CA_BC_RESELLER_EXEMPTION'],
           state: 'ENABLED',
           tags: ['vip', 'wholesale'],
           numberOfOrders: 3,
+          loyalty: {
+            id: 'gid://shopify/Metafield/101',
+            namespace: 'custom',
+            key: 'loyalty',
+            type: 'single_line_text_field',
+            value: 'gold',
+          },
+          metafields: {
+            nodes: [
+              {
+                id: 'gid://shopify/Metafield/101',
+                namespace: 'custom',
+                key: 'loyalty',
+                type: 'single_line_text_field',
+                value: 'gold',
+              },
+            ],
+            pageInfo: {
+              hasNextPage: false,
+              hasPreviousPage: false,
+              startCursor: 'cursor:gid://shopify/Metafield/101',
+              endCursor: 'cursor:gid://shopify/Metafield/101',
+            },
+          },
           amountSpent: {
             amount: '125.50',
             currencyCode: 'USD',
