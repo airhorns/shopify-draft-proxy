@@ -41,6 +41,7 @@
     "conformance:capture-collection-publications": "tsx ./scripts/capture-collection-mutation-conformance.mts",
     "conformance:capture-locations": "tsx ./scripts/capture-location-conformance.mts",
     "conformance:capture-store-properties": "tsx ./scripts/capture-location-conformance.mts",
+    "conformance:capture-root-operations": "tsx ./scripts/capture-admin-graphql-root-operation-introspection.mts",
     "conformance:capture-orders": "tsx ./scripts/capture-order-conformance.mts",
     "conformance:capture-discounts": "tsx ./scripts/capture-discount-conformance.ts",
     "conformance:capture-order-refunds": "tsx ./scripts/capture-order-refund-conformance.mts"
