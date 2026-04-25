@@ -58,6 +58,7 @@ const emptySnapshot = {
   carrierServiceOrder: [],
   productMetafields: {},
   metafieldDefinitions: {},
+  metaobjectDefinitions: {},
   deletedProductIds: {},
   deletedFileIds: {},
   deletedFulfillmentServiceIds: {},

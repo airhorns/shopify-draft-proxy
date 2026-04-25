@@ -1,0 +1,14 @@
+{
+  "scenarioId": "metaobject-definitions-read",
+  "operationNames": ["metaobjectDefinition", "metaobjectDefinitionByType", "metaobjectDefinitions"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "empty-state-parity"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects-read.json"],
+  "runtimeTestFiles": ["tests/integration/metaobject-definition-query-shapes.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "notes": "HAR-241 promotes the definition-read slice from the captured 2026-04 metaobjects fixture. Runtime coverage verifies normalized snapshot reads, live-hybrid local overlay, selected fields, aliases/fragments, ordered fieldDefinitions, and missing ID/type empty behavior. The broader fixture also contains entry reads and mutation setup/cleanup branches that remain out of scope until metaobject entry modeling and definition mutation staging are implemented."
+}
