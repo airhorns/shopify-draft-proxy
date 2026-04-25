@@ -1226,6 +1226,7 @@ export const stateSnapshotSchema = z.strictObject({
   deletedSegmentIds: z.record(z.string(), z.literal(true)).default({}),
   deletedDiscountIds: z.record(z.string(), z.literal(true)).default({}),
   deletedMarketIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedCatalogIds: z.record(z.string(), z.literal(true)).default({}),
   deletedWebPresenceIds: z.record(z.string(), z.literal(true)).default({}),
   mergedCustomerIds: z.record(z.string(), z.string()).default({}),
   customerMergeRequests: z.record(z.string(), customerMergeRequestRecordSchema).default({}),

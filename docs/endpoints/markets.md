@@ -24,6 +24,10 @@ Stage-local mutations:
 - `marketCreate`
 - `marketUpdate`
 - `marketDelete`
+- `catalogCreate`
+- `catalogUpdate`
+- `catalogContextUpdate`
+- `catalogDelete`
 - `webPresenceCreate`
 - `webPresenceUpdate`
 - `marketLocalizationsRegister`
@@ -46,6 +50,11 @@ Stage-local mutations:
 - `marketCreate` generates stable synthetic `Market` IDs, handles, status/enabled values, timestamps, conditions, currency settings, price inclusions, catalog references, and web presence references from the input.
 - `marketUpdate` resolves staged or captured markets by ID, preserves existing fields when inputs omit them, and stages merged changes for downstream `market` and `markets` reads.
 - `marketDelete` marks the market deleted in staged state. Deleted staged/captured markets return `null` from `market(id:)` and are removed from `markets(...)` connections while the deleted ID remains visible in meta state.
+- `catalogCreate` stages MarketCatalog records only. It generates stable synthetic `MarketCatalog` IDs, title/status values, timestamps, empty operations, optional linked publication and price-list references, and a market context connection from existing Market IDs. It does not invent markets, price lists, publications, product memberships, or publication state.
+- `catalogUpdate` resolves staged or captured MarketCatalog records by ID, preserves omitted fields, supports title/status changes, and can replace the market context when `input.context.marketIds` is provided.
+- `catalogContextUpdate` adds and removes existing Market IDs from a staged/captured MarketCatalog context. Resulting `catalog`, `catalogs`, `catalogsCount`, `Market.catalogs`, and `MarketCatalog.markets` reads use the effective staged catalog state.
+- `catalogDelete` marks the MarketCatalog deleted in staged state. Deleted staged/captured catalogs return `null` from `catalog(id:)`, disappear from `catalogs(...)`, `catalogsCount(...)`, and nested `Market.catalogs`, while the deleted ID remains visible in meta state.
+- Catalog mutation validation is intentionally conservative. Captured parity currently covers blank `catalogCreate` titles and unknown IDs for `catalogUpdate`, `catalogContextUpdate`, and `catalogDelete`; unsupported non-market catalog contexts return local userErrors instead of claiming full B2B or app catalog support.
 - `webPresenceCreate` and `webPresenceUpdate` stage local `MarketWebPresence` records using the schema-current 2026-04 input slice: `domainId`, `defaultLocale`, `alternateLocales`, and `subfolderSuffix`. The local model enforces domain/subfolder mutual exclusion, basic locale format and uniqueness checks, duplicate domain/subfolder checks against effective state, and update-by-ID existence checks.
 - Web presence root URL derivation is local-only. Subfolder presences derive locale URLs from the captured shop/web-presence domain when available and fall back to the proxy's synthetic shop URL; domain-ID-only presences synthesize a stable domain object because `WebPresenceCreateInput` does not carry a host.
 - Current-schema `webPresenceCreate` does not take a market ID. Market association remains modeled through market-side web presence references such as `marketUpdate` inputs that add web presence IDs. When a staged market references a modeled web presence, downstream top-level `webPresences`, nested `Market.webPresences`, `MarketsResolvedValues.webPresences` with a captured baseline, meta state, and the mutation log expose the local-only change.
@@ -63,4 +72,4 @@ Stage-local mutations:
 - Runtime lifecycle staging: `tests/integration/markets-lifecycle-flow.test.ts`
 - Runtime market localization staging: `tests/integration/markets-localization-flow.test.ts`
 - Conformance parity: `tests/unit/conformance-parity-scenarios.test.ts`
-- Conformance fixtures and requests: `config/parity-specs/market*.json`, `config/parity-specs/markets*.json`, `config/parity-specs/price-list*.json`, and matching files under `config/parity-requests/`
+- Conformance fixtures and requests: `config/parity-specs/market*.json`, `config/parity-specs/markets*.json`, `config/parity-specs/catalog*.json`, `config/parity-specs/price-list*.json`, and matching files under `config/parity-requests/`

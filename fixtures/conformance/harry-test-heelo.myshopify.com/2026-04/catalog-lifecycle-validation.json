@@ -1,0 +1,131 @@
+{
+  "capturedAt": "2026-04-25T17:09:03.059Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "data": {
+    "markets": {
+      "nodes": [
+        {
+          "id": "gid://shopify/Market/92276719922",
+          "name": "Canada"
+        }
+      ]
+    }
+  },
+  "seed": {
+    "market": {
+      "id": "gid://shopify/Market/92276719922",
+      "name": "Canada"
+    }
+  },
+  "cases": [
+    {
+      "name": "catalogCreateBlankTitle",
+      "query": "#graphql\nmutation CatalogCreateBlankTitle($input: CatalogCreateInput!) {\n  catalogCreate(input: $input) {\n    catalog { id }\n    userErrors { field message code }\n  }\n}",
+      "variables": {
+        "input": {
+          "title": "",
+          "status": "ACTIVE",
+          "context": {
+            "marketIds": ["gid://shopify/Market/92276719922"]
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogCreate": {
+              "catalog": null,
+              "userErrors": [
+                {
+                  "field": ["input", "title"],
+                  "message": "Title can't be blank",
+                  "code": "BLANK"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalogUpdateUnknownId",
+      "query": "#graphql\nmutation CatalogUpdateUnknownId($id: ID!, $input: CatalogUpdateInput!) {\n  catalogUpdate(id: $id, input: $input) {\n    catalog { id }\n    userErrors { field message code }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/MarketCatalog/999999999999",
+        "input": {
+          "title": "Nope"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogUpdate": {
+              "catalog": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Catalog does not exist",
+                  "code": "CATALOG_NOT_FOUND"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalogContextUpdateUnknownId",
+      "query": "#graphql\nmutation CatalogContextUpdateUnknownId($catalogId: ID!, $contextsToAdd: CatalogContextInput) {\n  catalogContextUpdate(catalogId: $catalogId, contextsToAdd: $contextsToAdd) {\n    catalog { id }\n    userErrors { field message code }\n  }\n}",
+      "variables": {
+        "catalogId": "gid://shopify/MarketCatalog/999999999999",
+        "contextsToAdd": {
+          "marketIds": ["gid://shopify/Market/92276719922"]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogContextUpdate": {
+              "catalog": null,
+              "userErrors": [
+                {
+                  "field": ["catalogId"],
+                  "message": "Catalog does not exist",
+                  "code": "CATALOG_NOT_FOUND"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalogDeleteUnknownId",
+      "query": "#graphql\nmutation CatalogDeleteUnknownId($id: ID!) {\n  catalogDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/MarketCatalog/999999999999"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogDelete": {
+              "deletedId": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Catalog does not exist",
+                  "code": "CATALOG_NOT_FOUND"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
+}

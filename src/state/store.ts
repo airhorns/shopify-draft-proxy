@@ -92,6 +92,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedSegmentIds: {},
   deletedDiscountIds: {},
   deletedMarketIds: {},
+  deletedCatalogIds: {},
   deletedWebPresenceIds: {},
   mergedCustomerIds: {},
   customerMergeRequests: {},
@@ -810,6 +811,8 @@ export class InMemoryStore {
       const catalog = rawCatalog as Record<string, unknown>;
       const id = catalog['id'];
       if (typeof id === 'string' && id.length > 0) {
+        delete this.baseState.deletedCatalogIds[id];
+        delete this.stagedState.deletedCatalogIds[id];
         const previous = this.baseState.catalogs[id];
         const cursor = typeof rawCursor === 'string' && rawCursor.length > 0 ? rawCursor : (previous?.cursor ?? null);
         this.baseState.catalogs[id] = {
@@ -846,6 +849,64 @@ export class InMemoryStore {
       .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
 
     return structuredClone([...orderedCatalogs, ...unorderedCatalogs]);
+  }
+
+  stageCreateCatalog(catalog: CatalogRecord): CatalogRecord {
+    delete this.stagedState.deletedCatalogIds[catalog.id];
+    this.stagedState.catalogs[catalog.id] = structuredClone(catalog);
+    if (!this.stagedState.catalogOrder.includes(catalog.id)) {
+      this.stagedState.catalogOrder.push(catalog.id);
+    }
+    return structuredClone(catalog);
+  }
+
+  stageUpdateCatalog(catalog: CatalogRecord): CatalogRecord {
+    delete this.stagedState.deletedCatalogIds[catalog.id];
+    this.stagedState.catalogs[catalog.id] = structuredClone(catalog);
+    if (!this.baseState.catalogOrder.includes(catalog.id) && !this.stagedState.catalogOrder.includes(catalog.id)) {
+      this.stagedState.catalogOrder.push(catalog.id);
+    }
+    return structuredClone(catalog);
+  }
+
+  stageDeleteCatalog(catalogId: string): void {
+    delete this.stagedState.catalogs[catalogId];
+    this.stagedState.catalogOrder = this.stagedState.catalogOrder.filter((id) => id !== catalogId);
+    this.stagedState.deletedCatalogIds[catalogId] = true;
+  }
+
+  getEffectiveCatalogRecordById(catalogId: string): CatalogRecord | null {
+    if (this.stagedState.deletedCatalogIds[catalogId]) {
+      return null;
+    }
+
+    const catalog = this.stagedState.catalogs[catalogId] ?? this.baseState.catalogs[catalogId] ?? null;
+    return catalog ? structuredClone(catalog) : null;
+  }
+
+  getEffectiveCatalogById(catalogId: string): unknown | null {
+    return this.getEffectiveCatalogRecordById(catalogId)?.data ?? null;
+  }
+
+  listEffectiveCatalogs(): CatalogRecord[] {
+    const mergedCatalogs = new Map<string, CatalogRecord>();
+    const orderedIds = [...this.baseState.catalogOrder, ...this.stagedState.catalogOrder];
+
+    for (const id of orderedIds) {
+      const catalog = this.getEffectiveCatalogRecordById(id);
+      if (catalog) {
+        mergedCatalogs.set(id, catalog);
+      }
+    }
+
+    for (const catalog of [...Object.values(this.baseState.catalogs), ...Object.values(this.stagedState.catalogs)]) {
+      if (mergedCatalogs.has(catalog.id) || this.stagedState.deletedCatalogIds[catalog.id]) {
+        continue;
+      }
+      mergedCatalogs.set(catalog.id, structuredClone(catalog));
+    }
+
+    return Array.from(mergedCatalogs.values());
   }
 
   upsertBasePriceLists(
@@ -1088,6 +1149,8 @@ export class InMemoryStore {
     return (
       Object.keys(this.stagedState.markets).length > 0 ||
       Object.keys(this.stagedState.deletedMarketIds).length > 0 ||
+      Object.keys(this.stagedState.catalogs).length > 0 ||
+      Object.keys(this.stagedState.deletedCatalogIds).length > 0 ||
       Object.keys(this.stagedState.webPresences).length > 0 ||
       Object.keys(this.stagedState.deletedWebPresenceIds).length > 0 ||
       Object.keys(this.stagedState.marketLocalizations).length > 0

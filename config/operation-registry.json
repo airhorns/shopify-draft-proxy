@@ -2916,6 +2916,42 @@
     "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
   },
   {
+    "name": "catalogCreate",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["catalogCreate", "CatalogCreate"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
+  },
+  {
+    "name": "catalogUpdate",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["catalogUpdate", "CatalogUpdate"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
+  },
+  {
+    "name": "catalogContextUpdate",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["catalogContextUpdate", "CatalogContextUpdate"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
+  },
+  {
+    "name": "catalogDelete",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["catalogDelete", "CatalogDelete"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
+  },
+  {
     "name": "webPresenceCreate",
     "type": "mutation",
     "domain": "markets",
