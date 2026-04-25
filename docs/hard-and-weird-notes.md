@@ -1999,3 +1999,24 @@ Practical rule for the proxy:
 - do not fabricate order, event, store credit, payment method, subscription, company-contact, address, or unrelated metafield records after staged customer CRUD
 - keep customer-order overlap narrow: local customer reads may expose empty `orders` / `lastOrder` when the customer graph has no modeled order relationship, while real order lifecycle behavior remains in the order-domain notes and tests
 - any future non-empty nested customer replay must first add normalized state for that sub-resource and compare against captured fixtures instead of reusing the HAR-160 empty/no-data serializer branch
+
+## 54. Markets reads are safe to capture, but writes are not harmless
+
+The first Shopify Markets inventory was captured against Admin GraphQL 2026-04 with `corepack pnpm conformance:capture-markets`.
+
+Observed current-version surface:
+
+- schema inventory confirms read roots for `market`, `markets`, `catalogs`, `webPresences`, and `marketsResolvedValues`
+- schema inventory confirms current mutation roots for `marketCreate`, `marketUpdate`, `marketDelete`, `webPresenceCreate`, `webPresenceUpdate`, `webPresenceDelete`, `marketLocalizationsRegister`, and `marketLocalizationsRemove`
+- `marketsResolvedValues(buyerSignal: { countryCode: US })` is present in 2026-04 and returned resolved currency/price-inclusivity data on this store, but an empty resolved catalog connection for the captured buyer signal
+- top-level `webPresences` can be captured safely with `id`, `subfolderSuffix`, `domain`, `rootUrls`, linked `markets`, `defaultLocale`, and `alternateLocales`
+
+Access-scope trap:
+
+- selecting `MarketWebPresence.defaultLocale` or `MarketWebPresence.alternateLocales` requires `read_locales` or `read_markets_home`; earlier credentials failed with `ACCESS_DENIED`, while the refreshed credential captures both fields successfully
+- keep locale fields in Markets parity requests only while the capture credential retains one of those scopes; the successful scope probe is preserved in `fixtures/conformance/very-big-test-store.myshopify.com/2026-04/markets-baseline.json`
+
+Safety rule:
+
+- do not run successful live writes for market lifecycle, web presence, localization, backup-region, or currency-setting roots on the shared conformance store without a disposable market setup and cleanup story
+- current local Markets support is read-only snapshot replay for captured safe roots; mutation registry entries are local-staging scaffolds with `implemented: false` and must not be read as runtime support
