@@ -54,6 +54,8 @@ Local staged mutations:
 - Draft-order create/complete/update/duplicate/delete/invoice/create-from-order flows preserve staged state for downstream reads and commit replay.
 - Order edit operations use calculated-order state during the edit session and materialize changes on `orderEditCommit`. The executable conformance anchors for the first begin/add/set/commit lifecycle are the captured workflow specs `orderEditExistingOrder-happy-path`, `orderEditExistingOrder-validation`, and `orderEditExistingOrder-zero-removal`; do not reintroduce the older single-root access-scope parity plans as discovery blockers.
 - `refundCreate` stages refund records for downstream order reads and covers over-refund user-error behavior through parity fixtures.
+- Shipping refunds staged through `refundCreate(input.shipping)` are retained on the refund record and rolled into downstream `Order.totalRefundedShippingSet`; the broader refund amount still follows the captured transaction total / line-item plus shipping fallback behavior.
+- Order shipping-line tax lines contribute to total tax calculations for staged `orderCreate`, and staged shipping lines remain visible through downstream `Order.shippingLines` reads.
 - Order payment transaction flows stage locally for in-memory orders. `orderCapture` turns successful authorization transactions into `CAPTURE` transactions, updates `capturable`, `totalCapturable`, `totalCapturableSet`, `totalOutstandingSet`, `totalReceivedSet`, `netPaymentSet`, `displayFinancialStatus`, `paymentGatewayNames`, and records synthetic `paymentId` / `paymentReferenceId` values. Partial captures keep the remaining authorization capturable; final captures close the remaining capturable balance.
 - `transactionVoid` creates a `VOID` transaction for uncaptured authorization transactions and clears downstream capturable state. Invalid, already-voided, and already-captured authorization requests return local `userErrors` without passthrough.
 - `orderCreateMandatePayment` creates a completed local `Job`, a stable session-scoped `paymentReferenceId`, and a `MANDATE_PAYMENT` transaction. Reusing the same order/idempotency-key pair returns the original job/reference result and does not duplicate the transaction.
@@ -68,5 +70,5 @@ Local staged mutations:
 - Draft-order mutation family: `tests/integration/draft-order-mutation-family-flow.test.ts`
 - Fulfillments: `tests/integration/order-fulfillment-flow.test.ts`, `tests/integration/order-query-shapes.test.ts`
 - Order editing: `tests/integration/order-edit-flow.test.ts`
-- Refunds: `tests/integration/order-refund-flow.test.ts`
+- Refunds and shipping-refund aggregates: `tests/integration/order-refund-flow.test.ts`
 - Conformance fixtures and requests: `config/parity-specs/order*.json`, `config/parity-specs/draftOrder*.json`, `config/parity-specs/draftOrders*.json`, `config/parity-specs/fulfillment*.json`, `config/parity-specs/refund*.json`, and matching files under `config/parity-requests/`. For order editing, prefer the `orderEditExistingOrder-*` workflow specs plus the missing-id validation slices over single-root planned placeholders.

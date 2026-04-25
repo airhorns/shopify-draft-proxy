@@ -20,7 +20,9 @@ Top-level fulfillment and fulfillment-order reads are implemented as snapshot/lo
 - `assignedFulfillmentOrders`
 - `manualHoldsFulfillmentOrders`
 
-`fulfillment(id:)` and `fulfillmentOrder(id:)` resolve only records already present on local `Order.fulfillments` / `Order.fulfillmentOrders` data and return `null` for missing IDs. They do not invent fulfillment records, fulfillment orders, holds, delivery methods, or lifecycle replacement records absent from the snapshot or staged order graph.
+`fulfillment(id:)` and `fulfillmentOrder(id:)` resolve only records already present on local `Order.fulfillments` / `Order.fulfillmentOrders` data and return `null` for missing IDs. They do not invent fulfillment records, fulfillment orders, holds, or lifecycle replacement records absent from the snapshot or staged order graph.
+
+`FulfillmentOrder.deliveryMethod` is an optional local fixture field. When a normalized fulfillment-order record carries delivery-method data, the serializer returns the stored `DeliveryMethod` scalar fields selected by the query; when the record lacks delivery-method data, the field returns `null`. The proxy still does not generate delivery methods from order shipping lines, delivery profiles, or fulfillment-order lifecycle mutations without a captured scenario.
 
 `fulfillmentOrders` lists local order-graph fulfillment orders, excludes `CLOSED` records unless `includeClosed: true` is selected, and supports the captured local subset of ID/status sorting, `reverse`, cursor pagination, and `query` terms for `id`, `status`, and `request_status`. `manualHoldsFulfillmentOrders` currently returns the captured no-hold empty connection because the local model does not store fulfillment holds yet. `assignedFulfillmentOrders` currently returns an empty local connection; the HAR-232 live fixture records that the active conformance credential receives `["The api_client is not associated with any fulfillment service."]` for that root, so broader assignment-status and fulfillment-service scope behavior remains an explicit access-scoped gap rather than guessed behavior.
 
