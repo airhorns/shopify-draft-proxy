@@ -1,0 +1,53 @@
+{
+  "scenarioId": "shop-policy-update-parity",
+  "operationNames": ["shopPolicyUpdate", "shop"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2026-04/shop-policy-update-parity.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shopPolicyUpdate-parity.graphql",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict comparison covers local staging for shopPolicyUpdate, downstream shop.shopPolicies read-after-write, and the captured oversized-body ShopPolicyUserError branch. The local updatedAt is synthetic because supported mutations are not proxied upstream at runtime.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.shopPolicyUpdate.shopPolicy.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy stages supported mutations locally and emits a deterministic local timestamp instead of Shopify's live mutation timestamp."
+      },
+      {
+        "path": "$.shop.shopPolicies[*].updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "Downstream reads expose the local staged policy timestamp after shopPolicyUpdate instead of Shopify's live mutation timestamp."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shopPolicyUpdate-downstream-read.graphql",
+          "variables": {}
+        }
+      },
+      {
+        "name": "oversized-body-validation-data",
+        "capturePath": "$.validation.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shopPolicyUpdate-parity.graphql",
+          "variablesCapturePath": "$.validation.variables"
+        }
+      }
+    ]
+  }
+}

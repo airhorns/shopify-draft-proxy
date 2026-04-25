@@ -42,7 +42,7 @@ import {
   handleProductQuery,
   hydrateProductsFromUpstreamResponse,
 } from '../src/proxy/products.js';
-import { handleStorePropertiesQuery } from '../src/proxy/store-properties.js';
+import { handleStorePropertiesMutation, handleStorePropertiesQuery } from '../src/proxy/store-properties.js';
 import { makeSyntheticGid, makeSyntheticTimestamp, resetSyntheticIdentity } from '../src/state/synthetic-identity.js';
 import { store } from '../src/state/store.js';
 import type {
@@ -701,6 +701,25 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleCustomerMutation(document, variables),
+    };
+  }
+
+  if (capability.execution === 'stage-locally' && capability.domain === 'store-properties') {
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2025-01/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: handleStorePropertiesMutation(document, variables),
     };
   }
 

@@ -556,9 +556,10 @@
     "type": "mutation",
     "domain": "store-properties",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["shopPolicyUpdate", "ShopPolicyUpdate"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/shop-policy-update-flow.test.ts"],
+    "supportNotes": "HAR-173: stages legal policy updates locally by ShopPolicyType, preserves raw mutation requests for commit replay, and overlays downstream shop.shopPolicies reads without proxying supported requests upstream."
   },
   {
     "name": "productOptionsCreate",

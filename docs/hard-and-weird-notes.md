@@ -1850,9 +1850,9 @@ The first Store properties inventory for Admin GraphQL 2026-04 exposed several r
 
 Current scaffold decision:
 
-- `shop` and `cashManagementLocationSummary` are registry-tracked as planned overlay reads, but they are not implemented runtime capabilities yet
-- `location`, `locationByIdentifier`, `businessEntities`, and `businessEntity` now have narrow Store properties overlay-read support backed by captured fixtures
-- `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, `locationDelete`, and `shopPolicyUpdate` are registry-tracked as planned local-staging mutations, but they remain unsupported at runtime
+- `shop`, `location`, `locationByIdentifier`, `businessEntities`, and `businessEntity` now have narrow Store properties overlay-read support backed by captured fixtures; `cashManagementLocationSummary` remains a registry-tracked planned overlay read
+- `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, and `locationDelete` are registry-tracked as planned local-staging mutations, but they remain unsupported at runtime
+- `shopPolicyUpdate` now stages locally by `ShopPolicyType` when a shop baseline is available; captured 2026-04 evidence shows oversized policy bodies return `field: ["shopPolicy", "body"]`, message `Body is too big (maximum is 512 KB)`, and code `TOO_BIG`
 - generic `publishablePublish` / `publishableUnpublish` now stage Product and Collection targets locally; `publishablePublishToCurrentChannel` / `publishableUnpublishToCurrentChannel` currently have product-scoped local staging only
 - the capture harness now records schema inventory plus safe read-only `shop` / `locations` / `location(id:)` baselines, while mutation validation probes are recorded as a plan instead of executed by default
 
@@ -1860,7 +1860,7 @@ Safety traps:
 
 - location lifecycle roots can alter merchant fulfillment/inventory topology; do not capture happy paths on a shared dev store without a disposable location setup and a cleanup story
 - generic `publishablePublish*` / `publishableUnpublish*` roots can affect any `Publishable` implementer, not only product-specific publication paths already covered elsewhere
-- `shopPolicyUpdate` edits merchant legal policy content, so validation-only probes should come before any success-path fixture
+- `shopPolicyUpdate` edits merchant legal policy content, so success-path captures must use a disposable or restorable policy body and must include cleanup evidence
 - `cashManagementLocationSummary` is POS/cash-management adjacent and may be gated by location, staff, POS, or cash-tracking permissions; treat access-denied or null/empty responses as domain evidence, not as generic read failures
 
 Practical rule:

@@ -1,0 +1,25 @@
+query ShopPolicyDownstreamRead {
+  shop {
+    id
+    myshopifyDomain
+    shopPolicies {
+      id
+      title
+      body
+      type
+      url
+      createdAt
+      updatedAt
+      translations(locale: "fr") {
+        key
+        locale
+        outdated
+        updatedAt
+        value
+        market {
+          id
+        }
+      }
+    }
+  }
+}
