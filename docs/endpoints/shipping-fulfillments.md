@@ -70,6 +70,19 @@ Delivery-profile reads are implemented as fixture-backed snapshot reads:
 - Product, variant, and location associations are stored as ids and projected from the existing product/location state. A delivery profile fixture should not duplicate full product, variant, or location blobs.
 - Live read evidence for 2026-04 is checked in at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/delivery-profiles-read.json`. The capture used `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm conformance:capture-delivery-profiles`; no access-scope or manage-delivery-settings blocker was encountered for the current conformance credential.
 
+Delivery-profile writes are implemented for a deliberately bounded, conformance-backed custom-profile subset:
+
+- `deliveryProfileCreate`
+- `deliveryProfileUpdate`
+- `deliveryProfileRemove`
+
+- `deliveryProfileCreate(profile:)` stages a merchant-owned, non-default delivery profile locally. Supported input fields are `name`, `locationGroupsToCreate` / `profileLocationGroups`, nested `locations`, `zonesToCreate`, `countries`, static `rateDefinition` method definitions, weight/price conditions, and `variantsToAssociate`.
+- `deliveryProfileUpdate(id:, profile:)` stages profile renames, variant association/dissociation, location-group create/update/delete, location add/remove, zone create/update/delete, method-definition create/update/delete, condition update/delete, and selling-plan group id association bookkeeping.
+- `deliveryProfileRemove(id:)` stages custom-profile removal locally and returns a Shopify-like asynchronous `Job` payload with `done: false`; downstream local reads treat the profile as removed immediately so tests can observe the staged graph without waiting for Shopify's background job.
+- Successful create/update/remove mutations append staged mutation-log entries with the original GraphQL request body for commit replay. Validation branches with no state change return local `userErrors` and are not added to the commit log.
+- Variant association moves the variant into the target local profile and removes it from other locally known delivery profiles so downstream `deliveryProfile` / `deliveryProfiles` reads stay single-owner for the modeled variant.
+- Captured 2026-04 write evidence is checked in at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/delivery-profile-writes.json` and registered by `config/parity-specs/delivery-profile-lifecycle.json`. The capture covered blank-name validation, nested create, nested update, condition delete, variant dissociation, missing update/remove, default-profile removal denial, async removal job payload, and downstream null read after removal. No access-scope or manage-delivery-settings blocker was encountered for the current conformance credential.
+
 ## Registry-only coverage map
 
 These roots are known Admin GraphQL shipping/fulfillment surface area, but they are not locally implemented. They are registered with `implemented: false` as explicit future local-model commitments, not as supported passthrough behavior.
@@ -105,9 +118,6 @@ Carrier services:
 Delivery profiles:
 
 - `locationsAvailableForDeliveryProfilesConnection`
-- `deliveryProfileCreate`
-- `deliveryProfileRemove`
-- `deliveryProfileUpdate`
 
 Shipping-line order-edit roots:
 
@@ -124,7 +134,7 @@ Shipping-line order-edit roots:
 - Fulfillment-order lifecycle mutations can create replacement orders, split or merge line items, change assigned locations, add/release holds, change deadlines, and update request status. Do not model one of these as a simple status patch without captured downstream reads.
 - Fulfillment-service mutations couple service records to locations. Creation automatically creates a location, update does not replace `LocationEdit` for service-managed location details, and deletion has inventory/location disposition semantics. HAR-236 covers the first local service/location lifecycle slice; broader inventory transfer fidelity still needs dedicated inventory-level captures.
 - Broader carrier-service support still depends on app ownership, `write_shipping` access, plan eligibility, available-service/location pairing, and service-discovery callback semantics outside the locally staged catalog/lifecycle slice.
-- Delivery-profile write support still needs local modeling for nested profile/location-group/zone/rate validation, variant reassignment, selling-plan associations, default profile behavior, and asynchronous removal job semantics before any delivery-profile mutation can be marked supported.
+- Delivery-profile write support is intentionally limited to custom merchant-owned profiles with static rate definitions. Carrier/service participants, callback-backed rates, full selling-plan routing semantics, legacy-mode transitions, default-profile mutation behavior beyond captured remove denial, and Shopify's full delivery-setting eligibility/access matrix remain excluded until separately captured and modeled.
 - Shipping lines and delivery methods are nested under orders, draft orders, calculated orders, fulfillment orders, and delivery profiles. A root-level registry entry can only cover the mutation/query root; nested field fidelity still needs scenario-specific fixtures and downstream read assertions.
 
 ## Validation anchors
@@ -134,8 +144,10 @@ Shipping-line order-edit roots:
 - Implemented fulfillment services: `tests/integration/fulfillment-service-flow.test.ts`
 - Implemented carrier services: `tests/integration/carrier-service-flow.test.ts`
 - Implemented delivery-profile reads: `tests/integration/delivery-profile-query-shapes.test.ts`
+- Implemented delivery-profile writes: `tests/integration/delivery-profile-lifecycle-flow.test.ts`
 - Existing fulfillment parity specs and requests: `config/parity-specs/fulfillment*.json` and matching files under `config/parity-requests/`
 - Carrier-service capture/parity metadata: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/carrier-service-lifecycle.json` and `config/parity-specs/carrier-service-lifecycle.json`
 - Delivery-profile read capture: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/delivery-profiles-read.json`
+- Delivery-profile write capture: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/delivery-profile-writes.json`
 - Existing order docs for fulfilled order read-after-write behavior: `docs/endpoints/orders.md`
 - Registry/coverage tests: `tests/unit/operation-registry.test.ts`, `tests/integration/proxy-capability-classification.test.ts`
