@@ -210,4 +210,304 @@ describe('location query shapes', () => {
 
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it('serves location detail reads from the effective inventory-level graph in snapshot mode', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('location detail should resolve locally in snapshot mode');
+    });
+
+    const product = makeProduct('gid://shopify/Product/1', 'Alpha Product');
+    store.upsertBaseProducts([product]);
+    store.replaceBaseVariantsForProduct(product.id, [
+      makeVariant(product.id, 'gid://shopify/ProductVariant/1', 'gid://shopify/InventoryItem/1'),
+    ]);
+
+    const app = createApp(config).callback();
+
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query LocationDetail($id: ID!, $inventoryItemId: ID!) {
+          location(id: $id) {
+            id
+            legacyResourceId
+            name
+            isActive
+            activatable
+            deactivatable
+            deactivatedAt
+            deletable
+            fulfillsOnlineOrders
+            hasActiveInventory
+            hasUnfulfilledOrders
+            isFulfillmentService
+            shipsInventory
+            address {
+              address1
+              address2
+              city
+              country
+              countryCode
+              formatted
+              latitude
+              longitude
+              phone
+              province
+              provinceCode
+              zip
+            }
+            suggestedAddresses {
+              address1
+              countryCode
+              formatted
+            }
+            fulfillmentService {
+              id
+              handle
+            }
+            metafield(namespace: "custom", key: "hours") {
+              id
+            }
+            metafields(first: 5) {
+              nodes {
+                id
+              }
+              pageInfo {
+                hasNextPage
+                hasPreviousPage
+                startCursor
+                endCursor
+              }
+            }
+            inventoryLevel(inventoryItemId: $inventoryItemId) {
+              id
+              location {
+                id
+                name
+              }
+              item {
+                id
+              }
+              quantities(names: ["available", "committed"]) {
+                name
+                quantity
+                updatedAt
+              }
+            }
+            inventoryLevels(first: 5) {
+              nodes {
+                id
+                location {
+                  id
+                  name
+                }
+                item {
+                  id
+                }
+                quantities(names: ["available"]) {
+                  name
+                  quantity
+                  updatedAt
+                }
+              }
+              pageInfo {
+                hasNextPage
+                hasPreviousPage
+                startCursor
+                endCursor
+              }
+            }
+          }
+        }`,
+        variables: {
+          id: 'gid://shopify/Location/1',
+          inventoryItemId: 'gid://shopify/InventoryItem/1',
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        location: {
+          id: 'gid://shopify/Location/1',
+          legacyResourceId: '1',
+          name: 'Alpha Warehouse',
+          isActive: true,
+          activatable: true,
+          deactivatable: false,
+          deactivatedAt: null,
+          deletable: false,
+          fulfillsOnlineOrders: true,
+          hasActiveInventory: true,
+          hasUnfulfilledOrders: false,
+          isFulfillmentService: false,
+          shipsInventory: true,
+          address: {
+            address1: null,
+            address2: null,
+            city: null,
+            country: null,
+            countryCode: null,
+            formatted: [],
+            latitude: null,
+            longitude: null,
+            phone: null,
+            province: null,
+            provinceCode: null,
+            zip: null,
+          },
+          suggestedAddresses: [],
+          fulfillmentService: null,
+          metafield: null,
+          metafields: {
+            nodes: [],
+            pageInfo: {
+              hasNextPage: false,
+              hasPreviousPage: false,
+              startCursor: null,
+              endCursor: null,
+            },
+          },
+          inventoryLevel: {
+            id: 'gid://shopify/InventoryLevel/1',
+            location: {
+              id: 'gid://shopify/Location/1',
+              name: 'Alpha Warehouse',
+            },
+            item: {
+              id: 'gid://shopify/InventoryItem/1',
+            },
+            quantities: [
+              {
+                name: 'available',
+                quantity: 4,
+                updatedAt: '2025-01-02T00:00:00.000Z',
+              },
+              {
+                name: 'committed',
+                quantity: 0,
+                updatedAt: null,
+              },
+            ],
+          },
+          inventoryLevels: {
+            nodes: [
+              {
+                id: 'gid://shopify/InventoryLevel/1',
+                location: {
+                  id: 'gid://shopify/Location/1',
+                  name: 'Alpha Warehouse',
+                },
+                item: {
+                  id: 'gid://shopify/InventoryItem/1',
+                },
+                quantities: [
+                  {
+                    name: 'available',
+                    quantity: 4,
+                    updatedAt: '2025-01-02T00:00:00.000Z',
+                  },
+                ],
+              },
+            ],
+            pageInfo: {
+              hasNextPage: false,
+              hasPreviousPage: false,
+              startCursor: 'opaque-location-1',
+              endCursor: 'opaque-location-1',
+            },
+          },
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('supports primary-location fallback and identifier lookup null behavior', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('location lookup should resolve locally in snapshot mode');
+    });
+
+    const product = makeProduct('gid://shopify/Product/1', 'Alpha Product');
+    store.upsertBaseProducts([product]);
+    store.replaceBaseVariantsForProduct(product.id, [
+      makeVariant(product.id, 'gid://shopify/ProductVariant/1', 'gid://shopify/InventoryItem/1'),
+    ]);
+
+    const app = createApp(config).callback();
+
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query LocationIdentifierLookup($knownId: ID!, $unknownId: ID!) {
+          primary: location {
+            id
+            name
+          }
+          known: locationByIdentifier(identifier: { id: $knownId }) {
+            id
+            name
+          }
+          unknownLocation: location(id: $unknownId) {
+            id
+          }
+          unknownIdentifier: locationByIdentifier(identifier: { id: $unknownId }) {
+            id
+          }
+        }`,
+        variables: {
+          knownId: 'gid://shopify/Location/2',
+          unknownId: 'gid://shopify/Location/999999999999',
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        primary: {
+          id: 'gid://shopify/Location/1',
+          name: 'Alpha Warehouse',
+        },
+        known: {
+          id: 'gid://shopify/Location/2',
+          name: 'Beta Warehouse',
+        },
+        unknownLocation: null,
+        unknownIdentifier: null,
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns Shopify-like validation errors for invalid location identifiers', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('invalid location identifier should resolve locally in snapshot mode');
+    });
+
+    const app = createApp(config).callback();
+
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query InvalidLocationIdentifier {
+          emptyIdentifier: locationByIdentifier(identifier: {}) {
+            id
+          }
+        }`,
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      errors: [
+        {
+          message: "OneOf Input Object 'LocationIdentifierInput' must specify exactly one key.",
+          path: ['locationByIdentifier', 'identifier'],
+          extensions: {
+            code: 'invalidOneOfInputObject',
+            inputObjectType: 'LocationIdentifierInput',
+          },
+        },
+      ],
+    });
+  });
 });

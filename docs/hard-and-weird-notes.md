@@ -1850,7 +1850,8 @@ The first Store properties inventory for Admin GraphQL 2026-04 exposed several r
 
 Current scaffold decision:
 
-- `shop`, `location`, `locationByIdentifier`, `businessEntities`, `businessEntity`, and `cashManagementLocationSummary` are registry-tracked as planned overlay reads, but they are not implemented runtime capabilities yet
+- `shop` and `cashManagementLocationSummary` are registry-tracked as planned overlay reads, but they are not implemented runtime capabilities yet
+- `location`, `locationByIdentifier`, `businessEntities`, and `businessEntity` now have narrow Store properties overlay-read support backed by captured fixtures
 - `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, `locationDelete`, and `shopPolicyUpdate` are registry-tracked as planned local-staging mutations, but they remain unsupported at runtime
 - generic `publishablePublish` / `publishableUnpublish` now stage Product and Collection targets locally; `publishablePublishToCurrentChannel` / `publishableUnpublishToCurrentChannel` currently have product-scoped local staging only
 - the capture harness now records schema inventory plus safe read-only `shop` / `locations` / `location(id:)` baselines, while mutation validation probes are recorded as a plan instead of executed by default
@@ -1865,6 +1866,25 @@ Safety traps:
 Practical rule:
 
 - keep Store properties registry inventory separate from runtime support; do not flip these roots to implemented until there is captured fixture evidence plus local model behavior for the specific root family
+
+### 47b. `location` detail reads should reuse the effective inventory graph
+
+HAR-168 promoted the first Store properties location detail read slice from scaffold to runtime support.
+
+Live evidence refreshed on this host:
+
+- `location` accepts an optional `id`; omitting it returns the primary shop location
+- `locationByIdentifier(identifier: { id })` returns the same `Location` payload as `location(id:)` for a known location
+- unknown `location(id:)` and unknown `locationByIdentifier(identifier: { id })` return `null`
+- `locationByIdentifier(identifier: {})` fails before data resolution with `invalidOneOfInputObject`
+- the captured location detail shape includes address fields, activation/deactivation flags, fulfillment-service nullability, empty metafield/suggested-address structures, and nested `inventoryLevels` with `item`, `location`, and named quantities
+
+Practical rule for the proxy:
+
+- keep `location`, `locationByIdentifier`, and top-level `locations` aligned on the same effective inventory-level graph until there is a real local location mutation model
+- keep baseline location metadata narrow and read-only: it can preserve captured address and lifecycle scalars, but nested inventory-level connections should still come from the effective inventory graph so staged inventory activation/deactivation behavior does not drift
+- model unknown IDs as `null` and invalid identifier objects as GraphQL-style errors, not generic empty objects
+- preserve empty metafield/suggested-address shapes when the local snapshot has no location-owned metadata rather than inventing fake metafields or address suggestions
 
 ### 47a. Generic Publishable roots must not become permanent passthrough
 
@@ -1999,3 +2019,54 @@ Practical rule for the proxy:
 - do not fabricate order, event, store credit, payment method, subscription, company-contact, address, or unrelated metafield records after staged customer CRUD
 - keep customer-order overlap narrow: local customer reads may expose empty `orders` / `lastOrder` when the customer graph has no modeled order relationship, while real order lifecycle behavior remains in the order-domain notes and tests
 - any future non-empty nested customer replay must first add normalized state for that sub-resource and compare against captured fixtures instead of reusing the HAR-160 empty/no-data serializer branch
+
+## 54. Markets reads are safe to capture, but writes are not harmless
+
+The first Shopify Markets inventory was captured against Admin GraphQL 2026-04 with `corepack pnpm conformance:capture-markets`.
+
+Observed current-version surface:
+
+- schema inventory confirms read roots for `market`, `markets`, `catalogs`, `webPresences`, and `marketsResolvedValues`
+- schema inventory confirms current mutation roots for `marketCreate`, `marketUpdate`, `marketDelete`, `webPresenceCreate`, `webPresenceUpdate`, `webPresenceDelete`, `marketLocalizationsRegister`, and `marketLocalizationsRemove`
+- `marketsResolvedValues(buyerSignal: { countryCode: US })` is present in 2026-04 and returned resolved currency/price-inclusivity data on this store, but an empty resolved catalog connection for the captured buyer signal
+- top-level `webPresences` can be captured safely with `id`, `subfolderSuffix`, `domain`, `rootUrls`, linked `markets`, `defaultLocale`, and `alternateLocales`
+
+Access-scope trap:
+
+- selecting `MarketWebPresence.defaultLocale` or `MarketWebPresence.alternateLocales` requires `read_locales` or `read_markets_home`; earlier credentials failed with `ACCESS_DENIED`, while the refreshed credential captures both fields successfully
+- keep locale fields in Markets parity requests only while the capture credential retains one of those scopes; the successful scope probe is preserved in `fixtures/conformance/very-big-test-store.myshopify.com/2026-04/markets-baseline.json`
+
+Safety rule:
+
+- do not run successful live writes for market lifecycle, web presence, localization, backup-region, or currency-setting roots on the shared conformance store without a disposable market setup and cleanup story
+- current local Markets support is read-only snapshot replay for captured safe roots; mutation registry entries are local-staging scaffolds with `implemented: false` and must not be read as runtime support
+
+## 55. Customer merge is permission-gated and job-backed, but downstream reads settle quickly
+
+HAR-159 live capture on the conformance store became possible only after the app token included both `read_customer_merge` and `write_customer_merge`. The merge roots are distinct from generic customer update behavior:
+
+- `customerMergePreview(customerOneId:, customerTwoId:, overrideFields:)` requires read merge scope and returns a non-null preview object on safe inputs
+- `customerMerge(customerOneId:, customerTwoId:, overrideFields:)` requires write merge scope and returns `resultingCustomerId`, a `Job`, and `userErrors`
+- `customerMergeJobStatus(jobId:)` returns a `CustomerMergeRequest` with `jobId`, `resultingCustomerId`, `status`, and `customerMergeErrors`
+
+Captured validation behavior:
+
+- self-merge preview returns a top-level `BAD_REQUEST` error with message `Customers must be different.`
+- self-merge mutation returns payload `userErrors` with `field: null`, message `Customers IDs should not match`, and code `INVALID_CUSTOMER_ID`
+- an unknown second customer id returns payload `userErrors` at `['customerTwoId']` with code `INVALID_CUSTOMER_ID`
+- omitting the required second id returns a top-level `missingRequiredArguments` GraphQL error before mutation execution
+
+Captured safe happy path for two synthetic customers:
+
+- Shopify selected `customerTwoId` as the resulting customer id
+- the mutation returned a job with `done: false`
+- after polling, `customerMergeJobStatus` reached `COMPLETED`
+- downstream `customer(id: customerOneId)` and `customerByIdentifier(emailAddress: customer one email)` returned `null`
+- downstream `customer(id: customerTwoId)` and `customerByIdentifier(emailAddress: customer two email)` returned the merged customer
+- override `note` and `tags` replaced the default combined note/tag values; selected name/email fields followed the requested customer id override fields
+
+Practical rule:
+
+- stage supported `customerMerge` locally for customers already present in the normalized graph, mark the source customer deleted, record the source-to-result id redirect for state inspection, and expose a local merge request for `customerMergeJobStatus`
+- do not fetch or mutate Shopify during normal runtime to discover missing merge customers; unknown ids should return captured `CustomerMergeUserError` payloads instead
+- do not model transfer of orders, draft orders, gift cards, discounts, addresses, or other attached resources until a fixture captures those non-empty merge fields

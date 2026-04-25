@@ -1,0 +1,61 @@
+fragment MarketWebPresenceReadFields on MarketWebPresence {
+  id
+  subfolderSuffix
+  domain {
+    id
+    host
+    url
+    sslEnabled
+  }
+  rootUrls {
+    locale
+    url
+  }
+  defaultLocale {
+    locale
+    name
+    primary
+    published
+  }
+  alternateLocales {
+    locale
+    name
+    primary
+    published
+  }
+  markets(first: 5) {
+    edges {
+      cursor
+      node {
+        id
+        name
+        handle
+        status
+        type
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}
+
+query MarketWebPresencesRead($first: Int!) {
+  webPresences(first: $first) {
+    edges {
+      cursor
+      node {
+        ...MarketWebPresenceReadFields
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

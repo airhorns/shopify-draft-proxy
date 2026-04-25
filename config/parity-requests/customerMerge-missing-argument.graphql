@@ -1,0 +1,10 @@
+mutation CustomerMergeMissingArgument($one: ID!) {
+  customerMerge(customerOneId: $one) {
+    resultingCustomerId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
