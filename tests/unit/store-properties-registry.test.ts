@@ -248,10 +248,19 @@ describe('Store properties registry scaffold', () => {
     expect(packageJson.scripts?.['conformance:capture-store-properties']).toBe(
       'tsx ./scripts/capture-location-conformance.mts',
     );
+    expect(packageJson.scripts?.['conformance:capture-cash-management-location-summary']).toBe(
+      'tsx ./scripts/capture-cash-management-location-summary-conformance.mts',
+    );
 
     const captureScript = readText('scripts/capture-location-conformance.mts');
     expect(captureScript).toContain('getValidConformanceAccessToken');
     expect(captureScript).toContain('buildAdminAuthHeaders');
     expect(captureScript).not.toContain('SHOPIFY_CONFORMANCE_ADMIN_ACCESS_TOKEN');
+
+    const cashManagementCaptureScript = readText('scripts/capture-cash-management-location-summary-conformance.mts');
+    expect(cashManagementCaptureScript).toContain('getValidConformanceAccessToken');
+    expect(cashManagementCaptureScript).toContain('buildAdminAuthHeaders');
+    expect(cashManagementCaptureScript).toContain('cashManagementLocationSummary');
+    expect(cashManagementCaptureScript).not.toContain('SHOPIFY_CONFORMANCE_ADMIN_ACCESS_TOKEN');
   });
 });

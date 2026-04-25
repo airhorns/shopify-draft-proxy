@@ -164,7 +164,8 @@
     "execution": "overlay-read",
     "implemented": false,
     "matchNames": ["cashManagementLocationSummary", "CashManagementLocationSummary"],
-    "runtimeTests": []
+    "runtimeTests": [],
+    "supportNotes": "2026-04 conformance evidence is access-denied only for the current credential: Shopify requires `read_cash_tracking` plus `view_payment_tracking_sessions_pos_channel` or `payments_cash_session_history` retail role permission. Keep unsupported passthrough/runtime support unclaimed until fixture-backed no-data or summary shapes are captured."
   },
   {
     "name": "publications",
