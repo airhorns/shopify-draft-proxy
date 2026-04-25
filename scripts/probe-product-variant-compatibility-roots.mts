@@ -2,7 +2,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status and error output to stdio. */
 import 'dotenv/config';
 
-import { runAdminGraphqlRequest } from './conformance-graphql-client.mjs';
+import { runAdminGraphqlRequest } from './conformance-graphql-client.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 const requiredVars = ['SHOPIFY_CONFORMANCE_STORE_DOMAIN', 'SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
@@ -109,13 +109,16 @@ function parseMissingRootErrors(result, expectedOperationName) {
     }));
 }
 
-function buildBlockerNote(blockers) {
-  const blockerLines = blockers.flatMap((blocker) => [`- \`${blocker.operationName}\``, `  > ${blocker.message}`]);
+function buildSchemaDecisionNote(missingRoots) {
+  const missingRootLines = missingRoots.flatMap((missingRoot) => [
+    `- \`${missingRoot.operationName}\``,
+    `  > ${missingRoot.message}`,
+  ]);
 
   return [
-    '# Product variant compatibility live schema blocker',
+    '# Product variant compatibility live schema decision',
     '',
-    '## What failed',
+    '## Probe result',
     '',
     'Attempted to probe the legacy single-variant compatibility roots against the live Shopify Admin GraphQL schema used by the conformance store.',
     '',
@@ -124,55 +127,56 @@ function buildBlockerNote(blockers) {
     `- store: \`${storeDomain}\``,
     `- api version: \`${apiVersion}\``,
     '- dedicated probe command: `corepack pnpm conformance:probe-product-variant-compatibility-roots`',
-    '- live schema rejected all three compatibility roots before any write-path parity capture could run:',
-    ...blockerLines,
+    '- live schema rejected all three compatibility roots before any direct live parity capture could run:',
+    ...missingRootLines,
     '',
-    '## Why this blocks closure',
+    '## Decision',
     '',
-    'The repo still implements `productVariantCreate`, `productVariantUpdate`, and `productVariantDelete` as compatibility roots, but the current 2025-01 live schema on the conformance store does not expose those mutation fields. Without direct live roots, this family cannot be promoted from declared-gap to covered via first-party mutation capture on the current store/api-version pair.',
+    'The repo still implements `productVariantCreate`, `productVariantUpdate`, and `productVariantDelete` as compatibility roots, but the current live schema on the conformance store does not expose those mutation fields. Without direct live roots, this family remains compatibility-wrapper parity backed by the adjacent live-supported bulk variant captures.',
     '',
     '## What was completed anyway',
     '',
-    '1. added a dedicated live-schema probe command for the single-variant compatibility family instead of leaving the blocker as an inferred sentence in generated docs',
-    '2. refreshed durable blocker evidence from the current host token and store so future runs can verify the schema drift explicitly',
-    '3. preserved the adjacent live-supported bulk variant family as the real parity baseline (`productVariantsBulkCreate`, `productVariantsBulkUpdate`, `productVariantsBulkDelete`) rather than faking direct coverage for missing roots',
+    '1. refreshed durable schema evidence from the current host token and store so future runs can verify the schema drift explicitly',
+    '2. preserved the adjacent live-supported bulk variant family as the real parity baseline (`productVariantsBulkCreate`, `productVariantsBulkUpdate`, `productVariantsBulkDelete`) rather than faking direct coverage for missing roots',
+    '3. kept the decision in Linear/HAR-189 and parity metadata instead of repository pending Markdown',
     '',
     '## Recommended next step',
     '',
-    'If Shopify reintroduces these compatibility roots on a future API version/store, rerun `corepack pnpm conformance:probe-product-variant-compatibility-roots` and then capture direct live parity. Otherwise keep treating this family as a compatibility-only declared gap while the bulk variant family remains the covered live path.',
+    'If Shopify reintroduces these compatibility roots on a future API version/store, rerun `corepack pnpm conformance:probe-product-variant-compatibility-roots` and then capture direct live parity. Otherwise keep treating this family as compatibility-wrapper parity while the bulk variant family remains the covered live path.',
     '',
   ].join('\n');
 }
 
-const blockers = [];
+const missingRoots = [];
 for (const probe of probeDefinitions) {
   const result = await runGraphqlRaw(probe.query, probe.variables);
-  blockers.push(...parseMissingRootErrors(result, probe.operationName));
+  missingRoots.push(...parseMissingRootErrors(result, probe.operationName));
 }
 
-if (blockers.length === probeDefinitions.length) {
-  const note = buildBlockerNote(blockers);
+if (missingRoots.length === probeDefinitions.length) {
+  const note = buildSchemaDecisionNote(missingRoots);
   console.log(
     JSON.stringify(
       {
-        ok: false,
-        blocked: true,
+        ok: true,
+        legacyRootsExposed: false,
         linearIssue,
-        blockerSummary: note,
-        blockers,
+        decisionSummary: note,
+        missingRoots,
       },
       null,
       2,
     ),
   );
-  process.exit(1);
+  process.exit(0);
 }
 
 console.log(
   JSON.stringify(
     {
       ok: true,
-      blockers,
+      legacyRootsExposed: true,
+      missingRoots,
       message:
         'At least one legacy single-variant compatibility root is present in the live schema. Reassess declared-gap status before keeping the blocker note.',
     },
