@@ -333,10 +333,7 @@ try {
   const metafieldsDeleteResponse = await runGraphql(metafieldsDeleteMutation, metafieldsDeleteVariables);
   const postDeleteRead = await runGraphql(downstreamReadQuery, { id: createdProductId });
   const nonexistentOwnerDeleteVariables = buildMetafieldsDeleteNonexistentOwnerVariables();
-  const nonexistentOwnerDeleteResponse = await runGraphqlRaw(
-    metafieldsDeleteMutation,
-    nonexistentOwnerDeleteVariables,
-  );
+  const nonexistentOwnerDeleteResponse = await runGraphqlRaw(metafieldsDeleteMutation, nonexistentOwnerDeleteVariables);
   const emptyDeleteVariables = { metafields: [] };
   const emptyDeleteResponse = await runGraphqlRaw(metafieldsDeleteMutation, emptyDeleteVariables);
   const missingKeyDeleteVariables = buildMetafieldsDeleteMissingKeyVariables(createdProductId);

@@ -100,9 +100,7 @@
         "payload": {
           "data": {
             "metafieldsDelete": {
-              "deletedMetafields": [
-                null
-              ],
+              "deletedMetafields": [null],
               "userErrors": []
             }
           },
@@ -178,10 +176,7 @@
                 ],
                 "problems": [
                   {
-                    "path": [
-                      0,
-                      "key"
-                    ],
+                    "path": [0, "key"],
                     "explanation": "Expected value to not be null"
                   }
                 ]
