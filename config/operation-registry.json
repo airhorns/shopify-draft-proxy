@@ -2695,6 +2695,66 @@
     "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for channel-level deletion semantics and userErrors."
   },
   {
+    "name": "webhookSubscription",
+    "type": "query",
+    "domain": "webhooks",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["webhookSubscription", "WebhookSubscription"],
+    "runtimeTests": [],
+    "supportNotes": "Conformance scaffold only. HAR-267 captured empty/null and create/update/delete lifecycle evidence for API-created webhook subscriptions, but local snapshot/live-hybrid reads are not modeled yet."
+  },
+  {
+    "name": "webhookSubscriptions",
+    "type": "query",
+    "domain": "webhooks",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["webhookSubscriptions", "WebhookSubscriptions"],
+    "runtimeTests": [],
+    "supportNotes": "Conformance scaffold only. Catalog/count/detail behavior is captured for API-created subscriptions; app TOML webhooks and local connection modeling remain out of scope until runtime support is implemented."
+  },
+  {
+    "name": "webhookSubscriptionsCount",
+    "type": "query",
+    "domain": "webhooks",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["webhookSubscriptionsCount", "WebhookSubscriptionsCount"],
+    "runtimeTests": [],
+    "supportNotes": "Conformance scaffold only. Empty and filtered count behavior is captured, but the proxy does not yet synthesize webhook subscription counts locally."
+  },
+  {
+    "name": "webhookSubscriptionCreate",
+    "type": "mutation",
+    "domain": "webhooks",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["webhookSubscriptionCreate", "WebhookSubscriptionCreate"],
+    "runtimeTests": [],
+    "supportNotes": "Conformance scaffold only. HAR-267 captures successful registration inputs and missing URI validation, but supported runtime staging must wait for a local webhook-subscription state model and downstream read visibility."
+  },
+  {
+    "name": "webhookSubscriptionUpdate",
+    "type": "mutation",
+    "domain": "webhooks",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["webhookSubscriptionUpdate", "WebhookSubscriptionUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "Conformance scaffold only. HAR-267 captures update payloads and unknown-id userErrors, but supported runtime staging must wait for local lifecycle emulation."
+  },
+  {
+    "name": "webhookSubscriptionDelete",
+    "type": "mutation",
+    "domain": "webhooks",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["webhookSubscriptionDelete", "WebhookSubscriptionDelete"],
+    "runtimeTests": [],
+    "supportNotes": "Conformance scaffold only. HAR-267 captures delete payloads, post-delete absence, and unknown-id userErrors, but supported runtime deregistration must wait for local state/read-after-delete modeling."
+  },
+  {
     "name": "segment",
     "type": "query",
     "domain": "segments",
