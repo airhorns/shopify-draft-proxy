@@ -1,0 +1,106 @@
+{
+  "capturedAt": "2026-04-25T16:16:00.000Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "cases": [
+    {
+      "name": "segmentCreateBlankName",
+      "query": "#graphql\nmutation SegmentCreateBlankName($name: String!, $query: String!) {\n  segmentCreate(name: $name, query: $query) {\n    segment { id name query creationDate lastEditDate }\n    userErrors { field message }\n  }\n}",
+      "variables": {
+        "name": "",
+        "query": "email_subscription_status = 'SUBSCRIBED'"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentCreate": {
+              "segment": null,
+              "userErrors": [
+                {
+                  "field": ["name"],
+                  "message": "Name can't be blank"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentCreateInvalidQuery",
+      "query": "#graphql\nmutation SegmentCreateInvalidQuery($name: String!, $query: String!) {\n  segmentCreate(name: $name, query: $query) {\n    segment { id name query creationDate lastEditDate }\n    userErrors { field message }\n  }\n}",
+      "variables": {
+        "name": "Invalid query",
+        "query": "not a valid segment query ???"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentCreate": {
+              "segment": null,
+              "userErrors": [
+                {
+                  "field": ["query"],
+                  "message": "Query Line 1 Column 6: 'valid' is unexpected."
+                },
+                {
+                  "field": ["query"],
+                  "message": "Query Line 1 Column 4: 'a' filter cannot be found."
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentUpdateUnknownId",
+      "query": "#graphql\nmutation SegmentUpdateUnknownId($id: ID!, $name: String) {\n  segmentUpdate(id: $id, name: $name) {\n    segment { id name query creationDate lastEditDate }\n    userErrors { field message }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/Segment/999999999999",
+        "name": "Nope"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentUpdate": {
+              "segment": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Segment does not exist"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentDeleteUnknownId",
+      "query": "#graphql\nmutation SegmentDeleteUnknownId($id: ID!) {\n  segmentDelete(id: $id) {\n    deletedSegmentId\n    userErrors { field message }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/Segment/999999999999"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentDelete": {
+              "deletedSegmentId": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Segment does not exist"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "capturedAt": "2026-04-25T16:19:30.000Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "cases": [
+    {
+      "name": "marketLocalizationsRegisterUnknownResource",
+      "query": "#graphql\nmutation InvalidMarketLocalization($resourceId: ID!, $marketLocalizations: [MarketLocalizationRegisterInput!]!) {\n  marketLocalizationsRegister(resourceId: $resourceId, marketLocalizations: $marketLocalizations) {\n    marketLocalizations { key value updatedAt outdated market { id name } }\n    userErrors { field message code }\n  }\n}",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/999999999999",
+        "marketLocalizations": [
+          {
+            "marketId": "gid://shopify/Market/999999999999",
+            "key": "value",
+            "value": "Localized",
+            "marketLocalizableContentDigest": "bad-digest"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketLocalizationsRegister": {
+              "marketLocalizations": null,
+              "userErrors": [
+                {
+                  "field": ["resourceId"],
+                  "message": "Resource gid://shopify/Metafield/999999999999 does not exist",
+                  "code": "RESOURCE_NOT_FOUND"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketLocalizationsRemoveUnknownResource",
+      "query": "#graphql\nmutation InvalidMarketLocalizationRemove($resourceId: ID!, $marketLocalizationKeys: [String!]!, $marketIds: [ID!]!) {\n  marketLocalizationsRemove(resourceId: $resourceId, marketLocalizationKeys: $marketLocalizationKeys, marketIds: $marketIds) {\n    marketLocalizations { key value updatedAt outdated market { id name } }\n    userErrors { field message code }\n  }\n}",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/999999999999",
+        "marketLocalizationKeys": ["value"],
+        "marketIds": ["gid://shopify/Market/999999999999"]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketLocalizationsRemove": {
+              "marketLocalizations": null,
+              "userErrors": [
+                {
+                  "field": ["resourceId"],
+                  "message": "Resource gid://shopify/Metafield/999999999999 does not exist",
+                  "code": "RESOURCE_NOT_FOUND"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -198,6 +198,113 @@ describe('product draft flow', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(3);
   });
 
+  it('stages metafields for product variant owners and exposes them through product and productVariant reads', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const createResponse = await request(app).post('/admin/api/2026-04/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Variant Metafield Hat" }) { product { id variants(first: 1) { nodes { id metafield(namespace: "custom", key: "care") { id } metafields(first: 10) { nodes { id } pageInfo { hasNextPage hasPreviousPage } } } } } userErrors { field message } } }',
+    });
+
+    expect(createResponse.status).toBe(200);
+    expect(createResponse.body.data.productCreate.userErrors).toEqual([]);
+    const productId = createResponse.body.data.productCreate.product.id as string;
+    const variant = createResponse.body.data.productCreate.product.variants.nodes[0] as {
+      id: string;
+      metafield: unknown;
+      metafields: { nodes: unknown[]; pageInfo: { hasNextPage: boolean; hasPreviousPage: boolean } };
+    };
+    expect(variant.metafield).toBeNull();
+    expect(variant.metafields).toEqual({
+      nodes: [],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+    });
+
+    const setResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation SetVariantMetafield($metafields: [MetafieldsSetInput!]!) { metafieldsSet(metafields: $metafields) { metafields { id namespace key type value ownerType compareDigest } userErrors { field message code elementIndex } } }',
+        variables: {
+          metafields: [
+            {
+              ownerId: variant.id,
+              namespace: 'custom',
+              key: 'care',
+              type: 'single_line_text_field',
+              value: 'Spot clean',
+            },
+          ],
+        },
+      });
+
+    expect(setResponse.status).toBe(200);
+    expect(setResponse.body.data.metafieldsSet.userErrors).toEqual([]);
+    expect(setResponse.body.data.metafieldsSet.metafields).toEqual([
+      {
+        id: expect.stringMatching(/^gid:\/\/shopify\/Metafield\//),
+        namespace: 'custom',
+        key: 'care',
+        type: 'single_line_text_field',
+        value: 'Spot clean',
+        ownerType: 'PRODUCTVARIANT',
+        compareDigest: expect.stringMatching(/^draft:/),
+      },
+    ]);
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query VariantMetafields($productId: ID!, $variantId: ID!) {
+          product(id: $productId) {
+            id
+            variants(first: 1) {
+              nodes {
+                id
+                care: metafield(namespace: "custom", key: "care") { id namespace key value ownerType }
+                metafields(first: 10) {
+                  nodes { id namespace key value ownerType }
+                  pageInfo { hasNextPage hasPreviousPage }
+                }
+              }
+            }
+          }
+          productVariant(id: $variantId) {
+            id
+            care: metafield(namespace: "custom", key: "care") { id namespace key value ownerType }
+            metafields(first: 10) {
+              nodes { id namespace key value ownerType }
+              pageInfo { hasNextPage hasPreviousPage }
+            }
+          }
+        }`,
+        variables: {
+          productId,
+          variantId: variant.id,
+        },
+      });
+
+    expect(readResponse.status).toBe(200);
+    const productVariantNode = readResponse.body.data.product.variants.nodes[0];
+    expect(productVariantNode.care).toMatchObject({
+      namespace: 'custom',
+      key: 'care',
+      value: 'Spot clean',
+      ownerType: 'PRODUCTVARIANT',
+    });
+    expect(productVariantNode.metafields.nodes).toEqual([productVariantNode.care]);
+    expect(productVariantNode.metafields.pageInfo).toEqual({
+      hasNextPage: false,
+      hasPreviousPage: false,
+    });
+    expect(readResponse.body.data.productVariant).toEqual(productVariantNode);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('rejects blank productCreate titles with Shopify-like userErrors', async () => {
     const app = createApp(config).callback();
 

@@ -1,0 +1,99 @@
+query MetafieldsSetOwnerExpansionDownstreamRead($productId: ID!, $variantId: ID!, $collectionId: ID!) {
+  product(id: $productId) {
+    id
+    title
+    variants(first: 1) {
+      nodes {
+        id
+        title
+        care: metafield(namespace: "custom", key: "variant_care") {
+          id
+          namespace
+          key
+          type
+          value
+          compareDigest
+          ownerType
+        }
+        metafields(first: 10) {
+          nodes {
+            id
+            namespace
+            key
+            type
+            value
+            compareDigest
+            ownerType
+          }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+            startCursor
+            endCursor
+          }
+        }
+      }
+    }
+  }
+  productVariant(id: $variantId) {
+    id
+    title
+    care: metafield(namespace: "custom", key: "variant_care") {
+      id
+      namespace
+      key
+      type
+      value
+      compareDigest
+      ownerType
+    }
+    metafields(first: 10) {
+      nodes {
+        id
+        namespace
+        key
+        type
+        value
+        compareDigest
+        ownerType
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+  collection(id: $collectionId) {
+    id
+    title
+    handle
+    season: metafield(namespace: "custom", key: "collection_season") {
+      id
+      namespace
+      key
+      type
+      value
+      compareDigest
+      ownerType
+    }
+    metafields(first: 10) {
+      nodes {
+        id
+        namespace
+        key
+        type
+        value
+        compareDigest
+        ownerType
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}
