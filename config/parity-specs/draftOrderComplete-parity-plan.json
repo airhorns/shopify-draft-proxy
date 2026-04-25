@@ -12,7 +12,7 @@
     "variablesCapturePath": "$.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "The live capture completes a draft created earlier in the same conformance run, verifies an empty `userErrors` response, and records immediate downstream `draftOrder(id:)` visibility with the linked regular order. The strict comparison seeds the captured draft before replaying local completion; expected differences are limited to Shopify-generated completion/order identity values and Shopify's app-specific completed order source name.",
+  "notes": "The live capture completes a draft created earlier in the same conformance run, verifies an empty `userErrors` response, and records immediate downstream `draftOrder(id:)` visibility with the linked regular order. The strict comparison seeds the captured draft before replaying local completion; expected differences are limited to Shopify-generated completion/order identity values.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -30,11 +30,6 @@
         "path": "$.order.name",
         "matcher": "non-empty-string",
         "reason": "Live Shopify and the local draft proxy allocate independent merchant-facing order names."
-      },
-      {
-        "path": "$.order.sourceName",
-        "matcher": "any-string",
-        "reason": "Shopify normalizes the completed order source to the installed app/channel identifier while the local proxy preserves the requested sourceName input."
       },
       {
         "path": "$.order.lineItems.nodes[*].id",

@@ -18,6 +18,8 @@ const liveHybridConfig: AppConfig = {
   readMode: 'live-hybrid',
 };
 
+const draftOrderCompleteNormalizedSourceName = '347082227713';
+
 function makeProduct(id: string, title: string): ProductRecord {
   return {
     id,
@@ -3904,7 +3906,7 @@ describe('order creation flow', () => {
       order: {
         id: expect.stringMatching(/^gid:\/\/shopify\/Order\/\d+$/u),
         name: '#1',
-        sourceName: 'hermes-cron-orders',
+        sourceName: draftOrderCompleteNormalizedSourceName,
         paymentGatewayNames: ['manual'],
         displayFinancialStatus: 'PAID',
         displayFulfillmentStatus: 'UNFULFILLED',
@@ -3998,7 +4000,7 @@ describe('order creation flow', () => {
           order: {
             id: completedOrderId,
             name: '#1',
-            sourceName: 'hermes-cron-orders',
+            sourceName: draftOrderCompleteNormalizedSourceName,
             displayFinancialStatus: 'PAID',
           },
         },
@@ -4059,7 +4061,7 @@ describe('order creation flow', () => {
         order: {
           id: completedOrderId,
           name: '#1',
-          sourceName: 'hermes-cron-orders',
+          sourceName: draftOrderCompleteNormalizedSourceName,
           displayFinancialStatus: 'PAID',
           displayFulfillmentStatus: 'UNFULFILLED',
           note: 'complete this staged draft locally',
@@ -4076,7 +4078,7 @@ describe('order creation flow', () => {
             {
               id: completedOrderId,
               name: '#1',
-              sourceName: 'hermes-cron-orders',
+              sourceName: draftOrderCompleteNormalizedSourceName,
               displayFinancialStatus: 'PAID',
             },
           ],
@@ -4183,7 +4185,7 @@ describe('order creation flow', () => {
       ready: true,
       order: {
         id: expect.stringMatching(/^gid:\/\/shopify\/Order\/\d+$/u),
-        sourceName: 'hermes-payment-terms',
+        sourceName: draftOrderCompleteNormalizedSourceName,
         displayFinancialStatus: 'PENDING',
         currentTotalPriceSet: {
           shopMoney: {

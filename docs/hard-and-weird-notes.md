@@ -192,7 +192,7 @@ Current live findings on this host:
 - local payment behavior for that synthetic-only slice remains deliberately narrow:
   - default completion stages the regular order as `displayFinancialStatus: PAID`
   - deprecated `paymentPending: true` stages it as `displayFinancialStatus: PENDING`
-  - `sourceName` is copied to the staged order for downstream attribution reads, while live Shopify normalizes it to the installed app/channel identifier on this host
+  - non-null `sourceName` is normalized to the captured installed app/channel identifier (`347082227713`) on the staged order instead of echoing the requested input string
   - non-null `paymentGatewayId` returns the captured `Invalid payment gateway` userError because the proxy has no local payment-gateway catalog yet
 - practical consequence: the repo still should not jump straight from "order roots exist in introspection" to speculative full draft-to-order staging code; keep the local completion slice limited to staged synthetic drafts until live Shopify happy-path evidence exists
 
