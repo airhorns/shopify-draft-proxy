@@ -229,6 +229,20 @@ A later healthy-again pass on this host exposed a repo-local repair bug rather t
 
 This note is historical for the old worktree-local repair path. The current conformance auth entry point is the shared home-folder credential at `~/.shopify-draft-proxy/conformance-admin-auth.json`, and `corepack pnpm conformance:refresh-auth` should use that same path as `corepack pnpm conformance:probe` / `corepack pnpm conformance:capture-orders`.
 
+### 7b. BulkOperation reads expose terminal job history, not just active jobs
+
+HAR-262 live capture on 2026-04 settled a few easy-to-model-wrong branches for the root-level Bulk Operations controller:
+
+- `bulkOperation(id:)` unknown IDs return `null`, while malformed non-GID IDs fail earlier with a top-level invalid-id error.
+- `bulkOperations(first:, query: "status:running operation_type:query")` and the matching mutation filter return empty connection objects, not `null`, when no running jobs exist.
+- `currentBulkOperation(type: MUTATION)` can return `null`, but `currentBulkOperation(type: QUERY)` on this host returned a terminal query job; do not assume the deprecated root means "currently running only."
+- Canceling a completed operation returns the completed operation plus a userError with `field: null`; canceling an unknown operation returns `bulkOperation: null` plus `field: ["id"]`.
+- A successful cancel starts at `CANCELING` and then reaches `CANCELED`; the captured canceled operation kept `completedAt: null`, `fileSize: null`, and `partialDataUrl: null`. Result URL/counter behavior should be modeled from fixtures, not inferred from the completed export branch.
+
+Practical rule:
+
+- model BulkOperation as an app-scoped job history with terminal entries and status-specific payload details, not as a single nullable active job slot.
+
 ## 8. Customer mutation payloads normalize tags and phone numbers differently than guessed
 
 The first strict customer CRUD parity promotion exposed two easy local-draft guesses that were wrong for the captured Shopify Admin GraphQL payloads:
