@@ -1,0 +1,52 @@
+query WebhookSubscriptionCatalogRead($first: Int!, $unknownId: ID!, $missingQuery: String!) {
+  webhookSubscriptions(first: $first, sortKey: ID) {
+    nodes {
+      id
+      topic
+      format
+      includeFields
+      metafieldNamespaces
+      filter
+      createdAt
+      updatedAt
+      endpoint {
+        __typename
+        ... on WebhookHttpEndpoint {
+          callbackUrl
+        }
+        ... on WebhookEventBridgeEndpoint {
+          arn
+        }
+        ... on WebhookPubSubEndpoint {
+          pubSubProject
+          pubSubTopic
+        }
+      }
+    }
+    edges {
+      cursor
+      node {
+        id
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  webhookSubscriptionsCount {
+    count
+    precision
+  }
+  filteredCount: webhookSubscriptionsCount(query: $missingQuery, limit: 10) {
+    count
+    precision
+  }
+  unknown: webhookSubscription(id: $unknownId) {
+    id
+    topic
+    format
+  }
+}

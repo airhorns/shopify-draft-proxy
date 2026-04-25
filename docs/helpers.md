@@ -8,6 +8,8 @@ Shared helpers for GraphQL Admin proxy serializers.
 
 - `getFieldResponseKey(field)` returns the Shopify GraphQL response key for a field, preserving aliases.
 - `isPlainObject(value)` narrows unknown values before proxy serializers read or hydrate object-shaped Shopify payloads.
+- `readStringValue(value)`, `readNumberValue(value)`, and `readBooleanValue(value)` are small scalar readers for serializers and upstream hydrators that need null-on-mismatch behavior at object boundaries.
+- `readPlainObjectArray(value)` filters unknown array values down to plain objects before normalizing nested upstream payloads.
 - `getDocumentFragments(document)` parses reusable fragment definitions from a GraphQL document for serializers that project stored snapshot data through the requested selection set.
 - `readGraphqlDataResponsePayload(payload, responseKey)` reads a root `data` payload by response key, returning `null` for malformed or absent upstream payloads so hydrate paths keep Shopify-like no-data behavior.
 - `projectGraphqlValue(value, selections, fragments, options)` and `projectGraphqlObject(source, selections, fragments, options)` project stored objects, arrays, fragment spreads, inline fragments, aliases, `__typename`, and connection `nodes` fallback behavior through a selected GraphQL shape. Use `options.projectFieldValue` only when a resource needs field-specific projection such as nested connection filtering.

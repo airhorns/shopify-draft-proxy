@@ -18,14 +18,14 @@
         "optionValues": [{ "optionName": "Color", "name": "Blue" }],
         "sku": "PARITY-SET-BLUE",
         "price": "79.99",
-        "inventoryQuantities": [{ "quantity": 7 }],
+        "inventoryQuantities": [{ "locationId": "gid://shopify/Location/1", "name": "available", "quantity": 7 }],
         "inventoryItem": { "tracked": true, "requiresShipping": true }
       },
       {
         "optionValues": [{ "optionName": "Color", "name": "Black" }],
         "sku": "PARITY-SET-BLACK",
         "price": "69.99",
-        "inventoryQuantities": [{ "quantity": 3 }],
+        "inventoryQuantities": [{ "locationId": "gid://shopify/Location/1", "name": "available", "quantity": 3 }],
         "inventoryItem": { "tracked": false, "requiresShipping": true }
       }
     ],

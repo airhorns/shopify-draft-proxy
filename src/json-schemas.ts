@@ -40,6 +40,7 @@ export const operationRegistryEntrySchema = z.strictObject({
   domain: z.enum([
     'products',
     'media',
+    'bulk-operations',
     'customers',
     'orders',
     'store-properties',
@@ -49,6 +50,7 @@ export const operationRegistryEntrySchema = z.strictObject({
     'privacy',
     'segments',
     'shipping-fulfillments',
+    'webhooks',
     'metafields',
     'metaobjects',
     'markets',

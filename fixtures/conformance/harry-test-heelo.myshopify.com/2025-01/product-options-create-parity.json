@@ -1,0 +1,244 @@
+{
+  "preMutationRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/10170576765234",
+        "options": [
+          {
+            "id": "gid://shopify/ProductOption/12716246630706",
+            "name": "Title",
+            "position": 1,
+            "values": ["Default Title"],
+            "optionValues": [
+              {
+                "id": "gid://shopify/ProductOptionValue/7972249305394",
+                "name": "Default Title",
+                "hasVariants": true
+              }
+            ]
+          }
+        ],
+        "variants": {
+          "nodes": [
+            {
+              "id": "gid://shopify/ProductVariant/51098787971378",
+              "title": "Default Title",
+              "selectedOptions": [
+                {
+                  "name": "Title",
+                  "value": "Default Title"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 13,
+        "actualQueryCost": 7,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1993,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "mutation": {
+    "variables": {
+      "productId": "gid://shopify/Product/10170576765234",
+      "options": [
+        {
+          "name": "Color",
+          "position": 1,
+          "values": [
+            {
+              "name": "Red"
+            },
+            {
+              "name": "Green"
+            }
+          ]
+        },
+        {
+          "name": "Size",
+          "position": 2,
+          "values": [
+            {
+              "name": "Small"
+            }
+          ]
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "productOptionsCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10170576765234",
+            "options": [
+              {
+                "id": "gid://shopify/ProductOption/12716246663474",
+                "name": "Color",
+                "position": 1,
+                "values": ["Red"],
+                "optionValues": [
+                  {
+                    "id": "gid://shopify/ProductOptionValue/7972249338162",
+                    "name": "Red",
+                    "hasVariants": true
+                  },
+                  {
+                    "id": "gid://shopify/ProductOptionValue/7972249370930",
+                    "name": "Green",
+                    "hasVariants": false
+                  }
+                ]
+              },
+              {
+                "id": "gid://shopify/ProductOption/12716246696242",
+                "name": "Size",
+                "position": 2,
+                "values": ["Small"],
+                "optionValues": [
+                  {
+                    "id": "gid://shopify/ProductOptionValue/7972249403698",
+                    "name": "Small",
+                    "hasVariants": true
+                  }
+                ]
+              }
+            ],
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51098787971378",
+                  "title": "Red / Small",
+                  "selectedOptions": [
+                    {
+                      "name": "Color",
+                      "value": "Red"
+                    },
+                    {
+                      "name": "Size",
+                      "value": "Small"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 22,
+          "actualQueryCost": 16,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1984,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/10170576765234",
+        "options": [
+          {
+            "id": "gid://shopify/ProductOption/12716246663474",
+            "name": "Color",
+            "position": 1,
+            "values": ["Red"],
+            "optionValues": [
+              {
+                "id": "gid://shopify/ProductOptionValue/7972249338162",
+                "name": "Red",
+                "hasVariants": true
+              },
+              {
+                "id": "gid://shopify/ProductOptionValue/7972249370930",
+                "name": "Green",
+                "hasVariants": false
+              }
+            ]
+          },
+          {
+            "id": "gid://shopify/ProductOption/12716246696242",
+            "name": "Size",
+            "position": 2,
+            "values": ["Small"],
+            "optionValues": [
+              {
+                "id": "gid://shopify/ProductOptionValue/7972249403698",
+                "name": "Small",
+                "hasVariants": true
+              }
+            ]
+          }
+        ],
+        "variants": {
+          "nodes": [
+            {
+              "id": "gid://shopify/ProductVariant/51098787971378",
+              "title": "Red / Small",
+              "selectedOptions": [
+                {
+                  "name": "Color",
+                  "value": "Red"
+                },
+                {
+                  "name": "Size",
+                  "value": "Small"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 13,
+        "actualQueryCost": 7,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1993,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "validation": {
+    "createUnknownProduct": {
+      "data": {
+        "productOptionsCreate": {
+          "product": null,
+          "userErrors": [
+            {
+              "field": ["productId"],
+              "message": "Product does not exist"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 22,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}
