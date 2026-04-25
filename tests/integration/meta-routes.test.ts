@@ -44,6 +44,8 @@ const emptySnapshot = {
   catalogOrder: [],
   priceLists: {},
   priceListOrder: [],
+  deliveryProfiles: {},
+  deliveryProfileOrder: [],
   productCollections: {},
   productMedia: {},
   files: {},
