@@ -653,6 +653,56 @@
     "supportNotes": "HAR-173: stages legal policy updates locally by ShopPolicyType, preserves raw mutation requests for commit replay, and overlays downstream shop.shopPolicies reads without proxying supported requests upstream."
   },
   {
+    "name": "privacySettings",
+    "type": "query",
+    "domain": "privacy",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["privacySettings", "PrivacySettings"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-250 registry-only privacy read coverage. Keep unimplemented until captured privacySettings evidence and a local privacy settings overlay model exist."
+  },
+  {
+    "name": "consentPolicy",
+    "type": "query",
+    "domain": "privacy",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["consentPolicy", "ConsentPolicy"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-250 registry-only privacy read coverage. Keep unimplemented until captured consentPolicy evidence and a local consent policy overlay model exist."
+  },
+  {
+    "name": "consentPolicyRegions",
+    "type": "query",
+    "domain": "privacy",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["consentPolicyRegions", "ConsentPolicyRegions"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-250 registry-only privacy read coverage. Keep unimplemented until captured consentPolicyRegions evidence and a local consent policy region model exist."
+  },
+  {
+    "name": "consentPolicyUpdate",
+    "type": "mutation",
+    "domain": "privacy",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["consentPolicyUpdate", "ConsentPolicyUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-250 registry-only privacy mutation coverage. Keep unimplemented until live capture and a local consent policy staging model exist; registry presence must not make this a supported passthrough."
+  },
+  {
+    "name": "privacyFeaturesDisable",
+    "type": "mutation",
+    "domain": "privacy",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["privacyFeaturesDisable", "PrivacyFeaturesDisable"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-250 registry-only privacy mutation coverage. Keep unimplemented until live capture and a local privacy feature staging model exist; registry presence must not make this a supported passthrough."
+  },
+  {
     "name": "productOptionsCreate",
     "type": "mutation",
     "domain": "products",
