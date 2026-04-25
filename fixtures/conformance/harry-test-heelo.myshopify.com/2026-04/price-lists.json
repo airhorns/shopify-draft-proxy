@@ -1,0 +1,84 @@
+{
+  "data": {
+    "priceLists": {
+      "edges": [
+        {
+          "cursor": "eyJsYXN0X2lkIjozMTU3NTM3NjE3OCwibGFzdF92YWx1ZSI6IjMxNTc1Mzc2MTc4In0=",
+          "node": {
+            "__typename": "PriceList",
+            "id": "gid://shopify/PriceList/31575376178",
+            "name": "Price List example Buyers",
+            "currency": "CAD",
+            "fixedPricesCount": 0,
+            "parent": {
+              "adjustment": {
+                "type": "PERCENTAGE_DECREASE",
+                "value": 5
+              }
+            },
+            "catalog": null
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjozMTU3NTQwODk0NiwibGFzdF92YWx1ZSI6IjMxNTc1NDA4OTQ2In0=",
+          "node": {
+            "__typename": "PriceList",
+            "id": "gid://shopify/PriceList/31575408946",
+            "name": "Mexico Buyers",
+            "currency": "MXN",
+            "fixedPricesCount": 0,
+            "parent": {
+              "adjustment": {
+                "type": "PERCENTAGE_DECREASE",
+                "value": 5
+              }
+            },
+            "catalog": {
+              "id": "gid://shopify/MarketCatalog/128893452594",
+              "title": "Mexico",
+              "status": "ACTIVE"
+            }
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjozMjEyODEwNjgwMiwibGFzdF92YWx1ZSI6IjMyMTI4MTA2ODAyIn0=",
+          "node": {
+            "__typename": "PriceList",
+            "id": "gid://shopify/PriceList/32128106802",
+            "name": "Snowdevil - 5ab8ea7a-2a02-46a0-af55-01cdb431d3ca",
+            "currency": "CAD",
+            "fixedPricesCount": 1,
+            "parent": {
+              "adjustment": {
+                "type": "PERCENTAGE_DECREASE",
+                "value": 0
+              }
+            },
+            "catalog": {
+              "id": "gid://shopify/CompanyLocationCatalog/132931223858",
+              "title": "Snowdevil",
+              "status": "ACTIVE"
+            }
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": "eyJsYXN0X2lkIjozMTU3NTM3NjE3OCwibGFzdF92YWx1ZSI6IjMxNTc1Mzc2MTc4In0=",
+        "endCursor": "eyJsYXN0X2lkIjozMjEyODEwNjgwMiwibGFzdF92YWx1ZSI6IjMyMTI4MTA2ODAyIn0="
+      }
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 10,
+      "actualQueryCost": 10,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1892,
+        "restoreRate": 100
+      }
+    }
+  }
+}
