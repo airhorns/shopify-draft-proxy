@@ -11,10 +11,7 @@
             "legacyResourceId": "6157654556905",
             "verifiedEmail": true,
             "state": "DISABLED",
-            "tags": [
-              "egnition-sample-data",
-              "referral"
-            ],
+            "tags": ["egnition-sample-data", "referral"],
             "defaultPhoneNumber": {
               "phoneNumber": "+2911120123"
             },

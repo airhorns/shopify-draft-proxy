@@ -13,10 +13,7 @@
       "verifiedEmail": true,
       "taxExempt": false,
       "state": "DISABLED",
-      "tags": [
-        "egnition-sample-data",
-        "referral"
-      ],
+      "tags": ["egnition-sample-data", "referral"],
       "numberOfOrders": "13",
       "amountSpent": {
         "amount": "39.85",
