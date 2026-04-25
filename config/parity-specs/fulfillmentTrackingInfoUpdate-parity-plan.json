@@ -14,22 +14,24 @@
   "notes": "Captured HAR-187 happy-path `fulfillmentTrackingInfoUpdate` slice after fulfillment access was restored. The fixture records the safe live setup fulfillment, the tracking update mutation payload, and immediate downstream order fulfillment visibility.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [],
+    "expectedDifferences": [
+      {
+        "path": "$.createdAt",
+        "ignore": true,
+        "regrettable": true,
+        "reason": "The downstream fulfillment read compares the complete selected fulfillment resource; Shopify returns the live fulfillment creation timestamp, while the local proxy keeps the seeded fulfillment timestamp nullable until creation staging is modeled."
+      },
+      {
+        "path": "$.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The downstream fulfillment read compares the complete selected fulfillment resource; Shopify returns the live tracking update timestamp, while the proxy uses its deterministic staged timestamp."
+      }
+    ],
     "targets": [
       {
-        "name": "mutation-fulfillment-id",
-        "capturePath": "$.mutation.response.data.fulfillmentTrackingInfoUpdate.fulfillment.id",
-        "proxyPath": "$.data.fulfillmentTrackingInfoUpdate.fulfillment.id"
-      },
-      {
-        "name": "mutation-fulfillment-status",
-        "capturePath": "$.mutation.response.data.fulfillmentTrackingInfoUpdate.fulfillment.status",
-        "proxyPath": "$.data.fulfillmentTrackingInfoUpdate.fulfillment.status"
-      },
-      {
-        "name": "mutation-tracking-info",
-        "capturePath": "$.mutation.response.data.fulfillmentTrackingInfoUpdate.fulfillment.trackingInfo",
-        "proxyPath": "$.data.fulfillmentTrackingInfoUpdate.fulfillment.trackingInfo"
+        "name": "mutation-fulfillment",
+        "capturePath": "$.mutation.response.data.fulfillmentTrackingInfoUpdate.fulfillment",
+        "proxyPath": "$.data.fulfillmentTrackingInfoUpdate.fulfillment"
       },
       {
         "name": "mutation-user-errors",
@@ -37,9 +39,9 @@
         "proxyPath": "$.data.fulfillmentTrackingInfoUpdate.userErrors"
       },
       {
-        "name": "downstream-updated-fulfillment-tracking-info",
-        "capturePath": "$.downstreamRead.response.data.order.fulfillments[0].trackingInfo",
-        "proxyPath": "$.data.order.fulfillments[0].trackingInfo",
+        "name": "downstream-updated-fulfillment",
+        "capturePath": "$.downstreamRead.response.data.order.fulfillments[0]",
+        "proxyPath": "$.data.order.fulfillments[0]",
         "proxyRequest": {
           "documentPath": "config/parity-requests/order-fulfillment-lifecycle-read.graphql",
           "variablesCapturePath": "$.downstreamRead.variables"

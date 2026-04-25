@@ -12,27 +12,24 @@
   "notes": "Captured HAR-187 happy-path `fulfillmentCancel` slice after fulfillment access was restored. The fixture records the safe setup fulfillment/tracking update, the cancel mutation payload, and immediate downstream order fulfillment visibility.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [],
+    "expectedDifferences": [
+      {
+        "path": "$.createdAt",
+        "ignore": true,
+        "regrettable": true,
+        "reason": "The downstream fulfillment read compares the complete selected fulfillment resource; Shopify returns the live fulfillment creation timestamp, while the local proxy keeps the seeded fulfillment timestamp nullable until creation staging is modeled."
+      },
+      {
+        "path": "$.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The downstream fulfillment read compares the complete selected fulfillment resource; Shopify returns the live cancel timestamp, while the proxy uses its deterministic staged timestamp."
+      }
+    ],
     "targets": [
       {
-        "name": "mutation-fulfillment-id",
-        "capturePath": "$.mutation.response.data.fulfillmentCancel.fulfillment.id",
-        "proxyPath": "$.data.fulfillmentCancel.fulfillment.id"
-      },
-      {
-        "name": "mutation-fulfillment-status",
-        "capturePath": "$.mutation.response.data.fulfillmentCancel.fulfillment.status",
-        "proxyPath": "$.data.fulfillmentCancel.fulfillment.status"
-      },
-      {
-        "name": "mutation-fulfillment-display-status",
-        "capturePath": "$.mutation.response.data.fulfillmentCancel.fulfillment.displayStatus",
-        "proxyPath": "$.data.fulfillmentCancel.fulfillment.displayStatus"
-      },
-      {
-        "name": "mutation-tracking-info",
-        "capturePath": "$.mutation.response.data.fulfillmentCancel.fulfillment.trackingInfo",
-        "proxyPath": "$.data.fulfillmentCancel.fulfillment.trackingInfo"
+        "name": "mutation-fulfillment",
+        "capturePath": "$.mutation.response.data.fulfillmentCancel.fulfillment",
+        "proxyPath": "$.data.fulfillmentCancel.fulfillment"
       },
       {
         "name": "mutation-user-errors",
@@ -40,27 +37,9 @@
         "proxyPath": "$.data.fulfillmentCancel.userErrors"
       },
       {
-        "name": "downstream-cancelled-fulfillment-status",
-        "capturePath": "$.downstreamRead.response.data.order.fulfillments[0].status",
-        "proxyPath": "$.data.order.fulfillments[0].status",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/order-fulfillment-lifecycle-read.graphql",
-          "variablesCapturePath": "$.downstreamRead.variables"
-        }
-      },
-      {
-        "name": "downstream-cancelled-fulfillment-display-status",
-        "capturePath": "$.downstreamRead.response.data.order.fulfillments[0].displayStatus",
-        "proxyPath": "$.data.order.fulfillments[0].displayStatus",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/order-fulfillment-lifecycle-read.graphql",
-          "variablesCapturePath": "$.downstreamRead.variables"
-        }
-      },
-      {
-        "name": "downstream-cancelled-fulfillment-tracking-info",
-        "capturePath": "$.downstreamRead.response.data.order.fulfillments[0].trackingInfo",
-        "proxyPath": "$.data.order.fulfillments[0].trackingInfo",
+        "name": "downstream-cancelled-fulfillment",
+        "capturePath": "$.downstreamRead.response.data.order.fulfillments[0]",
+        "proxyPath": "$.data.order.fulfillments[0]",
         "proxyRequest": {
           "documentPath": "config/parity-requests/order-fulfillment-lifecycle-read.graphql",
           "variablesCapturePath": "$.downstreamRead.variables"
