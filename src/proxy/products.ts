@@ -1,6 +1,7 @@
 import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 import type { ReadMode } from '../config.js';
 import { getFieldArguments, getRootField, getRootFieldArguments, getRootFields } from '../graphql/root-field.js';
+import { paginateConnectionItems, serializeConnectionPageInfo } from './graphql-helpers.js';
 import { makeProxySyntheticGid, makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type {
@@ -3873,96 +3874,6 @@ function serializeOptionSelectionSet(
   }
 
   return result;
-}
-
-function readConnectionSizeArgument(raw: unknown): number | null {
-  return typeof raw === 'number' && Number.isInteger(raw) && raw >= 0 ? raw : null;
-}
-
-function readConnectionCursor(raw: unknown): string | null {
-  if (typeof raw !== 'string') {
-    return null;
-  }
-
-  if (raw.startsWith('cursor:')) {
-    const cursorValue = raw.slice('cursor:'.length);
-    return cursorValue.length > 0 ? cursorValue : null;
-  }
-
-  return raw.length > 0 ? raw : null;
-}
-
-function paginateConnectionItems<T>(
-  items: T[],
-  field: FieldNode,
-  variables: Record<string, unknown>,
-  getCursorValue: (item: T) => string,
-): { items: T[]; hasNextPage: boolean; hasPreviousPage: boolean } {
-  const args = getFieldArguments(field, variables);
-  const first = readConnectionSizeArgument(args['first']);
-  const last = readConnectionSizeArgument(args['last']);
-  const after = readConnectionCursor(args['after']);
-  const before = readConnectionCursor(args['before']);
-
-  const startIndex = after === null ? 0 : items.findIndex((item) => getCursorValue(item) === after) + 1;
-  const beforeIndex = before === null ? items.length : items.findIndex((item) => getCursorValue(item) === before);
-  const windowStart = Math.max(0, startIndex);
-  const windowEnd = Math.max(windowStart, beforeIndex >= 0 ? beforeIndex : items.length);
-  const paginatedItems = items.slice(windowStart, windowEnd);
-
-  let limitedItems = paginatedItems;
-  let hasNextPage = windowEnd < items.length;
-  let hasPreviousPage = windowStart > 0;
-
-  if (first !== null) {
-    hasNextPage = hasNextPage || paginatedItems.length > first;
-    limitedItems = limitedItems.slice(0, first);
-  }
-
-  if (last !== null) {
-    hasPreviousPage = hasPreviousPage || limitedItems.length > last;
-    limitedItems = limitedItems.slice(Math.max(0, limitedItems.length - last));
-  }
-
-  return {
-    items: limitedItems,
-    hasNextPage,
-    hasPreviousPage,
-  };
-}
-
-function serializeConnectionPageInfo<T>(
-  selection: FieldNode,
-  items: T[],
-  hasNextPage: boolean,
-  hasPreviousPage: boolean,
-  getCursorValue: (item: T) => string,
-  options: { prefixCursors?: boolean } = {},
-): Record<string, unknown> {
-  const formatCursor = (item: T): string => {
-    const cursor = getCursorValue(item);
-    return options.prefixCursors === false ? cursor : `cursor:${cursor}`;
-  };
-
-  return Object.fromEntries(
-    (selection.selectionSet?.selections ?? [])
-      .filter((pageInfoSelection): pageInfoSelection is FieldNode => pageInfoSelection.kind === Kind.FIELD)
-      .map((pageInfoSelection) => {
-        const pageInfoKey = pageInfoSelection.alias?.value ?? pageInfoSelection.name.value;
-        switch (pageInfoSelection.name.value) {
-          case 'hasNextPage':
-            return [pageInfoKey, hasNextPage];
-          case 'hasPreviousPage':
-            return [pageInfoKey, hasPreviousPage];
-          case 'startCursor':
-            return [pageInfoKey, items[0] ? formatCursor(items[0]) : null];
-          case 'endCursor':
-            return [pageInfoKey, items.length > 0 ? formatCursor(items[items.length - 1]!) : null];
-          default:
-            return [pageInfoKey, null];
-        }
-      }),
-  );
 }
 
 function serializeVariantsConnection(
