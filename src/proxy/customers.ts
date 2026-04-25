@@ -60,63 +60,62 @@ function getVariableDefinitionLocation(document: string, variableName: string): 
   return [];
 }
 
-const VALID_TAX_EXEMPTIONS = new Set([
-  'CA_BC_COMMERCIAL_FISHERY_EXEMPTION',
-  'CA_BC_CONTRACTOR_EXEMPTION',
-  'CA_BC_PRODUCTION_AND_MACHINERY_EXEMPTION',
+const VALID_TAX_EXEMPTION_VALUES = [
+  'CA_STATUS_CARD_EXEMPTION',
   'CA_BC_RESELLER_EXEMPTION',
-  'CA_BC_SUB_CONTRACTOR_EXEMPTION',
-  'CA_DIPLOMAT_EXEMPTION',
-  'CA_MB_COMMERCIAL_FISHERY_EXEMPTION',
-  'CA_MB_FARMER_EXEMPTION',
   'CA_MB_RESELLER_EXEMPTION',
+  'CA_SK_RESELLER_EXEMPTION',
+  'CA_DIPLOMAT_EXEMPTION',
+  'CA_BC_COMMERCIAL_FISHERY_EXEMPTION',
+  'CA_MB_COMMERCIAL_FISHERY_EXEMPTION',
   'CA_NS_COMMERCIAL_FISHERY_EXEMPTION',
-  'CA_NS_FARMER_EXEMPTION',
-  'CA_ON_PURCHASE_EXEMPTION',
   'CA_PE_COMMERCIAL_FISHERY_EXEMPTION',
   'CA_SK_COMMERCIAL_FISHERY_EXEMPTION',
-  'CA_SK_CONTRACTOR_EXEMPTION',
-  'CA_SK_FARMER_EXEMPTION',
+  'CA_BC_PRODUCTION_AND_MACHINERY_EXEMPTION',
   'CA_SK_PRODUCTION_AND_MACHINERY_EXEMPTION',
-  'CA_SK_RESELLER_EXEMPTION',
+  'CA_BC_SUB_CONTRACTOR_EXEMPTION',
   'CA_SK_SUB_CONTRACTOR_EXEMPTION',
-  'CA_STATUS_CARD_EXEMPTION',
+  'CA_BC_CONTRACTOR_EXEMPTION',
+  'CA_SK_CONTRACTOR_EXEMPTION',
+  'CA_ON_PURCHASE_EXEMPTION',
+  'CA_MB_FARMER_EXEMPTION',
+  'CA_NS_FARMER_EXEMPTION',
+  'CA_SK_FARMER_EXEMPTION',
   'EU_REVERSE_CHARGE_EXEMPTION_RULE',
-  'US_AK_RESELLER_EXEMPTION',
   'US_AL_RESELLER_EXEMPTION',
-  'US_AR_RESELLER_EXEMPTION',
+  'US_AK_RESELLER_EXEMPTION',
   'US_AZ_RESELLER_EXEMPTION',
+  'US_AR_RESELLER_EXEMPTION',
   'US_CA_RESELLER_EXEMPTION',
   'US_CO_RESELLER_EXEMPTION',
   'US_CT_RESELLER_EXEMPTION',
-  'US_DC_RESELLER_EXEMPTION',
   'US_DE_RESELLER_EXEMPTION',
   'US_FL_RESELLER_EXEMPTION',
   'US_GA_RESELLER_EXEMPTION',
   'US_HI_RESELLER_EXEMPTION',
-  'US_IA_RESELLER_EXEMPTION',
   'US_ID_RESELLER_EXEMPTION',
   'US_IL_RESELLER_EXEMPTION',
   'US_IN_RESELLER_EXEMPTION',
+  'US_IA_RESELLER_EXEMPTION',
   'US_KS_RESELLER_EXEMPTION',
   'US_KY_RESELLER_EXEMPTION',
   'US_LA_RESELLER_EXEMPTION',
-  'US_MA_RESELLER_EXEMPTION',
-  'US_MD_RESELLER_EXEMPTION',
   'US_ME_RESELLER_EXEMPTION',
+  'US_MD_RESELLER_EXEMPTION',
+  'US_MA_RESELLER_EXEMPTION',
   'US_MI_RESELLER_EXEMPTION',
   'US_MN_RESELLER_EXEMPTION',
-  'US_MO_RESELLER_EXEMPTION',
   'US_MS_RESELLER_EXEMPTION',
+  'US_MO_RESELLER_EXEMPTION',
   'US_MT_RESELLER_EXEMPTION',
-  'US_NC_RESELLER_EXEMPTION',
-  'US_ND_RESELLER_EXEMPTION',
   'US_NE_RESELLER_EXEMPTION',
+  'US_NV_RESELLER_EXEMPTION',
   'US_NH_RESELLER_EXEMPTION',
   'US_NJ_RESELLER_EXEMPTION',
   'US_NM_RESELLER_EXEMPTION',
-  'US_NV_RESELLER_EXEMPTION',
   'US_NY_RESELLER_EXEMPTION',
+  'US_NC_RESELLER_EXEMPTION',
+  'US_ND_RESELLER_EXEMPTION',
   'US_OH_RESELLER_EXEMPTION',
   'US_OK_RESELLER_EXEMPTION',
   'US_OR_RESELLER_EXEMPTION',
@@ -127,13 +126,16 @@ const VALID_TAX_EXEMPTIONS = new Set([
   'US_TN_RESELLER_EXEMPTION',
   'US_TX_RESELLER_EXEMPTION',
   'US_UT_RESELLER_EXEMPTION',
-  'US_VA_RESELLER_EXEMPTION',
   'US_VT_RESELLER_EXEMPTION',
+  'US_VA_RESELLER_EXEMPTION',
   'US_WA_RESELLER_EXEMPTION',
-  'US_WI_RESELLER_EXEMPTION',
   'US_WV_RESELLER_EXEMPTION',
+  'US_WI_RESELLER_EXEMPTION',
   'US_WY_RESELLER_EXEMPTION',
-]);
+  'US_DC_RESELLER_EXEMPTION',
+] as const;
+
+const VALID_TAX_EXEMPTIONS = new Set<string>(VALID_TAX_EXEMPTION_VALUES);
 
 const VALID_CUSTOMER_METAFIELD_TYPES = new Set([
   'antenna_gain',
@@ -2079,6 +2081,65 @@ function normalizeCustomerTaxExemptions(raw: unknown, fallback: string[]): strin
     .sort((left, right) => left.localeCompare(right));
 }
 
+function normalizeDedicatedCustomerTaxExemptions(raw: unknown): string[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+  return raw.filter((value): value is string => {
+    if (typeof value !== 'string' || !VALID_TAX_EXEMPTIONS.has(value) || seen.has(value)) {
+      return false;
+    }
+    seen.add(value);
+    return true;
+  });
+}
+
+function taxExemptionsEqual(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function buildCustomerWithTaxExemptions(existing: CustomerRecord, taxExemptions: string[]): CustomerRecord {
+  const current = existing.taxExemptions ?? [];
+  return {
+    ...existing,
+    taxExemptions,
+    updatedAt: taxExemptionsEqual(current, taxExemptions) ? existing.updatedAt : makeSyntheticTimestamp(),
+  };
+}
+
+function buildInvalidTaxExemptionVariableErrors(rawTaxExemptions: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(rawTaxExemptions)) {
+    return [];
+  }
+
+  const expectedValues = VALID_TAX_EXEMPTION_VALUES.join(', ');
+  return rawTaxExemptions.flatMap((value, index): Array<Record<string, unknown>> => {
+    if (typeof value === 'string' && VALID_TAX_EXEMPTIONS.has(value)) {
+      return [];
+    }
+
+    const printableValue = typeof value === 'string' ? value : String(value);
+    const explanation = `Expected "${printableValue}" to be one of: ${expectedValues}`;
+    return [
+      {
+        message: `Variable $taxExemptions of type [TaxExemption!]! was provided invalid value for ${index} (${explanation})`,
+        extensions: {
+          code: 'INVALID_VARIABLE',
+          value: structuredClone(rawTaxExemptions),
+          problems: [
+            {
+              path: [index],
+              explanation,
+            },
+          ],
+        },
+      },
+    ];
+  });
+}
+
 function validateCustomerTaxExemptionInput(input: Record<string, unknown>): CustomerMutationUserError[] {
   if (!hasOwnField(input, 'taxExemptions')) {
     return [];
@@ -3096,6 +3157,47 @@ export function handleCustomerMutation(
           upsertMetafieldsForCustomer(customer.id, metafieldInputs),
         );
       }
+      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
+      continue;
+    }
+
+    if (
+      field.name.value === 'customerAddTaxExemptions' ||
+      field.name.value === 'customerRemoveTaxExemptions' ||
+      field.name.value === 'customerReplaceTaxExemptions'
+    ) {
+      const variableErrors = buildInvalidTaxExemptionVariableErrors(args['taxExemptions']);
+      if (variableErrors.length > 0) {
+        errors.push(...variableErrors);
+        continue;
+      }
+
+      const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
+      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      if (!existingCustomer) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customer: null,
+            userErrors: [{ field: ['customerId'], message: 'Customer does not exist.' }],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      const requestedTaxExemptions = normalizeDedicatedCustomerTaxExemptions(args['taxExemptions']);
+      const currentTaxExemptions = existingCustomer.taxExemptions ?? [];
+      const nextTaxExemptions =
+        field.name.value === 'customerAddTaxExemptions'
+          ? [
+              ...currentTaxExemptions,
+              ...requestedTaxExemptions.filter((value) => !currentTaxExemptions.includes(value)),
+            ]
+          : field.name.value === 'customerRemoveTaxExemptions'
+            ? currentTaxExemptions.filter((value) => !requestedTaxExemptions.includes(value))
+            : requestedTaxExemptions;
+      const customer = store.stageUpdateCustomer(buildCustomerWithTaxExemptions(existingCustomer, nextTaxExemptions));
       data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
       continue;
     }

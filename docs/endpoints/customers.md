@@ -29,12 +29,12 @@ Local staged mutations:
 - `customerPaymentMethodSendUpdateEmail`
 - `customerSet`
 - `customerMerge`
-
-## Unsupported roots still tracked by the registry
-
 - `customerAddTaxExemptions`
 - `customerRemoveTaxExemptions`
 - `customerReplaceTaxExemptions`
+
+## Unsupported roots still tracked by the registry
+
 - `customerPaymentMethodGetUpdateUrl`
 
 ## Behavior notes
@@ -56,6 +56,7 @@ Local staged mutations:
 - Unsupported `customerSet` input or identifier fields return local `userErrors`, keeping the root in the supported local-staging path without silently claiming unmodeled behavior.
 - Staged `customerMerge` updates the normalized resulting customer row, marks the source customer deleted, records the source-to-result redirect in `mergedCustomerIds`, and records the observed merge job/result shape in `customerMergeRequests`.
 - `customerMergePreview` and `customerMergeJobStatus` resolve from normalized customer/merge-request state. The first local merge slice supports customers already present in staged state or hydrated base state and does not fetch unknown customer ids during the supported mutation path.
+- Captured Admin GraphQL 2025-01 evidence for `customerAddTaxExemptions`, `customerRemoveTaxExemptions`, and `customerReplaceTaxExemptions` stages against `Customer.taxExemptions` only; it does not flip the separate `taxExempt` boolean. Add/remove preserve the existing exemption order and de-duplicate inputs; empty add/remove lists are no-ops; replace de-duplicates inputs and an empty replace clears the list. Unknown customers return payload `userErrors` at `["customerId"]` with `Customer does not exist.` Invalid enum variables are top-level `INVALID_VARIABLE` GraphQL errors before payload execution.
 
 ## Outbound email and activation buffering
 
@@ -76,4 +77,5 @@ Do not mark outbound email roots implemented by proxying them upstream. Support 
 - Customer address lifecycle capture: `corepack pnpm conformance:capture-customer-addresses`, writing `fixtures/conformance/<store>/<version>/customer-address-lifecycle.json`
 - CustomerSet capture: `corepack pnpm conformance:capture-customer-set`, writing `fixtures/conformance/<store>/<version>/customer-set-parity.json`
 - Customer consent capture: `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm conformance:capture-customer-consent`, writing `customer-email-marketing-consent-update-parity.json` and `customer-sms-marketing-consent-update-parity.json` with strict parity branches plus the HAR-287 validation matrix.
+- Customer tax exemption capture: `corepack pnpm conformance:capture-customer-tax-exemptions`, writing `customer-add-tax-exemptions-parity.json`, `customer-remove-tax-exemptions-parity.json`, and `customer-replace-tax-exemptions-parity.json`
 - Conformance fixtures and requests: `config/parity-specs/customer*.json`, `config/parity-specs/customers*.json`, and matching files under `config/parity-requests/`
