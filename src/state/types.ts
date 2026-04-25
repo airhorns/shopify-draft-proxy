@@ -473,13 +473,16 @@ export type OrderMetafieldRecord = z.infer<typeof orderMetafieldRecordSchema>;
 
 export const orderLineItemRecordSchema = z.strictObject({
   id: z.string(),
+  originalLineItemId: nullableStringSchema.optional(),
   title: nullableStringSchema,
   quantity: z.number(),
+  currentQuantity: z.number().optional(),
   sku: nullableStringSchema,
   variantId: nullableStringSchema.optional(),
   variantTitle: nullableStringSchema,
   originalUnitPriceSet: moneySetSchema.nullable(),
   taxLines: z.array(orderTaxLineRecordSchema).optional(),
+  isAdded: z.boolean().optional(),
 });
 export type OrderLineItemRecord = z.infer<typeof orderLineItemRecordSchema>;
 

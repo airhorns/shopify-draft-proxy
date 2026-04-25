@@ -843,6 +843,7 @@ function readCapturedOrderLineItems(order: Record<string, unknown> | null): Orde
       id: readStringField(lineItem, 'id') ?? `gid://shopify/LineItem/conformance-${index}`,
       title: readStringField(lineItem, 'title'),
       quantity: readNumberField(lineItem, 'quantity') ?? 0,
+      currentQuantity: readNumberField(lineItem, 'currentQuantity') ?? undefined,
       sku: readStringField(lineItem, 'sku'),
       variantId: readStringField(readRecordField(lineItem, 'variant'), 'id'),
       variantTitle: readStringField(lineItem, 'variantTitle'),
@@ -2441,6 +2442,40 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   if (!mutationName && readOrderPayload && readOrderId) {
     store.upsertBaseOrders([makeSeedOrder(readOrderId, readOrderPayload)]);
     return;
+  }
+
+  if (
+    mutationName === 'orderEditBegin' ||
+    mutationName === 'orderEditAddVariant' ||
+    mutationName === 'orderEditSetQuantity' ||
+    mutationName === 'orderEditCommit'
+  ) {
+    const setupPreReadOrder = readRecordField(
+      readRecordField(
+        readRecordField(readRecordField(capture as Record<string, unknown>, 'setup'), 'preRead'),
+        'response',
+      ),
+      'data',
+    )?.['order'];
+    const seedOrder: Record<string, unknown> | null =
+      readRecordField(capture as Record<string, unknown>, 'seedOrder') ??
+      (isPlainObject(setupPreReadOrder) ? setupPreReadOrder : null);
+    const seedOrderId = readStringField(seedOrder, 'id') ?? readStringField(variables, 'id');
+    if (seedOrder && seedOrderId) {
+      store.upsertBaseOrders([makeSeedOrder(seedOrderId, seedOrder)]);
+    }
+    const seedProducts = readArrayField(capture as Record<string, unknown>, 'seedProducts').filter(isPlainObject);
+    for (const seedProduct of seedProducts) {
+      const productId = readStringField(seedProduct, 'id');
+      if (!productId?.startsWith('gid://shopify/Product/')) {
+        continue;
+      }
+      store.upsertBaseProducts([makeSeedProduct(productId, seedProduct)]);
+      const variants = readCapturedProductVariants(productId, seedProduct);
+      if (variants.length > 0) {
+        store.replaceBaseVariantsForProduct(productId, variants);
+      }
+    }
   }
 
   if (mutationName === 'orderUpdate') {
