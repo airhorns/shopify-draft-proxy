@@ -24,6 +24,10 @@ Local staged mutations:
 - `customerUpdateDefaultAddress`
 - `customerEmailMarketingConsentUpdate`
 - `customerSmsMarketingConsentUpdate`
+- `customerGenerateAccountActivationUrl`
+- `customerSendAccountInviteEmail`
+- `customerPaymentMethodSendUpdateEmail`
+- `customerSet`
 - `customerMerge`
 
 ## Unsupported roots still tracked by the registry
@@ -31,9 +35,7 @@ Local staged mutations:
 - `customerAddTaxExemptions`
 - `customerRemoveTaxExemptions`
 - `customerReplaceTaxExemptions`
-- `customerSet`
-- `customerSendAccountInviteEmail`
-- `customerPaymentMethodSendUpdateEmail`
+- `customerPaymentMethodGetUpdateUrl`
 
 ## Behavior notes
 
@@ -45,12 +47,29 @@ Local staged mutations:
 - Customer-owned addresses live in normalized `customerAddresses` state. Staged `customerAddressCreate`, `customerAddressUpdate`, `customerAddressDelete`, and `customerUpdateDefaultAddress` mutate that address graph locally and keep `Customer.defaultAddress` synchronized with the selected default row.
 - `Customer.addressesV2` serializes from the effective normalized address graph, preserving hydrated connection cursors where captured and returning Shopify-like empty connections when no address records exist.
 - Captured Admin GraphQL 2025-01 evidence for customer address lifecycle uses `MailingAddressInput`, payload field `address`, and delete payload field `deletedAddressId`. Unknown customers return payload `userErrors` with `field: ["customerId"]`; unknown address IDs on update/delete/default roots return top-level `RESOURCE_NOT_FOUND` GraphQL errors with `data.<root>: null`.
+- Captured Admin GraphQL 2026-04 evidence for `customerSet` supports a narrow local slice: create without `identifier`, update by `identifier.id`, and upsert/update by `identifier.email` or `identifier.phone`. The staged input slice is `email`, `firstName`, `lastName`, `locale`, `note`, `phone`, `tags`, `taxExempt`, `taxExemptions`, and address-list replacement when the identifier resolves an existing customer.
+- `customerSet(input.addresses)` is treated as a replacement list for an existing customer: current normalized addresses are removed, input mailing addresses are staged, and `Customer.defaultAddress` follows the first replacement address or `null` for an empty list. Local replay uses stable synthetic address cursors; live Shopify cursors are opaque and are only parity-comparable as expected differences.
+- `customerSet(identifier.customId)` remains unsupported without modeled unique metafield definitions. The local response mirrors the captured top-level `NOT_FOUND` error instead of proxying the supported root upstream.
+- Unsupported `customerSet` input or identifier fields return local `userErrors`, keeping the root in the supported local-staging path without silently claiming unmodeled behavior.
 - Staged `customerMerge` updates the normalized resulting customer row, marks the source customer deleted, records the source-to-result redirect in `mergedCustomerIds`, and records the observed merge job/result shape in `customerMergeRequests`.
 - `customerMergePreview` and `customerMergeJobStatus` resolve from normalized customer/merge-request state. The first local merge slice supports customers already present in staged state or hydrated base state and does not fetch unknown customer ids during the supported mutation path.
+
+## Outbound email and activation buffering
+
+The customer surface includes roots that look related but have different safety profiles:
+
+- `customerEmailMarketingConsentUpdate` and `customerSmsMarketingConsentUpdate` are customer state changes, not outbound notification sends. They are safe to stage locally once captured behavior is modeled because downstream reads can observe the changed consent fields.
+- `customerGenerateAccountActivationUrl` returns a sensitive, expiring customer-facing link. Runtime support synthesizes a non-deliverable local activation URL and keeps the original raw mutation for commit replay instead of asking Shopify for a live URL.
+- `customerSendAccountInviteEmail` and `customerPaymentMethodSendUpdateEmail` are explicit outbound email side effects. These can still be supported because the proxy buffers the original mutations locally and does not deliver email at runtime; delivery happens only if the staged mutation log is committed to Shopify.
+- `customerPaymentMethodSendUpdateEmail` validates that the payment method is present in the local customer-payment graph before buffering. It returns the associated customer when that ownership edge is known locally, and otherwise mirrors Shopify's not-found userError instead of claiming delivery for an unknown payment method.
+- `customerPaymentMethodGetUpdateUrl` remains unsupported because the proxy does not yet model customer payment-method ownership or synthesize payment-method update URLs.
+
+Do not mark outbound email roots implemented by proxying them upstream. Support means local validation/buffering plus original raw mutation retention for commit-time replay; it does not require pretending the runtime email or URL side effect already happened in Shopify.
 
 ## Validation anchors
 
 - Customer reads: `tests/integration/customer-query-shapes.test.ts`
-- Customer mutations and merge slices: `tests/integration/customer-draft-flow.test.ts`
+- Customer mutations, `customerSet`, and merge slices: `tests/integration/customer-draft-flow.test.ts`
 - Customer address lifecycle capture: `corepack pnpm conformance:capture-customer-addresses`, writing `fixtures/conformance/<store>/<version>/customer-address-lifecycle.json`
+- CustomerSet capture: `corepack pnpm conformance:capture-customer-set`, writing `fixtures/conformance/<store>/<version>/customer-set-parity.json`
 - Conformance fixtures and requests: `config/parity-specs/customer*.json`, `config/parity-specs/customers*.json`, and matching files under `config/parity-requests/`

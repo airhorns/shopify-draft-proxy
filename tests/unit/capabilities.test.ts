@@ -148,6 +148,13 @@ describe('getOperationCapability', () => {
       operationName: 'CustomerDelete',
       type: 'mutation',
     });
+
+    expect(getOperationCapability({ type: 'mutation', name: 'CustomerSet', rootFields: ['customerSet'] })).toEqual({
+      domain: 'customers',
+      execution: 'stage-locally',
+      operationName: 'CustomerSet',
+      type: 'mutation',
+    });
   });
 
   it('marks top-level product variant, inventory item, and inventory level queries as overlay-capable reads', () => {

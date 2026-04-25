@@ -7,6 +7,7 @@ import type {
   CustomerCatalogConnectionRecord,
   CustomerMergeRequestRecord,
   CustomerMetafieldRecord,
+  CustomerPaymentMethodRecord,
   CustomerRecord,
   DiscountRecord,
   DraftOrderRecord,
@@ -61,6 +62,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   publications: {},
   customers: {},
   customerAddresses: {},
+  customerPaymentMethods: {},
   segments: {},
   discounts: {},
   businessEntities: {},
@@ -464,6 +466,12 @@ export class InMemoryStore {
       delete this.baseState.deletedCustomerAddressIds[address.id];
       delete this.stagedState.deletedCustomerAddressIds[address.id];
       this.baseState.customerAddresses[address.id] = structuredClone(address);
+    }
+  }
+
+  upsertBaseCustomerPaymentMethods(paymentMethods: CustomerPaymentMethodRecord[]): void {
+    for (const paymentMethod of paymentMethods) {
+      this.baseState.customerPaymentMethods[paymentMethod.id] = structuredClone(paymentMethod);
     }
   }
 
@@ -1816,6 +1824,14 @@ export class InMemoryStore {
     const address =
       this.stagedState.customerAddresses[addressId] ?? this.baseState.customerAddresses[addressId] ?? null;
     return address ? structuredClone(address) : null;
+  }
+
+  getEffectiveCustomerPaymentMethodById(paymentMethodId: string): CustomerPaymentMethodRecord | null {
+    const paymentMethod =
+      this.stagedState.customerPaymentMethods[paymentMethodId] ??
+      this.baseState.customerPaymentMethods[paymentMethodId] ??
+      null;
+    return paymentMethod ? structuredClone(paymentMethod) : null;
   }
 
   listEffectiveCustomerAddresses(customerId: string): CustomerAddressRecord[] {
