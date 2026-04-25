@@ -1,0 +1,563 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "accessScopes": {
+    "availableScopes": [
+      "read_assigned_fulfillment_orders",
+      "read_content",
+      "read_customer_merge",
+      "read_customers",
+      "read_discounts",
+      "read_draft_orders",
+      "read_files",
+      "read_fulfillments",
+      "read_inventory",
+      "read_legal_policies",
+      "read_locales",
+      "read_locations",
+      "read_markets",
+      "read_merchant_managed_fulfillment_orders",
+      "read_metaobject_definitions",
+      "read_metaobjects",
+      "read_order_edits",
+      "read_orders",
+      "read_payment_customizations",
+      "read_payment_terms",
+      "read_product_listings",
+      "read_products",
+      "read_publications",
+      "read_returns",
+      "read_shipping",
+      "read_shopify_payments_disputes",
+      "read_shopify_payments_payouts",
+      "read_store_credit_account_transactions",
+      "read_store_credit_accounts",
+      "read_themes",
+      "read_third_party_fulfillment_orders",
+      "read_translations",
+      "write_assigned_fulfillment_orders",
+      "write_content",
+      "write_customer_merge",
+      "write_customers",
+      "write_discounts",
+      "write_draft_orders",
+      "write_files",
+      "write_fulfillments",
+      "write_inventory",
+      "write_legal_policies",
+      "write_locales",
+      "write_locations",
+      "write_markets",
+      "write_merchant_managed_fulfillment_orders",
+      "write_metaobject_definitions",
+      "write_metaobjects",
+      "write_order_edits",
+      "write_orders",
+      "write_payment_customizations",
+      "write_payment_terms",
+      "write_products",
+      "write_publications",
+      "write_returns",
+      "write_shipping",
+      "write_store_credit_account_transactions",
+      "write_third_party_fulfillment_orders",
+      "write_translations"
+    ],
+    "requiredScopes": [
+      {
+        "handle": "read_discounts",
+        "present": true
+      },
+      {
+        "handle": "write_discounts",
+        "present": true
+      }
+    ],
+    "missingScopes": [],
+    "hasRequiredScopes": true
+  },
+  "seedDiscounts": [
+    {
+      "id": "gid://shopify/DiscountCodeNode/1638431064370",
+      "discount": {
+        "__typename": "DiscountCodeBasic",
+        "title": "HAR-198 HAR198DUP1777134605940",
+        "status": "ACTIVE",
+        "summary": "10% off entire order",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "endsAt": null,
+        "asyncUsageCount": 0,
+        "discountClasses": ["ORDER"],
+        "combinesWith": {
+          "productDiscounts": false,
+          "orderDiscounts": true,
+          "shippingDiscounts": false
+        },
+        "codes": {
+          "nodes": [
+            {
+              "id": "gid://shopify/DiscountRedeemCode/1638431064370",
+              "code": "HAR198DUP1777134605940",
+              "asyncUsageCount": 0
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "validation": {
+    "missingInput": {
+      "query": "mutation DiscountCodeBasicCreateMissingInput($input: DiscountCodeBasicInput!) {\n  discountCodeBasicCreate(basicCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {},
+      "response": {
+        "errors": [
+          {
+            "message": "Variable $input of type DiscountCodeBasicInput! was provided invalid value",
+            "locations": [
+              {
+                "line": 1,
+                "column": 46
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": null,
+              "problems": [
+                {
+                  "path": [],
+                  "explanation": "Expected value to not be null"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "inlineNullInput": {
+      "query": "mutation DiscountCodeBasicCreateInlineNullInput {\n  discountCodeBasicCreate(basicCodeDiscount: null) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {},
+      "response": {
+        "errors": [
+          {
+            "message": "Argument 'basicCodeDiscount' on Field 'discountCodeBasicCreate' has an invalid value (null). Expected type 'DiscountCodeBasicInput!'.",
+            "locations": [
+              {
+                "line": 2,
+                "column": 3
+              }
+            ],
+            "path": ["mutation DiscountCodeBasicCreateInlineNullInput", "discountCodeBasicCreate", "basicCodeDiscount"],
+            "extensions": {
+              "code": "argumentLiteralsIncompatible",
+              "typeName": "Field",
+              "argumentName": "basicCodeDiscount"
+            }
+          }
+        ]
+      }
+    },
+    "omnibus": {
+      "query": "mutation DiscountValidationBranches(\n  $duplicate: DiscountCodeBasicInput!\n  $badRefs: DiscountCodeBasicInput!\n  $invalidAutomatic: DiscountAutomaticBasicInput!\n  $blankCodeBxgy: DiscountCodeBxgyInput!\n  $blankAutomaticBxgy: DiscountAutomaticBxgyInput!\n  $invalidCodeFreeShipping: DiscountCodeFreeShippingInput!\n  $invalidAutomaticFreeShipping: DiscountAutomaticFreeShippingInput!\n  $unknownUpdateId: ID!\n  $unknownUpdate: DiscountCodeBasicInput!\n  $codeBulkIds: [ID!]\n  $automaticBulkIds: [ID!]\n  $bulkSearch: String\n) {\n  duplicate: discountCodeBasicCreate(basicCodeDiscount: $duplicate) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  badRefs: discountCodeBasicCreate(basicCodeDiscount: $badRefs) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  invalidAutomatic: discountAutomaticBasicCreate(automaticBasicDiscount: $invalidAutomatic) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  blankCodeBxgy: discountCodeBxgyCreate(bxgyCodeDiscount: $blankCodeBxgy) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  blankAutomaticBxgy: discountAutomaticBxgyCreate(automaticBxgyDiscount: $blankAutomaticBxgy) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  invalidCodeFreeShipping: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $invalidCodeFreeShipping) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  invalidAutomaticFreeShipping: discountAutomaticFreeShippingCreate(\n    freeShippingAutomaticDiscount: $invalidAutomaticFreeShipping\n  ) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  unknownUpdate: discountCodeBasicUpdate(id: $unknownUpdateId, basicCodeDiscount: $unknownUpdate) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  codeBulk: discountCodeBulkDeactivate(ids: $codeBulkIds, search: $bulkSearch) {\n    job {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  automaticBulk: discountAutomaticBulkDelete(ids: $automaticBulkIds, search: $bulkSearch) {\n    job {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "duplicate": {
+          "title": "HAR-198 HAR198DUP1777134605940",
+          "code": "HAR198DUP1777134605940",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "minimumRequirement": {
+            "subtotal": {
+              "greaterThanOrEqualToSubtotal": "1.00"
+            }
+          },
+          "customerGets": {
+            "value": {
+              "percentage": 0.1
+            },
+            "items": {
+              "all": true
+            }
+          }
+        },
+        "badRefs": {
+          "title": "HAR-198 HAR198BADREF1777134605940",
+          "code": "HAR198BADREF1777134605940",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "minimumRequirement": {
+            "subtotal": {
+              "greaterThanOrEqualToSubtotal": "1.00"
+            }
+          },
+          "customerGets": {
+            "value": {
+              "percentage": 0.1
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/0"],
+                "productVariantsToAdd": ["gid://shopify/ProductVariant/0"]
+              },
+              "collections": {
+                "add": ["gid://shopify/Collection/0"]
+              }
+            }
+          }
+        },
+        "invalidAutomatic": {
+          "title": "HAR-198 invalid automatic dates 1777134605940",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "endsAt": "2026-04-24T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "minimumRequirement": {
+            "quantity": {
+              "greaterThanOrEqualToQuantity": "2"
+            }
+          },
+          "customerGets": {
+            "value": {
+              "percentage": 0.15
+            },
+            "items": {
+              "all": true
+            }
+          }
+        },
+        "blankCodeBxgy": {
+          "title": "",
+          "code": "HAR198BXGY1777134605940",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": true,
+            "shippingDiscounts": true
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "all": true
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 1
+                }
+              }
+            },
+            "items": {
+              "all": true
+            }
+          }
+        },
+        "blankAutomaticBxgy": {
+          "title": "",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": true,
+            "shippingDiscounts": true
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "all": true
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 1
+                }
+              }
+            },
+            "items": {
+              "all": true
+            }
+          }
+        },
+        "invalidCodeFreeShipping": {
+          "title": "",
+          "code": "HAR198FREE1777134605940",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": true,
+            "shippingDiscounts": true
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "destination": {
+            "all": true
+          }
+        },
+        "invalidAutomaticFreeShipping": {
+          "title": "",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": true,
+            "shippingDiscounts": true
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "destination": {
+            "all": true
+          }
+        },
+        "unknownUpdateId": "gid://shopify/DiscountCodeNode/0",
+        "unknownUpdate": {
+          "title": "HAR-198 HAR198UNKNOWN1777134605940",
+          "code": "HAR198UNKNOWN1777134605940",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "minimumRequirement": {
+            "subtotal": {
+              "greaterThanOrEqualToSubtotal": "1.00"
+            }
+          },
+          "customerGets": {
+            "value": {
+              "percentage": 0.1
+            },
+            "items": {
+              "all": true
+            }
+          }
+        },
+        "codeBulkIds": ["gid://shopify/DiscountCodeNode/0"],
+        "automaticBulkIds": ["gid://shopify/DiscountAutomaticNode/0"],
+        "bulkSearch": "status:active"
+      },
+      "response": {
+        "data": {
+          "duplicate": {
+            "codeDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["basicCodeDiscount", "code"],
+                "message": "Code must be unique. Please try a different code.",
+                "code": "TAKEN",
+                "extraInfo": null
+              }
+            ]
+          },
+          "badRefs": {
+            "codeDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["basicCodeDiscount", "customerGets", "items", "collections", "add"],
+                "message": "Cannot entitle collections in combination with product variants or products",
+                "code": "CONFLICT",
+                "extraInfo": null
+              },
+              {
+                "field": ["basicCodeDiscount", "customerGets", "items", "products", "productsToAdd"],
+                "message": "Product with id: 0 is invalid",
+                "code": "INVALID",
+                "extraInfo": null
+              },
+              {
+                "field": ["basicCodeDiscount", "customerGets", "items", "products", "productVariantsToAdd"],
+                "message": "Product variant with id: 0 is invalid",
+                "code": "INVALID",
+                "extraInfo": null
+              }
+            ]
+          },
+          "invalidAutomatic": {
+            "automaticDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["automaticBasicDiscount", "endsAt"],
+                "message": "Ends at needs to be after starts_at",
+                "code": "INVALID",
+                "extraInfo": null
+              }
+            ]
+          },
+          "blankCodeBxgy": {
+            "codeDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["bxgyCodeDiscount", "customerGets"],
+                "message": "Items in 'customer get' cannot be set to all",
+                "code": "INVALID",
+                "extraInfo": null
+              },
+              {
+                "field": ["bxgyCodeDiscount", "title"],
+                "message": "Title can't be blank",
+                "code": "BLANK",
+                "extraInfo": null
+              },
+              {
+                "field": ["bxgyCodeDiscount", "customerBuys", "items"],
+                "message": "Items in 'customer buys' must be defined",
+                "code": "BLANK",
+                "extraInfo": null
+              }
+            ]
+          },
+          "blankAutomaticBxgy": {
+            "automaticDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["automaticBxgyDiscount", "customerGets"],
+                "message": "Items in 'customer get' cannot be set to all",
+                "code": "INVALID",
+                "extraInfo": null
+              },
+              {
+                "field": ["automaticBxgyDiscount", "title"],
+                "message": "Title can't be blank",
+                "code": "BLANK",
+                "extraInfo": null
+              },
+              {
+                "field": ["automaticBxgyDiscount", "customerBuys", "items"],
+                "message": "Items in 'customer buys' must be defined",
+                "code": "BLANK",
+                "extraInfo": null
+              }
+            ]
+          },
+          "invalidCodeFreeShipping": {
+            "codeDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["freeShippingCodeDiscount", "combinesWith"],
+                "message": "The combinesWith settings are not valid for the discount class.",
+                "code": "INVALID_COMBINES_WITH_FOR_DISCOUNT_CLASS",
+                "extraInfo": null
+              },
+              {
+                "field": ["freeShippingCodeDiscount", "title"],
+                "message": "Title can't be blank",
+                "code": "BLANK",
+                "extraInfo": null
+              }
+            ]
+          },
+          "invalidAutomaticFreeShipping": {
+            "automaticDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["freeShippingAutomaticDiscount", "combinesWith"],
+                "message": "The combinesWith settings are not valid for the discount class.",
+                "code": "INVALID_COMBINES_WITH_FOR_DISCOUNT_CLASS",
+                "extraInfo": null
+              }
+            ]
+          },
+          "unknownUpdate": {
+            "codeDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Discount does not exist",
+                "code": null,
+                "extraInfo": null
+              }
+            ]
+          },
+          "codeBulk": {
+            "job": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Only one of 'ids', 'search' or 'saved_search_id' is allowed.",
+                "code": "TOO_MANY_ARGUMENTS",
+                "extraInfo": null
+              }
+            ]
+          },
+          "automaticBulk": {
+            "job": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Only one of IDs, search argument or saved search ID is allowed.",
+                "code": "TOO_MANY_ARGUMENTS",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 100,
+            "actualQueryCost": 100,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1900,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "data": {
+      "discountCodeDelete": {
+        "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1638431064370",
+        "userErrors": []
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 10,
+        "actualQueryCost": 10,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1904,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

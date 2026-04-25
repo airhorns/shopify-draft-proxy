@@ -11,7 +11,7 @@ import { getOperationCapability, type OperationCapability } from './capabilities
 import { findOperationRegistryEntry } from './operation-registry.js';
 import { handleMediaMutation } from './media.js';
 import { handleCustomerMutation, handleCustomerQuery, hydrateCustomersFromUpstreamResponse } from './customers.js';
-import { handleDiscountQuery } from './discounts.js';
+import { handleDiscountMutation, handleDiscountQuery } from './discounts.js';
 import { handleMarketMutation, handleMarketsQuery, hydrateMarketsFromUpstreamResponse } from './markets.js';
 import { handleOrderMutation, handleOrderQuery, shouldServeDraftOrderCatalogLocally } from './orders.js';
 import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamResponse } from './products.js';
@@ -146,6 +146,11 @@ function unsupportedMutationNotes(parsed: ParsedOperation): string {
     return 'Unsupported app-managed discount mutation would be proxied to Shopify. Shopify Functions app-discount roots require conformance-backed local staging before they can be supported without executing external Function logic.';
   }
 
+  const registryEntry = findOperationRegistryEntry(parsed.type, [...parsed.rootFields, parsed.name]);
+  if (registryEntry?.domain === 'discounts') {
+    return 'Unsupported discount mutation lifecycle branch would be proxied to Shopify. Captured validation failures are handled locally only; full local emulation is required before this root can be supported.';
+  }
+
   return 'Mutation passthrough placeholder until supported local staging is implemented.';
 }
 
@@ -176,6 +181,24 @@ export function createProxyRouter(config: AppConfig): Router {
     const parsed = parseOperation(body.query);
     const capability = getOperationCapability(parsed);
     const primaryRootField = parsed.rootFields[0] ?? capability.operationName;
+
+    if (parsed.type === 'mutation') {
+      const discountValidationResponse = handleDiscountMutation(body.query, variables);
+      if (discountValidationResponse) {
+        proxyLogger.debug(
+          {
+            operationName: capability.operationName,
+            operationType: parsed.type,
+            rootFields: parsed.rootFields,
+          },
+          'returning captured discount validation response locally',
+        );
+
+        ctx.status = 200;
+        ctx.body = discountValidationResponse;
+        return;
+      }
+    }
 
     if (isProductLocalMutationCapability(capability)) {
       proxyLogger.debug(
