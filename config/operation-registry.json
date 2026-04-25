@@ -1791,40 +1791,40 @@
     "type": "query",
     "domain": "shipping-fulfillments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentService", "FulfillmentService"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 FulfillmentService ID lookup root. Registry-only declared gap until fulfillment-service location linkage, callback URL fields, inventory/tracking flags, and missing-service nullability are captured."
+    "runtimeTests": ["tests/integration/fulfillment-service-flow.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 FulfillmentService ID lookup root. Snapshot reads resolve from the local fulfillment-service graph and return null for missing IDs; `Shop.fulfillmentServices` remains a nested shop field rather than a top-level list root."
   },
   {
     "name": "fulfillmentServiceCreate",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentServiceCreate", "FulfillmentServiceCreate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires service/location creation coupling, callback endpoint validation, inventory/tracking flags, and downstream shop.fulfillmentServices visibility before support."
+    "runtimeTests": ["tests/integration/fulfillment-service-flow.test.ts"],
+    "supportNotes": "Locally stages third-party fulfillment-service creation with associated fulfillment-service location visibility, callback URL persistence, inventory/tracking flags, and raw mutation log retention. External callback, inventory, tracking, and fulfillment-order notification endpoints are not invoked."
   },
   {
     "name": "fulfillmentServiceDelete",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentServiceDelete", "FulfillmentServiceDelete"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires inventoryAction behavior, destination location transfer/keep/delete semantics, and downstream service/location visibility before support."
+    "runtimeTests": ["tests/integration/fulfillment-service-flow.test.ts"],
+    "supportNotes": "Locally stages fulfillment-service deletion, including missing-id userErrors and associated location side effects for DELETE/TRANSFER versus KEEP inventory actions. Inventory movement itself remains in-memory only and no external endpoints are invoked."
   },
   {
     "name": "fulfillmentServiceUpdate",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentServiceUpdate", "FulfillmentServiceUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires service field validation plus LocationEdit handoff boundaries for service-managed location changes before support."
+    "runtimeTests": ["tests/integration/fulfillment-service-flow.test.ts"],
+    "supportNotes": "Locally stages name, callback URL, tracking, inventory-management, and requires-shipping-method updates. The service handle remains stable while the associated fulfillment-service location name follows the service name."
   },
   {
     "name": "availableCarrierServices",

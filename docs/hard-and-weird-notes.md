@@ -556,6 +556,24 @@ Practical rule:
 - once order creation/editing scaffolding exists, do not leave those broader fulfillment roots as free-text notes only; add them to `config/operation-registry.json`, captured validation fixtures, and explicit parity-request/spec files so convention-discovered conformance reports show both the landed validation progress and the remaining blockers honestly
 - keep the fulfillment lifecycle blocker machine-readable in parity-spec blocker details and HAR-187, including the split between `fulfillmentTrackingInfoUpdate`'s scope+permission gate and `fulfillmentCancel`'s still-generic `ACCESS_DENIED` payload on this host after the pre-access validation branches are exhausted
 
+### 9a. Fulfillment services couple tightly to locations, but their handles do not follow renames
+
+HAR-236 live probes against Admin GraphQL 2026-04 on `harry-test-heelo.myshopify.com` settled several service-specific traps:
+
+- the top-level current-schema roots are `fulfillmentService`, `fulfillmentServiceCreate`, `fulfillmentServiceUpdate`, and `fulfillmentServiceDelete`; the catalog/list surface is nested at `shop.fulfillmentServices`, not a top-level query root
+- `fulfillmentService(id:)` returns `null` for an unknown ID
+- `fulfillmentServiceCreate` with `callbackUrl: "https://example.com/..."` returned `userErrors[{ field: ["callbackUrl"], message: "Callback url is not allowed" }]` under the current app credential; omitting `callbackUrl` succeeded
+- a blank create name returned `userErrors[{ field: ["name"], message: "Name can't be blank" }]`
+- creation automatically created an associated `Location` with `isFulfillmentService: true`, `fulfillsOnlineOrders: true`, and `shipsInventory: false`
+- `fulfillmentServiceUpdate(name:)` changed `serviceName` and the associated location name, but kept the original handle stable
+- `fulfillmentServiceDelete(inventoryAction: DELETE)` returned `deletedId` without the `?id=true` query suffix even when the service `id` contained that suffix, and downstream `fulfillmentService(id:)` plus `location(id:)` both returned `null`
+
+Practical rule:
+
+- model fulfillment-service writes as service-plus-location state changes, not as a service scalar patch
+- preserve the original service handle on update unless a broader capture proves a handle-changing input exists
+- do not invoke callback, stock fetch, tracking fetch, or fulfillment-order notification endpoints while staging locally; capture only enough metadata to make downstream reads coherent
+
 ## 10. Pagination and sorting are going to get gnarly fast
 
 Current `products(first: N)` support no longer stops at the default `createdAt desc` order. Overlay reads now also cover an explicit sort-key slice including:
