@@ -31,13 +31,7 @@
               "handle": "vans-authentic-lo-pro-burgandy-white",
               "vendor": "VANS",
               "productType": "SHOES",
-              "tags": [
-                "egnition-sample-data",
-                "men",
-                "sale",
-                "summer",
-                "vans"
-              ],
+              "tags": ["egnition-sample-data", "men", "sale", "summer", "vans"],
               "totalInventory": 25,
               "tracksInventory": true
             }
@@ -97,12 +91,7 @@
               "handle": "vans-old-skool-butterfly-true-white-black",
               "vendor": "VANS",
               "productType": "SHOES",
-              "tags": [
-                "egnition-sample-data",
-                "men",
-                "summer",
-                "vans"
-              ],
+              "tags": ["egnition-sample-data", "men", "summer", "vans"],
               "totalInventory": 62,
               "tracksInventory": true
             }
@@ -115,12 +104,7 @@
               "handle": "vans-authentic-multi-eyelets-gradient-crimson",
               "vendor": "VANS",
               "productType": "SHOES",
-              "tags": [
-                "egnition-sample-data",
-                "men",
-                "summer",
-                "vans"
-              ],
+              "tags": ["egnition-sample-data", "men", "summer", "vans"],
               "totalInventory": 48,
               "tracksInventory": true
             }
@@ -133,12 +117,7 @@
               "handle": "vans-classic-slip-on-perforated-suede",
               "vendor": "VANS",
               "productType": "SHOES",
-              "tags": [
-                "egnition-sample-data",
-                "men",
-                "summer",
-                "vans"
-              ],
+              "tags": ["egnition-sample-data", "men", "summer", "vans"],
               "totalInventory": 69,
               "tracksInventory": true
             }
@@ -159,7 +138,7 @@
       "actualQueryCost": 15,
       "throttleStatus": {
         "maximumAvailable": 2000,
-        "currentlyAvailable": 1969,
+        "currentlyAvailable": 1965,
         "restoreRate": 100
       }
     }

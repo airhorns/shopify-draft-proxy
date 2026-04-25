@@ -1,0 +1,17 @@
+query CollectionPublicationRead($id: ID!, $publicationId: ID!) {
+  collection(id: $id) {
+    id
+    title
+    handle
+    publishedOnCurrentPublication
+    publishedOnPublication(publicationId: $publicationId)
+    availablePublicationsCount {
+      count
+      precision
+    }
+    resourcePublicationsCount {
+      count
+      precision
+    }
+  }
+}

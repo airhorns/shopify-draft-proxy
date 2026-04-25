@@ -483,8 +483,8 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["publishablePublish", "PublishablePublish"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
-    "supportNotes": "HAR-177 product slice: stages generic Publishable mutations locally when the publishable ID is a Product. Product-specific productPublish/productUnpublish remain the deeper product publication parity roots; non-product Publishable targets return local userErrors instead of proxying upstream."
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts", "tests/integration/collection-draft-flow.test.ts"],
+    "supportNotes": "HAR-177/HAR-163 slices: stages generic Publishable mutations locally when the publishable ID is a Product or Collection. Product-specific productPublish/productUnpublish remain the deeper product publication parity roots; unsupported Publishable targets return local userErrors instead of proxying upstream."
   },
   {
     "name": "publishablePublishToCurrentChannel",
@@ -503,8 +503,8 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["publishableUnpublish", "PublishableUnpublish"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
-    "supportNotes": "HAR-177 product slice: stages generic Publishable mutations locally when the publishable ID is a Product. Product-specific productPublish/productUnpublish remain the deeper product publication parity roots; non-product Publishable targets return local userErrors instead of proxying upstream."
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts", "tests/integration/collection-draft-flow.test.ts"],
+    "supportNotes": "HAR-177/HAR-163 slices: stages generic Publishable mutations locally when the publishable ID is a Product or Collection. Product-specific productPublish/productUnpublish remain the deeper product publication parity roots; unsupported Publishable targets return local userErrors instead of proxying upstream."
   },
   {
     "name": "publishableUnpublishToCurrentChannel",
@@ -748,6 +748,15 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["collectionRemoveProducts", "CollectionRemoveProducts"],
+    "runtimeTests": ["tests/integration/collection-draft-flow.test.ts"]
+  },
+  {
+    "name": "collectionReorderProducts",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["collectionReorderProducts", "CollectionReorderProducts"],
     "runtimeTests": ["tests/integration/collection-draft-flow.test.ts"]
   },
   {
