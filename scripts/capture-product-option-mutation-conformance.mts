@@ -33,6 +33,27 @@ const optionsSlice = `
   }
 `;
 
+const variantsSlice = `
+  variants(first: 10) {
+    nodes {
+      id
+      title
+      selectedOptions {
+        name
+        value
+      }
+    }
+  }
+`;
+
+const productOptionLifecycleSlice = `
+  id
+  options {
+    ${optionsSlice}
+  }
+  ${variantsSlice}
+`;
+
 const createProductMutation = `#graphql
   mutation ProductOptionConformanceCreateProduct($product: ProductCreateInput!) {
     productCreate(product: $product) {
@@ -64,10 +85,7 @@ const optionsCreateMutation = `#graphql
   mutation ProductOptionsCreateConformance($productId: ID!, $options: [OptionCreateInput!]!) {
     productOptionsCreate(productId: $productId, options: $options) {
       product {
-        id
-        options {
-          ${optionsSlice}
-        }
+        ${productOptionLifecycleSlice}
       }
       userErrors {
         field
@@ -78,13 +96,22 @@ const optionsCreateMutation = `#graphql
 `;
 
 const optionUpdateMutation = `#graphql
-  mutation ProductOptionUpdateConformance($productId: ID!, $option: OptionUpdateInput!, $optionValuesToAdd: [OptionValueCreateInput!], $optionValuesToUpdate: [OptionValueUpdateInput!]) {
-    productOptionUpdate(productId: $productId, option: $option, optionValuesToAdd: $optionValuesToAdd, optionValuesToUpdate: $optionValuesToUpdate) {
+  mutation ProductOptionUpdateConformance(
+    $productId: ID!
+    $option: OptionUpdateInput!
+    $optionValuesToAdd: [OptionValueCreateInput!]
+    $optionValuesToUpdate: [OptionValueUpdateInput!]
+    $optionValuesToDelete: [ID!]
+  ) {
+    productOptionUpdate(
+      productId: $productId
+      option: $option
+      optionValuesToAdd: $optionValuesToAdd
+      optionValuesToUpdate: $optionValuesToUpdate
+      optionValuesToDelete: $optionValuesToDelete
+    ) {
       product {
-        id
-        options {
-          ${optionsSlice}
-        }
+        ${productOptionLifecycleSlice}
       }
       userErrors {
         field
@@ -99,10 +126,7 @@ const optionsDeleteMutation = `#graphql
     productOptionsDelete(productId: $productId, options: $options) {
       deletedOptionsIds
       product {
-        id
-        options {
-          ${optionsSlice}
-        }
+        ${productOptionLifecycleSlice}
       }
       userErrors {
         field
@@ -115,10 +139,7 @@ const optionsDeleteMutation = `#graphql
 const downstreamReadQuery = `#graphql
   query ProductOptionDownstream($id: ID!) {
     product(id: $id) {
-      id
-      options {
-        ${optionsSlice}
-      }
+      ${productOptionLifecycleSlice}
     }
   }
 `;
@@ -139,13 +160,18 @@ function buildOptionsCreateVariables(productId) {
       {
         name: 'Color',
         position: 1,
-        values: [{ name: 'Red' }],
+        values: [{ name: 'Red' }, { name: 'Green' }],
+      },
+      {
+        name: 'Size',
+        position: 2,
+        values: [{ name: 'Small' }],
       },
     ],
   };
 }
 
-function buildOptionUpdateVariables(productId, optionId, redValueId) {
+function buildOptionUpdateVariables(productId, optionId, redValueId, greenValueId) {
   return {
     productId,
     option: {
@@ -155,6 +181,7 @@ function buildOptionUpdateVariables(productId, optionId, redValueId) {
     },
     optionValuesToAdd: [{ name: 'Blue' }],
     optionValuesToUpdate: [{ id: redValueId, name: 'Crimson' }],
+    optionValuesToDelete: [greenValueId],
   };
 }
 
@@ -195,50 +222,89 @@ try {
     throw new Error('Product option capture did not return a product id.');
   }
 
+  const preCreateRead = await runGraphql(downstreamReadQuery, { id: createdProductId });
   const optionsCreateVariables = buildOptionsCreateVariables(createdProductId);
   optionsCreateResponse = await runGraphql(optionsCreateMutation, optionsCreateVariables);
   const createdOptions = optionsCreateResponse.data?.productOptionsCreate?.product?.options ?? [];
   const createdOption = Array.isArray(createdOptions)
     ? (createdOptions.find((option) => option?.name === 'Color') ?? null)
     : null;
+  const sizeOption = Array.isArray(createdOptions)
+    ? (createdOptions.find((option) => option?.name === 'Size') ?? null)
+    : null;
   const createdOptionId = typeof createdOption?.id === 'string' ? createdOption.id : null;
+  const sizeOptionId = typeof sizeOption?.id === 'string' ? sizeOption.id : null;
   const redValueId = Array.isArray(createdOption?.optionValues)
     ? (createdOption.optionValues.find((value) => value?.name === 'Red')?.id ?? null)
     : null;
-  if (!createdOptionId || !redValueId) {
+  const greenValueId = Array.isArray(createdOption?.optionValues)
+    ? (createdOption.optionValues.find((value) => value?.name === 'Green')?.id ?? null)
+    : null;
+  if (!createdOptionId || !sizeOptionId || !redValueId || !greenValueId) {
     throw new Error('Option create capture did not yield the created option/value ids.');
   }
   const postCreateRead = await runGraphql(downstreamReadQuery, { id: createdProductId });
 
-  const optionUpdateVariables = buildOptionUpdateVariables(createdProductId, createdOptionId, redValueId);
+  const preUpdateRead = await runGraphql(downstreamReadQuery, { id: createdProductId });
+  const optionUpdateVariables = buildOptionUpdateVariables(createdProductId, createdOptionId, redValueId, greenValueId);
   optionUpdateResponse = await runGraphql(optionUpdateMutation, optionUpdateVariables);
   const postUpdateRead = await runGraphql(downstreamReadQuery, { id: createdProductId });
 
-  const optionsDeleteVariables = { productId: createdProductId, options: [createdOptionId] };
+  const preDeleteRead = await runGraphql(downstreamReadQuery, { id: createdProductId });
+  const optionsDeleteVariables = { productId: createdProductId, options: [sizeOptionId, createdOptionId] };
   optionsDeleteResponse = await runGraphql(optionsDeleteMutation, optionsDeleteVariables);
   const postDeleteRead = await runGraphql(downstreamReadQuery, { id: createdProductId });
+  const validation = {
+    createUnknownProduct: await runGraphql(optionsCreateMutation, {
+      productId: 'gid://shopify/Product/0',
+      options: [{ name: 'Material', values: [{ name: 'Cotton' }] }],
+    }),
+    updateUnknownOption: await runGraphql(optionUpdateMutation, {
+      productId: createdProductId,
+      option: { id: 'gid://shopify/ProductOption/0', name: 'Missing Option' },
+      optionValuesToAdd: [{ name: 'Ghost' }],
+      optionValuesToUpdate: [],
+      optionValuesToDelete: [],
+    }),
+    deleteUnknownOption: await runGraphql(optionsDeleteMutation, {
+      productId: createdProductId,
+      options: ['gid://shopify/ProductOption/0'],
+    }),
+  };
 
   const captures = {
     'product-options-create-parity.json': {
+      preMutationRead: preCreateRead,
       mutation: {
         variables: optionsCreateVariables,
         response: optionsCreateResponse,
       },
       downstreamRead: postCreateRead,
+      validation: {
+        createUnknownProduct: validation.createUnknownProduct,
+      },
     },
     'product-option-update-parity.json': {
+      preMutationRead: preUpdateRead,
       mutation: {
         variables: optionUpdateVariables,
         response: optionUpdateResponse,
       },
       downstreamRead: postUpdateRead,
+      validation: {
+        updateUnknownOption: validation.updateUnknownOption,
+      },
     },
     'product-options-delete-parity.json': {
+      preMutationRead: preDeleteRead,
       mutation: {
         variables: optionsDeleteVariables,
         response: optionsDeleteResponse,
       },
       downstreamRead: postDeleteRead,
+      validation: {
+        deleteUnknownOption: validation.deleteUnknownOption,
+      },
     },
   };
 

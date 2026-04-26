@@ -8,14 +8,18 @@
     "documentPath": "config/parity-requests/publications-catalog-read.graphql",
     "variablesPath": "config/parity-requests/publications-catalog-read.variables.json"
   },
-  "comparisonMode": "capture-only",
-  "notes": "Live product-publication capture now also covers top-level `publications` pagination for the merchant-facing publication target slice (`id`, `name`).",
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable read parity for top-level `publications` pagination. The local overlay harness receives the captured Shopify response as its upstream live-read payload and must preserve the selected `id`, `name`, cursor, and pageInfo shape without staging or synthesizing publication rows from the capture.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  },
-  "blocker": {
-    "kind": "explicit-comparison-targets-needed",
-    "blockerPath": null
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "publications-catalog-data",
+        "capturePath": "$.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.payload"
+      }
+    ]
   }
 }

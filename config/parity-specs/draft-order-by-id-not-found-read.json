@@ -1,0 +1,25 @@
+{
+  "scenarioId": "draft-order-by-id-not-found-read",
+  "operationNames": ["draftOrder"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "null-empty-behavior"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/draft-order-by-id-not-found.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/draft-order-by-id-not-found-read.graphql",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable read parity for direct missing draftOrder(id:) behavior. Shopify returns null for an absent draft order ID with no GraphQL errors.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "draft-order-by-id-not-found-data",
+        "capturePath": "$.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}

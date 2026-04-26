@@ -1894,6 +1894,267 @@ describe('customer draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('stages dedicated customer tax exemption mutations locally and overlays downstream reads', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('dedicated customer tax exemption mutations should not hit upstream fetch');
+    });
+
+    store.upsertBaseCustomers([
+      {
+        id: 'gid://shopify/Customer/156',
+        firstName: 'Tax',
+        lastName: 'Dedicated',
+        displayName: 'Tax Dedicated',
+        email: 'tax-dedicated@example.com',
+        legacyResourceId: '156',
+        locale: 'en',
+        note: null,
+        canDelete: true,
+        verifiedEmail: true,
+        taxExempt: false,
+        taxExemptions: [],
+        state: 'DISABLED',
+        tags: ['tax'],
+        numberOfOrders: 0,
+        amountSpent: null,
+        defaultEmailAddress: { emailAddress: 'tax-dedicated@example.com' },
+        defaultPhoneNumber: null,
+        defaultAddress: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
+      },
+    ]);
+
+    const app = createApp(snapshotConfig).callback();
+    const taxMutationSlice = `
+      customer { id taxExempt taxExemptions }
+      userErrors { field message }
+    `;
+    const addResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation AddCustomerTaxExemptions($customerId: ID!, $taxExemptions: [TaxExemption!]!) {
+          customerAddTaxExemptions(customerId: $customerId, taxExemptions: $taxExemptions) {
+            ${taxMutationSlice}
+          }
+        }`,
+        variables: {
+          customerId: 'gid://shopify/Customer/156',
+          taxExemptions: ['CA_BC_RESELLER_EXEMPTION', 'US_CA_RESELLER_EXEMPTION'],
+        },
+      });
+
+    expect(addResponse.status).toBe(200);
+    expect(addResponse.body.data.customerAddTaxExemptions).toEqual({
+      customer: {
+        id: 'gid://shopify/Customer/156',
+        taxExempt: false,
+        taxExemptions: ['CA_BC_RESELLER_EXEMPTION', 'US_CA_RESELLER_EXEMPTION'],
+      },
+      userErrors: [],
+    });
+
+    const duplicateAddResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation DuplicateAddCustomerTaxExemptions($customerId: ID!, $taxExemptions: [TaxExemption!]!) {
+          customerAddTaxExemptions(customerId: $customerId, taxExemptions: $taxExemptions) {
+            ${taxMutationSlice}
+          }
+        }`,
+        variables: {
+          customerId: 'gid://shopify/Customer/156',
+          taxExemptions: ['CA_BC_RESELLER_EXEMPTION', 'CA_BC_RESELLER_EXEMPTION'],
+        },
+      });
+    expect(duplicateAddResponse.body.data.customerAddTaxExemptions.customer.taxExemptions).toEqual([
+      'CA_BC_RESELLER_EXEMPTION',
+      'US_CA_RESELLER_EXEMPTION',
+    ]);
+
+    const readAfterAddResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query CustomerTaxExemptionRead($id: ID!) {
+          customer(id: $id) { id taxExemptions }
+          customerByIdentifier(identifier: { id: $id }) { id taxExemptions }
+          customers(first: 5, query: "email:tax-dedicated@example.com") {
+            nodes { id taxExemptions }
+          }
+          customersCount { count precision }
+        }`,
+        variables: { id: 'gid://shopify/Customer/156' },
+      });
+    expect(readAfterAddResponse.body.data).toEqual({
+      customer: {
+        id: 'gid://shopify/Customer/156',
+        taxExemptions: ['CA_BC_RESELLER_EXEMPTION', 'US_CA_RESELLER_EXEMPTION'],
+      },
+      customerByIdentifier: {
+        id: 'gid://shopify/Customer/156',
+        taxExemptions: ['CA_BC_RESELLER_EXEMPTION', 'US_CA_RESELLER_EXEMPTION'],
+      },
+      customers: {
+        nodes: [
+          {
+            id: 'gid://shopify/Customer/156',
+            taxExemptions: ['CA_BC_RESELLER_EXEMPTION', 'US_CA_RESELLER_EXEMPTION'],
+          },
+        ],
+      },
+      customersCount: {
+        count: 1,
+        precision: 'EXACT',
+      },
+    });
+
+    const removeResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation RemoveCustomerTaxExemptions($customerId: ID!, $taxExemptions: [TaxExemption!]!) {
+          customerRemoveTaxExemptions(customerId: $customerId, taxExemptions: $taxExemptions) {
+            ${taxMutationSlice}
+          }
+        }`,
+        variables: {
+          customerId: 'gid://shopify/Customer/156',
+          taxExemptions: ['US_CA_RESELLER_EXEMPTION'],
+        },
+      });
+    expect(removeResponse.body.data.customerRemoveTaxExemptions.customer.taxExemptions).toEqual([
+      'CA_BC_RESELLER_EXEMPTION',
+    ]);
+
+    const noOpRemoveResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation NoopRemoveCustomerTaxExemptions($customerId: ID!, $taxExemptions: [TaxExemption!]!) {
+          customerRemoveTaxExemptions(customerId: $customerId, taxExemptions: $taxExemptions) {
+            ${taxMutationSlice}
+          }
+        }`,
+        variables: {
+          customerId: 'gid://shopify/Customer/156',
+          taxExemptions: ['US_CA_RESELLER_EXEMPTION'],
+        },
+      });
+    expect(noOpRemoveResponse.body.data.customerRemoveTaxExemptions.customer.taxExemptions).toEqual([
+      'CA_BC_RESELLER_EXEMPTION',
+    ]);
+
+    const replaceResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation ReplaceCustomerTaxExemptions($customerId: ID!, $taxExemptions: [TaxExemption!]!) {
+          customerReplaceTaxExemptions(customerId: $customerId, taxExemptions: $taxExemptions) {
+            ${taxMutationSlice}
+          }
+        }`,
+        variables: {
+          customerId: 'gid://shopify/Customer/156',
+          taxExemptions: ['EU_REVERSE_CHARGE_EXEMPTION_RULE'],
+        },
+      });
+    expect(replaceResponse.body.data.customerReplaceTaxExemptions.customer.taxExemptions).toEqual([
+      'EU_REVERSE_CHARGE_EXEMPTION_RULE',
+    ]);
+
+    const duplicateReplaceResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation DuplicateReplaceCustomerTaxExemptions($customerId: ID!, $taxExemptions: [TaxExemption!]!) {
+          customerReplaceTaxExemptions(customerId: $customerId, taxExemptions: $taxExemptions) {
+            ${taxMutationSlice}
+          }
+        }`,
+        variables: {
+          customerId: 'gid://shopify/Customer/156',
+          taxExemptions: ['CA_BC_RESELLER_EXEMPTION', 'CA_BC_RESELLER_EXEMPTION'],
+        },
+      });
+    expect(duplicateReplaceResponse.body.data.customerReplaceTaxExemptions.customer.taxExemptions).toEqual([
+      'CA_BC_RESELLER_EXEMPTION',
+    ]);
+
+    const emptyReplaceResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation EmptyReplaceCustomerTaxExemptions($customerId: ID!, $taxExemptions: [TaxExemption!]!) {
+          customerReplaceTaxExemptions(customerId: $customerId, taxExemptions: $taxExemptions) {
+            ${taxMutationSlice}
+          }
+        }`,
+        variables: {
+          customerId: 'gid://shopify/Customer/156',
+          taxExemptions: [],
+        },
+      });
+    expect(emptyReplaceResponse.body.data.customerReplaceTaxExemptions.customer.taxExemptions).toEqual([]);
+
+    for (const root of ['customerAddTaxExemptions', 'customerRemoveTaxExemptions', 'customerReplaceTaxExemptions']) {
+      const unknownResponse = await request(app)
+        .post('/admin/api/2025-01/graphql.json')
+        .send({
+          query: `mutation UnknownCustomerTaxExemptions($customerId: ID!, $taxExemptions: [TaxExemption!]!) {
+            ${root}(customerId: $customerId, taxExemptions: $taxExemptions) {
+              ${taxMutationSlice}
+            }
+          }`,
+          variables: {
+            customerId: 'gid://shopify/Customer/999999999999999',
+            taxExemptions: ['CA_BC_RESELLER_EXEMPTION'],
+          },
+        });
+
+      expect(unknownResponse.body.data[root]).toEqual({
+        customer: null,
+        userErrors: [{ field: ['customerId'], message: 'Customer does not exist.' }],
+      });
+    }
+
+    const invalidEnumResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation InvalidCustomerTaxExemptions($customerId: ID!, $taxExemptions: [TaxExemption!]!) {
+          customerAddTaxExemptions(customerId: $customerId, taxExemptions: $taxExemptions) {
+            ${taxMutationSlice}
+          }
+        }`,
+        variables: {
+          customerId: 'gid://shopify/Customer/156',
+          taxExemptions: ['NOT_A_TAX_EXEMPTION'],
+        },
+      });
+    expect(invalidEnumResponse.body.data).toBeUndefined();
+    expect(invalidEnumResponse.body.errors).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining(
+          'Variable $taxExemptions of type [TaxExemption!]! was provided invalid value for 0',
+        ),
+        extensions: expect.objectContaining({
+          code: 'INVALID_VARIABLE',
+          value: ['NOT_A_TAX_EXEMPTION'],
+          problems: [
+            expect.objectContaining({
+              path: [0],
+              explanation: expect.stringContaining('Expected "NOT_A_TAX_EXEMPTION" to be one of:'),
+            }),
+          ],
+        }),
+      }),
+    ]);
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(logResponse.body.entries.map((entry: { operationName: string | null }) => entry.operationName)).toContain(
+      'customerAddTaxExemptions',
+    );
+    expect(logResponse.body.entries.at(0).requestBody.variables).toEqual({
+      customerId: 'gid://shopify/Customer/156',
+      taxExemptions: ['CA_BC_RESELLER_EXEMPTION', 'US_CA_RESELLER_EXEMPTION'],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('stages customerDelete locally and removes the customer from downstream reads without hitting upstream', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('customerDelete should not hit upstream fetch');
@@ -2280,6 +2541,9 @@ describe('customer draft flow', () => {
       {
         id: 'gid://shopify/CustomerPaymentMethod/local-payment-method',
         customerId: 'gid://shopify/Customer/404',
+        instrument: null,
+        revokedAt: null,
+        subscriptionContracts: [],
       },
     ]);
 

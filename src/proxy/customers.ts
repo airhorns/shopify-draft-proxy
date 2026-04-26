@@ -1,12 +1,15 @@
 import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
+import type { JsonValue } from '../json-schemas.js';
 import { parseSearchQuery, type SearchQueryNode, type SearchQueryTerm } from '../search-query-parser.js';
 import {
+  buildSyntheticCursor,
   getFieldResponseKey,
   getSelectedChildFields,
   paginateConnectionItems,
   serializeConnection,
+  serializeConnectionPageInfo,
 } from './graphql-helpers.js';
 import {
   mergeMetafieldRecords,
@@ -24,6 +27,8 @@ import type {
   CustomerCatalogPageInfoRecord,
   CustomerMergeRequestRecord,
   CustomerMetafieldRecord,
+  CustomerPaymentMethodRecord,
+  CustomerPaymentMethodSubscriptionContractRecord,
   CustomerRecord,
 } from '../state/types.js';
 
@@ -35,63 +40,66 @@ function hasOwnField(value: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(value, key);
 }
 
-const VALID_TAX_EXEMPTIONS = new Set([
-  'CA_BC_COMMERCIAL_FISHERY_EXEMPTION',
-  'CA_BC_CONTRACTOR_EXEMPTION',
-  'CA_BC_PRODUCTION_AND_MACHINERY_EXEMPTION',
+function cloneJsonObject(value: Record<string, unknown>): Record<string, JsonValue> {
+  return structuredClone(value) as Record<string, JsonValue>;
+}
+
+const VALID_TAX_EXEMPTION_VALUES = [
+  'CA_STATUS_CARD_EXEMPTION',
   'CA_BC_RESELLER_EXEMPTION',
-  'CA_BC_SUB_CONTRACTOR_EXEMPTION',
-  'CA_DIPLOMAT_EXEMPTION',
-  'CA_MB_COMMERCIAL_FISHERY_EXEMPTION',
-  'CA_MB_FARMER_EXEMPTION',
   'CA_MB_RESELLER_EXEMPTION',
+  'CA_SK_RESELLER_EXEMPTION',
+  'CA_DIPLOMAT_EXEMPTION',
+  'CA_BC_COMMERCIAL_FISHERY_EXEMPTION',
+  'CA_MB_COMMERCIAL_FISHERY_EXEMPTION',
   'CA_NS_COMMERCIAL_FISHERY_EXEMPTION',
-  'CA_NS_FARMER_EXEMPTION',
-  'CA_ON_PURCHASE_EXEMPTION',
   'CA_PE_COMMERCIAL_FISHERY_EXEMPTION',
   'CA_SK_COMMERCIAL_FISHERY_EXEMPTION',
-  'CA_SK_CONTRACTOR_EXEMPTION',
-  'CA_SK_FARMER_EXEMPTION',
+  'CA_BC_PRODUCTION_AND_MACHINERY_EXEMPTION',
   'CA_SK_PRODUCTION_AND_MACHINERY_EXEMPTION',
-  'CA_SK_RESELLER_EXEMPTION',
+  'CA_BC_SUB_CONTRACTOR_EXEMPTION',
   'CA_SK_SUB_CONTRACTOR_EXEMPTION',
-  'CA_STATUS_CARD_EXEMPTION',
+  'CA_BC_CONTRACTOR_EXEMPTION',
+  'CA_SK_CONTRACTOR_EXEMPTION',
+  'CA_ON_PURCHASE_EXEMPTION',
+  'CA_MB_FARMER_EXEMPTION',
+  'CA_NS_FARMER_EXEMPTION',
+  'CA_SK_FARMER_EXEMPTION',
   'EU_REVERSE_CHARGE_EXEMPTION_RULE',
-  'US_AK_RESELLER_EXEMPTION',
   'US_AL_RESELLER_EXEMPTION',
-  'US_AR_RESELLER_EXEMPTION',
+  'US_AK_RESELLER_EXEMPTION',
   'US_AZ_RESELLER_EXEMPTION',
+  'US_AR_RESELLER_EXEMPTION',
   'US_CA_RESELLER_EXEMPTION',
   'US_CO_RESELLER_EXEMPTION',
   'US_CT_RESELLER_EXEMPTION',
-  'US_DC_RESELLER_EXEMPTION',
   'US_DE_RESELLER_EXEMPTION',
   'US_FL_RESELLER_EXEMPTION',
   'US_GA_RESELLER_EXEMPTION',
   'US_HI_RESELLER_EXEMPTION',
-  'US_IA_RESELLER_EXEMPTION',
   'US_ID_RESELLER_EXEMPTION',
   'US_IL_RESELLER_EXEMPTION',
   'US_IN_RESELLER_EXEMPTION',
+  'US_IA_RESELLER_EXEMPTION',
   'US_KS_RESELLER_EXEMPTION',
   'US_KY_RESELLER_EXEMPTION',
   'US_LA_RESELLER_EXEMPTION',
-  'US_MA_RESELLER_EXEMPTION',
-  'US_MD_RESELLER_EXEMPTION',
   'US_ME_RESELLER_EXEMPTION',
+  'US_MD_RESELLER_EXEMPTION',
+  'US_MA_RESELLER_EXEMPTION',
   'US_MI_RESELLER_EXEMPTION',
   'US_MN_RESELLER_EXEMPTION',
-  'US_MO_RESELLER_EXEMPTION',
   'US_MS_RESELLER_EXEMPTION',
+  'US_MO_RESELLER_EXEMPTION',
   'US_MT_RESELLER_EXEMPTION',
-  'US_NC_RESELLER_EXEMPTION',
-  'US_ND_RESELLER_EXEMPTION',
   'US_NE_RESELLER_EXEMPTION',
+  'US_NV_RESELLER_EXEMPTION',
   'US_NH_RESELLER_EXEMPTION',
   'US_NJ_RESELLER_EXEMPTION',
   'US_NM_RESELLER_EXEMPTION',
-  'US_NV_RESELLER_EXEMPTION',
   'US_NY_RESELLER_EXEMPTION',
+  'US_NC_RESELLER_EXEMPTION',
+  'US_ND_RESELLER_EXEMPTION',
   'US_OH_RESELLER_EXEMPTION',
   'US_OK_RESELLER_EXEMPTION',
   'US_OR_RESELLER_EXEMPTION',
@@ -102,13 +110,16 @@ const VALID_TAX_EXEMPTIONS = new Set([
   'US_TN_RESELLER_EXEMPTION',
   'US_TX_RESELLER_EXEMPTION',
   'US_UT_RESELLER_EXEMPTION',
-  'US_VA_RESELLER_EXEMPTION',
   'US_VT_RESELLER_EXEMPTION',
+  'US_VA_RESELLER_EXEMPTION',
   'US_WA_RESELLER_EXEMPTION',
-  'US_WI_RESELLER_EXEMPTION',
   'US_WV_RESELLER_EXEMPTION',
+  'US_WI_RESELLER_EXEMPTION',
   'US_WY_RESELLER_EXEMPTION',
-]);
+  'US_DC_RESELLER_EXEMPTION',
+] as const;
+
+const VALID_TAX_EXEMPTIONS = new Set<string>(VALID_TAX_EXEMPTION_VALUES);
 
 const VALID_CUSTOMER_METAFIELD_TYPES = new Set([
   'antenna_gain',
@@ -923,6 +934,279 @@ function serializeEmptyConnectionSelection(field: FieldNode): Record<string, unk
     serializeNode: () => null,
   });
 }
+
+function readBooleanArgument(args: Record<string, unknown>, name: string): boolean {
+  return args[name] === true;
+}
+
+function serializeJsonObjectSelection(field: FieldNode, value: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field, { includeInlineFragments: true })) {
+    const key = getFieldResponseKey(selection);
+    const selectedValue = value[selection.name.value];
+    if (selectedValue && typeof selectedValue === 'object' && !Array.isArray(selectedValue)) {
+      result[key] = serializeJsonObjectSelection(selection, selectedValue as Record<string, unknown>);
+      continue;
+    }
+
+    result[key] = selectedValue ?? null;
+  }
+
+  return result;
+}
+
+function serializeCustomerPaymentMethodInstrumentSelection(
+  field: FieldNode,
+  instrument: CustomerPaymentMethodRecord['instrument'],
+): Record<string, unknown> | null {
+  if (!instrument) {
+    return null;
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const selection of field.selectionSet?.selections ?? []) {
+    if (selection.kind === Kind.FIELD) {
+      const key = getFieldResponseKey(selection);
+      if (selection.name.value === '__typename') {
+        result[key] = instrument.typeName;
+        continue;
+      }
+
+      result[key] = instrument.data[selection.name.value] ?? null;
+      continue;
+    }
+
+    if (selection.kind !== Kind.INLINE_FRAGMENT || selection.typeCondition?.name.value !== instrument.typeName) {
+      continue;
+    }
+
+    for (const inlineSelection of selection.selectionSet.selections) {
+      if (inlineSelection.kind !== Kind.FIELD) {
+        continue;
+      }
+
+      const key = getFieldResponseKey(inlineSelection);
+      if (inlineSelection.name.value === '__typename') {
+        result[key] = instrument.typeName;
+        continue;
+      }
+
+      const selectedValue = instrument.data[inlineSelection.name.value];
+      if (selectedValue && typeof selectedValue === 'object' && !Array.isArray(selectedValue)) {
+        result[key] = serializeJsonObjectSelection(inlineSelection, selectedValue as Record<string, unknown>);
+        continue;
+      }
+
+      result[key] = selectedValue ?? null;
+    }
+  }
+
+  return result;
+}
+
+function serializeCustomerPaymentMethodSubscriptionContractSelection(
+  field: FieldNode,
+  subscriptionContract: CustomerPaymentMethodSubscriptionContractRecord,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field, { includeInlineFragments: true })) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = subscriptionContract.id;
+        break;
+      case '__typename':
+        result[key] =
+          typeof subscriptionContract.data['__typename'] === 'string'
+            ? subscriptionContract.data['__typename']
+            : 'SubscriptionContract';
+        break;
+      default: {
+        const selectedValue = subscriptionContract.data[selection.name.value];
+        if (selectedValue && typeof selectedValue === 'object' && !Array.isArray(selectedValue)) {
+          result[key] = serializeJsonObjectSelection(selection, selectedValue as Record<string, unknown>);
+          break;
+        }
+        result[key] = selectedValue ?? null;
+        break;
+      }
+    }
+  }
+
+  return result;
+}
+
+function serializeCustomerPaymentMethodSubscriptionContractsConnection(
+  paymentMethod: CustomerPaymentMethodRecord,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const window = paginateConnectionItems(
+    paymentMethod.subscriptionContracts,
+    field,
+    variables,
+    (subscriptionContract) => subscriptionContract.cursor ?? subscriptionContract.id,
+  );
+  const connection: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'nodes':
+        connection[key] = window.items.map((subscriptionContract) =>
+          serializeCustomerPaymentMethodSubscriptionContractSelection(selection, subscriptionContract),
+        );
+        break;
+      case 'edges':
+        connection[key] = window.items.map((subscriptionContract) => {
+          const edge: Record<string, unknown> = {};
+          for (const edgeSelection of getSelectedChildFields(selection)) {
+            const edgeKey = getFieldResponseKey(edgeSelection);
+            switch (edgeSelection.name.value) {
+              case 'cursor':
+                edge[edgeKey] = buildSyntheticCursor(subscriptionContract.cursor ?? subscriptionContract.id);
+                break;
+              case 'node':
+                edge[edgeKey] = serializeCustomerPaymentMethodSubscriptionContractSelection(
+                  edgeSelection,
+                  subscriptionContract,
+                );
+                break;
+              default:
+                edge[edgeKey] = null;
+                break;
+            }
+          }
+          return edge;
+        });
+        break;
+      case 'pageInfo':
+        connection[key] = serializeConnectionPageInfo(
+          selection,
+          window.items,
+          window.hasNextPage,
+          window.hasPreviousPage,
+          (subscriptionContract) => subscriptionContract.cursor ?? subscriptionContract.id,
+        );
+        break;
+      default:
+        connection[key] = null;
+        break;
+    }
+  }
+
+  return connection;
+}
+
+function serializeCustomerPaymentMethodSelection(
+  paymentMethod: CustomerPaymentMethodRecord,
+  field: FieldNode,
+  variables: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = paymentMethod.id;
+        break;
+      case '__typename':
+        result[key] = 'CustomerPaymentMethod';
+        break;
+      case 'instrument':
+        result[key] = serializeCustomerPaymentMethodInstrumentSelection(selection, paymentMethod.instrument);
+        break;
+      case 'revokedAt':
+        result[key] = paymentMethod.revokedAt;
+        break;
+      case 'revokedReason':
+        result[key] = paymentMethod.revokedReason ?? null;
+        break;
+      case 'customer': {
+        const customer = store.getEffectiveCustomerById(paymentMethod.customerId);
+        result[key] = customer ? serializeCustomerSelection(customer, selection, variables) : null;
+        break;
+      }
+      case 'subscriptionContracts':
+        result[key] = serializeCustomerPaymentMethodSubscriptionContractsConnection(
+          paymentMethod,
+          selection,
+          variables,
+        );
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+
+  return result;
+}
+
+function serializeCustomerPaymentMethodsConnectionSelection(
+  customerId: string,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const window = paginateConnectionItems(
+    store.listEffectiveCustomerPaymentMethods(customerId, {
+      showRevoked: readBooleanArgument(args, 'showRevoked'),
+    }),
+    field,
+    variables,
+    (paymentMethod) => paymentMethod.cursor ?? paymentMethod.id,
+  );
+  const connection: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'nodes':
+        connection[key] = window.items.map((paymentMethod) =>
+          serializeCustomerPaymentMethodSelection(paymentMethod, selection, variables),
+        );
+        break;
+      case 'edges':
+        connection[key] = window.items.map((paymentMethod) => {
+          const edge: Record<string, unknown> = {};
+          for (const edgeSelection of getSelectedChildFields(selection)) {
+            const edgeKey = getFieldResponseKey(edgeSelection);
+            switch (edgeSelection.name.value) {
+              case 'cursor':
+                edge[edgeKey] = buildSyntheticCursor(paymentMethod.cursor ?? paymentMethod.id);
+                break;
+              case 'node':
+                edge[edgeKey] = serializeCustomerPaymentMethodSelection(paymentMethod, edgeSelection, variables);
+                break;
+              default:
+                edge[edgeKey] = null;
+                break;
+            }
+          }
+          return edge;
+        });
+        break;
+      case 'pageInfo':
+        connection[key] = serializeConnectionPageInfo(
+          selection,
+          window.items,
+          window.hasNextPage,
+          window.hasPreviousPage,
+          (paymentMethod) => paymentMethod.cursor ?? paymentMethod.id,
+        );
+        break;
+      default:
+        connection[key] = null;
+        break;
+    }
+  }
+
+  return connection;
+}
+
 function serializeCustomerSelection(
   customer: CustomerRecord,
   field: FieldNode,
@@ -1005,10 +1289,12 @@ function serializeCustomerSelection(
         break;
       case 'events':
       case 'orders':
-      case 'paymentMethods':
       case 'storeCreditAccounts':
       case 'subscriptionContracts':
         result[key] = serializeEmptyConnectionSelection(selection);
+        break;
+      case 'paymentMethods':
+        result[key] = serializeCustomerPaymentMethodsConnectionSelection(customer.id, selection, variables);
         break;
       case 'lastOrder':
         result[key] = null;
@@ -1725,6 +2011,169 @@ function collectCustomerAddresses(document: string, raw: unknown): CustomerAddre
   return addresses;
 }
 
+function normalizeCustomerPaymentMethodSubscriptionContract(
+  raw: unknown,
+  cursor: string | null = null,
+): CustomerPaymentMethodSubscriptionContractRecord | null {
+  if (!isObject(raw) || typeof raw['id'] !== 'string' || !raw['id']) {
+    return null;
+  }
+
+  return {
+    id: raw['id'],
+    cursor,
+    data: cloneJsonObject(raw),
+  };
+}
+
+function collectSubscriptionContracts(rawConnection: unknown): CustomerPaymentMethodSubscriptionContractRecord[] {
+  if (!isObject(rawConnection)) {
+    return [];
+  }
+
+  const subscriptionContracts: CustomerPaymentMethodSubscriptionContractRecord[] = [];
+  const seenContractIds = new Set<string>();
+  const addContract = (rawContract: unknown, cursor: string | null): void => {
+    const subscriptionContract = normalizeCustomerPaymentMethodSubscriptionContract(rawContract, cursor);
+    if (!subscriptionContract || seenContractIds.has(subscriptionContract.id)) {
+      return;
+    }
+
+    seenContractIds.add(subscriptionContract.id);
+    subscriptionContracts.push(subscriptionContract);
+  };
+
+  if (Array.isArray(rawConnection['nodes'])) {
+    rawConnection['nodes'].forEach((node) => addContract(node, null));
+  }
+
+  if (Array.isArray(rawConnection['edges'])) {
+    rawConnection['edges'].forEach((edge) => {
+      if (isObject(edge)) {
+        addContract(edge['node'], typeof edge['cursor'] === 'string' ? edge['cursor'] : null);
+      }
+    });
+  }
+
+  return subscriptionContracts;
+}
+
+function normalizeCustomerPaymentMethod(
+  raw: unknown,
+  options: { fallbackCustomerId?: string | null; cursor?: string | null } = {},
+): CustomerPaymentMethodRecord | null {
+  if (!isObject(raw) || typeof raw['id'] !== 'string' || !raw['id']) {
+    return null;
+  }
+
+  const rawCustomer = raw['customer'];
+  const customerId =
+    isObject(rawCustomer) && typeof rawCustomer['id'] === 'string' && rawCustomer['id']
+      ? rawCustomer['id']
+      : (options.fallbackCustomerId ?? null);
+  if (!customerId) {
+    return null;
+  }
+
+  const rawInstrument = raw['instrument'];
+  const typeName =
+    isObject(rawInstrument) && typeof rawInstrument['__typename'] === 'string' && rawInstrument['__typename']
+      ? rawInstrument['__typename']
+      : null;
+
+  return {
+    id: raw['id'],
+    customerId,
+    cursor: options.cursor ?? null,
+    instrument:
+      isObject(rawInstrument) && typeName
+        ? {
+            typeName,
+            data: cloneJsonObject(rawInstrument),
+          }
+        : null,
+    revokedAt: normalizeStringField(raw, 'revokedAt'),
+    revokedReason: normalizeStringField(raw, 'revokedReason'),
+    subscriptionContracts: collectSubscriptionContracts(raw['subscriptionContracts']),
+  };
+}
+
+function collectCustomerPaymentMethodsFromRawCustomer(rawCustomer: unknown): CustomerPaymentMethodRecord[] {
+  if (!isObject(rawCustomer) || typeof rawCustomer['id'] !== 'string') {
+    return [];
+  }
+
+  const customerId = rawCustomer['id'];
+  const paymentMethodsConnection = rawCustomer['paymentMethods'];
+  if (!isObject(paymentMethodsConnection)) {
+    return [];
+  }
+
+  const paymentMethods: CustomerPaymentMethodRecord[] = [];
+  const seenPaymentMethodIds = new Set<string>();
+  const addPaymentMethod = (rawPaymentMethod: unknown, cursor: string | null): void => {
+    const paymentMethod = normalizeCustomerPaymentMethod(rawPaymentMethod, { fallbackCustomerId: customerId, cursor });
+    if (!paymentMethod || seenPaymentMethodIds.has(paymentMethod.id)) {
+      return;
+    }
+
+    seenPaymentMethodIds.add(paymentMethod.id);
+    paymentMethods.push(paymentMethod);
+  };
+
+  if (Array.isArray(paymentMethodsConnection['nodes'])) {
+    paymentMethodsConnection['nodes'].forEach((node) => addPaymentMethod(node, null));
+  }
+
+  if (Array.isArray(paymentMethodsConnection['edges'])) {
+    paymentMethodsConnection['edges'].forEach((edge) => {
+      if (isObject(edge)) {
+        addPaymentMethod(edge['node'], typeof edge['cursor'] === 'string' ? edge['cursor'] : null);
+      }
+    });
+  }
+
+  return paymentMethods;
+}
+
+function collectCustomerPaymentMethods(document: string, raw: unknown): CustomerPaymentMethodRecord[] {
+  if (!isObject(raw)) {
+    return [];
+  }
+
+  const paymentMethods: CustomerPaymentMethodRecord[] = [];
+  for (const field of getRootFields(document)) {
+    const rootValue = raw[getFieldResponseKey(field)];
+    if (field.name.value === 'customerPaymentMethod') {
+      const paymentMethod = normalizeCustomerPaymentMethod(rootValue);
+      if (paymentMethod) {
+        paymentMethods.push(paymentMethod);
+      }
+      continue;
+    }
+
+    if (field.name.value === 'customer' || field.name.value === 'customerByIdentifier') {
+      paymentMethods.push(...collectCustomerPaymentMethodsFromRawCustomer(rootValue));
+      continue;
+    }
+
+    if (field.name.value !== 'customers' || !isObject(rootValue)) {
+      continue;
+    }
+
+    for (const customer of Array.isArray(rootValue['nodes']) ? rootValue['nodes'] : []) {
+      paymentMethods.push(...collectCustomerPaymentMethodsFromRawCustomer(customer));
+    }
+    for (const edge of Array.isArray(rootValue['edges']) ? rootValue['edges'] : []) {
+      if (isObject(edge)) {
+        paymentMethods.push(...collectCustomerPaymentMethodsFromRawCustomer(edge['node']));
+      }
+    }
+  }
+
+  return paymentMethods;
+}
+
 function collectCustomerMetafieldsFromSelection(
   customerId: string,
   rawCustomer: Record<string, unknown>,
@@ -2052,6 +2501,65 @@ function normalizeCustomerTaxExemptions(raw: unknown, fallback: string[]): strin
   return raw
     .filter((value): value is string => typeof value === 'string' && VALID_TAX_EXEMPTIONS.has(value))
     .sort((left, right) => left.localeCompare(right));
+}
+
+function normalizeDedicatedCustomerTaxExemptions(raw: unknown): string[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+  return raw.filter((value): value is string => {
+    if (typeof value !== 'string' || !VALID_TAX_EXEMPTIONS.has(value) || seen.has(value)) {
+      return false;
+    }
+    seen.add(value);
+    return true;
+  });
+}
+
+function taxExemptionsEqual(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function buildCustomerWithTaxExemptions(existing: CustomerRecord, taxExemptions: string[]): CustomerRecord {
+  const current = existing.taxExemptions ?? [];
+  return {
+    ...existing,
+    taxExemptions,
+    updatedAt: taxExemptionsEqual(current, taxExemptions) ? existing.updatedAt : makeSyntheticTimestamp(),
+  };
+}
+
+function buildInvalidTaxExemptionVariableErrors(rawTaxExemptions: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(rawTaxExemptions)) {
+    return [];
+  }
+
+  const expectedValues = VALID_TAX_EXEMPTION_VALUES.join(', ');
+  return rawTaxExemptions.flatMap((value, index): Array<Record<string, unknown>> => {
+    if (typeof value === 'string' && VALID_TAX_EXEMPTIONS.has(value)) {
+      return [];
+    }
+
+    const printableValue = typeof value === 'string' ? value : String(value);
+    const explanation = `Expected "${printableValue}" to be one of: ${expectedValues}`;
+    return [
+      {
+        message: `Variable $taxExemptions of type [TaxExemption!]! was provided invalid value for ${index} (${explanation})`,
+        extensions: {
+          code: 'INVALID_VARIABLE',
+          value: structuredClone(rawTaxExemptions),
+          problems: [
+            {
+              path: [index],
+              explanation,
+            },
+          ],
+        },
+      },
+    ];
+  });
 }
 
 function validateCustomerTaxExemptionInput(input: Record<string, unknown>): CustomerMutationUserError[] {
@@ -2905,6 +3413,47 @@ export function handleCustomerMutation(
       continue;
     }
 
+    if (
+      field.name.value === 'customerAddTaxExemptions' ||
+      field.name.value === 'customerRemoveTaxExemptions' ||
+      field.name.value === 'customerReplaceTaxExemptions'
+    ) {
+      const variableErrors = buildInvalidTaxExemptionVariableErrors(args['taxExemptions']);
+      if (variableErrors.length > 0) {
+        errors.push(...variableErrors);
+        continue;
+      }
+
+      const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
+      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      if (!existingCustomer) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customer: null,
+            userErrors: [{ field: ['customerId'], message: 'Customer does not exist.' }],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      const requestedTaxExemptions = normalizeDedicatedCustomerTaxExemptions(args['taxExemptions']);
+      const currentTaxExemptions = existingCustomer.taxExemptions ?? [];
+      const nextTaxExemptions =
+        field.name.value === 'customerAddTaxExemptions'
+          ? [
+              ...currentTaxExemptions,
+              ...requestedTaxExemptions.filter((value) => !currentTaxExemptions.includes(value)),
+            ]
+          : field.name.value === 'customerRemoveTaxExemptions'
+            ? currentTaxExemptions.filter((value) => !requestedTaxExemptions.includes(value))
+            : requestedTaxExemptions;
+      const customer = store.stageUpdateCustomer(buildCustomerWithTaxExemptions(existingCustomer, nextTaxExemptions));
+      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
+      continue;
+    }
+
     if (field.name.value === 'customerGenerateAccountActivationUrl') {
       const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
       const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
@@ -3362,6 +3911,11 @@ export function hydrateCustomersFromUpstreamResponse(
     store.upsertBaseCustomerAddresses(customerAddresses);
   }
 
+  const customerPaymentMethods = collectCustomerPaymentMethods(document, upstreamBody['data']);
+  if (customerPaymentMethods.length > 0) {
+    store.upsertBaseCustomerPaymentMethods(customerPaymentMethods);
+  }
+
   const customerMetafields = collectCustomerMetafields(document, upstreamBody['data']);
   for (const [customerId, metafields] of Object.entries(customerMetafields)) {
     store.replaceBaseMetafieldsForCustomer(customerId, metafields);
@@ -3393,6 +3947,18 @@ export function handleCustomerQuery(
 
   for (const field of rootFields) {
     const key = getFieldResponseKey(field);
+    if (field.name.value === 'customerPaymentMethod') {
+      const args = getFieldArguments(field, variables);
+      const paymentMethodId = typeof args['id'] === 'string' ? args['id'] : null;
+      const paymentMethod = paymentMethodId
+        ? store.getEffectiveCustomerPaymentMethodById(paymentMethodId, {
+            showRevoked: readBooleanArgument(args, 'showRevoked'),
+          })
+        : null;
+      data[key] = paymentMethod ? serializeCustomerPaymentMethodSelection(paymentMethod, field, variables) : null;
+      continue;
+    }
+
     if (field.name.value === 'customer') {
       const args = getFieldArguments(field, variables);
       const customerId = typeof args['id'] === 'string' ? args['id'] : null;

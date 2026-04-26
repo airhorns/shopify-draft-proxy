@@ -16,13 +16,14 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discount-code-basic-lifecycle.json"
   ],
-  "comparisonMode": "capture-only",
+  "runtimeTestFiles": ["tests/integration/discount-code-basic-lifecycle-flow.test.ts"],
+  "comparisonMode": "captured-fixture",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "capture-only-lifecycle-create-payload",
+        "name": "lifecycle-create-payload",
         "capturePath": "$.create.payload.data.discountCodeBasicCreate",
         "proxyPath": "$.data.discountCodeBasicCreate",
         "upstreamCapturePath": null

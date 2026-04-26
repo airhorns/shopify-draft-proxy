@@ -12,6 +12,7 @@ Overlay reads:
 - `customerByIdentifier`
 - `customerMergePreview`
 - `customerMergeJobStatus`
+- `customerPaymentMethod` from seeded/snapshot or locally hydrated state only; formal live conformance support remains blocked on `read_customer_payment_methods`
 
 Local staged mutations:
 
@@ -29,12 +30,12 @@ Local staged mutations:
 - `customerPaymentMethodSendUpdateEmail`
 - `customerSet`
 - `customerMerge`
-
-## Unsupported roots still tracked by the registry
-
 - `customerAddTaxExemptions`
 - `customerRemoveTaxExemptions`
 - `customerReplaceTaxExemptions`
+
+## Unsupported roots still tracked by the registry
+
 - `customerPaymentMethodGetUpdateUrl`
 
 ## Behavior notes
@@ -47,12 +48,16 @@ Local staged mutations:
 - Customer-owned addresses live in normalized `customerAddresses` state. Staged `customerAddressCreate`, `customerAddressUpdate`, `customerAddressDelete`, and `customerUpdateDefaultAddress` mutate that address graph locally and keep `Customer.defaultAddress` synchronized with the selected default row.
 - `Customer.addressesV2` serializes from the effective normalized address graph, preserving hydrated connection cursors where captured and returning Shopify-like empty connections when no address records exist.
 - Captured Admin GraphQL 2025-01 evidence for customer address lifecycle uses `MailingAddressInput`, payload field `address`, and delete payload field `deletedAddressId`. Unknown customers return payload `userErrors` with `field: ["customerId"]`; unknown address IDs on update/delete/default roots return top-level `RESOURCE_NOT_FOUND` GraphQL errors with `data.<root>: null`.
+- Customer payment method reads are modeled from normalized `customerPaymentMethods` state only. The local serializer supports `customerPaymentMethod(id:, showRevoked:)` and `Customer.paymentMethods(showRevoked:)`; revoked rows are hidden unless `showRevoked: true` is selected.
+- `CustomerPaymentMethod.instrument` is stored as a selected union payload keyed by `__typename`, so seeded fixtures can serialize credit-card and PayPal billing-agreement fragments without local vaulting. `subscriptionContracts` on the payment method is serialized as a normal connection from seeded link rows; the customer-level `subscriptionContracts` field remains empty/no-data until separately modeled.
+- Customer payment method writes remain unsupported scaffolds except for `customerPaymentMethodSendUpdateEmail`, which is buffered locally and retained for commit replay rather than delivered at runtime. Credit-card, PayPal billing-agreement, remote-create, duplication-data, update-url, and revoke roots require `write_customers` plus `write_customer_payment_methods` and are sensitive because they can involve vaulted instruments, expiring payment links, destructive revocation, asynchronous gateway polling, or customer-visible flows.
 - Captured Admin GraphQL 2026-04 evidence for `customerSet` supports a narrow local slice: create without `identifier`, update by `identifier.id`, and upsert/update by `identifier.email` or `identifier.phone`. The staged input slice is `email`, `firstName`, `lastName`, `locale`, `note`, `phone`, `tags`, `taxExempt`, `taxExemptions`, and address-list replacement when the identifier resolves an existing customer.
 - `customerSet(input.addresses)` is treated as a replacement list for an existing customer: current normalized addresses are removed, input mailing addresses are staged, and `Customer.defaultAddress` follows the first replacement address or `null` for an empty list. Local replay uses stable synthetic address cursors; live Shopify cursors are opaque and are only parity-comparable as expected differences.
 - `customerSet(identifier.customId)` remains unsupported without modeled unique metafield definitions. The local response mirrors the captured top-level `NOT_FOUND` error instead of proxying the supported root upstream.
 - Unsupported `customerSet` input or identifier fields return local `userErrors`, keeping the root in the supported local-staging path without silently claiming unmodeled behavior.
 - Staged `customerMerge` updates the normalized resulting customer row, marks the source customer deleted, records the source-to-result redirect in `mergedCustomerIds`, and records the observed merge job/result shape in `customerMergeRequests`.
 - `customerMergePreview` and `customerMergeJobStatus` resolve from normalized customer/merge-request state. The first local merge slice supports customers already present in staged state or hydrated base state and does not fetch unknown customer ids during the supported mutation path.
+- Captured Admin GraphQL 2025-01 evidence for `customerAddTaxExemptions`, `customerRemoveTaxExemptions`, and `customerReplaceTaxExemptions` stages against `Customer.taxExemptions` only; it does not flip the separate `taxExempt` boolean. Add/remove preserve the existing exemption order and de-duplicate inputs; empty add/remove lists are no-ops; replace de-duplicates inputs and an empty replace clears the list. Unknown customers return payload `userErrors` at `["customerId"]` with `Customer does not exist.` Invalid enum variables are top-level `INVALID_VARIABLE` GraphQL errors before payload execution.
 
 ## Outbound email and activation buffering
 
@@ -72,4 +77,5 @@ Do not mark outbound email roots implemented by proxying them upstream. Support 
 - Customer mutations, `customerSet`, and merge slices: `tests/integration/customer-draft-flow.test.ts`
 - Customer address lifecycle capture: `corepack pnpm conformance:capture-customer-addresses`, writing `fixtures/conformance/<store>/<version>/customer-address-lifecycle.json`
 - CustomerSet capture: `corepack pnpm conformance:capture-customer-set`, writing `fixtures/conformance/<store>/<version>/customer-set-parity.json`
+- Customer tax exemption capture: `corepack pnpm conformance:capture-customer-tax-exemptions`, writing `customer-add-tax-exemptions-parity.json`, `customer-remove-tax-exemptions-parity.json`, and `customer-replace-tax-exemptions-parity.json`
 - Conformance fixtures and requests: `config/parity-specs/customer*.json`, `config/parity-specs/customers*.json`, and matching files under `config/parity-requests/`

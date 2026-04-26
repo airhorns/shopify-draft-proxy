@@ -11,6 +11,73 @@ const config: AppConfig = {
   readMode: 'passthrough',
 };
 
+function makeBaseProduct(id: string, title: string, handle: string) {
+  const legacyResourceId = id.split('/').at(-1) ?? id;
+  return {
+    id,
+    legacyResourceId,
+    title,
+    handle,
+    status: 'ACTIVE' as const,
+    publicationIds: [],
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-02T00:00:00.000Z',
+    vendor: null,
+    productType: null,
+    tags: [],
+    totalInventory: null,
+    tracksInventory: null,
+    descriptionHtml: null,
+    onlineStorePreviewUrl: null,
+    templateSuffix: null,
+    seo: { title: null, description: null },
+    category: null,
+  };
+}
+
+function makeBaseVariant(productId: string, id: string, title: string, sku: string) {
+  return {
+    id,
+    productId,
+    title,
+    sku,
+    barcode: null,
+    price: null,
+    compareAtPrice: null,
+    taxable: null,
+    inventoryPolicy: null,
+    inventoryQuantity: 0,
+    selectedOptions: [{ name: 'Title', value: title }],
+    inventoryItem: {
+      id: id.replace('/ProductVariant/', '/InventoryItem/'),
+      tracked: false,
+      requiresShipping: true,
+      measurement: null,
+      countryCodeOfOrigin: null,
+      provinceCodeOfOrigin: null,
+      harmonizedSystemCode: null,
+    },
+  };
+}
+
+function makeBaseImageMedia(productId: string, id: string, position: number, alt: string) {
+  const url = `https://cdn.example.com/${id.split('/').at(-1)}.jpg`;
+  return {
+    key: `${productId}:media:${position}`,
+    productId,
+    position,
+    id,
+    mediaContentType: 'IMAGE',
+    alt,
+    status: 'READY',
+    productImageId: id.replace('/MediaImage/', '/ProductImage/'),
+    imageUrl: url,
+    imageWidth: null,
+    imageHeight: null,
+    previewImageUrl: url,
+  };
+}
+
 describe('product draft flow', () => {
   beforeEach(() => {
     store.reset();
@@ -892,6 +959,141 @@ describe('product draft flow', () => {
       handle: secondHandle,
     });
     expect(firstProductId).not.toBe(secondProductId);
+  });
+
+  it('accepts reserved-looking and Unicode explicit productCreate handles captured from Shopify', async () => {
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const reservedResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateProduct($product: ProductCreateInput!) { productCreate(product: $product) { product { id title handle } userErrors { field message } } }',
+        variables: {
+          product: {
+            title: 'Reserved Looking Handle Owner',
+            handle: 'admin',
+          },
+        },
+      });
+
+    const unicodeResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateProduct($product: ProductCreateInput!) { productCreate(product: $product) { product { id title handle } userErrors { field message } } }',
+        variables: {
+          product: {
+            title: 'Unicode Handle Owner',
+            handle: '東京',
+          },
+        },
+      });
+
+    expect(reservedResponse.status).toBe(200);
+    expect(unicodeResponse.status).toBe(200);
+    expect(reservedResponse.body.data.productCreate).toEqual({
+      product: {
+        id: expect.any(String),
+        title: 'Reserved Looking Handle Owner',
+        handle: 'admin',
+      },
+      userErrors: [],
+    });
+    expect(unicodeResponse.body.data.productCreate).toEqual({
+      product: {
+        id: expect.any(String),
+        title: 'Unicode Handle Owner',
+        handle: '東京',
+      },
+      userErrors: [],
+    });
+  });
+
+  it('rejects explicit productCreate handles longer than Shopify allows without staging a product', async () => {
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const createResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateProduct($product: ProductCreateInput!) { productCreate(product: $product) { product { id title handle } userErrors { field message } } }',
+        variables: {
+          product: {
+            title: 'Too Long Handle Owner',
+            handle: 'a'.repeat(260),
+          },
+        },
+      });
+
+    expect(createResponse.status).toBe(200);
+    expect(createResponse.body.data.productCreate).toEqual({
+      product: null,
+      userErrors: [{ field: ['handle'], message: 'Handle is too long (maximum is 255 characters)' }],
+    });
+
+    const queryResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query: 'query { products(first: 10) { nodes { id title handle } } }',
+    });
+
+    expect(queryResponse.status).toBe(200);
+    expect(queryResponse.body.data.products.nodes).toEqual([]);
+  });
+
+  it('rejects explicit productUpdate handles longer than Shopify allows and preserves the current handle', async () => {
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const createResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateProduct($product: ProductCreateInput!) { productCreate(product: $product) { product { id title handle } userErrors { field message } } }',
+        variables: {
+          product: {
+            title: 'Update Too Long Handle Owner',
+            handle: 'update-too-long-handle-owner',
+          },
+        },
+      });
+
+    const productId = createResponse.body.data.productCreate.product.id as string;
+
+    const updateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation UpdateProduct($product: ProductUpdateInput!) { productUpdate(product: $product) { product { id title handle } userErrors { field message } } }',
+        variables: {
+          product: {
+            id: productId,
+            handle: 'b'.repeat(260),
+          },
+        },
+      });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body.data.productUpdate).toEqual({
+      product: {
+        id: productId,
+        title: 'Update Too Long Handle Owner',
+        handle: 'update-too-long-handle-owner',
+      },
+      userErrors: [{ field: ['handle'], message: 'Handle is too long (maximum is 255 characters)' }],
+    });
+
+    const queryResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: 'query ReadProduct($id: ID!) { product(id: $id) { id title handle } }',
+        variables: { id: productId },
+      });
+
+    expect(queryResponse.status).toBe(200);
+    expect(queryResponse.body.data.product).toEqual({
+      id: productId,
+      title: 'Update Too Long Handle Owner',
+      handle: 'update-too-long-handle-owner',
+    });
   });
 
   it('stages tagsAdd locally for product resources and keeps downstream tag-filtered reads aligned', async () => {
@@ -1791,6 +1993,159 @@ describe('product draft flow', () => {
     });
   });
 
+  it('keeps product published_status search visibility aligned with staged publication and status writes', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      return new Response(
+        JSON.stringify({
+          data: { product: null, products: { nodes: [] }, productsCount: { count: 0, precision: 'EXACT' } },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    });
+
+    const app = createApp(config).callback();
+
+    const createPublishedResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Published Visibility Hat", status: ACTIVE }) { product { id } userErrors { field message } } }',
+    });
+    const publishedProductId = createPublishedResponse.body.data.productCreate.product.id as string;
+
+    const createUnpublishedResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Unpublished Visibility Hat", status: ACTIVE }) { product { id } userErrors { field message } } }',
+    });
+    const unpublishedProductId = createUnpublishedResponse.body.data.productCreate.product.id as string;
+
+    const publishResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation Publish($input: ProductPublishInput!) { productPublish(input: $input) { product { id publishedOnCurrentPublication availablePublicationsCount { count precision } } userErrors { field message } } }',
+        variables: {
+          input: {
+            id: publishedProductId,
+            productPublications: [{ publicationId: 'gid://shopify/Publication/1' }],
+          },
+        },
+      });
+
+    expect(publishResponse.status).toBe(200);
+    expect(publishResponse.body.data.productPublish).toEqual({
+      product: {
+        id: publishedProductId,
+        publishedOnCurrentPublication: true,
+        availablePublicationsCount: {
+          count: 1,
+          precision: 'EXACT',
+        },
+      },
+      userErrors: [],
+    });
+
+    const initialVisibilityResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `#graphql
+          query InitialVisibility {
+            published: products(first: 10, query: "published_status:published") {
+              nodes {
+                id
+                publishedOnCurrentPublication
+              }
+            }
+            publishedCount: productsCount(query: "published_status:published") {
+              count
+              precision
+            }
+            unpublished: products(first: 10, query: "published_status:unpublished") {
+              nodes {
+                id
+                publishedOnCurrentPublication
+              }
+            }
+            unpublishedCount: productsCount(query: "published_status:unpublished") {
+              count
+              precision
+            }
+          }
+        `,
+      });
+
+    expect(initialVisibilityResponse.status).toBe(200);
+    expect(initialVisibilityResponse.body.data.published.nodes).toEqual([
+      {
+        id: publishedProductId,
+        publishedOnCurrentPublication: true,
+      },
+    ]);
+    expect(initialVisibilityResponse.body.data.publishedCount).toEqual({
+      count: 1,
+      precision: 'EXACT',
+    });
+    expect(initialVisibilityResponse.body.data.unpublished.nodes).toEqual([
+      {
+        id: unpublishedProductId,
+        publishedOnCurrentPublication: false,
+      },
+    ]);
+    expect(initialVisibilityResponse.body.data.unpublishedCount).toEqual({
+      count: 1,
+      precision: 'EXACT',
+    });
+
+    const archiveResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation Archive($productId: ID!) { productChangeStatus(productId: $productId, status: ARCHIVED) { product { id status publishedOnCurrentPublication availablePublicationsCount { count precision } } userErrors { field message } } }',
+        variables: { productId: publishedProductId },
+      });
+
+    expect(archiveResponse.status).toBe(200);
+    expect(archiveResponse.body.data.productChangeStatus).toEqual({
+      product: {
+        id: publishedProductId,
+        status: 'ARCHIVED',
+        publishedOnCurrentPublication: false,
+        availablePublicationsCount: {
+          count: 0,
+          precision: 'EXACT',
+        },
+      },
+      userErrors: [],
+    });
+
+    const archivedVisibilityResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query ArchivedVisibility { publishedCount: productsCount(query: "published_status:published") { count precision } unpublished: products(first: 10, query: "published_status:unpublished") { nodes { id publishedOnCurrentPublication } } unpublishedCount: productsCount(query: "published_status:unpublished") { count precision } }',
+    });
+
+    expect(archivedVisibilityResponse.status).toBe(200);
+    expect(archivedVisibilityResponse.body.data.publishedCount).toEqual({
+      count: 0,
+      precision: 'EXACT',
+    });
+    expect(archivedVisibilityResponse.body.data.unpublished.nodes).toHaveLength(2);
+    expect(archivedVisibilityResponse.body.data.unpublished.nodes).toEqual(
+      expect.arrayContaining([
+        {
+          id: publishedProductId,
+          publishedOnCurrentPublication: false,
+        },
+        {
+          id: unpublishedProductId,
+          publishedOnCurrentPublication: false,
+        },
+      ]),
+    );
+    expect(archivedVisibilityResponse.body.data.unpublishedCount).toEqual({
+      count: 2,
+      precision: 'EXACT',
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
   it('stages productPublish and productUnpublish locally for created products with downstream publication reads', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       return new Response(JSON.stringify({ data: { product: null } }), {
@@ -2406,6 +2761,272 @@ describe('product draft flow', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
+  it('stages captured product option lifecycle effects into downstream option and variant reads', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      return new Response(JSON.stringify({ data: { product: null } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const createProductResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Captured Option Graph Hat" }) { product { id } userErrors { field message } } }',
+    });
+    const productId = createProductResponse.body.data.productCreate.product.id as string;
+
+    const lifecycleProductSelection =
+      'product { id options { id name position values optionValues { id name hasVariants } } variants(first: 10) { nodes { id title selectedOptions { name value } } } }';
+
+    const createOptionsResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CreateOptions($productId: ID!, $options: [OptionCreateInput!]!) { productOptionsCreate(productId: $productId, options: $options) { ${lifecycleProductSelection} userErrors { field message } } }`,
+        variables: {
+          productId,
+          options: [
+            { name: 'Color', position: 1, values: [{ name: 'Red' }, { name: 'Green' }] },
+            { name: 'Size', position: 2, values: [{ name: 'Small' }] },
+          ],
+        },
+      });
+
+    expect(createOptionsResponse.status).toBe(200);
+    expect(createOptionsResponse.body.data.productOptionsCreate.userErrors).toEqual([]);
+    expect(createOptionsResponse.body.data.productOptionsCreate.product).toMatchObject({
+      options: [
+        {
+          name: 'Color',
+          position: 1,
+          values: ['Red'],
+          optionValues: [
+            { name: 'Red', hasVariants: true },
+            { name: 'Green', hasVariants: false },
+          ],
+        },
+        {
+          name: 'Size',
+          position: 2,
+          values: ['Small'],
+          optionValues: [{ name: 'Small', hasVariants: true }],
+        },
+      ],
+      variants: {
+        nodes: [
+          {
+            title: 'Red / Small',
+            selectedOptions: [
+              { name: 'Color', value: 'Red' },
+              { name: 'Size', value: 'Small' },
+            ],
+          },
+        ],
+      },
+    });
+
+    const createdOptions = createOptionsResponse.body.data.productOptionsCreate.product.options as Array<{
+      id: string;
+      name: string;
+      optionValues: Array<{ id: string; name: string }>;
+    }>;
+    const colorOption = createdOptions.find((option) => option.name === 'Color');
+    const sizeOption = createdOptions.find((option) => option.name === 'Size');
+    const redValue = colorOption?.optionValues.find((value) => value.name === 'Red');
+    const greenValue = colorOption?.optionValues.find((value) => value.name === 'Green');
+    expect(colorOption?.id).toEqual(expect.stringMatching(/^gid:\/\/shopify\/ProductOption\//));
+    expect(sizeOption?.id).toEqual(expect.stringMatching(/^gid:\/\/shopify\/ProductOption\//));
+    expect(redValue?.id).toEqual(expect.stringMatching(/^gid:\/\/shopify\/ProductOptionValue\//));
+    expect(greenValue?.id).toEqual(expect.stringMatching(/^gid:\/\/shopify\/ProductOptionValue\//));
+
+    const updateOptionResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          `mutation UpdateOption($productId: ID!, $option: OptionUpdateInput!, $optionValuesToAdd: [OptionValueCreateInput!], $optionValuesToUpdate: [OptionValueUpdateInput!], $optionValuesToDelete: [ID!]) { ` +
+          `productOptionUpdate(productId: $productId, option: $option, optionValuesToAdd: $optionValuesToAdd, optionValuesToUpdate: $optionValuesToUpdate, optionValuesToDelete: $optionValuesToDelete) { ${lifecycleProductSelection} userErrors { field message } } }`,
+        variables: {
+          productId,
+          option: { id: colorOption?.id, name: 'Shade', position: 2 },
+          optionValuesToAdd: [{ name: 'Blue' }],
+          optionValuesToUpdate: [{ id: redValue?.id, name: 'Crimson' }],
+          optionValuesToDelete: [greenValue?.id],
+        },
+      });
+
+    expect(updateOptionResponse.status).toBe(200);
+    expect(updateOptionResponse.body.data.productOptionUpdate.userErrors).toEqual([]);
+    expect(updateOptionResponse.body.data.productOptionUpdate.product).toMatchObject({
+      options: [
+        {
+          id: sizeOption?.id,
+          name: 'Size',
+          position: 1,
+          values: ['Small'],
+          optionValues: [{ name: 'Small', hasVariants: true }],
+        },
+        {
+          id: colorOption?.id,
+          name: 'Shade',
+          position: 2,
+          values: ['Crimson'],
+          optionValues: [
+            { id: redValue?.id, name: 'Crimson', hasVariants: true },
+            { name: 'Blue', hasVariants: false },
+          ],
+        },
+      ],
+      variants: {
+        nodes: [
+          {
+            title: 'Small / Crimson',
+            selectedOptions: [
+              { name: 'Size', value: 'Small' },
+              { name: 'Shade', value: 'Crimson' },
+            ],
+          },
+        ],
+      },
+    });
+
+    const deleteOptionsResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation DeleteOptions($productId: ID!, $options: [ID!]!) { productOptionsDelete(productId: $productId, options: $options) { deletedOptionsIds product { id options { id name position values optionValues { id name hasVariants } } variants(first: 10) { nodes { id title selectedOptions { name value } } } } userErrors { field message } } }',
+        variables: {
+          productId,
+          options: [sizeOption?.id, colorOption?.id],
+        },
+      });
+
+    expect(deleteOptionsResponse.status).toBe(200);
+    expect(deleteOptionsResponse.body.data.productOptionsDelete.userErrors).toEqual([]);
+    expect(deleteOptionsResponse.body.data.productOptionsDelete.deletedOptionsIds).toEqual([
+      sizeOption?.id,
+      colorOption?.id,
+    ]);
+    expect(deleteOptionsResponse.body.data.productOptionsDelete.product).toMatchObject({
+      options: [
+        {
+          name: 'Title',
+          position: 1,
+          values: ['Default Title'],
+          optionValues: [{ name: 'Default Title', hasVariants: true }],
+        },
+      ],
+      variants: {
+        nodes: [
+          {
+            title: 'Default Title',
+            selectedOptions: [{ name: 'Title', value: 'Default Title' }],
+          },
+        ],
+      },
+    });
+
+    const downstreamReadResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query ProductOptionLifecycle($id: ID!) { product(id: $id) { id options { name values optionValues { name hasVariants } } variants(first: 10) { nodes { title selectedOptions { name value } } } } }',
+        variables: { id: productId },
+      });
+
+    expect(downstreamReadResponse.status).toBe(200);
+    expect(downstreamReadResponse.body.data.product).toEqual({
+      id: productId,
+      options: [
+        {
+          name: 'Title',
+          values: ['Default Title'],
+          optionValues: [{ name: 'Default Title', hasVariants: true }],
+        },
+      ],
+      variants: {
+        nodes: [
+          {
+            title: 'Default Title',
+            selectedOptions: [{ name: 'Title', value: 'Default Title' }],
+          },
+        ],
+      },
+    });
+  });
+
+  it('returns captured product option lifecycle validation userErrors locally', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('product option validation branches should not hit upstream fetch');
+    });
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const createUnknownProductResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateOption($productId: ID!, $options: [OptionCreateInput!]!) { productOptionsCreate(productId: $productId, options: $options) { product { id } userErrors { field message } } }',
+        variables: {
+          productId: 'gid://shopify/Product/0',
+          options: [{ name: 'Material', values: [{ name: 'Cotton' }] }],
+        },
+      });
+
+    expect(createUnknownProductResponse.status).toBe(200);
+    expect(createUnknownProductResponse.body.data.productOptionsCreate).toEqual({
+      product: null,
+      userErrors: [{ field: ['productId'], message: 'Product does not exist' }],
+    });
+
+    const createProductResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Option Validation Hat" }) { product { id } userErrors { field message } } }',
+    });
+    const productId = createProductResponse.body.data.productCreate.product.id as string;
+
+    const updateUnknownOptionResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation UpdateOption($productId: ID!, $option: OptionUpdateInput!) { productOptionUpdate(productId: $productId, option: $option) { product { id options { name } } userErrors { field message } } }',
+        variables: {
+          productId,
+          option: { id: 'gid://shopify/ProductOption/0', name: 'Missing Option' },
+        },
+      });
+
+    expect(updateUnknownOptionResponse.status).toBe(200);
+    expect(updateUnknownOptionResponse.body.data.productOptionUpdate).toEqual({
+      product: {
+        id: productId,
+        options: [{ name: 'Title' }],
+      },
+      userErrors: [{ field: ['option'], message: 'Option does not exist' }],
+    });
+
+    const deleteUnknownOptionResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation DeleteOption($productId: ID!, $options: [ID!]!) { productOptionsDelete(productId: $productId, options: $options) { deletedOptionsIds product { id options { name } } userErrors { field message } } }',
+        variables: {
+          productId,
+          options: ['gid://shopify/ProductOption/0'],
+        },
+      });
+
+    expect(deleteUnknownOptionResponse.status).toBe(200);
+    expect(deleteUnknownOptionResponse.body.data.productOptionsDelete).toEqual({
+      deletedOptionsIds: [],
+      product: {
+        id: productId,
+        options: [{ name: 'Title' }],
+      },
+      userErrors: [{ field: ['options', '0'], message: 'Option does not exist' }],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('stages product variant bulk create, update, and delete mutations locally with downstream variant reads and inventory-derived catalog fields', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       return new Response(
@@ -2654,6 +3275,117 @@ describe('product draft flow', () => {
       count: 0,
       precision: 'EXACT',
     });
+  });
+
+  it('stages productVariantsBulkReorder locally with downstream variant connection order and raw log preservation', async () => {
+    const productId = 'gid://shopify/Product/260';
+    const variantOneId = 'gid://shopify/ProductVariant/2601';
+    const variantTwoId = 'gid://shopify/ProductVariant/2602';
+    const variantThreeId = 'gid://shopify/ProductVariant/2603';
+    store.upsertBaseProducts([makeBaseProduct(productId, 'Variant Reorder Hat', 'variant-reorder-hat')]);
+    store.replaceBaseVariantsForProduct(productId, [
+      makeBaseVariant(productId, variantOneId, 'Small', 'VRH-S'),
+      makeBaseVariant(productId, variantTwoId, 'Medium', 'VRH-M'),
+      makeBaseVariant(productId, variantThreeId, 'Large', 'VRH-L'),
+    ]);
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+    const query =
+      'mutation ReorderVariants($productId: ID!, $positions: [ProductVariantPositionInput!]!) { productVariantsBulkReorder(productId: $productId, positions: $positions) { product { id variants(first: 10) { nodes { id title sku } } } userErrors { field message } } }';
+    const variables = {
+      productId,
+      positions: [
+        { id: variantThreeId, position: 1 },
+        { id: variantOneId, position: 99 },
+      ],
+    };
+
+    const reorderResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query,
+      variables,
+    });
+
+    expect(reorderResponse.status).toBe(200);
+    expect(reorderResponse.body).toEqual({
+      data: {
+        productVariantsBulkReorder: {
+          product: {
+            id: productId,
+            variants: {
+              nodes: [
+                { id: variantThreeId, title: 'Large', sku: 'VRH-L' },
+                { id: variantTwoId, title: 'Medium', sku: 'VRH-M' },
+                { id: variantOneId, title: 'Small', sku: 'VRH-S' },
+              ],
+            },
+          },
+          userErrors: [],
+        },
+      },
+    });
+
+    const downstreamResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query VariantOrder($productId: ID!, $variantId: ID!) { product(id: $productId) { id variants(first: 2) { edges { cursor node { id title } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } productVariant(id: $variantId) { id title sku } }',
+        variables: {
+          productId,
+          variantId: variantOneId,
+        },
+      });
+
+    expect(downstreamResponse.status).toBe(200);
+    expect(downstreamResponse.body).toEqual({
+      data: {
+        product: {
+          id: productId,
+          variants: {
+            edges: [
+              {
+                cursor: `cursor:${variantThreeId}`,
+                node: { id: variantThreeId, title: 'Large' },
+              },
+              {
+                cursor: `cursor:${variantTwoId}`,
+                node: { id: variantTwoId, title: 'Medium' },
+              },
+            ],
+            pageInfo: {
+              hasNextPage: true,
+              hasPreviousPage: false,
+              startCursor: `cursor:${variantThreeId}`,
+              endCursor: `cursor:${variantTwoId}`,
+            },
+          },
+        },
+        productVariant: {
+          id: variantOneId,
+          title: 'Small',
+          sku: 'VRH-S',
+        },
+      },
+    });
+    expect(store.getEffectiveVariantsByProductId(productId).map((variant) => variant.id)).toEqual([
+      variantThreeId,
+      variantTwoId,
+      variantOneId,
+    ]);
+    expect(store.getLog()).toMatchObject([
+      {
+        operationName: 'productVariantsBulkReorder',
+        path: '/admin/api/2025-01/graphql.json',
+        query,
+        variables,
+        requestBody: {
+          query,
+          variables,
+        },
+        status: 'staged',
+      },
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('stages singular product variant create, update, and delete mutations locally via the same overlay model', async () => {
@@ -4328,8 +5060,12 @@ describe('product draft flow', () => {
       .post('/admin/api/2025-01/graphql.json')
       .send({
         query:
-          'query ($id: ID!) { duplicated: product(id: $id) { id title handle status options { name values } variants(first: 10) { nodes { title sku inventoryItem { tracked } } } collections(first: 10) { nodes { id title handle } } media(first: 10) { nodes { mediaContentType alt preview { image { url } } } } metafield(namespace: "custom", key: "material") { namespace key value } } total: productsCount { count precision } }',
-        variables: { id: duplicatedProductId },
+          'query ($id: ID!, $collectionId: ID!, $duplicateMembershipQuery: String!) { duplicated: product(id: $id) { id title handle status options { name values } variants(first: 10) { nodes { title sku inventoryItem { tracked } } } collections(first: 10) { nodes { id title handle } } media(first: 10) { nodes { mediaContentType alt preview { image { url } } } } metafield(namespace: "custom", key: "material") { namespace key value } } duplicateCollection: collection(id: $collectionId) { id title handle hasProduct(id: $id) productsCount { count precision } products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } duplicateMembershipSearch: collections(first: 10, query: $duplicateMembershipQuery) { nodes { id title handle } } total: productsCount { count precision } }',
+        variables: {
+          id: duplicatedProductId,
+          collectionId: 'gid://shopify/Collection/4000',
+          duplicateMembershipQuery: `product_id:${duplicatedProductId}`,
+        },
       });
 
     expect(queryResponse.status).toBe(200);
@@ -4363,6 +5099,29 @@ describe('product draft flow', () => {
             key: 'material',
             value: 'mesh',
           },
+        },
+        duplicateCollection: {
+          id: 'gid://shopify/Collection/4000',
+          title: 'Summer',
+          handle: 'summer',
+          hasProduct: true,
+          productsCount: {
+            count: 2,
+            precision: 'EXACT',
+          },
+          products: {
+            nodes: [
+              { id: 'gid://shopify/Product/100', title: 'Base Shoe', handle: 'base-shoe' },
+              { id: duplicatedProductId, title: 'Copied Shoe', handle: 'copied-shoe' },
+            ],
+            pageInfo: {
+              hasNextPage: false,
+              hasPreviousPage: false,
+            },
+          },
+        },
+        duplicateMembershipSearch: {
+          nodes: [{ id: 'gid://shopify/Collection/4000', title: 'Summer', handle: 'summer' }],
         },
         total: {
           count: 2,
@@ -4627,6 +5386,107 @@ describe('product draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('stages productReorderMedia locally with downstream media and image ordering', async () => {
+    const productId = 'gid://shopify/Product/460';
+    const mediaOneId = 'gid://shopify/MediaImage/4601';
+    const mediaTwoId = 'gid://shopify/MediaImage/4602';
+    const mediaThreeId = 'gid://shopify/MediaImage/4603';
+    store.upsertBaseProducts([makeBaseProduct(productId, 'Media Reorder Hat', 'media-reorder-hat')]);
+    store.replaceBaseMediaForProduct(productId, [
+      makeBaseImageMedia(productId, mediaOneId, 0, 'Front'),
+      makeBaseImageMedia(productId, mediaTwoId, 1, 'Side'),
+      makeBaseImageMedia(productId, mediaThreeId, 2, 'Back'),
+    ]);
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+    const query =
+      'mutation ReorderMedia($id: ID!, $moves: [MoveInput!]!) { productReorderMedia(id: $id, moves: $moves) { job { id done } mediaUserErrors { field message } } }';
+    const variables = {
+      id: productId,
+      moves: [
+        { id: mediaThreeId, newPosition: '0' },
+        { id: mediaOneId, newPosition: '99' },
+      ],
+    };
+
+    const reorderResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query,
+      variables,
+    });
+
+    expect(reorderResponse.status).toBe(200);
+    expect(reorderResponse.body).toEqual({
+      data: {
+        productReorderMedia: {
+          job: {
+            id: expect.stringMatching(/^gid:\/\/shopify\/Job\/.+$/),
+            done: false,
+          },
+          mediaUserErrors: [],
+        },
+      },
+    });
+
+    const downstreamResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query MediaOrder($productId: ID!) { product(id: $productId) { id media(first: 10) { nodes { id alt } pageInfo { hasNextPage hasPreviousPage } } images(first: 10) { nodes { id altText } pageInfo { hasNextPage hasPreviousPage } } } }',
+      variables: {
+        productId,
+      },
+    });
+
+    expect(downstreamResponse.status).toBe(200);
+    expect(downstreamResponse.body).toEqual({
+      data: {
+        product: {
+          id: productId,
+          media: {
+            nodes: [
+              { id: mediaThreeId, alt: 'Back' },
+              { id: mediaTwoId, alt: 'Side' },
+              { id: mediaOneId, alt: 'Front' },
+            ],
+            pageInfo: {
+              hasNextPage: false,
+              hasPreviousPage: false,
+            },
+          },
+          images: {
+            nodes: [
+              { id: mediaThreeId.replace('/MediaImage/', '/ProductImage/'), altText: 'Back' },
+              { id: mediaTwoId.replace('/MediaImage/', '/ProductImage/'), altText: 'Side' },
+              { id: mediaOneId.replace('/MediaImage/', '/ProductImage/'), altText: 'Front' },
+            ],
+            pageInfo: {
+              hasNextPage: false,
+              hasPreviousPage: false,
+            },
+          },
+        },
+      },
+    });
+    expect(store.getEffectiveMediaByProductId(productId).map((mediaRecord) => mediaRecord.id)).toEqual([
+      mediaThreeId,
+      mediaTwoId,
+      mediaOneId,
+    ]);
+    expect(store.getLog()).toMatchObject([
+      {
+        operationName: 'productReorderMedia',
+        path: '/admin/api/2025-01/graphql.json',
+        query,
+        variables,
+        requestBody: {
+          query,
+          variables,
+        },
+        status: 'staged',
+      },
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('deletes one staged product media item while preserving the remaining media connection', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     const app = createApp({ ...config, readMode: 'snapshot' }).callback();
@@ -4751,7 +5611,7 @@ describe('product draft flow', () => {
       .post('/admin/api/2025-01/graphql.json')
       .send({
         query:
-          'mutation CreateViaProductSet($input: ProductSetInput!) { productSet(input: $input) { product { id title handle status vendor productType tags options { id name position values optionValues { id name hasVariants } } variants(first: 10) { nodes { id title sku price inventoryQuantity selectedOptions { name value } inventoryItem { tracked requiresShipping } } } metafields(first: 10) { nodes { id namespace key type value } } } productSetOperation { id status } userErrors { field message } } }',
+          'mutation CreateViaProductSet($input: ProductSetInput!) { productSet(input: $input) { product { id title handle status vendor productType tags totalInventory options { id name position values optionValues { id name hasVariants } } variants(first: 10) { nodes { id title sku price inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping inventoryLevels(first: 10) { nodes { location { id name } quantities(names: ["available", "on_hand", "incoming"]) { name quantity updatedAt } } } } } } metafields(first: 10) { nodes { id namespace key type value } } } productSetOperation { id status } userErrors { field message } } }',
         variables: {
           input: {
             title: 'Set Snowboard',
@@ -4771,14 +5631,17 @@ describe('product draft flow', () => {
                 optionValues: [{ optionName: 'Color', name: 'Blue' }],
                 sku: 'SNOW-SET-BLUE',
                 price: '79.99',
-                inventoryQuantities: [{ quantity: 7 }],
+                inventoryQuantities: [
+                  { locationId: 'gid://shopify/Location/101', name: 'available', quantity: 2 },
+                  { locationId: 'gid://shopify/Location/202', name: 'available', quantity: 5 },
+                ],
                 inventoryItem: { tracked: true, requiresShipping: true },
               },
               {
                 optionValues: [{ optionName: 'Color', name: 'Black' }],
                 sku: 'SNOW-SET-BLACK',
                 price: '69.99',
-                inventoryQuantities: [{ quantity: 3 }],
+                inventoryQuantities: [{ locationId: 'gid://shopify/Location/101', name: 'available', quantity: 3 }],
                 inventoryItem: { tracked: false, requiresShipping: true },
               },
             ],
@@ -4797,6 +5660,7 @@ describe('product draft flow', () => {
       vendor: 'BURTON',
       productType: 'SNOWBOARD',
       tags: ['featured', 'winter'],
+      totalInventory: 7,
     });
     expect(setResponse.body.data.productSet.product.options).toEqual([
       {
@@ -4826,7 +5690,31 @@ describe('product draft flow', () => {
         price: '79.99',
         inventoryQuantity: 7,
         selectedOptions: [{ name: 'Color', value: 'Blue' }],
-        inventoryItem: { tracked: true, requiresShipping: true },
+        inventoryItem: {
+          id: expect.stringMatching(/^gid:\/\/shopify\/InventoryItem\//),
+          tracked: true,
+          requiresShipping: true,
+          inventoryLevels: {
+            nodes: [
+              {
+                location: { id: 'gid://shopify/Location/101', name: null },
+                quantities: [
+                  { name: 'available', quantity: 2, updatedAt: expect.any(String) },
+                  { name: 'on_hand', quantity: 2, updatedAt: null },
+                  { name: 'incoming', quantity: 0, updatedAt: null },
+                ],
+              },
+              {
+                location: { id: 'gid://shopify/Location/202', name: null },
+                quantities: [
+                  { name: 'available', quantity: 5, updatedAt: expect.any(String) },
+                  { name: 'on_hand', quantity: 5, updatedAt: null },
+                  { name: 'incoming', quantity: 0, updatedAt: null },
+                ],
+              },
+            ],
+          },
+        },
       },
       {
         id: expect.stringMatching(/^gid:\/\/shopify\/ProductVariant\//),
@@ -4835,7 +5723,23 @@ describe('product draft flow', () => {
         price: '69.99',
         inventoryQuantity: 3,
         selectedOptions: [{ name: 'Color', value: 'Black' }],
-        inventoryItem: { tracked: false, requiresShipping: true },
+        inventoryItem: {
+          id: expect.stringMatching(/^gid:\/\/shopify\/InventoryItem\//),
+          tracked: false,
+          requiresShipping: true,
+          inventoryLevels: {
+            nodes: [
+              {
+                location: { id: 'gid://shopify/Location/101', name: null },
+                quantities: [
+                  { name: 'available', quantity: 3, updatedAt: expect.any(String) },
+                  { name: 'on_hand', quantity: 3, updatedAt: null },
+                  { name: 'incoming', quantity: 0, updatedAt: null },
+                ],
+              },
+            ],
+          },
+        },
       },
     ]);
     expect(setResponse.body.data.productSet.product.metafields.nodes).toEqual([
@@ -4849,12 +5753,15 @@ describe('product draft flow', () => {
     ]);
 
     const productId = setResponse.body.data.productSet.product.id as string;
+    const blueVariant = setResponse.body.data.productSet.product.variants.nodes[0];
+    const blueVariantId = blueVariant.id as string;
+    const blueInventoryItemId = blueVariant.inventoryItem.id as string;
     const queryResponse = await request(app)
       .post('/admin/api/2025-01/graphql.json')
       .send({
         query:
-          'query ProductSetReadback($id: ID!) { product(id: $id) { id title descriptionHtml onlineStorePreviewUrl options { name values } variants(first: 10) { nodes { sku taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { measurement { weight { unit value } } } } } metafield(namespace: "custom", key: "season") { value } } total: productsCount(query: "sku:SNOW-SET-BLUE") { count precision } }',
-        variables: { id: productId },
+          'query ProductSetReadback($id: ID!, $variantId: ID!, $inventoryItemId: ID!) { product(id: $id) { id title descriptionHtml onlineStorePreviewUrl totalInventory options { name values } variants(first: 10) { nodes { sku taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { measurement { weight { unit value } } inventoryLevels(first: 10) { nodes { location { id name } quantities(names: ["available", "on_hand", "incoming"]) { name quantity updatedAt } } } } } } metafield(namespace: "custom", key: "season") { value } } variant: productVariant(id: $variantId) { id inventoryQuantity inventoryItem { id inventoryLevels(first: 10) { nodes { location { id name } quantities(names: ["available", "on_hand", "incoming"]) { name quantity updatedAt } } } } product { id totalInventory } } stock: inventoryItem(id: $inventoryItemId) { id inventoryLevels(first: 10) { nodes { location { id name } quantities(names: ["available", "on_hand", "incoming"]) { name quantity updatedAt } } } variant { id inventoryQuantity product { id totalInventory } } } total: productsCount(query: "sku:SNOW-SET-BLUE") { count precision } }',
+        variables: { id: productId, variantId: blueVariantId, inventoryItemId: blueInventoryItemId },
       });
 
     expect(queryResponse.status).toBe(200);
@@ -4865,6 +5772,7 @@ describe('product draft flow', () => {
           title: 'Set Snowboard',
           descriptionHtml: '',
           onlineStorePreviewUrl: expect.stringContaining('https://shopify-draft-proxy.local/products_preview?'),
+          totalInventory: 7,
           options: [{ name: 'Color', values: ['Blue', 'Black'] }],
           variants: {
             nodes: [
@@ -4874,7 +5782,29 @@ describe('product draft flow', () => {
                 inventoryPolicy: 'DENY',
                 inventoryQuantity: 7,
                 selectedOptions: [{ name: 'Color', value: 'Blue' }],
-                inventoryItem: { measurement: { weight: { unit: 'KILOGRAMS', value: 0 } } },
+                inventoryItem: {
+                  measurement: { weight: { unit: 'KILOGRAMS', value: 0 } },
+                  inventoryLevels: {
+                    nodes: [
+                      {
+                        location: { id: 'gid://shopify/Location/101', name: null },
+                        quantities: [
+                          { name: 'available', quantity: 2, updatedAt: expect.any(String) },
+                          { name: 'on_hand', quantity: 2, updatedAt: null },
+                          { name: 'incoming', quantity: 0, updatedAt: null },
+                        ],
+                      },
+                      {
+                        location: { id: 'gid://shopify/Location/202', name: null },
+                        quantities: [
+                          { name: 'available', quantity: 5, updatedAt: expect.any(String) },
+                          { name: 'on_hand', quantity: 5, updatedAt: null },
+                          { name: 'incoming', quantity: 0, updatedAt: null },
+                        ],
+                      },
+                    ],
+                  },
+                },
               },
               {
                 sku: 'SNOW-SET-BLACK',
@@ -4882,11 +5812,81 @@ describe('product draft flow', () => {
                 inventoryPolicy: 'DENY',
                 inventoryQuantity: 3,
                 selectedOptions: [{ name: 'Color', value: 'Black' }],
-                inventoryItem: { measurement: { weight: { unit: 'KILOGRAMS', value: 0 } } },
+                inventoryItem: {
+                  measurement: { weight: { unit: 'KILOGRAMS', value: 0 } },
+                  inventoryLevels: {
+                    nodes: [
+                      {
+                        location: { id: 'gid://shopify/Location/101', name: null },
+                        quantities: [
+                          { name: 'available', quantity: 3, updatedAt: expect.any(String) },
+                          { name: 'on_hand', quantity: 3, updatedAt: null },
+                          { name: 'incoming', quantity: 0, updatedAt: null },
+                        ],
+                      },
+                    ],
+                  },
+                },
               },
             ],
           },
           metafield: { value: 'winter' },
+        },
+        variant: {
+          id: blueVariantId,
+          inventoryQuantity: 7,
+          inventoryItem: {
+            id: blueInventoryItemId,
+            inventoryLevels: {
+              nodes: [
+                {
+                  location: { id: 'gid://shopify/Location/101', name: null },
+                  quantities: [
+                    { name: 'available', quantity: 2, updatedAt: expect.any(String) },
+                    { name: 'on_hand', quantity: 2, updatedAt: null },
+                    { name: 'incoming', quantity: 0, updatedAt: null },
+                  ],
+                },
+                {
+                  location: { id: 'gid://shopify/Location/202', name: null },
+                  quantities: [
+                    { name: 'available', quantity: 5, updatedAt: expect.any(String) },
+                    { name: 'on_hand', quantity: 5, updatedAt: null },
+                    { name: 'incoming', quantity: 0, updatedAt: null },
+                  ],
+                },
+              ],
+            },
+          },
+          product: { id: productId, totalInventory: 7 },
+        },
+        stock: {
+          id: blueInventoryItemId,
+          inventoryLevels: {
+            nodes: [
+              {
+                location: { id: 'gid://shopify/Location/101', name: null },
+                quantities: [
+                  { name: 'available', quantity: 2, updatedAt: expect.any(String) },
+                  { name: 'on_hand', quantity: 2, updatedAt: null },
+                  { name: 'incoming', quantity: 0, updatedAt: null },
+                ],
+              },
+              {
+                location: { id: 'gid://shopify/Location/202', name: null },
+                quantities: [
+                  { name: 'available', quantity: 5, updatedAt: expect.any(String) },
+                  { name: 'on_hand', quantity: 5, updatedAt: null },
+                  { name: 'incoming', quantity: 0, updatedAt: null },
+                ],
+              },
+            ],
+          },
+          variant: {
+            id: blueVariantId,
+            inventoryQuantity: 7,
+            product: { id: productId, totalInventory: 7 },
+          },
         },
         total: {
           count: 1,
@@ -5188,7 +6188,7 @@ describe('product draft flow', () => {
                 optionValues: [{ optionName: 'Color', name: 'Blue' }],
                 sku: 'HYBRID-BLUE-2',
                 price: '60.00',
-                inventoryQuantities: [{ quantity: 9 }],
+                inventoryQuantities: [{ locationId: 'gid://shopify/Location/202', name: 'available', quantity: 9 }],
               },
             ],
             metafields: [{ namespace: 'custom', key: 'season', type: 'single_line_text_field', value: 'new' }],
@@ -5209,7 +6209,7 @@ describe('product draft flow', () => {
       .post('/admin/api/2025-01/graphql.json')
       .send({
         query:
-          'query ProductSetAsyncReadback($id: ID!) { product(id: $id) { id title tags collections(first: 10) { nodes { id title handle } } options { name values optionValues { name hasVariants } } variants(first: 10) { nodes { id sku price inventoryQuantity selectedOptions { name value } } } metafields(first: 10) { nodes { namespace key value } } } blueCount: productsCount(query: "sku:HYBRID-BLUE-2") { count precision } redCount: productsCount(query: "sku:HYBRID-RED") { count precision } }',
+          'query ProductSetAsyncReadback($id: ID!) { product(id: $id) { id title tags totalInventory collections(first: 10) { nodes { id title handle } } options { name values optionValues { name hasVariants } } variants(first: 10) { nodes { id sku price inventoryQuantity selectedOptions { name value } inventoryItem { id inventoryLevels(first: 10) { nodes { location { id name } quantities(names: ["available", "on_hand", "incoming"]) { name quantity updatedAt } } } } } } metafields(first: 10) { nodes { namespace key value } } } blueCount: productsCount(query: "sku:HYBRID-BLUE-2") { count precision } redCount: productsCount(query: "sku:HYBRID-RED") { count precision } }',
         variables: { id: 'gid://shopify/Product/700' },
       });
 
@@ -5220,6 +6220,7 @@ describe('product draft flow', () => {
           id: 'gid://shopify/Product/700',
           title: 'Hybrid Board 2',
           tags: ['fresh-tag'],
+          totalInventory: 12,
           collections: {
             nodes: [{ id: 'gid://shopify/Collection/2', title: 'Sale', handle: 'sale' }],
           },
@@ -5241,6 +6242,21 @@ describe('product draft flow', () => {
                 price: '60.00',
                 inventoryQuantity: 9,
                 selectedOptions: [{ name: 'Color', value: 'Blue' }],
+                inventoryItem: {
+                  id: 'gid://shopify/InventoryItem/70001',
+                  inventoryLevels: {
+                    nodes: [
+                      {
+                        location: { id: 'gid://shopify/Location/202', name: null },
+                        quantities: [
+                          { name: 'available', quantity: 9, updatedAt: expect.any(String) },
+                          { name: 'on_hand', quantity: 9, updatedAt: null },
+                          { name: 'incoming', quantity: 0, updatedAt: null },
+                        ],
+                      },
+                    ],
+                  },
+                },
               },
             ],
           },
