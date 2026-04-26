@@ -1,0 +1,28 @@
+{
+  "scenarioId": "product-helper-roots-read",
+  "operationNames": [
+    "productByIdentifier",
+    "productVariantByIdentifier",
+    "productVariants",
+    "productVariantsCount",
+    "productTags",
+    "productTypes",
+    "productVendors",
+    "productSavedSearches",
+    "productOperation",
+    "productDuplicateJob",
+    "productResourceFeedback",
+    "bulkProductResourceFeedbackCreate",
+    "shopResourceFeedbackCreate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "empty-state-parity", "local-runtime-backed", "unsupported-branch-observability"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/product-helper-roots-read.json"],
+  "runtimeTestFiles": ["tests/integration/product-query-shapes.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "notes": "Fixture-backed runtime coverage for HAR-297 residual product helpers. The capture records schema/shape evidence for identifier lookups, top-level variant helpers/counts, taxonomy string connections, empty saved searches, unknown productOperation, unknown productDuplicateJob, and the productResourceFeedback access-denied/null data branch. Runtime tests enforce local snapshot behavior and verify feedback mutations remain registered unsupported passthroughs instead of supported local staging."
+}

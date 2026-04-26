@@ -1,15 +1,26 @@
 # Products Endpoint Group
 
-The products group is fully implemented in the operation registry. It covers product roots plus the directly related inventory, metafield, collection, publication, tag, and product-media roots that are modeled as product-owned behavior.
+The products group is product-first and deep, with registry entries for supported local behavior and explicit unsupported gaps. It covers product roots plus directly related inventory, metafield, collection, publication, tag, helper, feedback, and product-media roots that are modeled as product-owned behavior.
 
 ## Supported roots
 
 Overlay reads:
 
 - `product`
+- `productByIdentifier`
 - `products`
 - `productsCount`
 - `productVariant`
+- `productVariantByIdentifier`
+- `productVariants`
+- `productVariantsCount`
+- `productTags`
+- `productTypes`
+- `productVendors`
+- `productSavedSearches`
+- `productOperation`
+- `productDuplicateJob`
+- `productResourceFeedback`
 - `inventoryItem`
 - `inventoryLevel`
 - `collection`
@@ -60,6 +71,11 @@ Local staged mutations:
 - `collectionRemoveProducts`
 - `collectionReorderProducts`
 
+Registered unsupported mutation gaps:
+
+- `bulkProductResourceFeedbackCreate`
+- `shopResourceFeedbackCreate`
+
 ## Behavior notes
 
 - Product-domain metafields are normalized as owner-scoped records for `Product`, `ProductVariant`, and `Collection` owners. Besides `id`, `namespace`, `key`, `type`, and `value`, hydrated and staged records carry `compareDigest`, `jsonValue`, `createdAt`, `updatedAt`, and `ownerType` for owner-scoped parity. Metafield `definition` serializes as `null` until fixture evidence justifies modeling definition linkage.
@@ -69,6 +85,15 @@ Local staged mutations:
 - Live schema introspection confirms product reorder roots for variant order (`productVariantsBulkReorder`), media order (`productReorderMedia`), option/value order (`productOptionsReorder`), and collection product order (`collectionReorderProducts`). Local support currently covers variant list reordering and media list reordering because the normalized state already has ordered variant/media connections; `productOptionsReorder` remains registry-only until option/value reorder semantics and Shopify's resulting variant order recalculation are backed by conformance evidence.
 - `productVariantsBulkReorder` stages an ordered effective variant list from `ProductVariantPositionInput.position` and exposes that ordering through downstream `product.variants(...)` and `productVariant(id:)` reads without runtime Shopify writes.
 - `productReorderMedia` stages `MoveInput` media moves, returns an async-style `Job`, and exposes reordered `product.media(...)` and `product.images(...)` connections without runtime Shopify writes.
+- `productByIdentifier` supports `identifier.id` and `identifier.handle` against effective local product state. `identifier.customId` returns `null` until unique product metafield identifier evidence and indexing are modeled.
+- `productVariantByIdentifier` supports `identifier.id` against effective local variant state. `identifier.customId` returns `null` until unique variant metafield identifier evidence and indexing are modeled.
+- Top-level `productVariants` and `productVariantsCount` resolve from effective local product variants. Supported local query terms are `id`, `product_id`, `title`, `sku`, `barcode`, `vendor`, `product_type`, and `tag`, with the shared Shopify-style boolean parser. Local sorting supports the common `ID`, `TITLE`, `SKU`, `POSITION`, and `INVENTORY_QUANTITY` paths, with connection serialization delegated to `src/proxy/graphql-helpers.ts`.
+- `productTags`, `productTypes`, and `productVendors` serialize distinct sorted `StringConnection` values from effective local products. Empty snapshot state returns empty `nodes`/`edges` with false `pageInfo` booleans and null cursors.
+- `productSavedSearches` currently models the captured no-data shape as an empty `SavedSearchConnection`; saved search persistence and mutation support are not implemented.
+- `productSet(input:, synchronous: false)` now records a local `ProductSetOperation` and `productOperation(id:)` can read it back with `status`, `product`, and `userErrors`. Unknown operation IDs return `null`, matching the captured helper-root no-data behavior.
+- `productDuplicateJob(id:)` models the captured unknown-job read shape as `{ id, done: true }`. Local `productDuplicate` remains synchronous and does not create a long-running duplicate job.
+- `productResourceFeedback(id:)` returns `null` for absent local feedback. The HAR-297 live capture recorded Shopify returning `data.productResourceFeedback: null` plus an `ACCESS_DENIED` error without `read_resource_feedbacks` and sales-channel configuration; local mutation-created feedback is not claimed.
+- `bulkProductResourceFeedbackCreate` and `shopResourceFeedbackCreate` are intentionally registry-only unsupported gaps. They may proxy as the unknown/unsupported escape hatch and are logged as proxied, but they are not supported local staging paths until a feedback state model can preserve raw mutation order for commit and expose downstream `productResourceFeedback`/shop feedback reads without runtime Shopify writes.
 - Collection records carry aggregate publication target ids alongside product publication ids. A staged `collectionCreate` starts unpublished; collection publication counts and `publishedOnPublication(publicationId:)` remain unpublished until a local publish mutation adds a target.
 - `publishedOnCurrentPublication` is not inferred from aggregate collection publication count. Captured Online Store publishable writes leave it false when the app current publication is not the target.
 - Local `publishablePublish` and `publishableUnpublish` currently stage Product and Collection publishables. Broader publishable implementers remain unsupported in their own groups.
@@ -92,4 +117,5 @@ Local staged mutations:
 - Collection reads and mutations: `tests/integration/collection-query-shapes.test.ts`, `tests/integration/collection-draft-flow.test.ts`
 - Location and publication reads: `tests/integration/location-query-shapes.test.ts`, `tests/integration/publication-query-shapes.test.ts`
 - Conformance fixtures and requests: `config/parity-specs/product*.json`, `config/parity-specs/products*.json`, `config/parity-specs/collection*.json`, `config/parity-specs/metafieldsSet-owner-expansion.json`, and matching files under `config/parity-requests/`
+- Product helper roots fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/product-helper-roots-read.json`, captured by `corepack pnpm conformance:capture-product-helper-reads`
 - Product handle validation fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/product-handle-validation-parity.json`

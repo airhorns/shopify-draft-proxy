@@ -23,6 +23,7 @@ import type {
   ProductMediaRecord,
   ProductMetafieldRecord,
   ProductOptionRecord,
+  ProductOperationRecord,
   ProductRecord,
   ProductVariantRecord,
   PublicationRecord,
@@ -160,6 +161,25 @@ function readProductInput(raw: unknown): Record<string, unknown> {
 
 function findEffectiveProductByHandle(handle: string): ProductRecord | null {
   return store.listEffectiveProducts().find((product) => product.handle === handle) ?? null;
+}
+
+function findEffectiveProductByIdentifier(identifier: Record<string, unknown>): ProductRecord | null {
+  const id = typeof identifier['id'] === 'string' ? identifier['id'] : null;
+  if (id) {
+    return store.getEffectiveProductById(id);
+  }
+
+  const handle = typeof identifier['handle'] === 'string' ? identifier['handle'] : null;
+  if (handle) {
+    return findEffectiveProductByHandle(handle);
+  }
+
+  return null;
+}
+
+function findEffectiveVariantByIdentifier(identifier: Record<string, unknown>): ProductVariantRecord | null {
+  const id = typeof identifier['id'] === 'string' ? identifier['id'] : null;
+  return id ? store.getEffectiveVariantById(id) : null;
 }
 
 function readExplicitHandle(input: Record<string, unknown>): ExplicitHandleResolution | null {
@@ -3823,12 +3843,14 @@ function buildProductSetCollectionRecords(productId: string, rawCollections: unk
   });
 }
 
-function serializeProductSetOperation(field: FieldNode | null): Record<string, unknown> | null {
-  if (!field) {
+function serializeProductSetOperation(
+  field: FieldNode | null,
+  operation: ProductOperationRecord | null,
+): Record<string, unknown> | null {
+  if (!field || !operation) {
     return null;
   }
 
-  const operationId = makeSyntheticGid('ProductSetOperation');
   const result: Record<string, unknown> = {};
   for (const selection of field.selectionSet?.selections ?? []) {
     if (selection.kind !== Kind.FIELD) {
@@ -3837,14 +3859,17 @@ function serializeProductSetOperation(field: FieldNode | null): Record<string, u
 
     const key = selection.alias?.value ?? selection.name.value;
     switch (selection.name.value) {
+      case '__typename':
+        result[key] = operation.typeName;
+        break;
       case 'id':
-        result[key] = operationId;
+        result[key] = operation.id;
         break;
       case 'status':
-        result[key] = 'CREATED';
+        result[key] = operation.status;
         break;
       case 'userErrors':
-        result[key] = [];
+        result[key] = serializeProductOperationUserErrors(operation.userErrors, selection);
         break;
       default:
         result[key] = null;
@@ -4913,6 +4938,9 @@ function serializeVariantSelectionSet(
 
     const key = selection.alias?.value ?? selection.name.value;
     switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'ProductVariant';
+        break;
       case 'id':
         result[key] = variant.id;
         break;
@@ -6594,6 +6622,131 @@ function sortProducts(
   return rawReverse === true ? sortedProducts.reverse() : sortedProducts;
 }
 
+function listEffectiveProductVariants(): ProductVariantRecord[] {
+  return store.listEffectiveProducts().flatMap((product) => store.getEffectiveVariantsByProductId(product.id));
+}
+
+function compareVariantIds(leftId: string, rightId: string): number {
+  const leftTail = Number.parseInt(leftId.split('/').at(-1) ?? '', 10);
+  const rightTail = Number.parseInt(rightId.split('/').at(-1) ?? '', 10);
+
+  if (Number.isFinite(leftTail) && Number.isFinite(rightTail)) {
+    return leftTail - rightTail;
+  }
+
+  return leftId.localeCompare(rightId);
+}
+
+function matchesProductVariantSearchText(variant: ProductVariantRecord, rawValue: string): boolean {
+  const product = store.getEffectiveProductById(variant.productId);
+  const searchableValues = [variant.title, variant.sku ?? '', variant.barcode ?? '', product?.title ?? ''];
+  return searchableValues.some((candidate) => matchesStringValue(candidate, rawValue, 'includes'));
+}
+
+function matchesPositiveProductVariantQueryTerm(variant: ProductVariantRecord, term: SearchQueryTerm): boolean {
+  if (term.field === null) {
+    return matchesProductVariantSearchText(variant, term.value);
+  }
+
+  const field = term.field.toLowerCase();
+  const value = searchTermValue(term);
+  const product = store.getEffectiveProductById(variant.productId);
+
+  switch (field) {
+    case 'id':
+      return matchesResourceIdValue(variant.id, value);
+    case 'product_id':
+      return matchesResourceIdValue(variant.productId, value);
+    case 'title':
+      return matchesStringValue(variant.title, value, 'includes');
+    case 'sku':
+      return typeof variant.sku === 'string' && matchesStringValue(variant.sku, value, 'exact');
+    case 'barcode':
+      return typeof variant.barcode === 'string' && matchesStringValue(variant.barcode, value, 'exact');
+    case 'vendor':
+      return typeof product?.vendor === 'string' && matchesStringValue(product.vendor, value, 'exact');
+    case 'product_type':
+      return typeof product?.productType === 'string' && matchesStringValue(product.productType, value, 'exact');
+    case 'tag':
+      return product ? getSearchableProductTags(product).some((tag) => matchesStringValue(tag, value, 'exact')) : false;
+    default:
+      return true;
+  }
+}
+
+function matchesProductVariantQueryTerm(variant: ProductVariantRecord, term: SearchQueryTerm): boolean {
+  if (!term.raw) {
+    return true;
+  }
+
+  const matches = matchesPositiveProductVariantQueryTerm(variant, term);
+  return term.negated ? !matches : matches;
+}
+
+function matchesProductVariantQueryNode(variant: ProductVariantRecord, node: SearchQueryNode): boolean {
+  switch (node.type) {
+    case 'term':
+      return matchesProductVariantQueryTerm(variant, node.term);
+    case 'and':
+      return node.children.every((child) => matchesProductVariantQueryNode(variant, child));
+    case 'or':
+      return node.children.some((child) => matchesProductVariantQueryNode(variant, child));
+    case 'not':
+      return !matchesProductVariantQueryNode(variant, node.child);
+    default:
+      return true;
+  }
+}
+
+function applyProductVariantsQuery(variants: ProductVariantRecord[], rawQuery: unknown): ProductVariantRecord[] {
+  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
+    return variants;
+  }
+
+  const parsedQuery = parseSearchQuery(rawQuery, { recognizeNotKeyword: true });
+  if (!parsedQuery) {
+    return variants;
+  }
+
+  return variants.filter((variant) => matchesProductVariantQueryNode(variant, parsedQuery));
+}
+
+function compareProductVariantsBySortKey(
+  left: ProductVariantRecord,
+  right: ProductVariantRecord,
+  rawSortKey: unknown,
+): number {
+  switch (rawSortKey) {
+    case 'TITLE':
+      return (
+        left.title.localeCompare(right.title) || compareVariantIds(left.id, right.id) || left.id.localeCompare(right.id)
+      );
+    case 'SKU':
+      return (left.sku ?? '').localeCompare(right.sku ?? '') || compareVariantIds(left.id, right.id);
+    case 'POSITION':
+      return (
+        left.productId.localeCompare(right.productId) ||
+        store.getEffectiveVariantsByProductId(left.productId).findIndex((variant) => variant.id === left.id) -
+          store.getEffectiveVariantsByProductId(right.productId).findIndex((variant) => variant.id === right.id) ||
+        compareVariantIds(left.id, right.id)
+      );
+    case 'INVENTORY_QUANTITY':
+      return (left.inventoryQuantity ?? 0) - (right.inventoryQuantity ?? 0) || compareVariantIds(left.id, right.id);
+    case 'ID':
+    default:
+      return compareVariantIds(left.id, right.id) || left.id.localeCompare(right.id);
+  }
+}
+
+function sortProductVariants(
+  variants: ProductVariantRecord[],
+  rawSortKey: unknown,
+  rawReverse: unknown,
+): ProductVariantRecord[] {
+  const sortedVariants = [...variants].sort((left, right) => compareProductVariantsBySortKey(left, right, rawSortKey));
+  return rawReverse === true ? sortedVariants.reverse() : sortedVariants;
+}
+
 function parseProductsCursor(rawCursor: unknown): string | null {
   if (typeof rawCursor !== 'string' || !rawCursor.startsWith('cursor:')) {
     return null;
@@ -6683,6 +6836,199 @@ function serializeProductsConnection(
       fallbackEndCursor: preserveBaselinePageInfo ? (searchConnection?.pageInfo.endCursor ?? null) : null,
     },
   });
+}
+
+function serializeProductVariantsConnection(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const variants = sortProductVariants(
+    applyProductVariantsQuery(listEffectiveProductVariants(), args['query']),
+    args['sortKey'],
+    args['reverse'],
+  );
+  const {
+    items: paginatedVariants,
+    hasNextPage,
+    hasPreviousPage,
+  } = paginateConnectionItems(variants, field, variables, (variant) => variant.id);
+
+  return serializeConnection(field, {
+    items: paginatedVariants,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (variant) => variant.id,
+    serializeNode: (variant, selection) =>
+      serializeVariantSelectionSet(variant, selection.selectionSet?.selections ?? [], variables),
+  });
+}
+
+function serializeProductVariantsCount(rawQuery: unknown, field: FieldNode): Record<string, unknown> {
+  const variants = applyProductVariantsQuery(listEffectiveProductVariants(), rawQuery);
+  return serializeCountValue(field, variants.length);
+}
+
+function serializeStringConnection(
+  values: string[],
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const sortedValues = [...new Set(values.filter((value) => value.trim().length > 0))].sort((left, right) =>
+    left.localeCompare(right),
+  );
+  const orderedValues = args['reverse'] === true ? sortedValues.reverse() : sortedValues;
+  const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
+    orderedValues,
+    field,
+    variables,
+    (value) => value,
+  );
+
+  return serializeConnection(field, {
+    items,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (value) => value,
+    serializeNode: (value) => value,
+  });
+}
+
+function serializeEmptySavedSearchConnection(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems([], field, variables, () => '');
+  return serializeConnection(field, {
+    items,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: () => '',
+    serializeNode: () => null,
+  });
+}
+
+function serializeProductOperationUserErrors(
+  userErrors: ProductOperationRecord['userErrors'],
+  field: FieldNode,
+): Array<Record<string, unknown>> {
+  return userErrors.map((userError) => {
+    const result: Record<string, unknown> = {};
+    for (const selection of field.selectionSet?.selections ?? []) {
+      if (selection.kind !== Kind.FIELD) {
+        continue;
+      }
+
+      const key = selection.alias?.value ?? selection.name.value;
+      switch (selection.name.value) {
+        case 'field':
+          result[key] = userError.field;
+          break;
+        case 'message':
+          result[key] = userError.message;
+          break;
+        default:
+          result[key] = null;
+      }
+    }
+
+    return result;
+  });
+}
+
+function serializeProductOperationField(
+  operation: ProductOperationRecord,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): unknown {
+  switch (field.name.value) {
+    case '__typename':
+      return operation.typeName;
+    case 'id':
+      return operation.id;
+    case 'status':
+      return operation.status;
+    case 'product':
+      return serializeProduct(
+        operation.productId ? store.getEffectiveProductById(operation.productId) : null,
+        field,
+        variables,
+      );
+    case 'userErrors':
+      return serializeProductOperationUserErrors(operation.userErrors, field);
+    default:
+      return null;
+  }
+}
+
+function serializeProductOperation(
+  operation: ProductOperationRecord | null,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> | null {
+  if (!operation) {
+    return null;
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const selection of field.selectionSet?.selections ?? []) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      const typeName = selection.typeCondition?.name.value;
+      if (typeName && typeName !== operation.typeName && typeName !== 'ProductOperation' && typeName !== 'Node') {
+        continue;
+      }
+
+      for (const fragmentSelection of selection.selectionSet.selections) {
+        if (fragmentSelection.kind !== Kind.FIELD) {
+          continue;
+        }
+        const key = fragmentSelection.alias?.value ?? fragmentSelection.name.value;
+        result[key] = serializeProductOperationField(operation, fragmentSelection, variables);
+      }
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = selection.alias?.value ?? selection.name.value;
+    result[key] = serializeProductOperationField(operation, selection, variables);
+  }
+
+  return result;
+}
+
+function serializeProductDuplicateJob(rawId: unknown, field: FieldNode): Record<string, unknown> | null {
+  const id = typeof rawId === 'string' ? rawId : null;
+  if (!id) {
+    return null;
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const selection of field.selectionSet?.selections ?? []) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = selection.alias?.value ?? selection.name.value;
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'ProductDuplicateJob';
+        break;
+      case 'id':
+        result[key] = id;
+        break;
+      case 'done':
+        result[key] = true;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
 }
 
 function normalizeUpstreamPublication(value: unknown, cursor?: string | null): PublicationRecord | null {
@@ -6906,6 +7252,74 @@ export function hydrateProductsFromUpstreamResponse(
     if (maybeProduct.hasMetafields) {
       replaceBaseMetafieldsForHydratedProduct(maybeProduct.product.id, maybeProduct.metafields);
     }
+  }
+
+  const hydrateProductValue = (value: unknown): void => {
+    const normalized = normalizeUpstreamProduct(value);
+    if (!normalized) {
+      return;
+    }
+
+    store.upsertBaseProducts([normalized.product]);
+    if (normalized.hasOptions) {
+      store.replaceBaseOptionsForProduct(normalized.product.id, normalized.options);
+    }
+    if (normalized.hasVariants) {
+      store.replaceBaseVariantsForProduct(normalized.product.id, normalized.variants);
+    }
+    if (normalized.hasCollections) {
+      store.replaceBaseCollectionsForProduct(normalized.product.id, normalized.collections);
+    }
+    if (normalized.hasMedia || normalized.hasImages) {
+      store.replaceBaseMediaForProduct(normalized.product.id, normalized.media);
+    }
+    if (normalized.hasMetafields) {
+      replaceBaseMetafieldsForHydratedProduct(normalized.product.id, normalized.metafields);
+    }
+  };
+
+  const hydratedTopLevelVariantsByProductId = new Map<string, ProductVariantRecord[]>();
+  const hydrateProductVariantValue = (value: unknown): void => {
+    if (!isObject(value)) {
+      return;
+    }
+
+    const rawProduct = value['product'];
+    const productId = isObject(rawProduct) && typeof rawProduct['id'] === 'string' ? rawProduct['id'] : null;
+    if (!productId) {
+      return;
+    }
+
+    hydrateProductValue(rawProduct);
+    const variant = normalizeUpstreamVariant(productId, value);
+    if (!variant) {
+      return;
+    }
+
+    const variants = hydratedTopLevelVariantsByProductId.get(productId) ?? store.getBaseVariantsByProductId(productId);
+    hydratedTopLevelVariantsByProductId.set(productId, [
+      ...variants.filter((candidate) => candidate.id !== variant.id),
+      variant,
+    ]);
+  };
+
+  for (const field of getRootFields(document)) {
+    const responseKey = field.alias?.value ?? field.name.value;
+    if (field.name.value === 'productByIdentifier') {
+      hydrateProductValue(rawData[responseKey]);
+    }
+    if (field.name.value === 'productVariantByIdentifier') {
+      hydrateProductVariantValue(rawData[responseKey]);
+    }
+    if (field.name.value === 'productVariants') {
+      for (const variant of readVariantNodes(rawData[responseKey])) {
+        hydrateProductVariantValue(variant);
+      }
+    }
+  }
+
+  for (const [productId, variants] of hydratedTopLevelVariantsByProductId) {
+    store.replaceBaseVariantsForProduct(productId, variants);
   }
 
   const hydrateCollection = (value: unknown): void => {
@@ -7515,13 +7929,23 @@ export function handleProductMutation(
       }
 
       const product = syncProductSetInventorySummary(productId, existing) ?? store.getEffectiveProductById(productId);
+      const productSetOperation = synchronous
+        ? null
+        : store.stageProductOperation({
+            id: makeSyntheticGid('ProductSetOperation'),
+            typeName: 'ProductSetOperation',
+            productId,
+            status: 'CREATED',
+            userErrors: [],
+          });
       return {
         data: {
           [responseKey]: {
             product: synchronous ? serializeProduct(product, getChildField(field, 'product'), variables) : null,
-            productSetOperation: synchronous
-              ? null
-              : serializeProductSetOperation(getChildField(field, 'productSetOperation')),
+            productSetOperation: serializeProductSetOperation(
+              getChildField(field, 'productSetOperation'),
+              productSetOperation,
+            ),
             userErrors: [],
           },
         },
@@ -9440,6 +9864,11 @@ export function handleProductQuery(
         data[responseKey] = serializeProduct(product, field, variables);
         break;
       }
+      case 'productByIdentifier': {
+        const identifier = readProductInput(args['identifier']);
+        data[responseKey] = serializeProduct(findEffectiveProductByIdentifier(identifier), field, variables);
+        break;
+      }
       case 'products': {
         const rawFirst = args['first'];
         const rawLast = args['last'];
@@ -9470,6 +9899,74 @@ export function handleProductQuery(
         data[responseKey] = variant
           ? serializeVariantSelectionSet(variant, field.selectionSet?.selections ?? [], variables)
           : null;
+        break;
+      }
+      case 'productVariantByIdentifier': {
+        const identifier = readProductInput(args['identifier']);
+        const variant = findEffectiveVariantByIdentifier(identifier);
+        data[responseKey] = variant
+          ? serializeVariantSelectionSet(variant, field.selectionSet?.selections ?? [], variables)
+          : null;
+        break;
+      }
+      case 'productVariants': {
+        data[responseKey] = serializeProductVariantsConnection(field, variables);
+        break;
+      }
+      case 'productVariantsCount': {
+        data[responseKey] = serializeProductVariantsCount(args['query'], field);
+        break;
+      }
+      case 'productTags': {
+        data[responseKey] = serializeStringConnection(
+          store.listEffectiveProducts().flatMap((product) => product.tags),
+          field,
+          variables,
+        );
+        break;
+      }
+      case 'productTypes': {
+        data[responseKey] = serializeStringConnection(
+          store
+            .listEffectiveProducts()
+            .map((product) => product.productType)
+            .filter((productType): productType is string => typeof productType === 'string'),
+          field,
+          variables,
+        );
+        break;
+      }
+      case 'productVendors': {
+        data[responseKey] = serializeStringConnection(
+          store
+            .listEffectiveProducts()
+            .map((product) => product.vendor)
+            .filter((vendor): vendor is string => typeof vendor === 'string'),
+          field,
+          variables,
+        );
+        break;
+      }
+      case 'productSavedSearches': {
+        data[responseKey] = serializeEmptySavedSearchConnection(field, variables);
+        break;
+      }
+      case 'productOperation': {
+        const rawId = args['id'];
+        const id = typeof rawId === 'string' ? rawId : null;
+        data[responseKey] = serializeProductOperation(
+          id ? store.getEffectiveProductOperationById(id) : null,
+          field,
+          variables,
+        );
+        break;
+      }
+      case 'productDuplicateJob': {
+        data[responseKey] = serializeProductDuplicateJob(args['id'], field);
+        break;
+      }
+      case 'productResourceFeedback': {
+        data[responseKey] = null;
         break;
       }
       case 'inventoryItem': {
