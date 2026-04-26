@@ -1,0 +1,12 @@
+mutation PriceListCreateInvalidCurrency($input: PriceListCreateInput!) {
+  priceListCreate(input: $input) {
+    priceList {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

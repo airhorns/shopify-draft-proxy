@@ -23,6 +23,8 @@ import type {
   MarketRecord,
   PriceListRecord,
   ProductMetafieldRecord,
+  ProductRecord,
+  ProductVariantRecord,
   WebPresenceRecord,
 } from '../state/types.js';
 
@@ -991,7 +993,7 @@ function comparePriceListsBySortKey(left: PriceListRecord, right: PriceListRecor
 
 function listPriceListsForConnection(field: FieldNode, variables: Record<string, unknown>): PriceListRecord[] {
   const args = getFieldArguments(field, variables);
-  const sortedPriceLists = [...store.listBasePriceLists()].sort((left, right) =>
+  const sortedPriceLists = [...store.listEffectivePriceLists()].sort((left, right) =>
     comparePriceListsBySortKey(left, right, args['sortKey']),
   );
   return args['reverse'] === true ? sortedPriceLists.reverse() : sortedPriceLists;
@@ -2151,6 +2153,10 @@ function catalogError(field: string[], message: string, code: string): MarketUse
   return { field, message, code };
 }
 
+function priceListError(field: string[], message: string, code: string): MarketUserError {
+  return { field, message, code };
+}
+
 function catalogMarketIds(catalog: CatalogRecord): string[] {
   return catalogMarkets(catalog).flatMap((edge) =>
     isPlainObject(edge.node) && typeof edge.node['id'] === 'string' ? [edge.node['id']] : [],
@@ -2244,7 +2250,7 @@ function linkedPriceList(rawPriceListId: unknown, existing: Record<string, unkno
     return null;
   }
   if (typeof rawPriceListId === 'string' && rawPriceListId.length > 0) {
-    return store.getBasePriceListById(rawPriceListId) ?? { __typename: 'PriceList', id: rawPriceListId };
+    return store.getEffectivePriceListById(rawPriceListId) ?? { __typename: 'PriceList', id: rawPriceListId };
   }
   return existing?.['priceList'] ?? null;
 }
@@ -2311,6 +2317,333 @@ function buildCatalogRecord(
 
 function selectedCatalogPayload(catalog: CatalogRecord | null): unknown {
   return catalog ? catalog.data : null;
+}
+
+function selectedPriceListPayload(priceList: PriceListRecord | null): unknown {
+  return priceList ? priceList.data : null;
+}
+
+function priceListNameInUse(name: string, excludedPriceListId?: string): boolean {
+  return store
+    .listEffectivePriceLists()
+    .some((priceList) => priceList.data['name'] === name && priceList.id !== excludedPriceListId);
+}
+
+function priceListCurrencyFromInput(
+  input: Record<string, unknown>,
+  existing: Record<string, unknown> | null,
+  errors: MarketUserError[],
+): string {
+  const rawCurrency = input['currency'];
+  const existingCurrency = typeof existing?.['currency'] === 'string' ? existing['currency'] : 'USD';
+  if (rawCurrency === undefined) {
+    return existingCurrency;
+  }
+
+  if (typeof rawCurrency !== 'string' || !CURRENCY_NAMES[rawCurrency]) {
+    errors.push(priceListError(['input', 'currency'], "Currency isn't included in the list", 'INCLUSION'));
+    return existingCurrency;
+  }
+
+  return rawCurrency;
+}
+
+function priceListParentFromInput(input: Record<string, unknown>, existing: Record<string, unknown> | null): unknown {
+  if (!hasOwnProperty(input, 'parent')) {
+    return existing?.['parent'] ?? null;
+  }
+
+  const parent = readInput(input['parent']);
+  const adjustment = readInput(parent['adjustment']);
+  const type = typeof adjustment['type'] === 'string' ? adjustment['type'] : null;
+  const value = typeof adjustment['value'] === 'number' ? adjustment['value'] : null;
+  return type && value !== null
+    ? {
+        adjustment: {
+          type,
+          value,
+        },
+      }
+    : null;
+}
+
+function emptyPriceListPricesConnection(): Record<string, unknown> {
+  return {
+    edges: [],
+    pageInfo: {
+      hasNextPage: false,
+      hasPreviousPage: false,
+      startCursor: null,
+      endCursor: null,
+    },
+  };
+}
+
+function buildPriceListRecord(
+  id: string,
+  input: Record<string, unknown>,
+  existingPriceList: PriceListRecord | null,
+  errors: MarketUserError[],
+): PriceListRecord {
+  const existing = existingPriceList?.data ?? null;
+  const rawName = input['name'];
+  const name =
+    typeof rawName === 'string' ? rawName.trim() : typeof existing?.['name'] === 'string' ? existing['name'] : '';
+
+  if (name.length === 0) {
+    errors.push(priceListError(['input', 'name'], "Name can't be blank", 'BLANK'));
+  } else if (priceListNameInUse(name, existingPriceList?.id)) {
+    errors.push(priceListError(['input', 'name'], `Name '${name}' has already been taken`, 'TAKEN'));
+  }
+
+  const currency = priceListCurrencyFromInput(input, existing, errors);
+  const currencyChanged =
+    typeof existing?.['currency'] === 'string' &&
+    hasOwnProperty(input, 'currency') &&
+    existing['currency'] !== currency &&
+    errors.length === 0;
+  const catalog =
+    hasOwnProperty(input, 'catalogId') && typeof input['catalogId'] === 'string'
+      ? store.getEffectiveCatalogById(input['catalogId'])
+      : (existing?.['catalog'] ?? null);
+
+  if (typeof input['catalogId'] === 'string' && !catalog) {
+    errors.push(priceListError(['input', 'catalogId'], 'Catalog does not exist', 'CATALOG_NOT_FOUND'));
+  }
+
+  const existingPrices = isPlainObject(existing?.['prices']) ? existing['prices'] : emptyPriceListPricesConnection();
+  const prices = currencyChanged ? emptyPriceListPricesConnection() : existingPrices;
+  const fixedPricesCount = readConnectionEdges(prices).filter(
+    (edge) => isPlainObject(edge.node) && edge.node['originType'] === 'FIXED',
+  ).length;
+  const now = makeSyntheticTimestamp();
+  const data: Record<string, unknown> = {
+    ...(existing ? structuredClone(existing) : {}),
+    __typename: 'PriceList',
+    id,
+    name,
+    currency,
+    fixedPricesCount,
+    parent: priceListParentFromInput(input, existing),
+    catalog,
+    prices,
+    quantityRules: isPlainObject(existing?.['quantityRules']) ? existing['quantityRules'] : emptyConnection(),
+    createdAt: typeof existing?.['createdAt'] === 'string' ? existing['createdAt'] : now,
+    updatedAt: now,
+  };
+
+  return {
+    id,
+    cursor: existingPriceList?.cursor ?? id,
+    data: data as Record<string, JsonValue>,
+  };
+}
+
+function readPriceListIdArgument(args: Record<string, unknown>): string | null {
+  const input = readInput(args['input']);
+  const rawId = args['priceListId'] ?? args['id'] ?? input['priceListId'] ?? input['id'];
+  return typeof rawId === 'string' && rawId.length > 0 ? rawId : null;
+}
+
+function readFixedPriceInputs(args: Record<string, unknown>, names: string[]): Record<string, unknown>[] {
+  const input = readInput(args['input']);
+  for (const name of names) {
+    const raw = args[name] ?? input[name];
+    if (Array.isArray(raw)) {
+      return raw.filter(isPlainObject);
+    }
+  }
+  return [];
+}
+
+function readFixedPriceVariantIds(args: Record<string, unknown>, names: string[]): string[] {
+  const input = readInput(args['input']);
+  for (const name of names) {
+    const raw = args[name] ?? input[name];
+    const values = readStringArray(raw);
+    if (values.length > 0) {
+      return values;
+    }
+  }
+  return [];
+}
+
+function moneyPayload(rawMoney: unknown, currencyCode: string): Record<string, unknown> | null {
+  if (!isPlainObject(rawMoney)) {
+    return null;
+  }
+
+  const rawAmount = rawMoney['amount'];
+  const amount =
+    typeof rawAmount === 'number'
+      ? rawAmount.toFixed(2)
+      : typeof rawAmount === 'string' && rawAmount.trim().length > 0
+        ? rawAmount.trim()
+        : null;
+  if (amount === null) {
+    return null;
+  }
+
+  return {
+    amount,
+    currencyCode:
+      typeof rawMoney['currencyCode'] === 'string' && rawMoney['currencyCode'].length > 0
+        ? rawMoney['currencyCode']
+        : currencyCode,
+  };
+}
+
+function variantPriceListNode(
+  variant: ProductVariantRecord,
+  product: ProductRecord | null,
+  input: Record<string, unknown>,
+  currencyCode: string,
+): Record<string, unknown> | null {
+  const price = moneyPayload(input['price'], currencyCode);
+  if (!price) {
+    return null;
+  }
+
+  return {
+    price,
+    compareAtPrice: moneyPayload(input['compareAtPrice'], currencyCode),
+    originType: 'FIXED',
+    variant: {
+      id: variant.id,
+      sku: variant.sku,
+      product: {
+        id: variant.productId,
+        title: product?.title ?? null,
+      },
+    },
+  };
+}
+
+function fixedPriceVariantId(edge: ConnectionEdge): string | null {
+  if (!isPlainObject(edge.node) || edge.node['originType'] !== 'FIXED') {
+    return null;
+  }
+  const variant = isPlainObject(edge.node['variant']) ? edge.node['variant'] : null;
+  return typeof variant?.['id'] === 'string' ? variant['id'] : null;
+}
+
+function rebuildPriceListWithEdges(priceList: PriceListRecord, edges: ConnectionEdge[]): PriceListRecord {
+  const fixedPricesCount = edges.filter((edge) => fixedPriceVariantId(edge) !== null).length;
+  const data: Record<string, unknown> = {
+    ...structuredClone(priceList.data),
+    fixedPricesCount,
+    prices: {
+      edges: edges.map((edge) => ({
+        cursor: edge.cursor,
+        node: edge.node,
+      })),
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: edges[0]?.cursor ?? null,
+        endCursor: edges.at(-1)?.cursor ?? null,
+      },
+    },
+    updatedAt: makeSyntheticTimestamp(),
+  };
+
+  return {
+    id: priceList.id,
+    cursor: priceList.cursor,
+    data: data as Record<string, JsonValue>,
+  };
+}
+
+function upsertFixedPriceNodes(
+  priceList: PriceListRecord,
+  inputs: Record<string, unknown>[],
+  mode: 'add' | 'update' | 'upsert',
+  errors: MarketUserError[],
+): { priceList: PriceListRecord; changedVariantIds: string[] } {
+  const currencyCode = typeof priceList.data['currency'] === 'string' ? priceList.data['currency'] : 'USD';
+  const edgesByVariantId = new Map<string, ConnectionEdge>();
+  const otherEdges: ConnectionEdge[] = [];
+  const changedVariantIds: string[] = [];
+
+  for (const edge of readConnectionEdges(priceList.data['prices'])) {
+    const variantId = fixedPriceVariantId(edge);
+    if (variantId) {
+      edgesByVariantId.set(variantId, edge);
+    } else {
+      otherEdges.push(edge);
+    }
+  }
+
+  for (const input of inputs) {
+    const variantId = typeof input['variantId'] === 'string' ? input['variantId'] : null;
+    if (!variantId) {
+      errors.push(priceListError(['prices', 'variantId'], 'Variant does not exist', 'VARIANT_NOT_FOUND'));
+      continue;
+    }
+
+    const existing = edgesByVariantId.get(variantId);
+    if (mode === 'add' && existing) {
+      errors.push(priceListError(['prices', 'variantId'], 'Fixed price already exists', 'TAKEN'));
+      continue;
+    }
+    if (mode === 'update' && !existing) {
+      errors.push(priceListError(['prices', 'variantId'], 'Fixed price does not exist', 'NOT_FOUND'));
+      continue;
+    }
+
+    const variant = store.getEffectiveVariantById(variantId);
+    if (!variant) {
+      errors.push(priceListError(['prices', 'variantId'], 'Variant does not exist', 'VARIANT_NOT_FOUND'));
+      continue;
+    }
+
+    const product = store.getEffectiveProductById(variant.productId);
+    const node = variantPriceListNode(variant, product, input, currencyCode);
+    if (!node) {
+      errors.push(priceListError(['prices', 'price'], "Price can't be blank", 'BLANK'));
+      continue;
+    }
+
+    edgesByVariantId.set(variantId, {
+      cursor: variantId,
+      node,
+    });
+    changedVariantIds.push(variantId);
+  }
+
+  return {
+    priceList: rebuildPriceListWithEdges(priceList, [...otherEdges, ...edgesByVariantId.values()]),
+    changedVariantIds,
+  };
+}
+
+function deleteFixedPriceNodes(
+  priceList: PriceListRecord,
+  variantIds: string[],
+  errors: MarketUserError[],
+): { priceList: PriceListRecord; deletedVariantIds: string[] } {
+  const deleteIds = new Set(variantIds);
+  const deletedVariantIds: string[] = [];
+  const edges = readConnectionEdges(priceList.data['prices']).filter((edge) => {
+    const variantId = fixedPriceVariantId(edge);
+    if (!variantId || !deleteIds.has(variantId)) {
+      return true;
+    }
+    deletedVariantIds.push(variantId);
+    return false;
+  });
+
+  for (const variantId of variantIds) {
+    if (!deletedVariantIds.includes(variantId)) {
+      errors.push(priceListError(['variantIds'], 'Fixed price does not exist', 'NOT_FOUND'));
+      break;
+    }
+  }
+
+  return {
+    priceList: rebuildPriceListWithEdges(priceList, edges),
+    deletedVariantIds,
+  };
 }
 
 function handleCatalogCreate(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
@@ -2444,6 +2777,260 @@ function handleCatalogDelete(field: FieldNode, variables: Record<string, unknown
   return projectMutationPayload(
     {
       deletedId: errors.length === 0 ? id : null,
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function handlePriceListCreate(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+  const args = getFieldArguments(field, variables);
+  const input = readInput(args['input']);
+  const errors: MarketUserError[] = [];
+  const priceList = buildPriceListRecord(makeSyntheticGid('PriceList'), input, null, errors);
+
+  if (errors.length === 0) {
+    store.stageCreatePriceList(priceList);
+  }
+
+  return projectMutationPayload(
+    {
+      priceList: errors.length === 0 ? selectedPriceListPayload(priceList) : null,
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function handlePriceListUpdate(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+  const args = getFieldArguments(field, variables);
+  const id = typeof args['id'] === 'string' ? args['id'] : null;
+  const input = readInput(args['input']);
+  const errors: MarketUserError[] = [];
+  const existingPriceList = id ? store.getEffectivePriceListRecordById(id) : null;
+
+  if (!id || !existingPriceList) {
+    errors.push(priceListError(['id'], 'Price list does not exist', 'PRICE_LIST_NOT_FOUND'));
+  }
+
+  const priceList = id && existingPriceList ? buildPriceListRecord(id, input, existingPriceList, errors) : null;
+  if (errors.length === 0 && priceList) {
+    store.stageUpdatePriceList(priceList);
+  }
+
+  return projectMutationPayload(
+    {
+      priceList: errors.length === 0 ? selectedPriceListPayload(priceList) : null,
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function handlePriceListDelete(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+  const args = getFieldArguments(field, variables);
+  const id = typeof args['id'] === 'string' ? args['id'] : null;
+  const errors: MarketUserError[] = [];
+  const existingPriceList = id ? store.getEffectivePriceListRecordById(id) : null;
+
+  if (!id || !existingPriceList) {
+    errors.push(priceListError(['id'], 'Price list does not exist', 'PRICE_LIST_NOT_FOUND'));
+  }
+
+  if (errors.length === 0 && id) {
+    store.stageDeletePriceList(id);
+  }
+
+  return projectMutationPayload(
+    {
+      deletedId: errors.length === 0 ? id : null,
+      priceList: errors.length === 0 ? selectedPriceListPayload(existingPriceList) : null,
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function handlePriceListFixedPricesAdd(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
+  const args = getFieldArguments(field, variables);
+  const priceListId = readPriceListIdArgument(args);
+  const errors: MarketUserError[] = [];
+  const existingPriceList = priceListId ? store.getEffectivePriceListRecordById(priceListId) : null;
+
+  if (!priceListId || !existingPriceList) {
+    errors.push(priceListError(['priceListId'], 'Price list does not exist', 'PRICE_LIST_NOT_FOUND'));
+  }
+
+  const fixedPrices = readFixedPriceInputs(args, ['prices', 'fixedPrices', 'pricesToAdd']);
+  const { priceList, changedVariantIds } = existingPriceList
+    ? upsertFixedPriceNodes(existingPriceList, fixedPrices, 'add', errors)
+    : { priceList: null, changedVariantIds: [] };
+
+  if (errors.length === 0 && priceList) {
+    store.stageUpdatePriceList(priceList);
+  }
+
+  return projectMutationPayload(
+    {
+      priceList: errors.length === 0 ? selectedPriceListPayload(priceList) : null,
+      fixedPriceVariantIds: errors.length === 0 ? changedVariantIds : [],
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function handlePriceListFixedPricesUpdate(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
+  const args = getFieldArguments(field, variables);
+  const priceListId = readPriceListIdArgument(args);
+  const errors: MarketUserError[] = [];
+  const existingPriceList = priceListId ? store.getEffectivePriceListRecordById(priceListId) : null;
+
+  if (!priceListId || !existingPriceList) {
+    errors.push(priceListError(['priceListId'], 'Price list does not exist', 'PRICE_LIST_NOT_FOUND'));
+  }
+
+  const fixedPrices = readFixedPriceInputs(args, ['prices', 'fixedPrices', 'pricesToUpdate']);
+  const { priceList, changedVariantIds } = existingPriceList
+    ? upsertFixedPriceNodes(existingPriceList, fixedPrices, 'update', errors)
+    : { priceList: null, changedVariantIds: [] };
+
+  if (errors.length === 0 && priceList) {
+    store.stageUpdatePriceList(priceList);
+  }
+
+  return projectMutationPayload(
+    {
+      priceList: errors.length === 0 ? selectedPriceListPayload(priceList) : null,
+      fixedPriceVariantIds: errors.length === 0 ? changedVariantIds : [],
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function handlePriceListFixedPricesDelete(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
+  const args = getFieldArguments(field, variables);
+  const priceListId = readPriceListIdArgument(args);
+  const errors: MarketUserError[] = [];
+  const existingPriceList = priceListId ? store.getEffectivePriceListRecordById(priceListId) : null;
+
+  if (!priceListId || !existingPriceList) {
+    errors.push(priceListError(['priceListId'], 'Price list does not exist', 'PRICE_LIST_NOT_FOUND'));
+  }
+
+  const variantIds = readFixedPriceVariantIds(args, ['variantIds', 'variantsToDelete', 'fixedPriceVariantIds']);
+  const { priceList, deletedVariantIds } = existingPriceList
+    ? deleteFixedPriceNodes(existingPriceList, variantIds, errors)
+    : { priceList: null, deletedVariantIds: [] };
+
+  if (errors.length === 0 && priceList) {
+    store.stageUpdatePriceList(priceList);
+  }
+
+  return projectMutationPayload(
+    {
+      priceList: errors.length === 0 ? selectedPriceListPayload(priceList) : null,
+      deletedFixedPriceVariantIds: errors.length === 0 ? deletedVariantIds : [],
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function handlePriceListFixedPricesByProductUpdate(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
+  const args = getFieldArguments(field, variables);
+  const input = readInput(args['input']);
+  const priceListId = readPriceListIdArgument(args);
+  const productId =
+    typeof args['productId'] === 'string'
+      ? args['productId']
+      : typeof input['productId'] === 'string'
+        ? input['productId']
+        : null;
+  const errors: MarketUserError[] = [];
+  const existingPriceList = priceListId ? store.getEffectivePriceListRecordById(priceListId) : null;
+  const product = productId ? store.getEffectiveProductById(productId) : null;
+
+  if (!priceListId || !existingPriceList) {
+    errors.push(priceListError(['priceListId'], 'Price list does not exist', 'PRICE_LIST_NOT_FOUND'));
+  }
+  if (!productId || !product) {
+    errors.push(priceListError(['productId'], 'Product does not exist', 'PRODUCT_NOT_FOUND'));
+  }
+
+  const productVariantIds = new Set(
+    productId ? store.getEffectiveVariantsByProductId(productId).map((variant) => variant.id) : [],
+  );
+  const fixedPrices = readFixedPriceInputs(args, ['prices', 'fixedPrices', 'pricesToAdd', 'pricesToUpdate']);
+  for (const fixedPrice of fixedPrices) {
+    if (typeof fixedPrice['variantId'] === 'string' && !productVariantIds.has(fixedPrice['variantId'])) {
+      errors.push(priceListError(['prices', 'variantId'], 'Variant does not belong to product', 'VARIANT_NOT_FOUND'));
+    }
+  }
+
+  const deletedVariantIds = readFixedPriceVariantIds(args, [
+    'variantIds',
+    'variantsToDelete',
+    'fixedPriceVariantIds',
+    'pricesToDelete',
+  ]);
+  for (const variantId of deletedVariantIds) {
+    if (!productVariantIds.has(variantId)) {
+      errors.push(priceListError(['variantIds'], 'Variant does not belong to product', 'VARIANT_NOT_FOUND'));
+    }
+  }
+
+  let priceList = existingPriceList;
+  let changedVariantIds: string[] = [];
+  let removedVariantIds: string[] = [];
+  if (existingPriceList && errors.length === 0) {
+    const upserted = upsertFixedPriceNodes(existingPriceList, fixedPrices, 'upsert', errors);
+    const deleted = deleteFixedPriceNodes(upserted.priceList, deletedVariantIds, errors);
+    priceList = deleted.priceList;
+    changedVariantIds = upserted.changedVariantIds;
+    removedVariantIds = deleted.deletedVariantIds;
+  }
+
+  if (errors.length === 0 && priceList) {
+    store.stageUpdatePriceList(priceList);
+  }
+
+  return projectMutationPayload(
+    {
+      priceList: errors.length === 0 ? selectedPriceListPayload(priceList) : null,
+      fixedPriceVariantIds: errors.length === 0 ? changedVariantIds : [],
+      deletedFixedPriceVariantIds: errors.length === 0 ? removedVariantIds : [],
       userErrors: errors,
     },
     field,
@@ -2887,7 +3474,7 @@ function rootPayloadForField(field: FieldNode, variables: Record<string, unknown
     case 'priceList': {
       const args = getFieldArguments(field, variables);
       const id = typeof args['id'] === 'string' ? args['id'] : null;
-      return id ? store.getBasePriceListById(id) : null;
+      return id ? store.getEffectivePriceListById(id) : null;
     }
     case 'priceLists':
       return serializePriceListsConnection(field, variables, fragments);
@@ -2952,6 +3539,27 @@ export function handleMarketMutation(document: string, variables: Record<string,
         break;
       case 'catalogDelete':
         data[key] = handleCatalogDelete(field, variables, fragments);
+        break;
+      case 'priceListCreate':
+        data[key] = handlePriceListCreate(field, variables, fragments);
+        break;
+      case 'priceListUpdate':
+        data[key] = handlePriceListUpdate(field, variables, fragments);
+        break;
+      case 'priceListDelete':
+        data[key] = handlePriceListDelete(field, variables, fragments);
+        break;
+      case 'priceListFixedPricesAdd':
+        data[key] = handlePriceListFixedPricesAdd(field, variables, fragments);
+        break;
+      case 'priceListFixedPricesUpdate':
+        data[key] = handlePriceListFixedPricesUpdate(field, variables, fragments);
+        break;
+      case 'priceListFixedPricesDelete':
+        data[key] = handlePriceListFixedPricesDelete(field, variables, fragments);
+        break;
+      case 'priceListFixedPricesByProductUpdate':
+        data[key] = handlePriceListFixedPricesByProductUpdate(field, variables, fragments);
         break;
       case 'webPresenceCreate':
         data[key] = handleWebPresenceCreate(field, variables, fragments);

@@ -238,6 +238,41 @@ describe('proxy capability classification', () => {
     });
   });
 
+  it('forwards inbound headers and wraps the user agent for upstream passthrough requests', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ data: { shop: { name: 'Example Shop' } } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+
+    const app = createApp(config);
+
+    const response = await request(app.callback())
+      .post('/admin/api/2026-04/graphql.json')
+      .set('authorization', 'Bearer incoming_authorization')
+      .set('user-agent', 'example-client/2.3')
+      .set('x-shopify-access-token', 'shpat_forwarded')
+      .set('x-request-id', 'request-123')
+      .send({
+        query: 'query ShopName { shop { name } }',
+        variables: {},
+      });
+
+    expect(response.status).toBe(200);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy.mock.calls[0]?.[1]).toMatchObject({
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer incoming_authorization',
+        'content-type': 'application/json',
+        'user-agent': 'shopify-draft-proxy (wrapping example-client/2.3)',
+        'x-request-id': 'request-123',
+        'x-shopify-access-token': 'shpat_forwarded',
+      },
+    });
+  });
+
   it('logs generic publishable mutations as local Store properties staging', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('generic publishable product support should not proxy upstream');

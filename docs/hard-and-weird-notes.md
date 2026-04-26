@@ -1099,6 +1099,8 @@ The first staged media-write increment surfaced a few durable modeling constrain
 - once the asset is `READY`, using the staged source URL as the local ready-state stand-in is a practical first-pass approximation for both `preview.image.url` and `MediaImage.image.url`
 - `productDeleteMedia` carries two delete-id lists (`deletedMediaIds` and `deletedProductImageIds`); current live capture returns the deleted `MediaImage` id in `deletedMediaIds` and the paired legacy `ProductImage` id in `deletedProductImageIds`
 - staging an empty product media set needs an explicit "media family was staged" marker, otherwise downstream reads can accidentally fall back to hydrated/base media after deleting the last item
+- media validation is not uniformly atomic: empty create/update/delete inputs are accepted as empty successes, mixed `productCreateMedia` inputs create the valid image media while returning indexed errors for invalid image URLs, but mixed `productUpdateMedia` and `productDeleteMedia` batches with an unknown media ID reject the whole batch and leave existing media unchanged
+- unknown product IDs for media mutations use `Product does not exist`; unknown media IDs use root-level media fields (`media` for update, `mediaIds` for delete) rather than the indexed item path
 
 That means media writes are not just three new mutation cases — they also force the media serializer to understand richer node identity/state, inline-fragment selection semantics, and a small upload lifecycle (`UPLOADED` → `PROCESSING` → `READY`) before update parity is credible.
 
@@ -2391,6 +2393,7 @@ Capture prerequisites and safety constraints:
   - create with `functionId: gid://shopify/ShopifyFunction/0` returns `FUNCTION_NOT_FOUND` under `['paymentCustomization', 'functionId']` and mentions the installed app id `347082227713`
   - update/delete unknown `gid://shopify/PaymentCustomization/0` return `PAYMENT_CUSTOMIZATION_NOT_FOUND` under `['id']`; activation unknown ids return the same code under `['ids']` with an empty `ids` payload
   - activation with an empty `ids` list returns `ids: []` and no user errors
+- HAR-224 hardened the local runtime against the 2026-04 `PaymentCustomizationInput` docs: `functionHandle` is the current Function identifier, `functionId` remains deprecated but accepted for the captured parity branch, requests with both identifiers return `MULTIPLE_FUNCTION_IDENTIFIERS`, captured missing Function handles return `FUNCTION_NOT_FOUND`, malformed owner metafields return `INVALID_METAFIELDS`, and duplicate activation ids are handled idempotently
 - customer payment method live captures remain blocked on `read_customer_payment_methods` even though `read_customers` is present; seeded-state reads are safe to model without vaulting because they only serialize already-captured or hand-seeded normalized state
 - customer payment method writes require `write_customers` plus `write_customer_payment_methods` and must use isolated test customers/payment methods because card sessions, duplication data, update URLs, revocation, and remote gateway identifiers are sensitive
 - customer payment method credit-card/PayPal create and update roots can eventually be staged locally only after isolated fixture evidence settles instrument payloads and read-after-write behavior. Remote create also needs polling/asynchronous status evidence through `customerPaymentMethod`. Duplication data and update URLs must be treated as sensitive ephemeral payment material. Revoke is destructive for recurring billing flows, and update-email is customer-visible mail, so both stay unsupported until a safe no-recipient or disposable-method plan exists.
@@ -2447,7 +2450,7 @@ Practical rule:
 
 ## 62. Admin customer address roots use MailingAddress payloads and split validation styles
 
-HAR-152 captured customer address lifecycle evidence on Admin GraphQL 2025-01 with `corepack pnpm conformance:capture-customer-addresses`.
+HAR-152 captured customer address lifecycle evidence on Admin GraphQL 2025-01 with `corepack pnpm conformance:capture-customer-addresses`. HAR-283 expanded the same fixture with address validation, normalization, ownership, default-address, and bounded maximum-address probes.
 
 Captured facts:
 
@@ -2457,12 +2460,18 @@ Captured facts:
 - `MailingAddressInput` accepts `countryCode` and `provinceCode`; the response expands those to full `country` / `province` strings plus `countryCodeV2` / `provinceCode`
 - unknown customer ids on address create return payload `userErrors` with `field: ["customerId"]` and message `Customer does not exist`
 - unknown address ids on update, delete, and default-address selection return top-level GraphQL errors with message `invalid id`, extension code `RESOURCE_NOT_FOUND`, and `data.<root>: null`
+- address ids that exist but belong to a different customer are not top-level errors: update returns `address: null`, delete returns `deletedAddressId: null`, and default-address selection returns the unchanged customer; all three carry payload `userErrors[{ field: ["addressId"], message: "Address does not exist" }]`
+- `{}` creates a blank address and inherits the owning customer's first/last names; explicit empty address strings normalize to `null`
+- invalid `countryCode` and invalid Canadian `provinceCode` return payload userErrors at `["address", "country"]` and `["address", "province"]`; arbitrary postal text is accepted in the captured Canadian branch
+- duplicate `customerAddressCreate` returns payload `userErrors[{ field: ["address"], message: "Address already exists" }]`
+- deleting the default address promotes the remaining address to `Customer.defaultAddress`; omitted/null `setAsDefault` does not replace an existing default
+- the bounded maximum-address probe successfully created 105 addresses without a Shopify failure, so local staging should not enforce a lower artificial limit
 
 Practical rule:
 
 - locally stage address lifecycle roots against a normalized customer-owned address graph and keep `Customer.defaultAddress` synchronized from the selected address row
-- use fixture-backed top-level errors for unknown address ids instead of turning those branches into payload `userErrors`
-- keep broader address validation, normalization, and territory-specific postal validation out of local support until new fixtures capture those branches
+- keep unknown-address-id top-level errors distinct from cross-customer ownership userErrors
+- model only fixture-backed address validation/normalization branches locally; do not invent postal validation or a smaller maximum-address cap without new evidence
 
 ## 63. `customerSet` uses its own identifier input and replaces address lists
 
@@ -2537,3 +2546,26 @@ Practical rule:
 
 - model `productSet` inventory inputs as inventory item location-level rows, then derive variant `inventoryQuantity` from those rows
 - do not use the generic eager product inventory-summary recomputation path for `productSet`; preserve the captured create/update product total behavior until fresher evidence shows Shopify has changed it
+
+## 67. Draft-order create validation differs from early local guesses
+
+HAR-277 captured a grouped `draftOrderCreate` validation matrix on Admin GraphQL 2026-04 against `harry-test-heelo.myshopify.com`.
+
+Captured invalid branches:
+
+- empty `lineItems` returns `field: null`, message `Add at least 1 product`
+- an unknown `variantId` returns `field: null`, message `Product with ID <legacy id> is no longer available.`
+- a custom line missing `title` returns `field: null`, message `Merchandise title is empty.`
+- `quantity: 0` returns `field: ["lineItems", "0", "quantity"]`, message `Quantity must be greater than or equal to 1`
+- `paymentTerms` with only `paymentSchedules` returns `field: null`, message `Payment terms template id can not be empty.`
+- a negative custom line `originalUnitPrice` returns `field: null`, message `Cannot send negative price for line_item`
+- past `reserveInventoryUntil` returns `field: null`, message `Reserve until can't be in the past`
+- invalid email returns `field: ["email"]`, message `Email is invalid`
+
+Exploratory probes also disproved two earlier assumptions: Shopify accepted a variant-backed line item that also included custom `title` and `originalUnitPrice`, and it accepted a custom line with no `originalUnitPrice` as a zero-price line. It also accepted a `shippingLine` with `priceWithCurrency` and no title.
+
+Practical rule:
+
+- do not reject variant-backed draft lines just because custom title/price fields are present
+- keep missing custom price and missing shipping-line title out of the local validation list until a later fixture proves a narrower invalid branch
+- broad direct `orderCreate` validation capture is still constrained by Shopify's order-create attempt throttle on this host; the executable direct-order fixture currently covers only the no-line-items branch
