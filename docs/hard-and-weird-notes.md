@@ -1914,6 +1914,23 @@ Practical rule for the proxy:
 - failed validations may still produce the normal supported-mutation log entry, but they must not introduce staged resource IDs or mutate downstream customer/customerByIdentifier/customers reads
 - keep this validation slice limited to captured branches; broader email/phone/locale international edge cases need new live evidence before tightening rules further
 
+### 44b. `dataSaleOptOut` is privacy-scoped but behaves like a customer write
+
+HAR-255 capture on `harry-test-heelo.myshopify.com` / Admin GraphQL 2025-01 settled a few non-obvious data-sale opt-out behaviors:
+
+- `dataSaleOptOut(email:)` requires the privacy write scope, but the downstream observable field is `Customer.dataSaleOptOut`
+- an existing customer starts with `dataSaleOptOut: false`; after `dataSaleOptOut(email:)`, both `customer(id:)` and `customerByIdentifier(identifier: { id })` read `dataSaleOptOut: true`
+- repeating the same opt-out is idempotent and returns the same `customerId` with no `userErrors`
+- invalid email strings such as `not-an-email` and `""` return payload `customerId: null` plus `userErrors[{ field: null, message: "Data sale opt out failed.", code: "FAILED" }]`
+- a valid email with no existing customer creates a customer and returns its `customerId`; the created customer reads back with the requested email and `dataSaleOptOut: true`
+- the immediate `customers(query: "email:<address>", sortKey: UPDATED_AT, reverse: true)` slice returned an empty connection for opted-out disposable customers, so do not infer general customer-search visibility from this privacy mutation without broader evidence
+
+Practical rule for the proxy:
+
+- keep the registry operation under the privacy domain, but implement the staged read-after-write effect on `CustomerRecord.dataSaleOptOut`
+- for unknown valid emails, create a local opted-out customer instead of returning a not-found userError
+- treat invalid email strings as captured payload userErrors, not as top-level GraphQL errors, when local request parsing reaches the resolver path
+
 ## 45. Rich collection fields need a real collection row, not only membership rows
 
 Extending collection reads past `id` / `title` / `handle` exposed the limit of deriving every collection only from `product.collections` memberships.

@@ -54,6 +54,7 @@
     "conformance:capture-store-properties": "tsx ./scripts/capture-location-conformance.mts",
     "conformance:capture-shop-policies": "tsx ./scripts/capture-shop-policy-conformance.ts",
     "conformance:capture-privacy": "tsx ./scripts/capture-privacy-conformance.ts",
+    "conformance:capture-data-sale-opt-out": "tsx ./scripts/capture-data-sale-opt-out-conformance.ts",
     "conformance:capture-root-operations": "tsx ./scripts/capture-admin-graphql-root-operation-introspection.mts",
     "conformance:capture-orders": "tsx ./scripts/capture-order-conformance.mts",
     "conformance:capture-fulfillment-detail-events": "SHOPIFY_CONFORMANCE_API_VERSION=2026-04 tsx ./scripts/capture-fulfillment-detail-events-conformance.ts",

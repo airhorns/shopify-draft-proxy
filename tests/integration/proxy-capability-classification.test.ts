@@ -190,6 +190,54 @@ describe('proxy capability classification', () => {
     expect(store.getLog()[0]?.interpreted.safety?.reason).toContain('external Function logic');
   });
 
+  it('logs dataSaleOptOut as staged local customer privacy intent', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('supported dataSaleOptOut should not proxy upstream');
+    });
+
+    const app = createApp(config);
+
+    const response = await request(app.callback())
+      .post('/admin/api/2026-04/graphql.json')
+      .set('x-shopify-access-token', 'shpat_test')
+      .send({
+        query: `#graphql
+          mutation DataSaleOptOut($email: String!) {
+            dataSaleOptOut(email: $email) {
+              customerId
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+        variables: { email: 'privacy@example.com' },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.dataSaleOptOut.userErrors).toEqual([]);
+    expect(response.body.data.dataSaleOptOut.customerId).toMatch(/^gid:\/\/shopify\/Customer\//);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(store.getLog()).toHaveLength(1);
+    expect(store.getLog()[0]).toMatchObject({
+      operationName: 'DataSaleOptOut',
+      status: 'staged',
+      interpreted: {
+        operationType: 'mutation',
+        operationName: 'DataSaleOptOut',
+        rootFields: ['dataSaleOptOut'],
+        primaryRootField: 'dataSaleOptOut',
+        capability: {
+          operationName: 'DataSaleOptOut',
+          domain: 'privacy',
+          execution: 'stage-locally',
+        },
+      },
+      notes: 'Staged locally in the in-memory customer privacy draft store.',
+    });
+  });
+
   it('forwards inbound headers and wraps the user agent for upstream passthrough requests', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ data: { shop: { name: 'Example Shop' } } }), {

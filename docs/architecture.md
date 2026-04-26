@@ -160,6 +160,7 @@ Current customer-domain state deliberately stays narrower than the product model
 - customer-owned metafields live in a customer-scoped `customerMetafields` bucket instead of reusing product-domain metafield storage or broadening shared `metafieldsSet` owner support without separate customer-domain evidence
 - staged `customerUpdate(input.metafields)` computes against the effective customer metafield set and replaces the staged customer-owned set, so downstream `customer.metafield(...)` and `customer.metafields(...)` reads stay consistent
 - staged `customerMerge` updates the normalized resulting customer row, marks the source customer deleted, records the source-to-result customer id redirect in `mergedCustomerIds`, and records the observed merge job/result shape in `customerMergeRequests`
+- the privacy-domain `dataSaleOptOut` mutation stores its downstream effect as `CustomerRecord.dataSaleOptOut`, keeping the mutation under privacy coverage while preserving customer read-after-write serialization
 
 ## Mutation handling strategy
 

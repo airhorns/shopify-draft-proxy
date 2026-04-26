@@ -579,6 +579,169 @@ describe('customer draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('stages dataSaleOptOut locally and overlays downstream customer privacy reads', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('dataSaleOptOut should not hit upstream fetch');
+    });
+
+    const app = createApp(snapshotConfig).callback();
+    const createResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CustomerCreate($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer {
+              id
+              email
+              dataSaleOptOut
+            }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            email: 'privacy-opt-out@example.com',
+            firstName: 'Privacy',
+            lastName: 'Optout',
+          },
+        },
+      });
+    const customerId = createResponse.body.data.customerCreate.customer.id;
+    expect(createResponse.body.data.customerCreate.customer.dataSaleOptOut).toBe(false);
+
+    const optOutResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation DataSaleOptOut($email: String!) {
+          dataSaleOptOut(email: $email) {
+            customerId
+            userErrors { field message code }
+          }
+        }`,
+        variables: { email: 'privacy-opt-out@example.com' },
+      });
+
+    expect(optOutResponse.status).toBe(200);
+    expect(optOutResponse.body).toEqual({
+      data: {
+        dataSaleOptOut: {
+          customerId,
+          userErrors: [],
+        },
+      },
+    });
+
+    const readResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query CustomerPrivacyRead($id: ID!, $identifier: CustomerIdentifierInput!) {
+          customer(id: $id) {
+            id
+            email
+            dataSaleOptOut
+          }
+          customerByIdentifier(identifier: $identifier) {
+            id
+            email
+            dataSaleOptOut
+          }
+        }`,
+        variables: { id: customerId, identifier: { id: customerId } },
+      });
+
+    expect(readResponse.body).toEqual({
+      data: {
+        customer: {
+          id: customerId,
+          email: 'privacy-opt-out@example.com',
+          dataSaleOptOut: true,
+        },
+        customerByIdentifier: {
+          id: customerId,
+          email: 'privacy-opt-out@example.com',
+          dataSaleOptOut: true,
+        },
+      },
+    });
+
+    const unknownOptOutResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation DataSaleOptOut($email: String!) {
+          dataSaleOptOut(email: $email) {
+            customerId
+            userErrors { field message code }
+          }
+        }`,
+        variables: { email: 'new-opt-out@example.com' },
+      });
+    const createdOptOutCustomerId = unknownOptOutResponse.body.data.dataSaleOptOut.customerId;
+    expect(createdOptOutCustomerId).toMatch(/^gid:\/\/shopify\/Customer\//);
+    expect(unknownOptOutResponse.body.data.dataSaleOptOut.userErrors).toEqual([]);
+
+    const unknownReadResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query CustomerPrivacyRead($id: ID!) {
+          customer(id: $id) {
+            id
+            email
+            dataSaleOptOut
+          }
+        }`,
+        variables: { id: createdOptOutCustomerId },
+      });
+    expect(unknownReadResponse.body.data.customer).toEqual({
+      id: createdOptOutCustomerId,
+      email: 'new-opt-out@example.com',
+      dataSaleOptOut: true,
+    });
+
+    const invalidOptOutResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation DataSaleOptOut($email: String!) {
+          dataSaleOptOut(email: $email) {
+            customerId
+            userErrors { field message code }
+          }
+        }`,
+        variables: { email: 'not-an-email' },
+      });
+
+    expect(invalidOptOutResponse.body).toEqual({
+      data: {
+        dataSaleOptOut: {
+          customerId: null,
+          userErrors: [
+            {
+              field: null,
+              message: 'Data sale opt out failed.',
+              code: 'FAILED',
+            },
+          ],
+        },
+      },
+    });
+    expect(store.getLog().map((entry) => entry.operationName)).toEqual([
+      'CustomerCreate',
+      'DataSaleOptOut',
+      'DataSaleOptOut',
+      'DataSaleOptOut',
+    ]);
+    expect(store.getLog()[1]).toMatchObject({
+      status: 'staged',
+      interpreted: {
+        capability: {
+          domain: 'privacy',
+          execution: 'stage-locally',
+        },
+      },
+      notes: 'Staged locally in the in-memory customer privacy draft store.',
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('stages customer address lifecycle mutations and overlays downstream address reads', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('customer address mutations should not hit upstream fetch');

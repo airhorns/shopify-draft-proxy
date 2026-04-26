@@ -680,6 +680,7 @@ function normalizeCustomer(raw: unknown): CustomerRecord | null {
     note: normalizeStringField(raw, 'note', existing?.note ?? null),
     canDelete: normalizeBooleanField(raw, 'canDelete', existing?.canDelete ?? null),
     verifiedEmail: normalizeBooleanField(raw, 'verifiedEmail', existing?.verifiedEmail ?? null),
+    dataSaleOptOut: normalizeBooleanField(raw, 'dataSaleOptOut', existing?.dataSaleOptOut ?? false) ?? false,
     taxExempt: normalizeBooleanField(raw, 'taxExempt', existing?.taxExempt ?? null),
     taxExemptions: normalizeTaxExemptionsField(raw, existing?.taxExemptions ?? []),
     state: normalizeStringField(raw, 'state', existing?.state ?? null),
@@ -1295,6 +1296,9 @@ function serializeCustomerSelection(
       case 'verifiedEmail':
         result[key] = customer.verifiedEmail;
         break;
+      case 'dataSaleOptOut':
+        result[key] = customer.dataSaleOptOut ?? false;
+        break;
       case 'taxExempt':
         result[key] = customer.taxExempt;
         break;
@@ -1534,6 +1538,23 @@ function findCustomerByCustomerSetIdentifier(identifier: Record<string, unknown>
   }
 
   return null;
+}
+
+function findCustomerByEmail(email: string): CustomerRecord | null {
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail) {
+    return null;
+  }
+
+  return (
+    store
+      .listEffectiveCustomers()
+      .find(
+        (customer) =>
+          customer.email?.trim().toLowerCase() === normalizedEmail ||
+          customer.defaultEmailAddress?.emailAddress?.trim().toLowerCase() === normalizedEmail,
+      ) ?? null
+  );
 }
 
 function countProvidedCustomerIdentifiers(identifier: Record<string, unknown>): number {
@@ -2588,6 +2609,26 @@ function buildCustomerWithTaxExemptions(existing: CustomerRecord, taxExemptions:
   };
 }
 
+function buildCustomerWithDataSaleOptOut(existing: CustomerRecord): CustomerRecord {
+  return {
+    ...existing,
+    dataSaleOptOut: true,
+    updatedAt: existing.dataSaleOptOut ? existing.updatedAt : makeSyntheticTimestamp(),
+  };
+}
+
+function isValidDataSaleOptOutEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email.trim());
+}
+
+function buildDataSaleOptOutFailedError(): CustomerMutationUserError {
+  return {
+    field: null,
+    message: 'Data sale opt out failed.',
+    code: 'FAILED',
+  };
+}
+
 function buildInvalidTaxExemptionVariableErrors(rawTaxExemptions: unknown): Array<Record<string, unknown>> {
   if (!Array.isArray(rawTaxExemptions)) {
     return [];
@@ -2860,6 +2901,7 @@ function buildCreatedCustomer(input: Record<string, unknown>): CustomerRecord {
     note,
     canDelete: true,
     verifiedEmail: email ? true : null,
+    dataSaleOptOut: false,
     taxExempt,
     taxExemptions,
     state: 'DISABLED',
@@ -3452,6 +3494,7 @@ function serializeCustomerMutationPayload(
   field: FieldNode,
   payload: {
     customer?: CustomerRecord | null;
+    customerId?: string | null;
     customerAddress?: CustomerAddressRecord | null;
     accountActivationUrl?: string | null;
     deletedCustomerId?: string | null;
@@ -3469,6 +3512,9 @@ function serializeCustomerMutationPayload(
     switch (selection.name.value) {
       case 'customer':
         result[key] = payload.customer ? serializeCustomerSelection(payload.customer, selection, variables) : null;
+        break;
+      case 'customerId':
+        result[key] = payload.customerId ?? null;
         break;
       case 'accountActivationUrl':
         result[key] = payload.accountActivationUrl ?? null;
@@ -3614,6 +3660,31 @@ export function handleCustomerMutation(
   for (const field of getRootFields(document)) {
     const key = getFieldResponseKey(field);
     const args = getFieldArguments(field, variables);
+
+    if (field.name.value === 'dataSaleOptOut') {
+      const email = typeof args['email'] === 'string' ? args['email'].trim() : '';
+      if (!isValidDataSaleOptOutEmail(email)) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customerId: null,
+            userErrors: [buildDataSaleOptOutFailedError()],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      const existingCustomer = findCustomerByEmail(email);
+      const customer = existingCustomer
+        ? store.stageUpdateCustomer(buildCustomerWithDataSaleOptOut(existingCustomer))
+        : store.stageCreateCustomer({
+            ...buildCreatedCustomer({ email }),
+            dataSaleOptOut: true,
+          });
+      data[key] = serializeCustomerMutationPayload(field, { customerId: customer.id, userErrors: [] }, variables);
+      continue;
+    }
 
     if (field.name.value === 'customerCreate') {
       const input = readCustomerInput(args['input']);
