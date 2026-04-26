@@ -2569,3 +2569,21 @@ Practical rule:
 - do not reject variant-backed draft lines just because custom title/price fields are present
 - keep missing custom price and missing shipping-line title out of the local validation list until a later fixture proves a narrower invalid branch
 - broad direct `orderCreate` validation capture is still constrained by Shopify's order-create attempt throttle on this host; the executable direct-order fixture currently covers only the no-line-items branch
+
+## 68. Generic translations use raw value digests, and locale writes are reversible
+
+HAR-314 captured generic localization roots on Admin GraphQL 2026-04 against `harry-test-heelo.myshopify.com`.
+
+Captured facts:
+
+- `TranslatableContent.digest` for product scalar content matched `sha256(value)` for the selected title, handle, and product type values.
+- `shopLocaleEnable(locale: "fr")` succeeded with `published: false`, `primary: false`, and no market web presences when the shop initially only had primary `en`.
+- `shopLocaleUpdate(locale: "fr", shopLocale: { published: false })` returned the same unpublished locale payload.
+- `shopLocaleDisable(locale: "fr")` returned `{ locale: "fr", userErrors: [] }` and restored the shop locale list to only `en`.
+- `translationsRegister` for an enabled `fr` locale returned the staged product title translation and immediate `translatableResource.translations(locale: "fr")` reads observed it.
+- `translationsRemove` returned the removed translation payload, and the immediate downstream translations read became an empty list.
+- Unknown product resources return `TranslationUserError` with `field: ["resourceId"]`, `code: "RESOURCE_NOT_FOUND"`, and message `Resource <gid> does not exist` for both register and remove.
+
+Practical rule:
+
+- it is safe to stage the generic product/product-metafield translation slice locally with SHA-256 digests and read-after-write translation visibility, but do not broaden generic localization to market-specific custom content or non-product owner families until they have their own captures.

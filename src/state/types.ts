@@ -1423,6 +1423,33 @@ export const marketLocalizationRecordSchema = z.strictObject({
 });
 export type MarketLocalizationRecord = z.infer<typeof marketLocalizationRecordSchema>;
 
+export const localeRecordSchema = z.strictObject({
+  isoCode: z.string(),
+  name: z.string(),
+});
+export type LocaleRecord = z.infer<typeof localeRecordSchema>;
+
+export const shopLocaleRecordSchema = z.strictObject({
+  locale: z.string(),
+  name: z.string(),
+  primary: z.boolean(),
+  published: z.boolean(),
+  marketWebPresenceIds: z.array(z.string()).default([]),
+});
+export type ShopLocaleRecord = z.infer<typeof shopLocaleRecordSchema>;
+
+export const translationRecordSchema = z.strictObject({
+  resourceId: z.string(),
+  key: z.string(),
+  locale: z.string(),
+  value: z.string(),
+  translatableContentDigest: z.string(),
+  marketId: nullableStringSchema,
+  updatedAt: z.string(),
+  outdated: z.boolean(),
+});
+export type TranslationRecord = z.infer<typeof translationRecordSchema>;
+
 export const catalogRecordSchema = z.strictObject({
   id: z.string(),
   cursor: nullableStringSchema.optional(),
@@ -1580,6 +1607,9 @@ export const stateSnapshotSchema = z.strictObject({
   webPresences: z.record(z.string(), webPresenceRecordSchema).default({}),
   webPresenceOrder: z.array(z.string()).default([]),
   marketLocalizations: z.record(z.string(), marketLocalizationRecordSchema).default({}),
+  availableLocales: z.array(localeRecordSchema).default([]),
+  shopLocales: z.record(z.string(), shopLocaleRecordSchema).default({}),
+  translations: z.record(z.string(), translationRecordSchema).default({}),
   catalogs: z.record(z.string(), catalogRecordSchema).default({}),
   catalogOrder: z.array(z.string()).default([]),
   priceLists: z.record(z.string(), priceListRecordSchema).default({}),
@@ -1610,6 +1640,8 @@ export const stateSnapshotSchema = z.strictObject({
   deletedCatalogIds: z.record(z.string(), z.literal(true)).default({}),
   deletedPriceListIds: z.record(z.string(), z.literal(true)).default({}),
   deletedWebPresenceIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedShopLocales: z.record(z.string(), z.literal(true)).default({}),
+  deletedTranslations: z.record(z.string(), z.literal(true)).default({}),
   deletedDeliveryProfileIds: z.record(z.string(), z.literal(true)).default({}),
   mergedCustomerIds: z.record(z.string(), z.string()).default({}),
   customerMergeRequests: z.record(z.string(), customerMergeRequestRecordSchema).default({}),

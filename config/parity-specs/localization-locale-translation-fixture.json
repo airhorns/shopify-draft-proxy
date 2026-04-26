@@ -1,0 +1,27 @@
+{
+  "scenarioId": "localization-locale-translation-fixture",
+  "operationNames": [
+    "availableLocales",
+    "shopLocales",
+    "translatableResource",
+    "translatableResources",
+    "translatableResourcesByIds",
+    "shopLocaleEnable",
+    "shopLocaleUpdate",
+    "shopLocaleDisable",
+    "translationsRegister",
+    "translationsRemove"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "mutation-lifecycle"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization-locale-translation-fixture.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/localization-flow.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "notes": "Captured Admin GraphQL 2026-04 localization evidence covers locale catalog/shop locale reads, product translatable resources and missing-resource behavior, unknown-resource TranslationUserError branches, shopLocaleEnable/update/disable with cleanup, and translationsRegister/remove with downstream translatableResource read-after-write. Runtime parity is enforced by tests/integration/localization-flow.test.ts while the generic parity runner does not yet replay this multi-step locale and translation lifecycle fixture."
+}

@@ -16,6 +16,7 @@ export type CapabilityDomain =
   | 'segments'
   | 'shipping-fulfillments'
   | 'webhooks'
+  | 'localization'
   | 'markets'
   | 'metafields'
   | 'metaobjects'
