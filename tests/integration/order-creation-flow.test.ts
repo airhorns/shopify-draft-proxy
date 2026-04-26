@@ -884,6 +884,48 @@ describe('order creation flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('returns the captured orderCreate no-line-items userError without staging or logging', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('invalid orderCreate no-line-items request should not hit upstream in snapshot mode');
+    });
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation OrderCreateNoLineItems($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          order: {
+            email: 'hermes-order-no-line-items@example.com',
+            lineItems: [],
+          },
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        orderCreate: {
+          order: null,
+          userErrors: [
+            {
+              field: ['order', 'lineItems'],
+              message: 'Line items must have at least one line item',
+            },
+          ],
+        },
+      },
+    });
+    expect((await request(app).get('/__meta/log')).body.entries).toEqual([]);
+    expect((await request(app).get('/__meta/state')).body.stagedState.orders).toEqual({});
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('stages a created order locally in live-hybrid mode and serves immediate order/order(s) replay without hitting upstream', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error(
@@ -1566,9 +1608,6 @@ describe('order creation flow', () => {
             note: 'merchant realistic draft order create parity',
             taxExempt: true,
             reserveInventoryUntil: '2026-05-23T12:00:00Z',
-            paymentTerms: {
-              paymentSchedules: [{ dueAt: '2026-05-22T12:00:00Z' }],
-            },
             tags: ['merchant-realistic', 'draft-order'],
             customAttributes: [
               { key: 'source', value: 'phone-order' },
@@ -1651,15 +1690,7 @@ describe('order creation flow', () => {
       taxExempt: true,
       taxesIncluded: false,
       reserveInventoryUntil: '2026-05-23T12:00:00Z',
-      paymentTerms: {
-        id: 'gid://shopify/PaymentTerms/5',
-        due: false,
-        overdue: false,
-        dueInDays: null,
-        paymentTermsName: 'Due on date',
-        paymentTermsType: 'FIXED',
-        translatedName: 'Due on date',
-      },
+      paymentTerms: null,
       tags: ['draft-order', 'merchant-realistic'],
       customAttributes: [
         { key: 'source', value: 'phone-order' },
@@ -2087,12 +2118,14 @@ describe('order creation flow', () => {
         },
       },
     });
+    expect((await request(app).get('/__meta/log')).body.entries).toEqual([]);
+    expect((await request(app).get('/__meta/state')).body.stagedState.draftOrders).toEqual({});
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('returns userErrors for unsupported draftOrderCreate variant/custom line item combinations without staging', async () => {
+  it('accepts variant-backed draftOrderCreate line items even when custom title and price fields are present', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
-      throw new Error('draft-order unsupported line item validation should not hit upstream in snapshot mode');
+      throw new Error('draft-order variant/custom line item parity should not hit upstream in snapshot mode');
     });
     const seededVariant = seedDraftOrderVariantCatalog();
 
@@ -2129,13 +2162,10 @@ describe('order creation flow', () => {
     expect(response.body).toEqual({
       data: {
         draftOrderCreate: {
-          draftOrder: null,
-          userErrors: [
-            {
-              field: ['input', 'lineItems', '0'],
-              message: 'Variant line items cannot include custom title or originalUnitPrice fields',
-            },
-          ],
+          draftOrder: {
+            id: 'gid://shopify/DraftOrder/2',
+          },
+          userErrors: [],
         },
       },
     });
@@ -2155,11 +2185,137 @@ describe('order creation flow', () => {
     expect(countResponse.body).toEqual({
       data: {
         draftOrdersCount: {
-          count: 0,
+          count: 1,
           precision: 'EXACT',
         },
       },
     });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns captured draftOrderCreate validation userErrors without staging or logging rejected creates', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('draft-order validation matrix should not hit upstream in snapshot mode');
+    });
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation DraftOrderCreateValidationMatrix(
+          $noLineItems: DraftOrderInput!
+          $unknownVariant: DraftOrderInput!
+          $customMissingTitle: DraftOrderInput!
+          $zeroQuantity: DraftOrderInput!
+          $paymentTerms: DraftOrderInput!
+          $negativePrice: DraftOrderInput!
+          $pastReserve: DraftOrderInput!
+          $badEmail: DraftOrderInput!
+        ) {
+          noLineItems: draftOrderCreate(input: $noLineItems) {
+            draftOrder { id }
+            userErrors { field message }
+          }
+          unknownVariant: draftOrderCreate(input: $unknownVariant) {
+            draftOrder { id }
+            userErrors { field message }
+          }
+          customMissingTitle: draftOrderCreate(input: $customMissingTitle) {
+            draftOrder { id }
+            userErrors { field message }
+          }
+          zeroQuantity: draftOrderCreate(input: $zeroQuantity) {
+            draftOrder { id }
+            userErrors { field message }
+          }
+          paymentTerms: draftOrderCreate(input: $paymentTerms) {
+            draftOrder { id }
+            userErrors { field message }
+          }
+          negativePrice: draftOrderCreate(input: $negativePrice) {
+            draftOrder { id }
+            userErrors { field message }
+          }
+          pastReserve: draftOrderCreate(input: $pastReserve) {
+            draftOrder { id }
+            userErrors { field message }
+          }
+          badEmail: draftOrderCreate(input: $badEmail) {
+            draftOrder { id }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          noLineItems: { lineItems: [] },
+          unknownVariant: {
+            lineItems: [{ variantId: 'gid://shopify/ProductVariant/999999999999999999', quantity: 1 }],
+          },
+          customMissingTitle: {
+            lineItems: [{ quantity: 1, originalUnitPrice: '10.00' }],
+          },
+          zeroQuantity: {
+            lineItems: [{ title: 'Zero quantity', quantity: 0, originalUnitPrice: '10.00' }],
+          },
+          paymentTerms: {
+            paymentTerms: { paymentSchedules: [{ dueAt: '2026-05-22T12:00:00Z' }] },
+            lineItems: [{ title: 'Payment terms', quantity: 1, originalUnitPrice: '10.00' }],
+          },
+          negativePrice: {
+            lineItems: [{ title: 'Negative price', quantity: 1, originalUnitPrice: '-1.00' }],
+          },
+          pastReserve: {
+            reserveInventoryUntil: '2020-01-01T00:00:00Z',
+            lineItems: [{ title: 'Past reserve', quantity: 1, originalUnitPrice: '10.00' }],
+          },
+          badEmail: {
+            email: 'not-an-email',
+            lineItems: [{ title: 'Bad email', quantity: 1, originalUnitPrice: '10.00' }],
+          },
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        noLineItems: {
+          draftOrder: null,
+          userErrors: [{ field: null, message: 'Add at least 1 product' }],
+        },
+        unknownVariant: {
+          draftOrder: null,
+          userErrors: [{ field: null, message: 'Product with ID 999999999999999999 is no longer available.' }],
+        },
+        customMissingTitle: {
+          draftOrder: null,
+          userErrors: [{ field: null, message: 'Merchandise title is empty.' }],
+        },
+        zeroQuantity: {
+          draftOrder: null,
+          userErrors: [
+            { field: ['lineItems', '0', 'quantity'], message: 'Quantity must be greater than or equal to 1' },
+          ],
+        },
+        paymentTerms: {
+          draftOrder: null,
+          userErrors: [{ field: null, message: 'Payment terms template id can not be empty.' }],
+        },
+        negativePrice: {
+          draftOrder: null,
+          userErrors: [{ field: null, message: 'Cannot send negative price for line_item' }],
+        },
+        pastReserve: {
+          draftOrder: null,
+          userErrors: [{ field: null, message: "Reserve until can't be in the past" }],
+        },
+        badEmail: {
+          draftOrder: null,
+          userErrors: [{ field: ['email'], message: 'Email is invalid' }],
+        },
+      },
+    });
+
+    expect((await request(app).get('/__meta/log')).body.entries).toEqual([]);
+    expect((await request(app).get('/__meta/state')).body.stagedState.draftOrders).toEqual({});
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

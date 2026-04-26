@@ -2,6 +2,7 @@ import Router from '@koa/router';
 import type Koa from 'koa';
 import type { AppConfig } from '../config.js';
 import { createUpstreamGraphQLClient } from '../shopify/upstream-client.js';
+import { requestUpstreamGraphQL } from '../shopify/upstream-request.js';
 import { store } from '../state/store.js';
 import { isProxySyntheticGid, resetSyntheticIdentity } from '../state/synthetic-identity.js';
 import type { MutationLogEntry } from '../state/types.js';
@@ -29,24 +30,6 @@ function responseBodyHasGraphQLErrors(body: unknown): boolean {
 
   const errors = (body as Record<string, unknown>)['errors'];
   return Array.isArray(errors) && errors.length > 0;
-}
-
-function buildCommitReplayHeaders(ctx: Koa.Context): Record<string, string> {
-  const headers: Record<string, string> = {
-    'content-type': 'application/json',
-  };
-  const shopifyAccessToken = ctx.get('x-shopify-access-token');
-  const authorization = ctx.get('authorization');
-
-  if (shopifyAccessToken) {
-    headers['x-shopify-access-token'] = shopifyAccessToken;
-  }
-
-  if (authorization) {
-    headers['authorization'] = authorization;
-  }
-
-  return headers;
 }
 
 function buildCommitReplayBody(entry: MutationLogEntry): Record<string, unknown> {
@@ -676,9 +659,8 @@ export function createMetaRouter(config: AppConfig): Router {
     for (const [index, entry] of pendingEntries.entries()) {
       try {
         const replayBody = replaceMappedSyntheticGids(buildCommitReplayBody(entry), syntheticIdMap);
-        const response = await upstream.request({
+        const response = await requestUpstreamGraphQL(upstream, ctx, {
           path: entry.path,
-          headers: buildCommitReplayHeaders(ctx),
           body: replayBody,
         });
         const responseBody = await response.json();

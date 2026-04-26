@@ -13,13 +13,17 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhook-subscription-conformance.json"
   ],
-  "runtimeTestFiles": ["tests/unit/webhook-subscription-conformance-fixture.test.ts"],
+  "runtimeTestFiles": [
+    "tests/unit/webhook-subscription-conformance-fixture.test.ts",
+    "tests/integration/webhook-subscription-query-shapes.test.ts",
+    "tests/integration/webhook-subscription-mutation-flow.test.ts"
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/webhook-subscription-catalog-read.graphql",
     "variablesPath": "config/parity-requests/webhook-subscription-catalog-read.variables.json"
   },
   "comparisonMode": "captured-fixture",
-  "notes": "HAR-267 captured Admin GraphQL 2026-04 API-created webhook subscription empty catalog/count reads, unknown detail null behavior, create/update/delete lifecycle payloads, detail read-after-create/update/delete, missing URI validation, and unknown-id update/delete userErrors. The generic parity runner does not replay this fixture because webhook subscription runtime staging is not implemented; registry entries remain unimplemented until local state and downstream read behavior exist. The capture explicitly excludes app TOML webhooks and does not trigger webhook deliveries.",
+  "notes": "HAR-267 captured Admin GraphQL 2026-04 API-created webhook subscription empty catalog/count reads, unknown detail null behavior, create/update/delete lifecycle payloads, detail read-after-create/update/delete, missing URI validation, and unknown-id update/delete userErrors. HAR-268 adds local read support, HAR-269 adds local create/update staging for the captured Admin API-created HTTP URI subset, and HAR-270 adds local delete staging/read-after-delete behavior for staged or hydrated local records. The capture explicitly excludes app TOML webhooks and does not trigger webhook deliveries.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": []

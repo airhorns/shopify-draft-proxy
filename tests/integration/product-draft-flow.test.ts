@@ -11,6 +11,73 @@ const config: AppConfig = {
   readMode: 'passthrough',
 };
 
+function makeBaseProduct(id: string, title: string, handle: string) {
+  const legacyResourceId = id.split('/').at(-1) ?? id;
+  return {
+    id,
+    legacyResourceId,
+    title,
+    handle,
+    status: 'ACTIVE' as const,
+    publicationIds: [],
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-02T00:00:00.000Z',
+    vendor: null,
+    productType: null,
+    tags: [],
+    totalInventory: null,
+    tracksInventory: null,
+    descriptionHtml: null,
+    onlineStorePreviewUrl: null,
+    templateSuffix: null,
+    seo: { title: null, description: null },
+    category: null,
+  };
+}
+
+function makeBaseVariant(productId: string, id: string, title: string, sku: string) {
+  return {
+    id,
+    productId,
+    title,
+    sku,
+    barcode: null,
+    price: null,
+    compareAtPrice: null,
+    taxable: null,
+    inventoryPolicy: null,
+    inventoryQuantity: 0,
+    selectedOptions: [{ name: 'Title', value: title }],
+    inventoryItem: {
+      id: id.replace('/ProductVariant/', '/InventoryItem/'),
+      tracked: false,
+      requiresShipping: true,
+      measurement: null,
+      countryCodeOfOrigin: null,
+      provinceCodeOfOrigin: null,
+      harmonizedSystemCode: null,
+    },
+  };
+}
+
+function makeBaseImageMedia(productId: string, id: string, position: number, alt: string) {
+  const url = `https://cdn.example.com/${id.split('/').at(-1)}.jpg`;
+  return {
+    key: `${productId}:media:${position}`,
+    productId,
+    position,
+    id,
+    mediaContentType: 'IMAGE',
+    alt,
+    status: 'READY',
+    productImageId: id.replace('/MediaImage/', '/ProductImage/'),
+    imageUrl: url,
+    imageWidth: null,
+    imageHeight: null,
+    previewImageUrl: url,
+  };
+}
+
 describe('product draft flow', () => {
   beforeEach(() => {
     store.reset();
@@ -892,6 +959,141 @@ describe('product draft flow', () => {
       handle: secondHandle,
     });
     expect(firstProductId).not.toBe(secondProductId);
+  });
+
+  it('accepts reserved-looking and Unicode explicit productCreate handles captured from Shopify', async () => {
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const reservedResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateProduct($product: ProductCreateInput!) { productCreate(product: $product) { product { id title handle } userErrors { field message } } }',
+        variables: {
+          product: {
+            title: 'Reserved Looking Handle Owner',
+            handle: 'admin',
+          },
+        },
+      });
+
+    const unicodeResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateProduct($product: ProductCreateInput!) { productCreate(product: $product) { product { id title handle } userErrors { field message } } }',
+        variables: {
+          product: {
+            title: 'Unicode Handle Owner',
+            handle: '東京',
+          },
+        },
+      });
+
+    expect(reservedResponse.status).toBe(200);
+    expect(unicodeResponse.status).toBe(200);
+    expect(reservedResponse.body.data.productCreate).toEqual({
+      product: {
+        id: expect.any(String),
+        title: 'Reserved Looking Handle Owner',
+        handle: 'admin',
+      },
+      userErrors: [],
+    });
+    expect(unicodeResponse.body.data.productCreate).toEqual({
+      product: {
+        id: expect.any(String),
+        title: 'Unicode Handle Owner',
+        handle: '東京',
+      },
+      userErrors: [],
+    });
+  });
+
+  it('rejects explicit productCreate handles longer than Shopify allows without staging a product', async () => {
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const createResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateProduct($product: ProductCreateInput!) { productCreate(product: $product) { product { id title handle } userErrors { field message } } }',
+        variables: {
+          product: {
+            title: 'Too Long Handle Owner',
+            handle: 'a'.repeat(260),
+          },
+        },
+      });
+
+    expect(createResponse.status).toBe(200);
+    expect(createResponse.body.data.productCreate).toEqual({
+      product: null,
+      userErrors: [{ field: ['handle'], message: 'Handle is too long (maximum is 255 characters)' }],
+    });
+
+    const queryResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query: 'query { products(first: 10) { nodes { id title handle } } }',
+    });
+
+    expect(queryResponse.status).toBe(200);
+    expect(queryResponse.body.data.products.nodes).toEqual([]);
+  });
+
+  it('rejects explicit productUpdate handles longer than Shopify allows and preserves the current handle', async () => {
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const createResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateProduct($product: ProductCreateInput!) { productCreate(product: $product) { product { id title handle } userErrors { field message } } }',
+        variables: {
+          product: {
+            title: 'Update Too Long Handle Owner',
+            handle: 'update-too-long-handle-owner',
+          },
+        },
+      });
+
+    const productId = createResponse.body.data.productCreate.product.id as string;
+
+    const updateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation UpdateProduct($product: ProductUpdateInput!) { productUpdate(product: $product) { product { id title handle } userErrors { field message } } }',
+        variables: {
+          product: {
+            id: productId,
+            handle: 'b'.repeat(260),
+          },
+        },
+      });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body.data.productUpdate).toEqual({
+      product: {
+        id: productId,
+        title: 'Update Too Long Handle Owner',
+        handle: 'update-too-long-handle-owner',
+      },
+      userErrors: [{ field: ['handle'], message: 'Handle is too long (maximum is 255 characters)' }],
+    });
+
+    const queryResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: 'query ReadProduct($id: ID!) { product(id: $id) { id title handle } }',
+        variables: { id: productId },
+      });
+
+    expect(queryResponse.status).toBe(200);
+    expect(queryResponse.body.data.product).toEqual({
+      id: productId,
+      title: 'Update Too Long Handle Owner',
+      handle: 'update-too-long-handle-owner',
+    });
   });
 
   it('stages tagsAdd locally for product resources and keeps downstream tag-filtered reads aligned', async () => {
@@ -3075,6 +3277,117 @@ describe('product draft flow', () => {
     });
   });
 
+  it('stages productVariantsBulkReorder locally with downstream variant connection order and raw log preservation', async () => {
+    const productId = 'gid://shopify/Product/260';
+    const variantOneId = 'gid://shopify/ProductVariant/2601';
+    const variantTwoId = 'gid://shopify/ProductVariant/2602';
+    const variantThreeId = 'gid://shopify/ProductVariant/2603';
+    store.upsertBaseProducts([makeBaseProduct(productId, 'Variant Reorder Hat', 'variant-reorder-hat')]);
+    store.replaceBaseVariantsForProduct(productId, [
+      makeBaseVariant(productId, variantOneId, 'Small', 'VRH-S'),
+      makeBaseVariant(productId, variantTwoId, 'Medium', 'VRH-M'),
+      makeBaseVariant(productId, variantThreeId, 'Large', 'VRH-L'),
+    ]);
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+    const query =
+      'mutation ReorderVariants($productId: ID!, $positions: [ProductVariantPositionInput!]!) { productVariantsBulkReorder(productId: $productId, positions: $positions) { product { id variants(first: 10) { nodes { id title sku } } } userErrors { field message } } }';
+    const variables = {
+      productId,
+      positions: [
+        { id: variantThreeId, position: 1 },
+        { id: variantOneId, position: 99 },
+      ],
+    };
+
+    const reorderResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query,
+      variables,
+    });
+
+    expect(reorderResponse.status).toBe(200);
+    expect(reorderResponse.body).toEqual({
+      data: {
+        productVariantsBulkReorder: {
+          product: {
+            id: productId,
+            variants: {
+              nodes: [
+                { id: variantThreeId, title: 'Large', sku: 'VRH-L' },
+                { id: variantTwoId, title: 'Medium', sku: 'VRH-M' },
+                { id: variantOneId, title: 'Small', sku: 'VRH-S' },
+              ],
+            },
+          },
+          userErrors: [],
+        },
+      },
+    });
+
+    const downstreamResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query VariantOrder($productId: ID!, $variantId: ID!) { product(id: $productId) { id variants(first: 2) { edges { cursor node { id title } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } productVariant(id: $variantId) { id title sku } }',
+        variables: {
+          productId,
+          variantId: variantOneId,
+        },
+      });
+
+    expect(downstreamResponse.status).toBe(200);
+    expect(downstreamResponse.body).toEqual({
+      data: {
+        product: {
+          id: productId,
+          variants: {
+            edges: [
+              {
+                cursor: `cursor:${variantThreeId}`,
+                node: { id: variantThreeId, title: 'Large' },
+              },
+              {
+                cursor: `cursor:${variantTwoId}`,
+                node: { id: variantTwoId, title: 'Medium' },
+              },
+            ],
+            pageInfo: {
+              hasNextPage: true,
+              hasPreviousPage: false,
+              startCursor: `cursor:${variantThreeId}`,
+              endCursor: `cursor:${variantTwoId}`,
+            },
+          },
+        },
+        productVariant: {
+          id: variantOneId,
+          title: 'Small',
+          sku: 'VRH-S',
+        },
+      },
+    });
+    expect(store.getEffectiveVariantsByProductId(productId).map((variant) => variant.id)).toEqual([
+      variantThreeId,
+      variantTwoId,
+      variantOneId,
+    ]);
+    expect(store.getLog()).toMatchObject([
+      {
+        operationName: 'productVariantsBulkReorder',
+        path: '/admin/api/2025-01/graphql.json',
+        query,
+        variables,
+        requestBody: {
+          query,
+          variables,
+        },
+        status: 'staged',
+      },
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('stages singular product variant create, update, and delete mutations locally via the same overlay model', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       return new Response(
@@ -5073,6 +5386,107 @@ describe('product draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('stages productReorderMedia locally with downstream media and image ordering', async () => {
+    const productId = 'gid://shopify/Product/460';
+    const mediaOneId = 'gid://shopify/MediaImage/4601';
+    const mediaTwoId = 'gid://shopify/MediaImage/4602';
+    const mediaThreeId = 'gid://shopify/MediaImage/4603';
+    store.upsertBaseProducts([makeBaseProduct(productId, 'Media Reorder Hat', 'media-reorder-hat')]);
+    store.replaceBaseMediaForProduct(productId, [
+      makeBaseImageMedia(productId, mediaOneId, 0, 'Front'),
+      makeBaseImageMedia(productId, mediaTwoId, 1, 'Side'),
+      makeBaseImageMedia(productId, mediaThreeId, 2, 'Back'),
+    ]);
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+    const query =
+      'mutation ReorderMedia($id: ID!, $moves: [MoveInput!]!) { productReorderMedia(id: $id, moves: $moves) { job { id done } mediaUserErrors { field message } } }';
+    const variables = {
+      id: productId,
+      moves: [
+        { id: mediaThreeId, newPosition: '0' },
+        { id: mediaOneId, newPosition: '99' },
+      ],
+    };
+
+    const reorderResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query,
+      variables,
+    });
+
+    expect(reorderResponse.status).toBe(200);
+    expect(reorderResponse.body).toEqual({
+      data: {
+        productReorderMedia: {
+          job: {
+            id: expect.stringMatching(/^gid:\/\/shopify\/Job\/.+$/),
+            done: false,
+          },
+          mediaUserErrors: [],
+        },
+      },
+    });
+
+    const downstreamResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query MediaOrder($productId: ID!) { product(id: $productId) { id media(first: 10) { nodes { id alt } pageInfo { hasNextPage hasPreviousPage } } images(first: 10) { nodes { id altText } pageInfo { hasNextPage hasPreviousPage } } } }',
+      variables: {
+        productId,
+      },
+    });
+
+    expect(downstreamResponse.status).toBe(200);
+    expect(downstreamResponse.body).toEqual({
+      data: {
+        product: {
+          id: productId,
+          media: {
+            nodes: [
+              { id: mediaThreeId, alt: 'Back' },
+              { id: mediaTwoId, alt: 'Side' },
+              { id: mediaOneId, alt: 'Front' },
+            ],
+            pageInfo: {
+              hasNextPage: false,
+              hasPreviousPage: false,
+            },
+          },
+          images: {
+            nodes: [
+              { id: mediaThreeId.replace('/MediaImage/', '/ProductImage/'), altText: 'Back' },
+              { id: mediaTwoId.replace('/MediaImage/', '/ProductImage/'), altText: 'Side' },
+              { id: mediaOneId.replace('/MediaImage/', '/ProductImage/'), altText: 'Front' },
+            ],
+            pageInfo: {
+              hasNextPage: false,
+              hasPreviousPage: false,
+            },
+          },
+        },
+      },
+    });
+    expect(store.getEffectiveMediaByProductId(productId).map((mediaRecord) => mediaRecord.id)).toEqual([
+      mediaThreeId,
+      mediaTwoId,
+      mediaOneId,
+    ]);
+    expect(store.getLog()).toMatchObject([
+      {
+        operationName: 'productReorderMedia',
+        path: '/admin/api/2025-01/graphql.json',
+        query,
+        variables,
+        requestBody: {
+          query,
+          variables,
+        },
+        status: 'staged',
+      },
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('deletes one staged product media item while preserving the remaining media connection', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     const app = createApp({ ...config, readMode: 'snapshot' }).callback();
@@ -5183,6 +5597,263 @@ describe('product draft flow', () => {
     expect(downstreamMediaQuery.body.data.product.media).toEqual(
       deleteMediaResponse.body.data.productDeleteMedia.product.media,
     );
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('models captured product media validation branches and rejected-batch no-write behavior', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+    const postGraphql = (query: string, variables?: Record<string, unknown>) =>
+      request(app).post('/admin/api/2025-01/graphql.json').send({ query, variables });
+
+    const createProductResponse = await postGraphql(
+      'mutation { productCreate(product: { title: "Media Validation Hat" }) { product { id } userErrors { field message } } }',
+    );
+    const productId = createProductResponse.body.data.productCreate.product.id as string;
+    const unknownProductId = 'gid://shopify/Product/999999999999';
+    const unknownMediaId = 'gid://shopify/MediaImage/999999999999';
+
+    const missingProductIdResponse = await postGraphql(
+      'mutation MissingProduct($productId: ID!, $media: [CreateMediaInput!]!) { productCreateMedia(productId: $productId, media: $media) { media { id } mediaUserErrors { field message } } }',
+      {
+        productId: '',
+        media: [{ mediaContentType: 'IMAGE', originalSource: 'https://placehold.co/600x400/png' }],
+      },
+    );
+    expect(missingProductIdResponse.body.errors).toEqual([
+      {
+        message: 'Variable $productId of type ID! was provided invalid value',
+        locations: [{ line: expect.any(Number), column: expect.any(Number) }],
+        extensions: {
+          code: 'INVALID_VARIABLE',
+          value: '',
+          problems: [{ path: [], explanation: "Invalid global id ''", message: "Invalid global id ''" }],
+        },
+      },
+    ]);
+
+    const unknownProductCreateResponse = await postGraphql(
+      'mutation UnknownProduct($productId: ID!, $media: [CreateMediaInput!]!) { productCreateMedia(productId: $productId, media: $media) { media { id } mediaUserErrors { field message } product { id } } }',
+      {
+        productId: unknownProductId,
+        media: [{ mediaContentType: 'IMAGE', originalSource: 'https://placehold.co/600x400/png' }],
+      },
+    );
+    expect(unknownProductCreateResponse.body.data.productCreateMedia).toEqual({
+      media: null,
+      mediaUserErrors: [{ field: ['productId'], message: 'Product does not exist' }],
+      product: null,
+    });
+
+    const emptyCreateResponse = await postGraphql(
+      'mutation EmptyCreate($productId: ID!, $media: [CreateMediaInput!]!) { productCreateMedia(productId: $productId, media: $media) { media { id } mediaUserErrors { field message } product { id media(first: 10) { nodes { id } } } } }',
+      { productId, media: [] },
+    );
+    expect(emptyCreateResponse.body.data.productCreateMedia).toEqual({
+      media: [],
+      mediaUserErrors: [],
+      product: {
+        id: productId,
+        media: { nodes: [] },
+      },
+    });
+
+    const invalidTypeResponse = await postGraphql(
+      'mutation InvalidMediaType($productId: ID!, $media: [CreateMediaInput!]!) { productCreateMedia(productId: $productId, media: $media) { media { id } mediaUserErrors { field message } } }',
+      {
+        productId,
+        media: [{ mediaContentType: 'FILE', originalSource: 'https://placehold.co/600x400/png' }],
+      },
+    );
+    expect(invalidTypeResponse.body.errors).toEqual([
+      {
+        message:
+          'Variable $media of type [CreateMediaInput!]! was provided invalid value for 0.mediaContentType (Expected "FILE" to be one of: VIDEO, EXTERNAL_VIDEO, MODEL_3D, IMAGE)',
+        locations: [{ line: expect.any(Number), column: expect.any(Number) }],
+        extensions: {
+          code: 'INVALID_VARIABLE',
+          value: [{ mediaContentType: 'FILE', originalSource: 'https://placehold.co/600x400/png' }],
+          problems: [
+            {
+              path: [0, 'mediaContentType'],
+              explanation: 'Expected "FILE" to be one of: VIDEO, EXTERNAL_VIDEO, MODEL_3D, IMAGE',
+            },
+          ],
+        },
+      },
+    ]);
+
+    const invalidSourceResponse = await postGraphql(
+      'mutation InvalidSource($productId: ID!, $media: [CreateMediaInput!]!) { productCreateMedia(productId: $productId, media: $media) { media { id } mediaUserErrors { field message } product { id media(first: 10) { nodes { id } } } } }',
+      { productId, media: [{ mediaContentType: 'IMAGE', originalSource: 'not-a-url' }] },
+    );
+    expect(invalidSourceResponse.body.data.productCreateMedia).toEqual({
+      media: [],
+      mediaUserErrors: [{ field: ['media', '0', 'originalSource'], message: 'Image URL is invalid' }],
+      product: {
+        id: productId,
+        media: { nodes: [] },
+      },
+    });
+
+    const mixedCreateResponse = await postGraphql(
+      'mutation MixedCreate($productId: ID!, $media: [CreateMediaInput!]!) { productCreateMedia(productId: $productId, media: $media) { media { id alt mediaContentType status } mediaUserErrors { field message } product { id media(first: 10) { nodes { id alt mediaContentType status } } } } }',
+      {
+        productId,
+        media: [
+          {
+            mediaContentType: 'IMAGE',
+            originalSource: 'https://placehold.co/600x400/png',
+            alt: 'Valid mixed create',
+          },
+          { mediaContentType: 'IMAGE', originalSource: 'not-a-url', alt: 'Invalid mixed create' },
+        ],
+      },
+    );
+    const mixedCreateMediaId = mixedCreateResponse.body.data.productCreateMedia.media[0].id as string;
+    expect(mixedCreateResponse.body.data.productCreateMedia).toEqual({
+      media: [
+        {
+          id: mixedCreateMediaId,
+          alt: 'Valid mixed create',
+          mediaContentType: 'IMAGE',
+          status: 'UPLOADED',
+        },
+      ],
+      mediaUserErrors: [{ field: ['media', '1', 'originalSource'], message: 'Image URL is invalid' }],
+      product: {
+        id: productId,
+        media: {
+          nodes: [
+            {
+              id: mixedCreateMediaId,
+              alt: 'Valid mixed create',
+              mediaContentType: 'IMAGE',
+              status: 'UPLOADED',
+            },
+          ],
+        },
+      },
+    });
+
+    const seedCreateResponse = await postGraphql(
+      'mutation SeedMedia($productId: ID!, $media: [CreateMediaInput!]!) { productCreateMedia(productId: $productId, media: $media) { media { id } mediaUserErrors { field message } } }',
+      {
+        productId,
+        media: [
+          {
+            mediaContentType: 'IMAGE',
+            originalSource: 'https://placehold.co/600x400/png',
+            alt: 'Seed media',
+          },
+        ],
+      },
+    );
+    const seedMediaId = seedCreateResponse.body.data.productCreateMedia.media[0].id as string;
+
+    await postGraphql(
+      'query PromoteProcessing($id: ID!) { product(id: $id) { id media(first: 10) { nodes { id status } } } }',
+      { id: productId },
+    );
+    await postGraphql(
+      'query PromoteReady($id: ID!) { product(id: $id) { id media(first: 10) { nodes { id status } } } }',
+      { id: productId },
+    );
+
+    const emptyUpdateResponse = await postGraphql(
+      'mutation EmptyUpdate($productId: ID!, $media: [UpdateMediaInput!]!) { productUpdateMedia(productId: $productId, media: $media) { media { id } mediaUserErrors { field message } } }',
+      { productId, media: [] },
+    );
+    expect(emptyUpdateResponse.body.data.productUpdateMedia).toEqual({ media: [], mediaUserErrors: [] });
+
+    const unknownProductUpdateResponse = await postGraphql(
+      'mutation UnknownProductUpdate($productId: ID!, $media: [UpdateMediaInput!]!) { productUpdateMedia(productId: $productId, media: $media) { media { id } mediaUserErrors { field message } } }',
+      { productId: unknownProductId, media: [{ id: seedMediaId, alt: 'Should not update' }] },
+    );
+    expect(unknownProductUpdateResponse.body.data.productUpdateMedia).toEqual({
+      media: null,
+      mediaUserErrors: [{ field: ['productId'], message: 'Product does not exist' }],
+    });
+
+    const mixedUpdateResponse = await postGraphql(
+      'mutation MixedUpdate($productId: ID!, $media: [UpdateMediaInput!]!) { productUpdateMedia(productId: $productId, media: $media) { media { id } mediaUserErrors { field message } } }',
+      {
+        productId,
+        media: [
+          { id: seedMediaId, alt: 'Rejected update' },
+          { id: unknownMediaId, alt: 'Unknown media' },
+        ],
+      },
+    );
+    expect(mixedUpdateResponse.body.data.productUpdateMedia).toEqual({
+      media: null,
+      mediaUserErrors: [{ field: ['media'], message: `Media id ${unknownMediaId} does not exist` }],
+    });
+
+    const afterRejectedUpdateResponse = await postGraphql(
+      'query MediaAfterRejectedUpdate($id: ID!) { product(id: $id) { id media(first: 10) { nodes { id alt status } } } }',
+      { id: productId },
+    );
+    expect(afterRejectedUpdateResponse.body.data.product.media.nodes).toContainEqual({
+      id: seedMediaId,
+      alt: 'Seed media',
+      status: 'READY',
+    });
+
+    const emptyDeleteResponse = await postGraphql(
+      'mutation EmptyDelete($productId: ID!, $mediaIds: [ID!]!) { productDeleteMedia(productId: $productId, mediaIds: $mediaIds) { deletedMediaIds deletedProductImageIds mediaUserErrors { field message } product { id } } }',
+      { productId, mediaIds: [] },
+    );
+    expect(emptyDeleteResponse.body.data.productDeleteMedia).toEqual({
+      deletedMediaIds: [],
+      deletedProductImageIds: [],
+      mediaUserErrors: [],
+      product: { id: productId },
+    });
+
+    const unknownProductDeleteResponse = await postGraphql(
+      'mutation UnknownProductDelete($productId: ID!, $mediaIds: [ID!]!) { productDeleteMedia(productId: $productId, mediaIds: $mediaIds) { deletedMediaIds deletedProductImageIds mediaUserErrors { field message } product { id } } }',
+      { productId: unknownProductId, mediaIds: [seedMediaId] },
+    );
+    expect(unknownProductDeleteResponse.body.data.productDeleteMedia).toEqual({
+      deletedMediaIds: null,
+      deletedProductImageIds: null,
+      mediaUserErrors: [{ field: ['productId'], message: 'Product does not exist' }],
+      product: null,
+    });
+
+    const mixedDeleteResponse = await postGraphql(
+      'mutation MixedDelete($productId: ID!, $mediaIds: [ID!]!) { productDeleteMedia(productId: $productId, mediaIds: $mediaIds) { deletedMediaIds deletedProductImageIds mediaUserErrors { field message } product { id media(first: 10) { nodes { id alt status } } } } }',
+      { productId, mediaIds: [seedMediaId, unknownMediaId] },
+    );
+    expect(mixedDeleteResponse.body.data.productDeleteMedia).toEqual({
+      deletedMediaIds: null,
+      deletedProductImageIds: null,
+      mediaUserErrors: [{ field: ['mediaIds'], message: `Media id ${unknownMediaId} does not exist` }],
+      product: {
+        id: productId,
+        media: {
+          nodes: expect.arrayContaining([
+            {
+              id: seedMediaId,
+              alt: 'Seed media',
+              status: 'READY',
+            },
+          ]),
+        },
+      },
+    });
+
+    const unknownDeleteResponse = await postGraphql(
+      'mutation UnknownDelete($productId: ID!, $mediaIds: [ID!]!) { productDeleteMedia(productId: $productId, mediaIds: $mediaIds) { deletedMediaIds deletedProductImageIds mediaUserErrors { field message } product { id media(first: 10) { nodes { id } } } } }',
+      { productId, mediaIds: [unknownMediaId] },
+    );
+    expect(unknownDeleteResponse.body.data.productDeleteMedia).toMatchObject({
+      deletedMediaIds: null,
+      deletedProductImageIds: null,
+      mediaUserErrors: [{ field: ['mediaIds'], message: `Media id ${unknownMediaId} does not exist` }],
+    });
+
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

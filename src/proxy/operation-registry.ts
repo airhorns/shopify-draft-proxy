@@ -11,6 +11,7 @@ export type CapabilityDomain =
   | 'discounts'
   | 'payments'
   | 'marketing'
+  | 'online-store'
   | 'privacy'
   | 'segments'
   | 'shipping-fulfillments'

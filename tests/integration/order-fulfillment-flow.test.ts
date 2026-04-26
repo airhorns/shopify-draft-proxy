@@ -512,6 +512,332 @@ describe('order fulfillment flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('stages fulfillment creation, events, tracking history, cancellation, and meta visibility without hitting upstream', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('fulfillment detail/event lifecycle should not hit upstream in snapshot mode');
+    });
+    const order: OrderRecord = {
+      id: 'gid://shopify/Order/fulfillment-events',
+      name: '#FULFILL-EVENTS',
+      createdAt: '2026-04-24T00:00:00.000Z',
+      updatedAt: '2026-04-24T00:00:00.000Z',
+      displayFinancialStatus: 'PAID',
+      displayFulfillmentStatus: 'UNFULFILLED',
+      note: null,
+      tags: [],
+      customAttributes: [],
+      billingAddress: null,
+      shippingAddress: null,
+      subtotalPriceSet: { shopMoney: { amount: '10.0', currencyCode: 'CAD' } },
+      currentTotalPriceSet: { shopMoney: { amount: '10.0', currencyCode: 'CAD' } },
+      totalPriceSet: { shopMoney: { amount: '10.0', currencyCode: 'CAD' } },
+      totalRefundedSet: { shopMoney: { amount: '0.0', currencyCode: 'CAD' } },
+      customer: null,
+      shippingLines: [],
+      lineItems: [
+        {
+          id: 'gid://shopify/LineItem/fulfillment-events',
+          title: 'Fulfillment event item',
+          quantity: 1,
+          sku: null,
+          variantTitle: null,
+          originalUnitPriceSet: null,
+        },
+      ],
+      fulfillments: [],
+      fulfillmentOrders: [
+        {
+          id: 'gid://shopify/FulfillmentOrder/fulfillment-events',
+          status: 'OPEN',
+          requestStatus: 'UNSUBMITTED',
+          assignedLocation: { name: 'Shop location' },
+          lineItems: [
+            {
+              id: 'gid://shopify/FulfillmentOrderLineItem/fulfillment-events',
+              lineItemId: 'gid://shopify/LineItem/fulfillment-events',
+              title: 'Fulfillment event item',
+              totalQuantity: 1,
+              remainingQuantity: 1,
+            },
+          ],
+        },
+      ],
+      transactions: [],
+      refunds: [],
+      returns: [],
+    };
+    store.upsertBaseOrders([order]);
+
+    const app = createApp(snapshotConfig).callback();
+    const createResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation FulfillmentCreate($fulfillment: FulfillmentInput!, $message: String) {
+          fulfillmentCreate(fulfillment: $fulfillment, message: $message) {
+            fulfillment {
+              id
+              status
+              displayStatus
+              trackingInfo(first: 1) { number url company }
+              events(first: 5) {
+                nodes { id status }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+              fulfillmentLineItems(first: 5) { nodes { id quantity lineItem { id title } } }
+            }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          fulfillment: {
+            notifyCustomer: false,
+            trackingInfo: {
+              number: 'HAR235-CREATE',
+              url: 'https://example.com/track/HAR235-CREATE',
+              company: 'Hermes',
+            },
+            lineItemsByFulfillmentOrder: [{ fulfillmentOrderId: 'gid://shopify/FulfillmentOrder/fulfillment-events' }],
+          },
+          message: 'HAR-235 local fulfillment create',
+        },
+      });
+
+    expect(createResponse.status).toBe(200);
+    const fulfillmentId = createResponse.body.data.fulfillmentCreate.fulfillment.id;
+    expect(createResponse.body.data.fulfillmentCreate).toMatchObject({
+      fulfillment: {
+        status: 'SUCCESS',
+        displayStatus: 'FULFILLED',
+        trackingInfo: [{ number: 'HAR235-CREATE', url: 'https://example.com/track/HAR235-CREATE', company: 'Hermes' }],
+        events: {
+          nodes: [],
+          pageInfo: {
+            hasNextPage: false,
+            hasPreviousPage: false,
+            startCursor: null,
+            endCursor: null,
+          },
+        },
+      },
+      userErrors: [],
+    });
+
+    const eventResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation FulfillmentEventCreate($fulfillmentEvent: FulfillmentEventInput!) {
+          fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) {
+            fulfillmentEvent {
+              id
+              status
+              message
+              happenedAt
+              createdAt
+              estimatedDeliveryAt
+              city
+              province
+              country
+              zip
+              address1
+              latitude
+              longitude
+            }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          fulfillmentEvent: {
+            fulfillmentId,
+            status: 'IN_TRANSIT',
+            message: 'HAR-235 package scanned in transit',
+            happenedAt: '2026-04-25T22:25:00Z',
+            estimatedDeliveryAt: '2026-04-27T18:00:00Z',
+            city: 'Toronto',
+            province: 'Ontario',
+            country: 'Canada',
+            zip: 'M5H 2M9',
+            address1: '123 Queen St W',
+            latitude: 43.6532,
+            longitude: -79.3832,
+          },
+        },
+      });
+
+    expect(eventResponse.status).toBe(200);
+    const event = eventResponse.body.data.fulfillmentEventCreate.fulfillmentEvent;
+    expect(eventResponse.body.data.fulfillmentEventCreate.userErrors).toEqual([]);
+    expect(event).toMatchObject({
+      status: 'IN_TRANSIT',
+      message: 'HAR-235 package scanned in transit',
+      happenedAt: '2026-04-25T22:25:00Z',
+      estimatedDeliveryAt: '2026-04-27T18:00:00Z',
+      city: 'Toronto',
+      province: 'Ontario',
+      country: 'Canada',
+      zip: 'M5H 2M9',
+      address1: '123 Queen St W',
+      latitude: 43.6532,
+      longitude: -79.3832,
+    });
+
+    const detailResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query FulfillmentDetail($orderId: ID!, $fulfillmentId: ID!) {
+          fulfillment(id: $fulfillmentId) {
+            id
+            status
+            displayStatus
+            deliveredAt
+            estimatedDeliveryAt
+            inTransitAt
+            trackingInfo(first: 1) { number url company }
+            events(first: 5) {
+              nodes { id status message happenedAt createdAt estimatedDeliveryAt city province country zip address1 latitude longitude }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          order(id: $orderId) {
+            id
+            displayFulfillmentStatus
+            fulfillments(first: 5) {
+              id
+              status
+              displayStatus
+              deliveredAt
+              estimatedDeliveryAt
+              inTransitAt
+              trackingInfo(first: 1) { number url company }
+              events(first: 5) {
+                nodes { id status message happenedAt createdAt estimatedDeliveryAt city province country zip address1 latitude longitude }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+          }
+        }`,
+        variables: { orderId: order.id, fulfillmentId },
+      });
+
+    expect(detailResponse.status).toBe(200);
+    expect(detailResponse.body.data.fulfillment).toEqual(detailResponse.body.data.order.fulfillments[0]);
+    expect(detailResponse.body.data.fulfillment).toMatchObject({
+      id: fulfillmentId,
+      status: 'SUCCESS',
+      displayStatus: 'IN_TRANSIT',
+      deliveredAt: null,
+      estimatedDeliveryAt: '2026-04-27T18:00:00Z',
+      inTransitAt: '2026-04-25T22:25:00Z',
+      trackingInfo: [{ number: 'HAR235-CREATE', url: 'https://example.com/track/HAR235-CREATE', company: 'Hermes' }],
+      events: {
+        nodes: [event],
+        pageInfo: {
+          hasNextPage: false,
+          hasPreviousPage: false,
+          startCursor: `cursor:${event.id}`,
+          endCursor: `cursor:${event.id}`,
+        },
+      },
+    });
+
+    const trackingResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation FulfillmentTrackingInfoUpdate($fulfillmentId: ID!, $trackingInfoInput: FulfillmentTrackingInput!, $notifyCustomer: Boolean) {
+          fulfillmentTrackingInfoUpdate(fulfillmentId: $fulfillmentId, trackingInfoInput: $trackingInfoInput, notifyCustomer: $notifyCustomer) {
+            fulfillment {
+              id
+              displayStatus
+              trackingInfo(first: 1) { number url company }
+              events(first: 5) { nodes { id status message happenedAt } }
+            }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          fulfillmentId,
+          notifyCustomer: false,
+          trackingInfoInput: {
+            number: 'HAR235-UPDATED',
+            url: 'https://example.com/track/HAR235-UPDATED',
+            company: 'Hermes Updated',
+          },
+        },
+      });
+
+    expect(trackingResponse.status).toBe(200);
+    expect(trackingResponse.body.data.fulfillmentTrackingInfoUpdate).toMatchObject({
+      fulfillment: {
+        id: fulfillmentId,
+        displayStatus: 'IN_TRANSIT',
+        trackingInfo: [
+          { number: 'HAR235-UPDATED', url: 'https://example.com/track/HAR235-UPDATED', company: 'Hermes Updated' },
+        ],
+        events: {
+          nodes: [{ id: event.id, status: 'IN_TRANSIT', message: 'HAR-235 package scanned in transit' }],
+        },
+      },
+      userErrors: [],
+    });
+
+    const cancelResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation FulfillmentCancel($id: ID!) {
+          fulfillmentCancel(id: $id) {
+            fulfillment {
+              id
+              status
+              displayStatus
+              trackingInfo(first: 1) { number url company }
+              events(first: 5) { nodes { id status message happenedAt } }
+            }
+            userErrors { field message }
+          }
+        }`,
+        variables: { id: fulfillmentId },
+      });
+
+    expect(cancelResponse.status).toBe(200);
+    expect(cancelResponse.body.data.fulfillmentCancel).toMatchObject({
+      fulfillment: {
+        id: fulfillmentId,
+        status: 'CANCELLED',
+        displayStatus: 'CANCELED',
+        trackingInfo: [
+          { number: 'HAR235-UPDATED', url: 'https://example.com/track/HAR235-UPDATED', company: 'Hermes Updated' },
+        ],
+        events: {
+          nodes: [{ id: event.id, status: 'IN_TRANSIT', message: 'HAR-235 package scanned in transit' }],
+        },
+      },
+      userErrors: [],
+    });
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(
+      logResponse.body.entries.map(
+        (entry: { interpreted: { primaryRootField: string } }) => entry.interpreted.primaryRootField,
+      ),
+    ).toEqual(['fulfillmentCreate', 'fulfillmentEventCreate', 'fulfillmentTrackingInfoUpdate', 'fulfillmentCancel']);
+    const stateResponse = await request(app).get('/__meta/state');
+    const stagedFulfillment = stateResponse.body.stagedState.orders[order.id].fulfillments.find(
+      (candidate: { id: string }) => candidate.id === fulfillmentId,
+    );
+    expect(stagedFulfillment.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: event.id,
+          status: 'IN_TRANSIT',
+          message: 'HAR-235 package scanned in transit',
+        }),
+      ]),
+    );
+    expect(stagedFulfillment.trackingInfo).toEqual([
+      { number: 'HAR235-UPDATED', url: 'https://example.com/track/HAR235-UPDATED', company: 'Hermes Updated' },
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('mirrors the captured fulfillmentCreate invalid-fulfillment-order error in snapshot mode without hitting upstream', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('fulfillmentCreate should not hit upstream in snapshot mode');
