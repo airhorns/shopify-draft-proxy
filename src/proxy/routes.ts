@@ -223,11 +223,7 @@ function hasOwnKey(value: unknown, key: string): value is Record<string, unknown
 }
 
 function hasSelectedUserErrors(payload: unknown): boolean {
-  return (
-    hasOwnKey(payload, 'userErrors') &&
-    Array.isArray(payload['userErrors']) &&
-    payload['userErrors'].length > 0
-  );
+  return hasOwnKey(payload, 'userErrors') && Array.isArray(payload['userErrors']) && payload['userErrors'].length > 0;
 }
 
 function isRejectedCreateMutationResponse(rootField: string | null | undefined, responseBody: unknown): boolean {
@@ -235,11 +231,7 @@ function isRejectedCreateMutationResponse(rootField: string | null | undefined, 
     return false;
   }
 
-  if (
-    hasOwnKey(responseBody, 'errors') &&
-    Array.isArray(responseBody['errors']) &&
-    responseBody['errors'].length > 0
-  ) {
+  if (hasOwnKey(responseBody, 'errors') && Array.isArray(responseBody['errors']) && responseBody['errors'].length > 0) {
     return true;
   }
 

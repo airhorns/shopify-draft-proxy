@@ -4483,17 +4483,9 @@ function readOrderUpdateInput(variables: Record<string, unknown>): Record<string
   return typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {};
 }
 
-function readOrderCreateInput(variables: Record<string, unknown>): unknown {
-  return variables['order'] ?? null;
-}
-
 function readOrderCreateOptions(variables: Record<string, unknown>): Record<string, unknown> {
   const options = variables['options'];
   return typeof options === 'object' && options !== null ? (options as Record<string, unknown>) : {};
-}
-
-function readDraftOrderCreateInput(variables: Record<string, unknown>): unknown {
-  return variables['input'] ?? null;
 }
 
 function readDraftOrderCompleteId(variables: Record<string, unknown>): string | null {
