@@ -35,3 +35,13 @@ Shared helpers for owner-scoped metafield serializers and staging input handling
 - `mergeMetafieldRecords(existing, next)` merges hydrated singular and connection metafields by `(namespace, key)` when upstream payloads provide both shapes.
 
 Use this module before adding product-, customer-, or order-local metafield serializer/upsert helpers. Owner-specific validation, store placement, and captured Shopify quirks should remain in the resource module that owns them.
+
+## `src/shopify/upstream-request.ts`
+
+Shared higher-level helpers for forwarding Admin GraphQL requests to upstream Shopify from Koa routes.
+
+- `buildForwardedGraphQLHeaders(ctx)` copies forwardable inbound request headers into the Shopify request, omitting hop-by-hop/framing headers such as `host`, `connection`, `transfer-encoding`, and `content-length`, forcing `content-type: application/json` for the serialized GraphQL body, and setting a proxy-specific `user-agent`.
+- `buildShopifyDraftProxyUserAgent(incomingUserAgent)` returns `shopify-draft-proxy` when no incoming user agent exists, or `shopify-draft-proxy (wrapping <incoming>)` when the client supplied one.
+- `requestUpstreamGraphQL(upstream, ctx, input)` sends a GraphQL request through an `UpstreamGraphQLClient` using the forwarded header policy, the current route path by default, and an explicit body. Pass `path` for replay paths such as `__meta/commit`.
+
+Use this module when a runtime route needs to forward a GraphQL operation to Shopify. Local staging branches should still synthesize responses without runtime Shopify writes; this helper is only for read-through, unsupported passthrough, and explicit commit replay paths.
