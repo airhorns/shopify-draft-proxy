@@ -66,7 +66,8 @@
     "conformance:capture-discount-validation": "tsx ./scripts/capture-discount-validation-conformance.ts",
     "conformance:capture-order-refunds": "tsx ./scripts/capture-order-refund-conformance.mts",
     "conformance:capture-delivery-profiles": "tsx ./scripts/capture-delivery-profile-conformance.ts",
-    "conformance:capture-webhook-subscriptions": "SHOPIFY_CONFORMANCE_API_VERSION=2026-04 tsx ./scripts/capture-webhook-subscription-conformance.ts"
+    "conformance:capture-webhook-subscriptions": "SHOPIFY_CONFORMANCE_API_VERSION=2026-04 tsx ./scripts/capture-webhook-subscription-conformance.ts",
+    "conformance:capture-gift-cards": "tsx ./scripts/capture-gift-card-conformance.ts"
   },
   "dependencies": {
     "@koa/router": "^15.4.0",

@@ -1,0 +1,534 @@
+{
+  "capturedAt": "2026-04-26T02:02:36.923Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": [
+    "HAR-310 captures gift-card schema/access, read/config/count behavior, and lifecycle payloads when the active conformance credential permits them.",
+    "Notification roots are intentionally not executed by this capture script because they are customer-visible side effects."
+  ],
+  "notificationRoots": {
+    "giftCardSendNotificationToCustomer": {
+      "executed": false,
+      "reason": "customer-visible notification side effect"
+    },
+    "giftCardSendNotificationToRecipient": {
+      "executed": false,
+      "reason": "customer-visible notification side effect"
+    }
+  },
+  "schemaAndAccess": {
+    "label": "schemaAndAccess",
+    "query": "#graphql\n    query GiftCardSchemaAndAccess {\n      currentAppInstallation {\n        accessScopes {\n          handle\n        }\n      }\n      giftCard: __type(name: \"GiftCard\") {\n        fields {\n          name\n        }\n      }\n      giftCardCreateInput: __type(name: \"GiftCardCreateInput\") {\n        inputFields {\n          name\n        }\n      }\n      giftCardCreditInput: __type(name: \"GiftCardCreditInput\") {\n        inputFields {\n          name\n        }\n      }\n      giftCardDebitInput: __type(name: \"GiftCardDebitInput\") {\n        inputFields {\n          name\n        }\n      }\n      giftCardCreditPayload: __type(name: \"GiftCardCreditPayload\") {\n        fields {\n          name\n        }\n      }\n      giftCardDebitPayload: __type(name: \"GiftCardDebitPayload\") {\n        fields {\n          name\n        }\n      }\n      giftCardConfiguration: __type(name: \"GiftCardConfiguration\") {\n        fields {\n          name\n          type {\n            kind\n            name\n            ofType {\n              kind\n              name\n            }\n          }\n        }\n      }\n    }\n  ",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "currentAppInstallation": {
+            "accessScopes": [
+              {
+                "handle": "read_assigned_fulfillment_orders"
+              },
+              {
+                "handle": "read_cash_tracking"
+              },
+              {
+                "handle": "read_content"
+              },
+              {
+                "handle": "read_customer_merge"
+              },
+              {
+                "handle": "read_customers"
+              },
+              {
+                "handle": "read_discounts"
+              },
+              {
+                "handle": "read_draft_orders"
+              },
+              {
+                "handle": "read_files"
+              },
+              {
+                "handle": "read_fulfillments"
+              },
+              {
+                "handle": "read_inventory"
+              },
+              {
+                "handle": "read_legal_policies"
+              },
+              {
+                "handle": "read_locales"
+              },
+              {
+                "handle": "read_locations"
+              },
+              {
+                "handle": "read_marketing_events"
+              },
+              {
+                "handle": "read_markets"
+              },
+              {
+                "handle": "read_merchant_managed_fulfillment_orders"
+              },
+              {
+                "handle": "read_metaobject_definitions"
+              },
+              {
+                "handle": "read_metaobjects"
+              },
+              {
+                "handle": "read_order_edits"
+              },
+              {
+                "handle": "read_orders"
+              },
+              {
+                "handle": "read_payment_customizations"
+              },
+              {
+                "handle": "read_payment_terms"
+              },
+              {
+                "handle": "read_privacy_settings"
+              },
+              {
+                "handle": "read_product_listings"
+              },
+              {
+                "handle": "read_products"
+              },
+              {
+                "handle": "read_publications"
+              },
+              {
+                "handle": "read_returns"
+              },
+              {
+                "handle": "read_shipping"
+              },
+              {
+                "handle": "read_shopify_payments_disputes"
+              },
+              {
+                "handle": "read_shopify_payments_payouts"
+              },
+              {
+                "handle": "read_store_credit_account_transactions"
+              },
+              {
+                "handle": "read_store_credit_accounts"
+              },
+              {
+                "handle": "read_themes"
+              },
+              {
+                "handle": "read_third_party_fulfillment_orders"
+              },
+              {
+                "handle": "read_translations"
+              },
+              {
+                "handle": "write_assigned_fulfillment_orders"
+              },
+              {
+                "handle": "write_content"
+              },
+              {
+                "handle": "write_customer_merge"
+              },
+              {
+                "handle": "write_customers"
+              },
+              {
+                "handle": "write_discounts"
+              },
+              {
+                "handle": "write_draft_orders"
+              },
+              {
+                "handle": "write_files"
+              },
+              {
+                "handle": "write_fulfillments"
+              },
+              {
+                "handle": "write_inventory"
+              },
+              {
+                "handle": "write_legal_policies"
+              },
+              {
+                "handle": "write_locales"
+              },
+              {
+                "handle": "write_locations"
+              },
+              {
+                "handle": "write_marketing_events"
+              },
+              {
+                "handle": "write_markets"
+              },
+              {
+                "handle": "write_merchant_managed_fulfillment_orders"
+              },
+              {
+                "handle": "write_metaobject_definitions"
+              },
+              {
+                "handle": "write_metaobjects"
+              },
+              {
+                "handle": "write_order_edits"
+              },
+              {
+                "handle": "write_orders"
+              },
+              {
+                "handle": "write_payment_customizations"
+              },
+              {
+                "handle": "write_payment_terms"
+              },
+              {
+                "handle": "write_privacy_settings"
+              },
+              {
+                "handle": "write_products"
+              },
+              {
+                "handle": "write_publications"
+              },
+              {
+                "handle": "write_returns"
+              },
+              {
+                "handle": "write_shipping"
+              },
+              {
+                "handle": "write_store_credit_account_transactions"
+              },
+              {
+                "handle": "write_third_party_fulfillment_orders"
+              },
+              {
+                "handle": "write_translations"
+              }
+            ]
+          },
+          "giftCard": {
+            "fields": [
+              {
+                "name": "balance"
+              },
+              {
+                "name": "createdAt"
+              },
+              {
+                "name": "customer"
+              },
+              {
+                "name": "deactivatedAt"
+              },
+              {
+                "name": "enabled"
+              },
+              {
+                "name": "expiresOn"
+              },
+              {
+                "name": "id"
+              },
+              {
+                "name": "initialValue"
+              },
+              {
+                "name": "lastCharacters"
+              },
+              {
+                "name": "maskedCode"
+              },
+              {
+                "name": "note"
+              },
+              {
+                "name": "order"
+              },
+              {
+                "name": "recipientAttributes"
+              },
+              {
+                "name": "templateSuffix"
+              },
+              {
+                "name": "transactions"
+              },
+              {
+                "name": "updatedAt"
+              }
+            ]
+          },
+          "giftCardCreateInput": {
+            "inputFields": [
+              {
+                "name": "initialValue"
+              },
+              {
+                "name": "code"
+              },
+              {
+                "name": "customerId"
+              },
+              {
+                "name": "expiresOn"
+              },
+              {
+                "name": "note"
+              },
+              {
+                "name": "recipientAttributes"
+              },
+              {
+                "name": "templateSuffix"
+              }
+            ]
+          },
+          "giftCardCreditInput": {
+            "inputFields": [
+              {
+                "name": "creditAmount"
+              },
+              {
+                "name": "note"
+              },
+              {
+                "name": "processedAt"
+              }
+            ]
+          },
+          "giftCardDebitInput": {
+            "inputFields": [
+              {
+                "name": "debitAmount"
+              },
+              {
+                "name": "note"
+              },
+              {
+                "name": "processedAt"
+              }
+            ]
+          },
+          "giftCardCreditPayload": {
+            "fields": [
+              {
+                "name": "giftCardCreditTransaction"
+              },
+              {
+                "name": "userErrors"
+              }
+            ]
+          },
+          "giftCardDebitPayload": {
+            "fields": [
+              {
+                "name": "giftCardDebitTransaction"
+              },
+              {
+                "name": "userErrors"
+              }
+            ]
+          },
+          "giftCardConfiguration": {
+            "fields": [
+              {
+                "name": "issueLimit",
+                "type": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "OBJECT",
+                    "name": "MoneyV2"
+                  }
+                }
+              },
+              {
+                "name": "purchaseLimit",
+                "type": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "OBJECT",
+                    "name": "MoneyV2"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "emptyRead": {
+    "label": "emptyRead",
+    "query": "#graphql\n    query GiftCardEmptyRead($unknownId: ID!) {\n      giftCard(id: $unknownId) {\n        id\n      }\n      giftCards(first: 2, sortKey: ID) {\n        nodes {\n          id\n          lastCharacters\n        }\n        edges {\n          cursor\n          node {\n            id\n          }\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n      giftCardsCount {\n        count\n        precision\n      }\n      giftCardConfiguration {\n        issueLimit {\n          amount\n          currencyCode\n        }\n        purchaseLimit {\n          amount\n          currencyCode\n        }\n      }\n    }\n  ",
+    "variables": {
+      "unknownId": "gid://shopify/GiftCard/999999999999"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "errors": [
+          {
+            "message": "Access denied for giftCard field. Required access: `read_gift_cards` access scope.",
+            "locations": [
+              {
+                "line": 3,
+                "column": 7
+              }
+            ],
+            "extensions": {
+              "code": "ACCESS_DENIED",
+              "documentation": "https://shopify.dev/api/usage/access-scopes",
+              "requiredAccess": "`read_gift_cards` access scope."
+            },
+            "path": ["giftCard"]
+          },
+          {
+            "message": "Access denied for giftCards field. Required access: `read_gift_cards` access scope.",
+            "locations": [
+              {
+                "line": 6,
+                "column": 7
+              }
+            ],
+            "extensions": {
+              "code": "ACCESS_DENIED",
+              "documentation": "https://shopify.dev/api/usage/access-scopes",
+              "requiredAccess": "`read_gift_cards` access scope."
+            },
+            "path": ["giftCards"]
+          }
+        ],
+        "data": null,
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 14,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1983,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "configurationRead": {
+    "label": "configurationRead",
+    "query": "#graphql\n    query GiftCardConfigurationRead {\n      giftCardConfiguration {\n        issueLimit {\n          amount\n          currencyCode\n        }\n        purchaseLimit {\n          amount\n          currencyCode\n        }\n      }\n    }\n  ",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "payload": {
+        "errors": [
+          {
+            "message": "Access denied for giftCardConfiguration field. Required access: `read_gift_cards` access scope.",
+            "locations": [
+              {
+                "line": 3,
+                "column": 7
+              }
+            ],
+            "extensions": {
+              "code": "ACCESS_DENIED",
+              "documentation": "https://shopify.dev/api/usage/access-scopes",
+              "requiredAccess": "`read_gift_cards` access scope."
+            },
+            "path": ["giftCardConfiguration"]
+          }
+        ],
+        "data": null,
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1994,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "create": {
+    "label": "create",
+    "query": "#graphql\n    mutation GiftCardCreate($input: GiftCardCreateInput!) {\n      giftCardCreate(input: $input) {\n        giftCard {\n          #graphql\n  id\n  lastCharacters\n  maskedCode\n  enabled\n  deactivatedAt\n  expiresOn\n  note\n  templateSuffix\n  createdAt\n  updatedAt\n  initialValue {\n    amount\n    currencyCode\n  }\n  balance {\n    amount\n    currencyCode\n  }\n\n        }\n        giftCardCode\n        userErrors {\n          field\n          message\n        }\n      }\n    }\n  ",
+    "variables": {
+      "input": {
+        "initialValue": "5.00",
+        "code": "HAR3101777168956830",
+        "note": "HAR-310 conformance gift card",
+        "expiresOn": "2027-04-26"
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "errors": [
+          {
+            "message": "Access denied for giftCardCreate field. Required access: `write_gift_cards` access scope.",
+            "locations": [
+              {
+                "line": 3,
+                "column": 7
+              }
+            ],
+            "extensions": {
+              "code": "ACCESS_DENIED",
+              "documentation": "https://shopify.dev/api/usage/access-scopes",
+              "requiredAccess": "`write_gift_cards` access scope."
+            },
+            "path": ["giftCardCreate"]
+          }
+        ],
+        "data": {
+          "giftCardCreate": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "lifecycle": [],
+  "lifecycleBlocked": {
+    "reason": "giftCardCreate did not return a giftCard.id; see create response for access or validation payload."
+  }
+}

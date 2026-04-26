@@ -15,6 +15,7 @@ export type CapabilityDomain =
   | 'privacy'
   | 'segments'
   | 'shipping-fulfillments'
+  | 'gift-cards'
   | 'webhooks'
   | 'markets'
   | 'metafields'

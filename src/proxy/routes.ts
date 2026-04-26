@@ -15,6 +15,7 @@ import { handleMarketingQuery, hydrateMarketingFromUpstreamResponse } from './ma
 import { handleCustomerMutation, handleCustomerQuery, hydrateCustomersFromUpstreamResponse } from './customers.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from './delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from './discounts.js';
+import { handleGiftCardMutation, handleGiftCardQuery } from './gift-cards.js';
 import { handleMarketMutation, handleMarketsQuery, hydrateMarketsFromUpstreamResponse } from './markets.js';
 import { handleOrderMutation, handleOrderQuery, shouldServeDraftOrderCatalogLocally } from './orders.js';
 import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamResponse } from './products.js';
@@ -634,6 +635,32 @@ export function createProxyRouter(config: AppConfig): Router {
       return;
     }
 
+    if (capability.execution === 'stage-locally' && capability.domain === 'gift-cards') {
+      const responseBody = handleGiftCardMutation(body.query, variables);
+
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: ctx.path,
+        query: body.query,
+        variables,
+        requestBody,
+        stagedResourceIds: collectProxySyntheticGids(responseBody),
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        notes:
+          primaryRootField === 'giftCardSendNotificationToCustomer' ||
+          primaryRootField === 'giftCardSendNotificationToRecipient'
+            ? 'Short-circuited locally in the in-memory gift-card draft store; no customer-visible notification is sent at runtime.'
+            : 'Staged locally in the in-memory gift-card draft store.',
+      });
+
+      ctx.status = 200;
+      ctx.body = responseBody;
+      return;
+    }
+
     if (
       capability.execution === 'stage-locally' &&
       capability.domain === 'webhooks' &&
@@ -1117,6 +1144,31 @@ export function createProxyRouter(config: AppConfig): Router {
         ctx.body =
           store.hasWebhookSubscriptions() || store.hasStagedWebhookSubscriptions()
             ? handleWebhookSubscriptionQuery(body.query, variables)
+            : upstreamBody;
+        return;
+      }
+    }
+
+    if (capability.execution === 'overlay-read' && capability.domain === 'gift-cards') {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleGiftCardQuery(body.query, variables);
+        return;
+      }
+
+      if (config.readMode === 'live-hybrid') {
+        const response = await requestUpstreamGraphQL(upstream, ctx, {
+          body: {
+            query: body.query,
+            variables,
+          },
+        });
+
+        const upstreamBody = await response.json();
+        ctx.status = response.status;
+        ctx.body =
+          store.hasGiftCards() || store.hasStagedGiftCards()
+            ? handleGiftCardQuery(body.query, variables)
             : upstreamBody;
         return;
       }
