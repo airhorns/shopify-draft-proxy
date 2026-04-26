@@ -1,0 +1,160 @@
+query FulfillmentDetailEventsRead($orderId: ID!, $fulfillmentId: ID!) {
+  fulfillment(id: $fulfillmentId) {
+    id
+    status
+    displayStatus
+    createdAt
+    updatedAt
+    deliveredAt
+    estimatedDeliveryAt
+    inTransitAt
+    trackingInfo(first: 1) {
+      number
+      url
+      company
+    }
+    events(first: 5) {
+      nodes {
+        id
+        status
+        message
+        happenedAt
+        createdAt
+        estimatedDeliveryAt
+        city
+        province
+        country
+        zip
+        address1
+        latitude
+        longitude
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    service {
+      id
+      handle
+      serviceName
+      trackingSupport
+      type
+      location {
+        id
+        name
+      }
+    }
+    location {
+      id
+      name
+    }
+    originAddress {
+      address1
+      address2
+      city
+      countryCode
+      provinceCode
+      zip
+    }
+    fulfillmentLineItems(first: 5) {
+      nodes {
+        id
+        quantity
+        lineItem {
+          id
+          title
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+  order(id: $orderId) {
+    id
+    displayFulfillmentStatus
+    fulfillments(first: 5) {
+      id
+      status
+      displayStatus
+      createdAt
+      updatedAt
+      deliveredAt
+      estimatedDeliveryAt
+      inTransitAt
+      trackingInfo(first: 1) {
+        number
+        url
+        company
+      }
+      events(first: 5) {
+        nodes {
+          id
+          status
+          message
+          happenedAt
+          createdAt
+          estimatedDeliveryAt
+          city
+          province
+          country
+          zip
+          address1
+          latitude
+          longitude
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+      service {
+        id
+        handle
+        serviceName
+        trackingSupport
+        type
+        location {
+          id
+          name
+        }
+      }
+      location {
+        id
+        name
+      }
+      originAddress {
+        address1
+        address2
+        city
+        countryCode
+        provinceCode
+        zip
+      }
+      fulfillmentLineItems(first: 5) {
+        nodes {
+          id
+          quantity
+          lineItem {
+            id
+            title
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+  }
+}

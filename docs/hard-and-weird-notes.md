@@ -81,6 +81,13 @@ The current live-backed slice on this host now shows:
 - explicit colliding handles do **not** auto-rewrite silently
   - `productCreate` returns `product: null` plus `userErrors[{ field: ['input', 'handle'], message: "Handle '<handle>' already in use. Please provide a new handle." }]`
   - `productUpdate` and synchronous `productSet` return the unchanged existing product payload plus that same `['input', 'handle']` userError
+- a follow-up HAR-22 live probe found no product-handle reserved word rejection for common storefront/admin-looking handles including `admin`, `products`, `collections`, `cart`, `checkout`, and `new`
+  - those explicit handles were accepted as-is on `productCreate` when no product already owned the handle
+- explicit Unicode handles are not collapsed to the ASCII fallback path
+  - live `productCreate(handle: "東京")` and `productUpdate(handle: "大阪")` preserved those handles
+- explicit handles longer than 255 characters are rejected
+  - `productCreate` returns `product: null` plus `userErrors[{ field: ['handle'], message: 'Handle is too long (maximum is 255 characters)' }]`
+  - `productUpdate` returns the unchanged product payload plus the same `['handle']` userError
 - a title-only `productUpdate` against a product that already has an explicit handle keeps that current handle stable
   - on this host, updating the title of a product created with `handle: title-only-handle-probe-<runId>` returned the new title but preserved the same handle
   - practical consequence: do not regenerate handles from title-only updates once a product already has a concrete handle unless a broader live capture proves Shopify does something more specific for other edge cases
@@ -88,21 +95,11 @@ The current live-backed slice on this host now shows:
 Practical rule:
 
 - run explicit merchant-supplied handles through the same slug-normalization path before uniqueness checks; otherwise local create/update/productSet behavior drifts immediately from the live store
+- preserve Unicode letters/numbers during explicit handle normalization; do not treat non-ASCII handles as punctuation-only fallback input
 - keep explicit-handle collision handling separate from auto-generated-handle de-duplication after normalization
 - do not "fix" explicit collisions by silently inventing a new handle locally; Shopify surfaced a userError instead
 - when the source slug already ends in digits, de-duplication should increment that numeric tail instead of blindly appending another `-1`
 - keep title-only updates handle-stable in the first local parity slice rather than re-slugifying the new title
-
-What is still missing:
-
-- reserved/invalid handles
-- interaction with broader normalization quirks outside the captured collision cases
-
-Practical rule:
-
-- keep explicit-handle collision handling separate from auto-generated-handle de-duplication
-- do not "fix" explicit collisions by silently inventing a new handle locally; Shopify surfaced a userError instead
-- when the source slug already ends in digits, de-duplication should increment that numeric tail instead of blindly appending another `-1`
 
 ## 6. Product update semantics are under-modeled
 
@@ -200,6 +197,13 @@ Current live findings on this host:
   - `draftOrderDuplicate` creates a new open, ready draft, allocates a new name/invoice URL/line-item IDs, copies customer/email/tags/custom attributes/addresses, but clears reserve inventory, shipping line, tax exemption, and discounts; totals recalculate from the undiscounted copied line items
   - `draftOrderDelete` returns the deleted draft ID and downstream `draftOrder(id:)` returns `null`
   - `draftOrderCreateFromOrder` can use an order produced by a setup `draftOrderComplete` flow and mirrors the duplicate-like clearing behavior for discounts/shipping while preserving the merchant-facing draft/order customer context
+- HAR-275 captured the `draftOrderInvoiceSend` safety slice on `harry-test-heelo.myshopify.com` / Admin GraphQL 2026-04 without sending a customer-visible invoice email:
+  - missing required variable still returns the normal GraphQL `INVALID_VARIABLE` path before resolver side effects
+  - omitted or inline-null `id` arguments fail at GraphQL validation before resolver side effects
+  - unknown and deleted draft IDs return `draftOrder: null` with `field: null`, `message: "Draft order not found"`
+  - an open draft with no recipient email returns the selected draft plus `field: null`, `message: "To can't be blank"`
+  - a completed draft with no recipient email returns the selected completed draft plus two userErrors: `"To can't be blank"` and `"Draft order Invoice can't be sent. This draft order is already paid."`
+  - this capture does not prove the success path should be emulated locally as delivered mail; local runtime must keep staging the raw mutation only and must not send email until explicit commit replay
 - easy schema/request traps from promoting those scenarios:
   - `DraftOrder.note` is not selectable on the current Admin GraphQL schema for these payloads, even though draft-order inputs can carry note-like data through local state
   - `DraftOrderInput.shippingLine` does not accept a `code` field; live updates accepted title and price fields, and Shopify returned `code: "custom"` on the resulting `shippingLine`
@@ -2147,11 +2151,12 @@ Captured evidence:
 
 Current local classification:
 
-- empty/no-data only: `addresses`, `addressesV2`, `companyContactProfiles`, `events`, `orders`, `lastOrder`, `paymentMethods`, `storeCreditAccounts`, and `subscriptionContracts`
+- empty/no-data only: `companyContactProfiles`, `events`, `orders`, `lastOrder`, `storeCreditAccounts`, and customer-level `subscriptionContracts`
 - customer-metafield local replay: singular `metafield(namespace:, key:)` and the `metafields` connection are backed by the customer-owned metafield model added for `customerUpdate`
 - hydrate-and-replay candidate: captured nested `addresses` / `addressesV2`, `orders` / `lastOrder`, `events`, and non-empty metafield shapes, but broad non-empty replay still requires normalized state for each sub-resource family
 - staged-overlay capable later: customer-owned addresses once their mutation roots are staged locally
-- deferred: store credit accounts, payment methods, subscription contracts, customer statistics, mergeability, and product subscriber status until captured fixture evidence settles access, empty-state, and non-empty shapes
+- seeded/local replay: `customerPaymentMethod(id:, showRevoked:)` and `Customer.paymentMethods(showRevoked:)` now serialize from normalized `customerPaymentMethods` state, including instrument union fragments, revoked filtering, and payment-method-owned `subscriptionContracts` links
+- deferred: store credit accounts, customer-level subscription contracts, customer statistics, mergeability, and product subscriber status until captured fixture evidence settles access, empty-state, and non-empty shapes
 
 Practical rule for the proxy:
 
@@ -2355,6 +2360,7 @@ Observed current-version surface:
 - the current store returned an empty `paymentCustomizations` connection, an empty `tenderTransactions` connection, an empty Shop Pay receipt connection, and the standard payment-terms template catalog
 - `shopifyPaymentsAccount` still returns field-level `ACCESS_DENIED`; Shopify requires `read_shopify_payments` or `read_shopify_payments_accounts`, and the refreshed app scopes only include dispute/payout sub-scopes
 - `customerPaymentMethod(id:)` still returns field-level `ACCESS_DENIED`; Shopify requires `read_customers` plus `read_customer_payment_methods`, and the refreshed app scopes still lack `read_customer_payment_methods`
+- local seeded-state reads are safe to model without vaulting because they only serialize already-captured or hand-seeded normalized state. Revoked payment methods must stay hidden from root and customer-owned lookups unless `showRevoked: true` is supplied.
 - HAR-220 re-ran the direct `shopifyPaymentsAccount` probe with the configured `harry-test-heelo.myshopify.com` 2025-01 credential on 2026-04-25. It still returned `shopifyPaymentsAccount: null` with `ACCESS_DENIED`, so the checked-in parity scenario compares only the null data branch while targeted runtime tests cover fixture-backed safe scalar and empty connection behavior.
 
 Capture prerequisites and safety constraints:
@@ -2368,7 +2374,10 @@ Capture prerequisites and safety constraints:
   - create with `functionId: gid://shopify/ShopifyFunction/0` returns `FUNCTION_NOT_FOUND` under `['paymentCustomization', 'functionId']` and mentions the installed app id `347082227713`
   - update/delete unknown `gid://shopify/PaymentCustomization/0` return `PAYMENT_CUSTOMIZATION_NOT_FOUND` under `['id']`; activation unknown ids return the same code under `['ids']` with an empty `ids` payload
   - activation with an empty `ids` list returns `ids: []` and no user errors
-- customer payment method reads remain blocked on `read_customer_payment_methods` even though `read_customers` is present; writes require `write_customers` plus `write_customer_payment_methods` and must use isolated test customers/payment methods because card sessions, duplication data, update URLs, revocation, and remote gateway identifiers are sensitive
+- customer payment method live captures remain blocked on `read_customer_payment_methods` even though `read_customers` is present; seeded-state reads are safe to model without vaulting because they only serialize already-captured or hand-seeded normalized state
+- customer payment method writes require `write_customers` plus `write_customer_payment_methods` and must use isolated test customers/payment methods because card sessions, duplication data, update URLs, revocation, and remote gateway identifiers are sensitive
+- customer payment method credit-card/PayPal create and update roots can eventually be staged locally only after isolated fixture evidence settles instrument payloads and read-after-write behavior. Remote create also needs polling/asynchronous status evidence through `customerPaymentMethod`. Duplication data and update URLs must be treated as sensitive ephemeral payment material. Revoke is destructive for recurring billing flows, and update-email is customer-visible mail, so both stay unsupported until a safe no-recipient or disposable-method plan exists.
+- Revoked payment methods must stay hidden from root and customer-owned lookups unless `showRevoked: true` is supplied. `customerPaymentMethodSendUpdateEmail` is locally buffered when the payment method exists in the local customer-payment graph; the runtime must not deliver customer email upstream outside explicit commit replay.
 - order payment captures and voids require order write scopes plus merchant permissions (`capture_payments_for_orders` for capture and cancel-order permission for void) and an isolated authorized transaction because successful paths capture or void real payment authorization
 - mandate payment requires `write_payment_mandate`, `pay_orders_by_vaulted_card` permission, mandate-backed schedule data, idempotency-key coverage, and Shopify Plus coverage for amount-specific branches
 - payment terms template reads are currently capture-ready; payment terms writes have `write_payment_terms` on the app manifest but still require order or draft-order access and an isolated order/payment schedule because they change due dates and payment status
@@ -2494,3 +2503,20 @@ Practical rule:
 
 - do not mark broad discount bulk roots implemented until local staging covers the full selected lifecycle and downstream read effects without runtime Shopify writes
 - preserve raw bulk mutation bodies in the staged log so `__meta/commit` replays the original add/delete order exactly once
+
+## 66. `productSet` inventory quantities are location rows, but product totals lag
+
+HAR-286 refreshed `productSet` live parity on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com` with two active locations.
+
+Captured facts:
+
+- live `ProductSetInput.variants[].inventoryQuantities[]` entries require `locationId`, `name`, and `quantity`; the captured writable name is `available`
+- a single productSet-created variant can carry multiple location rows, and each row is exposed immediately through nested `inventoryItem.inventoryLevels`
+- `available` rows are mirrored into `on_hand` rows with the same quantity, while `incoming` remained `0`
+- `productVariant.inventoryQuantity` is the aggregate available quantity across the variant's captured inventory levels
+- product-level `totalInventory` did not simply sum every variant: on create it counted the tracked variant and excluded the untracked variant, and after a follow-up `productSet` inventory update it stayed at the prior product aggregate even though the variant and inventory-item quantities changed immediately
+
+Practical rule:
+
+- model `productSet` inventory inputs as inventory item location-level rows, then derive variant `inventoryQuantity` from those rows
+- do not use the generic eager product inventory-summary recomputation path for `productSet`; preserve the captured create/update product total behavior until fresher evidence shows Shopify has changed it
