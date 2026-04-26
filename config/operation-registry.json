@@ -275,6 +275,36 @@
     "runtimeTests": ["tests/integration/customer-query-shapes.test.ts"]
   },
   {
+    "name": "event",
+    "type": "query",
+    "domain": "events",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["event", "Event"],
+    "runtimeTests": ["tests/integration/event-query-shapes.test.ts"],
+    "supportNotes": "HAR-323 captured top-level Event no-data behavior. Snapshot mode returns null for absent Event IDs without contacting Shopify; non-empty event hydration remains unsupported."
+  },
+  {
+    "name": "events",
+    "type": "query",
+    "domain": "events",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["events", "Events"],
+    "runtimeTests": ["tests/integration/event-query-shapes.test.ts"],
+    "supportNotes": "HAR-323 captured top-level Event no-data behavior. Snapshot mode returns a Shopify-like empty Event connection with null cursors; non-empty event hydration remains unsupported."
+  },
+  {
+    "name": "eventsCount",
+    "type": "query",
+    "domain": "events",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["eventsCount", "EventsCount"],
+    "runtimeTests": ["tests/integration/event-query-shapes.test.ts"],
+    "supportNotes": "HAR-323 captured top-level Event no-data behavior. Snapshot mode returns an exact zero Count for absent local Event state; non-empty event hydration remains unsupported."
+  },
+  {
     "name": "customers",
     "type": "query",
     "domain": "customers",

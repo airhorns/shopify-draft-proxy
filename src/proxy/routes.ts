@@ -15,6 +15,7 @@ import { handleMarketingQuery, hydrateMarketingFromUpstreamResponse } from './ma
 import { handleCustomerMutation, handleCustomerQuery, hydrateCustomersFromUpstreamResponse } from './customers.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from './delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from './discounts.js';
+import { handleEventsQuery } from './events.js';
 import { handleMarketMutation, handleMarketsQuery, hydrateMarketsFromUpstreamResponse } from './markets.js';
 import { handleOrderMutation, handleOrderQuery, shouldServeDraftOrderCatalogLocally } from './orders.js';
 import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamResponse } from './products.js';
@@ -858,6 +859,14 @@ export function createProxyRouter(config: AppConfig): Router {
       if (config.readMode === 'live-hybrid' && store.hasDiscounts()) {
         ctx.status = 200;
         ctx.body = handleDiscountQuery(body.query, variables);
+        return;
+      }
+    }
+
+    if (capability.execution === 'overlay-read' && capability.domain === 'events') {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleEventsQuery(body.query);
         return;
       }
     }
