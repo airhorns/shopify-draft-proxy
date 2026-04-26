@@ -10,7 +10,7 @@ import { createUpstreamGraphQLClient } from '../shopify/upstream-client.js';
 import { requestUpstreamGraphQL } from '../shopify/upstream-request.js';
 import { getOperationCapability, type OperationCapability } from './capabilities.js';
 import { findOperationRegistryEntry } from './operation-registry.js';
-import { handleMediaMutation } from './media.js';
+import { handleMediaMutation, handleMediaQuery } from './media.js';
 import { handleMarketingQuery, hydrateMarketingFromUpstreamResponse } from './marketing.js';
 import { handleCustomerMutation, handleCustomerQuery, hydrateCustomersFromUpstreamResponse } from './customers.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from './delivery-profiles.js';
@@ -513,6 +513,20 @@ export function createProxyRouter(config: AppConfig): Router {
       ctx.status = 200;
       ctx.body = handleMediaMutation(body.query, variables);
       return;
+    }
+
+    if (capability.execution === 'overlay-read' && capability.domain === 'media') {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleMediaQuery(body.query, variables);
+        return;
+      }
+
+      if (config.readMode === 'live-hybrid' && store.listEffectiveFiles().length > 0) {
+        ctx.status = 200;
+        ctx.body = handleMediaQuery(body.query, variables);
+        return;
+      }
     }
 
     if (capability.execution === 'stage-locally' && capability.domain === 'metafields') {

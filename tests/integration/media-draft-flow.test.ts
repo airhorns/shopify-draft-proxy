@@ -138,6 +138,200 @@ describe('media draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('serves local files and empty file saved searches in snapshot mode without proxying upstream', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('snapshot file reads should not hit upstream fetch');
+    });
+    const app = createApp(config).callback();
+
+    const createResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation FileCreate($files: [FileCreateInput!]!) { fileCreate(files: $files) { files { id __typename alt fileStatus filename ... on GenericFile { id } ... on MediaImage { image { url } } } userErrors { field message code } } }',
+        variables: {
+          files: [
+            {
+              alt: 'Spec sheet',
+              contentType: 'FILE',
+              filename: 'spec-sheet.pdf',
+              originalSource: 'https://cdn.example.com/spec-sheet.pdf',
+            },
+            {
+              alt: 'Gallery image',
+              contentType: 'IMAGE',
+              filename: 'gallery.jpg',
+              originalSource: 'https://cdn.example.com/gallery.jpg',
+            },
+          ],
+        },
+      });
+
+    const firstFileId = createResponse.body.data.fileCreate.files[0].id as string;
+    const secondFileId = createResponse.body.data.fileCreate.files[1].id as string;
+
+    const firstPageResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'query FilesCatalog($first: Int) { files(first: $first) { edges { cursor node { id __typename alt fileStatus filename } } nodes { id alt } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } fileSavedSearches(first: 5) { nodes { id name } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }',
+        variables: { first: 1 },
+      });
+
+    expect(firstPageResponse.status).toBe(200);
+    expect(firstPageResponse.body.data.files).toEqual({
+      edges: [
+        {
+          cursor: `cursor:${firstFileId}`,
+          node: {
+            id: firstFileId,
+            __typename: 'GenericFile',
+            alt: 'Spec sheet',
+            fileStatus: 'UPLOADED',
+            filename: 'spec-sheet.pdf',
+          },
+        },
+      ],
+      nodes: [
+        {
+          id: firstFileId,
+          alt: 'Spec sheet',
+        },
+      ],
+      pageInfo: {
+        hasNextPage: true,
+        hasPreviousPage: false,
+        startCursor: `cursor:${firstFileId}`,
+        endCursor: `cursor:${firstFileId}`,
+      },
+    });
+    expect(firstPageResponse.body.data.fileSavedSearches).toEqual({
+      nodes: [],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: null,
+        endCursor: null,
+      },
+    });
+
+    const secondPageResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'query FilesAfter($after: String) { files(first: 10, after: $after) { nodes { id __typename alt ... on MediaImage { image { url width height } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }',
+        variables: { after: `cursor:${firstFileId}` },
+      });
+
+    expect(secondPageResponse.body.data.files).toEqual({
+      nodes: [
+        {
+          id: secondFileId,
+          __typename: 'MediaImage',
+          alt: 'Gallery image',
+          image: null,
+        },
+      ],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: true,
+        startCursor: `cursor:${secondFileId}`,
+        endCursor: `cursor:${secondFileId}`,
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns inert stagedUploadsCreate metadata locally without creating upload side effects', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('stagedUploadsCreate should not hit upstream fetch');
+    });
+    const app = createApp(config).callback();
+
+    const uploadResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation StagedUploadsCreate($input: [StagedUploadInput!]!) { stagedUploadsCreate(input: $input) { stagedTargets { url resourceUrl parameters { name value } } userErrors { field message code } } }',
+        variables: {
+          input: [
+            {
+              filename: 'safe-upload.txt',
+              mimeType: 'text/plain',
+              resource: 'FILE',
+              httpMethod: 'POST',
+            },
+          ],
+        },
+      });
+
+    expect(uploadResponse.status).toBe(200);
+    expect(uploadResponse.body.data.stagedUploadsCreate.userErrors).toEqual([]);
+    expect(uploadResponse.body.data.stagedUploadsCreate.stagedTargets).toEqual([
+      {
+        url: expect.stringMatching(/^https:\/\/shopify-draft-proxy\.local\/staged-uploads\//),
+        resourceUrl: expect.stringContaining('/safe-upload.txt'),
+        parameters: expect.arrayContaining([
+          { name: 'Content-Type', value: 'text/plain' },
+          { name: 'x-shopify-draft-proxy-resource', value: 'FILE' },
+          { name: 'x-shopify-draft-proxy-http-method', value: 'POST' },
+        ]),
+      },
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(store.getState().stagedState.files).toEqual({});
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(logResponse.body.entries.at(-1)).toMatchObject({
+      operationName: 'StagedUploadsCreate',
+      status: 'staged',
+      interpreted: {
+        primaryRootField: 'stagedUploadsCreate',
+        capability: {
+          domain: 'media',
+          execution: 'stage-locally',
+        },
+      },
+      notes: 'Staged locally in the in-memory media draft store.',
+    });
+  });
+
+  it('keeps fileAcknowledgeUpdateFailed as an explicit unsupported passthrough side effect', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ data: { fileAcknowledgeUpdateFailed: null } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    const app = createApp(config).callback();
+
+    const acknowledgeResponse = await request(app).post('/admin/api/2026-04/graphql.json').send({
+      query:
+        'mutation { fileAcknowledgeUpdateFailed(id: "gid://shopify/MediaImage/1") { file { id } userErrors { field message } } }',
+    });
+
+    expect(acknowledgeResponse.status).toBe(200);
+    expect(acknowledgeResponse.body).toEqual({ data: { fileAcknowledgeUpdateFailed: null } });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(store.getState().stagedState.files).toEqual({});
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(logResponse.body.entries.at(-1)).toMatchObject({
+      operationName: 'fileAcknowledgeUpdateFailed',
+      status: 'proxied',
+      interpreted: {
+        primaryRootField: 'fileAcknowledgeUpdateFailed',
+        registeredOperation: {
+          name: 'fileAcknowledgeUpdateFailed',
+          domain: 'media',
+          execution: 'stage-locally',
+          implemented: false,
+        },
+      },
+      notes: 'Mutation passthrough placeholder until supported local staging is implemented.',
+    });
+  });
+
   it('stages fileUpdate locally for Files API records without proxying upstream', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('fileUpdate should not hit upstream fetch');

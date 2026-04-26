@@ -1,0 +1,17 @@
+{
+  "scenarioId": "files-upload-local-runtime",
+  "operationNames": ["files", "fileSavedSearches", "stagedUploadsCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "empty-state-parity", "downstream-read-parity", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/file-create-delete-parity.json",
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/file-update-parity.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/media-draft-flow.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "notes": "HAR-313 extends the captured Files API mutation evidence with runtime-backed local coverage for top-level `files`, empty `fileSavedSearches`, and inert `stagedUploadsCreate` target metadata. The checked-in live captures prove Files API file payload shapes and ready-state polling around create/update/delete; the runtime test enforces the local read/upload side-effect boundary while exact live staged-upload storage parameters remain intentionally looser because the proxy must not create external upload storage at runtime.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  }
+}

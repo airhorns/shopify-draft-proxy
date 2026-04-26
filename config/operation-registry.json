@@ -3616,6 +3616,46 @@
     "supportNotes": "Removes staged market-specific product metafield values locally and returns removed localization payloads."
   },
   {
+    "name": "files",
+    "type": "query",
+    "domain": "media",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["files", "Files"],
+    "runtimeTests": ["tests/integration/media-draft-flow.test.ts"],
+    "supportNotes": "Serves snapshot and locally staged Files API records from normalized file state; live-hybrid overlay currently prefers local file state when present rather than merging upstream file catalogs."
+  },
+  {
+    "name": "fileSavedSearches",
+    "type": "query",
+    "domain": "media",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["fileSavedSearches", "FileSavedSearches"],
+    "runtimeTests": ["tests/integration/media-draft-flow.test.ts"],
+    "supportNotes": "Returns Shopify-like empty saved-search connections in snapshot mode; saved search records are not modeled yet."
+  },
+  {
+    "name": "stagedUploadsCreate",
+    "type": "mutation",
+    "domain": "media",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["stagedUploadsCreate", "StagedUploadsCreate"],
+    "runtimeTests": ["tests/integration/media-draft-flow.test.ts"],
+    "supportNotes": "Returns inert draft-proxy staged upload target metadata without creating external upload storage or acknowledging uploaded content."
+  },
+  {
+    "name": "fileAcknowledgeUpdateFailed",
+    "type": "mutation",
+    "domain": "media",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fileAcknowledgeUpdateFailed", "FileAcknowledgeUpdateFailed"],
+    "runtimeTests": [],
+    "supportNotes": "Explicitly unsupported because acknowledging upload failure is an external Files API side effect; this registry entry is a commitment to model failure state locally before support, not a permanent passthrough capability."
+  },
+  {
     "name": "fileCreate",
     "type": "mutation",
     "domain": "media",
