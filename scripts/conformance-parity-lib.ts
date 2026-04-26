@@ -4689,6 +4689,46 @@ function readCapturedProductMedia(
     .filter((mediaRecord): mediaRecord is ProductMediaRecord => mediaRecord !== null);
 }
 
+function seedExplicitProductMediaPreconditions(capture: unknown): boolean {
+  const mediaByProductId = new Map<string, ProductMediaRecord[]>();
+
+  for (const [index, seedMedia] of readArrayField(capture as Record<string, unknown>, 'seedProductMedia')
+    .filter(isPlainObject)
+    .entries()) {
+    const productId = readStringField(seedMedia, 'productId');
+    const id = readStringField(seedMedia, 'id');
+    if (!productId?.startsWith('gid://shopify/Product/') || !id?.startsWith('gid://shopify/')) {
+      continue;
+    }
+
+    const position = readNumberField(seedMedia, 'position') ?? index;
+    const mediaRecords = mediaByProductId.get(productId) ?? [];
+    mediaRecords.push({
+      key: readStringField(seedMedia, 'key') ?? `${productId}:media:${position}:${id}`,
+      productId,
+      position,
+      id,
+      mediaContentType: readStringField(seedMedia, 'mediaContentType') ?? 'IMAGE',
+      alt: readNullableStringField(seedMedia, 'alt'),
+      status: readStringField(seedMedia, 'status') ?? 'READY',
+      productImageId: readNullableStringField(seedMedia, 'productImageId'),
+      imageUrl: readNullableStringField(seedMedia, 'imageUrl'),
+      previewImageUrl: readNullableStringField(seedMedia, 'previewImageUrl'),
+      sourceUrl: readNullableStringField(seedMedia, 'sourceUrl'),
+    });
+    mediaByProductId.set(productId, mediaRecords);
+  }
+
+  for (const [productId, mediaRecords] of mediaByProductId) {
+    if (!store.getEffectiveProductById(productId)) {
+      store.upsertBaseProducts([makeSeedProduct(productId)]);
+    }
+    store.replaceBaseMediaForProduct(productId, mediaRecords);
+  }
+
+  return mediaByProductId.size > 0;
+}
+
 function seedPreconditionsFromCapture(capture: unknown, variables: Record<string, unknown>): void {
   const seedProducts = readArrayField(capture as Record<string, unknown>, 'seedProducts').filter(isPlainObject);
   for (const seedProduct of seedProducts) {
@@ -4702,6 +4742,7 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       store.replaceBaseVariantsForProduct(productId, variants);
     }
   }
+  seedExplicitProductMediaPreconditions(capture);
 
   seedProductMetafieldsReadPreconditions(capture);
   seedMetafieldDefinitionPreconditions(capture);

@@ -9,6 +9,25 @@
     "Mixed create partially creates valid media and reports invalid entries.",
     "Mixed update/delete reject the batch and preserve the existing product media set."
   ],
+  "seedProducts": [
+    {
+      "id": "gid://shopify/Product/10170577518898",
+      "title": "HAR-289 media validation product",
+      "handle": "har-289-media-validation-product",
+      "status": "DRAFT"
+    }
+  ],
+  "seedProductMedia": [
+    {
+      "productId": "gid://shopify/Product/10170577518898",
+      "id": "gid://shopify/MediaImage/43607852122418",
+      "position": 2,
+      "alt": "Seed media",
+      "mediaContentType": "IMAGE",
+      "status": "READY",
+      "productImageId": "gid://shopify/ProductImage/43607852122418"
+    }
+  ],
   "scenarios": [
     {
       "name": "create-missing-product-id-empty-string",
@@ -227,6 +246,10 @@
     {
       "name": "update-unknown-product-id",
       "operationName": "productUpdateMedia",
+      "variables": {
+        "productId": "gid://shopify/Product/999999999999",
+        "media": [{ "id": "gid://shopify/MediaImage/43607852122418", "alt": "Should not update" }]
+      },
       "response": {
         "status": 200,
         "payload": {
@@ -242,6 +265,10 @@
     {
       "name": "update-empty-media",
       "operationName": "productUpdateMedia",
+      "variables": {
+        "productId": "gid://shopify/Product/10170577518898",
+        "media": []
+      },
       "response": {
         "status": 200,
         "payload": {
@@ -252,6 +279,10 @@
     {
       "name": "update-unknown-media-id",
       "operationName": "productUpdateMedia",
+      "variables": {
+        "productId": "gid://shopify/Product/10170577518898",
+        "media": [{ "id": "gid://shopify/MediaImage/999999999999", "alt": "Unknown media" }]
+      },
       "response": {
         "status": 200,
         "payload": {
@@ -272,6 +303,13 @@
     {
       "name": "update-mixed-valid-invalid",
       "operationName": "productUpdateMedia",
+      "variables": {
+        "productId": "gid://shopify/Product/10170577518898",
+        "media": [
+          { "id": "gid://shopify/MediaImage/43607852122418", "alt": "Rejected update" },
+          { "id": "gid://shopify/MediaImage/999999999999", "alt": "Unknown media" }
+        ]
+      },
       "response": {
         "status": 200,
         "payload": {
@@ -315,6 +353,10 @@
     {
       "name": "delete-unknown-product-id",
       "operationName": "productDeleteMedia",
+      "variables": {
+        "productId": "gid://shopify/Product/999999999999",
+        "mediaIds": ["gid://shopify/MediaImage/43607852122418"]
+      },
       "response": {
         "status": 200,
         "payload": {
@@ -332,6 +374,10 @@
     {
       "name": "delete-empty-media-ids",
       "operationName": "productDeleteMedia",
+      "variables": {
+        "productId": "gid://shopify/Product/10170577518898",
+        "mediaIds": []
+      },
       "response": {
         "status": 200,
         "payload": {
@@ -348,6 +394,10 @@
     {
       "name": "delete-unknown-media-id",
       "operationName": "productDeleteMedia",
+      "variables": {
+        "productId": "gid://shopify/Product/10170577518898",
+        "mediaIds": ["gid://shopify/MediaImage/999999999999"]
+      },
       "response": {
         "status": 200,
         "payload": {
@@ -369,6 +419,10 @@
     {
       "name": "delete-mixed-valid-invalid",
       "operationName": "productDeleteMedia",
+      "variables": {
+        "productId": "gid://shopify/Product/10170577518898",
+        "mediaIds": ["gid://shopify/MediaImage/43607852122418", "gid://shopify/MediaImage/999999999999"]
+      },
       "response": {
         "status": 200,
         "payload": {
