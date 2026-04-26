@@ -1,0 +1,16 @@
+{
+  "scenarioId": "customer-input-validation-parity",
+  "operationNames": ["customerCreate", "customerUpdate", "customer", "customerByIdentifier", "customers"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "state-invariance"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customer-input-validation-parity.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/customer-draft-flow.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "notes": "Captured Admin GraphQL 2025-01 CustomerInput validation and normalization matrix for customerCreate and customerUpdate: invalid email/phone/locale, duplicate email/phone identity, blank/null scalar handling, tag trim/de-duplication/sorting and max length, oversized name/note fields, and update attempts after delete/merge. Runtime parity is enforced by customer-draft-flow integration tests because this matrix requires multi-step setup, failed-mutation state invariance checks, and downstream readback across staged customer/metafield state.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  }
+}

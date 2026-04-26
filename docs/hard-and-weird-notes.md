@@ -1887,6 +1887,33 @@ Practical rule for the proxy:
 - mask staged `defaultPhoneNumber.phoneNumber` in the same practical style as the captured live payload instead of echoing raw phone input
 - preserve the captured validation distinctions exactly: null-field missing-identity create error, `Customer does not exist` for unknown-id update, and `Customer can't be found` for unknown-id delete
 
+### 44a. CustomerInput validation failures are payload userErrors and must be state-invariant
+
+The HAR-282 live capture on `harry-test-heelo.myshopify.com` added the first focused long-tail `CustomerInput` validation matrix for `customerCreate` and `customerUpdate`.
+
+Observed validation behavior:
+
+- invalid email returns `customer: null` plus `userErrors[{ field: ['email'], message: 'Email is invalid' }]`
+- invalid phone returns `customer: null` plus `userErrors[{ field: ['phone'], message: 'Phone is invalid' }]`
+- duplicate email/phone identity returns `Email has already been taken` / `Phone has already been taken` at the corresponding field
+- invalid locale returns `userErrors[{ field: ['locale'], message: 'Locale is invalid' }]`
+- a tag longer than 255 characters returns `userErrors[{ field: ['tags'], message: 'Tags is too long (maximum is 255 characters)' }]`
+- oversized names and note accumulate separate fielded errors: first/last name max 255 characters, note max 5000 characters
+- updating a deleted customer, or the source customer after `customerMerge`, returns the same unknown-id payload branch as other missing rows: `field: ['id']`, `Customer does not exist`
+
+Observed normalization behavior:
+
+- created customers defaulted `locale` to `en` when the input omitted locale
+- blank `firstName`, `lastName`, and `phone` normalized to `null`
+- blank `note` stayed as an empty string, while explicit `null` note stayed `null`
+- tag input was trimmed, empty tags were dropped, duplicates were removed, and the response sorted the remaining tags lexicographically
+
+Practical rule for the proxy:
+
+- run captured validation before staging the customer row or replacing customer-owned metafields
+- failed validations may still produce the normal supported-mutation log entry, but they must not introduce staged resource IDs or mutate downstream customer/customerByIdentifier/customers reads
+- keep this validation slice limited to captured branches; broader email/phone/locale international edge cases need new live evidence before tightening rules further
+
 ## 45. Rich collection fields need a real collection row, not only membership rows
 
 Extending collection reads past `id` / `title` / `handle` exposed the limit of deriving every collection only from `product.collections` memberships.
