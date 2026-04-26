@@ -2767,20 +2767,20 @@
     "type": "mutation",
     "domain": "webhooks",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["webhookSubscriptionCreate", "WebhookSubscriptionCreate"],
-    "runtimeTests": [],
-    "supportNotes": "Conformance scaffold only. HAR-267 captures successful registration inputs and missing URI validation, but supported runtime staging must wait for a local webhook-subscription state model and downstream read visibility."
+    "runtimeTests": ["tests/integration/webhook-subscription-mutation-flow.test.ts"],
+    "supportNotes": "Local staging is supported for the HAR-267 captured Admin API-created HTTP URI registration subset, including topic, format, includeFields, metafieldNamespaces, filter, endpoint callbackUrl projection, missing URI userErrors, mutation-log retention, and downstream detail/catalog/count read-after-write visibility. App TOML webhook config and webhook delivery remain out of scope."
   },
   {
     "name": "webhookSubscriptionUpdate",
     "type": "mutation",
     "domain": "webhooks",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["webhookSubscriptionUpdate", "WebhookSubscriptionUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "Conformance scaffold only. HAR-267 captures update payloads and unknown-id userErrors, but supported runtime staging must wait for local lifecycle emulation."
+    "runtimeTests": ["tests/integration/webhook-subscription-mutation-flow.test.ts"],
+    "supportNotes": "Local staging updates staged or hydrated webhook subscriptions for the HAR-267 captured Admin API-created HTTP URI subset, including format, includeFields, metafieldNamespaces, filter, endpoint callbackUrl projection, unknown-id userErrors, mutation-log retention, and downstream detail/catalog/count read-after-write visibility without runtime Shopify writes."
   },
   {
     "name": "webhookSubscriptionDelete",

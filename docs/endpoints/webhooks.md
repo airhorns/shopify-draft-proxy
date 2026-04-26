@@ -1,6 +1,6 @@
 # Webhooks
 
-HAR-267 adds conformance evidence for Admin GraphQL webhook subscription roots. HAR-268 adds local runtime read support for API-created webhook subscription records while leaving create/update/delete staging unsupported.
+HAR-267 adds conformance evidence for Admin GraphQL webhook subscription roots. HAR-268 adds local runtime read support for API-created webhook subscription records. HAR-269 adds local staging for the captured create/update registration subset without firing webhooks or registering real subscriptions upstream during supported runtime handling.
 
 ## Registered Roots
 
@@ -17,7 +17,7 @@ The three query roots are registered under the `webhooks` domain as implemented 
 - `webhookSubscriptions(...)`
 - `webhookSubscriptionsCount(...)`
 
-The mutation roots remain registered but unimplemented. They must not be treated as supported local staging until a webhook subscription mutation lifecycle model exists.
+`webhookSubscriptionCreate` and `webhookSubscriptionUpdate` are registered under the `webhooks` domain as implemented `stage-locally` operations for the captured Admin API-created HTTP URI subset. `webhookSubscriptionDelete` remains registered but unimplemented; it must not be treated as supported local deregistration until a delete lifecycle model exists.
 
 ## Local Read Behavior
 
@@ -27,6 +27,14 @@ The mutation roots remain registered but unimplemented. They must not be treated
 - `webhookSubscriptions` uses shared connection helpers for `nodes`, `edges`, selected `pageInfo`, stable synthetic cursors, `first`/`last`, `before`/`after`, `sortKey: ID`, and `reverse`.
 - `webhookSubscriptionsCount` supports count `limit` semantics with `EXACT` / `AT_LEAST` precision and simple captured query filtering such as `id:<legacy id>`.
 - Live-hybrid reads hydrate upstream webhook subscription nodes into normalized base state and overlay staged local records when present.
+
+## Local Mutation Behavior
+
+- `webhookSubscriptionCreate(topic:, webhookSubscription:)` stages a new normalized webhook subscription with a proxy synthetic `WebhookSubscription` GID, stable synthetic timestamps, the requested `topic`, `format`, `includeFields`, `metafieldNamespaces`, `filter`, and a `WebhookHttpEndpoint.callbackUrl` derived from the captured `WebhookSubscriptionInput.uri` shape.
+- `webhookSubscriptionUpdate(id:, webhookSubscription:)` updates an existing staged or hydrated webhook subscription in place, preserving `topic` and `createdAt` while replacing the captured mutable fields and endpoint URI when present.
+- Successful create/update mutations append staged entries to the meta mutation log with the original request body intact for commit replay.
+- Captured validation branches are handled locally without upstream writes: create without `uri` returns `webhookSubscription: null` and `userErrors: [{ field: ["webhookSubscription", "callbackUrl"], message: "Address can't be blank" }]`; update of an unknown ID returns `webhookSubscription: null` and `userErrors: [{ field: ["id"], message: "Webhook subscription does not exist" }]`.
+- Local registration/update does not deliver webhook payloads and does not create or update real Shopify webhook subscriptions at runtime.
 
 ## Captured Evidence
 
@@ -52,12 +60,13 @@ The lifecycle capture uses `SHOP_UPDATE` because it is available in the topic en
 
 App configuration/TOML webhooks remain out of scope. Shopify's Admin GraphQL subscription roots are being treated here as the API-created subscription lifecycle surface; future evidence must prove otherwise before TOML/app-config webhooks are modeled through these roots.
 
-Runtime mutation staging is still out of scope. Future support should add create/update/delete staging, read-after-write effects from those mutation handlers, raw mutation log retention, and tests showing supported webhook mutations do not hit Shopify at runtime.
+Runtime `webhookSubscriptionDelete` staging is still out of scope. Future support should add delete staging, read-after-delete effects, raw mutation log retention, and tests showing supported webhook deletion does not hit Shopify at runtime.
 
 ## Validation
 
 - `corepack pnpm conformance:check`
 - `corepack pnpm conformance:parity`
 - `corepack pnpm typecheck`
+- `corepack pnpm vitest run tests/integration/webhook-subscription-mutation-flow.test.ts`
 - `corepack pnpm vitest run tests/integration/webhook-subscription-query-shapes.test.ts`
 - `corepack pnpm vitest run tests/unit/webhook-subscription-conformance-fixture.test.ts`
