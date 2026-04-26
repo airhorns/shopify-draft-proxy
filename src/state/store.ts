@@ -397,6 +397,7 @@ export class InMemoryStore {
   private stagedOrders: Record<string, OrderRecord> = {};
   private calculatedOrders: Record<string, CalculatedOrderRecord> = {};
   private stagedDraftOrders: Record<string, DraftOrderRecord> = {};
+  private deletedDraftOrderIds = new Set<string>();
   private orderMandatePayments: Record<string, OrderMandatePaymentRecord> = {};
 
   installSnapshot(snapshotFile: NormalizedStateSnapshotFile): void {
@@ -429,6 +430,7 @@ export class InMemoryStore {
     this.stagedOrders = {};
     this.calculatedOrders = {};
     this.stagedDraftOrders = structuredClone(this.initialDraftOrders);
+    this.deletedDraftOrderIds = new Set<string>();
     this.orderMandatePayments = {};
   }
 
@@ -1778,22 +1780,32 @@ export class InMemoryStore {
   }
 
   stageCreateDraftOrder(draftOrder: DraftOrderRecord): DraftOrderRecord {
+    this.deletedDraftOrderIds.delete(draftOrder.id);
     this.stagedDraftOrders[draftOrder.id] = structuredClone(draftOrder);
     return structuredClone(draftOrder);
   }
 
   updateDraftOrder(draftOrder: DraftOrderRecord): DraftOrderRecord {
+    this.deletedDraftOrderIds.delete(draftOrder.id);
     this.stagedDraftOrders[draftOrder.id] = structuredClone(draftOrder);
     return structuredClone(draftOrder);
   }
 
   deleteDraftOrder(draftOrderId: string): void {
     delete this.stagedDraftOrders[draftOrderId];
+    this.deletedDraftOrderIds.add(draftOrderId);
   }
 
   getDraftOrderById(draftOrderId: string): DraftOrderRecord | null {
+    if (this.deletedDraftOrderIds.has(draftOrderId)) {
+      return null;
+    }
     const draftOrder = this.stagedDraftOrders[draftOrderId];
     return draftOrder ? structuredClone(draftOrder) : null;
+  }
+
+  hasDeletedDraftOrder(draftOrderId: string): boolean {
+    return this.deletedDraftOrderIds.has(draftOrderId);
   }
 
   getDraftOrders(): DraftOrderRecord[] {

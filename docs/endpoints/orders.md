@@ -1,6 +1,6 @@
 # Orders Endpoint Group
 
-The orders group is fully implemented in the operation registry. It covers orders, draft orders, order lifecycle mutations, fulfillment slices, refunds, and order editing.
+The orders group is broadly implemented in the operation registry, with explicit blockers documented for roots that still lack enough Shopify evidence. It covers orders, draft orders, order lifecycle mutations, fulfillment slices, refunds, and order editing.
 
 ## Supported roots
 
@@ -12,6 +12,8 @@ Overlay reads:
 - `draftOrder`
 - `draftOrders`
 - `draftOrdersCount`
+- `draftOrderAvailableDeliveryOptions`
+- `draftOrderSavedSearches`
 
 Local staged mutations:
 
@@ -38,6 +40,11 @@ Local staged mutations:
 - `draftOrderUpdate`
 - `draftOrderDuplicate`
 - `draftOrderDelete`
+- `draftOrderBulkAddTags`
+- `draftOrderBulkRemoveTags`
+- `draftOrderBulkDelete`
+- `draftOrderCalculate`
+- `draftOrderInvoicePreview`
 - `draftOrderInvoiceSend`
 - `draftOrderCreateFromOrder`
 - `orderEditBegin`
@@ -52,7 +59,13 @@ Local staged mutations:
 - Nested `Order.fulfillments` and `Order.fulfillmentOrders` remain the order-owned source for top-level fulfillment reads. The shipping/fulfillments endpoint docs describe the top-level `fulfillment(id:)`, `fulfillmentOrder(id:)`, and fulfillment-order catalog roots that now serialize from the same local order graph.
 - Fulfillment flows return Shopify-shaped `userErrors` and expose staged state through immediate downstream order fulfillment reads without sending supported mutations to Shopify at runtime. Staged fulfillment events are visible through both top-level `fulfillment(id:)` and nested `Order.fulfillments.events`, and tracking/cancel updates preserve event history and shipment milestone fields. Broader shipping/fulfillment roots and coverage boundaries are tracked in `docs/endpoints/shipping-fulfillments.md`.
 - Draft-order create/complete/update/duplicate/delete/invoice/create-from-order flows preserve staged state for downstream reads and commit replay.
+- `draftOrderSavedSearches` mirrors the captured default draft-order saved searches as a local connection. Those saved-search IDs can drive local `draftOrderBulk*` target selection through their captured query strings.
+- `draftOrderAvailableDeliveryOptions` currently mirrors the captured no-data helper shape: empty shipping/local-delivery/local-pickup arrays and empty `pageInfo`. Non-empty delivery-rate modeling remains future work until delivery-profile-backed draft-order evidence exists.
+- `draftOrderBulkAddTags`, `draftOrderBulkRemoveTags`, and `draftOrderBulkDelete` stage against the effective local draft-order set selected by `ids`, `search`, or captured draft-order saved-search query. Downstream `draftOrder(id:)` and draft-order catalog reads observe tag changes and deletions immediately; the returned `Job` is a local completed synthetic job because the proxy applies the effect synchronously.
+- `draftOrderCalculate` evaluates a `DraftOrderInput` through the local draft-order pricing model without staging a draft order or sending a mutation upstream. It covers captured-safe totals, line item prices, discounts, shipping totals, empty shipping-rate lists, and selected `CalculatedDraftOrder` scalar/list fields.
+- `draftOrderInvoicePreview` returns deterministic local preview subject/html for staged draft orders and never sends email or writes upstream. It mirrors the safe preview contract enough for tests that need a payload before deciding whether to send an invoice.
 - `draftOrderInvoiceSend` is treated as an outbound email side-effect root. Runtime support never sends the mutation upstream or emails a customer; it appends the original raw mutation to the meta log for explicit commit replay. Safe captured 2026-04 branches are mirrored locally for missing/unknown/deleted draft IDs, no-recipient drafts (`To can't be blank`), and completed no-recipient drafts (`To can't be blank` plus the already-paid error). For open local drafts with a recipient, the proxy returns an explicit local userError instead of pretending the invoice email was delivered.
+- `draftOrderTag` remains an explicit blocker rather than implemented support. HAR-318 live probing showed raw tag strings fail ID validation and guessed `gid://shopify/DraftOrderTag/<tag>` IDs return `null`; no exposed catalog in the current evidence produced a valid `DraftOrderTag` ID. The runtime can synthesize local staged tag IDs for internal helper reads, but the registry keeps the root unimplemented until a valid-ID capture exists.
 - `draftOrder(id:)` returns `null` for absent IDs. The `draft-order-by-id-not-found-read` parity scenario captures this missing-id behavior without relying on live upstream passthrough.
 - Draft-order detail parity now compares the captured `draftOrder(id:)` payload as a strict object for the selected phone, timestamp, subtotal/total, line-item unit-price, SKU/nullability, address, shipping-line, custom-attribute, discount, tax-exemption, and payment-terms fields. The current live detail capture returns `paymentTerms: null` for the merchant-realistic draft without terms and preserves empty line-item structures such as `customAttributes: []`, `appliedDiscount: null`, and variant-backed SKU/title nullability.
 - Shopify normalizes draft-order shipping lines created with `priceWithCurrency` to `code: "custom"`, `custom: true`, and matching `originalPriceSet` / `discountedPriceSet` shop-money amounts. The local serializer mirrors that shape and uses `null` for absent shipping lines after duplicate/create-from-order flows.
@@ -80,3 +93,4 @@ Local staged mutations:
 - Order editing: `tests/integration/order-edit-flow.test.ts`
 - Refunds and shipping-refund aggregates: `tests/integration/order-refund-flow.test.ts`
 - Conformance fixtures and requests: `config/parity-specs/order*.json`, `config/parity-specs/draftOrder*.json`, `config/parity-specs/draftOrders*.json`, `config/parity-specs/fulfillment*.json`, `config/parity-specs/refund*.json`, and matching files under `config/parity-requests/`
+- Residual draft-order helper capture: `corepack pnpm conformance:capture-draft-order-residual-helpers`

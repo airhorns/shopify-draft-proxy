@@ -78,6 +78,66 @@ function formatDecimalAmount(value: number): string {
   return fixed.endsWith('0') ? fixed.slice(0, -1) : fixed;
 }
 
+type DraftOrderSavedSearchRecord = {
+  id: string;
+  legacyResourceId: string;
+  name: string;
+  query: string;
+  resourceType: 'DRAFT_ORDER';
+  searchTerms: string;
+};
+
+const DRAFT_ORDER_SAVED_SEARCHES: DraftOrderSavedSearchRecord[] = [
+  {
+    id: 'gid://shopify/SavedSearch/3634390597938',
+    legacyResourceId: '3634390597938',
+    name: 'Open and invoice sent',
+    query: 'status:open_and_invoice_sent',
+    resourceType: 'DRAFT_ORDER',
+    searchTerms: '',
+  },
+  {
+    id: 'gid://shopify/SavedSearch/3634390630706',
+    legacyResourceId: '3634390630706',
+    name: 'Open',
+    query: 'status:open',
+    resourceType: 'DRAFT_ORDER',
+    searchTerms: '',
+  },
+  {
+    id: 'gid://shopify/SavedSearch/3634390663474',
+    legacyResourceId: '3634390663474',
+    name: 'Invoice sent',
+    query: 'status:invoice_sent',
+    resourceType: 'DRAFT_ORDER',
+    searchTerms: '',
+  },
+  {
+    id: 'gid://shopify/SavedSearch/3634390696242',
+    legacyResourceId: '3634390696242',
+    name: 'Completed',
+    query: 'status:completed',
+    resourceType: 'DRAFT_ORDER',
+    searchTerms: '',
+  },
+  {
+    id: 'gid://shopify/SavedSearch/3634390729010',
+    legacyResourceId: '3634390729010',
+    name: 'Submitted for review',
+    query: 'status:open source:online_store',
+    resourceType: 'DRAFT_ORDER',
+    searchTerms: '',
+  },
+];
+
+function normalizeDraftOrderTagHandle(tag: string): string {
+  return tag.trim().toLowerCase().replace(/\s+/g, '-');
+}
+
+function buildDraftOrderTagId(tag: string): string {
+  return `gid://shopify/DraftOrderTag/${encodeURIComponent(normalizeDraftOrderTagHandle(tag))}`;
+}
+
 function normalizeMoneyBag(
   raw: unknown,
   currencyCode: string,
@@ -1988,6 +2048,141 @@ function serializeJob(field: FieldNode, jobId: string): Record<string, unknown> 
   return result;
 }
 
+function serializeDraftOrderSavedSearch(
+  field: FieldNode,
+  savedSearch: DraftOrderSavedSearchRecord,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = savedSearch.id;
+        break;
+      case 'legacyResourceId':
+        result[key] = savedSearch.legacyResourceId;
+        break;
+      case 'name':
+        result[key] = savedSearch.name;
+        break;
+      case 'query':
+        result[key] = savedSearch.query;
+        break;
+      case 'resourceType':
+        result[key] = savedSearch.resourceType;
+        break;
+      case 'searchTerms':
+        result[key] = savedSearch.searchTerms;
+        break;
+      case 'filters':
+        result[key] = [];
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeDraftOrderSavedSearchesConnection(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const items = args['reverse'] === true ? [...DRAFT_ORDER_SAVED_SEARCHES].reverse() : DRAFT_ORDER_SAVED_SEARCHES;
+  const window = paginateConnectionItems(items, field, variables, (savedSearch) => savedSearch.id);
+
+  return serializeConnection(field, {
+    items: window.items,
+    hasNextPage: window.hasNextPage,
+    hasPreviousPage: window.hasPreviousPage,
+    getCursorValue: (savedSearch) => savedSearch.id,
+    serializeNode: (savedSearch, selection) => serializeDraftOrderSavedSearch(selection, savedSearch),
+  });
+}
+
+function serializeEmptyPageInfo(field: FieldNode): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'hasNextPage':
+      case 'hasPreviousPage':
+        result[key] = false;
+        break;
+      case 'startCursor':
+      case 'endCursor':
+        result[key] = null;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeDraftOrderAvailableDeliveryOptions(field: FieldNode): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'availableShippingRates':
+      case 'availableLocalDeliveryRates':
+      case 'availableLocalPickupOptions':
+        result[key] = [];
+        break;
+      case 'pageInfo':
+        result[key] = serializeEmptyPageInfo(selection);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function findDraftOrderTagById(id: string): { id: string; handle: string; title: string } | null {
+  for (const draftOrder of store.getDraftOrders()) {
+    const tag = draftOrder.tags.find((candidate) => buildDraftOrderTagId(candidate) === id);
+    if (tag) {
+      return {
+        id,
+        handle: normalizeDraftOrderTagHandle(tag),
+        title: tag,
+      };
+    }
+  }
+  return null;
+}
+
+function serializeDraftOrderTag(
+  field: FieldNode,
+  tag: { id: string; handle: string; title: string },
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = tag.id;
+        break;
+      case 'handle':
+        result[key] = tag.handle;
+        break;
+      case 'title':
+        result[key] = tag.title;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
 function serializeOrderCreateMandatePaymentPayload(
   field: FieldNode,
   mandatePayment: OrderMandatePaymentRecord | null,
@@ -2485,6 +2680,183 @@ function serializeDraftOrderLineItemsConnection(
     getCursorValue: (lineItem) => lineItem.id,
     serializeNode: (lineItem, selection) => serializeDraftOrderLineItemNode(selection, lineItem),
   });
+}
+
+function serializeCalculatedDraftOrderLineItem(
+  field: FieldNode,
+  lineItem: DraftOrderLineItemRecord,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'uuid':
+        result[key] = lineItem.id.split('/').at(-1) ?? lineItem.id;
+        break;
+      case 'title':
+        result[key] = lineItem.title;
+        break;
+      case 'name':
+        result[key] = lineItem.name;
+        break;
+      case 'quantity':
+        result[key] = lineItem.quantity;
+        break;
+      case 'sku':
+        result[key] = lineItem.sku;
+        break;
+      case 'variantTitle':
+        result[key] = lineItem.variantTitle === 'Default Title' ? null : lineItem.variantTitle;
+        break;
+      case 'custom':
+        result[key] = lineItem.custom;
+        break;
+      case 'requiresShipping':
+        result[key] = lineItem.requiresShipping;
+        break;
+      case 'taxable':
+        result[key] = lineItem.taxable;
+        break;
+      case 'customAttributes':
+        result[key] = serializeDraftOrderAttributes(selection, lineItem.customAttributes);
+        break;
+      case 'appliedDiscount':
+        result[key] = serializeDraftOrderAppliedDiscount(selection, lineItem.appliedDiscount);
+        break;
+      case 'originalUnitPrice':
+        result[key] = serializeMoneyField(selection, lineItem.originalUnitPriceSet?.shopMoney ?? null);
+        break;
+      case 'originalTotal':
+        result[key] = serializeMoneyField(selection, lineItem.originalTotalSet?.shopMoney ?? null);
+        break;
+      case 'discountedTotal':
+        result[key] = serializeMoneyField(selection, lineItem.discountedTotalSet?.shopMoney ?? null);
+        break;
+      case 'totalDiscount':
+        result[key] = serializeMoneyField(selection, lineItem.totalDiscountSet?.shopMoney ?? null);
+        break;
+      case 'components':
+      case 'customAttributesV2':
+        result[key] = [];
+        break;
+      case 'approximateDiscountedUnitPriceSet':
+        result[key] = serializeShopMoneySet(selection, lineItem.discountedTotalSet?.shopMoney ?? null);
+        break;
+      case 'discountedTotalSet':
+        result[key] = serializeShopMoneySet(selection, lineItem.discountedTotalSet?.shopMoney ?? null);
+        break;
+      case 'originalTotalSet':
+        result[key] = serializeShopMoneySet(selection, lineItem.originalTotalSet?.shopMoney ?? null);
+        break;
+      case 'originalUnitPriceSet':
+        result[key] = serializeShopMoneySet(selection, lineItem.originalUnitPriceSet ?? null);
+        break;
+      case 'totalDiscountSet':
+        result[key] = serializeShopMoneySet(selection, lineItem.totalDiscountSet?.shopMoney ?? null);
+        break;
+      case 'fulfillmentService':
+      case 'image':
+      case 'priceOverride':
+      case 'product':
+      case 'variant':
+      case 'weight':
+        result[key] = serializeDraftOrderLineItemNode(selection, lineItem)[key] ?? null;
+        break;
+      case 'isGiftCard':
+        result[key] = false;
+        break;
+      case 'vendor':
+        result[key] = null;
+        break;
+      default:
+        result[key] = serializeDraftOrderLineItemNode(selection, lineItem)[key];
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeCalculatedDraftOrder(field: FieldNode, draftOrder: DraftOrderRecord): Record<string, unknown> {
+  const currencyCode = draftOrder.totalPriceSet?.shopMoney.currencyCode ?? 'CAD';
+  const zeroMoney = { shopMoney: normalizeMoney('0.0', currencyCode) };
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'acceptAutomaticDiscounts':
+        result[key] = false;
+        break;
+      case 'alerts':
+      case 'availableShippingRates':
+      case 'platformDiscounts':
+      case 'taxLines':
+      case 'warnings':
+        result[key] = [];
+        break;
+      case 'allVariantPricesOverridden':
+      case 'anyVariantPricesOverridden':
+        result[key] = false;
+        break;
+      case 'appliedDiscount':
+        result[key] = serializeDraftOrderAppliedDiscount(selection, draftOrder.appliedDiscount);
+        break;
+      case 'billingAddressMatchesShippingAddress':
+        result[key] = JSON.stringify(draftOrder.billingAddress) === JSON.stringify(draftOrder.shippingAddress);
+        break;
+      case 'currencyCode':
+      case 'presentmentCurrencyCode':
+        result[key] = currencyCode;
+        break;
+      case 'customer':
+        result[key] = serializeDraftOrderCustomer(selection, draftOrder.customer);
+        break;
+      case 'discountCodes':
+        result[key] = [];
+        break;
+      case 'lineItems':
+        result[key] = draftOrder.lineItems.map((lineItem) =>
+          serializeCalculatedDraftOrderLineItem(selection, lineItem),
+        );
+        break;
+      case 'lineItemsSubtotalPrice':
+      case 'subtotalPriceSet':
+        result[key] = serializeShopMoneySet(selection, draftOrder.subtotalPriceSet ?? zeroMoney);
+        break;
+      case 'phone':
+      case 'purchasingEntity':
+      case 'transformerFingerprint':
+        result[key] = null;
+        break;
+      case 'shippingLine':
+        result[key] = serializeDraftOrderShippingLine(selection, draftOrder.shippingLine);
+        break;
+      case 'taxesIncluded':
+        result[key] = draftOrder.taxesIncluded;
+        break;
+      case 'totalDiscountsSet':
+        result[key] = serializeShopMoneySet(selection, draftOrder.totalDiscountsSet ?? zeroMoney);
+        break;
+      case 'totalLineItemsPriceSet':
+        result[key] = serializeShopMoneySet(selection, draftOrder.subtotalPriceSet ?? zeroMoney);
+        break;
+      case 'totalPriceSet':
+        result[key] = serializeShopMoneySet(selection, draftOrder.totalPriceSet ?? zeroMoney);
+        break;
+      case 'totalQuantityOfLineItems':
+        result[key] = draftOrder.lineItems.reduce((sum, lineItem) => sum + lineItem.quantity, 0);
+        break;
+      case 'totalShippingPriceSet':
+        result[key] = serializeShopMoneySet(selection, draftOrder.totalShippingPriceSet ?? zeroMoney);
+        break;
+      case 'totalTaxSet':
+        result[key] = serializeShopMoneySet(selection, zeroMoney);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
 }
 
 function serializeDraftOrderNode(field: FieldNode, draftOrder: DraftOrderRecord): Record<string, unknown> {
@@ -4517,6 +4889,60 @@ function readDraftOrderInvoiceSendId(variables: Record<string, unknown>): string
   return typeof variables['id'] === 'string' ? variables['id'] : null;
 }
 
+function readStringListArgument(
+  field: FieldNode,
+  argumentName: string,
+  variables: Record<string, unknown>,
+): string[] | null {
+  const value = getFieldArguments(field, variables)[argumentName];
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : null;
+}
+
+function readDraftOrderSavedSearchQuery(savedSearchId: unknown): string | null {
+  if (typeof savedSearchId !== 'string') {
+    return null;
+  }
+  return DRAFT_ORDER_SAVED_SEARCHES.find((savedSearch) => savedSearch.id === savedSearchId)?.query ?? null;
+}
+
+function selectDraftOrderBulkTargets(field: FieldNode, variables: Record<string, unknown>): DraftOrderRecord[] {
+  const args = getFieldArguments(field, variables);
+  const ids = readStringListArgument(field, 'ids', variables);
+  const savedSearchQuery = readDraftOrderSavedSearchQuery(args['savedSearchId']);
+  const rawSearch = typeof args['search'] === 'string' ? args['search'] : savedSearchQuery;
+  const candidates = store.getDraftOrders();
+
+  if (ids && ids.length > 0) {
+    const idSet = new Set(ids);
+    return candidates.filter((draftOrder) => idSet.has(draftOrder.id));
+  }
+
+  if (typeof rawSearch === 'string' && rawSearch.length > 0) {
+    return applyDraftOrdersQuery(candidates, rawSearch);
+  }
+
+  return candidates;
+}
+
+function readDraftOrderBulkTags(field: FieldNode, variables: Record<string, unknown>): string[] {
+  return (readStringListArgument(field, 'tags', variables) ?? [])
+    .map((tag) => tag.trim())
+    .filter((tag) => tag.length > 0);
+}
+
+function updateDraftOrderTags(draftOrder: DraftOrderRecord, tags: string[], operation: 'add' | 'remove'): void {
+  const nextTags =
+    operation === 'add'
+      ? [...new Set([...draftOrder.tags, ...tags])]
+      : draftOrder.tags.filter((tag) => !tags.includes(tag));
+
+  store.updateDraftOrder({
+    ...draftOrder,
+    tags: nextTags.sort((left, right) => left.localeCompare(right)),
+    updatedAt: makeSyntheticTimestamp(),
+  });
+}
+
 function buildDraftOrderInvoiceSendUserErrors(
   draftOrder: DraftOrderRecord | null,
 ): Array<{ field: string[] | null; message: string }> {
@@ -5511,6 +5937,90 @@ function serializeDraftOrderDeletePayload(
   return payload;
 }
 
+function serializeDraftOrderBulkPayload(
+  field: FieldNode,
+  jobId: string | null,
+  userErrors: Array<{ field: string[] | null; message: string }>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const selectionKey = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'job':
+        payload[selectionKey] = jobId ? serializeJob(selection, jobId) : null;
+        break;
+      case 'userErrors':
+        payload[selectionKey] = serializeSelectedUserErrors(selection, userErrors);
+        break;
+      default:
+        payload[selectionKey] = null;
+        break;
+    }
+  }
+  return payload;
+}
+
+function serializeDraftOrderCalculatePayload(
+  field: FieldNode,
+  calculatedDraftOrder: DraftOrderRecord | null,
+  userErrors: Array<{ field: string[] | null; message: string }>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const selectionKey = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'calculatedDraftOrder':
+        payload[selectionKey] = calculatedDraftOrder
+          ? serializeCalculatedDraftOrder(selection, calculatedDraftOrder)
+          : null;
+        break;
+      case 'userErrors':
+        payload[selectionKey] = serializeSelectedUserErrors(selection, userErrors);
+        break;
+      default:
+        payload[selectionKey] = null;
+        break;
+    }
+  }
+  return payload;
+}
+
+function serializeDraftOrderInvoicePreviewPayload(
+  field: FieldNode,
+  draftOrder: DraftOrderRecord | null,
+  args: Record<string, unknown>,
+  userErrors: Array<{ field: string[] | null; message: string }>,
+): Record<string, unknown> {
+  const email =
+    typeof args['email'] === 'object' && args['email'] !== null ? (args['email'] as Record<string, unknown>) : {};
+  const subject =
+    typeof email['subject'] === 'string' && email['subject'].length > 0 ? email['subject'] : 'Complete your purchase';
+  const customMessage = typeof email['customMessage'] === 'string' ? email['customMessage'] : '';
+  const payload: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const selectionKey = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'previewSubject':
+        payload[selectionKey] = draftOrder ? subject : null;
+        break;
+      case 'previewHtml':
+        payload[selectionKey] = draftOrder
+          ? `<!DOCTYPE html><html><body><h1>${subject}</h1><p>${customMessage}</p><p>Draft order ${draftOrder.name}</p></body></html>`
+          : null;
+        break;
+      case 'userErrors':
+        payload[selectionKey] = serializeSelectedUserErrors(selection, userErrors);
+        break;
+      default:
+        payload[selectionKey] = null;
+        break;
+    }
+  }
+
+  return payload;
+}
+
 export function handleOrderQuery(
   document: string,
   variables: Record<string, unknown> = {},
@@ -5583,6 +6093,18 @@ export function handleOrderQuery(
         if (searchExtension) {
           searchExtensions.push(searchExtension);
         }
+        break;
+      }
+      case 'draftOrderAvailableDeliveryOptions':
+        data[key] = serializeDraftOrderAvailableDeliveryOptions(field);
+        break;
+      case 'draftOrderSavedSearches':
+        data[key] = serializeDraftOrderSavedSearchesConnection(field, variables);
+        break;
+      case 'draftOrderTag': {
+        const id = readNullableStringArgument(field, 'id', variables);
+        const tag = id ? findDraftOrderTagById(id) : null;
+        data[key] = tag ? serializeDraftOrderTag(field, tag) : null;
         break;
       }
       default:
@@ -6102,6 +6624,32 @@ export function handleOrderMutation(
       continue;
     }
 
+    if (field.name.value === 'draftOrderCalculate') {
+      handled = true;
+      const inlineInputArgument = getInlineArgument(field, 'input');
+
+      if (!inlineInputArgument) {
+        errors.push(buildMissingRequiredArgumentError('draftOrderCalculate', 'input'));
+        continue;
+      }
+
+      if (inlineInputArgument.value.kind === Kind.NULL) {
+        errors.push(buildNullArgumentError('draftOrderCalculate', 'input', 'DraftOrderInput!'));
+        continue;
+      }
+
+      const input = readVariableBackedInputArgument(field, 'input', variables, 'input');
+      if (inlineInputArgument.value.kind === Kind.VARIABLE && input === null) {
+        errors.push(buildMissingVariableError(inlineInputArgument.value.name.value, 'DraftOrderInput!'));
+        continue;
+      }
+
+      const userErrors = validateDraftOrderCreateInput(input);
+      const calculatedDraftOrder = userErrors.length === 0 ? buildDraftOrderFromInput(input, shopifyAdminOrigin) : null;
+      data[key] = serializeDraftOrderCalculatePayload(field, calculatedDraftOrder, userErrors);
+      continue;
+    }
+
     if (field.name.value === 'draftOrderUpdate') {
       handled = true;
       const inlineIdArgument = getInlineArgument(field, 'id');
@@ -6169,6 +6717,50 @@ export function handleOrderMutation(
       continue;
     }
 
+    if (field.name.value === 'draftOrderBulkAddTags') {
+      handled = true;
+      const tags = readDraftOrderBulkTags(field, variables);
+      const userErrors = tags.length === 0 ? [{ field: ['tags'], message: "Tags can't be blank" }] : [];
+      if (userErrors.length === 0) {
+        for (const draftOrder of selectDraftOrderBulkTargets(field, variables)) {
+          updateDraftOrderTags(draftOrder, tags, 'add');
+        }
+      }
+      data[key] = serializeDraftOrderBulkPayload(
+        field,
+        userErrors.length === 0 ? makeSyntheticGid('Job') : null,
+        userErrors,
+      );
+      continue;
+    }
+
+    if (field.name.value === 'draftOrderBulkRemoveTags') {
+      handled = true;
+      const tags = readDraftOrderBulkTags(field, variables);
+      const userErrors = tags.length === 0 ? [{ field: ['tags'], message: "Tags can't be blank" }] : [];
+      if (userErrors.length === 0) {
+        for (const draftOrder of selectDraftOrderBulkTargets(field, variables)) {
+          updateDraftOrderTags(draftOrder, tags, 'remove');
+        }
+      }
+      data[key] = serializeDraftOrderBulkPayload(
+        field,
+        userErrors.length === 0 ? makeSyntheticGid('Job') : null,
+        userErrors,
+      );
+      continue;
+    }
+
+    if (field.name.value === 'draftOrderBulkDelete') {
+      handled = true;
+      const targets = selectDraftOrderBulkTargets(field, variables);
+      for (const draftOrder of targets) {
+        store.deleteDraftOrder(draftOrder.id);
+      }
+      data[key] = serializeDraftOrderBulkPayload(field, makeSyntheticGid('Job'), []);
+      continue;
+    }
+
     if (field.name.value === 'draftOrderDelete') {
       handled = true;
       const inlineInputArgument = getInlineArgument(field, 'input');
@@ -6229,6 +6821,33 @@ export function handleOrderMutation(
         draftOrder,
         buildDraftOrderInvoiceSendUserErrors(draftOrder),
       );
+      continue;
+    }
+
+    if (field.name.value === 'draftOrderInvoicePreview') {
+      handled = true;
+      const inlineIdArgument = getInlineArgument(field, 'id');
+
+      if (!inlineIdArgument) {
+        errors.push(buildMissingRequiredArgumentError('draftOrderInvoicePreview', 'id'));
+        continue;
+      }
+
+      if (inlineIdArgument.value.kind === Kind.NULL) {
+        errors.push(buildNullArgumentError('draftOrderInvoicePreview', 'id', 'ID!'));
+        continue;
+      }
+
+      const args = getFieldArguments(field, variables);
+      const id = typeof args['id'] === 'string' ? args['id'] : null;
+      if (inlineIdArgument.value.kind === Kind.VARIABLE && id === null) {
+        errors.push(buildMissingVariableError(inlineIdArgument.value.name.value, 'ID!'));
+        continue;
+      }
+
+      const draftOrder = id ? store.getDraftOrderById(id) : null;
+      const userErrors = draftOrder ? [] : [{ field: ['id'], message: 'Draft order does not exist' }];
+      data[key] = serializeDraftOrderInvoicePreviewPayload(field, draftOrder, args, userErrors);
       continue;
     }
 
