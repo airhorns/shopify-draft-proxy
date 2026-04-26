@@ -2451,6 +2451,11 @@ Captured facts:
 - unknown `identifier.id` returns payload `userErrors` with `field: ["input"]` and message `Resource matching the identifier was not found.`
 - `identifier.customId` without an id-typed unique metafield definition returns `data.customerSet: null` plus a top-level `NOT_FOUND` error
 - `input.addresses` behaves as a replacement list for an existing customer; an empty list clears the default address and downstream `addressesV2`
+- `identifier.phone` follows the same upsert/update pattern as `identifier.email`; downstream `customerByIdentifier(identifier: { phoneNumber })` observes the staged customer locally
+- no-identifier creates reject duplicate native identifiers: duplicate email returns `field: ["input", "email"]` / `Email has already been taken`, and duplicate phone returns `field: ["input", "phone"]` / `Phone has already been taken`
+- identifier/input alignment errors are not field-specific beyond `["input"]`: missing corresponding input fields return `The input field corresponding to the identifier is required.`, while mismatches return `The identifier value does not match the value of the corresponding field in the input.`
+- `addresses: null` is a successful no-op for an existing customer, while `taxExempt: null` returns `field: ["input", "taxExempt"]` / `Tax exempt is of unexpected type NilClass`
+- after a customer is deleted, `customerSet(identifier: { id: deletedId })` returns the same `Resource matching the identifier was not found.` payload userError as an unknown id
 
 Practical rule:
 

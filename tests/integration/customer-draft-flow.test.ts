@@ -1651,6 +1651,355 @@ describe('customer draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('matches captured broader customerSet identifier, null, and address branches locally', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('broader customerSet branches should not hit upstream fetch');
+    });
+
+    const app = createApp(snapshotConfig).callback();
+    const createResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CustomerSetSeed($input: CustomerSetInput!) {
+          customerSet(input: $input) {
+            customer { id email defaultPhoneNumber { phoneNumber } }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            email: 'customer-set-broader@example.com',
+            firstName: 'Broader',
+            lastName: 'Seed',
+            phone: '+14155550201',
+            tags: ['set'],
+          },
+        },
+      });
+
+    expect(createResponse.status).toBe(200);
+    expect(createResponse.body.data.customerSet.userErrors).toEqual([]);
+    const seedCustomerId = createResponse.body.data.customerSet.customer.id;
+
+    const duplicateEmailResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CustomerSetDuplicateEmail($input: CustomerSetInput!) {
+          customerSet(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            email: 'customer-set-broader@example.com',
+            firstName: 'Duplicate',
+          },
+        },
+      });
+
+    expect(duplicateEmailResponse.body.data.customerSet).toEqual({
+      customer: null,
+      userErrors: [{ field: ['input', 'email'], message: 'Email has already been taken' }],
+    });
+
+    const duplicatePhoneResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CustomerSetDuplicatePhone($input: CustomerSetInput!) {
+          customerSet(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            phone: '+14155550201',
+            firstName: 'Duplicate',
+          },
+        },
+      });
+
+    expect(duplicatePhoneResponse.body.data.customerSet).toEqual({
+      customer: null,
+      userErrors: [{ field: ['input', 'phone'], message: 'Phone has already been taken' }],
+    });
+
+    const mismatchResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CustomerSetMismatch($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          identifier: { email: 'customer-set-broader@example.com' },
+          input: { email: 'customer-set-other@example.com', firstName: 'Mismatch' },
+        },
+      });
+
+    expect(mismatchResponse.body.data.customerSet).toEqual({
+      customer: null,
+      userErrors: [
+        {
+          field: ['input'],
+          message: 'The identifier value does not match the value of the corresponding field in the input.',
+        },
+      ],
+    });
+
+    const missingIdentifierFieldResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CustomerSetMissingIdentifierField($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          identifier: { email: 'customer-set-broader@example.com' },
+          input: { firstName: 'Missing' },
+        },
+      });
+
+    expect(missingIdentifierFieldResponse.body.data.customerSet).toEqual({
+      customer: null,
+      userErrors: [{ field: ['input'], message: 'The input field corresponding to the identifier is required.' }],
+    });
+
+    const multiAddressResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CustomerSetMultiAddress($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer {
+              id
+              defaultAddress { address1 city province country zip formattedArea }
+              addressesV2(first: 5) {
+                nodes { address1 city province country zip formattedArea }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          identifier: { id: seedCustomerId },
+          input: {
+            email: 'customer-set-broader@example.com',
+            addresses: [
+              { address1: '20 Set St', city: 'Ottawa', countryCode: 'CA', provinceCode: 'ON', zip: 'K1A 0B2' },
+              { address1: '21 Set St', city: 'Toronto', countryCode: 'CA', provinceCode: 'ON', zip: 'M5H 2N3' },
+            ],
+          },
+        },
+      });
+
+    expect(multiAddressResponse.body.data.customerSet.userErrors).toEqual([]);
+    expect(multiAddressResponse.body.data.customerSet.customer.defaultAddress).toEqual({
+      address1: '20 Set St',
+      city: 'Ottawa',
+      province: 'Ontario',
+      country: 'Canada',
+      zip: 'K1A 0B2',
+      formattedArea: 'Ottawa ON, Canada',
+    });
+    expect(multiAddressResponse.body.data.customerSet.customer.addressesV2.nodes).toEqual([
+      {
+        address1: '20 Set St',
+        city: 'Ottawa',
+        province: 'Ontario',
+        country: 'Canada',
+        zip: 'K1A 0B2',
+        formattedArea: 'Ottawa ON, Canada',
+      },
+      {
+        address1: '21 Set St',
+        city: 'Toronto',
+        province: 'Ontario',
+        country: 'Canada',
+        zip: 'M5H 2N3',
+        formattedArea: 'Toronto ON, Canada',
+      },
+    ]);
+
+    const nullAddressResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CustomerSetNullAddress($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer {
+              id
+              defaultAddress { address1 }
+              addressesV2(first: 5) { nodes { address1 } }
+            }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          identifier: { id: seedCustomerId },
+          input: { email: 'customer-set-broader@example.com', addresses: null },
+        },
+      });
+
+    expect(nullAddressResponse.body.data.customerSet).toEqual({
+      customer: {
+        id: seedCustomerId,
+        defaultAddress: { address1: '20 Set St' },
+        addressesV2: { nodes: [{ address1: '20 Set St' }, { address1: '21 Set St' }] },
+      },
+      userErrors: [],
+    });
+
+    const nullableTaxExemptResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CustomerSetNullable($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          identifier: { id: seedCustomerId },
+          input: {
+            email: null,
+            firstName: null,
+            lastName: null,
+            locale: null,
+            note: null,
+            phone: null,
+            tags: null,
+            taxExempt: null,
+            taxExemptions: null,
+          },
+        },
+      });
+
+    expect(nullableTaxExemptResponse.body.data.customerSet).toEqual({
+      customer: null,
+      userErrors: [{ field: ['input', 'taxExempt'], message: 'Tax exempt is of unexpected type NilClass' }],
+    });
+
+    const phoneUpsertResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CustomerSetPhoneUpsert($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer { id displayName defaultPhoneNumber { phoneNumber } tags }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          identifier: { phone: '+14155550202' },
+          input: {
+            phone: '+14155550202',
+            firstName: 'Phone',
+            lastName: 'Upsert',
+            tags: ['set', 'phone'],
+          },
+        },
+      });
+
+    expect(phoneUpsertResponse.body.data.customerSet.userErrors).toEqual([]);
+    const phoneCustomerId = phoneUpsertResponse.body.data.customerSet.customer.id;
+
+    const phoneUpdateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CustomerSetPhoneUpdate($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer { id displayName defaultPhoneNumber { phoneNumber } tags }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          identifier: { phone: '+14155550202' },
+          input: {
+            phone: '+14155550202',
+            firstName: 'Phone',
+            lastName: 'Updated',
+            tags: ['set', 'phone-updated'],
+          },
+        },
+      });
+
+    expect(phoneUpdateResponse.body.data.customerSet).toEqual({
+      customer: {
+        id: phoneCustomerId,
+        displayName: 'Phone Updated',
+        defaultPhoneNumber: { phoneNumber: '+14155550202' },
+        tags: ['phone-updated', 'set'],
+      },
+      userErrors: [],
+    });
+
+    const deleteResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation DeletePhoneCustomer($input: CustomerDeleteInput!) {
+          customerDelete(input: $input) {
+            deletedCustomerId
+            userErrors { field message }
+          }
+        }`,
+        variables: { input: { id: phoneCustomerId } },
+      });
+
+    expect(deleteResponse.body.data.customerDelete).toEqual({ deletedCustomerId: phoneCustomerId, userErrors: [] });
+
+    const deletedIdentifierResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CustomerSetDeletedIdentifier($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          identifier: { id: phoneCustomerId },
+          input: { firstName: 'Deleted' },
+        },
+      });
+
+    expect(deletedIdentifierResponse.body.data.customerSet).toEqual({
+      customer: null,
+      userErrors: [{ field: ['input'], message: 'Resource matching the identifier was not found.' }],
+    });
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query CustomerSetBroaderRead($seedId: ID!, $deletedId: ID!) {
+          seed: customer(id: $seedId) { id email addressesV2(first: 5) { nodes { address1 } } }
+          deleted: customer(id: $deletedId) { id }
+          byPhone: customerByIdentifier(identifier: { phoneNumber: "+14155550202" }) { id }
+          customers(first: 10, query: "tag:set") { nodes { id email tags } }
+          customersCount { count precision }
+        }`,
+        variables: { seedId: seedCustomerId, deletedId: phoneCustomerId },
+      });
+
+    expect(readResponse.body.data).toEqual({
+      seed: {
+        id: seedCustomerId,
+        email: 'customer-set-broader@example.com',
+        addressesV2: { nodes: [{ address1: '20 Set St' }, { address1: '21 Set St' }] },
+      },
+      deleted: null,
+      byPhone: null,
+      customers: {
+        nodes: [{ id: seedCustomerId, email: 'customer-set-broader@example.com', tags: ['set'] }],
+      },
+      customersCount: { count: 1, precision: 'EXACT' },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('stages customer tax exemptions and metafields on customerUpdate and exposes them on downstream reads', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('customerUpdate tax/metafield staging should not hit upstream fetch');

@@ -2137,6 +2137,27 @@ function validateCustomerTaxExemptionInput(input: Record<string, unknown>): Cust
   );
 }
 
+function validateCustomerSetTaxExemptionInput(input: Record<string, unknown>): CustomerMutationUserError[] {
+  if (input['taxExemptions'] === null) {
+    return [];
+  }
+
+  return validateCustomerTaxExemptionInput(input);
+}
+
+function validateCustomerSetTaxExemptInput(input: Record<string, unknown>): CustomerMutationUserError[] {
+  if (!hasOwnField(input, 'taxExempt') || input['taxExempt'] !== null) {
+    return [];
+  }
+
+  return [
+    {
+      field: ['input', 'taxExempt'],
+      message: 'Tax exempt is of unexpected type NilClass',
+    },
+  ];
+}
+
 function validateCustomerMetafieldInputs(rawMetafields: unknown, customerId: string): CustomerMutationUserError[] {
   if (rawMetafields === undefined) {
     return [];
@@ -2535,11 +2556,31 @@ function validateSupportedCustomerSetInput(input: Record<string, unknown>): Cust
   });
 
   const addressErrors: CustomerMutationUserError[] =
-    hasOwnField(input, 'addresses') && !Array.isArray(input['addresses'])
+    hasOwnField(input, 'addresses') && input['addresses'] !== null && !Array.isArray(input['addresses'])
       ? [{ field: ['input', 'addresses'], message: 'Addresses must be an array' }]
       : [];
 
-  return [...unsupportedErrors, ...addressErrors, ...validateCustomerTaxExemptionInput(input)];
+  return [
+    ...unsupportedErrors,
+    ...addressErrors,
+    ...validateCustomerSetTaxExemptInput(input),
+    ...validateCustomerSetTaxExemptionInput(input),
+  ];
+}
+
+function validateCustomerSetCreateIdentityUniqueness(input: Record<string, unknown>): CustomerMutationUserError[] {
+  const errors: CustomerMutationUserError[] = [];
+  const email = normalizeCustomerIdentifierValue(input['email']);
+  if (email && findCustomerByIdentifier({ emailAddress: email })) {
+    errors.push({ field: ['input', 'email'], message: 'Email has already been taken' });
+  }
+
+  const phone = normalizeCustomerIdentifierValue(input['phone']);
+  if (phone && findCustomerByIdentifier({ phoneNumber: phone })) {
+    errors.push({ field: ['input', 'phone'], message: 'Phone has already been taken' });
+  }
+
+  return errors;
 }
 
 function providedCustomerSetIdentifierFields(identifier: Record<string, unknown>): string[] {
@@ -2588,8 +2629,8 @@ function validateCustomerSetIdentifierInputAlignment(
   if (email && inputEmail && email.toLowerCase() !== inputEmail.toLowerCase()) {
     return [
       {
-        field: ['input', 'email'],
-        message: 'customerSet local staging requires input.email to match identifier.email',
+        field: ['input'],
+        message: 'The identifier value does not match the value of the corresponding field in the input.',
       },
     ];
   }
@@ -2607,8 +2648,8 @@ function validateCustomerSetIdentifierInputAlignment(
   if (phone && inputPhone && phone !== inputPhone) {
     return [
       {
-        field: ['input', 'phone'],
-        message: 'customerSet local staging requires input.phone to match identifier.phone',
+        field: ['input'],
+        message: 'The identifier value does not match the value of the corresponding field in the input.',
       },
     ];
   }
@@ -3093,7 +3134,7 @@ export function handleCustomerMutation(
         ...validateCustomerSetIdentifier(identifier),
         ...validateCustomerSetIdentifierInputAlignment(effectiveInput, identifier),
       ];
-      if (hasOwnField(effectiveInput, 'addresses') && !existingCustomer) {
+      if (Array.isArray(effectiveInput['addresses']) && !existingCustomer) {
         userErrors.push({
           field: ['input', 'addresses'],
           message: 'customerSet local staging supports addresses only when updating an existing customer',
@@ -3115,6 +3156,7 @@ export function handleCustomerMutation(
 
       if (!existingCustomer) {
         userErrors.push(...validateCustomerSetCreateInput(effectiveInput));
+        userErrors.push(...validateCustomerSetCreateIdentityUniqueness(effectiveInput));
       }
 
       if (userErrors.length > 0) {
@@ -3125,7 +3167,7 @@ export function handleCustomerMutation(
       const stagedCustomer = existingCustomer
         ? store.stageUpdateCustomer(buildUpdatedCustomer(existingCustomer, effectiveInput))
         : store.stageCreateCustomer(buildCreatedCustomer(effectiveInput));
-      const customer = hasOwnField(effectiveInput, 'addresses')
+      const customer = Array.isArray(effectiveInput['addresses'])
         ? replaceCustomerSetAddresses(stagedCustomer, effectiveInput['addresses'])
         : stagedCustomer;
       data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
