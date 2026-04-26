@@ -236,12 +236,84 @@ describe('webhook subscription mutation flow', () => {
       precision: 'EXACT',
     });
 
+    const deleteMutation = `mutation DeleteWebhookSubscription($id: ID!) {
+      webhookSubscriptionDelete(id: $id) {
+        deletedWebhookSubscriptionId
+        userErrors {
+          field
+          message
+        }
+      }
+    }`;
+    const deleteVariables = { id: created.id };
+    const deleteResponse = await request(app).post('/admin/api/2026-04/graphql.json').send({
+      query: deleteMutation,
+      variables: deleteVariables,
+    });
+
+    expect(deleteResponse.status).toBe(200);
+    expect(deleteResponse.body.data.webhookSubscriptionDelete).toEqual({
+      deletedWebhookSubscriptionId: created.id,
+      userErrors: [],
+    });
+
+    const readDeletedResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query WebhookSubscriptionReadAfterDelete($id: ID!) {
+          webhookSubscription(id: $id) {
+            id
+          }
+          webhookSubscriptions(first: 10, sortKey: ID) {
+            nodes {
+              id
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+              startCursor
+              endCursor
+            }
+          }
+          webhookSubscriptionsCount {
+            count
+            precision
+          }
+        }`,
+        variables: {
+          id: created.id,
+        },
+      });
+
+    expect(readDeletedResponse.status).toBe(200);
+    expect(readDeletedResponse.body.data).toEqual({
+      webhookSubscription: null,
+      webhookSubscriptions: {
+        nodes: [],
+        pageInfo: {
+          hasNextPage: false,
+          hasPreviousPage: false,
+          startCursor: null,
+          endCursor: null,
+        },
+      },
+      webhookSubscriptionsCount: {
+        count: 0,
+        precision: 'EXACT',
+      },
+    });
+
     const logResponse = await request(app).get('/__meta/log');
     expect(logResponse.body.entries.map((entry: { operationName: string }) => entry.operationName)).toEqual([
       'webhookSubscriptionCreate',
       'webhookSubscriptionUpdate',
+      'webhookSubscriptionDelete',
     ]);
-    expect(logResponse.body.entries.map((entry: { status: string }) => entry.status)).toEqual(['staged', 'staged']);
+    expect(logResponse.body.entries.map((entry: { status: string }) => entry.status)).toEqual([
+      'staged',
+      'staged',
+      'staged',
+    ]);
     expect(logResponse.body.entries[0].requestBody).toEqual({
       query: createMutation,
       variables: createVariables,
@@ -249,17 +321,15 @@ describe('webhook subscription mutation flow', () => {
     expect(logResponse.body.entries[0].stagedResourceIds).toEqual([created.id]);
     expect(logResponse.body.entries[1].requestBody.variables).toEqual(updateVariables);
     expect(logResponse.body.entries[1].stagedResourceIds).toEqual([created.id]);
+    expect(logResponse.body.entries[2].requestBody).toEqual({
+      query: deleteMutation,
+      variables: deleteVariables,
+    });
+    expect(logResponse.body.entries[2].stagedResourceIds).toEqual([created.id]);
 
     const stateResponse = await request(app).get('/__meta/state');
-    expect(stateResponse.body.stagedState.webhookSubscriptions[created.id]).toMatchObject({
-      id: created.id,
-      includeFields: ['id'],
-      metafieldNamespaces: [],
-      endpoint: {
-        __typename: 'WebhookHttpEndpoint',
-        callbackUrl: 'https://example.com/hermes-webhook-local-updated',
-      },
-    });
+    expect(stateResponse.body.stagedState.webhookSubscriptions[created.id]).toBeUndefined();
+    expect(stateResponse.body.stagedState.deletedWebhookSubscriptionIds[created.id]).toBe(true);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -316,6 +386,85 @@ describe('webhook subscription mutation flow', () => {
       userErrors: [],
     });
 
+    const deleteKnownResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation DeleteKnownWebhook($id: ID!) {
+          webhookSubscriptionDelete(id: $id) {
+            deletedWebhookSubscriptionId
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          id: knownWebhook.id,
+        },
+      });
+
+    expect(deleteKnownResponse.status).toBe(200);
+    expect(deleteKnownResponse.body.data.webhookSubscriptionDelete).toEqual({
+      deletedWebhookSubscriptionId: knownWebhook.id,
+      userErrors: [],
+    });
+
+    const readDeletedKnownResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query DeletedKnownWebhook($id: ID!) {
+          webhookSubscription(id: $id) {
+            id
+          }
+          webhookSubscriptions(first: 10, sortKey: ID) {
+            nodes {
+              id
+            }
+          }
+          webhookSubscriptionsCount {
+            count
+            precision
+          }
+        }`,
+        variables: {
+          id: knownWebhook.id,
+        },
+      });
+
+    expect(readDeletedKnownResponse.body.data).toEqual({
+      webhookSubscription: null,
+      webhookSubscriptions: {
+        nodes: [],
+      },
+      webhookSubscriptionsCount: {
+        count: 0,
+        precision: 'EXACT',
+      },
+    });
+
+    const alreadyDeletedResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation DeleteAlreadyDeletedWebhook($id: ID!) {
+          webhookSubscriptionDelete(id: $id) {
+            deletedWebhookSubscriptionId
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          id: knownWebhook.id,
+        },
+      });
+
+    expect(alreadyDeletedResponse.status).toBe(200);
+    expect(alreadyDeletedResponse.body.data.webhookSubscriptionDelete).toEqual({
+      deletedWebhookSubscriptionId: null,
+      userErrors: [{ field: ['id'], message: 'Webhook subscription does not exist' }],
+    });
+
     store.reset();
     resetSyntheticIdentity();
     const validationResponse = await request(app)
@@ -326,6 +475,13 @@ describe('webhook subscription mutation flow', () => {
             webhookSubscription {
               id
             }
+            userErrors {
+              field
+              message
+            }
+          }
+          deleteUnknown: webhookSubscriptionDelete(id: $unknownId) {
+            deletedWebhookSubscriptionId
             userErrors {
               field
               message
@@ -356,10 +512,100 @@ describe('webhook subscription mutation flow', () => {
         webhookSubscription: null,
         userErrors: [{ field: ['id'], message: 'Webhook subscription does not exist' }],
       },
+      deleteUnknown: {
+        deletedWebhookSubscriptionId: null,
+        userErrors: [{ field: ['id'], message: 'Webhook subscription does not exist' }],
+      },
       createMissingUri: {
         webhookSubscription: null,
         userErrors: [{ field: ['webhookSubscription', 'callbackUrl'], message: "Address can't be blank" }],
       },
+    });
+
+    const missingVariableResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation MissingDeleteWebhookVariable($id: ID!) {
+          webhookSubscriptionDelete(id: $id) {
+            deletedWebhookSubscriptionId
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {},
+      });
+
+    expect(missingVariableResponse.body).toEqual({
+      errors: [
+        {
+          message: 'Variable $id of type ID! was provided invalid value',
+          extensions: {
+            code: 'INVALID_VARIABLE',
+            value: null,
+            problems: [{ path: [], explanation: 'Expected value to not be null' }],
+          },
+        },
+      ],
+    });
+
+    const nullIdResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation NullDeleteWebhook {
+          webhookSubscriptionDelete(id: null) {
+            deletedWebhookSubscriptionId
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+      });
+
+    expect(nullIdResponse.body).toEqual({
+      errors: [
+        {
+          message:
+            "Argument 'id' on Field 'webhookSubscriptionDelete' has an invalid value (null). Expected type 'ID!'.",
+          path: ['mutation', 'webhookSubscriptionDelete', 'id'],
+          extensions: {
+            code: 'argumentLiteralsIncompatible',
+            typeName: 'Field',
+            argumentName: 'id',
+          },
+        },
+      ],
+    });
+
+    const missingArgumentResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation MissingDeleteWebhookArgument {
+          webhookSubscriptionDelete {
+            deletedWebhookSubscriptionId
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+      });
+
+    expect(missingArgumentResponse.body).toEqual({
+      errors: [
+        {
+          message: "Field 'webhookSubscriptionDelete' is missing required arguments: id",
+          path: ['mutation', 'webhookSubscriptionDelete'],
+          extensions: {
+            code: 'missingRequiredArguments',
+            className: 'Field',
+            name: 'webhookSubscriptionDelete',
+            arguments: 'id',
+          },
+        },
+      ],
     });
 
     const logResponse = await request(app).get('/__meta/log');

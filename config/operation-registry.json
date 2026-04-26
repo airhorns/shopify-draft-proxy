@@ -3147,10 +3147,10 @@
     "type": "mutation",
     "domain": "webhooks",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["webhookSubscriptionDelete", "WebhookSubscriptionDelete"],
-    "runtimeTests": [],
-    "supportNotes": "Conformance scaffold only. HAR-267 captures delete payloads, post-delete absence, and unknown-id userErrors, but supported runtime deregistration must wait for local state/read-after-delete modeling."
+    "runtimeTests": ["tests/integration/webhook-subscription-mutation-flow.test.ts"],
+    "supportNotes": "Local staging deregisters staged or hydrated API-created webhook subscriptions for the HAR-267 captured subset, returning deletedWebhookSubscriptionId/userErrors payloads, preserving raw mutation-log replay order, and making downstream detail/catalog/count reads observe deletion without runtime Shopify writes. Unknown or already deleted IDs return the captured Webhook subscription does not exist userError; missing/null ID branches return Shopify-like GraphQL validation errors locally."
   },
   {
     "name": "segment",
