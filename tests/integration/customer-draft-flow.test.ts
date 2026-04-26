@@ -581,6 +581,339 @@ describe('customer draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('mirrors captured long-tail customer address validation and normalization locally', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('customer address validation should not hit upstream fetch');
+    });
+
+    const app = createApp(snapshotConfig).callback();
+    const createCustomerResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CustomerCreate($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            email: 'address-long-tail@example.com',
+            firstName: 'Address',
+            lastName: 'LongTail',
+          },
+        },
+      });
+    const customerId = createCustomerResponse.body.data.customerCreate.customer.id;
+
+    const blankAddressResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation BlankAddress($customerId: ID!) {
+          customerAddressCreate(customerId: $customerId, address: {}, setAsDefault: true) {
+            address {
+              id
+              firstName
+              lastName
+              address1
+              city
+              country
+              countryCodeV2
+              province
+              provinceCode
+              zip
+              name
+              formattedArea
+            }
+            userErrors { field message }
+          }
+        }`,
+        variables: { customerId },
+      });
+    expect(blankAddressResponse.body.data.customerAddressCreate.userErrors).toEqual([]);
+    expect(blankAddressResponse.body.data.customerAddressCreate.address).toMatchObject({
+      firstName: 'Address',
+      lastName: 'LongTail',
+      address1: null,
+      city: null,
+      country: null,
+      countryCodeV2: null,
+      province: null,
+      provinceCode: null,
+      zip: null,
+      name: 'Address LongTail',
+      formattedArea: null,
+    });
+
+    const blankStringAddressResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation BlankStringAddress($customerId: ID!) {
+          customerAddressCreate(
+            customerId: $customerId
+            address: { firstName: "", lastName: "", address1: "", city: "", countryCode: CA, provinceCode: "", zip: "" }
+            setAsDefault: false
+          ) {
+            address { id firstName lastName address1 city country countryCodeV2 provinceCode zip name formattedArea }
+            userErrors { field message }
+          }
+        }`,
+        variables: { customerId },
+      });
+    expect(blankStringAddressResponse.body.data.customerAddressCreate).toEqual({
+      address: {
+        id: blankStringAddressResponse.body.data.customerAddressCreate.address.id,
+        firstName: 'Address',
+        lastName: 'LongTail',
+        address1: null,
+        city: null,
+        country: 'Canada',
+        countryCodeV2: 'CA',
+        provinceCode: null,
+        zip: null,
+        name: 'Address LongTail',
+        formattedArea: 'Canada',
+      },
+      userErrors: [],
+    });
+
+    const invalidProvinceResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation InvalidProvince($customerId: ID!) {
+          customerAddressCreate(
+            customerId: $customerId
+            address: { address1: "5 Invalid Province St", city: "Ottawa", countryCode: CA, provinceCode: "ZZ", zip: "K1A 0B1" }
+          ) {
+            address { id }
+            userErrors { field message }
+          }
+        }`,
+        variables: { customerId },
+      });
+    expect(invalidProvinceResponse.body.data.customerAddressCreate).toEqual({
+      address: null,
+      userErrors: [{ field: ['address', 'province'], message: 'Province is invalid' }],
+    });
+
+    const invalidCountryResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation InvalidCountry($customerId: ID!) {
+          customerAddressCreate(
+            customerId: $customerId
+            address: { address1: "6 Invalid Country St", city: "Nowhere", countryCode: ZZ, provinceCode: "ZZ", zip: "00000" }
+          ) {
+            address { id }
+            userErrors { field message }
+          }
+        }`,
+        variables: { customerId },
+      });
+    expect(invalidCountryResponse.body.data.customerAddressCreate).toEqual({
+      address: null,
+      userErrors: [{ field: ['address', 'country'], message: 'Country is invalid' }],
+    });
+
+    const albertaAddressResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation ValidAlbertaProvince($customerId: ID!) {
+          customerAddressCreate(
+            customerId: $customerId
+            address: { address1: "4 Alberta St", city: "Calgary", countryCode: CA, provinceCode: "AB", zip: "T2P 1J9" }
+          ) {
+            address { id address1 city country countryCodeV2 province provinceCode zip formattedArea }
+            userErrors { field message }
+          }
+        }`,
+        variables: { customerId },
+      });
+    expect(albertaAddressResponse.body.data.customerAddressCreate).toEqual({
+      address: {
+        id: albertaAddressResponse.body.data.customerAddressCreate.address.id,
+        address1: '4 Alberta St',
+        city: 'Calgary',
+        country: 'Canada',
+        countryCodeV2: 'CA',
+        province: 'Alberta',
+        provinceCode: 'AB',
+        zip: 'T2P 1J9',
+        formattedArea: 'Calgary AB, Canada',
+      },
+      userErrors: [],
+    });
+
+    const invalidPostalResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation InvalidPostal($customerId: ID!) {
+          customerAddressCreate(
+            customerId: $customerId
+            address: { address1: "7 Postal St", city: "Ottawa", countryCode: CA, provinceCode: "ON", zip: "not-a-postal-code" }
+          ) {
+            address { id address1 city country countryCodeV2 province provinceCode zip formattedArea }
+            userErrors { field message }
+          }
+        }`,
+        variables: { customerId },
+      });
+    expect(invalidPostalResponse.body.data.customerAddressCreate).toEqual({
+      address: {
+        id: invalidPostalResponse.body.data.customerAddressCreate.address.id,
+        address1: '7 Postal St',
+        city: 'Ottawa',
+        country: 'Canada',
+        countryCodeV2: 'CA',
+        province: 'Ontario',
+        provinceCode: 'ON',
+        zip: 'not-a-postal-code',
+        formattedArea: 'Ottawa ON, Canada',
+      },
+      userErrors: [],
+    });
+
+    const createUniqueAddressResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation UniqueAddress($customerId: ID!) {
+          customerAddressCreate(
+            customerId: $customerId
+            address: { address1: "8 Duplicate St", city: "Toronto", countryCode: CA, provinceCode: "ON", zip: "M5H 2N2" }
+          ) {
+            address { id }
+            userErrors { field message }
+          }
+        }`,
+        variables: { customerId },
+      });
+    expect(createUniqueAddressResponse.body.data.customerAddressCreate.userErrors).toEqual([]);
+
+    const duplicateAddressResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation DuplicateAddress($customerId: ID!) {
+          customerAddressCreate(
+            customerId: $customerId
+            address: { address1: "8 Duplicate St", city: "Toronto", countryCode: CA, provinceCode: "ON", zip: "M5H 2N2" }
+            setAsDefault: false
+          ) {
+            address { id }
+            userErrors { field message }
+          }
+        }`,
+        variables: { customerId },
+      });
+    expect(duplicateAddressResponse.body.data.customerAddressCreate).toEqual({
+      address: null,
+      userErrors: [{ field: ['address'], message: 'Address already exists' }],
+    });
+
+    const createOtherCustomerResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CustomerCreate($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            email: 'address-cross-owner@example.com',
+            firstName: 'Other',
+            lastName: 'Owner',
+          },
+        },
+      });
+    const otherCustomerId = createOtherCustomerResponse.body.data.customerCreate.customer.id;
+    const createOtherAddressResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation OtherAddress($customerId: ID!) {
+          customerAddressCreate(
+            customerId: $customerId
+            address: { address1: "9 Other St", city: "Ottawa", countryCode: CA, provinceCode: "ON", zip: "K1A 0B1" }
+            setAsDefault: true
+          ) {
+            address { id }
+            userErrors { field message }
+          }
+        }`,
+        variables: { customerId: otherCustomerId },
+      });
+    const otherAddressId = createOtherAddressResponse.body.data.customerAddressCreate.address.id;
+
+    const crossUpdateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CrossUpdate($customerId: ID!, $addressId: ID!) {
+          customerAddressUpdate(customerId: $customerId, addressId: $addressId, address: { city: "Cross Customer" }) {
+            address { id }
+            userErrors { field message }
+          }
+        }`,
+        variables: { customerId, addressId: otherAddressId },
+      });
+    expect(crossUpdateResponse.body.data.customerAddressUpdate).toEqual({
+      address: null,
+      userErrors: [{ field: ['addressId'], message: 'Address does not exist' }],
+    });
+
+    const crossDefaultResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CrossDefault($customerId: ID!, $addressId: ID!) {
+          customerUpdateDefaultAddress(customerId: $customerId, addressId: $addressId) {
+            customer { id defaultAddress { id } addresses { id } addressesV2(first: 5) { nodes { id } } }
+            userErrors { field message }
+          }
+        }`,
+        variables: { customerId, addressId: otherAddressId },
+      });
+    expect(crossDefaultResponse.body.data.customerUpdateDefaultAddress).toEqual({
+      customer: {
+        id: customerId,
+        defaultAddress: {
+          id: blankAddressResponse.body.data.customerAddressCreate.address.id,
+        },
+        addresses: expect.arrayContaining([
+          { id: blankAddressResponse.body.data.customerAddressCreate.address.id },
+          { id: blankStringAddressResponse.body.data.customerAddressCreate.address.id },
+          { id: invalidPostalResponse.body.data.customerAddressCreate.address.id },
+          { id: createUniqueAddressResponse.body.data.customerAddressCreate.address.id },
+        ]),
+        addressesV2: {
+          nodes: expect.arrayContaining([
+            { id: blankAddressResponse.body.data.customerAddressCreate.address.id },
+            { id: blankStringAddressResponse.body.data.customerAddressCreate.address.id },
+            { id: invalidPostalResponse.body.data.customerAddressCreate.address.id },
+            { id: createUniqueAddressResponse.body.data.customerAddressCreate.address.id },
+          ]),
+        },
+      },
+      userErrors: [{ field: ['addressId'], message: 'Address does not exist' }],
+    });
+
+    const crossDeleteResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CrossDelete($customerId: ID!, $addressId: ID!) {
+          customerAddressDelete(customerId: $customerId, addressId: $addressId) {
+            deletedAddressId
+            userErrors { field message }
+          }
+        }`,
+        variables: { customerId, addressId: otherAddressId },
+      });
+    expect(crossDeleteResponse.body.data.customerAddressDelete).toEqual({
+      deletedAddressId: null,
+      userErrors: [{ field: ['addressId'], message: 'Address does not exist' }],
+    });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('exposes staged customerCreate rows through filtered reverse and backward customer windows', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('staged customer connection replay should not hit upstream fetch');
@@ -1423,6 +1756,7 @@ describe('customer draft flow', () => {
               taxExemptions
               tags
               defaultAddress { address1 city province country zip formattedArea }
+              addresses { id address1 city }
               addressesV2(first: 5) {
                 nodes { id address1 city province country zip formattedArea }
                 pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
@@ -1443,6 +1777,7 @@ describe('customer draft flow', () => {
             taxExempt: false,
             taxExemptions: [],
             addresses: [
+              { address1: '10 Set St', city: 'Ottawa', countryCode: 'CA', provinceCode: 'ON', zip: 'K1A 0B1' },
               { address1: '10 Set St', city: 'Ottawa', countryCode: 'CA', provinceCode: 'ON', zip: 'K1A 0B1' },
             ],
           },
@@ -1469,6 +1804,11 @@ describe('customer draft flow', () => {
       },
     });
     expect(updateResponse.body.data.customerSet.customer.addressesV2.nodes).toHaveLength(1);
+    expect(updateResponse.body.data.customerSet.customer.addresses).toHaveLength(1);
+    expect(updateResponse.body.data.customerSet.customer.addresses[0]).toMatchObject({
+      address1: '10 Set St',
+      city: 'Ottawa',
+    });
     expect(updateResponse.body.data.customerSet.customer.addressesV2.nodes[0]).toMatchObject({
       address1: '10 Set St',
       city: 'Ottawa',
@@ -1552,13 +1892,69 @@ describe('customer draft flow', () => {
       displayName: 'Set Upsert',
     });
 
+    const blankAddressReplacementResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CustomerSetBlankAddress($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer {
+              id
+              defaultAddress { firstName lastName address1 city country countryCodeV2 provinceCode zip name formattedArea }
+              addresses { id address1 city }
+              addressesV2(first: 5) {
+                nodes { id firstName lastName address1 city country countryCodeV2 provinceCode zip name formattedArea }
+              }
+            }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          identifier: { id: createdCustomerId },
+          input: {
+            email: 'customer-set-create@example.com',
+            addresses: [{}],
+          },
+        },
+      });
+    expect(blankAddressReplacementResponse.body.data.customerSet.userErrors).toEqual([]);
+    expect(blankAddressReplacementResponse.body.data.customerSet.customer.defaultAddress).toEqual({
+      firstName: 'Set',
+      lastName: 'Updated',
+      address1: null,
+      city: null,
+      country: null,
+      countryCodeV2: null,
+      provinceCode: null,
+      zip: null,
+      name: 'Set Updated',
+      formattedArea: null,
+    });
+    expect(blankAddressReplacementResponse.body.data.customerSet.customer.addresses).toHaveLength(1);
+    expect(blankAddressReplacementResponse.body.data.customerSet.customer.addressesV2.nodes).toEqual([
+      {
+        id: blankAddressReplacementResponse.body.data.customerSet.customer.addressesV2.nodes[0].id,
+        firstName: 'Set',
+        lastName: 'Updated',
+        address1: null,
+        city: null,
+        country: null,
+        countryCodeV2: null,
+        provinceCode: null,
+        zip: null,
+        name: 'Set Updated',
+        formattedArea: null,
+      },
+    ]);
+
     const logResponse = await request(app).get('/__meta/log');
     expect(logResponse.body.entries.map((entry: { operationName: string }) => entry.operationName)).toEqual([
       'customerSet',
       'customerSet',
       'customerSet',
+      'customerSet',
     ]);
     expect(logResponse.body.entries.map((entry: { status: string }) => entry.status)).toEqual([
+      'staged',
       'staged',
       'staged',
       'staged',

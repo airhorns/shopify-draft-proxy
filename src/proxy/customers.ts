@@ -19,6 +19,7 @@ import {
   serializeMetafieldSelection,
   upsertOwnerMetafields,
 } from './metafields.js';
+import { CUSTOMER_ADDRESS_COUNTRIES } from './customer-address-territories.js';
 import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type {
@@ -212,17 +213,32 @@ const SUPPORTED_CUSTOMER_SET_INPUT_FIELDS = new Set([
 
 const SUPPORTED_CUSTOMER_SET_IDENTIFIER_FIELDS = new Set(['id', 'email', 'phone']);
 
-const COUNTRY_NAMES_BY_CODE: Record<string, string> = {
-  CA: 'Canada',
-  US: 'United States',
-};
+const CUSTOMER_ADDRESS_COUNTRIES_BY_CODE: Map<string, (typeof CUSTOMER_ADDRESS_COUNTRIES)[number]> = new Map(
+  CUSTOMER_ADDRESS_COUNTRIES.map((country) => [country.code, country]),
+);
 
-const PROVINCE_NAMES_BY_COUNTRY_CODE: Record<string, Record<string, string>> = {
-  CA: {
-    ON: 'Ontario',
-    QC: 'Quebec',
-  },
-};
+const CUSTOMER_ADDRESS_ZONES_BY_COUNTRY_CODE: Map<
+  string,
+  Map<string, (typeof CUSTOMER_ADDRESS_COUNTRIES)[number]['zones'][number]>
+> = new Map(
+  CUSTOMER_ADDRESS_COUNTRIES.filter((country) => country.zones.length > 0).map((country) => [
+    country.code,
+    new Map(country.zones.map((zone) => [zone.code, zone])),
+  ]),
+);
+
+const CUSTOMER_ADDRESS_DUPLICATE_FIELDS = [
+  'firstName',
+  'lastName',
+  'address1',
+  'address2',
+  'city',
+  'company',
+  'provinceCode',
+  'countryCodeV2',
+  'zip',
+  'phone',
+] as const;
 
 function isValidCustomerMetafieldType(type: string): boolean {
   return VALID_CUSTOMER_METAFIELD_TYPES.has(type) || CUSTOMER_METAFIELD_LIST_TYPES.includes(type);
@@ -239,6 +255,23 @@ function normalizeStringField(
 
   const value = raw[key];
   return typeof value === 'string' ? value : null;
+}
+
+function normalizeAddressStringField(
+  raw: Record<string, unknown>,
+  key: string,
+  fallback: string | null = null,
+): string | null {
+  if (!hasOwnField(raw, key)) {
+    return fallback;
+  }
+
+  const value = raw[key];
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  return value.trim().length > 0 ? value : null;
 }
 
 function normalizeStringLikeField(
@@ -326,8 +359,23 @@ function maskPhoneNumber(phone: string | null): string | null {
   return phone;
 }
 
+function resolveIntlCountryName(countryCode: string): string | null {
+  try {
+    const displayName = new Intl.DisplayNames(['en'], { type: 'region' }).of(countryCode);
+    return displayName && displayName !== 'Unknown Region' ? displayName : null;
+  } catch {
+    return null;
+  }
+}
+
+function isValidCountryCode(countryCode: string): boolean {
+  return CUSTOMER_ADDRESS_COUNTRIES_BY_CODE.has(countryCode);
+}
+
 function resolveCountryName(countryCode: string | null, fallback: string | null): string | null {
-  return countryCode ? (COUNTRY_NAMES_BY_CODE[countryCode] ?? fallback ?? countryCode) : fallback;
+  return countryCode
+    ? (CUSTOMER_ADDRESS_COUNTRIES_BY_CODE.get(countryCode)?.name ?? resolveIntlCountryName(countryCode) ?? fallback)
+    : fallback;
 }
 
 function resolveProvinceName(
@@ -339,7 +387,7 @@ function resolveProvinceName(
     return fallback;
   }
 
-  return PROVINCE_NAMES_BY_COUNTRY_CODE[countryCode]?.[provinceCode] ?? fallback ?? provinceCode;
+  return CUSTOMER_ADDRESS_ZONES_BY_COUNTRY_CODE.get(countryCode)?.get(provinceCode)?.name ?? fallback ?? provinceCode;
 }
 
 function buildFormattedArea(city: string | null, provinceCode: string | null, country: string | null): string | null {
@@ -517,29 +565,29 @@ function normalizeCustomerAddress(
 
   const rawId = raw['id'];
   const id = typeof rawId === 'string' && rawId ? rawId : (options.fallback?.id ?? makeSyntheticGid('CustomerAddress'));
-  const firstName = normalizeStringField(raw, 'firstName', options.fallback?.firstName ?? null);
-  const lastName = normalizeStringField(raw, 'lastName', options.fallback?.lastName ?? null);
-  const address1 = normalizeStringField(raw, 'address1', options.fallback?.address1 ?? null);
-  const address2 = normalizeStringField(raw, 'address2', options.fallback?.address2 ?? null);
-  const city = normalizeStringField(raw, 'city', options.fallback?.city ?? null);
-  const company = normalizeStringField(raw, 'company', options.fallback?.company ?? null);
-  const provinceCode = normalizeStringField(raw, 'provinceCode', options.fallback?.provinceCode ?? null);
+  const firstName = normalizeAddressStringField(raw, 'firstName', options.fallback?.firstName ?? null);
+  const lastName = normalizeAddressStringField(raw, 'lastName', options.fallback?.lastName ?? null);
+  const address1 = normalizeAddressStringField(raw, 'address1', options.fallback?.address1 ?? null);
+  const address2 = normalizeAddressStringField(raw, 'address2', options.fallback?.address2 ?? null);
+  const city = normalizeAddressStringField(raw, 'city', options.fallback?.city ?? null);
+  const company = normalizeAddressStringField(raw, 'company', options.fallback?.company ?? null);
+  const provinceCode = normalizeAddressStringField(raw, 'provinceCode', options.fallback?.provinceCode ?? null);
   const countryCodeV2 =
-    normalizeStringField(raw, 'countryCodeV2', options.fallback?.countryCodeV2 ?? null) ??
-    normalizeStringField(raw, 'countryCode', options.fallback?.countryCodeV2 ?? null);
-  const country = normalizeStringField(
+    normalizeAddressStringField(raw, 'countryCodeV2', options.fallback?.countryCodeV2 ?? null) ??
+    normalizeAddressStringField(raw, 'countryCode', options.fallback?.countryCodeV2 ?? null);
+  const country = normalizeAddressStringField(
     raw,
     'country',
     resolveCountryName(countryCodeV2, options.fallback?.country ?? null),
   );
-  const province = normalizeStringField(
+  const province = normalizeAddressStringField(
     raw,
     'province',
     resolveProvinceName(countryCodeV2, provinceCode, options.fallback?.province ?? null),
   );
-  const zip = normalizeStringField(raw, 'zip', options.fallback?.zip ?? null);
-  const phone = normalizeStringField(raw, 'phone', options.fallback?.phone ?? null);
-  const rawName = normalizeStringField(raw, 'name', options.fallback?.name ?? null);
+  const zip = normalizeAddressStringField(raw, 'zip', options.fallback?.zip ?? null);
+  const phone = normalizeAddressStringField(raw, 'phone', options.fallback?.phone ?? null);
+  const rawName = normalizeAddressStringField(raw, 'name', options.fallback?.name ?? null);
   const fallbackName = [firstName, lastName].filter(Boolean).join(' ') || null;
   const name = rawName ?? fallbackName;
 
@@ -1281,6 +1329,10 @@ function serializeCustomerSelection(
         result[key] = serializeDefaultAddressSelection(selection, customer.defaultAddress);
         break;
       case 'addresses':
+        result[key] = store
+          .listEffectiveCustomerAddresses(customer.id)
+          .map((address) => serializeCustomerAddressSelection(selection, address));
+        break;
       case 'companyContactProfiles':
         result[key] = [];
         break;
@@ -2638,12 +2690,81 @@ function readCustomerAddressInputs(raw: unknown): Record<string, unknown>[] {
   return Array.isArray(raw) ? raw.map(readCustomerAddressInput) : [];
 }
 
-function buildCreatedCustomerAddress(customerId: string, input: Record<string, unknown>): CustomerAddressRecord {
-  const position = store.listEffectiveCustomerAddresses(customerId).length;
-  return normalizeCustomerAddress(customerId, input, {
+function applyCustomerNameFallbackToAddress(
+  address: CustomerAddressRecord,
+  customer: CustomerRecord,
+): CustomerAddressRecord {
+  const firstName = address.firstName ?? customer.firstName;
+  const lastName = address.lastName ?? customer.lastName;
+  const fallbackName = [firstName, lastName].filter(Boolean).join(' ') || null;
+  const name = address.name ?? fallbackName;
+
+  return {
+    ...address,
+    firstName,
+    lastName,
+    name,
+  };
+}
+
+function validateCustomerAddressInput(
+  input: Record<string, unknown>,
+  fieldPrefix: string[] = ['address'],
+): CustomerMutationUserError[] {
+  const countryCode =
+    normalizeAddressStringField(input, 'countryCodeV2') ?? normalizeAddressStringField(input, 'countryCode');
+  const provinceCode = normalizeAddressStringField(input, 'provinceCode');
+  const userErrors: CustomerMutationUserError[] = [];
+
+  if (countryCode && !isValidCountryCode(countryCode)) {
+    userErrors.push({ field: [...fieldPrefix, 'country'], message: 'Country is invalid' });
+  }
+
+  const validProvinceCodes = countryCode ? CUSTOMER_ADDRESS_ZONES_BY_COUNTRY_CODE.get(countryCode) : undefined;
+  if (provinceCode && validProvinceCodes && !validProvinceCodes.has(provinceCode)) {
+    userErrors.push({ field: [...fieldPrefix, 'province'], message: 'Province is invalid' });
+  }
+
+  return userErrors;
+}
+
+function validateCustomerAddressInputs(
+  rawAddresses: unknown,
+  fieldPrefix: string[] = ['input', 'addresses'],
+): CustomerMutationUserError[] {
+  if (!Array.isArray(rawAddresses)) {
+    return [];
+  }
+
+  return rawAddresses.flatMap((rawAddress, index) =>
+    validateCustomerAddressInput(readCustomerAddressInput(rawAddress), [...fieldPrefix, String(index)]),
+  );
+}
+
+function customerAddressesMatch(left: CustomerAddressRecord, right: CustomerAddressRecord): boolean {
+  return CUSTOMER_ADDRESS_DUPLICATE_FIELDS.every((field) => left[field] === right[field]);
+}
+
+function findDuplicateCustomerAddress(
+  customerId: string,
+  candidate: CustomerAddressRecord,
+  options: { excludeAddressId?: string | null; within?: CustomerAddressRecord[] } = {},
+): CustomerAddressRecord | null {
+  const addresses = options.within ?? store.listEffectiveCustomerAddresses(customerId);
+  return (
+    addresses.find(
+      (address) => address.id !== options.excludeAddressId && customerAddressesMatch(address, candidate),
+    ) ?? null
+  );
+}
+
+function buildCreatedCustomerAddress(customer: CustomerRecord, input: Record<string, unknown>): CustomerAddressRecord {
+  const position = store.listEffectiveCustomerAddresses(customer.id).length;
+  const address = normalizeCustomerAddress(customer.id, input, {
     position,
-    cursor: `customer-address-${customerId}-${position}`,
+    cursor: `customer-address-${customer.id}-${position}`,
   })!;
+  return applyCustomerNameFallbackToAddress(address, customer);
 }
 
 function buildUpdatedCustomerAddress(
@@ -2673,11 +2794,23 @@ function replaceCustomerSetAddresses(customer: CustomerRecord, rawAddresses: unk
     store.stageDeleteCustomerAddress(address.id);
   }
 
-  const addresses = readCustomerAddressInputs(rawAddresses).map((addressInput) =>
-    store.stageUpsertCustomerAddress(buildCreatedCustomerAddress(customer.id, addressInput)),
-  );
+  const addresses: CustomerAddressRecord[] = [];
+  for (const addressInput of readCustomerAddressInputs(rawAddresses)) {
+    const address = buildCreatedCustomerAddress(customer, addressInput);
+    if (findDuplicateCustomerAddress(customer.id, address, { within: addresses })) {
+      continue;
+    }
+    addresses.push(store.stageUpsertCustomerAddress(address));
+  }
 
   return store.stageUpdateCustomer(buildCustomerWithDefaultAddress(customer, addresses[0] ?? null));
+}
+
+function buildCustomerAddressOwnershipUserError(): CustomerMutationUserError {
+  return {
+    field: ['addressId'],
+    message: 'Address does not exist',
+  };
 }
 
 function buildMissingCustomerAddressCustomerError(fieldPath: string[]): CustomerMutationUserError {
@@ -3546,6 +3679,9 @@ export function handleCustomerMutation(
           message: 'customerSet local staging supports addresses only when updating an existing customer',
         });
       }
+      if (hasOwnField(effectiveInput, 'addresses')) {
+        userErrors.push(...validateCustomerAddressInputs(effectiveInput['addresses']));
+      }
 
       const idIdentifier = normalizeCustomerIdentifierValue(identifier['id']);
       if (idIdentifier && !existingCustomer) {
@@ -3661,9 +3797,27 @@ export function handleCustomerMutation(
         continue;
       }
 
-      const address = store.stageUpsertCustomerAddress(
-        buildCreatedCustomerAddress(customerId, readCustomerAddressInput(args['address'])),
-      );
+      const addressInput = readCustomerAddressInput(args['address']);
+      const userErrors = validateCustomerAddressInput(addressInput);
+      if (userErrors.length > 0) {
+        data[key] = serializeCustomerMutationPayload(field, { customerAddress: null, userErrors }, variables);
+        continue;
+      }
+
+      const address = buildCreatedCustomerAddress(existingCustomer, addressInput);
+      if (findDuplicateCustomerAddress(customerId, address)) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customerAddress: null,
+            userErrors: [{ field: ['address'], message: 'Address already exists' }],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      store.stageUpsertCustomerAddress(address);
       if (!existingCustomer.defaultAddress || args['setAsDefault'] === true) {
         store.stageUpdateCustomer(buildCustomerWithDefaultAddress(existingCustomer, address));
       }
@@ -3688,15 +3842,44 @@ export function handleCustomerMutation(
         );
         continue;
       }
-      if (!existingAddress || existingAddress.customerId !== customerId) {
+      if (!existingAddress) {
         data[key] = null;
         errors.push(buildCustomerAddressResourceNotFoundError(field));
         continue;
       }
+      if (existingAddress.customerId !== customerId) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customerAddress: null,
+            userErrors: [buildCustomerAddressOwnershipUserError()],
+          },
+          variables,
+        );
+        continue;
+      }
 
-      const address = store.stageUpsertCustomerAddress(
-        buildUpdatedCustomerAddress(existingAddress, readCustomerAddressInput(args['address'])),
-      );
+      const addressInput = readCustomerAddressInput(args['address']);
+      const userErrors = validateCustomerAddressInput(addressInput);
+      if (userErrors.length > 0) {
+        data[key] = serializeCustomerMutationPayload(field, { customerAddress: null, userErrors }, variables);
+        continue;
+      }
+
+      const address = buildUpdatedCustomerAddress(existingAddress, addressInput);
+      if (findDuplicateCustomerAddress(customerId, address, { excludeAddressId: existingAddress.id })) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customerAddress: null,
+            userErrors: [{ field: ['address'], message: 'Address already exists' }],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      store.stageUpsertCustomerAddress(address);
       if (existingCustomer.defaultAddress?.id === address.id || args['setAsDefault'] === true) {
         store.stageUpdateCustomer(buildCustomerWithDefaultAddress(existingCustomer, address));
       }
@@ -3721,9 +3904,20 @@ export function handleCustomerMutation(
         );
         continue;
       }
-      if (!addressId || !existingAddress || existingAddress.customerId !== customerId) {
+      if (!addressId || !existingAddress) {
         data[key] = null;
         errors.push(buildCustomerAddressResourceNotFoundError(field));
+        continue;
+      }
+      if (existingAddress.customerId !== customerId) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            deletedCustomerAddressId: null,
+            userErrors: [buildCustomerAddressOwnershipUserError()],
+          },
+          variables,
+        );
         continue;
       }
 
@@ -3759,9 +3953,20 @@ export function handleCustomerMutation(
         );
         continue;
       }
-      if (!existingAddress || existingAddress.customerId !== customerId) {
+      if (!existingAddress) {
         data[key] = null;
         errors.push(buildCustomerAddressResourceNotFoundError(field));
+        continue;
+      }
+      if (existingAddress.customerId !== customerId) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customer: existingCustomer,
+            userErrors: [buildCustomerAddressOwnershipUserError()],
+          },
+          variables,
+        );
         continue;
       }
 
