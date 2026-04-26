@@ -24,6 +24,8 @@ import type {
   MetafieldDefinitionRecord,
   MutationLogEntry,
   NormalizedStateSnapshotFile,
+  OnlineStoreContentKind,
+  OnlineStoreContentRecord,
   OrderMandatePaymentRecord,
   OrderRecord,
   PaymentCustomizationRecord,
@@ -79,6 +81,14 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   marketingActivityOrder: [],
   marketingEvents: {},
   marketingEventOrder: [],
+  onlineStoreArticles: {},
+  onlineStoreArticleOrder: [],
+  onlineStoreBlogs: {},
+  onlineStoreBlogOrder: [],
+  onlineStorePages: {},
+  onlineStorePageOrder: [],
+  onlineStoreComments: {},
+  onlineStoreCommentOrder: [],
   discounts: {},
   discountBulkOperations: {},
   paymentCustomizations: {},
@@ -114,6 +124,10 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedCustomerPaymentMethodIds: {},
   deletedSegmentIds: {},
   deletedWebhookSubscriptionIds: {},
+  deletedOnlineStoreArticleIds: {},
+  deletedOnlineStoreBlogIds: {},
+  deletedOnlineStorePageIds: {},
+  deletedOnlineStoreCommentIds: {},
   deletedDiscountIds: {},
   deletedPaymentCustomizationIds: {},
   deletedMarketIds: {},
@@ -691,6 +705,143 @@ export class InMemoryStore {
       .sort((left, right) => left.id.localeCompare(right.id));
 
     return structuredClone([...orderedRecords, ...unorderedRecords]);
+  }
+
+  private onlineStoreBucket(
+    snapshot: StateSnapshot,
+    kind: OnlineStoreContentKind,
+  ): Record<string, OnlineStoreContentRecord> {
+    switch (kind) {
+      case 'article':
+        return snapshot.onlineStoreArticles;
+      case 'blog':
+        return snapshot.onlineStoreBlogs;
+      case 'page':
+        return snapshot.onlineStorePages;
+      case 'comment':
+        return snapshot.onlineStoreComments;
+    }
+  }
+
+  private onlineStoreOrder(snapshot: StateSnapshot, kind: OnlineStoreContentKind): string[] {
+    switch (kind) {
+      case 'article':
+        return snapshot.onlineStoreArticleOrder;
+      case 'blog':
+        return snapshot.onlineStoreBlogOrder;
+      case 'page':
+        return snapshot.onlineStorePageOrder;
+      case 'comment':
+        return snapshot.onlineStoreCommentOrder;
+    }
+  }
+
+  private onlineStoreDeletedIds(snapshot: StateSnapshot, kind: OnlineStoreContentKind): Record<string, true> {
+    switch (kind) {
+      case 'article':
+        return snapshot.deletedOnlineStoreArticleIds;
+      case 'blog':
+        return snapshot.deletedOnlineStoreBlogIds;
+      case 'page':
+        return snapshot.deletedOnlineStorePageIds;
+      case 'comment':
+        return snapshot.deletedOnlineStoreCommentIds;
+    }
+  }
+
+  upsertBaseOnlineStoreContent(records: OnlineStoreContentRecord[]): void {
+    for (const record of records) {
+      const bucket = this.onlineStoreBucket(this.baseState, record.kind);
+      const order = this.onlineStoreOrder(this.baseState, record.kind);
+      const baseDeletedIds = this.onlineStoreDeletedIds(this.baseState, record.kind);
+      const stagedDeletedIds = this.onlineStoreDeletedIds(this.stagedState, record.kind);
+
+      delete baseDeletedIds[record.id];
+      delete stagedDeletedIds[record.id];
+      bucket[record.id] = structuredClone(record);
+      if (!order.includes(record.id)) {
+        order.push(record.id);
+      }
+    }
+  }
+
+  upsertStagedOnlineStoreContent(record: OnlineStoreContentRecord): void {
+    const bucket = this.onlineStoreBucket(this.stagedState, record.kind);
+    const baseOrder = this.onlineStoreOrder(this.baseState, record.kind);
+    const stagedOrder = this.onlineStoreOrder(this.stagedState, record.kind);
+    const stagedDeletedIds = this.onlineStoreDeletedIds(this.stagedState, record.kind);
+
+    delete stagedDeletedIds[record.id];
+    bucket[record.id] = structuredClone(record);
+    if (!baseOrder.includes(record.id) && !stagedOrder.includes(record.id)) {
+      stagedOrder.push(record.id);
+    }
+  }
+
+  deleteStagedOnlineStoreContent(kind: OnlineStoreContentKind, id: string): void {
+    const bucket = this.onlineStoreBucket(this.stagedState, kind);
+    const stagedDeletedIds = this.onlineStoreDeletedIds(this.stagedState, kind);
+    delete bucket[id];
+    stagedDeletedIds[id] = true;
+  }
+
+  getEffectiveOnlineStoreContentById(kind: OnlineStoreContentKind, id: string): OnlineStoreContentRecord | null {
+    const stagedDeletedIds = this.onlineStoreDeletedIds(this.stagedState, kind);
+    if (stagedDeletedIds[id]) {
+      return null;
+    }
+
+    const record =
+      this.onlineStoreBucket(this.stagedState, kind)[id] ?? this.onlineStoreBucket(this.baseState, kind)[id];
+    return record ? structuredClone(record) : null;
+  }
+
+  listEffectiveOnlineStoreContent(kind: OnlineStoreContentKind): OnlineStoreContentRecord[] {
+    const orderedIds = new Set([
+      ...this.onlineStoreOrder(this.baseState, kind),
+      ...this.onlineStoreOrder(this.stagedState, kind),
+    ]);
+    const orderedRecords = [...orderedIds]
+      .map((id) => this.getEffectiveOnlineStoreContentById(kind, id))
+      .filter((record): record is OnlineStoreContentRecord => record !== null);
+    const stagedDeletedIds = this.onlineStoreDeletedIds(this.stagedState, kind);
+    const unorderedRecords = Object.values({
+      ...this.onlineStoreBucket(this.baseState, kind),
+      ...this.onlineStoreBucket(this.stagedState, kind),
+    })
+      .filter((record) => !orderedIds.has(record.id))
+      .filter((record) => !stagedDeletedIds[record.id])
+      .sort(
+        (left, right) =>
+          (right.updatedAt ?? '').localeCompare(left.updatedAt ?? '') ||
+          (right.createdAt ?? '').localeCompare(left.createdAt ?? '') ||
+          compareShopifyResourceIds(left.id, right.id),
+      );
+
+    return structuredClone([...orderedRecords, ...unorderedRecords]);
+  }
+
+  hasOnlineStoreContent(): boolean {
+    return (
+      Object.keys(this.baseState.onlineStoreArticles).length > 0 ||
+      Object.keys(this.baseState.onlineStoreBlogs).length > 0 ||
+      Object.keys(this.baseState.onlineStorePages).length > 0 ||
+      Object.keys(this.baseState.onlineStoreComments).length > 0 ||
+      this.hasStagedOnlineStoreContent()
+    );
+  }
+
+  hasStagedOnlineStoreContent(): boolean {
+    return (
+      Object.keys(this.stagedState.onlineStoreArticles).length > 0 ||
+      Object.keys(this.stagedState.onlineStoreBlogs).length > 0 ||
+      Object.keys(this.stagedState.onlineStorePages).length > 0 ||
+      Object.keys(this.stagedState.onlineStoreComments).length > 0 ||
+      Object.keys(this.stagedState.deletedOnlineStoreArticleIds).length > 0 ||
+      Object.keys(this.stagedState.deletedOnlineStoreBlogIds).length > 0 ||
+      Object.keys(this.stagedState.deletedOnlineStorePageIds).length > 0 ||
+      Object.keys(this.stagedState.deletedOnlineStoreCommentIds).length > 0
+    );
   }
 
   stageCreateSegment(segment: SegmentRecord): SegmentRecord {

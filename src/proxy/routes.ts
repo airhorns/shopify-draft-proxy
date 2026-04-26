@@ -17,6 +17,12 @@ import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from './del
 import { handleDiscountMutation, handleDiscountQuery } from './discounts.js';
 import { handleMarketMutation, handleMarketsQuery, hydrateMarketsFromUpstreamResponse } from './markets.js';
 import { handleOrderMutation, handleOrderQuery, shouldServeDraftOrderCatalogLocally } from './orders.js';
+import {
+  handleOnlineStoreMutation,
+  handleOnlineStoreQuery,
+  hydrateOnlineStoreFromUpstreamResponse,
+  isOnlineStoreContentQueryRoot,
+} from './online-store.js';
 import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamResponse } from './products.js';
 import { handleMetafieldDefinitionMutation, handleMetafieldDefinitionQuery } from './metafield-definitions.js';
 import {
@@ -665,6 +671,29 @@ export function createProxyRouter(config: AppConfig): Router {
       }
     }
 
+    if (capability.execution === 'stage-locally' && capability.domain === 'online-store') {
+      const onlineStoreMutation = handleOnlineStoreMutation(body.query, variables);
+      if (onlineStoreMutation) {
+        store.appendLog({
+          id: makeSyntheticGid('MutationLogEntry'),
+          receivedAt: makeSyntheticTimestamp(),
+          operationName: capability.operationName,
+          path: ctx.path,
+          query: body.query,
+          variables,
+          requestBody,
+          stagedResourceIds: onlineStoreMutation.stagedResourceIds,
+          status: 'staged',
+          interpreted: interpretMutationLogEntry(parsed, capability),
+          notes: 'Staged locally in the in-memory online-store content draft store.',
+        });
+
+        ctx.status = 200;
+        ctx.body = onlineStoreMutation.response;
+        return;
+      }
+    }
+
     if (
       capability.execution === 'stage-locally' &&
       capability.domain === 'metafields' &&
@@ -1117,6 +1146,36 @@ export function createProxyRouter(config: AppConfig): Router {
         ctx.body =
           store.hasWebhookSubscriptions() || store.hasStagedWebhookSubscriptions()
             ? handleWebhookSubscriptionQuery(body.query, variables)
+            : upstreamBody;
+        return;
+      }
+    }
+
+    if (capability.execution === 'overlay-read' && capability.domain === 'online-store') {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleOnlineStoreQuery(body.query, variables);
+        return;
+      }
+
+      if (config.readMode === 'live-hybrid') {
+        const response = await requestUpstreamGraphQL(upstream, ctx, {
+          body: {
+            query: body.query,
+            variables,
+          },
+        });
+
+        const upstreamBody = await response.json();
+        hydrateOnlineStoreFromUpstreamResponse(body.query, upstreamBody);
+
+        ctx.status = response.status;
+        ctx.body =
+          store.hasStagedOnlineStoreContent() ||
+          (primaryRootField !== null &&
+            isOnlineStoreContentQueryRoot(primaryRootField) &&
+            store.hasOnlineStoreContent())
+            ? handleOnlineStoreQuery(body.query, variables)
             : upstreamBody;
         return;
       }
