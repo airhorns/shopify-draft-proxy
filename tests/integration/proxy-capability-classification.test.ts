@@ -190,6 +190,136 @@ describe('proxy capability classification', () => {
     expect(store.getLog()[0]?.interpreted.safety?.reason).toContain('external Function logic');
   });
 
+  it('logs product merchandising mutation roots as registered unsupported gaps', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      return new Response(JSON.stringify({ data: {} }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+    const app = createApp(config).callback();
+
+    const probes = [
+      {
+        root: 'productFeedCreate',
+        query: `#graphql
+          mutation ProductFeedCreate {
+            productFeedCreate(input: { country: US, language: EN }) {
+              productFeed {
+                id
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+      },
+      {
+        root: 'productFeedDelete',
+        query: `#graphql
+          mutation ProductFeedDelete {
+            productFeedDelete(id: "gid://shopify/ProductFeed/999999999") {
+              deletedId
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+      },
+      {
+        root: 'productFullSync',
+        query: `#graphql
+          mutation ProductFullSync {
+            productFullSync(id: "gid://shopify/ProductFeed/999999999") {
+              id
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+      },
+      {
+        root: 'productBundleCreate',
+        query: `#graphql
+          mutation ProductBundleCreate {
+            productBundleCreate(input: { title: "Bundle", components: [] }) {
+              productBundleOperation {
+                id
+                status
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+      },
+      {
+        root: 'productBundleUpdate',
+        query: `#graphql
+          mutation ProductBundleUpdate {
+            productBundleUpdate(input: { productId: "gid://shopify/Product/999999999", components: [] }) {
+              productBundleOperation {
+                id
+                status
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+      },
+      {
+        root: 'combinedListingUpdate',
+        query: `#graphql
+          mutation CombinedListingUpdate {
+            combinedListingUpdate(parentProductId: "gid://shopify/Product/999999999") {
+              product {
+                id
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+      },
+    ];
+
+    for (const probe of probes) {
+      const response = await request(app)
+        .post('/admin/api/2025-01/graphql.json')
+        .set('x-shopify-access-token', 'shpat_test')
+        .send({ query: probe.query });
+
+      expect(response.status).toBe(200);
+    }
+
+    expect(fetchSpy).toHaveBeenCalledTimes(probes.length);
+    expect(store.getLog()).toHaveLength(probes.length);
+    expect(store.getLog().map((entry) => entry.status)).toEqual(probes.map(() => 'proxied'));
+    expect(store.getLog().map((entry) => entry.interpreted.registeredOperation?.name)).toEqual(
+      probes.map((probe) => probe.root),
+    );
+    expect(store.getLog().map((entry) => entry.interpreted.registeredOperation?.implemented)).toEqual(
+      probes.map(() => false),
+    );
+  });
+
   it('logs dataSaleOptOut as staged local customer privacy intent', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('supported dataSaleOptOut should not proxy upstream');

@@ -73,6 +73,8 @@ const CARRIER_SERVICE_MUTATION_ROOTS = new Set([
   'carrierServiceDelete',
 ]);
 
+const PRODUCT_FEED_QUERY_ROOTS = new Set(['productFeed', 'productFeeds']);
+
 function readVariables(raw: unknown): Record<string, unknown> {
   return typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
 }
@@ -764,6 +766,13 @@ export function createProxyRouter(config: AppConfig): Router {
       });
 
       const upstreamBody = await response.json();
+
+      if (primaryRootField && PRODUCT_FEED_QUERY_ROOTS.has(primaryRootField)) {
+        ctx.status = response.status;
+        ctx.body = upstreamBody;
+        return;
+      }
+
       hydrateProductsFromUpstreamResponse(body.query, variables, upstreamBody);
 
       ctx.status = response.status;
