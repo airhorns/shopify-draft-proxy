@@ -1,0 +1,29 @@
+{
+  "scenarioId": "fulfillment-order-request-lifecycle",
+  "operationNames": [
+    "fulfillmentOrderSubmitFulfillmentRequest",
+    "fulfillmentOrderAcceptFulfillmentRequest",
+    "fulfillmentOrderRejectFulfillmentRequest",
+    "fulfillmentOrderSubmitCancellationRequest",
+    "fulfillmentOrderAcceptCancellationRequest",
+    "fulfillmentOrderRejectCancellationRequest"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity",
+    "runtime-staging",
+    "side-effect-safety"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/fulfillment-order-request-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/order-fulfillment-flow.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "notes": "HAR-233 captured Admin GraphQL 2026-04 fulfillment-order request lifecycle behavior using a disposable API fulfillment service and fulfillmentOrderMove setup. The fixture records partial fulfillment request splitting, merchantRequests message/options payloads, accept/reject fulfillment request transitions, submit/accept/reject cancellation request transitions, invalid-id RESOURCE_NOT_FOUND branches, and cleanup attempts. Generic parity replay is intentionally runtime-test-backed because the scenario is a multi-step third-party fulfillment-service workflow with external notification side effects that local staging must not invoke."
+}
