@@ -223,6 +223,33 @@ function unsupportedMutationNotes(parsed: ParsedOperation): string {
   return 'Mutation passthrough placeholder until supported local staging is implemented.';
 }
 
+function hasOwnKey(value: unknown, key: string): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && key in value;
+}
+
+function hasSelectedUserErrors(payload: unknown): boolean {
+  return hasOwnKey(payload, 'userErrors') && Array.isArray(payload['userErrors']) && payload['userErrors'].length > 0;
+}
+
+function isRejectedCreateMutationResponse(rootField: string | null | undefined, responseBody: unknown): boolean {
+  if (rootField !== 'orderCreate' && rootField !== 'draftOrderCreate') {
+    return false;
+  }
+
+  if (hasOwnKey(responseBody, 'errors') && Array.isArray(responseBody['errors']) && responseBody['errors'].length > 0) {
+    return true;
+  }
+
+  const data = hasOwnKey(responseBody, 'data') ? responseBody['data'] : null;
+  const payload = hasOwnKey(data, rootField) ? data[rootField] : null;
+  if (hasSelectedUserErrors(payload)) {
+    return true;
+  }
+
+  const payloads = typeof data === 'object' && data !== null ? Object.values(data) : [];
+  return payloads.length > 0 && payloads.every(hasSelectedUserErrors);
+}
+
 function isProductLocalMutationCapability(capability: OperationCapability): boolean {
   return (
     capability.execution === 'stage-locally' &&
@@ -1118,23 +1145,31 @@ export function createProxyRouter(config: AppConfig): Router {
         (capability.domain === 'shipping-fulfillments' && orderBackedLocalFulfillmentMutation)) &&
       (config.readMode === 'snapshot' || primaryRootField === 'draftOrderCreate')
     ) {
-      store.appendLog({
-        id: makeSyntheticGid('MutationLogEntry'),
-        receivedAt: makeSyntheticTimestamp(),
-        operationName: capability.operationName,
-        path: ctx.path,
-        query: body.query,
-        variables,
-        requestBody,
-        status: 'staged',
-        interpreted: interpretMutationLogEntry(parsed, capability),
-        notes: orderBackedLocalFulfillmentMutation
-          ? 'Staged locally in the in-memory order-backed fulfillment store.'
-          : 'Staged locally in the in-memory order draft store.',
-      });
+      const logEntryId = makeSyntheticGid('MutationLogEntry');
+      const receivedAt = makeSyntheticTimestamp();
+      const responseBody = handleOrderMutation(body.query, variables, config.readMode, config.shopifyAdminOrigin) ?? {
+        data: {},
+      };
+
+      if (!isRejectedCreateMutationResponse(primaryRootField, responseBody)) {
+        store.appendLog({
+          id: logEntryId,
+          receivedAt,
+          operationName: capability.operationName,
+          path: ctx.path,
+          query: body.query,
+          variables,
+          requestBody,
+          status: 'staged',
+          interpreted: interpretMutationLogEntry(parsed, capability),
+          notes: orderBackedLocalFulfillmentMutation
+            ? 'Staged locally in the in-memory order-backed fulfillment store.'
+            : 'Staged locally in the in-memory order draft store.',
+        });
+      }
 
       ctx.status = 200;
-      ctx.body = handleOrderMutation(body.query, variables, config.readMode, config.shopifyAdminOrigin) ?? { data: {} };
+      ctx.body = responseBody;
       return;
     }
 
@@ -1219,20 +1254,22 @@ export function createProxyRouter(config: AppConfig): Router {
             'Locally staged fulfillmentEventCreate in live-hybrid mode for an order-backed local fulfillment.',
         };
 
-        store.appendLog({
-          id: makeSyntheticGid('MutationLogEntry'),
-          receivedAt: makeSyntheticTimestamp(),
-          operationName: capability.operationName,
-          path: ctx.path,
-          query: body.query,
-          variables,
-          requestBody,
-          status: 'staged',
-          interpreted: interpretMutationLogEntry(parsed, capability),
-          notes:
-            shortCircuitNotesByOperation[primaryRootField ?? ''] ??
-            'Locally short-circuited captured order mutation validation in live-hybrid mode.',
-        });
+        if (!isRejectedCreateMutationResponse(primaryRootField, orderMutationResponse)) {
+          store.appendLog({
+            id: makeSyntheticGid('MutationLogEntry'),
+            receivedAt: makeSyntheticTimestamp(),
+            operationName: capability.operationName,
+            path: ctx.path,
+            query: body.query,
+            variables,
+            requestBody,
+            status: 'staged',
+            interpreted: interpretMutationLogEntry(parsed, capability),
+            notes:
+              shortCircuitNotesByOperation[primaryRootField ?? ''] ??
+              'Locally short-circuited captured order mutation validation in live-hybrid mode.',
+          });
+        }
 
         ctx.status = 200;
         ctx.body = orderMutationResponse;
