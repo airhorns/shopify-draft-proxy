@@ -3017,6 +3017,72 @@
     ]
   },
   {
+    "name": "priceListCreate",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["priceListCreate", "PriceListCreate"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages local price-list lifecycle state for Markets reads. Validation is conservative and fixture gaps are documented in docs/endpoints/markets.md."
+  },
+  {
+    "name": "priceListUpdate",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["priceListUpdate", "PriceListUpdate"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages local name, currency, parent adjustment, catalog link, and fixed-price reset-on-currency-change behavior for PriceList records."
+  },
+  {
+    "name": "priceListDelete",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["priceListDelete", "PriceListDelete"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
+  },
+  {
+    "name": "priceListFixedPricesAdd",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["priceListFixedPricesAdd", "PriceListFixedPricesAdd"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
+  },
+  {
+    "name": "priceListFixedPricesUpdate",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["priceListFixedPricesUpdate", "PriceListFixedPricesUpdate"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
+  },
+  {
+    "name": "priceListFixedPricesDelete",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["priceListFixedPricesDelete", "PriceListFixedPricesDelete"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
+  },
+  {
+    "name": "priceListFixedPricesByProductUpdate",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["priceListFixedPricesByProductUpdate", "PriceListFixedPricesByProductUpdate"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages product-scoped fixed-price upserts/deletes only for variants visible in normalized product state."
+  },
+  {
     "name": "webPresences",
     "type": "query",
     "domain": "markets",

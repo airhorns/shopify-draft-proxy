@@ -963,7 +963,10 @@ export function createProxyRouter(config: AppConfig): Router {
         hydrateMarketsFromUpstreamResponse(body.query, variables, upstreamBody);
 
         ctx.status = response.status;
-        ctx.body = store.hasStagedMarkets() ? handleMarketsQuery(body.query, variables) : upstreamBody;
+        ctx.body =
+          store.hasStagedMarkets() || store.hasStagedPriceLists()
+            ? handleMarketsQuery(body.query, variables)
+            : upstreamBody;
         return;
       }
     }

@@ -47,6 +47,7 @@ const emptySnapshot = {
   catalogOrder: [],
   priceLists: {},
   priceListOrder: [],
+  deletedPriceListIds: {},
   deliveryProfiles: {},
   deliveryProfileOrder: [],
   productCollections: {},
