@@ -718,10 +718,10 @@
     "type": "mutation",
     "domain": "privacy",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["dataSaleOptOut", "DataSaleOptOut"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-255 registry-only privacy mutation coverage. Shopify documents this as a customer email data-sale opt-out with shop/customer privacy side effects; keep unimplemented until fixture-backed local staging defines downstream read effects and no runtime Shopify writes are needed."
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"],
+    "supportNotes": "HAR-255: stages customer email data-sale opt-out locally without runtime Shopify writes, returns customerId/userErrors, creates a local opted-out customer for unknown valid emails, and overlays downstream Customer.dataSaleOptOut reads."
   },
   {
     "name": "bulkOperation",

@@ -349,6 +349,7 @@ function mergeCustomerRecords(base: CustomerRecord | null, staged: CustomerRecor
     note: staged.note ?? base.note,
     canDelete: staged.canDelete ?? base.canDelete,
     verifiedEmail: staged.verifiedEmail ?? base.verifiedEmail,
+    dataSaleOptOut: staged.dataSaleOptOut ?? base.dataSaleOptOut ?? false,
     taxExempt: staged.taxExempt ?? base.taxExempt,
     taxExemptions: structuredClone(staged.taxExemptions ?? base.taxExemptions ?? []),
     state: staged.state ?? base.state,

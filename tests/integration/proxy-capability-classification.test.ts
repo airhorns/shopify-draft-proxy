@@ -190,23 +190,10 @@ describe('proxy capability classification', () => {
     expect(store.getLog()[0]?.interpreted.safety?.reason).toContain('external Function logic');
   });
 
-  it('logs registered dataSaleOptOut as unsupported privacy passthrough without enabling staging', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          data: {
-            dataSaleOptOut: {
-              customerId: null,
-              userErrors: [],
-            },
-          },
-        }),
-        {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        },
-      ),
-    );
+  it('logs dataSaleOptOut as staged local customer privacy intent', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('supported dataSaleOptOut should not proxy upstream');
+    });
 
     const app = createApp(config);
 
@@ -229,11 +216,13 @@ describe('proxy capability classification', () => {
       });
 
     expect(response.status).toBe(200);
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(response.body.data.dataSaleOptOut.userErrors).toEqual([]);
+    expect(response.body.data.dataSaleOptOut.customerId).toMatch(/^gid:\/\/shopify\/Customer\//);
+    expect(fetchSpy).not.toHaveBeenCalled();
     expect(store.getLog()).toHaveLength(1);
     expect(store.getLog()[0]).toMatchObject({
       operationName: 'DataSaleOptOut',
-      status: 'proxied',
+      status: 'staged',
       interpreted: {
         operationType: 'mutation',
         operationName: 'DataSaleOptOut',
@@ -241,17 +230,11 @@ describe('proxy capability classification', () => {
         primaryRootField: 'dataSaleOptOut',
         capability: {
           operationName: 'DataSaleOptOut',
-          domain: 'unknown',
-          execution: 'passthrough',
-        },
-        registeredOperation: {
-          name: 'dataSaleOptOut',
           domain: 'privacy',
           execution: 'stage-locally',
-          implemented: false,
         },
       },
-      notes: 'Mutation passthrough placeholder until supported local staging is implemented.',
+      notes: 'Staged locally in the in-memory customer privacy draft store.',
     });
   });
 

@@ -542,6 +542,7 @@ export const customerRecordSchema = z.strictObject({
   note: nullableStringSchema,
   canDelete: nullableBooleanSchema,
   verifiedEmail: nullableBooleanSchema,
+  dataSaleOptOut: z.boolean().optional(),
   taxExempt: nullableBooleanSchema,
   taxExemptions: z.array(z.string()).optional(),
   state: nullableStringSchema,
