@@ -117,6 +117,36 @@ function collectProxySyntheticGids(value: unknown, seen = new Set<string>()): st
   return [...seen];
 }
 
+function hasLocalMutationErrors(value: unknown): boolean {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  if (Array.isArray(value)) {
+    return value.some((item) => hasLocalMutationErrors(item));
+  }
+
+  for (const [key, child] of Object.entries(value)) {
+    if (key === 'errors' && Array.isArray(child) && child.length > 0) {
+      return true;
+    }
+
+    if ((key === 'userErrors' || key.endsWith('UserErrors')) && Array.isArray(child) && child.length > 0) {
+      return true;
+    }
+
+    if (hasLocalMutationErrors(child)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function shouldLogSuccessfulLocalMutation(responseBody: unknown): boolean {
+  return !hasLocalMutationErrors(responseBody);
+}
+
 function interpretMutationLogEntry(
   parsed: ParsedOperation,
   capability: OperationCapability,
@@ -501,19 +531,21 @@ export function createProxyRouter(config: AppConfig): Router {
     ) {
       const responseBody = handleOrderMutation(body.query, variables, config.readMode, config.shopifyAdminOrigin);
       if (responseBody) {
-        store.appendLog({
-          id: makeSyntheticGid('MutationLogEntry'),
-          receivedAt: makeSyntheticTimestamp(),
-          operationName: capability.operationName,
-          path: ctx.path,
-          query: body.query,
-          variables,
-          requestBody,
-          stagedResourceIds: collectProxySyntheticGids(responseBody),
-          status: 'staged',
-          interpreted: interpretMutationLogEntry(parsed, capability),
-          notes: 'Staged locally in the in-memory order payment draft store.',
-        });
+        if (shouldLogSuccessfulLocalMutation(responseBody)) {
+          store.appendLog({
+            id: makeSyntheticGid('MutationLogEntry'),
+            receivedAt: makeSyntheticTimestamp(),
+            operationName: capability.operationName,
+            path: ctx.path,
+            query: body.query,
+            variables,
+            requestBody,
+            stagedResourceIds: collectProxySyntheticGids(responseBody),
+            status: 'staged',
+            interpreted: interpretMutationLogEntry(parsed, capability),
+            notes: 'Staged locally in the in-memory order payment draft store.',
+          });
+        }
 
         ctx.status = 200;
         ctx.body = responseBody;
@@ -1050,21 +1082,28 @@ export function createProxyRouter(config: AppConfig): Router {
       capability.domain === 'orders' &&
       (config.readMode === 'snapshot' || primaryRootField === 'draftOrderCreate')
     ) {
-      store.appendLog({
-        id: makeSyntheticGid('MutationLogEntry'),
-        receivedAt: makeSyntheticTimestamp(),
-        operationName: capability.operationName,
-        path: ctx.path,
-        query: body.query,
-        variables,
-        requestBody,
-        status: 'staged',
-        interpreted: interpretMutationLogEntry(parsed, capability),
-        notes: 'Staged locally in the in-memory order draft store.',
-      });
+      const responseBody = handleOrderMutation(body.query, variables, config.readMode, config.shopifyAdminOrigin) ?? {
+        data: {},
+      };
+
+      if (shouldLogSuccessfulLocalMutation(responseBody)) {
+        store.appendLog({
+          id: makeSyntheticGid('MutationLogEntry'),
+          receivedAt: makeSyntheticTimestamp(),
+          operationName: capability.operationName,
+          path: ctx.path,
+          query: body.query,
+          variables,
+          requestBody,
+          stagedResourceIds: collectProxySyntheticGids(responseBody),
+          status: 'staged',
+          interpreted: interpretMutationLogEntry(parsed, capability),
+          notes: 'Staged locally in the in-memory order draft store.',
+        });
+      }
 
       ctx.status = 200;
-      ctx.body = handleOrderMutation(body.query, variables, config.readMode, config.shopifyAdminOrigin) ?? { data: {} };
+      ctx.body = responseBody;
       return;
     }
 
@@ -1145,20 +1184,23 @@ export function createProxyRouter(config: AppConfig): Router {
           fulfillmentCreate: 'Locally short-circuited captured fulfillmentCreate validation in live-hybrid mode.',
         };
 
-        store.appendLog({
-          id: makeSyntheticGid('MutationLogEntry'),
-          receivedAt: makeSyntheticTimestamp(),
-          operationName: capability.operationName,
-          path: ctx.path,
-          query: body.query,
-          variables,
-          requestBody,
-          status: 'staged',
-          interpreted: interpretMutationLogEntry(parsed, capability),
-          notes:
-            shortCircuitNotesByOperation[primaryRootField ?? ''] ??
-            'Locally short-circuited captured order mutation validation in live-hybrid mode.',
-        });
+        if (shouldLogSuccessfulLocalMutation(orderMutationResponse)) {
+          store.appendLog({
+            id: makeSyntheticGid('MutationLogEntry'),
+            receivedAt: makeSyntheticTimestamp(),
+            operationName: capability.operationName,
+            path: ctx.path,
+            query: body.query,
+            variables,
+            requestBody,
+            stagedResourceIds: collectProxySyntheticGids(orderMutationResponse),
+            status: 'staged',
+            interpreted: interpretMutationLogEntry(parsed, capability),
+            notes:
+              shortCircuitNotesByOperation[primaryRootField ?? ''] ??
+              'Locally short-circuited captured order mutation validation in live-hybrid mode.',
+          });
+        }
 
         ctx.status = 200;
         ctx.body = orderMutationResponse;
