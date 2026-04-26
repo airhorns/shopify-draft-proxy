@@ -34,7 +34,7 @@ type WebhookSubscriptionUserError = {
 };
 
 export type WebhookSubscriptionMutationResult = {
-  response: { data: Record<string, unknown> };
+  response: Record<string, unknown>;
   staged: boolean;
   stagedResourceIds: string[];
   notes: string;
@@ -46,6 +46,46 @@ function normalizeStringArray(raw: unknown): string[] {
 
 function webhookSubscriptionUserError(field: string[], message: string): WebhookSubscriptionUserError {
   return { field, message };
+}
+
+function buildMissingRequiredArgumentError(operationName: string, argumentName: string): Record<string, unknown> {
+  return {
+    message: `Field '${operationName}' is missing required arguments: ${argumentName}`,
+    path: ['mutation', operationName],
+    extensions: {
+      code: 'missingRequiredArguments',
+      className: 'Field',
+      name: operationName,
+      arguments: argumentName,
+    },
+  };
+}
+
+function buildNullArgumentError(
+  operationName: string,
+  argumentName: string,
+  expectedType: string,
+): Record<string, unknown> {
+  return {
+    message: `Argument '${argumentName}' on Field '${operationName}' has an invalid value (null). Expected type '${expectedType}'.`,
+    path: ['mutation', operationName, argumentName],
+    extensions: {
+      code: 'argumentLiteralsIncompatible',
+      typeName: 'Field',
+      argumentName,
+    },
+  };
+}
+
+function buildMissingVariableError(variableName: string, variableType: string): Record<string, unknown> {
+  return {
+    message: `Variable $${variableName} of type ${variableType} was provided invalid value`,
+    extensions: {
+      code: 'INVALID_VARIABLE',
+      value: null,
+      problems: [{ path: [], explanation: 'Expected value to not be null' }],
+    },
+  };
 }
 
 function readWebhookSubscriptionInput(args: Record<string, unknown>): Record<string, unknown> | null {
@@ -199,6 +239,87 @@ function handleWebhookSubscriptionUpdate(
       fragments,
     ),
     stagedResourceIds: webhookSubscription ? [webhookSubscription.id] : [],
+  };
+}
+
+function validateWebhookSubscriptionDeleteId(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): { id: string | null; errors: Record<string, unknown>[] } {
+  const idArgument = field.arguments?.find((argument) => argument.name.value === 'id') ?? null;
+  if (!idArgument) {
+    return {
+      id: null,
+      errors: [buildMissingRequiredArgumentError('webhookSubscriptionDelete', 'id')],
+    };
+  }
+
+  if (idArgument.value.kind === Kind.NULL) {
+    return {
+      id: null,
+      errors: [buildNullArgumentError('webhookSubscriptionDelete', 'id', 'ID!')],
+    };
+  }
+
+  if (idArgument.value.kind === Kind.VARIABLE) {
+    const variableName = idArgument.value.name.value;
+    const id = variables[variableName];
+    if (id === null || id === undefined) {
+      return {
+        id: null,
+        errors: [buildMissingVariableError(variableName, 'ID!')],
+      };
+    }
+
+    return {
+      id: typeof id === 'string' ? id : null,
+      errors: [],
+    };
+  }
+
+  const args = getFieldArguments(field, variables);
+  return {
+    id: typeof args['id'] === 'string' ? args['id'] : null,
+    errors: [],
+  };
+}
+
+function handleWebhookSubscriptionDelete(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): { payload: unknown; stagedResourceIds: string[]; errors: Record<string, unknown>[] } {
+  const validatedId = validateWebhookSubscriptionDeleteId(field, variables);
+  if (validatedId.errors.length > 0) {
+    return {
+      payload: null,
+      stagedResourceIds: [],
+      errors: validatedId.errors,
+    };
+  }
+
+  const existing = validatedId.id ? store.getEffectiveWebhookSubscriptionById(validatedId.id) : null;
+  const userErrors: WebhookSubscriptionUserError[] = [];
+  if (!validatedId.id || !existing) {
+    userErrors.push(webhookSubscriptionUserError(['id'], 'Webhook subscription does not exist'));
+  }
+
+  const deletedWebhookSubscriptionId = userErrors.length === 0 ? validatedId.id : null;
+  if (deletedWebhookSubscriptionId) {
+    store.deleteStagedWebhookSubscription(deletedWebhookSubscriptionId);
+  }
+
+  return {
+    payload: projectMutationPayload(
+      {
+        deletedWebhookSubscriptionId,
+        userErrors,
+      },
+      field,
+      fragments,
+    ),
+    stagedResourceIds: deletedWebhookSubscriptionId ? [deletedWebhookSubscriptionId] : [],
+    errors: [],
   };
 }
 
@@ -513,6 +634,7 @@ export function handleWebhookSubscriptionMutation(
   const fragments = getDocumentFragments(document);
   const data: Record<string, unknown> = {};
   const stagedResourceIds = new Set<string>();
+  const errors: Record<string, unknown>[] = [];
 
   for (const field of getRootFields(document)) {
     const key = getFieldResponseKey(field);
@@ -533,9 +655,32 @@ export function handleWebhookSubscriptionMutation(
         }
         break;
       }
+      case 'webhookSubscriptionDelete': {
+        const result = handleWebhookSubscriptionDelete(field, variables, fragments);
+        if (result.errors.length > 0) {
+          errors.push(...result.errors);
+          break;
+        }
+
+        data[key] = result.payload;
+        for (const id of result.stagedResourceIds) {
+          stagedResourceIds.add(id);
+        }
+        break;
+      }
       default:
         return null;
     }
+  }
+
+  if (errors.length > 0) {
+    return {
+      response: { errors },
+      staged: false,
+      stagedResourceIds: [],
+      notes:
+        'Returned captured Shopify-like webhook subscription GraphQL validation locally; deregistration was not staged.',
+    };
   }
 
   return {
@@ -543,6 +688,6 @@ export function handleWebhookSubscriptionMutation(
     staged: stagedResourceIds.size > 0,
     stagedResourceIds: [...stagedResourceIds],
     notes:
-      'Staged locally in the in-memory webhook subscription draft store; registration and update do not call Shopify or deliver webhook payloads.',
+      'Staged locally in the in-memory webhook subscription draft store; registration, update, and deregistration do not call Shopify or deliver webhook payloads.',
   };
 }

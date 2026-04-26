@@ -637,7 +637,9 @@ export function createProxyRouter(config: AppConfig): Router {
     if (
       capability.execution === 'stage-locally' &&
       capability.domain === 'webhooks' &&
-      (primaryRootField === 'webhookSubscriptionCreate' || primaryRootField === 'webhookSubscriptionUpdate')
+      (primaryRootField === 'webhookSubscriptionCreate' ||
+        primaryRootField === 'webhookSubscriptionUpdate' ||
+        primaryRootField === 'webhookSubscriptionDelete')
     ) {
       const webhookSubscriptionMutation = handleWebhookSubscriptionMutation(body.query, variables);
       if (webhookSubscriptionMutation) {
