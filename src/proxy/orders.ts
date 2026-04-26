@@ -4483,17 +4483,9 @@ function readOrderUpdateInput(variables: Record<string, unknown>): Record<string
   return typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {};
 }
 
-function readOrderCreateInput(variables: Record<string, unknown>): unknown {
-  return variables['order'] ?? null;
-}
-
 function readOrderCreateOptions(variables: Record<string, unknown>): Record<string, unknown> {
   const options = variables['options'];
   return typeof options === 'object' && options !== null ? (options as Record<string, unknown>) : {};
-}
-
-function readDraftOrderCreateInput(variables: Record<string, unknown>): unknown {
-  return variables['input'] ?? null;
 }
 
 function readDraftOrderCompleteId(variables: Record<string, unknown>): string | null {
@@ -4670,6 +4662,39 @@ function validateDraftOrderCreateInput(input: unknown): Array<{ field: string[] 
   }
 
   const userErrors: Array<{ field: string[] | null; message: string }> = [];
+
+  if (typeof inputRecord['email'] === 'string' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inputRecord['email'])) {
+    userErrors.push({
+      field: ['email'],
+      message: 'Email is invalid',
+    });
+  }
+
+  if (typeof inputRecord['reserveInventoryUntil'] === 'string') {
+    const reserveUntil = Date.parse(inputRecord['reserveInventoryUntil']);
+    if (!Number.isNaN(reserveUntil) && reserveUntil < Date.now()) {
+      userErrors.push({
+        field: null,
+        message: "Reserve until can't be in the past",
+      });
+    }
+  }
+
+  const paymentTerms = typeof inputRecord['paymentTerms'] === 'object' ? inputRecord['paymentTerms'] : null;
+  if (
+    paymentTerms !== null &&
+    !(
+      typeof paymentTerms === 'object' &&
+      'paymentTermsTemplateId' in paymentTerms &&
+      typeof (paymentTerms as Record<string, unknown>)['paymentTermsTemplateId'] === 'string'
+    )
+  ) {
+    userErrors.push({
+      field: null,
+      message: 'Payment terms template id can not be empty.',
+    });
+  }
+
   lineItems.forEach((lineItem, index) => {
     if (typeof lineItem !== 'object' || lineItem === null) {
       userErrors.push({
@@ -4684,20 +4709,22 @@ function validateDraftOrderCreateInput(input: unknown): Array<{ field: string[] 
     const hasCustomTitle = readString(lineItemRecord['title']) !== null;
     const hasCustomPrice =
       lineItemRecord['originalUnitPrice'] !== undefined && lineItemRecord['originalUnitPrice'] !== null;
+    const quantity = typeof lineItemRecord['quantity'] === 'number' ? lineItemRecord['quantity'] : null;
+
+    if (quantity !== null && quantity < 1) {
+      userErrors.push({
+        field: ['lineItems', String(index), 'quantity'],
+        message: 'Quantity must be greater than or equal to 1',
+      });
+      return;
+    }
 
     if (variantId) {
-      if (hasCustomTitle || hasCustomPrice) {
-        userErrors.push({
-          field: ['input', 'lineItems', String(index)],
-          message: 'Variant line items cannot include custom title or originalUnitPrice fields',
-        });
-        return;
-      }
-
       if (!store.getEffectiveVariantById(variantId)) {
+        const numericId = variantId.split('/').at(-1) ?? variantId;
         userErrors.push({
-          field: ['input', 'lineItems', String(index), 'variantId'],
-          message: 'Product variant does not exist',
+          field: null,
+          message: `Product with ID ${numericId} is no longer available.`,
         });
       }
       return;
@@ -4705,15 +4732,15 @@ function validateDraftOrderCreateInput(input: unknown): Array<{ field: string[] 
 
     if (!hasCustomTitle) {
       userErrors.push({
-        field: ['input', 'lineItems', String(index), 'title'],
-        message: "Title can't be blank",
+        field: null,
+        message: 'Merchandise title is empty.',
       });
     }
 
-    if (!hasCustomPrice) {
+    if (hasCustomPrice && parseDecimalAmount(lineItemRecord['originalUnitPrice']) < 0) {
       userErrors.push({
-        field: ['input', 'lineItems', String(index), 'originalUnitPrice'],
-        message: "Original unit price can't be blank",
+        field: null,
+        message: 'Cannot send negative price for line_item',
       });
     }
   });
@@ -5065,6 +5092,22 @@ function getOrderCreateInlineArgument(field: FieldNode) {
   return field.arguments?.find((argument) => argument.name.value === 'order') ?? null;
 }
 
+function readVariableBackedInputArgument(
+  field: FieldNode,
+  argumentName: string,
+  variables: Record<string, unknown>,
+  fallbackVariableName: string,
+): Record<string, unknown> | null {
+  const argument = field.arguments?.find((candidate) => candidate.name.value === argumentName) ?? null;
+  if (argument?.value.kind === Kind.VARIABLE) {
+    const value = variables[argument.value.name.value];
+    return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
+  }
+
+  const fallback = variables[fallbackVariableName];
+  return typeof fallback === 'object' && fallback !== null ? (fallback as Record<string, unknown>) : null;
+}
+
 function getDraftOrderCompleteInlineIdArgument(field: FieldNode) {
   return field.arguments?.find((argument) => argument.name.value === 'id') ?? null;
 }
@@ -5332,7 +5375,7 @@ function validateOrderCreateInput(input: unknown): Array<{ field: string[] | nul
   const inputRecord = input as Record<string, unknown>;
   const lineItems = Array.isArray(inputRecord['lineItems']) ? inputRecord['lineItems'] : [];
   if (lineItems.length === 0) {
-    return [{ field: ['order', 'lineItems'], message: 'Line items must include at least one line item.' }];
+    return [{ field: ['order', 'lineItems'], message: 'Line items must have at least one line item' }];
   }
 
   const hasOrderTaxLines = Array.isArray(inputRecord['taxLines']) && inputRecord['taxLines'].length > 0;
@@ -5958,7 +6001,7 @@ export function handleOrderMutation(
         continue;
       }
 
-      const order = readOrderCreateInput(variables);
+      const order = readVariableBackedInputArgument(field, 'order', variables, 'order');
 
       if (order === null) {
         handled = true;
@@ -6026,7 +6069,7 @@ export function handleOrderMutation(
         continue;
       }
 
-      const input = readDraftOrderCreateInput(variables);
+      const input = readVariableBackedInputArgument(field, 'input', variables, 'input');
 
       if (input === null) {
         errors.push(buildDraftOrderCreateMissingInputError());

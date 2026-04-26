@@ -2529,3 +2529,26 @@ Practical rule:
 
 - model `productSet` inventory inputs as inventory item location-level rows, then derive variant `inventoryQuantity` from those rows
 - do not use the generic eager product inventory-summary recomputation path for `productSet`; preserve the captured create/update product total behavior until fresher evidence shows Shopify has changed it
+
+## 67. Draft-order create validation differs from early local guesses
+
+HAR-277 captured a grouped `draftOrderCreate` validation matrix on Admin GraphQL 2026-04 against `harry-test-heelo.myshopify.com`.
+
+Captured invalid branches:
+
+- empty `lineItems` returns `field: null`, message `Add at least 1 product`
+- an unknown `variantId` returns `field: null`, message `Product with ID <legacy id> is no longer available.`
+- a custom line missing `title` returns `field: null`, message `Merchandise title is empty.`
+- `quantity: 0` returns `field: ["lineItems", "0", "quantity"]`, message `Quantity must be greater than or equal to 1`
+- `paymentTerms` with only `paymentSchedules` returns `field: null`, message `Payment terms template id can not be empty.`
+- a negative custom line `originalUnitPrice` returns `field: null`, message `Cannot send negative price for line_item`
+- past `reserveInventoryUntil` returns `field: null`, message `Reserve until can't be in the past`
+- invalid email returns `field: ["email"]`, message `Email is invalid`
+
+Exploratory probes also disproved two earlier assumptions: Shopify accepted a variant-backed line item that also included custom `title` and `originalUnitPrice`, and it accepted a custom line with no `originalUnitPrice` as a zero-price line. It also accepted a `shippingLine` with `priceWithCurrency` and no title.
+
+Practical rule:
+
+- do not reject variant-backed draft lines just because custom title/price fields are present
+- keep missing custom price and missing shipping-line title out of the local validation list until a later fixture proves a narrower invalid branch
+- broad direct `orderCreate` validation capture is still constrained by Shopify's order-create attempt throttle on this host; the executable direct-order fixture currently covers only the no-line-items branch
