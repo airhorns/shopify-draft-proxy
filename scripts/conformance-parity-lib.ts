@@ -2884,6 +2884,75 @@ function readCapturedFulfillmentLineItems(source: Record<string, unknown> | null
     });
 }
 
+function readCapturedFulfillmentEvents(
+  source: Record<string, unknown> | null,
+): NonNullable<OrderFulfillmentRecord['events']> {
+  return readArrayField(readRecordField(source, 'events'), 'nodes')
+    .filter(isPlainObject)
+    .map((event, index) => ({
+      id: readStringField(event, 'id') ?? `gid://shopify/FulfillmentEvent/conformance-${index}`,
+      status: readStringField(event, 'status'),
+      message: readStringField(event, 'message'),
+      happenedAt: readStringField(event, 'happenedAt') ?? readStringField(event, 'createdAt') ?? '2026-04-19T00:00:00Z',
+      createdAt: readStringField(event, 'createdAt'),
+      estimatedDeliveryAt: readStringField(event, 'estimatedDeliveryAt'),
+      city: readStringField(event, 'city'),
+      province: readStringField(event, 'province'),
+      country: readStringField(event, 'country'),
+      zip: readStringField(event, 'zip'),
+      address1: readStringField(event, 'address1'),
+      latitude: readNumberField(event, 'latitude'),
+      longitude: readNumberField(event, 'longitude'),
+    }));
+}
+
+function readCapturedFulfillmentLocation(
+  source: Record<string, unknown> | null,
+): NonNullable<OrderFulfillmentRecord['location']> | null {
+  if (!source) {
+    return null;
+  }
+
+  return {
+    id: readStringField(source, 'id'),
+    name: readStringField(source, 'name'),
+  };
+}
+
+function readCapturedFulfillmentService(
+  source: Record<string, unknown> | null,
+): NonNullable<OrderFulfillmentRecord['service']> | null {
+  if (!source) {
+    return null;
+  }
+
+  return {
+    id: readStringField(source, 'id'),
+    handle: readStringField(source, 'handle'),
+    serviceName: readStringField(source, 'serviceName'),
+    trackingSupport: readBooleanField(source, 'trackingSupport'),
+    type: readStringField(source, 'type'),
+    location: readCapturedFulfillmentLocation(readRecordField(source, 'location')),
+  };
+}
+
+function readCapturedFulfillmentOriginAddress(
+  source: Record<string, unknown> | null,
+): NonNullable<OrderFulfillmentRecord['originAddress']> | null {
+  if (!source) {
+    return null;
+  }
+
+  return {
+    address1: readStringField(source, 'address1'),
+    address2: readStringField(source, 'address2'),
+    city: readStringField(source, 'city'),
+    countryCode: readStringField(source, 'countryCode'),
+    provinceCode: readStringField(source, 'provinceCode'),
+    zip: readStringField(source, 'zip'),
+  };
+}
+
 function readCapturedOrderFulfillments(order: Record<string, unknown> | null): OrderFulfillmentRecord[] {
   return readArrayField(order, 'fulfillments')
     .filter(isPlainObject)
@@ -2893,6 +2962,9 @@ function readCapturedOrderFulfillments(order: Record<string, unknown> | null): O
       displayStatus: readStringField(fulfillment, 'displayStatus'),
       createdAt: readStringField(fulfillment, 'createdAt'),
       updatedAt: readStringField(fulfillment, 'updatedAt'),
+      deliveredAt: readStringField(fulfillment, 'deliveredAt'),
+      estimatedDeliveryAt: readStringField(fulfillment, 'estimatedDeliveryAt'),
+      inTransitAt: readStringField(fulfillment, 'inTransitAt'),
       trackingInfo: readArrayField(fulfillment, 'trackingInfo')
         .filter(isPlainObject)
         .map((trackingInfo) => ({
@@ -2900,7 +2972,11 @@ function readCapturedOrderFulfillments(order: Record<string, unknown> | null): O
           url: readStringField(trackingInfo, 'url'),
           company: readStringField(trackingInfo, 'company'),
         })),
+      events: readCapturedFulfillmentEvents(fulfillment),
       fulfillmentLineItems: readCapturedFulfillmentLineItems(fulfillment),
+      service: readCapturedFulfillmentService(readRecordField(fulfillment, 'service')),
+      location: readCapturedFulfillmentLocation(readRecordField(fulfillment, 'location')),
+      originAddress: readCapturedFulfillmentOriginAddress(readRecordField(fulfillment, 'originAddress')),
     }));
 }
 
@@ -3918,6 +3994,37 @@ function seedProductVariantDeleteCompatibilityPreconditions(
     makeProductVariantUpdateCompatibilitySeedVariant(productId, variantId, null),
     ...retainedVariants.filter((variant) => variant.id !== variantId),
   ]);
+  return true;
+}
+
+function seedProductVariantsBulkReorderPreconditions(capture: unknown, productId: string): boolean {
+  const setup = readRecordField(capture as Record<string, unknown>, 'setup');
+  const setupCreatedProduct = readRecordField(
+    readRecordField(readRecordField(setup, 'productCreate'), 'data'),
+    'productCreate',
+  );
+  const setupProduct = readRecordField(setupCreatedProduct, 'product');
+  const setupVariantCreate = readRecordField(
+    readRecordField(readRecordField(setup, 'productVariantsBulkCreate'), 'data'),
+    'productVariantsBulkCreate',
+  );
+  const setupVariantProduct = readRecordField(setupVariantCreate, 'product');
+  const seedSource =
+    readStringField(setupProduct, 'id') === productId
+      ? setupProduct
+      : readStringField(setupVariantProduct, 'id') === productId
+        ? setupVariantProduct
+        : null;
+
+  if (!seedSource) {
+    return false;
+  }
+
+  store.upsertBaseProducts([makeSeedProduct(productId, seedSource, 'Product variant reorder conformance seed')]);
+  const variants = readCapturedProductVariants(productId, setupVariantProduct);
+  if (variants.length > 0) {
+    store.replaceBaseVariantsForProduct(productId, variants);
+  }
   return true;
 }
 
@@ -5018,6 +5125,13 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
 
   if (shouldSeedProduct) {
     if (mutationName === 'tagsRemove' && seedTagsRemovePreconditions(productId, productPayload, capture, variables)) {
+      return;
+    }
+
+    if (
+      mutationName === 'productVariantsBulkReorder' &&
+      seedProductVariantsBulkReorderPreconditions(capture, productId)
+    ) {
       return;
     }
 

@@ -173,8 +173,8 @@
     "execution": "overlay-read",
     "implemented": false,
     "matchNames": ["customerPaymentMethod", "CustomerPaymentMethod"],
-    "runtimeTests": [],
-    "supportNotes": "Payment-area scaffold only. The 2026-04-25 harry-test-heelo probe still returned ACCESS_DENIED without read_customer_payment_methods; future capture requires read_customers plus read_customer_payment_methods and should settle revoked/empty payment-method behavior before local overlay support."
+    "runtimeTests": ["tests/integration/customer-query-shapes.test.ts"],
+    "supportNotes": "Seeded/snapshot customer payment method reads serialize from normalized customerPaymentMethods state, including showRevoked filtering, instrument unions, customer links, and payment-method subscription contracts. Formal live overlay support remains false because the 2026-04-25 harry-test-heelo probe still returned ACCESS_DENIED without read_customer_payment_methods; future live capture requires read_customers plus read_customer_payment_methods."
   },
   {
     "name": "orderPaymentStatus",
@@ -801,6 +801,16 @@
     "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
+    "name": "productOptionsReorder",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["productOptionsReorder", "ProductOptionsReorder"],
+    "runtimeTests": [],
+    "supportNotes": "Live schema introspection confirms `productOptionsReorder(productId: ID!, options: [OptionReorderInput!]!)` returns `product` plus `userErrors`. Keep unimplemented until option/value reorder semantics and the resulting variant order recalculation are backed by conformance evidence; registry presence must not make this a supported passthrough."
+  },
+  {
     "name": "productVariantsBulkCreate",
     "type": "mutation",
     "domain": "products",
@@ -826,6 +836,16 @@
     "implemented": true,
     "matchNames": ["productVariantsBulkDelete", "ProductVariantsBulkDelete"],
     "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
+  },
+  {
+    "name": "productVariantsBulkReorder",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["productVariantsBulkReorder", "ProductVariantsBulkReorder"],
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
+    "supportNotes": "Local staging reorders the effective product variant list by `ProductVariantPositionInput.position` and exposes the new order through product variant connections without runtime Shopify writes."
   },
   {
     "name": "productVariantCreate",
@@ -880,6 +900,16 @@
     "implemented": true,
     "matchNames": ["productDeleteMedia", "ProductDeleteMedia"],
     "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
+  },
+  {
+    "name": "productReorderMedia",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["productReorderMedia", "ProductReorderMedia"],
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
+    "supportNotes": "Local staging applies `MoveInput` media moves to the effective product media order, returns an async-style `Job`, and exposes the reordered media/image connections without runtime Shopify writes."
   },
   {
     "name": "inventoryItemUpdate",
@@ -1333,7 +1363,7 @@
     "implemented": false,
     "matchNames": ["customerPaymentMethodCreateFromDuplicationData", "CustomerPaymentMethodCreateFromDuplicationData"],
     "runtimeTests": [],
-    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods and must avoid creating reusable vaulted payment data without an isolated test customer/payment method lifecycle."
+    "supportNotes": "Customer payment method scaffold only. Future local staging requires write_customers plus write_customer_payment_methods and must avoid creating reusable vaulted payment data without an isolated test customer/payment method lifecycle; duplication data must be treated as sensitive ephemeral payment material."
   },
   {
     "name": "customerPaymentMethodCreditCardCreate",
@@ -1343,7 +1373,7 @@
     "implemented": false,
     "matchNames": ["customerPaymentMethodCreditCardCreate", "CustomerPaymentMethodCreditCardCreate"],
     "runtimeTests": [],
-    "supportNotes": "Customer payment method scaffold only. Requires write_customers plus write_customer_payment_methods and PCI-sensitive card session inputs; future capture must use safe non-real payment data and record async/processing behavior before local staging support."
+    "supportNotes": "Customer payment method scaffold only. Future local staging requires write_customers plus write_customer_payment_methods and PCI-sensitive card session inputs; capture must use safe non-real payment data and record read-after-write behavior before support."
   },
   {
     "name": "customerPaymentMethodCreditCardUpdate",
@@ -1353,7 +1383,7 @@
     "implemented": false,
     "matchNames": ["customerPaymentMethodCreditCardUpdate", "CustomerPaymentMethodCreditCardUpdate"],
     "runtimeTests": [],
-    "supportNotes": "Customer payment method scaffold only. Requires write_customers plus write_customer_payment_methods and an isolated vaulted payment method; future capture must avoid real card data and document revoked/updated read-after-write behavior."
+    "supportNotes": "Customer payment method scaffold only. Future local staging requires write_customers plus write_customer_payment_methods and an isolated vaulted payment method; capture must avoid real card data and document revoked/updated read-after-write behavior."
   },
   {
     "name": "customerPaymentMethodGetDuplicationData",
@@ -1363,7 +1393,7 @@
     "implemented": false,
     "matchNames": ["customerPaymentMethodGetDuplicationData", "CustomerPaymentMethodGetDuplicationData"],
     "runtimeTests": [],
-    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods and should treat returned duplication data as sensitive ephemeral payment material."
+    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods and must treat returned duplication data as sensitive ephemeral payment material."
   },
   {
     "name": "customerPaymentMethodGetUpdateUrl",
@@ -1373,7 +1403,7 @@
     "implemented": false,
     "matchNames": ["customerPaymentMethodGetUpdateUrl", "CustomerPaymentMethodGetUpdateUrl"],
     "runtimeTests": [],
-    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods and must treat returned update URLs as sensitive, expiring customer-payment links."
+    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods and must treat returned update URLs as sensitive, expiring customer-payment links that should not be generated or emailed by the proxy."
   },
   {
     "name": "customerPaymentMethodPaypalBillingAgreementCreate",
@@ -1386,7 +1416,7 @@
       "CustomerPaymentMethodPaypalBillingAgreementCreate"
     ],
     "runtimeTests": [],
-    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods and isolated PayPal billing-agreement test data before local staging support."
+    "supportNotes": "Customer payment method scaffold only. Future local staging requires write_customers plus write_customer_payment_methods and isolated PayPal billing-agreement test data before support."
   },
   {
     "name": "customerPaymentMethodPaypalBillingAgreementUpdate",
@@ -1399,7 +1429,7 @@
       "CustomerPaymentMethodPaypalBillingAgreementUpdate"
     ],
     "runtimeTests": [],
-    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods and an isolated PayPal billing-agreement test method before local staging support."
+    "supportNotes": "Customer payment method scaffold only. Future local staging requires write_customers plus write_customer_payment_methods and an isolated PayPal billing-agreement test method before support."
   },
   {
     "name": "customerPaymentMethodRemoteCreate",
@@ -1409,7 +1439,7 @@
     "implemented": false,
     "matchNames": ["customerPaymentMethodRemoteCreate", "CustomerPaymentMethodRemoteCreate"],
     "runtimeTests": [],
-    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods, safe remote gateway identifiers, and polling evidence through customerPaymentMethod before local staging support."
+    "supportNotes": "Customer payment method scaffold only. Future local staging requires write_customers plus write_customer_payment_methods, safe remote gateway identifiers, and polling/asynchronous status evidence through customerPaymentMethod before support."
   },
   {
     "name": "customerPaymentMethodRevoke",
@@ -1419,7 +1449,7 @@
     "implemented": false,
     "matchNames": ["customerPaymentMethodRevoke", "CustomerPaymentMethodRevoke"],
     "runtimeTests": [],
-    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods and an isolated payment method because revoke is destructive for recurring billing flows."
+    "supportNotes": "Customer payment method scaffold only. Future local staging requires write_customers plus write_customer_payment_methods and an isolated payment method because revoke is destructive for recurring billing flows; unsupported runtime passthrough must stay visible in logs."
   },
   {
     "name": "orderCapture",
@@ -1621,17 +1651,17 @@
     "implemented": true,
     "matchNames": ["fulfillment", "Fulfillment"],
     "runtimeTests": ["tests/integration/order-query-shapes.test.ts"],
-    "supportNotes": "Admin GraphQL 2026-04 Fulfillment read root. Snapshot reads resolve from fulfillment records already present on the local order graph, return null for missing IDs, and keep top-level detail serialization aligned with nested Order.fulfillments; broader event/history fields remain unknown as null until captured."
+    "supportNotes": "Admin GraphQL 2026-04 Fulfillment read root. Snapshot reads resolve from fulfillment records already present on the local order graph, return null for missing IDs, and keep top-level detail/event serialization aligned with nested Order.fulfillments."
   },
   {
     "name": "fulfillmentEventCreate",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentEventCreate", "FulfillmentEventCreate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires fulfillment event status semantics, tracking/shipment-state transitions, and downstream fulfillment/order read visibility before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "Locally stages events against order-backed fulfillments, exposes them through Fulfillment.events and nested Order.fulfillments, and updates captured shipment milestone fields without proxying the supported mutation upstream."
   },
   {
     "name": "assignedFulfillmentOrders",
