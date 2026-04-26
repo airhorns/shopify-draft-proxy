@@ -1,0 +1,282 @@
+{
+  "precondition": {
+    "variables": {
+      "input": {
+        "email": "hermes-data-sale-1777162548907@example.com",
+        "firstName": "Hermes",
+        "lastName": "DataSale",
+        "tags": ["parity", "data-sale-1777162548907"]
+      }
+    },
+    "response": {
+      "data": {
+        "customerCreate": {
+          "customer": {
+            "id": "gid://shopify/Customer/10541188055346",
+            "email": "hermes-data-sale-1777162548907@example.com",
+            "dataSaleOptOut": false,
+            "defaultEmailAddress": {
+              "emailAddress": "hermes-data-sale-1777162548907@example.com"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "mutation": {
+    "variables": {
+      "email": "hermes-data-sale-1777162548907@example.com"
+    },
+    "response": {
+      "data": {
+        "dataSaleOptOut": {
+          "customerId": "gid://shopify/Customer/10541188055346",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "variables": {
+      "id": "gid://shopify/Customer/10541188055346",
+      "identifier": {
+        "id": "gid://shopify/Customer/10541188055346"
+      },
+      "query": "email:hermes-data-sale-1777162548907@example.com",
+      "first": 5
+    },
+    "response": {
+      "data": {
+        "customer": {
+          "id": "gid://shopify/Customer/10541188055346",
+          "email": "hermes-data-sale-1777162548907@example.com",
+          "dataSaleOptOut": true,
+          "defaultEmailAddress": {
+            "emailAddress": "hermes-data-sale-1777162548907@example.com"
+          }
+        },
+        "customerByIdentifier": {
+          "id": "gid://shopify/Customer/10541188055346",
+          "email": "hermes-data-sale-1777162548907@example.com",
+          "dataSaleOptOut": true,
+          "defaultEmailAddress": {
+            "emailAddress": "hermes-data-sale-1777162548907@example.com"
+          }
+        },
+        "customers": {
+          "nodes": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 9,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1991,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "validation": {
+    "repeat": {
+      "variables": {
+        "email": "hermes-data-sale-1777162548907@example.com"
+      },
+      "response": {
+        "data": {
+          "dataSaleOptOut": {
+            "customerId": "gid://shopify/Customer/10541188055346",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "invalidEmail": {
+      "variables": {
+        "email": "not-an-email"
+      },
+      "response": {
+        "data": {
+          "dataSaleOptOut": {
+            "customerId": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Data sale opt out failed.",
+                "code": "FAILED"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "unknownEmailCreatesCustomer": {
+      "variables": {
+        "email": "hermes-data-sale-new-1777162548907@example.com"
+      },
+      "response": {
+        "data": {
+          "dataSaleOptOut": {
+            "customerId": "gid://shopify/Customer/10541188120882",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "downstreamRead": {
+        "variables": {
+          "id": "gid://shopify/Customer/10541188120882",
+          "identifier": {
+            "id": "gid://shopify/Customer/10541188120882"
+          },
+          "query": "email:hermes-data-sale-new-1777162548907@example.com",
+          "first": 5
+        },
+        "response": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10541188120882",
+              "email": "hermes-data-sale-new-1777162548907@example.com",
+              "dataSaleOptOut": true,
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-data-sale-new-1777162548907@example.com"
+              }
+            },
+            "customerByIdentifier": {
+              "id": "gid://shopify/Customer/10541188120882",
+              "email": "hermes-data-sale-new-1777162548907@example.com",
+              "dataSaleOptOut": true,
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-data-sale-new-1777162548907@example.com"
+              }
+            },
+            "customers": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 9,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1991,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "existingCustomer": {
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10541188055346",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "unknownEmailCustomer": {
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10541188120882",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  }
+}

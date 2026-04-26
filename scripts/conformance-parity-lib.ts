@@ -800,6 +800,25 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'stage-locally' && capability.domain === 'privacy') {
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2025-01/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: handleCustomerMutation(document, variables),
+    };
+  }
+
   if (capability.execution === 'stage-locally' && capability.domain === 'markets') {
     store.appendLog({
       id: makeSyntheticGid('MutationLogEntry'),
@@ -1563,6 +1582,7 @@ function makeSeedCustomer(customerId: string, source: Record<string, unknown> | 
     note: readStringField(source, 'note'),
     canDelete: readBooleanField(source, 'canDelete') ?? true,
     verifiedEmail: readBooleanField(source, 'verifiedEmail') ?? (email ? true : null),
+    dataSaleOptOut: readBooleanField(source, 'dataSaleOptOut') ?? false,
     taxExempt: readBooleanField(source, 'taxExempt') ?? false,
     taxExemptions: readArrayField(source, 'taxExemptions').filter(
       (taxExemption): taxExemption is string => typeof taxExemption === 'string',
@@ -1607,6 +1627,7 @@ function makePlaceholderCustomer(index: number): CustomerRecord {
     note: null,
     canDelete: true,
     verifiedEmail: true,
+    dataSaleOptOut: false,
     taxExempt: false,
     taxExemptions: [],
     state: 'DISABLED',
@@ -1635,6 +1656,7 @@ function seedCustomerMutationPreconditions(
     mutationName !== 'customerDelete' &&
     mutationName !== 'customerEmailMarketingConsentUpdate' &&
     mutationName !== 'customerSmsMarketingConsentUpdate' &&
+    mutationName !== 'dataSaleOptOut' &&
     mutationName !== 'customerAddTaxExemptions' &&
     mutationName !== 'customerRemoveTaxExemptions' &&
     mutationName !== 'customerReplaceTaxExemptions'

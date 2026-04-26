@@ -1,0 +1,10 @@
+mutation DataSaleOptOut($email: String!) {
+  dataSaleOptOut(email: $email) {
+    customerId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

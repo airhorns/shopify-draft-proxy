@@ -41,7 +41,7 @@ Local staged mutations:
 ## Behavior notes
 
 - Customer-domain state deliberately stays narrower than the product model, but it is still normalized.
-- `CustomerRecord` carries scalar/detail fields plus `taxExemptions` as a separate list from the boolean `taxExempt`.
+- `CustomerRecord` carries scalar/detail fields plus `taxExemptions` as a separate list from the boolean `taxExempt`, and `dataSaleOptOut` for the privacy-domain `dataSaleOptOut` mutation's downstream read effect.
 - Customer-owned metafields live in `customerMetafields` instead of reusing product-domain metafield storage or broadening shared `metafieldsSet` owner support without separate customer-domain evidence.
 - Staged `customerUpdate(input.metafields)` computes against the effective customer metafield set and replaces the staged customer-owned set, so downstream `customer.metafield(...)` and `customer.metafields(...)` reads stay consistent.
 - `customerByIdentifier(identifier:)` resolves from the same effective normalized customer graph as `customer(id:)` and `customers`, including staged customer creates/updates and hydrated live-hybrid customers.
@@ -61,6 +61,7 @@ Local staged mutations:
 - Staged `customerMerge` updates the normalized resulting customer row, marks the source customer deleted, records the source-to-result redirect in `mergedCustomerIds`, and records the observed merge job/result shape in `customerMergeRequests`.
 - `customerMergePreview` and `customerMergeJobStatus` resolve from normalized customer/merge-request state. The first local merge slice supports customers already present in staged state or hydrated base state and does not fetch unknown customer ids during the supported mutation path.
 - Captured Admin GraphQL 2025-01 evidence for `customerAddTaxExemptions`, `customerRemoveTaxExemptions`, and `customerReplaceTaxExemptions` stages against `Customer.taxExemptions` only; it does not flip the separate `taxExempt` boolean. Add/remove preserve the existing exemption order and de-duplicate inputs; empty add/remove lists are no-ops; replace de-duplicates inputs and an empty replace clears the list. Unknown customers return payload `userErrors` at `["customerId"]` with `Customer does not exist.` Invalid enum variables are top-level `INVALID_VARIABLE` GraphQL errors before payload execution.
+- The `dataSaleOptOut` root remains documented under the privacy endpoint group, but its local read-after-write state is stored on `CustomerRecord`. Existing-email opt-out flips `Customer.dataSaleOptOut` to `true`; unknown valid emails create a local opted-out customer; invalid email strings return the captured `FAILED` userError shape.
 
 ## Outbound email and activation buffering
 
@@ -81,4 +82,5 @@ Do not mark outbound email roots implemented by proxying them upstream. Support 
 - Customer address lifecycle capture: `corepack pnpm conformance:capture-customer-addresses`, writing `fixtures/conformance/<store>/<version>/customer-address-lifecycle.json`
 - CustomerSet capture: `corepack pnpm conformance:capture-customer-set`, writing `fixtures/conformance/<store>/<version>/customer-set-parity.json`
 - Customer tax exemption capture: `corepack pnpm conformance:capture-customer-tax-exemptions`, writing `customer-add-tax-exemptions-parity.json`, `customer-remove-tax-exemptions-parity.json`, and `customer-replace-tax-exemptions-parity.json`
+- Data sale opt-out capture: `corepack pnpm conformance:capture-data-sale-opt-out`, writing `data-sale-opt-out-parity.json`
 - Conformance fixtures and requests: `config/parity-specs/customer*.json`, `config/parity-specs/customers*.json`, and matching files under `config/parity-requests/`
