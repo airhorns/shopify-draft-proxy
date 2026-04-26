@@ -42,6 +42,19 @@ const APP_DISCOUNT_MUTATION_ROOTS = new Set([
 ]);
 
 const ORDER_PAYMENT_MUTATION_ROOTS = new Set(['orderCapture', 'transactionVoid', 'orderCreateMandatePayment']);
+const NO_LOG_ERROR_MUTATION_ROOTS = new Set([
+  'orderCapture',
+  'transactionVoid',
+  'orderCreateMandatePayment',
+  'orderClose',
+  'orderOpen',
+  'orderMarkAsPaid',
+  'orderCreateManualPayment',
+  'orderCustomerSet',
+  'orderCustomerRemove',
+  'taxSummaryCreate',
+  'orderCancel',
+]);
 
 const PAYMENT_CUSTOMIZATION_MUTATION_ROOTS = new Set([
   'paymentCustomizationActivation',
@@ -148,8 +161,12 @@ function hasLocalMutationErrors(value: unknown): boolean {
   return false;
 }
 
-function shouldLogSuccessfulLocalMutation(responseBody: unknown): boolean {
-  return !hasLocalMutationErrors(responseBody);
+function shouldAppendLocalMutationLog(primaryRootField: string | null | undefined, responseBody: unknown): boolean {
+  if (!hasLocalMutationErrors(responseBody)) {
+    return true;
+  }
+
+  return !NO_LOG_ERROR_MUTATION_ROOTS.has(primaryRootField ?? '');
 }
 
 function interpretMutationLogEntry(
@@ -536,10 +553,12 @@ export function createProxyRouter(config: AppConfig): Router {
     ) {
       const responseBody = handleOrderMutation(body.query, variables, config.readMode, config.shopifyAdminOrigin);
       if (responseBody) {
-        if (shouldLogSuccessfulLocalMutation(responseBody)) {
+        const logEntryId = makeSyntheticGid('MutationLogEntry');
+        const logReceivedAt = makeSyntheticTimestamp();
+        if (shouldAppendLocalMutationLog(primaryRootField, responseBody)) {
           store.appendLog({
-            id: makeSyntheticGid('MutationLogEntry'),
-            receivedAt: makeSyntheticTimestamp(),
+            id: logEntryId,
+            receivedAt: logReceivedAt,
             operationName: capability.operationName,
             path: ctx.path,
             query: body.query,
@@ -1168,14 +1187,16 @@ export function createProxyRouter(config: AppConfig): Router {
         (capability.domain === 'shipping-fulfillments' && orderBackedLocalFulfillmentMutation)) &&
       (config.readMode === 'snapshot' || primaryRootField === 'draftOrderCreate')
     ) {
+      const logEntryId = makeSyntheticGid('MutationLogEntry');
+      const logReceivedAt = makeSyntheticTimestamp();
       const responseBody = handleOrderMutation(body.query, variables, config.readMode, config.shopifyAdminOrigin) ?? {
         data: {},
       };
 
-      if (shouldLogSuccessfulLocalMutation(responseBody)) {
+      if (shouldAppendLocalMutationLog(primaryRootField, responseBody)) {
         store.appendLog({
-          id: makeSyntheticGid('MutationLogEntry'),
-          receivedAt: makeSyntheticTimestamp(),
+          id: logEntryId,
+          receivedAt: logReceivedAt,
           operationName: capability.operationName,
           path: ctx.path,
           query: body.query,
@@ -1234,6 +1255,8 @@ export function createProxyRouter(config: AppConfig): Router {
         config.shopifyAdminOrigin,
       );
       if (orderMutationResponse) {
+        const logEntryId = makeSyntheticGid('MutationLogEntry');
+        const logReceivedAt = makeSyntheticTimestamp();
         const shortCircuitNotesByOperation: Record<string, string> = {
           orderCreate: 'Locally short-circuited captured orderCreate validation in live-hybrid mode.',
           refundCreate:
@@ -1276,10 +1299,10 @@ export function createProxyRouter(config: AppConfig): Router {
             'Locally staged fulfillmentEventCreate in live-hybrid mode for an order-backed local fulfillment.',
         };
 
-        if (shouldLogSuccessfulLocalMutation(orderMutationResponse)) {
+        if (shouldAppendLocalMutationLog(primaryRootField, orderMutationResponse)) {
           store.appendLog({
-            id: makeSyntheticGid('MutationLogEntry'),
-            receivedAt: makeSyntheticTimestamp(),
+            id: logEntryId,
+            receivedAt: logReceivedAt,
             operationName: capability.operationName,
             path: ctx.path,
             query: body.query,
