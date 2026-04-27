@@ -1,0 +1,12 @@
+mutation DraftOrderBulkAddTags($ids: [ID!], $tags: [String!]!) {
+  draftOrderBulkAddTags(ids: $ids, tags: $tags) {
+    job {
+      id
+      done
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "capturedAt": "2026-04-27T00:45:00Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "variables": {
+    "abandonmentId": "gid://shopify/Abandonment/0",
+    "checkoutId": "gid://shopify/AbandonedCheckout/0",
+    "first": 2
+  },
+  "response": {
+    "data": {
+      "abandonedCheckouts": {
+        "nodes": [],
+        "edges": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      },
+      "abandonedCheckoutsCount": {
+        "count": 0,
+        "precision": "EXACT"
+      },
+      "abandonment": null,
+      "abandonmentByAbandonedCheckoutId": null
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 16,
+        "actualQueryCost": 15,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1985,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

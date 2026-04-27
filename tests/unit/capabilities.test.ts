@@ -688,8 +688,15 @@ describe('getOperationCapability', () => {
     });
   });
 
-  it('routes implemented metaobject definition read roots through the local overlay', () => {
-    for (const rootField of ['metaobjectDefinition', 'metaobjectDefinitionByType', 'metaobjectDefinitions']) {
+  it('routes implemented metaobject read roots through the local overlay', () => {
+    for (const rootField of [
+      'metaobject',
+      'metaobjectByHandle',
+      'metaobjects',
+      'metaobjectDefinition',
+      'metaobjectDefinitionByType',
+      'metaobjectDefinitions',
+    ]) {
       expect(
         getOperationCapability({
           type: 'query',

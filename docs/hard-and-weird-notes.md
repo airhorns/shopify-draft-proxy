@@ -236,6 +236,20 @@ A later healthy-again pass on this host exposed a repo-local repair bug rather t
 
 This note is historical for the old worktree-local repair path. The current conformance auth entry point is the shared home-folder credential at `~/.shopify-draft-proxy/conformance-admin-auth.json`, and `corepack pnpm conformance:refresh-auth` should use that same path as `corepack pnpm conformance:probe` / `corepack pnpm conformance:capture-orders`.
 
+### 7b. BulkOperation reads expose terminal job history, not just active jobs
+
+HAR-262 live capture on 2026-04 settled a few easy-to-model-wrong branches for the root-level Bulk Operations controller:
+
+- `bulkOperation(id:)` unknown IDs return `null`, while malformed non-GID IDs fail earlier with a top-level invalid-id error.
+- `bulkOperations(first:, query: "status:running operation_type:query")` and the matching mutation filter return empty connection objects, not `null`, when no running jobs exist.
+- `currentBulkOperation(type: MUTATION)` can return `null`, but `currentBulkOperation(type: QUERY)` on this host returned a terminal query job; do not assume the deprecated root means "currently running only."
+- Canceling a completed operation returns the completed operation plus a userError with `field: null`; canceling an unknown operation returns `bulkOperation: null` plus `field: ["id"]`.
+- A successful cancel starts at `CANCELING` and then reaches `CANCELED`; the captured canceled operation kept `completedAt: null`, `fileSize: null`, and `partialDataUrl: null`. Result URL/counter behavior should be modeled from fixtures, not inferred from the completed export branch.
+
+Practical rule:
+
+- model BulkOperation as an app-scoped job history with terminal entries and status-specific payload details, not as a single nullable active job slot.
+
 ## 8. Customer mutation payloads normalize tags and phone numbers differently than guessed
 
 The first strict customer CRUD parity promotion exposed two easy local-draft guesses that were wrong for the captured Shopify Admin GraphQL payloads:
@@ -1158,6 +1172,19 @@ HAR-256 captured `metafieldDefinitionPin` and `metafieldDefinitionUnpin` against
 
 The implemented local slice is intentionally limited to existing normalized definitions. Keep create/update/delete and app-configuration-managed or unsupported-owner pinning branches separate until they have their own evidence.
 
+## 19c. Product definition lifecycle deletes make matching product metafields disappear immediately
+
+HAR-145 captured product-owner `metafieldDefinitionCreate`, `metafieldDefinitionUpdate`, and `metafieldDefinitionDelete` against the 2025-01 conformance store in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafield-definition-lifecycle-mutations.json`.
+
+Useful behavior:
+
+- create returns a concrete `createdDefinition` with the selected identity, type, validation, pinned position, and `validationStatus`
+- update is identity-based: `ownerType`, `namespace`, and `key` identify the definition, while fields such as name and description can change
+- delete accepts the definition `id`, returns both `deletedDefinitionId` and the deleted identity payload, and `deleteAllAssociatedMetafields: true` returned no user errors in the product-owner capture
+- immediate downstream reads after delete returned `metafieldDefinition: null`, an empty matching `metafieldDefinitions` connection, and `product.metafield(namespace:, key:)`: `null`
+
+The local model mirrors the immediate no-data effect for product-owned metafields only. It does not model a generalized async deletion job or broaden associated-metafield deletion to unsupported owner families without separate evidence.
+
 ## 20. Metaobject read no-data behavior is clean, but setup access has a trap
 
 HAR-240 captured the first Admin GraphQL 2026-04 metaobject read fixture against `harry-test-heelo.myshopify.com`.
@@ -1887,7 +1914,34 @@ Practical rule for the proxy:
 - mask staged `defaultPhoneNumber.phoneNumber` in the same practical style as the captured live payload instead of echoing raw phone input
 - preserve the captured validation distinctions exactly: null-field missing-identity create error, `Customer does not exist` for unknown-id update, and `Customer can't be found` for unknown-id delete
 
-### 44a. `dataSaleOptOut` is privacy-scoped but behaves like a customer write
+### 44a. CustomerInput validation failures are payload userErrors and must be state-invariant
+
+The HAR-282 live capture on `harry-test-heelo.myshopify.com` added the first focused long-tail `CustomerInput` validation matrix for `customerCreate` and `customerUpdate`.
+
+Observed validation behavior:
+
+- invalid email returns `customer: null` plus `userErrors[{ field: ['email'], message: 'Email is invalid' }]`
+- invalid phone returns `customer: null` plus `userErrors[{ field: ['phone'], message: 'Phone is invalid' }]`
+- duplicate email/phone identity returns `Email has already been taken` / `Phone has already been taken` at the corresponding field
+- invalid locale returns `userErrors[{ field: ['locale'], message: 'Locale is invalid' }]`
+- a tag longer than 255 characters returns `userErrors[{ field: ['tags'], message: 'Tags is too long (maximum is 255 characters)' }]`
+- oversized names and note accumulate separate fielded errors: first/last name max 255 characters, note max 5000 characters
+- updating a deleted customer, or the source customer after `customerMerge`, returns the same unknown-id payload branch as other missing rows: `field: ['id']`, `Customer does not exist`
+
+Observed normalization behavior:
+
+- created customers defaulted `locale` to `en` when the input omitted locale
+- blank `firstName`, `lastName`, and `phone` normalized to `null`
+- blank `note` stayed as an empty string, while explicit `null` note stayed `null`
+- tag input was trimmed, empty tags were dropped, duplicates were removed, and the response sorted the remaining tags lexicographically
+
+Practical rule for the proxy:
+
+- run captured validation before staging the customer row or replacing customer-owned metafields
+- failed validations may still produce the normal supported-mutation log entry, but they must not introduce staged resource IDs or mutate downstream customer/customerByIdentifier/customers reads
+- keep this validation slice limited to captured branches; broader email/phone/locale international edge cases need new live evidence before tightening rules further
+
+### 44b. `dataSaleOptOut` is privacy-scoped but behaves like a customer write
 
 HAR-255 capture on `harry-test-heelo.myshopify.com` / Admin GraphQL 2025-01 settled a few non-obvious data-sale opt-out behaviors:
 
@@ -1985,6 +2039,30 @@ The first Store properties inventory for Admin GraphQL 2026-04 exposed several r
 Current scaffold decision:
 
 - `shop`, `location`, `locationByIdentifier`, `businessEntities`, and `businessEntity` now have narrow Store properties overlay-read support backed by captured fixtures; `cashManagementLocationSummary` remains a registry-tracked planned overlay read
+
+## B2B company roots
+
+HAR-302 captured the first B2B company/contact/location read slice against
+`harry-test-heelo.myshopify.com` on Admin GraphQL 2025-01. The app credential
+can read the B2B company roots on that store. The capture showed:
+
+- `companies(first:)` returns a non-null connection, and `companiesCount`
+  returned `{ count: 2 }`.
+- Unknown `company`, `companyContact`, `companyContactRole`, and
+  `companyLocation` IDs returned `null`.
+- Company records exposed `contactsCount`, `locationsCount`,
+  `contactRoles(first:)`, `locations(first:)`, `contacts(first:)`,
+  `mainContact`, and `defaultRole` in the safe selected slice.
+- `companyLocations(first:)` returned locations with their parent `company`.
+- Safe unknown-ID `companyUpdate`, `companyLocationUpdate`, and
+  `companyContactUpdate` returned `RESOURCE_NOT_FOUND` userErrors. The field
+  paths differ: `companyId`, `input`, and `companyContactId` respectively.
+
+The mutation roots are only inventoried as B2B blockers. Do not mark them
+supported from validation-only evidence; company/contact/location create,
+update, delete, assignment, revoke, address, tax, staff, and welcome-email
+behavior needs local lifecycle modeling before runtime support.
+
 - `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, and `locationDelete` stage locally at runtime; the lifecycle roots are backed by safe 2026-04 validation captures for missing `@idempotent` and active stocked delete rejection, while happy-path lifecycle captures still require a disposable location setup
 - `shopPolicyUpdate` now stages locally by `ShopPolicyType` when a shop baseline is available; captured 2026-04 evidence shows oversized policy bodies return `field: ["shopPolicy", "body"]`, message `Body is too big (maximum is 512 KB)`, and code `TOO_BIG`
 - generic `publishablePublish` / `publishableUnpublish` now stage Product and Collection targets locally; `publishablePublishToCurrentChannel` / `publishableUnpublishToCurrentChannel` currently have product-scoped local staging only
@@ -2151,6 +2229,13 @@ Captured mutation behavior:
 - `customerSmsMarketingConsentUpdate` maps input `consentUpdatedAt` to `defaultPhoneNumber.marketingUpdatedAt` and returns `marketingCollectedFrom: "OTHER"` for the captured Admin API update
 - an unknown email-consent customer id returns `userErrors: [{ field: ["input", "customerId"], message: "Customer not found", code: "INVALID" }]`
 - an unknown SMS-consent customer id returns `userErrors: [{ field: null, message: "Customer not found", code: null }]`
+- HAR-287 expanded the 2026-04 validation matrix:
+  - missing/null nested consent payloads, null `marketingState`, invalid enum values, unknown input fields such as SMS `consentCollectedFrom`, and malformed `consentUpdatedAt` values are GraphQL `INVALID_VARIABLE` failures before resolver execution
+  - `NOT_SUBSCRIBED`, `REDACTED`, and email `INVALID` are enum values in schema exposure, but the resolver rejects them as input states with top-level `INVALID` errors
+  - `PENDING` requires `marketingOptInLevel: CONFIRMED_OPT_IN`; using `SINGLE_OPT_IN` returns a mutation `userErrors` entry at `["input", <consentKey>, "marketingOptInLevel"]` without changing stored consent
+  - future `consentUpdatedAt` returns a mutation `userErrors` entry at `["input", <consentKey>, "consentUpdatedAt"]`; email returns the unchanged customer payload, while SMS returns `customer: null`
+  - SMS consent update requires an existing default phone number and returns `field: ["input", "smsMarketingConsent"]`, message `A phone number is required to set the SMS consent state.`, code `INVALID` when absent
+  - email consent update against a customer without an email/default email address succeeds as a no-contact-method no-op for selected default email fields
 
 Practical rule:
 
@@ -2246,16 +2331,21 @@ Captured safe happy path for two synthetic customers:
 
 - Shopify selected `customerTwoId` as the resulting customer id
 - the mutation returned a job with `done: false`
-- after polling, `customerMergeJobStatus` reached `COMPLETED`
+- HAR-291 polling observed `customerMergeJobStatus` return `IN_PROGRESS` immediately after the mutation and `COMPLETED` on the next poll
 - downstream `customer(id: customerOneId)` and `customerByIdentifier(emailAddress: customer one email)` returned `null`
 - downstream `customer(id: customerTwoId)` and `customerByIdentifier(emailAddress: customer two email)` returned the merged customer
 - override `note` and `tags` replaced the default combined note/tag values; selected name/email fields followed the requested customer id override fields
+- HAR-291 keeps the base two-customer merge fixture separate from the attached-resource fixture; run `corepack pnpm conformance:capture-customer-merge-attached-resources` to refresh the address/metafield/order scenario
+- when the two customers had addresses, customer-owned metafields, and a source order, Shopify retained the result customer's default address, appended the source address to `addressesV2`, retained result-side metafield conflicts, copied source-only metafields with a new metafield id, and moved the source order to the result customer with the result customer's email
+- the captured result customer kept `numberOfOrders: "0"` and `lastOrder: null` even after the source order became visible in `Customer.orders`
+- the captured result customer's `createdAt` matched the source customer timestamp when the source and result creation seconds differed
 
 Practical rule:
 
 - stage supported `customerMerge` locally for customers already present in the normalized graph, mark the source customer deleted, record the source-to-result id redirect for state inspection, and expose a local merge request for `customerMergeJobStatus`
 - do not fetch or mutate Shopify during normal runtime to discover missing merge customers; unknown ids should return captured `CustomerMergeUserError` payloads instead
-- do not model transfer of orders, draft orders, gift cards, discounts, addresses, or other attached resources until a fixture captures those non-empty merge fields
+- model only attached resources with captured non-empty behavior and normalized local state: HAR-291 covers customer addresses, customer metafields, and orders
+- draft-order setup was captured, but not a downstream draft-order transfer read; draft orders, gift cards, discounts, and other attached resources remain deferred until fixtures capture their non-empty post-merge behavior
 
 ## 56. discountNodes code filter does not mirror codeDiscountNodes for native code discounts
 
@@ -2567,6 +2657,27 @@ Practical rule:
 - model `productSet` inventory inputs as inventory item location-level rows, then derive variant `inventoryQuantity` from those rows
 - do not use the generic eager product inventory-summary recomputation path for `productSet`; preserve the captured create/update product total behavior until fresher evidence shows Shopify has changed it
 
+## 66a. `inventorySetQuantities` / `inventoryMoveQuantities` use the inventory-level graph and product totals still lag
+
+Live HAR-305 probes against `harry-test-heelo.myshopify.com` on 2026-04-27 covered the current 2025-01 schema and a disposable product cleanup flow.
+
+Captured facts:
+
+- `inventoryItems(first:, after:, last:, before:, reverse:, query:)` is a non-null `InventoryItemConnection`; `query: "id:0"` returned an empty connection plus a Shopify search warning rather than null data
+- `inventoryProperties.quantityNames` returned `available`, `committed`, `damaged`, `incoming`, `on_hand`, `quality_control`, `reserved`, and `safety_stock`; `on_hand` is composed from the component names while `incoming` is separate
+- `inventorySetQuantities` in 2025-01 still exposes deprecated `ignoreCompareQuantity`; omitting both compare data and `ignoreCompareQuantity: true` returns a user error at `["input", "ignoreCompareQuantity"]`
+- a successful available set with `ignoreCompareQuantity: true` returned `available` changes plus mirrored `on_hand` changes, left `quantityAfterChange` null, and echoed `referenceDocumentUri`
+- immediate downstream `inventoryItem.variant.inventoryQuantity` summed available quantities across the active levels, but `product.totalInventory` stayed at the prior value
+- `inventoryMoveQuantities` is not a cross-location transfer primitive: moving between different locations returned `The quantities can't be moved between different locations.`
+- same-location available-to-damaged move succeeded, returned a negative `available` change and a positive `damaged` change, accepted a ledger URI on the damaged terminal, kept `on_hand` unchanged, reduced variant available quantity, and left product total stale
+- ledger URIs are not allowed for the `available` terminal; non-available terminals should carry ledger evidence until a broader capture proves otherwise
+
+Practical rule:
+
+- model both roots over the existing inventory-level rows, not a detached quantity ledger table
+- update variant available totals immediately while preserving product total lag, matching `inventoryAdjustQuantities` and `productSet` timing
+- keep shipment and transfer workflows out of this family; `inventoryMoveQuantities` moves between quantity names at one location, not between locations
+
 ## 67. Draft-order create validation differs from early local guesses
 
 HAR-277 captured a grouped `draftOrderCreate` validation matrix on Admin GraphQL 2026-04 against `harry-test-heelo.myshopify.com`.
@@ -2590,7 +2701,25 @@ Practical rule:
 - keep missing custom price and missing shipping-line title out of the local validation list until a later fixture proves a narrower invalid branch
 - broad direct `orderCreate` validation capture is still constrained by Shopify's order-create attempt throttle on this host; the executable direct-order fixture currently covers only the no-line-items branch
 
-## 68. Unknown comment detail can error while comment moderation validates cleanly
+## 68. Generic translations use raw value digests, and locale writes are reversible
+
+HAR-314 captured generic localization roots on Admin GraphQL 2026-04 against `harry-test-heelo.myshopify.com`.
+
+Captured facts:
+
+- `TranslatableContent.digest` for product scalar content matched `sha256(value)` for the selected title, handle, and product type values.
+- `shopLocaleEnable(locale: "fr")` succeeded with `published: false`, `primary: false`, and no market web presences when the shop initially only had primary `en`.
+- `shopLocaleUpdate(locale: "fr", shopLocale: { published: false })` returned the same unpublished locale payload.
+- `shopLocaleDisable(locale: "fr")` returned `{ locale: "fr", userErrors: [] }` and restored the shop locale list to only `en`.
+- `translationsRegister` for an enabled `fr` locale returned the staged product title translation and immediate `translatableResource.translations(locale: "fr")` reads observed it.
+- `translationsRemove` returned the removed translation payload, and the immediate downstream translations read became an empty list.
+- Unknown product resources return `TranslationUserError` with `field: ["resourceId"]`, `code: "RESOURCE_NOT_FOUND"`, and message `Resource <gid> does not exist` for both register and remove.
+
+Practical rule:
+
+- it is safe to stage the generic product/product-metafield translation slice locally with SHA-256 digests and read-after-write translation visibility, but do not broaden generic localization to market-specific custom content or non-product owner families until they have their own captures.
+
+## 69. Unknown comment detail can error while comment moderation validates cleanly
 
 HAR-303 captured online-store content roots on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com`.
 
@@ -2608,7 +2737,7 @@ Practical rule:
 - treat comment moderation as local lifecycle support only for comments already present in snapshot or hydrated local state, since Admin GraphQL did not expose a captured comment-create root in this slice
 - continue to record success-path setup and cleanup for online-store content mutations when broadening validation or publication semantics
 
-## 69. Fulfillment-order lifecycle roots split work into replacement orders
+## 70. Fulfillment-order lifecycle roots split work into replacement orders
 
 HAR-234 captured fulfillment-order lifecycle evidence on Admin GraphQL 2026-04 at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/fulfillment-order-lifecycle.json`.
 
@@ -2627,7 +2756,7 @@ Practical rule:
 - do not model fulfillment-order lifecycle roots as simple status patches; partial hold/move/cancel behavior affects line-item quantities and replacement fulfillment-order identities
 - keep `fulfillmentOrderReschedule`, `fulfillmentOrderClose`, and `fulfillmentOrdersReroute` unimplemented for full support until success-path fixtures exist, even if local guardrails are mirrored
 
-## 70. Fulfillment-order request lifecycles need an API fulfillment service to reach happy paths
+## 71. Fulfillment-order request lifecycles need an API fulfillment service to reach happy paths
 
 HAR-233 captured fulfillment-order request/cancellation behavior on Admin GraphQL 2026-04 against `harry-test-heelo.myshopify.com`. A merchant-managed fulfillment order did not reach the request happy path: `fulfillmentOrderSubmitFulfillmentRequest` returned `userErrors[{ field: ["id"], message: "The fulfillment order's assigned fulfillment service must be of api type" }]`.
 

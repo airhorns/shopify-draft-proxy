@@ -26,6 +26,29 @@ Live-hybrid mode still fetches upstream first. When local staged or snapshot def
 
 Local catalog cursors use the proxy's stable `cursor:<definition gid>` form. Shopify's captured live catalog cursors are opaque and should not be treated as client-visible semantics.
 
+## Supported entry read roots
+
+HAR-243 promotes normalized metaobject entry reads for:
+
+- `metaobject`
+- `metaobjectByHandle`
+- `metaobjects`
+
+The supported entry field slice is based on the HAR-240 Admin GraphQL 2026-04 capture:
+
+- entry identity and display metadata: `id`, `handle`, `type`, `displayName`, `createdAt`, and `updatedAt`
+- entry `capabilities.publishable.status` and nullable `capabilities.onlineStore.templateSuffix`
+- ordered `fields` with `key`, `type`, `value`, `jsonValue`, and the captured field-definition reference (`key`, `name`, `required`, `type.name`, `type.category`)
+- `field(key:)`, including `null` for unknown field keys while preserving aliases
+- `definition` when the matching normalized definition is present
+- `referencedBy` as a Shopify-like empty connection until relation evidence exists
+
+Snapshot mode reads entries from normalized `metaobjects` state and returns `null` for absent ID or `(type, handle)` lookups. Empty or absent type catalogs return non-null empty connections with empty `edges` / `nodes`, `hasNextPage: false`, `hasPreviousPage: false`, and null cursors.
+
+`metaobjects(type:, first:, after:, before:, last:, reverse:, sortKey:, query:)` is type-scoped and never invents entries outside normalized state. Local catalog cursors use stable `cursor:<metaobject gid>` values. Supported local sort keys are `id`, `type`, `updated_at`, and `display_name`; `reverse` flips the sorted list before cursor windowing. Query filtering supports general text search plus documented field-value filters such as `fields.title:Alpha` against normalized field `value` / `jsonValue` data.
+
+Live-hybrid mode fetches upstream first. When local snapshot or staged entry state exists, the proxy overlays normalized entries onto the selected roots; when no local entry exists, upstream no-data/null responses are returned unchanged.
+
 ## Supported definition mutation roots
 
 HAR-242 adds local staging for these Admin GraphQL 2026-04 definition mutation roots:
@@ -55,12 +78,6 @@ Delete support stages deletion for definitions whose effective `metaobjectsCount
 
 ## Unsupported roots tracked by the registry
 
-Planned overlay reads:
-
-- `metaobject`
-- `metaobjectByHandle`
-- `metaobjects`
-
 Planned local-staging mutations:
 
 - `metaobjectCreate`
@@ -72,14 +89,14 @@ Planned local-staging mutations:
 ## Coverage boundaries
 
 - Registry entries in this group are declared gaps unless they are marked implemented and have executable runtime tests, parity inventory, and documented field behavior.
-- `implemented` must remain `false` until a root has executable runtime behavior, targeted tests, captured conformance/runtime evidence, and documented field behavior. HAR-241 satisfies that bar for definition reads; HAR-242 satisfies that bar for the definition mutation roots listed above. Entry reads and entry mutations remain declared gaps.
+- `implemented` must remain `false` until a root has executable runtime behavior, targeted tests, captured conformance/runtime evidence, and documented field behavior. HAR-241 satisfies that bar for definition reads; HAR-242 satisfies that bar for definition mutation roots; HAR-243 satisfies that bar for entry reads. Entry mutations remain declared gaps.
 - Unsupported metaobjects mutations must not be registered as permanent passthrough support. The generic unknown-operation passthrough path can still handle unsupported runtime requests outside snapshot-only parity execution, but that is not a support commitment for any declared root.
 - Do not add planned-only parity specs or request placeholders for this group. Add parity specs only after a captured Shopify interaction can run as evidence.
 
 ## Planned local-staging posture
 
 - Entry mutations must eventually stage locally without mutating Shopify at runtime, preserve the original raw mutation for commit replay, and make staged entries visible through `metaobject`, `metaobjectByHandle`, and `metaobjects`.
-- Definition mutation support does not yet update modeled entries because entry state is still absent. When entry support lands, definition updates/deletes need conformance-backed entry migration and cascade behavior.
+- Definition mutation support does not yet migrate modeled entries or cascade definition deletes into entry state. Future definition/entry coupling needs conformance-backed migration and cascade behavior.
 - Bulk delete support needs captured evidence for selection semantics, partial failure behavior, async payload shape, and read-after-delete visibility before it can be promoted.
 - Upsert support needs captured evidence for create-vs-update identity, handle conflicts, and userErrors before it can be promoted.
 
@@ -114,14 +131,17 @@ The seeded branch creates one disposable merchant-owned metaobject definition an
 
 HAR-241 adds `config/parity-specs/metaobject-definitions-read.json` for the definition-read subset of this fixture, enforced by `tests/integration/metaobject-definition-query-shapes.test.ts`.
 
+HAR-243 adds `config/parity-specs/metaobjects-read.json` and `config/parity-requests/metaobjects-read.graphql` for the entry-read subset. The parity runner seeds the local proxy from the captured definition and entry read payloads, then replays `metaobjects`, `metaobject`, and `metaobjectByHandle` with strict comparison targets for seeded and no-data branches. Opaque Shopify connection cursors remain an expected difference because snapshot mode emits stable synthetic cursors.
+
 HAR-242 adds `config/parity-specs/metaobject-definition-lifecycle-local-staging.json`, backed by `fixtures/conformance/local-runtime/2026-04/metaobject-definition-draft-flow.json`, `config/parity-requests/metaobject-definition-*.graphql`, and `tests/integration/metaobject-definition-draft-flow.test.ts`. The convention-driven parity runner executes the create/update/delete/read-after-write and bounded standard-enable flow against the local proxy harness with strict JSON comparison targets. The runtime test also covers meta API log/state visibility, no runtime Shopify writes, the captured merchant-owned access.admin guardrail, and explicit unsupported handling for associated-entry delete cascades.
 
-Entry reads and entry mutation lifecycles still need implementation before the full `metaobjects-read.json` capture can be promoted as a strict end-to-end parity scenario without expected gaps.
+Entry mutation lifecycles still need implementation before the setup/cleanup mutation branches in the broader `metaobjects-read.json` capture can be promoted as strict end-to-end parity scenarios.
 
 ## Validation anchors
 
 - Registry and coverage tests: `tests/unit/operation-registry.test.ts`, `tests/unit/graphql-operation-coverage.test.ts`
 - Definition read runtime tests: `tests/integration/metaobject-definition-query-shapes.test.ts`
+- Entry read runtime tests: `tests/integration/metaobject-query-shapes.test.ts`
 - Definition mutation runtime tests: `tests/integration/metaobject-definition-draft-flow.test.ts`
 - Captured root inventory: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-graphql-root-operation-introspection.json`
 - Read fixture recorder: `scripts/capture-metaobject-read-conformance.mts`

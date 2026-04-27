@@ -1,0 +1,16 @@
+{
+  "scenarioId": "quantity-pricing-rules-local-staging",
+  "operationNames": ["quantityPricingByVariantUpdate", "quantityRulesAdd", "quantityRulesDelete", "priceList"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/quantity-pricing-rules-parity.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/markets-lifecycle-flow.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "notes": "HAR-321 live fixture captures Admin GraphQL 2025-01 schema/payload evidence for quantityPricingByVariantUpdate, quantityRulesAdd, quantityRulesDelete, unknown price-list and unknown-variant validation branches, and downstream PriceList.quantityRules / PriceList.prices.quantityPriceBreaks reads. The flow is enforced by the Markets lifecycle runtime test because it is multi-step local staging with setup, staged reads, and cleanup rather than a single generic parity request."
+}

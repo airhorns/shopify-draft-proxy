@@ -1,0 +1,14 @@
+mutation ProductVariantsBulkDeleteValidationAtomicity($productId: ID!, $variantsIds: [ID!]!) {
+  productVariantsBulkDelete(productId: $productId, variantsIds: $variantsIds) {
+    product {
+      id
+      totalInventory
+      tracksInventory
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
