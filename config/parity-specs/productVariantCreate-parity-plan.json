@@ -10,8 +10,8 @@
     "documentPath": "config/parity-requests/productVariantCreate-parity-plan.graphql",
     "variablesPath": "config/parity-requests/productVariantCreate-parity-plan.variables.json"
   },
-  "comparisonMode": "captured-compatibility-wrapper",
-  "notes": "Executed compatibility-wrapper coverage for `productVariantCreate`: compare the checked-in single-variant wrapper request against the live-supported bulk-create parity slice it reuses locally. Linear HAR-189 tracks re-checking direct legacy-root availability on future Shopify schemas; the local compatibility path now executes in `conformance:parity` without pending Markdown evidence.",
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable compatibility parity for `productVariantCreate`: the generic parity runner compares the checked-in single-variant proxy request against the equivalent live-supported `productVariantsBulkCreate` capture with explicit strict-json targets for payload shape, user errors, inventory summary, and downstream product reads. Linear HAR-189 tracks re-checking direct legacy-root availability on future Shopify schemas; this spec is no longer capture-only or pending Markdown evidence.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
