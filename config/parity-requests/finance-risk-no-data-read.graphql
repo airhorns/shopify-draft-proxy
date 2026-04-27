@@ -1,0 +1,66 @@
+query FinanceRiskNoDataRead(
+  $cashId: ID!
+  $posId: ID!
+  $disputeId: ID!
+  $evidenceId: ID!
+  $token: String!
+  $first: Int!
+) {
+  cashTrackingSession(id: $cashId) {
+    __typename
+  }
+  cashTrackingSessions(first: $first) {
+    nodes {
+      __typename
+    }
+    edges {
+      node {
+        __typename
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  pointOfSaleDevice(id: $posId) {
+    __typename
+  }
+  dispute(id: $disputeId) {
+    __typename
+  }
+  disputeEvidence(id: $evidenceId) {
+    __typename
+  }
+  disputes(first: $first) {
+    nodes {
+      __typename
+    }
+    edges {
+      node {
+        __typename
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  shopPayPaymentRequestReceipt(token: $token) {
+    __typename
+  }
+  shopPayPaymentRequestReceipts(first: $first) {
+    nodes {
+      __typename
+    }
+    edges {
+      node {
+        __typename
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+}

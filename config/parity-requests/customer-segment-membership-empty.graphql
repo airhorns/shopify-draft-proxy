@@ -1,0 +1,8 @@
+query CustomerSegmentMembershipEmpty($customerId: ID!, $segmentIds: [ID!]!) {
+  customerSegmentMembership(customerId: $customerId, segmentIds: $segmentIds) {
+    memberships {
+      segmentId
+      isMember
+    }
+  }
+}

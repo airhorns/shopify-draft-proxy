@@ -1,0 +1,9 @@
+query MarketingEngagementRead($activityId: ID!) {
+  marketingActivity(id: $activityId) {
+    id
+    adSpend {
+      amount
+      currencyCode
+    }
+  }
+}

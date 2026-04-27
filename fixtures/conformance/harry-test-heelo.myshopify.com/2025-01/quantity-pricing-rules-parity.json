@@ -1,0 +1,258 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-04-27T16:01:47.689Z",
+  "scope": "HAR-321 quantity pricing/rules live capture",
+  "setup": {
+    "priceListId": "gid://shopify/PriceList/32128106802",
+    "variantId": "gid://shopify/ProductVariant/49875425296690",
+    "priceListContext": "existing CompanyLocationCatalog-backed price list in disposable conformance shop"
+  },
+  "schemaEvidence": {
+    "quantityPricingByVariantUpdateArgs": ["priceListId", "input"],
+    "quantityRulesAddArgs": ["priceListId", "quantityRules"],
+    "quantityRulesDeleteArgs": ["priceListId", "variantIds"],
+    "quantityPricingByVariantUpdateInputFields": [
+      "quantityPriceBreaksToAdd",
+      "quantityPriceBreaksToDelete",
+      "quantityPriceBreaksToDeleteByVariantId",
+      "quantityRulesToAdd",
+      "quantityRulesToDeleteByVariantId",
+      "pricesToAdd",
+      "pricesToDeleteByVariantId"
+    ],
+    "downstreamReadTargets": ["PriceList.quantityRules", "PriceList.prices(originType: FIXED).quantityPriceBreaks"]
+  },
+  "successPath": [
+    {
+      "name": "quantityPricingByVariantUpdate-add",
+      "request": {
+        "variables": {
+          "priceListId": "gid://shopify/PriceList/32128106802",
+          "input": {
+            "pricesToAdd": [
+              {
+                "variantId": "gid://shopify/ProductVariant/49875425296690",
+                "price": {
+                  "amount": "17.00",
+                  "currencyCode": "CAD"
+                }
+              }
+            ],
+            "pricesToDeleteByVariantId": [],
+            "quantityRulesToAdd": [
+              {
+                "variantId": "gid://shopify/ProductVariant/49875425296690",
+                "minimum": 2,
+                "maximum": 10,
+                "increment": 2
+              }
+            ],
+            "quantityRulesToDeleteByVariantId": [],
+            "quantityPriceBreaksToAdd": [
+              {
+                "variantId": "gid://shopify/ProductVariant/49875425296690",
+                "minimumQuantity": 4,
+                "price": {
+                  "amount": "15.00",
+                  "currencyCode": "CAD"
+                }
+              }
+            ],
+            "quantityPriceBreaksToDelete": []
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "quantityPricingByVariantUpdate": {
+            "productVariants": [
+              {
+                "id": "gid://shopify/ProductVariant/49875425296690"
+              }
+            ],
+            "userErrors": []
+          }
+        }
+      }
+    },
+    {
+      "name": "downstream-price-list-read",
+      "response": {
+        "data": {
+          "priceList": {
+            "id": "gid://shopify/PriceList/32128106802",
+            "currency": "CAD",
+            "quantityRules": {
+              "edges": [
+                {
+                  "node": {
+                    "minimum": 2,
+                    "maximum": 10,
+                    "increment": 2,
+                    "isDefault": false,
+                    "originType": "FIXED",
+                    "productVariant": {
+                      "id": "gid://shopify/ProductVariant/49875425296690"
+                    }
+                  }
+                }
+              ]
+            },
+            "prices": {
+              "edges": [
+                {
+                  "node": {
+                    "price": {
+                      "amount": "17.0",
+                      "currencyCode": "CAD"
+                    },
+                    "originType": "FIXED",
+                    "variant": {
+                      "id": "gid://shopify/ProductVariant/49875425296690"
+                    },
+                    "quantityPriceBreaks": {
+                      "edges": [
+                        {
+                          "node": {
+                            "minimumQuantity": 4,
+                            "price": {
+                              "amount": "15.0",
+                              "currencyCode": "CAD"
+                            },
+                            "variant": {
+                              "id": "gid://shopify/ProductVariant/49875425296690"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup",
+      "response": {
+        "quantityRulesDelete": {
+          "deletedQuantityRulesVariantIds": ["gid://shopify/ProductVariant/49875425296690"],
+          "userErrors": []
+        },
+        "quantityPricingByVariantUpdate": {
+          "productVariants": [
+            {
+              "id": "gid://shopify/ProductVariant/49875425296690"
+            }
+          ],
+          "userErrors": []
+        }
+      }
+    }
+  ],
+  "validationBranches": [
+    {
+      "name": "quantityPricingByVariantUpdate-unknown-price-list",
+      "response": {
+        "quantityPricingByVariantUpdate": {
+          "productVariants": null,
+          "userErrors": [
+            {
+              "field": ["priceListId"],
+              "code": "PRICE_LIST_NOT_FOUND",
+              "message": "Price list not found."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "quantityRulesAdd-unknown-price-list",
+      "response": {
+        "quantityRulesAdd": {
+          "quantityRules": [],
+          "userErrors": [
+            {
+              "field": ["priceListId"],
+              "code": "PRICE_LIST_DOES_NOT_EXIST",
+              "message": "Price list does not exist."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "quantityRulesDelete-unknown-price-list",
+      "response": {
+        "quantityRulesDelete": {
+          "deletedQuantityRulesVariantIds": [],
+          "userErrors": [
+            {
+              "field": ["priceListId"],
+              "code": "PRICE_LIST_DOES_NOT_EXIST",
+              "message": "Price list does not exist."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "quantityRulesAdd-unknown-variant",
+      "response": {
+        "quantityRulesAdd": {
+          "quantityRules": [],
+          "userErrors": [
+            {
+              "field": ["quantityRules", "0", "variantId"],
+              "code": "PRODUCT_VARIANT_DOES_NOT_EXIST",
+              "message": "Product variant ID does not exist."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "quantityPricingByVariantUpdate-unknown-variant",
+      "response": {
+        "quantityPricingByVariantUpdate": {
+          "productVariants": null,
+          "userErrors": [
+            {
+              "field": ["input", "quantityPriceBreaksToAdd", "0"],
+              "code": "QUANTITY_PRICE_BREAK_ADD_VARIANT_NOT_FOUND",
+              "message": "Variant not found."
+            },
+            {
+              "field": ["input", "quantityRulesToAdd", "0"],
+              "code": "QUANTITY_RULE_ADD_VARIANT_NOT_FOUND",
+              "message": "Variant not found."
+            },
+            {
+              "field": ["input", "pricesToAdd", "0"],
+              "code": "PRICE_ADD_VARIANT_NOT_FOUND",
+              "message": "Variant not found."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "quantityRulesDelete-unknown-variant",
+      "response": {
+        "quantityRulesDelete": {
+          "deletedQuantityRulesVariantIds": [],
+          "userErrors": [
+            {
+              "field": ["variantIds", "0"],
+              "code": "PRODUCT_VARIANT_DOES_NOT_EXIST",
+              "message": "Product variant ID does not exist."
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

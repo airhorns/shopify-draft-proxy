@@ -1,0 +1,23 @@
+query CustomerSegmentMembersEmptyRead($queryId: ID!) {
+  customerSegmentMembers(queryId: $queryId, first: 2) {
+    totalCount
+    statistics {
+      amountSpent: attributeStatistics(attributeName: "amount_spent") {
+        average
+        sum
+      }
+    }
+    edges {
+      cursor
+      node {
+        id
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

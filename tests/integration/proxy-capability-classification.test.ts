@@ -19,7 +19,7 @@ describe('proxy capability classification', () => {
   });
 
   it('logs supported product mutations as staged-local intent instead of generic passthrough', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(
         JSON.stringify({
           data: {
@@ -37,20 +37,23 @@ describe('proxy capability classification', () => {
     );
 
     const app = createApp(config);
+    const query =
+      'mutation ProductCreate { productCreate(product: { title: "Hat" }) { product { id } userErrors { field message } } }';
 
     const response = await request(app.callback())
       .post('/admin/api/2025-01/graphql.json')
       .set('x-shopify-access-token', 'shpat_test')
       .send({
-        query:
-          'mutation ProductCreate { productCreate(product: { title: "Hat" }) { product { id } userErrors { field message } } }',
+        query,
       });
 
     expect(response.status).toBe(200);
+    expect(fetchSpy).not.toHaveBeenCalled();
 
     expect(store.getLog()).toHaveLength(1);
     expect(store.getLog()[0]).toMatchObject({
       operationName: 'ProductCreate',
+      requestBody: { query },
       status: 'staged',
       notes: 'Staged locally in the in-memory product draft store.',
     });
@@ -188,6 +191,212 @@ describe('proxy capability classification', () => {
         'Unsupported app-managed discount mutation would be proxied to Shopify. Shopify Functions app-discount roots require conformance-backed local staging before they can be supported without executing external Function logic.',
     });
     expect(store.getLog()[0]?.interpreted.safety?.reason).toContain('external Function logic');
+  });
+
+  it('marks app billing and access mutations as unsafe unsupported passthrough in logs', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            appSubscriptionCancel: {
+              appSubscription: null,
+              userErrors: [
+                {
+                  field: ['id'],
+                  message: 'Subscription not found',
+                },
+              ],
+            },
+          },
+        }),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        },
+      ),
+    );
+
+    const app = createApp(config);
+    const query = `#graphql
+      mutation CancelAppSubscription {
+        appSubscriptionCancel(id: "gid://shopify/AppSubscription/0") {
+          appSubscription {
+            id
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+
+    const response = await request(app.callback())
+      .post('/admin/api/2025-01/graphql.json')
+      .set('x-shopify-access-token', 'shpat_test')
+      .send({ query });
+
+    expect(response.status).toBe(200);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(store.getLog()).toHaveLength(1);
+    expect(store.getLog()[0]).toMatchObject({
+      operationName: 'CancelAppSubscription',
+      status: 'proxied',
+      interpreted: {
+        operationType: 'mutation',
+        operationName: 'CancelAppSubscription',
+        rootFields: ['appSubscriptionCancel'],
+        primaryRootField: 'appSubscriptionCancel',
+        capability: {
+          operationName: 'CancelAppSubscription',
+          domain: 'unknown',
+          execution: 'passthrough',
+        },
+        registeredOperation: {
+          name: 'appSubscriptionCancel',
+          domain: 'apps',
+          execution: 'stage-locally',
+          implemented: false,
+        },
+        safety: {
+          classification: 'unsupported-app-billing-access-mutation',
+          wouldProxyToShopify: true,
+        },
+      },
+      notes:
+        'Unsupported app billing/access mutation would be proxied to Shopify. These roots can alter merchant billing, installation state, app scopes, or delegated tokens and require conformance-backed local staging plus raw commit replay before support.',
+    });
+    expect(store.getLog()[0]?.interpreted.safety?.reason).toContain('merchant billing');
+  });
+
+  it('logs product merchandising mutation roots as registered unsupported gaps', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      return new Response(JSON.stringify({ data: {} }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+    const app = createApp(config).callback();
+
+    const probes = [
+      {
+        root: 'productFeedCreate',
+        query: `#graphql
+          mutation ProductFeedCreate {
+            productFeedCreate(input: { country: US, language: EN }) {
+              productFeed {
+                id
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+      },
+      {
+        root: 'productFeedDelete',
+        query: `#graphql
+          mutation ProductFeedDelete {
+            productFeedDelete(id: "gid://shopify/ProductFeed/999999999") {
+              deletedId
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+      },
+      {
+        root: 'productFullSync',
+        query: `#graphql
+          mutation ProductFullSync {
+            productFullSync(id: "gid://shopify/ProductFeed/999999999") {
+              id
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+      },
+      {
+        root: 'productBundleCreate',
+        query: `#graphql
+          mutation ProductBundleCreate {
+            productBundleCreate(input: { title: "Bundle", components: [] }) {
+              productBundleOperation {
+                id
+                status
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+      },
+      {
+        root: 'productBundleUpdate',
+        query: `#graphql
+          mutation ProductBundleUpdate {
+            productBundleUpdate(input: { productId: "gid://shopify/Product/999999999", components: [] }) {
+              productBundleOperation {
+                id
+                status
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+      },
+      {
+        root: 'combinedListingUpdate',
+        query: `#graphql
+          mutation CombinedListingUpdate {
+            combinedListingUpdate(parentProductId: "gid://shopify/Product/999999999") {
+              product {
+                id
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+      },
+    ];
+
+    for (const probe of probes) {
+      const response = await request(app)
+        .post('/admin/api/2025-01/graphql.json')
+        .set('x-shopify-access-token', 'shpat_test')
+        .send({ query: probe.query });
+
+      expect(response.status).toBe(200);
+    }
+
+    expect(fetchSpy).toHaveBeenCalledTimes(probes.length);
+    expect(store.getLog()).toHaveLength(probes.length);
+    expect(store.getLog().map((entry) => entry.status)).toEqual(probes.map(() => 'proxied'));
+    expect(store.getLog().map((entry) => entry.interpreted.registeredOperation?.name)).toEqual(
+      probes.map((probe) => probe.root),
+    );
+    expect(store.getLog().map((entry) => entry.interpreted.registeredOperation?.implemented)).toEqual(
+      probes.map(() => false),
+    );
   });
 
   it('logs dataSaleOptOut as staged local customer privacy intent', async () => {

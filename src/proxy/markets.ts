@@ -1,7 +1,13 @@
 import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
-import { parseSearchQuery, type SearchQueryNode, type SearchQueryTerm } from '../search-query-parser.js';
+import {
+  applySearchQuery,
+  matchesSearchQueryString,
+  searchQueryTermValue,
+  stripSearchQueryValueQuotes,
+  type SearchQueryTerm,
+} from '../search-query-parser.js';
 import {
   defaultGraphqlTypeConditionApplies,
   getDocumentFragments,
@@ -78,6 +84,262 @@ const COUNTRY_CURRENCIES: Record<string, string> = {
   US: 'USD',
 };
 
+const SHOPIFY_COUNTRY_CODES = new Set(
+  [
+    'AF',
+    'AX',
+    'AL',
+    'DZ',
+    'AD',
+    'AO',
+    'AI',
+    'AG',
+    'AR',
+    'AM',
+    'AW',
+    'AC',
+    'AU',
+    'AT',
+    'AZ',
+    'BS',
+    'BH',
+    'BD',
+    'BB',
+    'BY',
+    'BE',
+    'BZ',
+    'BJ',
+    'BM',
+    'BT',
+    'BO',
+    'BA',
+    'BW',
+    'BV',
+    'BR',
+    'IO',
+    'BN',
+    'BG',
+    'BF',
+    'BI',
+    'KH',
+    'CA',
+    'CV',
+    'BQ',
+    'KY',
+    'CF',
+    'TD',
+    'CL',
+    'CN',
+    'CX',
+    'CC',
+    'CO',
+    'KM',
+    'CG',
+    'CD',
+    'CK',
+    'CR',
+    'HR',
+    'CU',
+    'CW',
+    'CY',
+    'CZ',
+    'CI',
+    'DK',
+    'DJ',
+    'DM',
+    'DO',
+    'EC',
+    'EG',
+    'SV',
+    'GQ',
+    'ER',
+    'EE',
+    'SZ',
+    'ET',
+    'FK',
+    'FO',
+    'FJ',
+    'FI',
+    'FR',
+    'GF',
+    'PF',
+    'TF',
+    'GA',
+    'GM',
+    'GE',
+    'DE',
+    'GH',
+    'GI',
+    'GR',
+    'GL',
+    'GD',
+    'GP',
+    'GT',
+    'GG',
+    'GN',
+    'GW',
+    'GY',
+    'HT',
+    'HM',
+    'VA',
+    'HN',
+    'HK',
+    'HU',
+    'IS',
+    'IN',
+    'ID',
+    'IR',
+    'IQ',
+    'IE',
+    'IM',
+    'IL',
+    'IT',
+    'JM',
+    'JP',
+    'JE',
+    'JO',
+    'KZ',
+    'KE',
+    'KI',
+    'KP',
+    'XK',
+    'KW',
+    'KG',
+    'LA',
+    'LV',
+    'LB',
+    'LS',
+    'LR',
+    'LY',
+    'LI',
+    'LT',
+    'LU',
+    'MO',
+    'MG',
+    'MW',
+    'MY',
+    'MV',
+    'ML',
+    'MT',
+    'MQ',
+    'MR',
+    'MU',
+    'YT',
+    'MX',
+    'MD',
+    'MC',
+    'MN',
+    'ME',
+    'MS',
+    'MA',
+    'MZ',
+    'MM',
+    'NA',
+    'NR',
+    'NP',
+    'NL',
+    'AN',
+    'NC',
+    'NZ',
+    'NI',
+    'NE',
+    'NG',
+    'NU',
+    'NF',
+    'MK',
+    'NO',
+    'OM',
+    'PK',
+    'PS',
+    'PA',
+    'PG',
+    'PY',
+    'PE',
+    'PH',
+    'PN',
+    'PL',
+    'PT',
+    'QA',
+    'CM',
+    'RE',
+    'RO',
+    'RU',
+    'RW',
+    'BL',
+    'SH',
+    'KN',
+    'LC',
+    'MF',
+    'PM',
+    'WS',
+    'SM',
+    'ST',
+    'SA',
+    'SN',
+    'RS',
+    'SC',
+    'SL',
+    'SG',
+    'SX',
+    'SK',
+    'SI',
+    'SB',
+    'SO',
+    'ZA',
+    'GS',
+    'KR',
+    'SS',
+    'ES',
+    'LK',
+    'VC',
+    'SD',
+    'SR',
+    'SJ',
+    'SE',
+    'CH',
+    'SY',
+    'TW',
+    'TJ',
+    'TZ',
+    'TH',
+    'TL',
+    'TG',
+    'TK',
+    'TO',
+    'TT',
+    'TA',
+    'TN',
+    'TR',
+    'TM',
+    'TC',
+    'TV',
+    'UG',
+    'UA',
+    'AE',
+    'GB',
+    'US',
+    'UM',
+    'UY',
+    'UZ',
+    'VU',
+    'VE',
+    'VN',
+    'VG',
+    'WF',
+    'EH',
+    'YE',
+    'ZM',
+    'ZW',
+    'ZZ',
+  ].sort(),
+);
+
+const SHOPIFY_COUNTRY_CODE_LIST = Array.from(SHOPIFY_COUNTRY_CODES).join(', ');
+
+function marketsResolvedValuesPayloadKey(countryCode: string | null): string {
+  return `marketsResolvedValues:${countryCode ?? '*'}`;
+}
+
 const LOCALE_NAMES: Record<string, string> = {
   de: 'German',
   en: 'English',
@@ -134,6 +396,21 @@ function connectionFromNodes(nodes: unknown[]): Record<string, unknown> {
 
   return {
     edges,
+    pageInfo: {
+      hasNextPage: false,
+      hasPreviousPage: false,
+      startCursor: edges[0]?.cursor ?? null,
+      endCursor: edges.at(-1)?.cursor ?? null,
+    },
+  };
+}
+
+function connectionFromEdges(edges: ConnectionEdge[]): Record<string, unknown> {
+  return {
+    edges: edges.map((edge) => ({
+      cursor: edge.cursor,
+      node: edge.node,
+    })),
     pageInfo: {
       hasNextPage: false,
       hasPreviousPage: false,
@@ -225,57 +502,40 @@ function projectMarketValue(
   });
 }
 
+function priceListPriceNodeMatchesPositiveQueryTerm(node: unknown, term: SearchQueryTerm): boolean {
+  if (!isPlainObject(node)) {
+    return false;
+  }
+
+  const variant = isPlainObject(node['variant']) ? node['variant'] : null;
+  const product = isPlainObject(variant?.['product']) ? variant['product'] : null;
+  const field = term.field?.toLowerCase() ?? null;
+  const value = stripSearchQueryValueQuotes(searchQueryTermValue(term));
+  const variantId = typeof variant?.['id'] === 'string' ? variant['id'] : null;
+  const productId = typeof product?.['id'] === 'string' ? product['id'] : null;
+
+  if (field === 'variant_id') {
+    return (
+      matchesStringValue(variantId, value, 'exact') ||
+      (variantId !== null && String(resourceNumericId(variantId)) === value)
+    );
+  }
+
+  if (field === 'product_id') {
+    return (
+      matchesStringValue(productId, value, 'exact') ||
+      (productId !== null && String(resourceNumericId(productId)) === value)
+    );
+  }
+
+  return true;
+}
+
 function priceListPriceNodeMatchesQuery(node: unknown, rawQuery: unknown): boolean {
-  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
-    return true;
-  }
-
-  const parsedQuery = parseSearchQuery(rawQuery, { recognizeNotKeyword: true });
-  if (!parsedQuery) {
-    return true;
-  }
-
-  const matchesTerm = (term: SearchQueryTerm): boolean => {
-    if (!term.raw) {
-      return true;
-    }
-
-    if (!isPlainObject(node)) {
-      return false;
-    }
-
-    const variant = isPlainObject(node['variant']) ? node['variant'] : null;
-    const product = isPlainObject(variant?.['product']) ? variant['product'] : null;
-    const field = term.field?.toLowerCase() ?? null;
-    const value = stripSearchValueQuotes(searchTermValue(term));
-    const variantId = typeof variant?.['id'] === 'string' ? variant['id'] : null;
-    const productId = typeof product?.['id'] === 'string' ? product['id'] : null;
-    const matches =
-      field === 'variant_id'
-        ? matchesStringValue(variantId, value, 'exact') ||
-          (variantId !== null && String(resourceNumericId(variantId)) === value)
-        : field === 'product_id'
-          ? matchesStringValue(productId, value, 'exact') ||
-            (productId !== null && String(resourceNumericId(productId)) === value)
-          : true;
-
-    return term.negated ? !matches : matches;
-  };
-
-  const matchesNode = (queryNode: SearchQueryNode): boolean => {
-    switch (queryNode.type) {
-      case 'term':
-        return matchesTerm(queryNode.term);
-      case 'and':
-        return queryNode.children.every((child) => matchesNode(child));
-      case 'or':
-        return queryNode.children.some((child) => matchesNode(child));
-      case 'not':
-        return !matchesNode(queryNode.child);
-    }
-  };
-
-  return matchesNode(parsedQuery);
+  return (
+    applySearchQuery([node], rawQuery, { recognizeNotKeyword: true }, priceListPriceNodeMatchesPositiveQueryTerm)
+      .length > 0
+  );
 }
 
 function projectPriceListPricesConnection(
@@ -559,9 +819,74 @@ function collectPriceListNodes(
   return priceLists;
 }
 
+function buyerSignalCountryCode(rawBuyerSignal: unknown): string | null {
+  if (!isPlainObject(rawBuyerSignal) || typeof rawBuyerSignal['countryCode'] !== 'string') {
+    return null;
+  }
+
+  const countryCode = rawBuyerSignal['countryCode'];
+  return SHOPIFY_COUNTRY_CODES.has(countryCode) ? countryCode : null;
+}
+
+function buyerSignalVariableName(field: FieldNode): string | null {
+  const argument = field.arguments?.find((candidate) => candidate.name.value === 'buyerSignal') ?? null;
+  return argument?.value.kind === Kind.VARIABLE ? argument.value.name.value : null;
+}
+
+function invalidBuyerSignalCountryCodeError(field: FieldNode, rawCountryCode: unknown): Record<string, unknown> {
+  const variableName = buyerSignalVariableName(field);
+  const value = typeof rawCountryCode === 'string' ? rawCountryCode : String(rawCountryCode);
+  const message = variableName
+    ? `Variable $${variableName} of type BuyerSignalInput! was provided invalid value for countryCode (Expected "${value}" to be one of: ${SHOPIFY_COUNTRY_CODE_LIST})`
+    : `Argument 'buyerSignal' on Field 'marketsResolvedValues' has an invalid value for countryCode (Expected "${value}" to be one of: ${SHOPIFY_COUNTRY_CODE_LIST}).`;
+
+  return {
+    message,
+    extensions: {
+      code: variableName ? 'INVALID_VARIABLE' : 'argumentLiteralsIncompatible',
+      value: variableName ? { countryCode: rawCountryCode } : undefined,
+      problems: [
+        {
+          path: ['countryCode'],
+          explanation: `Expected "${value}" to be one of: ${SHOPIFY_COUNTRY_CODE_LIST}`,
+        },
+      ],
+    },
+  };
+}
+
+function validateMarketsResolvedValuesBuyerSignal(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown>[] {
+  if (!field.arguments?.some((argument) => argument.name.value === 'buyerSignal')) {
+    return [];
+  }
+
+  const args = getFieldArguments(field, variables);
+  const buyerSignal = args['buyerSignal'];
+  const countryCode = isPlainObject(buyerSignal) ? buyerSignal['countryCode'] : undefined;
+
+  if (typeof countryCode !== 'string' || !SHOPIFY_COUNTRY_CODES.has(countryCode)) {
+    return [invalidBuyerSignalCountryCodeError(field, countryCode)];
+  }
+
+  return [];
+}
+
+function marketsResolvedValuesPayloadKeyFromDocument(document: string, variables: Record<string, unknown>): string {
+  const resolvedValuesField = getRootFields(document).find((field) => field.name.value === 'marketsResolvedValues');
+  if (!resolvedValuesField) {
+    return marketsResolvedValuesPayloadKey(null);
+  }
+
+  const args = getFieldArguments(resolvedValuesField, variables);
+  return marketsResolvedValuesPayloadKey(buyerSignalCountryCode(args['buyerSignal']));
+}
+
 export function hydrateMarketsFromUpstreamResponse(
-  _document: string,
-  _variables: Record<string, unknown>,
+  document: string,
+  variables: Record<string, unknown>,
   upstreamPayload: unknown,
 ): void {
   for (const rootField of [
@@ -584,6 +909,9 @@ export function hydrateMarketsFromUpstreamResponse(
     }
 
     store.setBaseMarketsRootPayload(rootField, rootPayload);
+    if (rootField === 'marketsResolvedValues') {
+      store.setBaseMarketsRootPayload(marketsResolvedValuesPayloadKeyFromDocument(document, variables), rootPayload);
+    }
     store.upsertBaseWebPresences(collectWebPresenceNodes(rootPayload));
     store.upsertBaseCatalogs(collectCatalogNodes(rootPayload));
     store.upsertBasePriceLists(collectPriceListNodes(rootPayload));
@@ -596,18 +924,6 @@ export function hydrateMarketsFromUpstreamResponse(
       store.upsertBaseMarkets(collectMarketNodes(rootPayload));
     }
   }
-}
-
-function stripSearchValueQuotes(rawValue: string): string {
-  const value = rawValue.trim();
-  if (
-    value.length >= 2 &&
-    ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'")))
-  ) {
-    return value.slice(1, -1);
-  }
-
-  return value;
 }
 
 function marketNumericId(market: MarketRecord): number | null {
@@ -625,17 +941,11 @@ function matchesStringValue(candidate: unknown, rawValue: string, mode: 'exact' 
     return false;
   }
 
-  const value = stripSearchValueQuotes(rawValue).toLowerCase();
-  const normalizedCandidate = candidate.toLowerCase();
-  return mode === 'includes' ? normalizedCandidate.includes(value) : normalizedCandidate === value;
-}
-
-function searchTermValue(term: SearchQueryTerm): string {
-  return term.comparator === null ? term.value : `${term.comparator}${term.value}`;
+  return matchesSearchQueryString(candidate, rawValue, mode);
 }
 
 function compareMarketId(marketId: number, rawValue: string): boolean {
-  const match = stripSearchValueQuotes(rawValue).match(/^(<=|>=|<|>|=)?\s*(?:gid:\/\/shopify\/Market\/)?(\d+)$/u);
+  const match = stripSearchQueryValueQuotes(rawValue).match(/^(<=|>=|<|>|=)?\s*(?:gid:\/\/shopify\/Market\/)?(\d+)$/u);
   if (!match) {
     return false;
   }
@@ -669,7 +979,7 @@ function marketConditionTypes(market: MarketRecord): string[] {
 
 function matchesPositiveMarketQueryTerm(market: MarketRecord, term: SearchQueryTerm): boolean {
   if (term.field === null) {
-    const value = stripSearchValueQuotes(term.value);
+    const value = stripSearchQueryValueQuotes(term.value);
     return (
       matchesStringValue(market.data['name'], value, 'includes') ||
       matchesStringValue(market.data['handle'], value, 'includes') ||
@@ -678,7 +988,7 @@ function matchesPositiveMarketQueryTerm(market: MarketRecord, term: SearchQueryT
   }
 
   const field = term.field.toLowerCase();
-  const value = searchTermValue(term);
+  const value = searchQueryTermValue(term);
 
   switch (field) {
     case 'id': {
@@ -697,7 +1007,7 @@ function matchesPositiveMarketQueryTerm(market: MarketRecord, term: SearchQueryT
     case 'type':
       return matchesStringValue(market.data['type'], value, 'exact');
     case 'market_condition_types': {
-      const expectedTypes = stripSearchValueQuotes(value)
+      const expectedTypes = stripSearchQueryValueQuotes(value)
         .split(',')
         .map((entry) => entry.trim().toUpperCase())
         .filter(Boolean);
@@ -709,39 +1019,8 @@ function matchesPositiveMarketQueryTerm(market: MarketRecord, term: SearchQueryT
   }
 }
 
-function matchesMarketQueryTerm(market: MarketRecord, term: SearchQueryTerm): boolean {
-  if (!term.raw) {
-    return true;
-  }
-
-  const matches = matchesPositiveMarketQueryTerm(market, term);
-  return term.negated ? !matches : matches;
-}
-
-function matchesMarketQueryNode(market: MarketRecord, node: SearchQueryNode): boolean {
-  switch (node.type) {
-    case 'term':
-      return matchesMarketQueryTerm(market, node.term);
-    case 'and':
-      return node.children.every((child) => matchesMarketQueryNode(market, child));
-    case 'or':
-      return node.children.some((child) => matchesMarketQueryNode(market, child));
-    case 'not':
-      return !matchesMarketQueryNode(market, node.child);
-  }
-}
-
 function applyMarketsQuery(markets: MarketRecord[], rawQuery: unknown): MarketRecord[] {
-  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
-    return markets;
-  }
-
-  const parsedQuery = parseSearchQuery(rawQuery, { recognizeNotKeyword: true });
-  if (!parsedQuery) {
-    return markets;
-  }
-
-  return markets.filter((market) => matchesMarketQueryNode(market, parsedQuery));
+  return applySearchQuery(markets, rawQuery, { recognizeNotKeyword: true }, matchesPositiveMarketQueryTerm);
 }
 
 function applyRootMarketFilters(markets: MarketRecord[], args: Record<string, unknown>): MarketRecord[] {
@@ -839,7 +1118,7 @@ function catalogHasType(catalog: CatalogRecord, rawType: unknown): boolean {
 }
 
 function compareCatalogId(catalogId: number, rawValue: string): boolean {
-  const match = stripSearchValueQuotes(rawValue).match(
+  const match = stripSearchQueryValueQuotes(rawValue).match(
     /^(<=|>=|<|>|=)?\s*(?:gid:\/\/shopify\/(?:MarketCatalog|CompanyLocationCatalog|AppCatalog|Catalog)\/)?(\d+)$/u,
   );
   if (!match) {
@@ -869,55 +1148,42 @@ function matchesCatalogQueryTerm(catalog: CatalogRecord, term: SearchQueryTerm):
     return true;
   }
 
-  const value = searchTermValue(term);
+  const value = searchQueryTermValue(term);
   const field = term.field?.toLowerCase() ?? null;
-  const matches =
-    field === null
-      ? matchesStringValue(catalog.data['title'], value, 'includes') ||
-        matchesStringValue(catalog.id, value, 'includes')
-      : field === 'id'
-        ? matchesStringValue(catalog.id, value, 'exact') ||
-          (resourceNumericId(catalog.id) !== null && compareCatalogId(resourceNumericId(catalog.id)!, value))
-        : field === 'title'
-          ? matchesStringValue(catalog.data['title'], value, 'includes')
-          : field === 'status'
-            ? matchesStringValue(catalog.data['status'], value, 'exact')
-            : field === 'market_id'
-              ? catalogMarkets(catalog).some(
-                  (edge) =>
-                    isPlainObject(edge.node) &&
-                    typeof edge.node['id'] === 'string' &&
-                    matchesStringValue(edge.node['id'], value, 'exact'),
-                )
-              : true;
 
-  return term.negated ? !matches : matches;
-}
-
-function matchesCatalogQueryNode(catalog: CatalogRecord, node: SearchQueryNode): boolean {
-  switch (node.type) {
-    case 'term':
-      return matchesCatalogQueryTerm(catalog, node.term);
-    case 'and':
-      return node.children.every((child) => matchesCatalogQueryNode(catalog, child));
-    case 'or':
-      return node.children.some((child) => matchesCatalogQueryNode(catalog, child));
-    case 'not':
-      return !matchesCatalogQueryNode(catalog, node.child);
+  if (field === null) {
+    return (
+      matchesStringValue(catalog.data['title'], value, 'includes') || matchesStringValue(catalog.id, value, 'includes')
+    );
   }
+
+  if (field === 'id') {
+    const numericId = resourceNumericId(catalog.id);
+    return matchesStringValue(catalog.id, value, 'exact') || (numericId !== null && compareCatalogId(numericId, value));
+  }
+
+  if (field === 'title') {
+    return matchesStringValue(catalog.data['title'], value, 'includes');
+  }
+
+  if (field === 'status') {
+    return matchesStringValue(catalog.data['status'], value, 'exact');
+  }
+
+  if (field === 'market_id') {
+    return catalogMarkets(catalog).some(
+      (edge) =>
+        isPlainObject(edge.node) &&
+        typeof edge.node['id'] === 'string' &&
+        matchesStringValue(edge.node['id'], value, 'exact'),
+    );
+  }
+
+  return true;
 }
 
 function applyCatalogsQuery(catalogs: CatalogRecord[], rawQuery: unknown): CatalogRecord[] {
-  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
-    return catalogs;
-  }
-
-  const parsedQuery = parseSearchQuery(rawQuery, { recognizeNotKeyword: true });
-  if (!parsedQuery) {
-    return catalogs;
-  }
-
-  return catalogs.filter((catalog) => matchesCatalogQueryNode(catalog, parsedQuery));
+  return applySearchQuery(catalogs, rawQuery, { recognizeNotKeyword: true }, matchesCatalogQueryTerm);
 }
 
 function compareCatalogsBySortKey(left: CatalogRecord, right: CatalogRecord, rawSortKey: unknown): number {
@@ -2498,6 +2764,7 @@ function variantPriceListNode(
   product: ProductRecord | null,
   input: Record<string, unknown>,
   currencyCode: string,
+  existingNode: Record<string, unknown> | null = null,
 ): Record<string, unknown> | null {
   const price = moneyPayload(input['price'], currencyCode);
   if (!price) {
@@ -2505,13 +2772,19 @@ function variantPriceListNode(
   }
 
   return {
+    __typename: 'PriceListPrice',
     price,
     compareAtPrice: moneyPayload(input['compareAtPrice'], currencyCode),
     originType: 'FIXED',
+    quantityPriceBreaks: isPlainObject(existingNode?.['quantityPriceBreaks'])
+      ? structuredClone(existingNode['quantityPriceBreaks'])
+      : emptyConnection(),
     variant: {
+      __typename: 'ProductVariant',
       id: variant.id,
       sku: variant.sku,
       product: {
+        __typename: 'Product',
         id: variant.productId,
         title: product?.title ?? null,
       },
@@ -2532,18 +2805,7 @@ function rebuildPriceListWithEdges(priceList: PriceListRecord, edges: Connection
   const data: Record<string, unknown> = {
     ...structuredClone(priceList.data),
     fixedPricesCount,
-    prices: {
-      edges: edges.map((edge) => ({
-        cursor: edge.cursor,
-        node: edge.node,
-      })),
-      pageInfo: {
-        hasNextPage: false,
-        hasPreviousPage: false,
-        startCursor: edges[0]?.cursor ?? null,
-        endCursor: edges.at(-1)?.cursor ?? null,
-      },
-    },
+    prices: connectionFromEdges(edges),
     updatedAt: makeSyntheticTimestamp(),
   };
 
@@ -2598,7 +2860,8 @@ function upsertFixedPriceNodes(
     }
 
     const product = store.getEffectiveProductById(variant.productId);
-    const node = variantPriceListNode(variant, product, input, currencyCode);
+    const existingNode = isPlainObject(existing?.node) ? existing.node : null;
+    const node = variantPriceListNode(variant, product, input, currencyCode, existingNode);
     if (!node) {
       errors.push(priceListError(['prices', 'price'], "Price can't be blank", 'BLANK'));
       continue;
@@ -2643,6 +2906,511 @@ function deleteFixedPriceNodes(
   return {
     priceList: rebuildPriceListWithEdges(priceList, edges),
     deletedVariantIds,
+  };
+}
+
+function readQuantityRuleInputs(args: Record<string, unknown>, names: string[]): Record<string, unknown>[] {
+  const input = readInput(args['input']);
+  for (const name of names) {
+    const raw = args[name] ?? input[name];
+    if (Array.isArray(raw)) {
+      return raw.filter(isPlainObject);
+    }
+  }
+  return [];
+}
+
+function readQuantityVariantIds(args: Record<string, unknown>, names: string[]): string[] {
+  const input = readInput(args['input']);
+  for (const name of names) {
+    const raw = args[name] ?? input[name];
+    const values = readStringArray(raw);
+    if (values.length > 0 || Array.isArray(raw)) {
+      return values;
+    }
+  }
+  return [];
+}
+
+function quantityRuleVariantId(edge: ConnectionEdge): string | null {
+  if (!isPlainObject(edge.node)) {
+    return null;
+  }
+  const variant = isPlainObject(edge.node['productVariant']) ? edge.node['productVariant'] : null;
+  return typeof variant?.['id'] === 'string' ? variant['id'] : null;
+}
+
+function quantityPriceBreakId(edge: ConnectionEdge): string | null {
+  return isPlainObject(edge.node) && typeof edge.node['id'] === 'string' ? edge.node['id'] : null;
+}
+
+function quantityPriceBreakVariantId(edge: ConnectionEdge): string | null {
+  if (!isPlainObject(edge.node)) {
+    return null;
+  }
+  const variant = isPlainObject(edge.node['variant']) ? edge.node['variant'] : null;
+  return typeof variant?.['id'] === 'string' ? variant['id'] : null;
+}
+
+function quantityPriceBreakMinimum(edge: ConnectionEdge): number | null {
+  return isPlainObject(edge.node) && typeof edge.node['minimumQuantity'] === 'number'
+    ? edge.node['minimumQuantity']
+    : null;
+}
+
+function quantityRuleNode(
+  variant: ProductVariantRecord,
+  product: ProductRecord | null,
+  input: Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    __typename: 'QuantityRule',
+    minimum: typeof input['minimum'] === 'number' ? Math.floor(input['minimum']) : 1,
+    maximum: typeof input['maximum'] === 'number' ? Math.floor(input['maximum']) : null,
+    increment: typeof input['increment'] === 'number' ? Math.floor(input['increment']) : 1,
+    isDefault: false,
+    originType: 'FIXED',
+    productVariant: {
+      __typename: 'ProductVariant',
+      id: variant.id,
+      sku: variant.sku,
+      product: {
+        __typename: 'Product',
+        id: variant.productId,
+        title: product?.title ?? null,
+      },
+    },
+  };
+}
+
+function addQuantityRuleValidationErrors(
+  input: Record<string, unknown>,
+  field: string[],
+  errors: MarketUserError[],
+  codePrefix: 'standalone' | 'pricing',
+): void {
+  const minimum = typeof input['minimum'] === 'number' ? Math.floor(input['minimum']) : null;
+  const maximum = typeof input['maximum'] === 'number' ? Math.floor(input['maximum']) : null;
+  const increment = typeof input['increment'] === 'number' ? Math.floor(input['increment']) : null;
+
+  const addError = (suffix: string, message: string, code: string) => {
+    errors.push({
+      field: [...field, suffix],
+      message,
+      code,
+    });
+  };
+
+  if (minimum === null || minimum < 1) {
+    addError(
+      'minimum',
+      'Minimum must be greater than or equal to 1.',
+      codePrefix === 'pricing' ? 'QUANTITY_RULE_ADD_MINIMUM_IS_LESS_THAN_ONE' : 'GREATER_THAN_OR_EQUAL_TO',
+    );
+  }
+  if (increment === null || increment < 1) {
+    addError(
+      'increment',
+      'Increment must be greater than or equal to 1.',
+      codePrefix === 'pricing' ? 'QUANTITY_RULE_ADD_INCREMENT_IS_LESS_THAN_ONE' : 'GREATER_THAN_OR_EQUAL_TO',
+    );
+  }
+  if (maximum !== null && maximum < 1) {
+    addError(
+      'maximum',
+      'Maximum must be greater than or equal to 1.',
+      codePrefix === 'pricing' ? 'QUANTITY_RULE_ADD_MAXIMUM_IS_LESS_THAN_ONE' : 'GREATER_THAN_OR_EQUAL_TO',
+    );
+  }
+  if (minimum !== null && maximum !== null && minimum > maximum) {
+    addError(
+      'minimum',
+      'Minimum must be lower than or equal to the maximum.',
+      codePrefix === 'pricing' ? 'QUANTITY_RULE_ADD_MINIMUM_GREATER_THAN_MAXIMUM' : 'MINIMUM_IS_GREATER_THAN_MAXIMUM',
+    );
+  }
+  if (minimum !== null && increment !== null && increment > minimum) {
+    addError(
+      'increment',
+      'Increment must be lower than or equal to the minimum.',
+      codePrefix === 'pricing'
+        ? 'QUANTITY_RULE_ADD_INCREMENT_IS_GREATER_THAN_MINIMUM'
+        : 'INCREMENT_IS_GREATER_THAN_MINIMUM',
+    );
+  }
+  if (minimum !== null && increment !== null && minimum % increment !== 0) {
+    addError(
+      'minimum',
+      'The minimum must be a multiple of the increment.',
+      codePrefix === 'pricing'
+        ? 'QUANTITY_RULE_ADD_MINIMUM_NOT_A_MULTIPLE_OF_INCREMENT'
+        : 'MINIMUM_NOT_MULTIPLE_OF_INCREMENT',
+    );
+  }
+  if (maximum !== null && increment !== null && maximum % increment !== 0) {
+    addError(
+      'maximum',
+      'The maximum must be a multiple of the increment.',
+      codePrefix === 'pricing'
+        ? 'QUANTITY_RULE_ADD_MAXIMUM_NOT_A_MULTIPLE_OF_INCREMENT'
+        : 'MAXIMUM_NOT_MULTIPLE_OF_INCREMENT',
+    );
+  }
+}
+
+function rebuildPriceListWithQuantityRuleEdges(priceList: PriceListRecord, edges: ConnectionEdge[]): PriceListRecord {
+  const data: Record<string, unknown> = {
+    ...structuredClone(priceList.data),
+    quantityRules: connectionFromEdges(edges),
+    updatedAt: makeSyntheticTimestamp(),
+  };
+
+  return {
+    id: priceList.id,
+    cursor: priceList.cursor,
+    data: data as Record<string, JsonValue>,
+  };
+}
+
+function upsertQuantityRuleNodes(
+  priceList: PriceListRecord,
+  inputs: Record<string, unknown>[],
+  errors: MarketUserError[],
+  options: {
+    fieldPrefix: string[];
+    variantNotFoundCode: string;
+    duplicateCode: string;
+    validationCodePrefix: 'standalone' | 'pricing';
+  },
+): { priceList: PriceListRecord; quantityRules: Record<string, unknown>[]; variantIds: string[] } {
+  const edgesByVariantId = new Map<string, ConnectionEdge>();
+  const otherEdges: ConnectionEdge[] = [];
+  const quantityRules: Record<string, unknown>[] = [];
+  const variantIds: string[] = [];
+
+  for (const edge of readConnectionEdges(priceList.data['quantityRules'])) {
+    const variantId = quantityRuleVariantId(edge);
+    if (variantId) {
+      edgesByVariantId.set(variantId, edge);
+    } else {
+      otherEdges.push(edge);
+    }
+  }
+
+  const inputVariantIds = new Set<string>();
+  for (const [index, input] of inputs.entries()) {
+    const field = [...options.fieldPrefix, String(index)];
+    const variantId = typeof input['variantId'] === 'string' ? input['variantId'] : null;
+    if (!variantId) {
+      errors.push({
+        field: [...field, 'variantId'],
+        code: options.variantNotFoundCode,
+        message: 'Product variant ID does not exist.',
+      });
+      continue;
+    }
+    if (inputVariantIds.has(variantId)) {
+      errors.push({
+        field,
+        code: options.duplicateCode,
+        message: 'Quantity rule inputs must be unique by variant id.',
+      });
+      continue;
+    }
+    inputVariantIds.add(variantId);
+
+    const variant = store.getEffectiveVariantById(variantId);
+    if (!variant) {
+      errors.push({
+        field: [...field, 'variantId'],
+        code: options.variantNotFoundCode,
+        message: 'Product variant ID does not exist.',
+      });
+      continue;
+    }
+
+    addQuantityRuleValidationErrors(input, field, errors, options.validationCodePrefix);
+    if (errors.length > 0) {
+      continue;
+    }
+
+    const product = store.getEffectiveProductById(variant.productId);
+    const node = quantityRuleNode(variant, product, input);
+    edgesByVariantId.set(variantId, { cursor: variantId, node });
+    quantityRules.push(node);
+    variantIds.push(variantId);
+  }
+
+  return {
+    priceList: rebuildPriceListWithQuantityRuleEdges(priceList, [...otherEdges, ...edgesByVariantId.values()]),
+    quantityRules,
+    variantIds,
+  };
+}
+
+function deleteQuantityRuleNodes(
+  priceList: PriceListRecord,
+  variantIds: string[],
+  errors: MarketUserError[],
+  options: {
+    fieldPrefix: string[];
+    variantNotFoundCode: string;
+    missingRuleCode: string;
+    missingRuleMessage: string;
+  },
+): { priceList: PriceListRecord; deletedVariantIds: string[] } {
+  const requestedIds = new Set(variantIds);
+  const deletedVariantIds: string[] = [];
+
+  const edges = readConnectionEdges(priceList.data['quantityRules']).filter((edge) => {
+    const variantId = quantityRuleVariantId(edge);
+    if (!variantId || !requestedIds.has(variantId)) {
+      return true;
+    }
+    const node = isPlainObject(edge.node) ? edge.node : null;
+    if (node?.['originType'] !== 'FIXED') {
+      return true;
+    }
+    deletedVariantIds.push(variantId);
+    return false;
+  });
+
+  for (const [index, variantId] of variantIds.entries()) {
+    if (!store.getEffectiveVariantById(variantId)) {
+      errors.push({
+        field: [...options.fieldPrefix, String(index)],
+        code: options.variantNotFoundCode,
+        message: 'Product variant ID does not exist.',
+      });
+      continue;
+    }
+    if (!deletedVariantIds.includes(variantId)) {
+      errors.push({
+        field: [...options.fieldPrefix, String(index)],
+        code: options.missingRuleCode,
+        message: options.missingRuleMessage,
+      });
+    }
+  }
+
+  return {
+    priceList: rebuildPriceListWithQuantityRuleEdges(priceList, edges),
+    deletedVariantIds,
+  };
+}
+
+function quantityPriceBreakNode(
+  priceList: PriceListRecord,
+  variant: ProductVariantRecord,
+  input: Record<string, unknown>,
+  currencyCode: string,
+): Record<string, unknown> | null {
+  const price = moneyPayload(input['price'], currencyCode);
+  const minimumQuantity = typeof input['minimumQuantity'] === 'number' ? Math.floor(input['minimumQuantity']) : null;
+  if (!price || minimumQuantity === null) {
+    return null;
+  }
+
+  const product = store.getEffectiveProductById(variant.productId);
+  return {
+    __typename: 'QuantityPriceBreak',
+    id: makeSyntheticGid('QuantityPriceBreak'),
+    minimumQuantity,
+    price,
+    priceList: {
+      __typename: 'PriceList',
+      id: priceList.id,
+      name: priceList.data['name'] ?? null,
+      currency: priceList.data['currency'] ?? currencyCode,
+    },
+    variant: {
+      __typename: 'ProductVariant',
+      id: variant.id,
+      sku: variant.sku,
+      product: {
+        __typename: 'Product',
+        id: variant.productId,
+        title: product?.title ?? null,
+      },
+    },
+  };
+}
+
+function rebuildFixedPriceEdgeWithQuantityBreaks(
+  edge: ConnectionEdge,
+  quantityBreakEdges: ConnectionEdge[],
+): ConnectionEdge {
+  if (!isPlainObject(edge.node)) {
+    return edge;
+  }
+
+  return {
+    cursor: edge.cursor,
+    node: {
+      ...structuredClone(edge.node),
+      quantityPriceBreaks: connectionFromEdges(quantityBreakEdges),
+    },
+  };
+}
+
+function upsertQuantityPriceBreakNodes(
+  priceList: PriceListRecord,
+  inputs: Record<string, unknown>[],
+  errors: MarketUserError[],
+): { priceList: PriceListRecord; variantIds: string[] } {
+  const currencyCode = typeof priceList.data['currency'] === 'string' ? priceList.data['currency'] : 'USD';
+  const priceEdges = readConnectionEdges(priceList.data['prices']);
+  const updatedEdgesByVariantId = new Map<string, ConnectionEdge>();
+  const changedVariantIds: string[] = [];
+  const inputsByVariantId = new Map<string, Record<string, unknown>[]>();
+
+  for (const [index, input] of inputs.entries()) {
+    const variantId = typeof input['variantId'] === 'string' ? input['variantId'] : null;
+    if (!variantId || !store.getEffectiveVariantById(variantId)) {
+      errors.push({
+        field: ['input', 'quantityPriceBreaksToAdd', String(index)],
+        code: 'QUANTITY_PRICE_BREAK_ADD_VARIANT_NOT_FOUND',
+        message: 'Variant not found.',
+      });
+      continue;
+    }
+    inputsByVariantId.set(variantId, [...(inputsByVariantId.get(variantId) ?? []), input]);
+  }
+
+  for (const edge of priceEdges) {
+    const variantId = fixedPriceVariantId(edge);
+    if (!variantId || !inputsByVariantId.has(variantId) || !isPlainObject(edge.node)) {
+      continue;
+    }
+
+    const variant = store.getEffectiveVariantById(variantId);
+    if (!variant) {
+      continue;
+    }
+
+    const breakEdgesByMinimum = new Map<number, ConnectionEdge>();
+    for (const quantityBreakEdge of readConnectionEdges(edge.node['quantityPriceBreaks'])) {
+      const minimum = quantityPriceBreakMinimum(quantityBreakEdge);
+      if (minimum !== null) {
+        breakEdgesByMinimum.set(minimum, quantityBreakEdge);
+      }
+    }
+
+    const seenMinimums = new Set<number>();
+    for (const input of inputsByVariantId.get(variantId) ?? []) {
+      const minimumQuantity =
+        typeof input['minimumQuantity'] === 'number' ? Math.floor(input['minimumQuantity']) : null;
+      if (minimumQuantity === null || minimumQuantity < 1) {
+        errors.push({
+          field: ['input', 'quantityPriceBreaksToAdd'],
+          code: 'QUANTITY_PRICE_BREAK_ADD_INVALID',
+          message: 'Invalid quantity price break.',
+        });
+        continue;
+      }
+      if (seenMinimums.has(minimumQuantity)) {
+        errors.push({
+          field: ['input', 'quantityPriceBreaksToAdd'],
+          code: 'QUANTITY_PRICE_BREAK_ADD_DUPLICATE_INPUT_FOR_VARIANT_AND_MIN',
+          message: 'Quantity price breaks to add inputs must be unique by variant id and minimum quantity.',
+        });
+        continue;
+      }
+      seenMinimums.add(minimumQuantity);
+
+      const node = quantityPriceBreakNode(priceList, variant, input, currencyCode);
+      if (!node) {
+        errors.push({
+          field: ['input', 'quantityPriceBreaksToAdd'],
+          code: 'QUANTITY_PRICE_BREAK_ADD_INVALID',
+          message: 'Invalid quantity price break.',
+        });
+        continue;
+      }
+
+      breakEdgesByMinimum.set(minimumQuantity, { cursor: node['id'] as string, node });
+      if (!changedVariantIds.includes(variantId)) {
+        changedVariantIds.push(variantId);
+      }
+    }
+
+    updatedEdgesByVariantId.set(
+      variantId,
+      rebuildFixedPriceEdgeWithQuantityBreaks(edge, [...breakEdgesByMinimum.values()]),
+    );
+  }
+
+  for (const [variantId] of inputsByVariantId) {
+    if (!priceEdges.some((edge) => fixedPriceVariantId(edge) === variantId)) {
+      errors.push({
+        field: ['input', 'quantityPriceBreaksToAdd'],
+        code: 'QUANTITY_PRICE_BREAK_ADD_PRICE_LIST_PRICE_NOT_FOUND',
+        message: "Quantity price break's fixed price not found.",
+      });
+    }
+  }
+
+  if (errors.length > 0) {
+    return { priceList, variantIds: [] };
+  }
+
+  const mergedEdges = priceEdges.map((edge) => {
+    const variantId = fixedPriceVariantId(edge);
+    return variantId ? (updatedEdgesByVariantId.get(variantId) ?? edge) : edge;
+  });
+
+  return {
+    priceList: rebuildPriceListWithEdges(priceList, mergedEdges),
+    variantIds: changedVariantIds,
+  };
+}
+
+function deleteQuantityPriceBreakNodes(
+  priceList: PriceListRecord,
+  ids: string[],
+  variantIds: string[],
+  errors: MarketUserError[],
+): { priceList: PriceListRecord; variantIds: string[] } {
+  const deleteIds = new Set(ids);
+  const deleteVariantIds = new Set(variantIds);
+  const deletedIds = new Set<string>();
+  const changedVariantIds: string[] = [];
+  const nextEdges = readConnectionEdges(priceList.data['prices']).map((edge) => {
+    if (!isPlainObject(edge.node)) {
+      return edge;
+    }
+
+    const variantId = fixedPriceVariantId(edge);
+    const nextBreakEdges = readConnectionEdges(edge.node['quantityPriceBreaks']).filter((quantityBreakEdge) => {
+      const id = quantityPriceBreakId(quantityBreakEdge);
+      const breakVariantId = quantityPriceBreakVariantId(quantityBreakEdge) ?? variantId;
+      const shouldDelete =
+        (id !== null && deleteIds.has(id)) || (breakVariantId !== null && deleteVariantIds.has(breakVariantId));
+      if (shouldDelete && id !== null) {
+        deletedIds.add(id);
+        if (breakVariantId && !changedVariantIds.includes(breakVariantId)) {
+          changedVariantIds.push(breakVariantId);
+        }
+      }
+      return !shouldDelete;
+    });
+
+    return rebuildFixedPriceEdgeWithQuantityBreaks(edge, nextBreakEdges);
+  });
+
+  for (const id of ids) {
+    if (!deletedIds.has(id)) {
+      errors.push({
+        field: ['input', 'quantityPriceBreaksToDelete'],
+        code: 'QUANTITY_PRICE_BREAK_DELETE_NOT_FOUND',
+        message: 'Quantity price break not found.',
+      });
+    }
+  }
+
+  return {
+    priceList: errors.length === 0 ? rebuildPriceListWithEdges(priceList, nextEdges) : priceList,
+    variantIds: errors.length === 0 ? changedVariantIds : [],
   };
 }
 
@@ -3039,6 +3807,201 @@ function handlePriceListFixedPricesByProductUpdate(
   );
 }
 
+function handleQuantityRulesAdd(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+  const args = getFieldArguments(field, variables);
+  const priceListId = readPriceListIdArgument(args);
+  const errors: MarketUserError[] = [];
+  const existingPriceList = priceListId ? store.getEffectivePriceListRecordById(priceListId) : null;
+
+  if (!priceListId || !existingPriceList) {
+    errors.push(priceListError(['priceListId'], 'Price list does not exist.', 'PRICE_LIST_DOES_NOT_EXIST'));
+  }
+
+  const quantityRuleInputs = readQuantityRuleInputs(args, ['quantityRules', 'rules', 'quantityRulesToAdd']);
+  const { priceList, quantityRules } = existingPriceList
+    ? upsertQuantityRuleNodes(existingPriceList, quantityRuleInputs, errors, {
+        fieldPrefix: ['quantityRules'],
+        variantNotFoundCode: 'PRODUCT_VARIANT_DOES_NOT_EXIST',
+        duplicateCode: 'DUPLICATE_INPUT_FOR_VARIANT',
+        validationCodePrefix: 'standalone',
+      })
+    : { priceList: null, quantityRules: [] };
+
+  if (errors.length === 0 && priceList) {
+    store.stageUpdatePriceList(priceList);
+  }
+
+  return projectMutationPayload(
+    {
+      quantityRules: errors.length === 0 ? quantityRules : [],
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function handleQuantityRulesDelete(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
+  const args = getFieldArguments(field, variables);
+  const priceListId = readPriceListIdArgument(args);
+  const errors: MarketUserError[] = [];
+  const existingPriceList = priceListId ? store.getEffectivePriceListRecordById(priceListId) : null;
+
+  if (!priceListId || !existingPriceList) {
+    errors.push(priceListError(['priceListId'], 'Price list does not exist.', 'PRICE_LIST_DOES_NOT_EXIST'));
+  }
+
+  const variantIds = readQuantityVariantIds(args, ['variantIds', 'quantityRulesToDeleteByVariantId']);
+  const { priceList, deletedVariantIds } = existingPriceList
+    ? deleteQuantityRuleNodes(existingPriceList, variantIds, errors, {
+        fieldPrefix: ['variantIds'],
+        variantNotFoundCode: 'PRODUCT_VARIANT_DOES_NOT_EXIST',
+        missingRuleCode: 'VARIANT_QUANTITY_RULE_DOES_NOT_EXIST',
+        missingRuleMessage: 'Quantity rule for variant associated with the price list provided does not exist.',
+      })
+    : { priceList: null, deletedVariantIds: [] };
+
+  if (errors.length === 0 && priceList) {
+    store.stageUpdatePriceList(priceList);
+  }
+
+  return projectMutationPayload(
+    {
+      deletedQuantityRulesVariantIds: errors.length === 0 ? deletedVariantIds : [],
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function handleQuantityPricingByVariantUpdate(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
+  const args = getFieldArguments(field, variables);
+  const priceListId = readPriceListIdArgument(args);
+  const errors: MarketUserError[] = [];
+  const existingPriceList = priceListId ? store.getEffectivePriceListRecordById(priceListId) : null;
+
+  if (!priceListId || !existingPriceList) {
+    errors.push(priceListError(['priceListId'], 'Price list not found.', 'PRICE_LIST_NOT_FOUND'));
+  }
+
+  let priceList = existingPriceList;
+  const changedVariantIds = new Set<string>();
+
+  if (priceList && errors.length === 0) {
+    const priceInputs = readFixedPriceInputs(args, ['pricesToAdd']);
+    const upserted = upsertFixedPriceNodes(priceList, priceInputs, 'upsert', errors);
+    priceList = upserted.priceList;
+    for (const variantId of upserted.changedVariantIds) {
+      changedVariantIds.add(variantId);
+    }
+  }
+
+  if (priceList && errors.length === 0) {
+    const priceVariantIdsToDelete = readFixedPriceVariantIds(args, ['pricesToDeleteByVariantId']);
+    const deleted = deleteFixedPriceNodes(priceList, priceVariantIdsToDelete, errors);
+    priceList = deleted.priceList;
+    for (const variantId of deleted.deletedVariantIds) {
+      changedVariantIds.add(variantId);
+    }
+  }
+
+  if (priceList && errors.length === 0) {
+    const ruleInputs = readQuantityRuleInputs(args, ['quantityRulesToAdd']);
+    const upserted = upsertQuantityRuleNodes(priceList, ruleInputs, errors, {
+      fieldPrefix: ['input', 'quantityRulesToAdd'],
+      variantNotFoundCode: 'QUANTITY_RULE_ADD_VARIANT_NOT_FOUND',
+      duplicateCode: 'QUANTITY_RULE_ADD_DUPLICATE_INPUT_FOR_VARIANT',
+      validationCodePrefix: 'pricing',
+    });
+    priceList = upserted.priceList;
+    for (const variantId of upserted.variantIds) {
+      changedVariantIds.add(variantId);
+    }
+  }
+
+  if (priceList && errors.length === 0) {
+    const ruleVariantIdsToDelete = readQuantityVariantIds(args, ['quantityRulesToDeleteByVariantId']);
+    const deleted = deleteQuantityRuleNodes(priceList, ruleVariantIdsToDelete, errors, {
+      fieldPrefix: ['input', 'quantityRulesToDeleteByVariantId'],
+      variantNotFoundCode: 'QUANTITY_RULE_DELETE_VARIANT_NOT_FOUND',
+      missingRuleCode: 'QUANTITY_RULE_DELETE_RULE_NOT_FOUND',
+      missingRuleMessage: 'Quantity rule not found.',
+    });
+    priceList = deleted.priceList;
+    for (const variantId of deleted.deletedVariantIds) {
+      changedVariantIds.add(variantId);
+    }
+  }
+
+  if (priceList && errors.length === 0) {
+    const priceBreakInputs = readQuantityRuleInputs(args, ['quantityPriceBreaksToAdd']);
+    const upserted = upsertQuantityPriceBreakNodes(priceList, priceBreakInputs, errors);
+    priceList = upserted.priceList;
+    for (const variantId of upserted.variantIds) {
+      changedVariantIds.add(variantId);
+    }
+  }
+
+  if (priceList && errors.length === 0) {
+    const quantityPriceBreakIdsToDelete = readQuantityVariantIds(args, ['quantityPriceBreaksToDelete']);
+    const quantityPriceBreakVariantIdsToDelete = readQuantityVariantIds(args, [
+      'quantityPriceBreaksToDeleteByVariantId',
+    ]);
+    const deleted = deleteQuantityPriceBreakNodes(
+      priceList,
+      quantityPriceBreakIdsToDelete,
+      quantityPriceBreakVariantIdsToDelete,
+      errors,
+    );
+    priceList = deleted.priceList;
+    for (const variantId of deleted.variantIds) {
+      changedVariantIds.add(variantId);
+    }
+  }
+
+  if (errors.length === 0 && priceList) {
+    store.stageUpdatePriceList(priceList);
+  }
+
+  const productVariants =
+    errors.length === 0
+      ? [...changedVariantIds]
+          .map((variantId) => store.getEffectiveVariantById(variantId))
+          .filter((variant): variant is ProductVariantRecord => variant !== null)
+          .map((variant) => {
+            const product = store.getEffectiveProductById(variant.productId);
+            return {
+              __typename: 'ProductVariant',
+              id: variant.id,
+              title: variant.title,
+              sku: variant.sku,
+              product: product ? { __typename: 'Product', id: product.id, title: product.title } : null,
+            };
+          })
+      : null;
+
+  return projectMutationPayload(
+    {
+      productVariants,
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
 function handleWebPresenceCreate(
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -3400,6 +4363,179 @@ function serializeWebPresencesConnection(
   });
 }
 
+function marketRegionCountryEdges(market: MarketRecord): ConnectionEdge[] {
+  const conditions = isPlainObject(market.data['conditions']) ? market.data['conditions'] : {};
+  const regionsCondition = isPlainObject(conditions['regionsCondition'])
+    ? (conditions['regionsCondition'] as Record<string, unknown>)
+    : {};
+  return readConnectionEdges(regionsCondition['regions']);
+}
+
+function marketRegionCountryCode(edge: ConnectionEdge): string | null {
+  if (!isPlainObject(edge.node) || typeof edge.node['code'] !== 'string') {
+    return null;
+  }
+
+  const countryCode = edge.node['code'].toUpperCase();
+  return /^[A-Z]{2}$/u.test(countryCode) ? countryCode : null;
+}
+
+function marketMatchesBuyerCountry(market: MarketRecord, countryCode: string): boolean {
+  if (market.data['status'] !== 'ACTIVE') {
+    return false;
+  }
+
+  return marketRegionCountryEdges(market).some((edge) => marketRegionCountryCode(edge) === countryCode);
+}
+
+function resolveMarketForBuyerCountry(countryCode: string): MarketRecord | null {
+  return store.listEffectiveMarkets().find((market) => marketMatchesBuyerCountry(market, countryCode)) ?? null;
+}
+
+function resolvedCurrencyCode(market: MarketRecord | null, countryCode: string | null): string {
+  if (market) {
+    for (const edge of marketRegionCountryEdges(market)) {
+      if (countryCode !== null && marketRegionCountryCode(edge) !== countryCode) {
+        continue;
+      }
+
+      if (
+        isPlainObject(edge.node) &&
+        isPlainObject(edge.node['currency']) &&
+        typeof edge.node['currency']['currencyCode'] === 'string'
+      ) {
+        return edge.node['currency']['currencyCode'];
+      }
+    }
+
+    if (
+      isPlainObject(market.data['currencySettings']) &&
+      isPlainObject(market.data['currencySettings']['baseCurrency']) &&
+      typeof market.data['currencySettings']['baseCurrency']['currencyCode'] === 'string'
+    ) {
+      return market.data['currencySettings']['baseCurrency']['currencyCode'];
+    }
+  }
+
+  return countryCode ? (COUNTRY_CURRENCIES[countryCode] ?? 'USD') : 'USD';
+}
+
+function resolvedPriceInclusivity(market: MarketRecord | null): Record<string, boolean> {
+  const priceInclusions = market && isPlainObject(market.data['priceInclusions']) ? market.data['priceInclusions'] : {};
+  const dutiesStrategy =
+    typeof priceInclusions['inclusiveDutiesPricingStrategy'] === 'string'
+      ? priceInclusions['inclusiveDutiesPricingStrategy']
+      : null;
+  const taxStrategy =
+    typeof priceInclusions['inclusiveTaxPricingStrategy'] === 'string'
+      ? priceInclusions['inclusiveTaxPricingStrategy']
+      : null;
+
+  return {
+    dutiesIncluded: dutiesStrategy === 'INCLUDES_DUTIES_IN_PRICE',
+    taxesIncluded: taxStrategy === 'INCLUDES_TAXES_IN_PRICE',
+  };
+}
+
+function webPresenceReferencesMarket(webPresence: WebPresenceRecord, marketId: string): boolean {
+  return readConnectionEdges(webPresence.data['markets']).some(
+    (edge) => isPlainObject(edge.node) && typeof edge.node['id'] === 'string' && edge.node['id'] === marketId,
+  );
+}
+
+function webPresencesForMarket(market: MarketRecord | null): WebPresenceRecord[] {
+  if (!market) {
+    return [];
+  }
+
+  const webPresencesById = new Map<string, WebPresenceRecord>();
+  for (const edge of readConnectionEdges(market.data['webPresences'])) {
+    if (!isPlainObject(edge.node) || typeof edge.node['id'] !== 'string') {
+      continue;
+    }
+
+    const effectiveWebPresence = store.getEffectiveWebPresenceRecordById(edge.node['id']);
+    webPresencesById.set(
+      edge.node['id'],
+      effectiveWebPresence ?? {
+        id: edge.node['id'],
+        cursor: edge.cursor,
+        data: edge.node as Record<string, JsonValue>,
+      },
+    );
+  }
+
+  for (const webPresence of store.listEffectiveWebPresences()) {
+    if (webPresenceReferencesMarket(webPresence, market.id)) {
+      webPresencesById.set(webPresence.id, webPresence);
+    }
+  }
+
+  return Array.from(webPresencesById.values());
+}
+
+function catalogsForMarket(market: MarketRecord | null): CatalogRecord[] {
+  if (!market) {
+    return [];
+  }
+
+  const catalogsById = new Map<string, CatalogRecord>();
+  for (const edge of readConnectionEdges(market.data['catalogs'])) {
+    if (!isPlainObject(edge.node) || typeof edge.node['id'] !== 'string') {
+      continue;
+    }
+
+    const effectiveCatalog = store.getEffectiveCatalogRecordById(edge.node['id']);
+    catalogsById.set(
+      edge.node['id'],
+      effectiveCatalog ?? {
+        id: edge.node['id'],
+        cursor: edge.cursor,
+        data: edge.node as Record<string, JsonValue>,
+      },
+    );
+  }
+
+  for (const catalog of store.listEffectiveCatalogs()) {
+    if (catalogReferencesMarket(catalog, market.id)) {
+      catalogsById.set(catalog.id, catalog);
+    }
+  }
+
+  return Array.from(catalogsById.values());
+}
+
+function connectionPayloadFromRecords<
+  T extends { id: string; cursor?: string | null | undefined; data: Record<string, JsonValue> },
+>(records: T[], getCursorValue: (record: T) => string): Record<string, unknown> {
+  const edges = records.map((record) => ({
+    cursor: getCursorValue(record),
+    node: record.data,
+  }));
+
+  return {
+    edges,
+    pageInfo: {
+      hasNextPage: false,
+      hasPreviousPage: false,
+      startCursor: edges[0]?.cursor ?? null,
+      endCursor: edges.at(-1)?.cursor ?? null,
+    },
+  };
+}
+
+function buildMarketsResolvedValuesPayload(
+  market: MarketRecord | null,
+  countryCode: string | null,
+): Record<string, unknown> {
+  return {
+    currencyCode: resolvedCurrencyCode(market, countryCode),
+    priceInclusivity: resolvedPriceInclusivity(market),
+    catalogs: connectionPayloadFromRecords(catalogsForMarket(market), catalogCursor),
+    webPresences: connectionPayloadFromRecords(webPresencesForMarket(market), webPresenceCursor),
+  };
+}
+
 function overlayMarketsResolvedValuesWebPresences(rootPayload: unknown): unknown {
   if (!isPlainObject(rootPayload)) {
     return rootPayload;
@@ -3425,6 +4561,30 @@ function overlayMarketsResolvedValuesWebPresences(rootPayload: unknown): unknown
       },
     },
   };
+}
+
+function serializeMarketsResolvedValues(field: FieldNode, variables: Record<string, unknown>): unknown {
+  const args = getFieldArguments(field, variables);
+  const countryCode = buyerSignalCountryCode(args['buyerSignal']);
+  const exactBasePayload = store.getBaseMarketsRootPayload(marketsResolvedValuesPayloadKey(countryCode));
+  const wildcardBasePayload = store.getBaseMarketsRootPayload(marketsResolvedValuesPayloadKey(null));
+  const legacyBasePayload = store.getBaseMarketsRootPayload('marketsResolvedValues');
+  const matchedMarket = countryCode ? resolveMarketForBuyerCountry(countryCode) : null;
+
+  if (!store.hasStagedMarkets() && !store.hasStagedPriceLists() && exactBasePayload !== null) {
+    return exactBasePayload;
+  }
+
+  if (matchedMarket) {
+    return buildMarketsResolvedValuesPayload(matchedMarket, countryCode);
+  }
+
+  const fallbackBasePayload = exactBasePayload ?? wildcardBasePayload ?? legacyBasePayload;
+  if (fallbackBasePayload !== null) {
+    return overlayMarketsResolvedValuesWebPresences(fallbackBasePayload);
+  }
+
+  return buildMarketsResolvedValuesPayload(null, countryCode);
 }
 
 function rootPayloadForField(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
@@ -3481,7 +4641,7 @@ function rootPayloadForField(field: FieldNode, variables: Record<string, unknown
     case 'webPresences':
       return serializeWebPresencesConnection(field, variables, fragments);
     case 'marketsResolvedValues':
-      return overlayMarketsResolvedValuesWebPresences(store.getBaseMarketsRootPayload(field.name.value));
+      return serializeMarketsResolvedValues(field, variables);
     default:
       return null;
   }
@@ -3489,9 +4649,17 @@ function rootPayloadForField(field: FieldNode, variables: Record<string, unknown
 
 export function handleMarketsQuery(document: string, variables: Record<string, unknown>): Record<string, unknown> {
   const data: Record<string, unknown> = {};
+  const errors: Record<string, unknown>[] = [];
   const fragments = getDocumentFragments(document);
 
   for (const field of getRootFields(document)) {
+    if (field.name.value === 'marketsResolvedValues') {
+      errors.push(...validateMarketsResolvedValuesBuyerSignal(field, variables));
+      if (errors.length > 0) {
+        continue;
+      }
+    }
+
     const key = getFieldResponseKey(field);
     const rootPayload = rootPayloadForField(field, variables, fragments);
     data[key] =
@@ -3507,6 +4675,10 @@ export function handleMarketsQuery(document: string, variables: Record<string, u
         : field.selectionSet
           ? projectMarketValue(rootPayload, field.selectionSet.selections, fragments, variables)
           : rootPayload;
+  }
+
+  if (errors.length > 0) {
+    return { errors };
   }
 
   return { data };
@@ -3560,6 +4732,15 @@ export function handleMarketMutation(document: string, variables: Record<string,
         break;
       case 'priceListFixedPricesByProductUpdate':
         data[key] = handlePriceListFixedPricesByProductUpdate(field, variables, fragments);
+        break;
+      case 'quantityPricingByVariantUpdate':
+        data[key] = handleQuantityPricingByVariantUpdate(field, variables, fragments);
+        break;
+      case 'quantityRulesAdd':
+        data[key] = handleQuantityRulesAdd(field, variables, fragments);
+        break;
+      case 'quantityRulesDelete':
+        data[key] = handleQuantityRulesDelete(field, variables, fragments);
         break;
       case 'webPresenceCreate':
         data[key] = handleWebPresenceCreate(field, variables, fragments);

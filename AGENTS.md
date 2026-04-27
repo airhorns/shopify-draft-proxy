@@ -96,6 +96,10 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
   strict comparison targets that runs in the `conformance:parity` script, or
   an explicitly runtime-test-backed fixture mode for multi-step flows the
   generic parity runner cannot yet replay.
+- Do not add live recordings, checked-in conformance fixtures, or capture
+  scripts without adding an explicit conformance spec and executable test path
+  that uses the recording. Recording-only changes are not acceptable evidence,
+  even when the fixture was captured from a real store.
 - Conformance parity scenarios are discovered by convention from `config/parity-specs/*.json` and executed by the single vitest suite at `tests/unit/conformance-parity-scenarios.test.ts` (also exposed as `pnpm conformance:parity`). Do not add per-scenario `it(...)` blocks that re-run one scenario — the iterator already covers it. Encode scenario-specific expectations in the parity spec.
 - Treat conformance `expectedDifferences` as a last resort after modeling or
   fixture seeding has been exhausted; do not add them merely to make parity
@@ -108,6 +112,15 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
   for `.mts`, `.cjs` for `.cts`). Do not import local modules with source
   extensions such as `.ts`, `.mts`, or `.cts`; `pnpm lint` enforces this with
   oxlint's `import/extensions` rule.
+- In unattended or CI-like workspaces, prefer `corepack pnpm ...` for package
+  scripts. Bare `pnpm` may not be on `PATH` even though the repo is configured
+  for pnpm through Corepack.
+- Search implementations must use the shared helpers in
+  `src/search-query-parser.ts` for Shopify Admin `query:` parsing, execution,
+  AST traversal, term-list guards, and primitive term matching. Endpoint modules
+  should provide only the domain-specific positive term matcher and documented
+  Shopify quirks; do not add new resource-local query parsers or duplicated
+  `matches*QueryNode` traversal helpers.
 - Connection implementations must use the shared helpers in
   `src/proxy/graphql-helpers.ts` for cursor windowing, `nodes`/`edges`
   serialization, and selected `pageInfo` fields. Keep resource-specific sorting,
@@ -120,6 +133,15 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 - The canonical GitHub repository is `airhorns/shopify-draft-proxy`.
 - Open pull requests against `airhorns/shopify-draft-proxy`; do not target personal forks.
 - If a workspace remote points at a personal fork, retarget it to `git@github.com:airhorns/shopify-draft-proxy.git` before pushing or creating a PR.
+- If `gh pr edit` fails with GitHub's Projects classic / `projectCards`
+  deprecation path, do not treat that as a GitHub blocker. Use narrower
+  `gh api` calls for the specific metadata update, such as REST label updates or
+  GraphQL `updatePullRequest`, then verify the PR state with `gh pr view`.
+- GitHub's reactions API supports a fixed reaction set and may not accept the
+  workflow's green-circle done marker on review comments. When `🟢` cannot be
+  applied as a reaction, remove the `👀` reaction, add a concise handled reply
+  containing `🟢`, and resolve the review thread when the requested change is
+  fully addressed.
 
 ## Shopify conformance auth rule
 
@@ -133,6 +155,10 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
   values will make a valid home-folder token look invalid. If a workspace needs
   repo-local env config, link `.env` to `/home/airhorns/code/shopify-draft-proxy/.env`
   rather than copying it.
+- A stale non-placeholder `.env` can also point at the wrong test store. Before
+  live capture, verify the effective store with `corepack pnpm conformance:probe`
+  and inspect the resolved `SHOPIFY_CONFORMANCE_STORE_DOMAIN` /
+  `SHOPIFY_CONFORMANCE_ADMIN_ORIGIN` when the probe target is surprising.
 - New auth grants should be generated with `corepack pnpm conformance:auth-link`, and callback exchange should go through `corepack pnpm conformance:exchange-auth -- '<full callback url>'`.
 - If a task requires recording or re-recording conformance evidence and
   `getValidConformanceAccessToken(...)` / `corepack pnpm conformance:probe`
