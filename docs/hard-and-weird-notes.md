@@ -2593,7 +2593,26 @@ Practical rule:
 - treat comment moderation as local lifecycle support only for comments already present in snapshot or hydrated local state, since Admin GraphQL did not expose a captured comment-create root in this slice
 - continue to record success-path setup and cleanup for online-store content mutations when broadening validation or publication semantics
 
-## 69. Fulfillment-order request lifecycles need an API fulfillment service to reach happy paths
+## 69. Fulfillment-order lifecycle roots split work into replacement orders
+
+HAR-234 captured fulfillment-order lifecycle evidence on Admin GraphQL 2026-04 at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/fulfillment-order-lifecycle.json`.
+
+Captured facts:
+
+- partial `fulfillmentOrderHold` changes the selected work to `ON_HOLD`, creates a new `FulfillmentHold`, reduces the held fulfillment-order line item quantities, and returns a separate `remainingFulfillmentOrder` for the unheld quantity
+- `fulfillmentOrderReleaseHold` restores the held fulfillment order to `OPEN`, clears `fulfillmentHolds`, and re-expands the line item back to the full remaining quantity in the captured branch
+- partial `fulfillmentOrderMove` creates a new moved fulfillment order at the destination location while the original fulfillment order remains open with the remaining quantity; the payload reports the same original record as `originalFulfillmentOrder` and `remainingFulfillmentOrder`
+- `fulfillmentOrderReportProgress` changes an open merchant-managed fulfillment order to `IN_PROGRESS` and adds `MARK_AS_OPEN`; `fulfillmentOrderOpen` changes it back to `OPEN`
+- `fulfillmentOrderCancel` closes the original fulfillment order, empties its line items, and returns a replacement open fulfillment order carrying the remaining line item quantity
+- nested `Order.fulfillmentOrders` does not accept `includeClosed`; that argument belongs to the top-level `fulfillmentOrders` root
+- the captured merchant-managed setup returns guardrails for unsupported branches: reschedule requires a scheduled fulfillment order, close requires an API fulfillment service, and the attempted included-location reroute returned a Shopify internal error instead of a success payload
+
+Practical rule:
+
+- do not model fulfillment-order lifecycle roots as simple status patches; partial hold/move/cancel behavior affects line-item quantities and replacement fulfillment-order identities
+- keep `fulfillmentOrderReschedule`, `fulfillmentOrderClose`, and `fulfillmentOrdersReroute` unimplemented for full support until success-path fixtures exist, even if local guardrails are mirrored
+
+## 70. Fulfillment-order request lifecycles need an API fulfillment service to reach happy paths
 
 HAR-233 captured fulfillment-order request/cancellation behavior on Admin GraphQL 2026-04 against `harry-test-heelo.myshopify.com`. A merchant-managed fulfillment order did not reach the request happy path: `fulfillmentOrderSubmitFulfillmentRequest` returned `userErrors[{ field: ["id"], message: "The fulfillment order's assigned fulfillment service must be of api type" }]`.
 
