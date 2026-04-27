@@ -1,0 +1,22 @@
+query MetafieldDefinitionLifecycleReadDefinition($namespace: String!, $key: String!) {
+  definition: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: $key }) {
+    id
+    name
+    namespace
+    key
+    ownerType
+    validations {
+      name
+      value
+    }
+    metafieldsCount
+  }
+  definitions: metafieldDefinitions(ownerType: PRODUCT, namespace: $namespace, first: 5) {
+    nodes {
+      id
+      namespace
+      key
+      name
+    }
+  }
+}
