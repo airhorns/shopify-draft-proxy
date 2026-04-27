@@ -7,11 +7,20 @@
 - `marketingEvents`
 - `marketingEvent`
 
-This endpoint group is read-only. It does not stage marketing activity mutations.
+## Supported mutation roots
+
+- `marketingActivityCreateExternal`
+- `marketingActivityUpdateExternal`
+- `marketingActivityUpsertExternal`
+- `marketingActivityDeleteExternal`
+- `marketingActivitiesDeleteAllExternal`
+
+Deprecated/non-external `marketingActivityCreate` and `marketingActivityUpdate` remain registered gaps, not implemented support. They are still explicit in the operation registry so unsupported runtime passthrough is observable, but the proxy does not claim local emulation for them.
 
 ## Snapshot behavior
 
 - Snapshot mode serves marketing activity and event reads from normalized raw marketing records hydrated from conformance captures or seeded directly in tests.
+- Staged external activity creates, updates, upserts, deletes, and bulk delete-all overlays are applied to snapshot/local reads immediately.
 - Missing singular lookups return `null`.
 - Absent catalogs return non-null empty connections with empty `nodes`/`edges`, `hasNextPage: false`, `hasPreviousPage: false`, and null cursors.
 - Local connection serialization preserves selected `nodes`, `edges`, `cursor`, and `pageInfo` fields. Captured Shopify cursors are reused when present; locally seeded records without captured cursors use stable synthetic `cursor:<gid>` cursors.
@@ -26,14 +35,27 @@ HAR-212 captures the safe read model for:
 - selected `MarketingActivity` fields: identity, title, timestamps, status/status label, tactic, channel type, source/medium, external/main-workflow booleans, app identity, and nested marketing event identity/attribution fields
 - selected `MarketingEvent` fields: identity, type, remote ID, start/end timestamps, URLs, UTM fields, description, channel type, and source/medium
 
-The capture script also records an invalid-ID probe and schema inventory as evidence files. The current HAR-212 capture has `read_marketing_events` access and records Shopify's empty/no-data behavior because the dev store has no marketing rows. A representative non-empty live read was not captured: temporary seeding requires `write_marketing_events`, and the current conformance credential is denied that scope. Local snapshot tests cover non-empty serializer behavior from explicit fixture-backed records rather than inventing live conformance rows.
+The read capture script also records an invalid-ID probe and schema inventory as evidence files.
+
+HAR-213 captures external lifecycle write evidence with `write_marketing_events`:
+
+- createExternal happy path with remote ID, UTM, selected activity fields, and nested marketing event attribution
+- updateExternal by `remoteId` for title, status, and remote URL changes
+- upsertExternal create and update behavior keyed by `remoteId`
+- deleteExternal by activity ID and remote ID, including missing-activity userErrors
+- deleteAllExternal asynchronous `Job` payload with `done: false`
+- userErrors for missing non-hierarchical attribution and immutable UTM changes
+
+The HAR-213 parity spec replays the external lifecycle through the local proxy parity harness. It compares stable selected mutation/read fields and captured userErrors against the live fixture; synthetic IDs and timestamps remain covered by runtime integration tests because local staging intentionally does not reuse live Shopify identifiers.
+
+Local staging intentionally uses stable synthetic IDs and timestamps instead of replaying live Shopify IDs. The raw original mutation body is retained in the meta log for successful staged lifecycle mutations so commit replay can preserve request order.
 
 ## Local filtering and ordering
 
 Local snapshot filtering is intentionally narrow and evidence-backed:
 
 - `marketingActivities(query:)` supports default text, `title`, `app_name`, `id`, `created_at`, `updated_at`, scheduled date terms, and exact `tactic` terms.
-- `marketingActivities(marketingActivityIds:)` and `marketingActivities(remoteIds:)` filter known local records by exact ID.
+- `marketingActivities(marketingActivityIds:)` and `marketingActivities(remoteIds:)` filter known local records by exact activity ID or nested external marketing-event remote ID.
 - `marketingEvents(query:)` supports default text, `description`, `id`, `started_at`, and exact `type` terms.
 - Activity sort keys currently modeled locally are `CREATED_AT`, `ID`, and `TITLE`.
 - Event sort keys currently modeled locally are `ID` and `STARTED_AT`.

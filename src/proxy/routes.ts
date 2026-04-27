@@ -11,7 +11,7 @@ import { requestUpstreamGraphQL } from '../shopify/upstream-request.js';
 import { getOperationCapability, type OperationCapability } from './capabilities.js';
 import { findOperationRegistryEntry } from './operation-registry.js';
 import { handleMediaMutation } from './media.js';
-import { handleMarketingQuery, hydrateMarketingFromUpstreamResponse } from './marketing.js';
+import { handleMarketingMutation, handleMarketingQuery, hydrateMarketingFromUpstreamResponse } from './marketing.js';
 import { handleCustomerMutation, handleCustomerQuery, hydrateCustomersFromUpstreamResponse } from './customers.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from './delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from './discounts.js';
@@ -91,6 +91,14 @@ const CARRIER_SERVICE_MUTATION_ROOTS = new Set([
   'carrierServiceCreate',
   'carrierServiceUpdate',
   'carrierServiceDelete',
+]);
+
+const MARKETING_ACTIVITY_MUTATION_ROOTS = new Set([
+  'marketingActivityCreateExternal',
+  'marketingActivityUpdateExternal',
+  'marketingActivityUpsertExternal',
+  'marketingActivityDeleteExternal',
+  'marketingActivitiesDeleteAllExternal',
 ]);
 
 const FULFILLMENT_ORDER_LIFECYCLE_MUTATION_ROOTS = new Set([
@@ -740,6 +748,36 @@ export function createProxyRouter(config: AppConfig): Router {
 
     if (
       capability.execution === 'stage-locally' &&
+      capability.domain === 'marketing' &&
+      primaryRootField &&
+      MARKETING_ACTIVITY_MUTATION_ROOTS.has(primaryRootField)
+    ) {
+      const marketingMutation = handleMarketingMutation(body.query, variables);
+      if (marketingMutation) {
+        if (marketingMutation.stagedResourceIds.length > 0) {
+          store.appendLog({
+            id: makeSyntheticGid('MutationLogEntry'),
+            receivedAt: makeSyntheticTimestamp(),
+            operationName: capability.operationName,
+            path: ctx.path,
+            query: body.query,
+            variables,
+            requestBody,
+            stagedResourceIds: marketingMutation.stagedResourceIds,
+            status: 'staged',
+            interpreted: interpretMutationLogEntry(parsed, capability),
+            notes: marketingMutation.notes,
+          });
+        }
+
+        ctx.status = 200;
+        ctx.body = marketingMutation.response;
+        return;
+      }
+    }
+
+    if (
+      capability.execution === 'stage-locally' &&
       capability.domain === 'webhooks' &&
       (primaryRootField === 'webhookSubscriptionCreate' ||
         primaryRootField === 'webhookSubscriptionUpdate' ||
@@ -1313,7 +1351,7 @@ export function createProxyRouter(config: AppConfig): Router {
         hydrateMarketingFromUpstreamResponse(body.query, variables, upstreamBody);
 
         ctx.status = response.status;
-        ctx.body = upstreamBody;
+        ctx.body = store.hasStagedMarketingRecords() ? handleMarketingQuery(body.query, variables) : upstreamBody;
         return;
       }
     }
