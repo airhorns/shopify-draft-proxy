@@ -39,6 +39,8 @@ export type ConformanceStatusDocument = {
   coveredOperationNames: string[];
   declaredGapOperationNames: string[];
   capturedScenarioIds: string[];
+  strictComparisonScenarioIds: string[];
+  captureOnlyScenarioIds: string[];
   plannedScenarioIds: string[];
   regrettableDivergences: Array<{
     scenarioId: string;
@@ -116,6 +118,14 @@ function readParitySpec(repoRoot: string, scenario: ConformanceScenario): Parity
   return parseJsonFileWithSchema(path.join(repoRoot, scenario.paritySpecPath), paritySpecSchema);
 }
 
+function isCaptureOnlyScenario(repoRoot: string, scenario: ConformanceScenario): boolean {
+  if (scenario.status !== 'captured') {
+    return false;
+  }
+
+  return readParitySpec(repoRoot, scenario).comparisonMode === 'captured-fixture';
+}
+
 function listRegrettableDivergences(repoRoot: string, scenarios: ConformanceScenario[]) {
   return scenarios.flatMap((scenario) => {
     if (scenario.status !== 'captured') {
@@ -149,6 +159,9 @@ function listRegrettableDivergences(repoRoot: string, scenarios: ConformanceScen
 
 export function buildConformanceStatusDocument(repoRoot = defaultRepoRoot): ConformanceStatusDocument {
   const scenarios = loadConformanceScenarios(repoRoot);
+  const capturedScenarios = scenarios.filter((scenario) => scenario.status === 'captured');
+  const captureOnlyScenarios = capturedScenarios.filter((scenario) => isCaptureOnlyScenario(repoRoot, scenario));
+  const strictComparisonScenarios = capturedScenarios.filter((scenario) => !captureOnlyScenarios.includes(scenario));
   const scenariosByOperation = groupScenariosByOperation(scenarios);
   const implementedEntries = loadOperationRegistry(repoRoot).filter((entry) => entry.implemented);
   const coveredEntries = implementedEntries.filter((entry) => {
@@ -175,7 +188,9 @@ export function buildConformanceStatusDocument(repoRoot = defaultRepoRoot): Conf
     }),
     coveredOperationNames: coveredEntries.map((entry) => entry.name),
     declaredGapOperationNames: gapEntries.map((entry) => entry.name),
-    capturedScenarioIds: scenarios.filter((scenario) => scenario.status === 'captured').map((scenario) => scenario.id),
+    capturedScenarioIds: capturedScenarios.map((scenario) => scenario.id),
+    strictComparisonScenarioIds: strictComparisonScenarios.map((scenario) => scenario.id),
+    captureOnlyScenarioIds: captureOnlyScenarios.map((scenario) => scenario.id),
     plannedScenarioIds: scenarios.filter((scenario) => scenario.status === 'planned').map((scenario) => scenario.id),
     regrettableDivergences: listRegrettableDivergences(repoRoot, scenarios),
   };
