@@ -2516,6 +2516,16 @@
     "runtimeTests": ["tests/integration/order-query-shapes.test.ts"]
   },
   {
+    "name": "return",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["return", "Return"],
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-311 order-backed Return detail lookup. Snapshot and local live-hybrid reads resolve returns already present on the local order graph, return null for missing IDs, and keep top-level Return serialization aligned with nested Order.returns after staged returnCreate/returnRequest/lifecycle mutations."
+  },
+  {
     "name": "orders",
     "type": "query",
     "domain": "orders",
@@ -2532,6 +2542,56 @@
     "implemented": true,
     "matchNames": ["ordersCount", "OrdersCount"],
     "runtimeTests": ["tests/integration/order-query-shapes.test.ts"]
+  },
+  {
+    "name": "returnCalculate",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["returnCalculate", "ReturnCalculate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-311 declared blocker. Live introspection captured CalculateReturnInput/CalculatedReturn shape, but local support needs calculation parity for restocking fees, exchange lines, shipping fees, tax/discount totals, and error behavior before this root can be implemented."
+  },
+  {
+    "name": "returnableFulfillment",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["returnableFulfillment", "ReturnableFulfillment"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-311 declared blocker. Requires returnable-fulfillment identity, eligibility, and line-item quantity parity over fulfilled order state before local reads can be supported."
+  },
+  {
+    "name": "returnableFulfillments",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["returnableFulfillments", "ReturnableFulfillments"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-311 declared blocker. Requires captured order eligibility, pagination, reverse ordering, and returnable line-item quantity behavior before local catalog support."
+  },
+  {
+    "name": "reverseDelivery",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["reverseDelivery", "ReverseDelivery"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-311 declared blocker. Requires a normalized reverse-delivery graph linked to reverse fulfillment orders, labels/tracking, and return line items before local detail reads can be supported."
+  },
+  {
+    "name": "reverseFulfillmentOrder",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["reverseFulfillmentOrder", "ReverseFulfillmentOrder"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-311 declared blocker. Requires reverse fulfillment order lifecycle, status, line items, reverse deliveries, and order linkage parity before local detail reads can be supported."
   },
   {
     "name": "orderUpdate",
@@ -3326,6 +3386,106 @@
     "implemented": true,
     "matchNames": ["refundCreate", "RefundCreate"],
     "runtimeTests": ["tests/integration/order-refund-flow.test.ts"]
+  },
+  {
+    "name": "returnCreate",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["returnCreate", "ReturnCreate"],
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-311 order-backed local return creation. Stages Return rows against locally known orders/fulfillment line items, preserves original raw mutation for commit replay, and exposes staged returns through top-level return(id:) and nested Order.returns without runtime Shopify writes."
+  },
+  {
+    "name": "returnRequest",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["returnRequest", "ReturnRequest"],
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-311 order-backed return request staging. Creates REQUESTED local Return rows for known orders/fulfillment line items and keeps downstream Return/Order.returns reads consistent without upstream writes."
+  },
+  {
+    "name": "returnCancel",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["returnCancel", "ReturnCancel"],
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-311 local lifecycle slice. Updates known local returns to CANCELED and exposes the status through top-level and nested return reads without runtime Shopify writes."
+  },
+  {
+    "name": "returnClose",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["returnClose", "ReturnClose"],
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-311 local lifecycle slice. Updates known local returns to CLOSED, records a local closedAt timestamp, and exposes the status through downstream reads without runtime Shopify writes."
+  },
+  {
+    "name": "returnReopen",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["returnReopen", "ReturnReopen"],
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-311 local lifecycle slice. Reopens known local returns to OPEN, clears closedAt, and exposes the status through downstream reads without runtime Shopify writes."
+  },
+  {
+    "name": "removeFromReturn",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["removeFromReturn", "RemoveFromReturn"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-311 declared blocker. Requires captured removal semantics for return and exchange line items, quantity recomputation, validation errors, and downstream Return/Order.returns read effects before support."
+  },
+  {
+    "name": "returnProcess",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["returnProcess", "ReturnProcess"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-311 declared blocker. Requires processing semantics for return/exchange line items, refund duties/shipping, financial transfers, notifications, and downstream refund/return/order effects before support."
+  },
+  {
+    "name": "reverseDeliveryCreateWithShipping",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["reverseDeliveryCreateWithShipping", "ReverseDeliveryCreateWithShipping"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-311 declared blocker. Requires normalized reverse fulfillment orders, reverse delivery line items, tracking/label payload behavior, notifications, and downstream reverseDelivery reads before support."
+  },
+  {
+    "name": "reverseDeliveryShippingUpdate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["reverseDeliveryShippingUpdate", "ReverseDeliveryShippingUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-311 declared blocker. Requires captured reverse-delivery tracking/label update semantics and downstream reverseDelivery read effects before support."
+  },
+  {
+    "name": "reverseFulfillmentOrderDispose",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["reverseFulfillmentOrderDispose", "ReverseFulfillmentOrderDispose"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-311 declared blocker. Requires disposition semantics, inventory/location effects, reverse fulfillment order status updates, and downstream reads before support."
   },
   {
     "name": "draftOrder",

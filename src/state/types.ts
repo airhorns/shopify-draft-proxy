@@ -1312,9 +1312,28 @@ export const orderRefundRecordSchema = z.strictObject({
 });
 export type OrderRefundRecord = z.infer<typeof orderRefundRecordSchema>;
 
+export const orderReturnLineItemRecordSchema = z.strictObject({
+  id: z.string(),
+  fulfillmentLineItemId: z.string(),
+  lineItemId: nullableStringSchema,
+  title: nullableStringSchema,
+  quantity: z.number(),
+  processedQuantity: z.number().optional(),
+  returnReason: z.string(),
+  returnReasonNote: z.string(),
+  customerNote: nullableStringSchema.optional(),
+});
+export type OrderReturnLineItemRecord = z.infer<typeof orderReturnLineItemRecordSchema>;
+
 export const orderReturnRecordSchema = z.strictObject({
   id: z.string(),
+  orderId: z.string().optional(),
+  name: z.string().optional(),
   status: nullableStringSchema,
+  createdAt: z.string().optional(),
+  closedAt: nullableStringSchema.optional(),
+  totalQuantity: z.number().optional(),
+  returnLineItems: z.array(orderReturnLineItemRecordSchema).optional(),
 });
 export type OrderReturnRecord = z.infer<typeof orderReturnRecordSchema>;
 
