@@ -42,7 +42,7 @@ The three query roots are registered under the `webhooks` domain as implemented 
 
 Default runtime policy: supported draft-mode mutations must never send webhook deliveries to external systems. This includes HTTP callback URLs, EventBridge ARNs, Pub/Sub topics, app-config/TOML subscriptions, and any other destination Shopify can target. The proxy should treat registered webhook subscriptions as local subscription metadata during normal runtime handling, not as permission to notify the outside world.
 
-The recommended implementation policy is an in-memory, pull-based webhook outbox exposed through the meta API. When a supported local mutation eventually maps to a supported webhook topic, the proxy should append a synthetic payload record to the outbox after the domain command is successfully staged. Tests can inspect that deterministic record through meta endpoints, but the proxy does not POST to callback URLs, publish to AWS/GCP destinations, retry, or forward any delivery auth/secrets.
+The implementation policy is an in-memory, pull-based webhook outbox exposed through the meta API. When a supported local mutation maps to a supported webhook topic, the proxy appends a synthetic payload record to the outbox after the domain command is successfully staged. Tests can inspect that deterministic record through meta endpoints, but the proxy does not POST to callback URLs, publish to AWS/GCP destinations, retry, or forward any delivery auth/secrets.
 
 Rejected alternatives:
 
@@ -54,13 +54,13 @@ Rejected alternatives:
 
 ### Outbox Observability Contract
 
-The future meta API should expose webhook payload records separately from the existing mutation log, for example:
+The meta API exposes webhook payload records separately from the existing mutation log:
 
 - `GET /__meta/webhooks/outbox` returns ordered synthetic webhook payload records.
 - `POST /__meta/webhooks/outbox/reset` clears only the webhook outbox.
 - `POST /__meta/reset` clears the webhook outbox together with staged state, caches, synthetic identities, and the mutation log.
 
-Each outbox record should be JSON-serializable and deterministic:
+Each outbox record is JSON-serializable and deterministic:
 
 - `id`: stable synthetic delivery ID, suitable for a Shopify-like webhook ID/header value.
 - `sequence`: monotonically increasing integer in append order.
@@ -75,7 +75,7 @@ Each outbox record should be JSON-serializable and deterministic:
 - `headers`: deterministic, secret-free preview of delivery headers such as topic, shop domain, API version, synthetic webhook ID, and trigger timestamp. Do not copy incoming Admin API auth headers. Do not expose or derive real app secrets; HMAC should be absent or explicitly `null` unless a later isolated test mode introduces a test-only signing secret.
 - `delivery`: `{ mode: "recorded", status: "recorded", attempts: [] }` for the default policy.
 
-Ordering follows the mutation log: records are appended only for successful supported local mutations, after validation passes and after the domain command has staged local state. If one mutation matches multiple local subscriptions for the same topic, append one outbox record per matching subscription in deterministic subscription order. Validation-only branches and unsupported passthrough mutations must not create synthetic outbox records; unsupported passthrough may still cause real Shopify side effects upstream and should remain visible through existing observability.
+Ordering follows the mutation log: records are appended only for successful supported local mutations, after validation passes and after the domain command has staged local state. If one mutation matches multiple local subscriptions for the same topic, the proxy appends one outbox record per matching subscription in deterministic subscription order. Validation-only branches and unsupported passthrough mutations do not create synthetic outbox records; unsupported passthrough may still cause real Shopify side effects upstream and should remain visible through existing observability.
 
 `includeFields`, `metafieldNamespaces`, and `filter` must be applied before writing the outbox record once those semantics are modeled. Until they are conformance-backed for a topic, the topic should remain unsupported for outbox generation rather than emitting a broad guessed payload.
 
@@ -83,9 +83,12 @@ Ordering follows the mutation log: records are appended only for successful supp
 
 Webhook payload generation should be driven by domain events emitted by supported local mutation handlers, not by patching GraphQL responses. A domain handler that stages a resource change should expose enough normalized before/after state for the webhook outbox mapper to decide whether a topic is eligible and to serialize the payload.
 
-First viable slice:
+Implemented first slice:
 
-- `PRODUCTS_CREATE` from staged `productCreate`.
+- `PRODUCTS_CREATE` from staged `productCreate`, only for JSON subscriptions without `includeFields`, `metafieldNamespaces`, or `filter` constraints. The payload is derived from the normalized staged product record and records endpoint metadata only; HTTP callback URLs, EventBridge ARNs, and Pub/Sub coordinates are never invoked by default runtime handling.
+
+Deferred slices:
+
 - `PRODUCTS_UPDATE` from staged product update/editing mutations once the changed product payload is conformance-backed.
 - `PRODUCTS_DELETE` from staged product deletion once deletion payload shape is captured.
 

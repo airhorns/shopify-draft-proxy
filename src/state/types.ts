@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { jsonObjectSchema, jsonValueSchema } from '../json-schemas.js';
+import { jsonObjectSchema, jsonValueSchema, type JsonValue } from '../json-schemas.js';
 
 const nullableStringSchema = z.string().nullable();
 const nullableNumberSchema = z.number().nullable();
@@ -2268,4 +2268,31 @@ export interface MutationLogEntry {
   status: 'staged' | 'proxied' | 'committed' | 'failed';
   interpreted: MutationLogInterpretedMetadata;
   notes?: string;
+}
+
+export interface WebhookOutboxRecord {
+  id: string;
+  sequence: number;
+  recordedAt: string;
+  topic: string;
+  subscriptionId: string;
+  endpoint: WebhookSubscriptionEndpointRecord | null;
+  format: string | null;
+  includeFields: string[];
+  metafieldNamespaces: string[];
+  filter: string | null;
+  sourceMutationLogEntryId: string;
+  sourceMutationLogIndex: number;
+  sourceMutationLog: {
+    id: string;
+    index: number;
+  };
+  resourceGid: string;
+  payload: Record<string, JsonValue>;
+  headers: Record<string, string | null>;
+  delivery: {
+    mode: 'recorded';
+    status: 'recorded';
+    attempts: [];
+  };
 }

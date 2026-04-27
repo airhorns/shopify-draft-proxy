@@ -71,6 +71,7 @@ import type {
   TaxAppConfigurationRecord,
   TranslationRecord,
   ValidationRecord,
+  WebhookOutboxRecord,
   WebhookSubscriptionRecord,
   WebPresenceRecord,
 } from './types.js';
@@ -584,6 +585,7 @@ export class InMemoryStore {
   private baseState: StateSnapshot = cloneSnapshot(EMPTY_SNAPSHOT);
   private stagedState: StateSnapshot = cloneSnapshot(EMPTY_SNAPSHOT);
   private mutationLog: MutationLogEntry[] = [];
+  private webhookOutbox: WebhookOutboxRecord[] = [];
   private stagedCollectionFamilies = new Set<string>();
   private stagedMediaFamilies = new Set<string>();
   private laggedTagSearchProductIds = new Map<string, number>();
@@ -615,6 +617,7 @@ export class InMemoryStore {
     this.baseState = cloneSnapshot(this.initialBaseState);
     this.stagedState = cloneSnapshot(EMPTY_SNAPSHOT);
     this.mutationLog = [];
+    this.webhookOutbox = [];
     this.stagedCollectionFamilies = new Set<string>();
     this.stagedMediaFamilies = new Set<string>();
     this.laggedTagSearchProductIds = new Map<string, number>();
@@ -664,6 +667,27 @@ export class InMemoryStore {
 
   getLog(): MutationLogEntry[] {
     return structuredClone(this.mutationLog);
+  }
+
+  getNextMutationLogIndex(): number {
+    return this.mutationLog.length;
+  }
+
+  appendWebhookOutboxRecord(record: Omit<WebhookOutboxRecord, 'sequence'>): WebhookOutboxRecord {
+    const nextRecord: WebhookOutboxRecord = {
+      ...structuredClone(record),
+      sequence: this.webhookOutbox.length + 1,
+    };
+    this.webhookOutbox.push(nextRecord);
+    return structuredClone(nextRecord);
+  }
+
+  getWebhookOutbox(): WebhookOutboxRecord[] {
+    return structuredClone(this.webhookOutbox);
+  }
+
+  resetWebhookOutbox(): void {
+    this.webhookOutbox = [];
   }
 
   updateLogEntry(

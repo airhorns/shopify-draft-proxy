@@ -641,6 +641,20 @@ export function createMetaRouter(config: AppConfig): Router {
     ctx.body = store.getState();
   });
 
+  router.get('/__meta/webhooks/outbox', (ctx: Koa.Context) => {
+    ctx.body = {
+      records: store.getWebhookOutbox(),
+    };
+  });
+
+  router.post('/__meta/webhooks/outbox/reset', (ctx: Koa.Context) => {
+    store.resetWebhookOutbox();
+    ctx.body = {
+      ok: true,
+      message: 'webhook outbox reset',
+    };
+  });
+
   router.post('/__meta/reset', (ctx: Koa.Context) => {
     store.restoreInitialState();
     resetSyntheticIdentity();

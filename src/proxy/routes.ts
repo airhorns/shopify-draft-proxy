@@ -4,7 +4,7 @@ import { logger } from '../logger.js';
 import { parseOperation, type ParsedOperation } from '../graphql/parse-operation.js';
 import { isProxySyntheticGid, makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
-import type { MutationLogInterpretedMetadata } from '../state/types.js';
+import type { MutationLogEntry, MutationLogInterpretedMetadata } from '../state/types.js';
 import type { AppConfig } from '../config.js';
 import { createUpstreamGraphQLClient } from '../shopify/upstream-client.js';
 import { requestUpstreamGraphQL } from '../shopify/upstream-request.js';
@@ -59,6 +59,7 @@ import {
   handleWebhookSubscriptionQuery,
   hydrateWebhookSubscriptionsFromUpstreamResponse,
 } from './webhooks.js';
+import { enqueueProductCreateWebhookOutboxRecords } from './webhook-outbox.js';
 
 interface GraphQLBody {
   query?: unknown;
@@ -571,8 +572,8 @@ function setGraphQLResponse(request: ProxyDispatchRequest, status: number, respo
   request.ctx.body = responseBody;
 }
 
-function appendStagedMutationLog(request: ProxyDispatchRequest, options: StagedMutationLogOptions): void {
-  store.appendLog({
+function appendStagedMutationLog(request: ProxyDispatchRequest, options: StagedMutationLogOptions): MutationLogEntry {
+  const entry: MutationLogEntry = {
     id: options.id ?? makeSyntheticGid('MutationLogEntry'),
     receivedAt: options.receivedAt ?? makeSyntheticTimestamp(),
     operationName: options.operationName ?? request.capability.operationName,
@@ -588,7 +589,9 @@ function appendStagedMutationLog(request: ProxyDispatchRequest, options: StagedM
     status: 'staged',
     interpreted: options.interpreted ?? interpretMutationLogEntry(request.parsed, request.capability),
     ...(options.notes ? { notes: options.notes } : {}),
-  });
+  };
+  store.appendLog(entry);
+  return entry;
 }
 
 async function proxyUpstreamGraphQL(request: ProxyDispatchRequest): Promise<{ status: number; body: unknown }> {
@@ -747,15 +750,30 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         'staging supported mutation locally',
       );
 
+      const previousProductIds = new Set(store.listEffectiveProducts().map((product) => product.id));
+      const mutationLogIndex = store.getNextMutationLogIndex();
       const logEntryId = makeSyntheticGid('MutationLogEntry');
       const receivedAt = makeSyntheticTimestamp();
       const responseBody = handleProductMutation(request.body.query, request.variables, request.config.readMode);
-      appendStagedMutationLog(request, {
+      const mutationLogEntry = appendStagedMutationLog(request, {
         id: logEntryId,
         receivedAt,
         responseBody,
         notes: 'Staged locally in the in-memory product draft store.',
       });
+
+      if (request.primaryRootField === 'productCreate') {
+        const createdProducts = store.listEffectiveProducts().filter((product) => !previousProductIds.has(product.id));
+        for (const product of createdProducts) {
+          enqueueProductCreateWebhookOutboxRecords({
+            product,
+            mutationLogEntry,
+            mutationLogIndex,
+            config: request.config,
+            path: request.ctx.path,
+          });
+        }
+      }
 
       setGraphQLResponse(request, 200, responseBody);
       return true;

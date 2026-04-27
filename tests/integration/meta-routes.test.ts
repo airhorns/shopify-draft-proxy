@@ -901,6 +901,269 @@ describe('meta routes', () => {
     });
   });
 
+  it('exposes and resets an empty webhook outbox independently', async () => {
+    const app = createApp(config).callback();
+
+    const response = await request(app).get('/__meta/webhooks/outbox');
+    const reset = await request(app).post('/__meta/webhooks/outbox/reset');
+    const repeatedResponse = await request(app).get('/__meta/webhooks/outbox');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      records: [],
+    });
+    expect(reset.status).toBe(200);
+    expect(reset.body).toEqual({
+      ok: true,
+      message: 'webhook outbox reset',
+    });
+    expect(repeatedResponse.body).toEqual({
+      records: [],
+    });
+  });
+
+  it('records ordered synthetic product webhook outbox entries without network delivery', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('webhook outbox must not send network requests'));
+    const app = createApp(config).callback();
+    const createSubscriptionMutation = `mutation CreateWebhookSubscription(
+      $topic: WebhookSubscriptionTopic!
+      $webhookSubscription: WebhookSubscriptionInput!
+    ) {
+      webhookSubscriptionCreate(topic: $topic, webhookSubscription: $webhookSubscription) {
+        webhookSubscription {
+          id
+          topic
+          endpoint {
+            __typename
+            ... on WebhookHttpEndpoint {
+              callbackUrl
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }`;
+
+    const firstSubscription = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: createSubscriptionMutation,
+        variables: {
+          topic: 'PRODUCTS_CREATE',
+          webhookSubscription: {
+            format: 'JSON',
+            uri: 'https://example.com/webhooks/products-create-a',
+          },
+        },
+      });
+    const secondSubscription = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: createSubscriptionMutation,
+        variables: {
+          topic: 'PRODUCTS_CREATE',
+          webhookSubscription: {
+            format: 'JSON',
+            uri: 'https://example.com/webhooks/products-create-b',
+          },
+        },
+      });
+    const createProduct = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CreateProduct($product: ProductCreateInput!) {
+        productCreate(product: $product) {
+          product {
+            id
+            title
+            handle
+            status
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }`,
+        variables: {
+          product: {
+            title: 'Webhook Hat',
+            vendor: 'Hermes Test',
+            tags: ['webhook', 'outbox'],
+          },
+        },
+      });
+
+    expect(firstSubscription.status).toBe(200);
+    expect(secondSubscription.status).toBe(200);
+    expect(createProduct.status).toBe(200);
+    expect(firstSubscription.body.data.webhookSubscriptionCreate.userErrors).toEqual([]);
+    expect(secondSubscription.body.data.webhookSubscriptionCreate.userErrors).toEqual([]);
+    expect(createProduct.body.data.productCreate.userErrors).toEqual([]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    const product = createProduct.body.data.productCreate.product;
+    const firstSubscriptionId = firstSubscription.body.data.webhookSubscriptionCreate.webhookSubscription.id;
+    const secondSubscriptionId = secondSubscription.body.data.webhookSubscriptionCreate.webhookSubscription.id;
+    const log = await request(app).get('/__meta/log');
+    const outbox = await request(app).get('/__meta/webhooks/outbox');
+
+    expect(log.body.entries).toHaveLength(3);
+    expect(outbox.status).toBe(200);
+    expect(outbox.body.records).toEqual([
+      expect.objectContaining({
+        id: expect.stringMatching(/^gid:\/\/shopify\/WebhookDelivery\/[0-9]+$/u),
+        sequence: 1,
+        topic: 'PRODUCTS_CREATE',
+        subscriptionId: firstSubscriptionId,
+        endpoint: {
+          __typename: 'WebhookHttpEndpoint',
+          callbackUrl: 'https://example.com/webhooks/products-create-a',
+        },
+        format: 'JSON',
+        includeFields: [],
+        metafieldNamespaces: [],
+        filter: '',
+        sourceMutationLogEntryId: log.body.entries[2].id,
+        sourceMutationLogIndex: 2,
+        sourceMutationLog: {
+          id: log.body.entries[2].id,
+          index: 2,
+        },
+        resourceGid: product.id,
+        payload: expect.objectContaining({
+          admin_graphql_api_id: product.id,
+          title: 'Webhook Hat',
+          handle: 'webhook-hat',
+          status: 'active',
+          vendor: 'Hermes Test',
+          tags: 'outbox, webhook',
+        }),
+        headers: expect.objectContaining({
+          'x-shopify-topic': 'products/create',
+          'x-shopify-shop-domain': 'example.myshopify.com',
+          'x-shopify-api-version': '2025-01',
+          'x-shopify-hmac-sha256': null,
+        }),
+        delivery: {
+          mode: 'recorded',
+          status: 'recorded',
+          attempts: [],
+        },
+      }),
+      expect.objectContaining({
+        sequence: 2,
+        topic: 'PRODUCTS_CREATE',
+        subscriptionId: secondSubscriptionId,
+        endpoint: {
+          __typename: 'WebhookHttpEndpoint',
+          callbackUrl: 'https://example.com/webhooks/products-create-b',
+        },
+        sourceMutationLogEntryId: log.body.entries[2].id,
+        sourceMutationLogIndex: 2,
+        resourceGid: product.id,
+      }),
+    ]);
+    expect(outbox.body.records[0].headers).not.toHaveProperty('authorization');
+    expect(outbox.body.records[0].headers).not.toHaveProperty('x-shopify-access-token');
+
+    const outboxReset = await request(app).post('/__meta/webhooks/outbox/reset');
+    const outboxAfterReset = await request(app).get('/__meta/webhooks/outbox');
+    const logAfterReset = await request(app).get('/__meta/log');
+    const stateAfterReset = await request(app).get('/__meta/state');
+
+    expect(outboxReset.status).toBe(200);
+    expect(outboxAfterReset.body).toEqual({
+      records: [],
+    });
+    expect(logAfterReset.body.entries).toHaveLength(3);
+    expect(stateAfterReset.body.stagedState.products[product.id]).toMatchObject({
+      title: 'Webhook Hat',
+    });
+  });
+
+  it('clears webhook outbox records on global meta reset and keeps unsupported topics silent', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('unsupported webhook outbox topics must not send network requests'));
+    const app = createApp(config).callback();
+    const createSubscriptionMutation = `mutation CreateWebhookSubscription(
+      $topic: WebhookSubscriptionTopic!
+      $webhookSubscription: WebhookSubscriptionInput!
+    ) {
+      webhookSubscriptionCreate(topic: $topic, webhookSubscription: $webhookSubscription) {
+        webhookSubscription {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }`;
+
+    await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: createSubscriptionMutation,
+        variables: {
+          topic: 'SHOP_UPDATE',
+          webhookSubscription: {
+            format: 'JSON',
+            uri: 'https://example.com/webhooks/shop-update',
+          },
+        },
+      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Unsupported Topic Hat" }) { product { id title } userErrors { field message } } }',
+    });
+
+    const unsupportedOutbox = await request(app).get('/__meta/webhooks/outbox');
+    expect(unsupportedOutbox.body).toEqual({
+      records: [],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: createSubscriptionMutation,
+        variables: {
+          topic: 'PRODUCTS_CREATE',
+          webhookSubscription: {
+            format: 'JSON',
+            uri: 'https://example.com/webhooks/products-create',
+          },
+        },
+      });
+    await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Global Reset Hat" }) { product { id title } userErrors { field message } } }',
+    });
+
+    const populatedOutbox = await request(app).get('/__meta/webhooks/outbox');
+    expect(populatedOutbox.body.records).toHaveLength(1);
+
+    const reset = await request(app).post('/__meta/reset');
+    const outboxAfterReset = await request(app).get('/__meta/webhooks/outbox');
+    const logAfterReset = await request(app).get('/__meta/log');
+
+    expect(reset.status).toBe(200);
+    expect(outboxAfterReset.body).toEqual({
+      records: [],
+    });
+    expect(logAfterReset.body).toEqual({
+      entries: [],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('exposes raw staged mutation documents with interpreted metadata', async () => {
     const app = createApp(config);
     const server = app.callback();
