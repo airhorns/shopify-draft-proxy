@@ -1640,6 +1640,29 @@ export const deliveryProfileRecordSchema = z.strictObject({
 });
 export type DeliveryProfileRecord = z.infer<typeof deliveryProfileRecordSchema>;
 
+export const sellingPlanRecordSchema = z.strictObject({
+  id: z.string(),
+  data: jsonObjectSchema.default({}),
+});
+export type SellingPlanRecord = z.infer<typeof sellingPlanRecordSchema>;
+
+export const sellingPlanGroupRecordSchema = z.strictObject({
+  id: z.string(),
+  cursor: nullableStringSchema.optional(),
+  appId: nullableStringSchema,
+  name: z.string(),
+  merchantCode: z.string(),
+  description: nullableStringSchema,
+  options: z.array(z.string()),
+  position: nullableNumberSchema,
+  summary: nullableStringSchema,
+  createdAt: z.string(),
+  productIds: z.array(z.string()).default([]),
+  productVariantIds: z.array(z.string()).default([]),
+  sellingPlans: z.array(sellingPlanRecordSchema).default([]),
+});
+export type SellingPlanGroupRecord = z.infer<typeof sellingPlanGroupRecordSchema>;
+
 export const calculatedOrderRecordSchema = orderRecordSchema.extend({
   originalOrderId: z.string(),
 });
@@ -1707,6 +1730,8 @@ export const stateSnapshotSchema = z.strictObject({
   priceListOrder: z.array(z.string()).default([]),
   deliveryProfiles: z.record(z.string(), deliveryProfileRecordSchema).default({}),
   deliveryProfileOrder: z.array(z.string()).default([]),
+  sellingPlanGroups: z.record(z.string(), sellingPlanGroupRecordSchema).default({}),
+  sellingPlanGroupOrder: z.array(z.string()).default([]),
   productCollections: z.record(z.string(), productCollectionRecordSchema),
   productMedia: z.record(z.string(), productMediaRecordSchema),
   files: z.record(z.string(), fileRecordSchema).default({}),
@@ -1736,6 +1761,7 @@ export const stateSnapshotSchema = z.strictObject({
   deletedPriceListIds: z.record(z.string(), z.literal(true)).default({}),
   deletedWebPresenceIds: z.record(z.string(), z.literal(true)).default({}),
   deletedDeliveryProfileIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedSellingPlanGroupIds: z.record(z.string(), z.literal(true)).default({}),
   deletedMetafieldDefinitionIds: z.record(z.string(), z.literal(true)).default({}),
   deletedMetaobjectDefinitionIds: z.record(z.string(), z.literal(true)).default({}),
   mergedCustomerIds: z.record(z.string(), z.string()).default({}),

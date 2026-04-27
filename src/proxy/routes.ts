@@ -990,7 +990,10 @@ export function createProxyRouter(config: AppConfig): Router {
       hydrateProductsFromUpstreamResponse(body.query, variables, upstreamBody);
 
       ctx.status = response.status;
-      ctx.body = store.hasStagedProducts() ? handleProductQuery(body.query, variables, config.readMode) : upstreamBody;
+      ctx.body =
+        store.hasStagedProducts() || store.hasStagedSellingPlanGroups()
+          ? handleProductQuery(body.query, variables, config.readMode)
+          : upstreamBody;
       return;
     }
 

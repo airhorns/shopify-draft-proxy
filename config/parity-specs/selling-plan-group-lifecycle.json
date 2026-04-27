@@ -1,0 +1,24 @@
+{
+  "scenarioId": "selling-plan-group-lifecycle",
+  "operationNames": [
+    "sellingPlanGroup",
+    "sellingPlanGroups",
+    "sellingPlanGroupCreate",
+    "sellingPlanGroupUpdate",
+    "sellingPlanGroupDelete",
+    "sellingPlanGroupAddProducts",
+    "sellingPlanGroupRemoveProducts",
+    "sellingPlanGroupAddProductVariants",
+    "sellingPlanGroupRemoveProductVariants"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "mutation-lifecycle", "read-after-write"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/selling-plan-group-lifecycle.json"],
+  "runtimeTestFiles": ["tests/integration/selling-plan-group-flow.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "notes": "HAR-308 captured Admin GraphQL 2026-04 selling-plan group empty/live schema access, create/update/delete payloads, product and product-variant add/remove membership payloads, unknown-id GROUP_DOES_NOT_EXIST userErrors, and downstream product/ProductVariant sellingPlanGroups read-after-write effects. Runtime parity is covered by tests/integration/selling-plan-group-flow.test.ts because the generic parity runner cannot yet chain the full setup, lifecycle, downstream read, and cleanup flow while preserving created IDs across steps."
+}

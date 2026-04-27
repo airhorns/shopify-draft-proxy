@@ -8,7 +8,12 @@ import {
   stripSearchQueryValueQuotes,
   type SearchQueryTerm,
 } from '../search-query-parser.js';
-import { paginateConnectionItems, serializeConnection } from './graphql-helpers.js';
+import {
+  paginateConnectionItems,
+  projectGraphqlObject,
+  readPlainObjectArray,
+  serializeConnection,
+} from './graphql-helpers.js';
 import {
   normalizeOwnerMetafield,
   readMetafieldInputObjects,
@@ -31,6 +36,8 @@ import type {
   ProductMetafieldRecord,
   ProductOptionRecord,
   ProductRecord,
+  SellingPlanGroupRecord,
+  SellingPlanRecord,
   ProductVariantRecord,
   PublicationRecord,
 } from '../state/types.js';
@@ -5153,6 +5160,256 @@ function serializeInventoryItemSelectionSet(
   );
 }
 
+function readStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values)];
+}
+
+type SellingPlanGroupUserError = {
+  field: string[];
+  message: string;
+  code?: string | null;
+};
+
+function sellingPlanGroupDoesNotExistError(): SellingPlanGroupUserError {
+  return {
+    field: ['id'],
+    message: 'Selling plan group does not exist.',
+    code: 'GROUP_DOES_NOT_EXIST',
+  };
+}
+
+function serializeSellingPlanGroupUserErrors(
+  errors: SellingPlanGroupUserError[],
+  field: FieldNode | null,
+): Array<Record<string, unknown>> {
+  const selections = field?.selectionSet?.selections ?? [];
+  return errors.map((error) => {
+    const result: Record<string, unknown> = {};
+    for (const selection of selections) {
+      if (selection.kind !== Kind.FIELD) {
+        continue;
+      }
+
+      const key = selection.alias?.value ?? selection.name.value;
+      switch (selection.name.value) {
+        case 'field':
+          result[key] = error.field;
+          break;
+        case 'message':
+          result[key] = error.message;
+          break;
+        case 'code':
+          result[key] = error.code ?? null;
+          break;
+        default:
+          result[key] = null;
+      }
+    }
+    return result;
+  });
+}
+
+function serializeSellingPlanRecord(plan: SellingPlanRecord, field: FieldNode | null): unknown {
+  if (!field) {
+    return null;
+  }
+
+  return projectGraphqlObject(plan.data, field.selectionSet?.selections ?? [], new Map());
+}
+
+function serializeSellingPlanConnection(
+  plans: SellingPlanRecord[],
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(plans, field, variables, (plan) => plan.id);
+
+  return serializeConnection(field, {
+    items,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (plan) => plan.id,
+    serializeNode: (plan, selection) => serializeSellingPlanRecord(plan, selection),
+  });
+}
+
+function serializeSellingPlanGroupProductsConnection(
+  group: SellingPlanGroupRecord,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const products = group.productIds
+    .map((productId) => store.getEffectiveProductById(productId))
+    .filter((product): product is ProductRecord => product !== null);
+  const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
+    products,
+    field,
+    variables,
+    (product) => product.id,
+  );
+
+  return serializeConnection(field, {
+    items,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (product) => product.id,
+    serializeNode: (product, selection) => serializeProduct(product, selection, variables),
+  });
+}
+
+function serializeSellingPlanGroupProductVariantsConnection(
+  group: SellingPlanGroupRecord,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const productId = typeof args['productId'] === 'string' ? args['productId'] : null;
+  const variants = group.productVariantIds
+    .map((variantId) => store.getEffectiveVariantById(variantId))
+    .filter((variant): variant is ProductVariantRecord => variant !== null)
+    .filter((variant) => productId === null || variant.productId === productId);
+  const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
+    variants,
+    field,
+    variables,
+    (variant) => variant.id,
+  );
+
+  return serializeConnection(field, {
+    items,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (variant) => variant.id,
+    serializeNode: (variant, selection) =>
+      serializeVariantSelectionSet(variant, selection.selectionSet?.selections ?? [], variables),
+  });
+}
+
+function serializeSellingPlanGroup(
+  group: SellingPlanGroupRecord | null,
+  field: FieldNode | null,
+  variables: Record<string, unknown>,
+): unknown {
+  if (!group || !field) {
+    return null;
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const selection of field.selectionSet?.selections ?? []) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = selection.alias?.value ?? selection.name.value;
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'SellingPlanGroup';
+        break;
+      case 'id':
+        result[key] = group.id;
+        break;
+      case 'appId':
+        result[key] = group.appId;
+        break;
+      case 'name':
+        result[key] = group.name;
+        break;
+      case 'merchantCode':
+        result[key] = group.merchantCode;
+        break;
+      case 'description':
+        result[key] = group.description;
+        break;
+      case 'options':
+        result[key] = [...group.options];
+        break;
+      case 'position':
+        result[key] = group.position;
+        break;
+      case 'summary':
+        result[key] = group.summary;
+        break;
+      case 'createdAt':
+        result[key] = group.createdAt;
+        break;
+      case 'appliesToProduct': {
+        const args = getFieldArguments(selection, variables);
+        result[key] = typeof args['productId'] === 'string' && group.productIds.includes(args['productId']);
+        break;
+      }
+      case 'appliesToProductVariant': {
+        const args = getFieldArguments(selection, variables);
+        result[key] =
+          typeof args['productVariantId'] === 'string' && group.productVariantIds.includes(args['productVariantId']);
+        break;
+      }
+      case 'appliesToProductVariants': {
+        const args = getFieldArguments(selection, variables);
+        const productId = typeof args['productId'] === 'string' ? args['productId'] : null;
+        result[key] =
+          productId !== null &&
+          group.productVariantIds.some(
+            (variantId) => store.getEffectiveVariantById(variantId)?.productId === productId,
+          );
+        break;
+      }
+      case 'products':
+        result[key] = serializeSellingPlanGroupProductsConnection(group, selection, variables);
+        break;
+      case 'productsCount':
+        result[key] = serializeCountValue(selection, group.productIds.length);
+        break;
+      case 'productVariants':
+        result[key] = serializeSellingPlanGroupProductVariantsConnection(group, selection, variables);
+        break;
+      case 'productVariantsCount': {
+        const args = getFieldArguments(selection, variables);
+        const productId = typeof args['productId'] === 'string' ? args['productId'] : null;
+        const count =
+          productId === null
+            ? group.productVariantIds.length
+            : group.productVariantIds.filter(
+                (variantId) => store.getEffectiveVariantById(variantId)?.productId === productId,
+              ).length;
+        result[key] = serializeCountValue(selection, count);
+        break;
+      }
+      case 'sellingPlans':
+        result[key] = serializeSellingPlanConnection(group.sellingPlans, selection, variables);
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeSellingPlanGroupConnection(
+  groups: SellingPlanGroupRecord[],
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
+    groups,
+    field,
+    variables,
+    (group) => group.id,
+  );
+
+  return serializeConnection(field, {
+    items,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (group) => group.cursor ?? group.id,
+    serializeNode: (group, selection) => serializeSellingPlanGroup(group, selection, variables),
+  });
+}
+
 function serializeVariantSelectionSet(
   variant: ProductVariantRecord,
   selections: readonly SelectionNode[],
@@ -5248,6 +5505,19 @@ function serializeVariantSelectionSet(
           getEffectiveMetafieldsForOwner(variant.id),
           selection,
           variables,
+        );
+        break;
+      case 'sellingPlanGroups':
+        result[key] = serializeSellingPlanGroupConnection(
+          store.listEffectiveSellingPlanGroupsForProductVariant(variant.id),
+          selection,
+          variables,
+        );
+        break;
+      case 'sellingPlanGroupsCount':
+        result[key] = serializeCountValue(
+          selection,
+          store.listEffectiveSellingPlanGroupsForProductVariant(variant.id).length,
         );
         break;
       default:
@@ -6182,6 +6452,8 @@ function serializeProductField(product: ProductRecord, field: FieldNode, variabl
       return product.totalInventory;
     case 'tracksInventory':
       return product.tracksInventory;
+    case 'requiresSellingPlan':
+      return false;
     case 'createdAt':
       return product.createdAt;
     case 'updatedAt':
@@ -6256,6 +6528,14 @@ function serializeProductField(product: ProductRecord, field: FieldNode, variabl
     }
     case 'metafields':
       return serializeOwnerMetafieldsConnection(getEffectiveMetafieldsForOwner(product.id), field, variables);
+    case 'sellingPlanGroups':
+      return serializeSellingPlanGroupConnection(
+        store.listEffectiveSellingPlanGroupsForProduct(product.id),
+        field,
+        variables,
+      );
+    case 'sellingPlanGroupsCount':
+      return serializeCountValue(field, store.listEffectiveSellingPlanGroupsForProduct(product.id).length);
     default:
       return null;
   }
@@ -7272,6 +7552,253 @@ export function hydrateProductsFromUpstreamResponse(
   }
 }
 
+function readStringInput(input: Record<string, unknown>, key: string, fallback: string | null = null): string | null {
+  const value = input[key];
+  return typeof value === 'string' ? value : fallback;
+}
+
+function readNumberInput(input: Record<string, unknown>, key: string, fallback: number | null = null): number | null {
+  const value = input[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function sellingPlanPolicyValue(input: Record<string, unknown>): Record<string, unknown> {
+  const fixedValue = input['fixedValue'];
+  if (typeof fixedValue === 'string' || typeof fixedValue === 'number') {
+    return {
+      __typename: 'SellingPlanPricingPolicyFixedValue',
+      fixedValue,
+    };
+  }
+
+  return {
+    __typename: 'SellingPlanPricingPolicyPercentageValue',
+    percentage: typeof input['percentage'] === 'number' ? input['percentage'] : null,
+  };
+}
+
+function sellingPlanBillingPolicy(input: Record<string, unknown>, existing: unknown): Record<string, unknown> {
+  const recurring = readProductInput(input['recurring']);
+  if (Object.keys(recurring).length > 0) {
+    return {
+      __typename: 'SellingPlanRecurringBillingPolicy',
+      interval: readStringInput(recurring, 'interval'),
+      intervalCount: readNumberInput(recurring, 'intervalCount'),
+      minCycles: readNumberInput(recurring, 'minCycles'),
+      maxCycles: readNumberInput(recurring, 'maxCycles'),
+    };
+  }
+
+  const fixed = readProductInput(input['fixed']);
+  if (Object.keys(fixed).length > 0) {
+    return {
+      __typename: 'SellingPlanFixedBillingPolicy',
+      checkoutCharge: readProductInput(fixed['checkoutCharge']),
+      remainingBalanceChargeTrigger: readStringInput(fixed, 'remainingBalanceChargeTrigger'),
+      remainingBalanceChargeExactTime: readStringInput(fixed, 'remainingBalanceChargeExactTime'),
+      remainingBalanceChargeTimeAfterCheckout: readStringInput(fixed, 'remainingBalanceChargeTimeAfterCheckout'),
+    };
+  }
+
+  return isObject(existing) ? structuredClone(existing) : { __typename: 'SellingPlanRecurringBillingPolicy' };
+}
+
+function sellingPlanDeliveryPolicy(input: Record<string, unknown>, existing: unknown): Record<string, unknown> {
+  const recurring = readProductInput(input['recurring']);
+  if (Object.keys(recurring).length > 0) {
+    return {
+      __typename: 'SellingPlanRecurringDeliveryPolicy',
+      interval: readStringInput(recurring, 'interval'),
+      intervalCount: readNumberInput(recurring, 'intervalCount'),
+      cutoff: readNumberInput(recurring, 'cutoff'),
+      intent: readStringInput(recurring, 'intent', 'FULFILLMENT_BEGIN'),
+      preAnchorBehavior: readStringInput(recurring, 'preAnchorBehavior', 'ASAP'),
+    };
+  }
+
+  const fixed = readProductInput(input['fixed']);
+  if (Object.keys(fixed).length > 0) {
+    return {
+      __typename: 'SellingPlanFixedDeliveryPolicy',
+      cutoff: readNumberInput(fixed, 'cutoff'),
+      fulfillmentTrigger: readStringInput(fixed, 'fulfillmentTrigger'),
+      fulfillmentExactTime: readStringInput(fixed, 'fulfillmentExactTime'),
+      intent: readStringInput(fixed, 'intent'),
+      preAnchorBehavior: readStringInput(fixed, 'preAnchorBehavior'),
+    };
+  }
+
+  return isObject(existing) ? structuredClone(existing) : { __typename: 'SellingPlanRecurringDeliveryPolicy' };
+}
+
+function sellingPlanPricingPolicies(input: unknown): Array<Record<string, unknown>> {
+  return readPlainObjectArray(input).map((policyInput) => {
+    const fixed = readProductInput(policyInput['fixed']);
+    if (Object.keys(fixed).length > 0) {
+      return {
+        __typename: 'SellingPlanFixedPricingPolicy',
+        adjustmentType: readStringInput(fixed, 'adjustmentType'),
+        adjustmentValue: sellingPlanPolicyValue(readProductInput(fixed['adjustmentValue'])),
+      };
+    }
+
+    const recurring = readProductInput(policyInput['recurring']);
+    return {
+      __typename: 'SellingPlanRecurringPricingPolicy',
+      adjustmentType: readStringInput(recurring, 'adjustmentType'),
+      adjustmentValue: sellingPlanPolicyValue(readProductInput(recurring['adjustmentValue'])),
+      afterCycle: readNumberInput(recurring, 'afterCycle'),
+    };
+  });
+}
+
+function makeSellingPlanRecord(input: Record<string, unknown>, existing?: SellingPlanRecord): SellingPlanRecord {
+  const previous = existing?.data ?? {};
+  const id = readStringInput(input, 'id', existing?.id ?? makeProxySyntheticGid('SellingPlan'))!;
+  const data: Record<string, unknown> = {
+    ...structuredClone(previous),
+    __typename: 'SellingPlan',
+    id,
+    name: readStringInput(input, 'name', typeof previous['name'] === 'string' ? previous['name'] : 'Selling plan'),
+    description: readStringInput(
+      input,
+      'description',
+      typeof previous['description'] === 'string' ? previous['description'] : null,
+    ),
+    options: readStringArray(input['options'] ?? previous['options']),
+    position: readNumberInput(
+      input,
+      'position',
+      typeof previous['position'] === 'number' ? previous['position'] : null,
+    ),
+    category: readStringInput(
+      input,
+      'category',
+      typeof previous['category'] === 'string' ? previous['category'] : null,
+    ),
+    createdAt: typeof previous['createdAt'] === 'string' ? previous['createdAt'] : makeSyntheticTimestamp(),
+    billingPolicy: sellingPlanBillingPolicy(readProductInput(input['billingPolicy']), previous['billingPolicy']),
+    deliveryPolicy: sellingPlanDeliveryPolicy(readProductInput(input['deliveryPolicy']), previous['deliveryPolicy']),
+    inventoryPolicy: {
+      reserve:
+        readStringInput(readProductInput(input['inventoryPolicy']), 'reserve') ??
+        (isObject(previous['inventoryPolicy']) && typeof previous['inventoryPolicy']['reserve'] === 'string'
+          ? previous['inventoryPolicy']['reserve']
+          : null),
+    },
+    pricingPolicies: Object.prototype.hasOwnProperty.call(input, 'pricingPolicies')
+      ? sellingPlanPricingPolicies(input['pricingPolicies'])
+      : existing
+        ? []
+        : [],
+  };
+
+  return {
+    id,
+    data: data as SellingPlanRecord['data'],
+  };
+}
+
+function summarizeSellingPlanGroup(plans: SellingPlanRecord[]): string | null {
+  const policies: unknown[] = plans.flatMap((plan) =>
+    Array.isArray(plan.data['pricingPolicies']) ? plan.data['pricingPolicies'] : [],
+  );
+  const firstPolicy = policies.find((policy): policy is Record<string, unknown> => isObject(policy));
+  const adjustmentValue = isObject(firstPolicy?.['adjustmentValue']) ? firstPolicy['adjustmentValue'] : null;
+  const percentage = typeof adjustmentValue?.['percentage'] === 'number' ? `${adjustmentValue['percentage']}%` : '';
+  return `${plans.length} delivery frequency, ${percentage} discount`;
+}
+
+function applySellingPlanGroupInput(
+  input: Record<string, unknown>,
+  existing?: SellingPlanGroupRecord,
+  resources: Record<string, unknown> = {},
+): SellingPlanGroupRecord {
+  const currentPlans = existing?.sellingPlans ?? [];
+  const plansById = new Map(currentPlans.map((plan) => [plan.id, plan]));
+  const nextPlans = [...currentPlans];
+
+  for (const createInput of readPlainObjectArray(input['sellingPlansToCreate'])) {
+    nextPlans.push(makeSellingPlanRecord(createInput));
+  }
+
+  for (const updateInput of readPlainObjectArray(input['sellingPlansToUpdate'])) {
+    const planId = readStringInput(updateInput, 'id');
+    const existingPlan = planId ? plansById.get(planId) : undefined;
+    if (!planId || !existingPlan) {
+      continue;
+    }
+
+    const index = nextPlans.findIndex((plan) => plan.id === planId);
+    nextPlans[index] = makeSellingPlanRecord(updateInput, existingPlan);
+  }
+
+  const deletedPlanIds = new Set(readStringArray(input['sellingPlansToDelete']));
+  const filteredPlans = nextPlans.filter((plan) => !deletedPlanIds.has(plan.id));
+  const createdAt = existing?.createdAt ?? makeSyntheticTimestamp();
+  const productIds = uniqueStrings([...(existing?.productIds ?? []), ...readStringArray(resources['productIds'])]);
+  const productVariantIds = uniqueStrings([
+    ...(existing?.productVariantIds ?? []),
+    ...readStringArray(resources['productVariantIds']),
+  ]);
+
+  const group: SellingPlanGroupRecord = {
+    id: existing?.id ?? makeProxySyntheticGid('SellingPlanGroup'),
+    appId: readStringInput(input, 'appId', existing?.appId ?? null),
+    name: readStringInput(input, 'name', existing?.name ?? 'Selling plan group')!,
+    merchantCode: readStringInput(input, 'merchantCode', existing?.merchantCode ?? 'selling-plan-group')!,
+    description: readStringInput(input, 'description', existing?.description ?? null),
+    options: readStringArray(input['options'] ?? existing?.options ?? []),
+    position: readNumberInput(input, 'position', existing?.position ?? null),
+    summary: null,
+    createdAt,
+    productIds,
+    productVariantIds,
+    sellingPlans: filteredPlans,
+  };
+  group.summary = summarizeSellingPlanGroup(group.sellingPlans);
+  return group;
+}
+
+function serializeSellingPlanGroupMutationPayload(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  payload: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of field.selectionSet?.selections ?? []) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = selection.alias?.value ?? selection.name.value;
+    switch (selection.name.value) {
+      case 'sellingPlanGroup':
+        result[key] = serializeSellingPlanGroup(
+          (payload['sellingPlanGroup'] as SellingPlanGroupRecord | null | undefined) ?? null,
+          selection,
+          variables,
+        );
+        break;
+      case 'userErrors':
+        result[key] = serializeSellingPlanGroupUserErrors(
+          (payload['userErrors'] as SellingPlanGroupUserError[] | undefined) ?? [],
+          selection,
+        );
+        break;
+      case 'deletedSellingPlanGroupId':
+      case 'deletedSellingPlanIds':
+      case 'removedProductIds':
+      case 'removedProductVariantIds':
+        result[key] = payload[selection.name.value] ?? null;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+  return result;
+}
+
 export function handleProductMutation(
   document: string,
   variables: Record<string, unknown>,
@@ -7282,6 +7809,189 @@ export function handleProductMutation(
   const responseKey = field.alias?.value ?? field.name.value;
 
   switch (field.name.value) {
+    case 'sellingPlanGroupCreate': {
+      const group = store.upsertStagedSellingPlanGroup(
+        applySellingPlanGroupInput(readProductInput(args['input']), undefined, readProductInput(args['resources'])),
+      );
+      return {
+        data: {
+          [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+            sellingPlanGroup: group,
+            userErrors: [],
+          }),
+        },
+      };
+    }
+    case 'sellingPlanGroupUpdate': {
+      const id = typeof args['id'] === 'string' ? args['id'] : null;
+      const existing = id ? store.getEffectiveSellingPlanGroupById(id) : null;
+      if (!id || !existing) {
+        return {
+          data: {
+            [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+              deletedSellingPlanIds: null,
+              sellingPlanGroup: null,
+              userErrors: [sellingPlanGroupDoesNotExistError()],
+            }),
+          },
+        };
+      }
+
+      const input = readProductInput(args['input']);
+      const deletedSellingPlanIds = readStringArray(input['sellingPlansToDelete']).filter((planId) =>
+        existing.sellingPlans.some((plan) => plan.id === planId),
+      );
+      const group = store.upsertStagedSellingPlanGroup(applySellingPlanGroupInput(input, existing));
+      return {
+        data: {
+          [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+            deletedSellingPlanIds,
+            sellingPlanGroup: group,
+            userErrors: [],
+          }),
+        },
+      };
+    }
+    case 'sellingPlanGroupDelete': {
+      const id = typeof args['id'] === 'string' ? args['id'] : null;
+      const existing = id ? store.getEffectiveSellingPlanGroupById(id) : null;
+      if (!id || !existing) {
+        return {
+          data: {
+            [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+              deletedSellingPlanGroupId: null,
+              userErrors: [sellingPlanGroupDoesNotExistError()],
+            }),
+          },
+        };
+      }
+
+      store.deleteStagedSellingPlanGroup(id);
+      return {
+        data: {
+          [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+            deletedSellingPlanGroupId: id,
+            userErrors: [],
+          }),
+        },
+      };
+    }
+    case 'sellingPlanGroupAddProducts': {
+      const id = typeof args['id'] === 'string' ? args['id'] : null;
+      const existing = id ? store.getEffectiveSellingPlanGroupById(id) : null;
+      if (!id || !existing) {
+        return {
+          data: {
+            [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+              sellingPlanGroup: null,
+              userErrors: [sellingPlanGroupDoesNotExistError()],
+            }),
+          },
+        };
+      }
+
+      const group = store.upsertStagedSellingPlanGroup({
+        ...existing,
+        productIds: uniqueStrings([...existing.productIds, ...readStringArray(args['productIds'])]),
+      });
+      return {
+        data: {
+          [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+            sellingPlanGroup: group,
+            userErrors: [],
+          }),
+        },
+      };
+    }
+    case 'sellingPlanGroupRemoveProducts': {
+      const id = typeof args['id'] === 'string' ? args['id'] : null;
+      const existing = id ? store.getEffectiveSellingPlanGroupById(id) : null;
+      if (!id || !existing) {
+        return {
+          data: {
+            [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+              removedProductIds: null,
+              userErrors: [sellingPlanGroupDoesNotExistError()],
+            }),
+          },
+        };
+      }
+
+      const requestedIds = readStringArray(args['productIds']);
+      const requested = new Set(requestedIds);
+      const removedProductIds = existing.productIds.filter((productId) => requested.has(productId));
+      store.upsertStagedSellingPlanGroup({
+        ...existing,
+        productIds: existing.productIds.filter((productId) => !requested.has(productId)),
+      });
+      return {
+        data: {
+          [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+            removedProductIds,
+            userErrors: [],
+          }),
+        },
+      };
+    }
+    case 'sellingPlanGroupAddProductVariants': {
+      const id = typeof args['id'] === 'string' ? args['id'] : null;
+      const existing = id ? store.getEffectiveSellingPlanGroupById(id) : null;
+      if (!id || !existing) {
+        return {
+          data: {
+            [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+              sellingPlanGroup: null,
+              userErrors: [sellingPlanGroupDoesNotExistError()],
+            }),
+          },
+        };
+      }
+
+      const group = store.upsertStagedSellingPlanGroup({
+        ...existing,
+        productVariantIds: uniqueStrings([
+          ...existing.productVariantIds,
+          ...readStringArray(args['productVariantIds']),
+        ]),
+      });
+      return {
+        data: {
+          [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+            sellingPlanGroup: group,
+            userErrors: [],
+          }),
+        },
+      };
+    }
+    case 'sellingPlanGroupRemoveProductVariants': {
+      const id = typeof args['id'] === 'string' ? args['id'] : null;
+      const existing = id ? store.getEffectiveSellingPlanGroupById(id) : null;
+      if (!id || !existing) {
+        return {
+          data: {
+            [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+              removedProductVariantIds: null,
+              userErrors: [sellingPlanGroupDoesNotExistError()],
+            }),
+          },
+        };
+      }
+
+      const requested = new Set(readStringArray(args['productVariantIds']));
+      const removedProductVariantIds = existing.productVariantIds.filter((variantId) => requested.has(variantId));
+      store.upsertStagedSellingPlanGroup({
+        ...existing,
+        productVariantIds: existing.productVariantIds.filter((variantId) => !requested.has(variantId)),
+      });
+      return {
+        data: {
+          [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+            removedProductVariantIds,
+            userErrors: [],
+          }),
+        },
+      };
+    }
     case 'tagsAdd': {
       const rawId = args['id'];
       const productId = typeof rawId === 'string' ? rawId : null;
@@ -9695,6 +10405,24 @@ export function handleProductQuery(
         data[responseKey] = variant
           ? serializeVariantSelectionSet(variant, field.selectionSet?.selections ?? [], variables)
           : null;
+        break;
+      }
+      case 'sellingPlanGroup': {
+        const rawId = args['id'];
+        const id = typeof rawId === 'string' ? rawId : null;
+        data[responseKey] = serializeSellingPlanGroup(
+          id ? store.getEffectiveSellingPlanGroupById(id) : null,
+          field,
+          variables,
+        );
+        break;
+      }
+      case 'sellingPlanGroups': {
+        data[responseKey] = serializeSellingPlanGroupConnection(
+          store.listEffectiveSellingPlanGroups(),
+          field,
+          variables,
+        );
         break;
       }
       case 'inventoryItem': {
