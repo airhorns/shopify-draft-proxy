@@ -18,10 +18,153 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization-locale-translation-fixture.json"
   ],
   "runtimeTestFiles": ["tests/integration/localization-flow.test.ts"],
-  "comparisonMode": "captured-fixture",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/localization-locale-translation-read.graphql",
+    "variablesCapturePath": "$.readCapture.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "locale-and-resource-read-data",
+        "capturePath": "$.readCapture.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.availableLocalesExcerpt",
+          "$.allShopLocales[0].locale",
+          "$.allShopLocales[0].name",
+          "$.allShopLocales[0].primary",
+          "$.allShopLocales[0].published",
+          "$.publishedShopLocales",
+          "$.resources.nodes[0].resourceId",
+          "$.resources.nodes[0].translatableContent",
+          "$.resources.nodes[0].translations",
+          "$.byIds.nodes",
+          "$.byIds.edges",
+          "$.byIds.pageInfo",
+          "$.missing"
+        ]
+      },
+      {
+        "name": "unknown-resource-user-errors",
+        "capturePath": "$.unknownResourceValidation.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization-unknown-resource-validation.graphql",
+          "variablesCapturePath": "$.unknownResourceValidation.variables"
+        }
+      },
+      {
+        "name": "shop-locale-enable-data",
+        "capturePath": "$.shopLocaleLifecycle.enable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization-shop-locale-enable.graphql",
+          "variables": { "locale": "fr" }
+        }
+      },
+      {
+        "name": "shop-locale-update-data",
+        "capturePath": "$.shopLocaleLifecycle.update",
+        "proxyPath": "$.data.shopLocaleUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization-shop-locale-update.graphql",
+          "variables": { "locale": "fr", "shopLocale": { "published": false } }
+        }
+      },
+      {
+        "name": "translation-register-data",
+        "capturePath": "$.translationLifecycle.register",
+        "proxyPath": "$.data.translationsRegister",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.translations[0].key",
+          "$.translations[0].value",
+          "$.translations[0].locale",
+          "$.translations[0].outdated",
+          "$.translations[0].market",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization-translations-register.graphql",
+          "variables": {
+            "resourceId": "gid://shopify/Product/9801098789170",
+            "translations": [
+              {
+                "locale": "fr",
+                "key": "title",
+                "value": "Titre HAR-314 1777169385875",
+                "translatableContentDigest": "43a0ee61d168b8330a4e71f9f034be6513b1729f9190950ae11f30b2d048c142"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "translation-downstream-registered-data",
+        "capturePath": "$.translationLifecycle.downstreamRegistered",
+        "proxyPath": "$.data.translatableResource",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.resourceId",
+          "$.translations[0].key",
+          "$.translations[0].value",
+          "$.translations[0].locale",
+          "$.translations[0].outdated",
+          "$.translations[0].market"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization-translations-read.graphql",
+          "variables": { "resourceId": "gid://shopify/Product/9801098789170" }
+        }
+      },
+      {
+        "name": "translation-remove-data",
+        "capturePath": "$.translationLifecycle.remove",
+        "proxyPath": "$.data.translationsRemove",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.translations[0].key",
+          "$.translations[0].value",
+          "$.translations[0].locale",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization-translations-remove.graphql",
+          "variables": {
+            "resourceId": "gid://shopify/Product/9801098789170",
+            "keys": ["title"],
+            "locales": ["fr"]
+          }
+        }
+      },
+      {
+        "name": "translation-downstream-removed-data",
+        "capturePath": "$.translationLifecycle.downstreamRemoved",
+        "proxyPath": "$.data.translatableResource",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization-translations-read.graphql",
+          "variables": { "resourceId": "gid://shopify/Product/9801098789170" }
+        }
+      },
+      {
+        "name": "shop-locale-disable-data",
+        "capturePath": "$.shopLocaleLifecycle.disable",
+        "proxyPath": "$.data.shopLocaleDisable",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization-shop-locale-disable.graphql",
+          "variables": { "locale": "fr" }
+        }
+      }
+    ]
   },
-  "notes": "Captured Admin GraphQL 2026-04 localization evidence covers locale catalog/shop locale reads, product translatable resources and missing-resource behavior, unknown-resource TranslationUserError branches, shopLocaleEnable/update/disable with cleanup, and translationsRegister/remove with downstream translatableResource read-after-write. Runtime parity is enforced by tests/integration/localization-flow.test.ts while the generic parity runner does not yet replay this multi-step locale and translation lifecycle fixture."
+  "notes": "Captured Admin GraphQL 2026-04 localization evidence covers locale catalog/shop locale reads, product translatable resources and missing-resource behavior, unknown-resource TranslationUserError branches, shopLocaleEnable/update/disable with cleanup, and translationsRegister/remove with downstream translatableResource read-after-write. The generic parity runner now replays the captured read, validation, locale lifecycle, and translation lifecycle through the local proxy; selected read paths exclude Shopify opaque resource pagination and nested product-option resources not modeled by this product-focused slice."
 }
