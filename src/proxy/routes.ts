@@ -8,6 +8,7 @@ import type { MutationLogInterpretedMetadata } from '../state/types.js';
 import type { AppConfig } from '../config.js';
 import { createUpstreamGraphQLClient } from '../shopify/upstream-client.js';
 import { requestUpstreamGraphQL } from '../shopify/upstream-request.js';
+import { ADMIN_PLATFORM_QUERY_ROOTS, FLOW_UTILITY_MUTATION_ROOTS, handleAdminPlatformQuery } from './admin-platform.js';
 import { handleB2BQuery } from './b2b.js';
 import { getOperationCapability, type OperationCapability } from './capabilities.js';
 import { findOperationRegistryEntry } from './operation-registry.js';
@@ -327,6 +328,18 @@ function buildUnsupportedMutationObservability(parsed: ParsedOperation): Partial
     };
   }
 
+  if (primaryRootField && FLOW_UTILITY_MUTATION_ROOTS.has(primaryRootField)) {
+    return {
+      registeredOperation,
+      safety: {
+        classification: 'unsupported-flow-side-effect-mutation',
+        wouldProxyToShopify: true,
+        reason:
+          'Flow utility mutations can generate signatures or deliver Flow triggers; local signing/trigger semantics and commit replay are required before support.',
+      },
+    };
+  }
+
   return { registeredOperation };
 }
 
@@ -338,6 +351,10 @@ function unsupportedMutationNotes(parsed: ParsedOperation): string {
 
   if (primaryRootField && APP_BILLING_ACCESS_MUTATION_ROOTS.has(primaryRootField)) {
     return 'Unsupported app billing/access mutation would be proxied to Shopify. These roots can alter merchant billing, installation state, app scopes, or delegated tokens and require conformance-backed local staging plus raw commit replay before support.';
+  }
+
+  if (primaryRootField && FLOW_UTILITY_MUTATION_ROOTS.has(primaryRootField)) {
+    return 'Unsupported Flow utility mutation would be proxied to Shopify. Flow signature generation and trigger delivery require local signing/trigger semantics plus raw commit replay before support.';
   }
 
   const registryEntry = findOperationRegistryEntry(parsed.type, [...parsed.rootFields, parsed.name]);
@@ -438,6 +455,16 @@ export function createProxyRouter(config: AppConfig): Router {
         ctx.body = discountMutation.response;
         return;
       }
+    }
+
+    if (
+      parsed.type === 'query' &&
+      config.readMode === 'snapshot' &&
+      parsed.rootFields.some((rootField) => ADMIN_PLATFORM_QUERY_ROOTS.has(rootField))
+    ) {
+      ctx.status = 200;
+      ctx.body = handleAdminPlatformQuery(body.query, variables);
+      return;
     }
 
     if (isProductLocalMutationCapability(capability)) {
