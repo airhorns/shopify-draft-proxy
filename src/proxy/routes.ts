@@ -130,6 +130,14 @@ const CARRIER_SERVICE_MUTATION_ROOTS = new Set([
   'carrierServiceDelete',
 ]);
 
+const SHIPPING_SETTINGS_MUTATION_ROOTS = new Set([
+  'locationLocalPickupEnable',
+  'locationLocalPickupDisable',
+  'shippingPackageUpdate',
+  'shippingPackageMakeDefault',
+  'shippingPackageDelete',
+]);
+
 const FULFILLMENT_ORDER_LIFECYCLE_MUTATION_ROOTS = new Set([
   'fulfillmentOrderHold',
   'fulfillmentOrderReleaseHold',
@@ -356,6 +364,26 @@ function hasSelectedUserErrors(payload: unknown): boolean {
   return hasOwnKey(payload, 'userErrors') && Array.isArray(payload['userErrors']) && payload['userErrors'].length > 0;
 }
 
+function hasGraphQLErrorsOrUserErrors(payload: unknown): boolean {
+  if (hasOwnKey(payload, 'errors') && Array.isArray(payload['errors']) && payload['errors'].length > 0) {
+    return true;
+  }
+
+  if (hasSelectedUserErrors(payload)) {
+    return true;
+  }
+
+  if (Array.isArray(payload)) {
+    return payload.some(hasGraphQLErrorsOrUserErrors);
+  }
+
+  if (typeof payload === 'object' && payload !== null) {
+    return Object.values(payload).some(hasGraphQLErrorsOrUserErrors);
+  }
+
+  return false;
+}
+
 function isRejectedCreateMutationResponse(rootField: string | null | undefined, responseBody: unknown): boolean {
   if (rootField !== 'orderCreate' && rootField !== 'draftOrderCreate') {
     return false;
@@ -542,9 +570,12 @@ export function createProxyRouter(config: AppConfig): Router {
       capability.execution === 'stage-locally' &&
       capability.domain === 'shipping-fulfillments' &&
       primaryRootField &&
-      (FULFILLMENT_SERVICE_MUTATION_ROOTS.has(primaryRootField) || CARRIER_SERVICE_MUTATION_ROOTS.has(primaryRootField))
+      (FULFILLMENT_SERVICE_MUTATION_ROOTS.has(primaryRootField) ||
+        CARRIER_SERVICE_MUTATION_ROOTS.has(primaryRootField) ||
+        SHIPPING_SETTINGS_MUTATION_ROOTS.has(primaryRootField))
     ) {
       const isCarrierServiceMutation = CARRIER_SERVICE_MUTATION_ROOTS.has(primaryRootField);
+      const isShippingSettingsMutation = SHIPPING_SETTINGS_MUTATION_ROOTS.has(primaryRootField);
       proxyLogger.debug(
         {
           execution: capability.execution,
@@ -552,28 +583,34 @@ export function createProxyRouter(config: AppConfig): Router {
           operationType: parsed.type,
           rootFields: parsed.rootFields,
         },
-        isCarrierServiceMutation
-          ? 'staging supported carrier service mutation locally'
-          : 'staging supported fulfillment service mutation locally',
+        isShippingSettingsMutation
+          ? 'staging supported shipping settings mutation locally'
+          : isCarrierServiceMutation
+            ? 'staging supported carrier service mutation locally'
+            : 'staging supported fulfillment service mutation locally',
       );
 
       const responseBody = handleStorePropertiesMutation(body.query, variables);
 
-      store.appendLog({
-        id: makeSyntheticGid('MutationLogEntry'),
-        receivedAt: makeSyntheticTimestamp(),
-        operationName: capability.operationName,
-        path: ctx.path,
-        query: body.query,
-        variables,
-        requestBody,
-        stagedResourceIds: collectProxySyntheticGids(responseBody),
-        status: 'staged',
-        interpreted: interpretMutationLogEntry(parsed, capability),
-        notes: isCarrierServiceMutation
-          ? 'Staged locally in the in-memory carrier service draft store; callback URL and service-discovery endpoints are not invoked.'
-          : 'Staged locally in the in-memory fulfillment service draft store; callback, inventory, tracking, and fulfillment-order notification endpoints are not invoked.',
-      });
+      if (!hasGraphQLErrorsOrUserErrors(responseBody)) {
+        store.appendLog({
+          id: makeSyntheticGid('MutationLogEntry'),
+          receivedAt: makeSyntheticTimestamp(),
+          operationName: capability.operationName,
+          path: ctx.path,
+          query: body.query,
+          variables,
+          requestBody,
+          stagedResourceIds: collectProxySyntheticGids(responseBody),
+          status: 'staged',
+          interpreted: interpretMutationLogEntry(parsed, capability),
+          notes: isShippingSettingsMutation
+            ? 'Staged locally in the in-memory shipping settings draft store; no Shopify delivery settings or package configuration are mutated at runtime.'
+            : isCarrierServiceMutation
+              ? 'Staged locally in the in-memory carrier service draft store; callback URL and service-discovery endpoints are not invoked.'
+              : 'Staged locally in the in-memory fulfillment service draft store; callback, inventory, tracking, and fulfillment-order notification endpoints are not invoked.',
+        });
+      }
 
       ctx.status = 200;
       ctx.body = responseBody;
@@ -1210,6 +1247,15 @@ export function createProxyRouter(config: AppConfig): Router {
           return;
         }
 
+        if (
+          (primaryRootField === 'location' || primaryRootField === 'locationByIdentifier') &&
+          store.hasStagedLocations()
+        ) {
+          ctx.status = 200;
+          ctx.body = handleStorePropertiesQuery(body.query, variables);
+          return;
+        }
+
         const response = await requestUpstreamGraphQL(upstream, ctx, {
           body: {
             query: body.query,
@@ -1272,7 +1318,10 @@ export function createProxyRouter(config: AppConfig): Router {
           (primaryRootField === 'carrierService' &&
             typeof variables['id'] === 'string' &&
             store.getEffectiveCarrierServiceById(variables['id']) !== null) ||
-          (primaryRootField === 'carrierServices' && store.hasStagedCarrierServices()))
+          (primaryRootField === 'carrierServices' && store.hasStagedCarrierServices()) ||
+          (primaryRootField === 'availableCarrierServices' &&
+            (store.hasStagedCarrierServices() || store.hasStagedLocations())) ||
+          (primaryRootField === 'locationsAvailableForDeliveryProfilesConnection' && store.hasStagedLocations()))
       ) {
         ctx.status = 200;
         ctx.body = handleStorePropertiesQuery(body.query, variables);

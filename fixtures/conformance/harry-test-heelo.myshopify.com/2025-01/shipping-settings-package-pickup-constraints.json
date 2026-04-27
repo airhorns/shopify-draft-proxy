@@ -1,0 +1,134 @@
+{
+  "capturedAt": "2026-04-27T16:20:00Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "captureType": "safe-read-and-controlled-local-pickup-probe",
+  "rootShapes": {
+    "availableCarrierServices": "returns [DeliveryCarrierServiceAndLocations!]!",
+    "locationsAvailableForDeliveryProfilesConnection": "returns LocationConnection! with first/after/last/before/reverse",
+    "locationLocalPickupEnable": "localPickupSettings: DeliveryLocationLocalPickupEnableInput!",
+    "locationLocalPickupDisable": "locationId: ID!",
+    "shippingPackageUpdate": "id: ID!, shippingPackage: CustomShippingPackageInput!",
+    "shippingPackageMakeDefault": "id: ID!",
+    "shippingPackageDelete": "id: ID!",
+    "fulfillmentConstraintRules": "blocked by read_fulfillment_constraint_rules scope",
+    "fulfillmentConstraintRuleCreateUpdateDelete": "blocked by write_fulfillment_constraint_rules scope"
+  },
+  "safeReads": {
+    "availableCarrierServices": {
+      "data": {
+        "availableCarrierServices": [
+          {
+            "carrierService": {
+              "id": "gid://shopify/DeliveryCarrierService/95194480946",
+              "name": "canada_post",
+              "formattedName": "Canada Post (Discounted rates from Shopify Shipping)",
+              "active": true,
+              "supportsServiceDiscovery": true
+            },
+            "locationsCount": 2
+          },
+          {
+            "carrierService": {
+              "id": "gid://shopify/DeliveryCarrierService/97859273010",
+              "name": "dhl_express",
+              "formattedName": "DHL Express (Discounted rates from Shopify Shipping)",
+              "active": true,
+              "supportsServiceDiscovery": true
+            },
+            "locationsCount": 2
+          },
+          {
+            "carrierService": {
+              "id": "gid://shopify/DeliveryCarrierService/95194513714",
+              "name": "purolator",
+              "formattedName": "Purolator (Discounted rates from Shopify Shipping)",
+              "active": true,
+              "supportsServiceDiscovery": true
+            },
+            "locationsCount": 2
+          }
+        ]
+      }
+    },
+    "locationsAvailableForDeliveryProfilesConnection": {
+      "data": {
+        "nodes": [
+          "gid://shopify/Location/106318430514",
+          "gid://shopify/Location/106318463282",
+          "gid://shopify/Location/106318496050"
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false
+        }
+      }
+    }
+  },
+  "localPickupLifecycle": {
+    "locationId": "gid://shopify/Location/106318496050",
+    "enable": {
+      "data": {
+        "locationLocalPickupEnable": {
+          "localPickupSettings": {
+            "pickupTime": "TWO_HOURS",
+            "instructions": "HAR-320 temporary pickup instructions"
+          },
+          "userErrors": []
+        }
+      }
+    },
+    "afterEnableRead": {
+      "data": {
+        "location": {
+          "id": "gid://shopify/Location/106318496050",
+          "name": "Snow City Warehouse",
+          "localPickupSettingsV2": {
+            "pickupTime": "TWO_HOURS",
+            "instructions": "HAR-320 temporary pickup instructions"
+          }
+        }
+      }
+    },
+    "disable": {
+      "data": {
+        "locationLocalPickupDisable": {
+          "locationId": "gid://shopify/Location/106318496050",
+          "userErrors": []
+        }
+      }
+    },
+    "afterDisableRead": {
+      "data": {
+        "location": {
+          "id": "gid://shopify/Location/106318496050",
+          "name": "Snow City Warehouse",
+          "localPickupSettingsV2": null
+        }
+      }
+    },
+    "unknownLocationErrors": {
+      "enable": {
+        "field": ["localPickupSettings"],
+        "message": "Unable to find an active location for location ID 999999999999",
+        "code": "ACTIVE_LOCATION_NOT_FOUND"
+      },
+      "disable": {
+        "field": ["locationId"],
+        "message": "Unable to find an active location for location ID 999999999999",
+        "code": "ACTIVE_LOCATION_NOT_FOUND"
+      }
+    }
+  },
+  "shippingPackageUnknownId": {
+    "message": "invalid id",
+    "extensions": {
+      "code": "RESOURCE_NOT_FOUND"
+    },
+    "paths": ["shippingPackageUpdate", "shippingPackageMakeDefault", "shippingPackageDelete"]
+  },
+  "fulfillmentConstraintScopeBlockers": {
+    "read": "Access denied for fulfillmentConstraintRules field. Required access: `read_fulfillment_constraint_rules` access scope.",
+    "write": "Access denied for fulfillmentConstraintRuleCreate/Update/Delete fields. Required access: `write_fulfillment_constraint_rules` access scope."
+  }
+}

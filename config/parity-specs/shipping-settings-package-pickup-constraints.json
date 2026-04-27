@@ -1,0 +1,31 @@
+{
+  "scenarioId": "shipping-settings-package-pickup-constraints",
+  "operationNames": [
+    "availableCarrierServices",
+    "locationsAvailableForDeliveryProfilesConnection",
+    "locationLocalPickupEnable",
+    "locationLocalPickupDisable",
+    "shippingPackageUpdate",
+    "shippingPackageMakeDefault",
+    "shippingPackageDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "schema-introspection",
+    "payload-shape",
+    "runtime-staging",
+    "downstream-read-parity",
+    "access-scope-blocker",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/shipping-settings-package-pickup-constraints.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/shipping-settings-flow.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "notes": "HAR-320 captures safe read shapes for carrier-service availability and delivery-profile locations, a controlled local-pickup enable/read/disable lifecycle with cleanup, shipping-package unknown-id error shape, and fulfillment-constraint read/write access-scope blockers. The supported local slice is enforced by the runtime integration test because the generic parity runner does not chain seeded package/location state plus meta-log assertions for this multi-root flow.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  }
+}
