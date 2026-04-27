@@ -2477,30 +2477,30 @@
     "type": "query",
     "domain": "metaobjects",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobject", "Metaobject"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 entry read root. Registry-only declared gap until live capture proves ID lookup nullability, selected field shape, capabilities, references, and empty/no-data behavior."
+    "runtimeTests": ["tests/integration/metaobject-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 entry ID lookup root. HAR-243 supports snapshot and live-hybrid overlay reads from normalized fixture/local state, including missing ID nullability, selected field shape, capabilities, ordered fields, field(key:) lookup, and safe empty referencedBy behavior."
   },
   {
     "name": "metaobjectByHandle",
     "type": "query",
     "domain": "metaobjects",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectByHandle", "MetaobjectByHandle"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 handle lookup root. Registry-only declared gap until type-plus-handle identity, missing-handle nullability, and app-owned type behavior are captured."
+    "runtimeTests": ["tests/integration/metaobject-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 handle lookup root. HAR-243 supports normalized type-plus-handle lookup in snapshot and live-hybrid overlay modes, including missing handle nullability."
   },
   {
     "name": "metaobjects",
     "type": "query",
     "domain": "metaobjects",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjects", "Metaobjects"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 entry connection root. Registry-only declared gap until type-scoped empty connections, pagination, search filters, sorting, and field-value query semantics are captured."
+    "runtimeTests": ["tests/integration/metaobject-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 entry connection root. HAR-243 supports normalized type-scoped entry connections, empty connections, stable local cursors, pagination, reverse, documented sort keys, and field-value query filters."
   },
   {
     "name": "metaobjectDefinition",

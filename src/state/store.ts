@@ -31,6 +31,7 @@ import type {
   MarketingEngagementRecord,
   MarketingRecord,
   MetaobjectDefinitionRecord,
+  MetaobjectRecord,
   MetafieldDefinitionRecord,
   MutationLogEntry,
   NormalizedStateSnapshotFile,
@@ -147,6 +148,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   productMetafields: {},
   metafieldDefinitions: {},
   metaobjectDefinitions: {},
+  metaobjects: {},
   customerMetafields: {},
   deletedProductIds: {},
   deletedFileIds: {},
@@ -2962,6 +2964,18 @@ export class InMemoryStore {
     }
   }
 
+  upsertBaseMetaobjects(metaobjects: MetaobjectRecord[]): void {
+    for (const metaobject of metaobjects) {
+      this.baseState.metaobjects[metaobject.id] = structuredClone(metaobject);
+    }
+  }
+
+  upsertStagedMetaobjects(metaobjects: MetaobjectRecord[]): void {
+    for (const metaobject of metaobjects) {
+      this.stagedState.metaobjects[metaobject.id] = structuredClone(metaobject);
+    }
+  }
+
   deleteStagedMetaobjectDefinition(definitionId: string): void {
     delete this.stagedState.metaobjectDefinitions[definitionId];
     this.stagedState.deletedMetaobjectDefinitionIds[definitionId] = true;
@@ -3687,6 +3701,42 @@ export class InMemoryStore {
     return definition ? structuredClone(definition) : null;
   }
 
+  listEffectiveMetaobjects(): MetaobjectRecord[] {
+    const metaobjectsById = new Map<string, MetaobjectRecord>();
+
+    for (const metaobject of Object.values(this.baseState.metaobjects)) {
+      metaobjectsById.set(metaobject.id, structuredClone(metaobject));
+    }
+
+    for (const metaobject of Object.values(this.stagedState.metaobjects)) {
+      metaobjectsById.set(metaobject.id, structuredClone(metaobject));
+    }
+
+    return [...metaobjectsById.values()].sort(
+      (left, right) =>
+        left.type.localeCompare(right.type) ||
+        left.handle.localeCompare(right.handle) ||
+        compareShopifyResourceIds(left.id, right.id),
+    );
+  }
+
+  getEffectiveMetaobjectById(metaobjectId: string): MetaobjectRecord | null {
+    const metaobject = this.stagedState.metaobjects[metaobjectId] ?? this.baseState.metaobjects[metaobjectId];
+    return metaobject ? structuredClone(metaobject) : null;
+  }
+
+  findEffectiveMetaobjectByHandle(identifier: { type: string; handle: string }): MetaobjectRecord | null {
+    const metaobject =
+      this.listEffectiveMetaobjects().find(
+        (candidate) => candidate.type === identifier.type && candidate.handle === identifier.handle,
+      ) ?? null;
+    return metaobject ? structuredClone(metaobject) : null;
+  }
+
+  listEffectiveMetaobjectsByType(type: string): MetaobjectRecord[] {
+    return this.listEffectiveMetaobjects().filter((metaobject) => metaobject.type === type);
+  }
+
   hasEffectiveMetaobjectDefinitions(): boolean {
     return (
       Object.keys(this.baseState.metaobjectDefinitions).length > 0 ||
@@ -3697,6 +3747,14 @@ export class InMemoryStore {
 
   hasStagedMetaobjectDefinitions(): boolean {
     return Object.keys(this.stagedState.metaobjectDefinitions).length > 0;
+  }
+
+  hasEffectiveMetaobjects(): boolean {
+    return Object.keys(this.baseState.metaobjects).length > 0 || Object.keys(this.stagedState.metaobjects).length > 0;
+  }
+
+  hasStagedMetaobjects(): boolean {
+    return Object.keys(this.stagedState.metaobjects).length > 0;
   }
 
   getEffectiveMetafieldsByProductId(productId: string): ProductMetafieldRecord[] {

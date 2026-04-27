@@ -460,6 +460,51 @@ export const metaobjectDefinitionRecordSchema = z.strictObject({
 });
 export type MetaobjectDefinitionRecord = z.infer<typeof metaobjectDefinitionRecordSchema>;
 
+export const metaobjectFieldDefinitionReferenceRecordSchema = z.strictObject({
+  key: z.string(),
+  name: nullableStringSchema,
+  required: nullableBooleanSchema,
+  type: metaobjectDefinitionTypeRecordSchema,
+});
+export type MetaobjectFieldDefinitionReferenceRecord = z.infer<typeof metaobjectFieldDefinitionReferenceRecordSchema>;
+
+export const metaobjectFieldRecordSchema = z.strictObject({
+  key: z.string(),
+  type: nullableStringSchema,
+  value: nullableStringSchema,
+  jsonValue: jsonValueSchema.nullable(),
+  definition: metaobjectFieldDefinitionReferenceRecordSchema.nullable(),
+});
+export type MetaobjectFieldRecord = z.infer<typeof metaobjectFieldRecordSchema>;
+
+export const metaobjectPublishableCapabilityRecordSchema = z.strictObject({
+  status: nullableStringSchema,
+});
+export type MetaobjectPublishableCapabilityRecord = z.infer<typeof metaobjectPublishableCapabilityRecordSchema>;
+
+export const metaobjectOnlineStoreCapabilityRecordSchema = z.strictObject({
+  templateSuffix: nullableStringSchema,
+});
+export type MetaobjectOnlineStoreCapabilityRecord = z.infer<typeof metaobjectOnlineStoreCapabilityRecordSchema>;
+
+export const metaobjectCapabilitiesRecordSchema = z.strictObject({
+  publishable: metaobjectPublishableCapabilityRecordSchema.optional(),
+  onlineStore: metaobjectOnlineStoreCapabilityRecordSchema.nullable().optional(),
+});
+export type MetaobjectCapabilitiesRecord = z.infer<typeof metaobjectCapabilitiesRecordSchema>;
+
+export const metaobjectRecordSchema = z.strictObject({
+  id: z.string(),
+  handle: z.string(),
+  type: z.string(),
+  displayName: nullableStringSchema,
+  fields: z.array(metaobjectFieldRecordSchema),
+  capabilities: metaobjectCapabilitiesRecordSchema,
+  createdAt: nullableStringSchema.optional(),
+  updatedAt: nullableStringSchema.optional(),
+});
+export type MetaobjectRecord = z.infer<typeof metaobjectRecordSchema>;
+
 export const customerMetafieldRecordSchema = z.strictObject({
   id: z.string(),
   customerId: z.string(),
@@ -1806,6 +1851,7 @@ export const stateSnapshotSchema = z.strictObject({
   productMetafields: z.record(z.string(), productMetafieldRecordSchema),
   metafieldDefinitions: z.record(z.string(), metafieldDefinitionRecordSchema).default({}),
   metaobjectDefinitions: z.record(z.string(), metaobjectDefinitionRecordSchema).default({}),
+  metaobjects: z.record(z.string(), metaobjectRecordSchema).default({}),
   customerMetafields: z.record(z.string(), customerMetafieldRecordSchema).default({}),
   deletedProductIds: z.record(z.string(), z.literal(true)),
   deletedFileIds: z.record(z.string(), z.literal(true)).default({}),

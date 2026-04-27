@@ -65,6 +65,7 @@ import {
 import {
   handleMetaobjectDefinitionMutation,
   handleMetaobjectDefinitionQuery,
+  hydrateMetaobjectsFromUpstreamResponse,
 } from '../src/proxy/metaobject-definitions.js';
 import { handlePaymentMutation, handlePaymentQuery } from '../src/proxy/payments.js';
 import {
@@ -5111,6 +5112,27 @@ function seedProductMetafieldsReadPreconditions(capture: unknown): boolean {
   return true;
 }
 
+function seedMetaobjectReadPreconditions(capture: unknown): boolean {
+  if (!isPlainObject(capture)) {
+    return false;
+  }
+
+  let hydrated = false;
+  for (const read of readArrayField(capture, 'seededReads').filter(isPlainObject)) {
+    const request = readRecordField(read, 'request');
+    const query = readStringField(request, 'query');
+    const response = readRecordField(read, 'response');
+    if (!query || !response) {
+      continue;
+    }
+
+    hydrateMetaobjectsFromUpstreamResponse(query, readRecordField(request, 'variables') ?? {}, response);
+    hydrated = true;
+  }
+
+  return hydrated && (store.hasEffectiveMetaobjectDefinitions() || store.hasEffectiveMetaobjects());
+}
+
 function seedMetafieldsDeleteOwnerProducts(capture: unknown, variables: Record<string, unknown>): boolean {
   if (mutationNameFromCapture(capture) !== 'metafieldsDelete') {
     return false;
@@ -5603,6 +5625,9 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
 
   seedProductMetafieldsReadPreconditions(capture);
   seedMetafieldDefinitionPreconditions(capture);
+  if (seedMetaobjectReadPreconditions(capture)) {
+    return;
+  }
   if (seedInventoryLinkagePreconditions(capture)) {
     return;
   }
