@@ -1,0 +1,16 @@
+{
+  "scenarioId": "return-lifecycle-local-staging",
+  "operationNames": ["return", "returnCreate", "returnRequest", "returnCancel", "returnClose", "returnReopen"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["schema-introspection", "runtime-staging", "downstream-read-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/return-reverse-logistics-introspection.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/order-return-flow.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "notes": "HAR-311 captures no-side-effect 2026-04 schema evidence for reverse-logistics roots and enforces the locally supported order-backed return lifecycle slice through the runtime integration test. The generic parity runner does not chain fulfilled-order setup, return creation/request, lifecycle mutations, downstream return(id:), nested Order.returns reads, and meta-log assertions for this multi-step flow.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  }
+}

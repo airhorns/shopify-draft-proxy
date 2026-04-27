@@ -7,8 +7,13 @@ The orders group is fully implemented in the operation registry. It covers order
 Overlay reads:
 
 - `order`
+- `return`
 - `orders`
 - `ordersCount`
+- `abandonedCheckouts`
+- `abandonedCheckoutsCount`
+- `abandonment`
+- `abandonmentByAbandonedCheckoutId`
 - `draftOrder`
 - `draftOrders`
 - `draftOrdersCount`
@@ -39,6 +44,12 @@ Local staged mutations:
 - `fulfillmentOrderCancel`
 - `orderCreate`
 - `refundCreate`
+- `returnCreate`
+- `returnRequest`
+- `returnCancel`
+- `returnClose`
+- `returnReopen`
+- `abandonmentUpdateActivitiesDeliveryStatuses`
 - `draftOrderCreate`
 - `draftOrderComplete`
 - `draftOrderUpdate`
@@ -58,6 +69,9 @@ Local staged mutations:
 - Nested `Order.fulfillments` and `Order.fulfillmentOrders` remain the order-owned source for top-level fulfillment reads. The shipping/fulfillments endpoint docs describe the top-level `fulfillment(id:)`, `fulfillmentOrder(id:)`, and fulfillment-order catalog roots that now serialize from the same local order graph.
 - Fulfillment flows return Shopify-shaped `userErrors` and expose staged state through immediate downstream order fulfillment reads without sending supported mutations to Shopify at runtime. Staged fulfillment events are visible through both top-level `fulfillment(id:)` and nested `Order.fulfillments.events`, and tracking/cancel updates preserve event history and shipment milestone fields. Staged fulfillment-order request statuses and merchant request messages are visible through `fulfillmentOrder`, `fulfillmentOrders`, `assignedFulfillmentOrders`, and nested `Order.fulfillmentOrders`; no fulfillment-service notification callbacks are invoked. Broader shipping/fulfillment roots and coverage boundaries are tracked in `docs/endpoints/shipping-fulfillments.md`.
 - Draft-order create/complete/update/duplicate/delete/invoice/create-from-order flows preserve staged state for downstream reads and commit replay.
+- Abandoned checkout reads are modeled for snapshot/local state. Empty `abandonedCheckouts` returns an empty connection with false/null `pageInfo`, `abandonedCheckoutsCount` returns `{ count: 0, precision: "EXACT" }`, and missing `abandonment` / `abandonmentByAbandonedCheckoutId` lookups return `null`, matching the 2026-04-27 live capture against `harry-test-heelo.myshopify.com` on Admin GraphQL `2025-01`.
+- Representative non-empty abandoned checkout and abandonment reads serialize from seeded normalized records. The live conformance store had no abandoned checkout records during HAR-300, so non-empty runtime coverage is schema/introspection-backed rather than a live non-empty fixture. Future work should replace or supplement that seeded proof when a disposable store can produce real abandoned checkout data.
+- `abandonmentUpdateActivitiesDeliveryStatuses` is local-only for seeded/snapshot abandonment records. Unknown IDs mirror the captured safe payload `abandonment: null` plus `userErrors[{ field: ["abandonmentId"], message: "abandonment_not_found" }]`. Known local records update the in-memory delivery activity map, surface `emailState` / `emailSentAt` changes on downstream local reads, append the original raw mutation to the meta log, and never send the runtime mutation to Shopify.
 - `draftOrderInvoiceSend` is treated as an outbound email side-effect root. Runtime support never sends the mutation upstream or emails a customer; it appends the original raw mutation to the meta log for explicit commit replay. Safe captured 2026-04 branches are mirrored locally for missing/unknown/deleted draft IDs, no-recipient drafts (`To can't be blank`), and completed no-recipient drafts (`To can't be blank` plus the already-paid error). For open local drafts with a recipient, the proxy returns an explicit local userError instead of pretending the invoice email was delivered.
 - `draftOrder(id:)` returns `null` for absent IDs. The `draft-order-by-id-not-found-read` parity scenario captures this missing-id behavior without relying on live upstream passthrough.
 - Draft-order detail parity now compares the captured `draftOrder(id:)` payload as a strict object for the selected phone, timestamp, subtotal/total, line-item unit-price, SKU/nullability, address, shipping-line, custom-attribute, discount, tax-exemption, and payment-terms fields. The current live detail capture returns `paymentTerms: null` for the merchant-realistic draft without terms and preserves empty line-item structures such as `customAttributes: []`, `appliedDiscount: null`, and variant-backed SKU/title nullability.
@@ -65,6 +79,11 @@ Local staged mutations:
 - The captured DraftOrder detail read surface does not select `note`; local mutation payloads and downstream local reads still preserve staged note values, but live detail parity keeps note out of the strict object contract until Shopify exposes a selectable note field for this surface.
 - Order edit operations use calculated-order state during the edit session and materialize changes on `orderEditCommit`. The order-edit conformance anchors are the captured existing-order workflow specs plus executable single-root begin/add/set/commit parity slices backed by those same workflow fixtures, so stale access-scope-only plans should not be reintroduced as blockers.
 - `refundCreate` stages refund records for downstream order reads and covers over-refund user-error behavior through parity fixtures.
+- Return staging is order-backed: `returnCreate` and `returnRequest` create local Return rows for known fulfilled order
+  line items, while `returnCancel`, `returnClose`, and `returnReopen` update local return status. Top-level
+  `return(id:)` and nested `Order.returns` read from the same order graph. Broader calculation, returnable fulfillment,
+  processing, removal, reverse-delivery, and reverse-fulfillment-order roots are tracked in `docs/endpoints/returns.md`
+  until conformance-backed local models exist.
 - Shipping refunds staged through `refundCreate(input.shipping)` are retained on the refund record and rolled into downstream `Order.totalRefundedShippingSet`; the broader refund amount still follows the captured transaction total / line-item plus shipping fallback behavior.
 - Order shipping-line tax lines contribute to total tax calculations for staged `orderCreate`, and staged shipping lines remain visible through downstream `Order.shippingLines` reads.
 - State-specific lifecycle/customer validation is modeled locally for the staged order roots covered by HAR-278. Repeated `orderClose`, repeated `orderOpen`, `orderOpen` after cancellation, repeated `orderMarkAsPaid`, unknown or duplicate `orderCustomerSet`, empty `orderCustomerRemove`, and repeated `orderCancel` return concrete `userErrors` and do not mutate downstream order reads, meta state, or the mutation log.
@@ -83,6 +102,7 @@ Local staged mutations:
 ## Validation anchors
 
 - Order reads: `tests/integration/order-query-shapes.test.ts`
+- Abandoned checkouts and abandonments: `tests/integration/abandoned-checkout-query-shapes.test.ts`
 - Order lifecycle, payment, and customer changes: `tests/integration/order-lifecycle-payment-customer-flow.test.ts`
 - Order payment transaction changes: `tests/integration/order-payment-transaction-flow.test.ts`
 - Order create/update flows: `tests/integration/order-creation-flow.test.ts`, `tests/integration/order-draft-flow.test.ts`
@@ -91,4 +111,5 @@ Local staged mutations:
 - Fulfillment-order lifecycle capture: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/fulfillment-order-lifecycle.json`
 - Order editing: `tests/integration/order-edit-flow.test.ts`
 - Refunds and shipping-refund aggregates: `tests/integration/order-refund-flow.test.ts`
+- Returns: `tests/integration/order-return-flow.test.ts`
 - Conformance fixtures and requests: `config/parity-specs/order*.json`, `config/parity-specs/draftOrder*.json`, `config/parity-specs/draftOrders*.json`, `config/parity-specs/fulfillment*.json`, `config/parity-specs/refund*.json`, and matching files under `config/parity-requests/`. For order editing, prefer the `orderEditExistingOrder-*` workflow specs plus the missing-id validation slices over single-root planned placeholders.

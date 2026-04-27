@@ -1,0 +1,40 @@
+query AbandonedCheckoutEmpty($abandonmentId: ID!, $checkoutId: ID!, $first: Int!) {
+  abandonedCheckouts(first: $first, sortKey: CREATED_AT, reverse: true) {
+    nodes {
+      id
+      name
+      abandonedCheckoutUrl
+      completedAt
+      createdAt
+      updatedAt
+      totalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    edges {
+      cursor
+      node {
+        id
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  abandonedCheckoutsCount {
+    count
+    precision
+  }
+  abandonment(id: $abandonmentId) {
+    id
+  }
+  abandonmentByAbandonedCheckoutId(abandonedCheckoutId: $checkoutId) {
+    id
+  }
+}
