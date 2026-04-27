@@ -14,13 +14,16 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["runtime-staging", "downstream-read-parity", "mutation-log-replay", "no-upstream-passthrough"],
   "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects-read.json"],
-  "runtimeTestFiles": ["tests/integration/metaobject-draft-flow.test.ts"],
+  "runtimeTestFiles": [
+    "tests/integration/metaobject-draft-flow.test.ts",
+    "tests/integration/metaobject-schema-change-flow.test.ts"
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/metaobject-entry-lifecycle-delete.graphql",
     "variablesCapturePath": "$.cleanup[0].request.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-244 replays the captured 2026-04 metaobjects fixture through the local proxy for delete/read-after-delete and create/read-after-create payload parity. Runtime tests cover the deeper update/upsert/bulk-delete branches, meta API state/log visibility, raw mutation preservation, and no-upstream-passthrough assertions that the generic parity runner does not yet express.",
+  "notes": "HAR-244 replays the captured 2026-04 metaobjects fixture through the local proxy for delete/read-after-delete and create/read-after-create payload parity. Runtime tests cover the deeper update/upsert/bulk-delete branches, meta API state/log visibility, raw mutation preservation, and no-upstream-passthrough assertions that the generic parity runner does not yet express. HAR-245 extends the executable runtime coverage across metaobjectDefinitionUpdate schema changes, including pre-existing row serialization, added/removed/reordered fields, display name key changes, type/validation changes, post-change validation, and row add/update/delete after the schema edit.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

@@ -380,6 +380,46 @@ function buildMetaobjectFieldDefinitionReference(
   };
 }
 
+function projectMetaobjectFieldsThroughDefinition(
+  metaobject: MetaobjectRecord,
+  definition: MetaobjectDefinitionRecord | null,
+): MetaobjectFieldRecord[] {
+  if (!definition || definition.fieldDefinitions.length === 0) {
+    return structuredClone(metaobject.fields);
+  }
+
+  const fieldsByKey = new Map(metaobject.fields.map((field) => [field.key, field]));
+  return definition.fieldDefinitions.flatMap((fieldDefinition) => {
+    const field = fieldsByKey.get(fieldDefinition.key);
+    if (!field) {
+      return [];
+    }
+
+    return [
+      {
+        ...structuredClone(field),
+        type: fieldDefinition.type.name,
+        jsonValue: readMetaobjectJsonValue(fieldDefinition.type.name, field.value),
+        definition: buildMetaobjectFieldDefinitionReference(fieldDefinition),
+      },
+    ];
+  });
+}
+
+function projectMetaobjectThroughDefinition(metaobject: MetaobjectRecord): MetaobjectRecord {
+  const definition = store.findEffectiveMetaobjectDefinitionByType(metaobject.type);
+  const fields = projectMetaobjectFieldsThroughDefinition(metaobject, definition);
+
+  return {
+    ...structuredClone(metaobject),
+    displayName:
+      definition && definition.fieldDefinitions.length > 0
+        ? metaobjectDisplayName(definition, fields)
+        : metaobject.displayName,
+    fields,
+  };
+}
+
 function readMetaobjectJsonValue(typeName: string | null, value: string | null): MetaobjectFieldRecord['jsonValue'] {
   if (value === null) {
     return null;
@@ -1044,21 +1084,22 @@ function buildSerializableMetaobjectField(field: MetaobjectFieldRecord): Record<
 }
 
 function buildSerializableMetaobject(metaobject: MetaobjectRecord): Record<string, unknown> {
-  const definition = store.findEffectiveMetaobjectDefinitionByType(metaobject.type);
+  const projectedMetaobject = projectMetaobjectThroughDefinition(metaobject);
+  const definition = store.findEffectiveMetaobjectDefinitionByType(projectedMetaobject.type);
   return {
     __typename: 'Metaobject',
-    id: metaobject.id,
-    handle: metaobject.handle,
-    type: metaobject.type,
-    displayName: metaobject.displayName,
-    createdAt: metaobject.createdAt ?? null,
-    updatedAt: metaobject.updatedAt ?? null,
+    id: projectedMetaobject.id,
+    handle: projectedMetaobject.handle,
+    type: projectedMetaobject.type,
+    displayName: projectedMetaobject.displayName,
+    createdAt: projectedMetaobject.createdAt ?? null,
+    updatedAt: projectedMetaobject.updatedAt ?? null,
     capabilities: {
-      publishable: metaobject.capabilities.publishable ?? null,
-      onlineStore: metaobject.capabilities.onlineStore ?? null,
+      publishable: projectedMetaobject.capabilities.publishable ?? null,
+      onlineStore: projectedMetaobject.capabilities.onlineStore ?? null,
     },
     definition: definition ? buildSerializableDefinition(definition) : null,
-    fields: metaobject.fields.map(buildSerializableMetaobjectField),
+    fields: projectedMetaobject.fields.map(buildSerializableMetaobjectField),
   };
 }
 
@@ -1087,8 +1128,9 @@ function serializeMetaobjectSelection(
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const fragments = getDocumentFragments(document);
+  const projectedMetaobject = projectMetaobjectThroughDefinition(metaobject);
 
-  return projectGraphqlObject(buildSerializableMetaobject(metaobject), selections, fragments, {
+  return projectGraphqlObject(buildSerializableMetaobject(projectedMetaobject), selections, fragments, {
     projectFieldValue: ({ source, field, fieldName }) => {
       if (source['__typename'] !== 'Metaobject') {
         return { handled: false };
@@ -1096,7 +1138,7 @@ function serializeMetaobjectSelection(
 
       if (fieldName === 'field') {
         const key = readStringValue(getFieldArguments(field, variables)['key']);
-        const selectedField = key ? metaobject.fields.find((candidate) => candidate.key === key) : null;
+        const selectedField = key ? projectedMetaobject.fields.find((candidate) => candidate.key === key) : null;
         return {
           handled: true,
           value: selectedField

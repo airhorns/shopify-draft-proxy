@@ -72,6 +72,8 @@ Captured guardrail: merchant-owned create input that specifies `access.admin` re
 
 Update support stages scalar definition changes, access/capability merges, field definition create/update/delete operations, and `resetFieldOrder` ordering. Field definition updates preserve existing values for omitted fields; created fields append unless `resetFieldOrder` is set, in which case fields touched by the update input lead the resulting order and untouched fields follow in their previous relative order.
 
+When an effective definition changes, downstream row reads project existing row values through the current effective definition instead of returning stale field metadata. Existing row values whose field definitions still exist remain visible in the updated definition order, removed field definitions are omitted from `fields` and return `null` from `field(key:)`, changed field types update the serialized `type` / field-definition reference, and `displayName` is recomputed from the current `displayNameKey`. Rows that predate a newly required field remain readable; subsequent create/update/upsert requests are validated against the current effective definition, so missing required fields and writes to removed field keys return local userErrors.
+
 Delete support stages deletion for definitions whose effective `metaobjectsCount` is zero and hides deleted base/staged definitions from downstream reads through a staged tombstone. Definitions with associated entries return an explicit local `UNSUPPORTED` userError because entry records and cascade semantics are not modeled yet; this keeps the known branch local and visible instead of pretending Shopify's destructive cascade has been faithfully emulated.
 
 `standardMetaobjectDefinitionEnable` is limited to the bounded local template catalog currently represented by runtime tests. Known templates stage a standard definition locally with `standardTemplate` metadata; unknown template types return `TEMPLATE_NOT_FOUND` locally.
@@ -148,6 +150,8 @@ HAR-242 adds `config/parity-specs/metaobject-definition-lifecycle-local-staging.
 
 HAR-244 adds `config/parity-specs/metaobject-entry-lifecycle-local-staging.json` and `tests/integration/metaobject-draft-flow.test.ts` for local entry row lifecycle staging. The test covers create/update/upsert/delete/bulk delete, downstream ID/handle/catalog reads, definition count updates, meta API state/log visibility, ordered missing-row bulk errors, and no runtime Shopify writes. The captured create/delete branches in `metaobjects-read.json` are used as shape evidence; additional live captures are still needed before promoting broader update/upsert/bulk delete parity scenarios.
 
+HAR-245 adds `tests/integration/metaobject-schema-change-flow.test.ts` for the combined definition/row lifecycle matrix. The fixture-backed local scenario creates a definition, creates/updates/deletes rows before a schema edit, updates the definition with an added required field, removed field, reordered fields, display-name key change, field type/validation change, and capability changes, then validates pre-existing and post-change row reads plus post-change create/update/delete behavior. It also checks singular ID/handle lookups, catalog reads, meta state/log visibility, and no runtime Shopify writes.
+
 ## Validation anchors
 
 - Registry and coverage tests: `tests/unit/operation-registry.test.ts`, `tests/unit/graphql-operation-coverage.test.ts`
@@ -155,5 +159,6 @@ HAR-244 adds `config/parity-specs/metaobject-entry-lifecycle-local-staging.json`
 - Entry read runtime tests: `tests/integration/metaobject-query-shapes.test.ts`
 - Definition mutation runtime tests: `tests/integration/metaobject-definition-draft-flow.test.ts`
 - Entry mutation runtime tests: `tests/integration/metaobject-draft-flow.test.ts`
+- Definition/entry schema-change runtime tests: `tests/integration/metaobject-schema-change-flow.test.ts`
 - Captured root inventory: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-graphql-root-operation-introspection.json`
 - Read fixture recorder: `scripts/capture-metaobject-read-conformance.mts`
