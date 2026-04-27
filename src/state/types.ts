@@ -199,6 +199,38 @@ export const carrierServiceRecordSchema = z.strictObject({
 });
 export type CarrierServiceRecord = z.infer<typeof carrierServiceRecordSchema>;
 
+export const deliveryLocalPickupSettingsRecordSchema = z.strictObject({
+  pickupTime: z.string(),
+  instructions: z.string(),
+});
+export type DeliveryLocalPickupSettingsRecord = z.infer<typeof deliveryLocalPickupSettingsRecordSchema>;
+
+export const shippingPackageWeightRecordSchema = z.strictObject({
+  value: nullableNumberSchema,
+  unit: nullableStringSchema,
+});
+export type ShippingPackageWeightRecord = z.infer<typeof shippingPackageWeightRecordSchema>;
+
+export const shippingPackageDimensionsRecordSchema = z.strictObject({
+  length: nullableNumberSchema,
+  width: nullableNumberSchema,
+  height: nullableNumberSchema,
+  unit: nullableStringSchema,
+});
+export type ShippingPackageDimensionsRecord = z.infer<typeof shippingPackageDimensionsRecordSchema>;
+
+export const shippingPackageRecordSchema = z.strictObject({
+  id: z.string(),
+  name: nullableStringSchema,
+  type: nullableStringSchema,
+  default: z.boolean(),
+  weight: shippingPackageWeightRecordSchema.nullable(),
+  dimensions: shippingPackageDimensionsRecordSchema.nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type ShippingPackageRecord = z.infer<typeof shippingPackageRecordSchema>;
+
 export const locationMetafieldRecordSchema = z.strictObject({
   id: z.string(),
   locationId: z.string(),
@@ -236,6 +268,7 @@ export const locationRecordSchema = z.strictObject({
   address: locationAddressRecordSchema.nullable().optional(),
   suggestedAddresses: z.array(locationSuggestedAddressRecordSchema).optional(),
   metafields: z.array(locationMetafieldRecordSchema).optional(),
+  localPickupSettings: deliveryLocalPickupSettingsRecordSchema.nullable().optional(),
 });
 export type LocationRecord = z.infer<typeof locationRecordSchema>;
 
@@ -2091,6 +2124,8 @@ export const stateSnapshotSchema = z.strictObject({
   carrierServiceOrder: z.array(z.string()).default([]),
   inventoryShipments: z.record(z.string(), inventoryShipmentRecordSchema).default({}),
   inventoryShipmentOrder: z.array(z.string()).default([]),
+  shippingPackages: z.record(z.string(), shippingPackageRecordSchema).default({}),
+  shippingPackageOrder: z.array(z.string()).default([]),
   giftCards: z.record(z.string(), giftCardRecordSchema).default({}),
   giftCardOrder: z.array(z.string()).default([]),
   giftCardConfiguration: giftCardConfigurationRecordSchema.nullable().default(null),
@@ -2189,6 +2224,7 @@ export const stateSnapshotSchema = z.strictObject({
   deletedFulfillmentServiceIds: z.record(z.string(), z.literal(true)).default({}),
   deletedCarrierServiceIds: z.record(z.string(), z.literal(true)).default({}),
   deletedInventoryShipmentIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedShippingPackageIds: z.record(z.string(), z.literal(true)).default({}),
   deletedGiftCardIds: z.record(z.string(), z.literal(true)).default({}),
   deletedCustomerIds: z.record(z.string(), z.literal(true)),
   deletedCustomerAddressIds: z.record(z.string(), z.literal(true)).default({}),

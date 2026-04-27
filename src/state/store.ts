@@ -63,6 +63,7 @@ import type {
   PriceListRecord,
   PublicationRecord,
   SegmentRecord,
+  ShippingPackageRecord,
   SellingPlanGroupRecord,
   ShopRecord,
   ShopifyFunctionRecord,
@@ -102,6 +103,8 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   carrierServiceOrder: [],
   inventoryShipments: {},
   inventoryShipmentOrder: [],
+  shippingPackages: {},
+  shippingPackageOrder: [],
   giftCards: {},
   giftCardOrder: [],
   giftCardConfiguration: null,
@@ -198,6 +201,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedFulfillmentServiceIds: {},
   deletedCarrierServiceIds: {},
   deletedInventoryShipmentIds: {},
+  deletedShippingPackageIds: {},
   deletedGiftCardIds: {},
   deletedCustomerIds: {},
   deletedCustomerAddressIds: {},
@@ -412,6 +416,17 @@ function mergeCarrierServiceRecords(
   base: CarrierServiceRecord | null,
   staged: CarrierServiceRecord | null,
 ): CarrierServiceRecord | null {
+  if (!base && !staged) {
+    return null;
+  }
+
+  return structuredClone(staged ?? base);
+}
+
+function mergeShippingPackageRecords(
+  base: ShippingPackageRecord | null,
+  staged: ShippingPackageRecord | null,
+): ShippingPackageRecord | null {
   if (!base && !staged) {
     return null;
   }
@@ -1681,6 +1696,17 @@ export class InMemoryStore {
     }
   }
 
+  upsertBaseShippingPackages(packages: ShippingPackageRecord[]): void {
+    for (const shippingPackage of packages) {
+      delete this.baseState.deletedShippingPackageIds[shippingPackage.id];
+      delete this.stagedState.deletedShippingPackageIds[shippingPackage.id];
+      this.baseState.shippingPackages[shippingPackage.id] = structuredClone(shippingPackage);
+      if (!this.baseState.shippingPackageOrder.includes(shippingPackage.id)) {
+        this.baseState.shippingPackageOrder.push(shippingPackage.id);
+      }
+    }
+  }
+
   upsertBaseGiftCards(giftCards: GiftCardRecord[]): void {
     for (const giftCard of giftCards) {
       delete this.baseState.deletedGiftCardIds[giftCard.id];
@@ -1769,6 +1795,12 @@ export class InMemoryStore {
       .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
 
     return structuredClone([...orderedLocations, ...unorderedLocations]);
+  }
+
+  hasStagedLocations(): boolean {
+    return (
+      Object.keys(this.stagedState.locations).length > 0 || Object.keys(this.stagedState.deletedLocationIds).length > 0
+    );
   }
 
   stageCreateFulfillmentService(service: FulfillmentServiceRecord): FulfillmentServiceRecord {
@@ -1962,6 +1994,61 @@ export class InMemoryStore {
       Object.keys(this.baseState.inventoryShipments).length > 0 ||
       Object.keys(this.stagedState.inventoryShipments).length > 0 ||
       Object.keys(this.stagedState.deletedInventoryShipmentIds).length > 0
+    );
+  }
+
+  stageUpdateShippingPackage(shippingPackage: ShippingPackageRecord): ShippingPackageRecord {
+    delete this.stagedState.deletedShippingPackageIds[shippingPackage.id];
+    this.stagedState.shippingPackages[shippingPackage.id] = structuredClone(shippingPackage);
+    if (
+      !this.baseState.shippingPackageOrder.includes(shippingPackage.id) &&
+      !this.stagedState.shippingPackageOrder.includes(shippingPackage.id)
+    ) {
+      this.stagedState.shippingPackageOrder.push(shippingPackage.id);
+    }
+    return structuredClone(shippingPackage);
+  }
+
+  stageDeleteShippingPackage(shippingPackageId: string): void {
+    delete this.stagedState.shippingPackages[shippingPackageId];
+    this.stagedState.deletedShippingPackageIds[shippingPackageId] = true;
+  }
+
+  getEffectiveShippingPackageById(shippingPackageId: string): ShippingPackageRecord | null {
+    if (
+      this.stagedState.deletedShippingPackageIds[shippingPackageId] ||
+      this.baseState.deletedShippingPackageIds[shippingPackageId]
+    ) {
+      return null;
+    }
+
+    return mergeShippingPackageRecords(
+      this.baseState.shippingPackages[shippingPackageId] ?? null,
+      this.stagedState.shippingPackages[shippingPackageId] ?? null,
+    );
+  }
+
+  listEffectiveShippingPackages(): ShippingPackageRecord[] {
+    const orderedIds = new Set([...this.baseState.shippingPackageOrder, ...this.stagedState.shippingPackageOrder]);
+    const orderedPackages = [...orderedIds]
+      .map((id) => this.getEffectiveShippingPackageById(id))
+      .filter((shippingPackage): shippingPackage is ShippingPackageRecord => shippingPackage !== null);
+    const unorderedPackages = Object.values({
+      ...this.baseState.shippingPackages,
+      ...this.stagedState.shippingPackages,
+    })
+      .filter((shippingPackage) => !orderedIds.has(shippingPackage.id))
+      .map((shippingPackage) => this.getEffectiveShippingPackageById(shippingPackage.id))
+      .filter((shippingPackage): shippingPackage is ShippingPackageRecord => shippingPackage !== null)
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
+
+    return structuredClone([...orderedPackages, ...unorderedPackages]);
+  }
+
+  hasStagedShippingPackages(): boolean {
+    return (
+      Object.keys(this.stagedState.shippingPackages).length > 0 ||
+      Object.keys(this.stagedState.deletedShippingPackageIds).length > 0
     );
   }
 
