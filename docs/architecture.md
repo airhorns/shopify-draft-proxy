@@ -160,6 +160,24 @@ Current customer-domain state deliberately stays narrower than the product model
 - customer-owned metafields live in a customer-scoped `customerMetafields` bucket instead of reusing product-domain metafield storage or broadening shared `metafieldsSet` owner support without separate customer-domain evidence
 - staged `customerUpdate(input.metafields)` computes against the effective customer metafield set and replaces the staged customer-owned set, so downstream `customer.metafield(...)` and `customer.metafields(...)` reads stay consistent
 - staged `customerMerge` updates the normalized resulting customer row, marks the source customer deleted, records the source-to-result customer id redirect in `mergedCustomerIds`, and records the observed merge job/result shape in `customerMergeRequests`
+- the privacy-domain `dataSaleOptOut` mutation stores its downstream effect as `CustomerRecord.dataSaleOptOut`, keeping the mutation under privacy coverage while preserving customer read-after-write serialization
+
+Current B2B company-domain state is read-only and fixture-backed:
+
+- `B2BCompanyRecord`, `B2BCompanyContactRecord`, `B2BCompanyContactRoleRecord`,
+  and `B2BCompanyLocationRecord` store captured scalar fields plus normalized
+  company-to-contact/location/role IDs
+- snapshot reads support company catalog/count/detail roots and singular
+  contact/role/location lookups, including empty/null behavior
+- B2B lifecycle mutations remain registry blockers until local create/update,
+  delete, assignment, revoke, address, tax, and side-effect behavior can be
+  staged with downstream read-after-write effects
+
+Marketing-domain state keeps activity/event records and engagement metrics together but separate:
+
+- external marketing activity lifecycle mutations stage normalized `MarketingActivity` and nested `MarketingEvent` records
+- `marketingEngagementCreate` stages metric records keyed by the observed target and `occurredOn`, preserving duplicate same-day replacement behavior without inventing an engagement read root
+- immediate activity/event aggregate reads stay faithful to captured Shopify behavior; for HAR-214 activity-level engagement writes did not materialize into `MarketingActivity.adSpend` on immediate downstream reads, so the local engagement records are visible through meta state/logs rather than fabricated aggregate attribution
 
 ## Mutation handling strategy
 

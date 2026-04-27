@@ -23,11 +23,27 @@ const emptySnapshot = {
   customers: {},
   customerAddresses: {},
   customerPaymentMethods: {},
+  customerSegmentMembersQueries: {},
   segments: {},
+  webhookSubscriptions: {},
+  webhookSubscriptionOrder: [],
   marketingActivities: {},
   marketingActivityOrder: [],
   marketingEvents: {},
   marketingEventOrder: [],
+  marketingEngagements: {},
+  marketingEngagementOrder: [],
+  deletedMarketingActivityIds: {},
+  deletedMarketingEventIds: {},
+  deletedMarketingEngagementIds: {},
+  onlineStoreArticles: {},
+  onlineStoreArticleOrder: [],
+  onlineStoreBlogs: {},
+  onlineStoreBlogOrder: [],
+  onlineStorePages: {},
+  onlineStorePageOrder: [],
+  onlineStoreComments: {},
+  onlineStoreCommentOrder: [],
   discounts: {},
   discountBulkOperations: {},
   paymentCustomizations: {},
@@ -36,6 +52,14 @@ const emptySnapshot = {
   customerMetafields: {},
   businessEntities: {},
   businessEntityOrder: [],
+  b2bCompanies: {},
+  b2bCompanyOrder: [],
+  b2bCompanyContacts: {},
+  b2bCompanyContactOrder: [],
+  b2bCompanyContactRoles: {},
+  b2bCompanyContactRoleOrder: [],
+  b2bCompanyLocations: {},
+  b2bCompanyLocationOrder: [],
   markets: {},
   marketLocalizations: {},
   marketOrder: [],
@@ -45,6 +69,7 @@ const emptySnapshot = {
   catalogOrder: [],
   priceLists: {},
   priceListOrder: [],
+  deletedPriceListIds: {},
   deliveryProfiles: {},
   deliveryProfileOrder: [],
   productCollections: {},
@@ -56,6 +81,7 @@ const emptySnapshot = {
   carrierServiceOrder: [],
   productMetafields: {},
   metafieldDefinitions: {},
+  metaobjectDefinitions: {},
   deletedProductIds: {},
   deletedFileIds: {},
   deletedFulfillmentServiceIds: {},
@@ -64,18 +90,30 @@ const emptySnapshot = {
   deletedCollectionIds: {},
   deletedCustomerIds: {},
   deletedCustomerAddressIds: {},
+  deletedCustomerPaymentMethodIds: {},
   deletedSegmentIds: {},
+  deletedWebhookSubscriptionIds: {},
+  deletedOnlineStoreArticleIds: {},
+  deletedOnlineStoreBlogIds: {},
+  deletedOnlineStorePageIds: {},
+  deletedOnlineStoreCommentIds: {},
   deletedDiscountIds: {},
   deletedMarketIds: {},
   deletedCatalogIds: {},
   deletedWebPresenceIds: {},
   deletedDeliveryProfileIds: {},
+  deletedMetafieldDefinitionIds: {},
+  deletedMetaobjectDefinitionIds: {},
   mergedCustomerIds: {},
   customerMergeRequests: {},
   orderMandatePayments: {},
   orders: {},
   draftOrders: {},
   calculatedOrders: {},
+  abandonedCheckouts: {},
+  abandonedCheckoutOrder: [],
+  abandonments: {},
+  abandonmentOrder: [],
 };
 
 describe('meta routes', () => {
@@ -322,7 +360,9 @@ describe('meta routes', () => {
     const commitResponse = await request(server)
       .post('/__meta/commit')
       .set('x-shopify-access-token', 'shpat_commit_test')
-      .set('authorization', 'Bearer commit_authorization');
+      .set('authorization', 'Bearer commit_authorization')
+      .set('user-agent', 'commit-client/1.0')
+      .set('x-request-id', 'commit-request-123');
 
     expect(commitResponse.status).toBe(200);
     expect(commitResponse.body).toEqual({
@@ -359,6 +399,8 @@ describe('meta routes', () => {
       headers: {
         authorization: 'Bearer commit_authorization',
         'content-type': 'application/json',
+        'user-agent': 'shopify-draft-proxy (wrapping commit-client/1.0)',
+        'x-request-id': 'commit-request-123',
         'x-shopify-access-token': 'shpat_commit_test',
       },
     });

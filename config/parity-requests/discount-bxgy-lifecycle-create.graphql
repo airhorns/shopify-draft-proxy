@@ -1,0 +1,188 @@
+mutation DiscountBxgyLifecycleCreate($codeInput: DiscountCodeBxgyInput!, $automaticInput: DiscountAutomaticBxgyInput!) {
+  discountCodeBxgyCreate(bxgyCodeDiscount: $codeInput) {
+    codeDiscountNode {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBxgy {
+          title
+          status
+          summary
+          startsAt
+          endsAt
+          asyncUsageCount
+          discountClasses
+          usageLimit
+          usesPerOrderLimit
+          combinesWith {
+            productDiscounts
+            orderDiscounts
+            shippingDiscounts
+          }
+          codes(first: 2) {
+            nodes {
+              code
+              asyncUsageCount
+            }
+          }
+          context {
+            __typename
+            ... on DiscountBuyerSelectionAll {
+              all
+            }
+          }
+          customerBuys {
+            value {
+              __typename
+              ... on DiscountQuantity {
+                quantity
+              }
+            }
+            items {
+              __typename
+              ... on DiscountProducts {
+                products(first: 5) {
+                  nodes {
+                    id
+                  }
+                }
+                productVariants(first: 5) {
+                  nodes {
+                    id
+                  }
+                }
+              }
+            }
+          }
+          customerGets {
+            value {
+              __typename
+              ... on DiscountOnQuantity {
+                quantity {
+                  quantity
+                }
+                effect {
+                  __typename
+                  ... on DiscountPercentage {
+                    percentage
+                  }
+                  ... on DiscountAmount {
+                    amount {
+                      amount
+                      currencyCode
+                    }
+                    appliesOnEachItem
+                  }
+                }
+              }
+            }
+            items {
+              __typename
+              ... on DiscountCollections {
+                collections(first: 5) {
+                  nodes {
+                    id
+                  }
+                }
+              }
+            }
+            appliesOnOneTimePurchase
+            appliesOnSubscription
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  discountAutomaticBxgyCreate(automaticBxgyDiscount: $automaticInput) {
+    automaticDiscountNode {
+      id
+      automaticDiscount {
+        __typename
+        ... on DiscountAutomaticBxgy {
+          title
+          status
+          summary
+          startsAt
+          endsAt
+          asyncUsageCount
+          discountClasses
+          usesPerOrderLimit
+          combinesWith {
+            productDiscounts
+            orderDiscounts
+            shippingDiscounts
+          }
+          context {
+            __typename
+            ... on DiscountBuyerSelectionAll {
+              all
+            }
+          }
+          customerBuys {
+            value {
+              __typename
+              ... on DiscountQuantity {
+                quantity
+              }
+            }
+            items {
+              __typename
+              ... on DiscountCollections {
+                collections(first: 5) {
+                  nodes {
+                    id
+                  }
+                }
+              }
+            }
+          }
+          customerGets {
+            value {
+              __typename
+              ... on DiscountOnQuantity {
+                quantity {
+                  quantity
+                }
+                effect {
+                  __typename
+                  ... on DiscountPercentage {
+                    percentage
+                  }
+                }
+              }
+            }
+            items {
+              __typename
+              ... on DiscountProducts {
+                products(first: 5) {
+                  nodes {
+                    id
+                  }
+                }
+                productVariants(first: 5) {
+                  nodes {
+                    id
+                  }
+                }
+              }
+            }
+            appliesOnOneTimePurchase
+            appliesOnSubscription
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

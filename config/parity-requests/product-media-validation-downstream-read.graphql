@@ -1,0 +1,13 @@
+query ProductMediaValidationDownstreamRead($productId: ID!) {
+  product(id: $productId) {
+    id
+    media(first: 10) {
+      nodes {
+        id
+        alt
+        mediaContentType
+        status
+      }
+    }
+  }
+}

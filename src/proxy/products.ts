@@ -1,8 +1,20 @@
-import { getLocation, Kind, parse, type ASTNode, type FieldNode, type SelectionNode } from 'graphql';
+import { getLocation, Kind, parse, type FieldNode, type SelectionNode } from 'graphql';
 import type { ReadMode } from '../config.js';
 import { getFieldArguments, getRootField, getRootFieldArguments, getRootFields } from '../graphql/root-field.js';
-import { parseSearchQuery, type SearchQueryNode, type SearchQueryTerm } from '../search-query-parser.js';
-import { paginateConnectionItems, serializeConnection } from './graphql-helpers.js';
+import {
+  applySearchQuery,
+  matchesSearchQueryString,
+  searchQueryTermValue,
+  stripSearchQueryValueQuotes,
+  type SearchQueryTerm,
+} from '../search-query-parser.js';
+import {
+  getNodeLocation,
+  getVariableDefinitionLocation,
+  paginateConnectionItems,
+  serializeConnection,
+  type GraphqlErrorLocation,
+} from './graphql-helpers.js';
 import {
   normalizeOwnerMetafield,
   readMetafieldInputObjects,
@@ -21,12 +33,20 @@ import type {
   ProductCatalogConnectionRecord,
   ProductCollectionRecord,
   ProductMediaRecord,
+  MetafieldDefinitionRecord,
   ProductMetafieldRecord,
   ProductOptionRecord,
   ProductRecord,
   ProductVariantRecord,
   PublicationRecord,
 } from '../state/types.js';
+
+type ProductFeedRecord = {
+  id: string;
+  country: string | null;
+  language: string | null;
+  status: 'ACTIVE' | 'INACTIVE';
+};
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -86,31 +106,6 @@ function makeMetafieldCompareDigest(metafield: {
   ).toString('base64url')}`;
 }
 
-type GraphqlErrorLocation = { line: number; column: number };
-
-function getNodeLocation(node: ASTNode): GraphqlErrorLocation[] {
-  const token = node.loc?.startToken;
-  return token ? [{ line: token.line, column: token.column }] : [];
-}
-
-function getVariableDefinitionLocation(document: string, variableName: string): GraphqlErrorLocation[] {
-  const ast = parse(document);
-  for (const definition of ast.definitions) {
-    if (definition.kind !== Kind.OPERATION_DEFINITION) {
-      continue;
-    }
-
-    const variableDefinition = definition.variableDefinitions?.find(
-      (candidate) => candidate.variable.name.value === variableName,
-    );
-    if (variableDefinition) {
-      return getNodeLocation(variableDefinition);
-    }
-  }
-
-  return [];
-}
-
 function getOperationPathLabel(document: string): string {
   const ast = parse(document);
   const operation = ast.definitions.find((definition) => definition.kind === Kind.OPERATION_DEFINITION);
@@ -122,11 +117,13 @@ function getOperationPathLabel(document: string): string {
   return operation.name ? `${operationType} ${operation.name.value}` : operationType;
 }
 
+const maxProductHandleLength = 255;
+
 function normalizeHandleParts(value: string): string {
   return value
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
     .replace(/^-+|-+$/g, '');
 }
 
@@ -149,7 +146,8 @@ function stripHtmlToDescription(value: string): string {
 
 type ExplicitHandleResolution =
   | { kind: 'normalized-explicit'; handle: string }
-  | { kind: 'fallback-explicit'; handle: string };
+  | { kind: 'fallback-explicit'; handle: string }
+  | { kind: 'invalid'; error: { field: string[]; message: string } };
 
 function readProductInput(raw: unknown): Record<string, unknown> {
   return isObject(raw) ? raw : {};
@@ -173,6 +171,16 @@ function readExplicitHandle(input: Record<string, unknown>): ExplicitHandleResol
   const normalized = normalizeHandleParts(trimmedHandle);
   if (!normalized) {
     return { kind: 'fallback-explicit', handle: 'product' };
+  }
+
+  if (Array.from(normalized).length > maxProductHandleLength) {
+    return {
+      kind: 'invalid',
+      error: {
+        field: ['handle'],
+        message: `Handle is too long (maximum is ${maxProductHandleLength} characters)`,
+      },
+    };
   }
 
   return { kind: 'normalized-explicit', handle: normalized };
@@ -223,6 +231,10 @@ function prepareProductInputWithResolvedHandle(
 ): { input: Record<string, unknown>; error: { field: string[]; message: string } | null } {
   const explicitHandle = readExplicitHandle(input);
   if (explicitHandle) {
+    if (explicitHandle.kind === 'invalid') {
+      return { input, error: explicitHandle.error };
+    }
+
     if (explicitHandle.kind === 'normalized-explicit') {
       if (productHandleInUse(explicitHandle.handle, existing?.id)) {
         return { input, error: productHandleConflictError(explicitHandle.handle) };
@@ -390,6 +402,12 @@ interface CollectionProductMove {
 }
 
 type CollectionReorderUserError = { field: string[]; message: string };
+type ProductReorderUserError = { field: string[]; message: string };
+
+interface ProductVariantPosition {
+  id: string;
+  position: number;
+}
 
 function listEffectiveCollectionMembershipEntries(collectionId: string): CollectionMembershipEntry[] {
   return store
@@ -464,6 +482,66 @@ function readCollectionProductMoves(rawMoves: unknown): {
   return { moves, userErrors };
 }
 
+function readProductVariantPositions(rawPositions: unknown): {
+  positions: ProductVariantPosition[];
+  userErrors: ProductReorderUserError[];
+} {
+  const rawPositionList = Array.isArray(rawPositions) ? rawPositions : isObject(rawPositions) ? [rawPositions] : [];
+  const positions: ProductVariantPosition[] = [];
+  const userErrors: ProductReorderUserError[] = [];
+
+  if (rawPositionList.length === 0) {
+    return {
+      positions,
+      userErrors: [{ field: ['positions'], message: 'At least one position is required' }],
+    };
+  }
+
+  for (const [index, rawPosition] of rawPositionList.entries()) {
+    if (!isObject(rawPosition)) {
+      userErrors.push({ field: ['positions', `${index}`], message: 'Position is invalid' });
+      continue;
+    }
+
+    const variantId = typeof rawPosition['id'] === 'string' ? rawPosition['id'] : null;
+    const position = readCollectionReorderPosition(rawPosition['position']);
+    if (!variantId) {
+      userErrors.push({ field: ['positions', `${index}`, 'id'], message: 'Variant id is required' });
+    }
+    if (position === null || position < 1) {
+      userErrors.push({ field: ['positions', `${index}`, 'position'], message: 'Position is invalid' });
+    }
+    if (variantId && position !== null && position >= 1) {
+      positions.push({ id: variantId, position: position - 1 });
+    }
+  }
+
+  return { positions, userErrors };
+}
+
+function applySequentialReorder<T>(
+  items: T[],
+  moves: Array<{ id: string; position: number }>,
+  getId: (item: T) => string | null | undefined,
+): T[] {
+  const orderedItems = [...items];
+  for (const move of moves) {
+    const currentIndex = orderedItems.findIndex((item) => getId(item) === move.id);
+    if (currentIndex < 0) {
+      continue;
+    }
+
+    const [item] = orderedItems.splice(currentIndex, 1);
+    if (!item) {
+      continue;
+    }
+
+    orderedItems.splice(Math.min(move.position, orderedItems.length), 0, item);
+  }
+
+  return orderedItems;
+}
+
 function reorderCollectionProducts(
   collection: CollectionRecord,
   rawMoves: unknown,
@@ -494,20 +572,12 @@ function reorderCollectionProducts(
     return { job: null, userErrors };
   }
 
-  for (const move of moves) {
-    const currentIndex = orderedEntries.findIndex((entry) => entry.product.id === move.id);
-    if (currentIndex < 0) {
-      continue;
-    }
-
-    const [entry] = orderedEntries.splice(currentIndex, 1);
-    if (!entry) {
-      continue;
-    }
-
-    const nextIndex = Math.min(move.newPosition, orderedEntries.length);
-    orderedEntries.splice(nextIndex, 0, entry);
-  }
+  const reorderedEntries = applySequentialReorder(
+    orderedEntries,
+    moves.map((move) => ({ id: move.id, position: move.newPosition })),
+    (entry) => entry.product.id,
+  );
+  orderedEntries.splice(0, orderedEntries.length, ...reorderedEntries);
 
   for (const [position, entry] of orderedEntries.entries()) {
     const nextCollections = store.getEffectiveCollectionsByProductId(entry.product.id).map((membership) =>
@@ -523,6 +593,71 @@ function reorderCollectionProducts(
 
   return {
     job: { id: makeSyntheticGid('Job'), done: false },
+    userErrors: [],
+  };
+}
+
+function reorderProductMedia(
+  productId: string,
+  rawMoves: unknown,
+): { job: { id: string; done: boolean } | null; userErrors: ProductReorderUserError[] } {
+  const { moves, userErrors } = readCollectionProductMoves(rawMoves);
+  const effectiveMedia = store.getEffectiveMediaByProductId(productId);
+  const mediaIds = new Set(
+    effectiveMedia
+      .map((mediaRecord) => mediaRecord.id)
+      .filter((mediaId): mediaId is string => typeof mediaId === 'string'),
+  );
+
+  for (const [index, move] of moves.entries()) {
+    if (!mediaIds.has(move.id)) {
+      userErrors.push({ field: ['moves', `${index}`, 'id'], message: 'Media does not exist' });
+    }
+  }
+
+  if (userErrors.length > 0) {
+    return { job: null, userErrors };
+  }
+
+  const nextMedia = applySequentialReorder(
+    effectiveMedia,
+    moves.map((move) => ({ id: move.id, position: move.newPosition })),
+    (mediaRecord) => mediaRecord.id,
+  ).map((mediaRecord, position) => ({
+    ...mediaRecord,
+    position,
+  }));
+  store.replaceStagedMediaForProduct(productId, nextMedia);
+
+  return {
+    job: { id: makeSyntheticGid('Job'), done: false },
+    userErrors: [],
+  };
+}
+
+function reorderProductVariants(
+  productId: string,
+  rawPositions: unknown,
+): { product: ProductRecord | null; userErrors: ProductReorderUserError[] } {
+  const { positions, userErrors } = readProductVariantPositions(rawPositions);
+  const effectiveVariants = store.getEffectiveVariantsByProductId(productId);
+  const variantIds = new Set(effectiveVariants.map((variant) => variant.id));
+
+  for (const [index, position] of positions.entries()) {
+    if (!variantIds.has(position.id)) {
+      userErrors.push({ field: ['positions', `${index}`, 'id'], message: 'Variant does not exist' });
+    }
+  }
+
+  if (userErrors.length > 0) {
+    return { product: null, userErrors };
+  }
+
+  const nextVariants = applySequentialReorder(effectiveVariants, positions, (variant) => variant.id);
+  store.replaceStagedVariantsForProduct(productId, nextVariants);
+
+  return {
+    product: syncProductInventorySummary(productId),
     userErrors: [],
   };
 }
@@ -629,25 +764,56 @@ function serializeJobSelectionSet(
   return result;
 }
 
-function readProductSetInventoryQuantity(raw: unknown): number | null {
+interface ProductSetInventoryQuantityInput {
+  locationId: string | null;
+  name: string;
+  quantity: number;
+}
+
+function readProductSetInventoryQuantityInputs(raw: unknown): ProductSetInventoryQuantityInput[] {
   if (typeof raw === 'number' && Number.isFinite(raw)) {
-    return Math.floor(raw);
+    return [
+      {
+        locationId: null,
+        name: 'available',
+        quantity: Math.floor(raw),
+      },
+    ];
   }
 
   if (!Array.isArray(raw)) {
-    return null;
+    return [];
   }
 
-  const quantities = raw
+  return raw
     .filter((value): value is Record<string, unknown> => isObject(value))
-    .map((value) => value['quantity'])
-    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+    .map((value) => {
+      const rawQuantity = value['quantity'];
+      if (typeof rawQuantity !== 'number' || !Number.isFinite(rawQuantity)) {
+        return null;
+      }
+
+      const rawName = value['name'];
+      const rawLocationId = value['locationId'];
+      return {
+        locationId: typeof rawLocationId === 'string' && rawLocationId.trim() ? rawLocationId : null,
+        name: typeof rawName === 'string' && rawName.trim() ? rawName : 'available',
+        quantity: Math.floor(rawQuantity),
+      };
+    })
+    .filter((value): value is ProductSetInventoryQuantityInput => value !== null);
+}
+
+function readProductSetInventoryQuantity(raw: unknown): number | null {
+  const quantities = readProductSetInventoryQuantityInputs(raw)
+    .filter((value) => value.name === 'available')
+    .map((value) => value.quantity);
 
   if (quantities.length === 0) {
     return null;
   }
 
-  return quantities.reduce((total, quantity) => total + Math.floor(quantity), 0);
+  return quantities.reduce((total, quantity) => total + quantity, 0);
 }
 
 function readProductSetSelectedOptions(raw: unknown): ProductVariantRecord['selectedOptions'] {
@@ -1189,6 +1355,100 @@ function makeSyntheticProductImageId(mediaContentType: string | null | undefined
   }
 
   return null;
+}
+
+const CREATE_MEDIA_CONTENT_TYPES = new Set(['VIDEO', 'EXTERNAL_VIDEO', 'MODEL_3D', 'IMAGE']);
+
+function isValidMediaSource(value: unknown): value is string {
+  if (typeof value !== 'string' || !value.trim()) {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function mediaValidationProductNotFoundPayload(shape: 'create' | 'update' | 'delete') {
+  if (shape === 'delete') {
+    return {
+      deletedMediaIds: null,
+      deletedProductImageIds: null,
+      mediaUserErrors: [{ field: ['productId'], message: 'Product does not exist' }],
+      product: null,
+    };
+  }
+
+  return {
+    media: null,
+    mediaUserErrors: [{ field: ['productId'], message: 'Product does not exist' }],
+    ...(shape === 'create' ? { product: null } : {}),
+  };
+}
+
+function buildInvalidProductMediaContentTypeVariableError(
+  media: unknown[],
+  mediaIndex: number,
+  mediaContentType: string,
+  document: string,
+): {
+  errors: Array<{
+    message: string;
+    locations: GraphqlErrorLocation[];
+    extensions: {
+      code: 'INVALID_VARIABLE';
+      value: unknown[];
+      problems: Array<{ path: Array<string | number>; explanation: string }>;
+    };
+  }>;
+} {
+  const explanation = `Expected "${mediaContentType}" to be one of: VIDEO, EXTERNAL_VIDEO, MODEL_3D, IMAGE`;
+  return {
+    errors: [
+      {
+        message: `Variable $media of type [CreateMediaInput!]! was provided invalid value for ${mediaIndex}.mediaContentType (${explanation})`,
+        locations: getVariableDefinitionLocation(document, 'media'),
+        extensions: {
+          code: 'INVALID_VARIABLE',
+          value: structuredClone(media),
+          problems: [{ path: [mediaIndex, 'mediaContentType'], explanation }],
+        },
+      },
+    ],
+  };
+}
+
+function buildInvalidProductMediaProductIdVariableError(
+  productId: string,
+  document: string,
+): {
+  errors: Array<{
+    message: string;
+    locations: GraphqlErrorLocation[];
+    extensions: {
+      code: 'INVALID_VARIABLE';
+      value: string;
+      problems: Array<{ path: never[]; explanation: string; message: string }>;
+    };
+  }>;
+} {
+  const message = `Invalid global id '${productId}'`;
+  return {
+    errors: [
+      {
+        message: 'Variable $productId of type ID! was provided invalid value',
+        locations: getVariableDefinitionLocation(document, 'productId'),
+        extensions: {
+          code: 'INVALID_VARIABLE',
+          value: productId,
+          problems: [{ path: [], explanation: message, message }],
+        },
+      },
+    ],
+  };
 }
 
 function duplicateMetafieldRecord(metafield: ProductMetafieldRecord, productId: string): ProductMetafieldRecord {
@@ -1836,6 +2096,146 @@ function readInventoryItemInput(
   };
 }
 
+function makeInventoryItemForInventoryQuantities(
+  existing: ProductVariantRecord['inventoryItem'],
+): NonNullable<ProductVariantRecord['inventoryItem']> {
+  return existing
+    ? structuredClone(existing)
+    : {
+        id: makeSyntheticGid('InventoryItem'),
+        tracked: null,
+        requiresShipping: null,
+        measurement: null,
+        countryCodeOfOrigin: null,
+        provinceCodeOfOrigin: null,
+        harmonizedSystemCode: null,
+        inventoryLevels: null,
+      };
+}
+
+function upsertInventoryLevelQuantity(
+  quantities: InventoryLevelRecord['quantities'],
+  name: string,
+  quantity: number,
+  updatedAt: string | null = makeSyntheticTimestamp(),
+): InventoryLevelRecord['quantities'] {
+  const nextQuantities = quantities.map((candidate) => structuredClone(candidate));
+  const existingIndex = nextQuantities.findIndex((candidate) => candidate.name === name);
+  const nextQuantity = {
+    name,
+    quantity,
+    updatedAt,
+  };
+
+  if (existingIndex >= 0) {
+    nextQuantities[existingIndex] = {
+      ...nextQuantities[existingIndex]!,
+      ...nextQuantity,
+    };
+  } else {
+    nextQuantities.push(nextQuantity);
+  }
+
+  return nextQuantities;
+}
+
+function ensureInventoryLevelQuantity(
+  quantities: InventoryLevelRecord['quantities'],
+  name: string,
+  quantity: number,
+): InventoryLevelRecord['quantities'] {
+  if (quantities.some((candidate) => candidate.name === name)) {
+    return quantities;
+  }
+
+  return [
+    ...quantities,
+    {
+      name,
+      quantity,
+      updatedAt: null,
+    },
+  ];
+}
+
+function buildProductSetInventoryLevels(
+  variant: ProductVariantRecord,
+  rawInventoryQuantities: unknown,
+  inventoryItem: NonNullable<ProductVariantRecord['inventoryItem']>,
+): InventoryLevelRecord[] | null {
+  const quantityInputs = readProductSetInventoryQuantityInputs(rawInventoryQuantities);
+  if (quantityInputs.length === 0) {
+    return inventoryItem.inventoryLevels ?? null;
+  }
+
+  const inputsByLocationId = new Map<string, ProductSetInventoryQuantityInput[]>();
+  for (const quantityInput of quantityInputs) {
+    const locationId = quantityInput.locationId ?? DEFAULT_INVENTORY_LEVEL_LOCATION_ID;
+    inputsByLocationId.set(locationId, [...(inputsByLocationId.get(locationId) ?? []), quantityInput]);
+  }
+
+  const existingLevelsByLocationId = new Map(
+    (inventoryItem.inventoryLevels ?? buildSyntheticInventoryLevels({ ...variant, inventoryItem })).map((level) => [
+      level.location?.id ?? DEFAULT_INVENTORY_LEVEL_LOCATION_ID,
+      level,
+    ]),
+  );
+
+  return [...inputsByLocationId.entries()].map(([locationId, quantityInputsForLocation]) => {
+    const existingLevel = existingLevelsByLocationId.get(locationId) ?? null;
+    const effectiveLocation = store.getEffectiveLocationById(locationId);
+    let quantities = existingLevel?.quantities.map((quantity) => structuredClone(quantity)) ?? [];
+
+    for (const quantityInput of quantityInputsForLocation) {
+      quantities = upsertInventoryLevelQuantity(quantities, quantityInput.name, quantityInput.quantity);
+      if (quantityInput.name === 'available') {
+        quantities = upsertInventoryLevelQuantity(quantities, 'on_hand', quantityInput.quantity, null);
+      }
+    }
+
+    quantities = ensureInventoryLevelQuantity(quantities, 'available', 0);
+    quantities = ensureInventoryLevelQuantity(quantities, 'on_hand', 0);
+    quantities = ensureInventoryLevelQuantity(quantities, 'incoming', 0);
+
+    return {
+      id: existingLevel?.id ?? buildStableSyntheticInventoryLevelId(inventoryItem.id, locationId),
+      cursor: existingLevel?.cursor ?? null,
+      location: {
+        id: locationId,
+        name: effectiveLocation?.name ?? existingLevel?.location?.name ?? null,
+      },
+      quantities,
+    };
+  });
+}
+
+function applyProductSetInventoryQuantitiesToVariant(
+  variant: ProductVariantRecord,
+  input: Record<string, unknown>,
+): ProductVariantRecord {
+  if (!hasOwnField(input, 'inventoryQuantities')) {
+    return variant;
+  }
+
+  const quantityInputs = readProductSetInventoryQuantityInputs(input['inventoryQuantities']);
+  if (quantityInputs.length === 0) {
+    return variant;
+  }
+
+  const inventoryItem = makeInventoryItemForInventoryQuantities(variant.inventoryItem);
+  const inventoryLevels = buildProductSetInventoryLevels(variant, input['inventoryQuantities'], inventoryItem);
+  const availableQuantity = readProductSetInventoryQuantity(input['inventoryQuantities']);
+
+  return {
+    ...variant,
+    inventoryQuantity: availableQuantity ?? variant.inventoryQuantity,
+    inventoryItem: {
+      ...inventoryItem,
+      inventoryLevels,
+    },
+  };
+}
+
 function deriveVariantTitle(
   rawTitle: unknown,
   selectedOptions: ProductVariantRecord['selectedOptions'],
@@ -1879,17 +2279,27 @@ function makeCreatedVariantRecord(
 function makeCreatedProductSetVariantRecord(productId: string, input: Record<string, unknown>): ProductVariantRecord {
   const variant = makeCreatedVariantRecord(productId, input);
 
-  return {
-    ...variant,
-    taxable: variant.taxable ?? true,
-    inventoryPolicy: variant.inventoryPolicy ?? 'DENY',
-    inventoryItem: variant.inventoryItem
-      ? {
-          ...variant.inventoryItem,
-          measurement: variant.inventoryItem.measurement ?? makeDefaultInventoryItemMeasurement(),
-        }
-      : null,
-  };
+  return applyProductSetInventoryQuantitiesToVariant(
+    {
+      ...variant,
+      taxable: variant.taxable ?? true,
+      inventoryPolicy: variant.inventoryPolicy ?? 'DENY',
+      inventoryItem: variant.inventoryItem
+        ? {
+            ...variant.inventoryItem,
+            measurement: variant.inventoryItem.measurement ?? makeDefaultInventoryItemMeasurement(),
+          }
+        : null,
+    },
+    input,
+  );
+}
+
+function updateProductSetVariantRecord(
+  existing: ProductVariantRecord,
+  input: Record<string, unknown>,
+): ProductVariantRecord {
+  return applyProductSetInventoryQuantitiesToVariant(updateVariantRecord(existing, input), input);
 }
 
 function updateVariantRecord(existing: ProductVariantRecord, input: Record<string, unknown>): ProductVariantRecord {
@@ -1911,6 +2321,171 @@ function updateVariantRecord(existing: ProductVariantRecord, input: Record<strin
       ? readInventoryItemInput(input['inventoryItem'], existing.inventoryItem)
       : structuredClone(existing.inventoryItem),
   };
+}
+
+type BulkVariantUserError = {
+  field: string[] | null;
+  message: string;
+};
+
+function readBulkVariantInputs(raw: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  return raw.filter((value): value is Record<string, unknown> => isObject(value));
+}
+
+function hasVariantOptionInput(input: Record<string, unknown>): boolean {
+  return hasOwnField(input, 'selectedOptions') || hasOwnField(input, 'optionValues') || hasOwnField(input, 'options');
+}
+
+function bulkVariantOptionFieldName(input: Record<string, unknown>): string {
+  if (hasOwnField(input, 'optionValues')) {
+    return 'optionValues';
+  }
+
+  if (hasOwnField(input, 'selectedOptions')) {
+    return 'selectedOptions';
+  }
+
+  return 'options';
+}
+
+function validateBulkVariantOptionInput(
+  productId: string,
+  input: Record<string, unknown>,
+  index: number,
+  mode: 'create' | 'update',
+): {
+  selectedOptions: ProductVariantRecord['selectedOptions'];
+  userErrors: BulkVariantUserError[];
+} {
+  const selectedOptions = readVariantSelectedOptions(input, productId);
+  const userErrors: BulkVariantUserError[] = [];
+  const productOptions = store.getEffectiveOptionsByProductId(productId);
+  const optionFieldName = bulkVariantOptionFieldName(input);
+  const seenOptionNames = new Set<string>();
+
+  for (const [optionIndex, selectedOption] of selectedOptions.entries()) {
+    if (seenOptionNames.has(selectedOption.name)) {
+      userErrors.push({
+        field: ['variants', String(index), optionFieldName],
+        message: `Duplicated option name '${selectedOption.name}'`,
+      });
+      return { selectedOptions, userErrors };
+    }
+    seenOptionNames.add(selectedOption.name);
+
+    const productOption = productOptions.find((option) => option.name === selectedOption.name);
+    if (productOptions.length > 0 && !productOption) {
+      userErrors.push({
+        field: ['variants', String(index), optionFieldName, String(optionIndex)],
+        message: 'Option does not exist',
+      });
+      return { selectedOptions, userErrors };
+    }
+  }
+
+  const shouldRequireCompleteOptionSet = mode === 'create' || hasVariantOptionInput(input);
+  if (shouldRequireCompleteOptionSet && productOptions.length > 0 && selectedOptions.length > 0) {
+    const missingOption = productOptions.find((option) => !seenOptionNames.has(option.name));
+    if (missingOption) {
+      userErrors.push({
+        field: ['variants', String(index)],
+        message: `You need to add option values for ${missingOption.name}`,
+      });
+    }
+  }
+
+  return { selectedOptions, userErrors };
+}
+
+function validateBulkCreateVariantBatch(productId: string, inputs: Record<string, unknown>[]): BulkVariantUserError[] {
+  const userErrors: BulkVariantUserError[] = [];
+
+  for (const [index, input] of inputs.entries()) {
+    const validation = validateBulkVariantOptionInput(productId, input, index, 'create');
+    if (validation.userErrors.length > 0) {
+      userErrors.push(...validation.userErrors);
+      continue;
+    }
+
+    const rawInventoryQuantities = input['inventoryQuantities'];
+    if (!Array.isArray(rawInventoryQuantities)) {
+      continue;
+    }
+
+    const invalidInventoryLocation = rawInventoryQuantities.some((rawQuantity) => {
+      if (!isObject(rawQuantity)) {
+        return false;
+      }
+
+      const locationId = rawQuantity['locationId'];
+      return (
+        typeof locationId === 'string' &&
+        locationId !== DEFAULT_INVENTORY_LEVEL_LOCATION_ID &&
+        !findKnownLocationById(locationId)
+      );
+    });
+    if (invalidInventoryLocation) {
+      userErrors.push({
+        field: ['variants', String(index), 'inventoryQuantities'],
+        message: `Quantity for ${deriveVariantTitle(input['title'], validation.selectedOptions, 'Default Title')} couldn't be set because the location was deleted.`,
+      });
+    }
+  }
+
+  return userErrors;
+}
+
+function validateBulkUpdateVariantBatch(
+  productId: string,
+  inputs: Record<string, unknown>[],
+  variantsById: Map<string, ProductVariantRecord>,
+): BulkVariantUserError[] {
+  if (inputs.length === 0) {
+    return [{ field: null, message: 'Something went wrong, please try again.' }];
+  }
+
+  const userErrors: BulkVariantUserError[] = [];
+  for (const [index, input] of inputs.entries()) {
+    const rawVariantId = input['id'];
+    if (typeof rawVariantId !== 'string') {
+      userErrors.push({
+        field: ['variants', String(index), 'id'],
+        message: 'Product variant is missing ID attribute',
+      });
+      continue;
+    }
+
+    if (!variantsById.has(rawVariantId)) {
+      userErrors.push({
+        field: ['variants', String(index), 'id'],
+        message: 'Product variant does not exist',
+      });
+      continue;
+    }
+
+    if (hasOwnField(input, 'inventoryQuantities')) {
+      userErrors.push({
+        field: ['variants', String(index), 'inventoryQuantities'],
+        message:
+          'Inventory quantities can only be provided during create. To update inventory for existing variants, use inventoryAdjustQuantities.',
+      });
+      continue;
+    }
+
+    if (hasVariantOptionInput(input)) {
+      userErrors.push(...validateBulkVariantOptionInput(productId, input, index, 'update').userErrors);
+    }
+  }
+
+  return userErrors;
+}
+
+function isKnownMissingShopifyGid(id: string): boolean {
+  return /\/9{12,}(?:$|\?)/u.test(id);
 }
 
 function sumVariantInventory(variants: ProductVariantRecord[]): number | null {
@@ -2004,6 +2579,40 @@ function syncProductInventorySummary(productId: string): ProductRecord | null {
     ...structuredClone(existingProduct),
     updatedAt: makeSyntheticTimestamp(),
     totalInventory: sumVariantInventory(effectiveVariants),
+    tracksInventory: deriveTracksInventory(effectiveVariants),
+  };
+
+  store.stageUpdateProduct(nextProduct);
+  return store.getEffectiveProductById(productId);
+}
+
+function sumProductSetCreateInventory(variants: ProductVariantRecord[]): number | null {
+  const quantities = variants
+    .filter((variant) => variant.inventoryItem?.tracked !== false)
+    .map((variant) => variant.inventoryQuantity)
+    .filter((inventoryQuantity): inventoryQuantity is number => typeof inventoryQuantity === 'number');
+
+  if (quantities.length === 0) {
+    return null;
+  }
+
+  return quantities.reduce((total, quantity) => total + quantity, 0);
+}
+
+function syncProductSetInventorySummary(
+  productId: string,
+  previousProduct: ProductRecord | null,
+): ProductRecord | null {
+  const existingProduct = store.getEffectiveProductById(productId);
+  if (!existingProduct) {
+    return null;
+  }
+
+  const effectiveVariants = store.getEffectiveVariantsByProductId(productId);
+  const nextProduct: ProductRecord = {
+    ...structuredClone(existingProduct),
+    updatedAt: makeSyntheticTimestamp(),
+    totalInventory: previousProduct ? previousProduct.totalInventory : sumProductSetCreateInventory(effectiveVariants),
     tracksInventory: deriveTracksInventory(effectiveVariants),
   };
 
@@ -3020,6 +3629,22 @@ function readMetafieldsSetIdentity(input: Record<string, unknown>): {
   return { ownerId, namespace, key };
 }
 
+function findMetafieldsSetDefinition(
+  owner: ProductMetafieldOwner,
+  namespace: string | null,
+  key: string | null,
+): MetafieldDefinitionRecord | null {
+  if (!namespace || !key) {
+    return null;
+  }
+
+  return store.findEffectiveMetafieldDefinition({
+    ownerType: owner.ownerType,
+    namespace,
+    key,
+  });
+}
+
 function makeMetafieldsSetUserError(
   index: number | null,
   fieldName: string | null,
@@ -3075,7 +3700,9 @@ function validateMetafieldsSetInputs(inputs: Record<string, unknown>[]): Metafie
     const existing = effectiveMetafields.find(
       (metafield) => metafield.namespace === namespace && metafield.key === key,
     );
-    const type = typeof input['type'] === 'string' && input['type'].trim() ? input['type'] : existing?.type;
+    const definition = findMetafieldsSetDefinition(owner, namespace, key);
+    const inputType = typeof input['type'] === 'string' && input['type'].trim() ? input['type'] : null;
+    const type = inputType ?? definition?.type.name ?? existing?.type;
     const value = typeof input['value'] === 'string' ? input['value'] : null;
 
     if (!type) {
@@ -3089,6 +3716,53 @@ function validateMetafieldsSetInputs(inputs: Record<string, unknown>[]): Metafie
 
     if (value === null) {
       errors.push(makeMetafieldsSetUserError(index, 'value', 'Value is required.', 'BLANK'));
+    }
+
+    if (definition && inputType && inputType !== definition.type.name) {
+      errors.push(
+        makeMetafieldsSetUserError(
+          index,
+          'type',
+          `Type must be ${definition.type.name} for this metafield definition.`,
+          'INVALID_TYPE',
+        ),
+      );
+    }
+
+    if (definition && value !== null) {
+      for (const validation of definition.validations) {
+        if (validation.name === 'max') {
+          const max = Number.parseInt(validation.value ?? '', 10);
+          if (Number.isFinite(max) && value.length > max) {
+            errors.push(
+              makeMetafieldsSetUserError(
+                index,
+                'value',
+                `Value must be ${max} characters or fewer for this metafield definition.`,
+                'LESS_THAN_OR_EQUAL_TO',
+              ),
+            );
+          }
+        }
+
+        if (validation.name === 'regex' && validation.value) {
+          try {
+            const pattern = new RegExp(validation.value, 'u');
+            if (!pattern.test(value)) {
+              errors.push(
+                makeMetafieldsSetUserError(
+                  index,
+                  'value',
+                  'Value does not match the validation pattern for this metafield definition.',
+                  'INVALID',
+                ),
+              );
+            }
+          } catch {
+            continue;
+          }
+        }
+      }
     }
 
     if (!hasOwnField(input, 'compareDigest')) {
@@ -3124,15 +3798,25 @@ function getDefaultAppMetafieldNamespace(): string {
   return `app--${appIdTail && /^\d+$/u.test(appIdTail) ? appIdTail : '347082227713'}`;
 }
 
-function normalizeMetafieldsSetInput(input: Record<string, unknown>): Record<string, unknown> {
-  if (typeof input['namespace'] === 'string' && input['namespace'].trim()) {
-    return input;
+function normalizeMetafieldsSetInput(
+  input: Record<string, unknown>,
+  owner: ProductMetafieldOwner,
+): Record<string, unknown> {
+  const normalizedInput =
+    typeof input['namespace'] === 'string' && input['namespace'].trim()
+      ? input
+      : {
+          ...input,
+          namespace: getDefaultAppMetafieldNamespace(),
+        };
+
+  if (typeof normalizedInput['type'] === 'string' && normalizedInput['type'].trim()) {
+    return normalizedInput;
   }
 
-  return {
-    ...input,
-    namespace: getDefaultAppMetafieldNamespace(),
-  };
+  const { namespace, key } = readMetafieldsSetIdentity(normalizedInput);
+  const definition = findMetafieldsSetDefinition(owner, namespace, key);
+  return definition ? { ...normalizedInput, type: definition.type.name } : normalizedInput;
 }
 
 function getRootFieldArgumentVariableName(field: FieldNode, argumentName: string): string | null {
@@ -3318,7 +4002,7 @@ function buildProductSetVariantRecords(productId: string, rawVariants: unknown):
       const rawId = normalized['id'];
       const existing = typeof rawId === 'string' ? (existingVariantsById.get(rawId) ?? null) : null;
       return existing
-        ? updateVariantRecord(existing, normalized)
+        ? updateProductSetVariantRecord(existing, normalized)
         : makeCreatedProductSetVariantRecord(productId, normalized);
     });
 }
@@ -5119,6 +5803,74 @@ function serializeTopLevelPublicationsConnection(
   });
 }
 
+function serializeProductFeedSelectionSet(
+  productFeed: ProductFeedRecord,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      const typeName = selection.typeCondition?.name.value;
+      if (typeName && typeName !== 'ProductFeed' && typeName !== 'Node') {
+        continue;
+      }
+
+      Object.assign(result, serializeProductFeedSelectionSet(productFeed, selection.selectionSet.selections));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = selection.alias?.value ?? selection.name.value;
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'ProductFeed';
+        break;
+      case 'id':
+        result[key] = productFeed.id;
+        break;
+      case 'country':
+        result[key] = productFeed.country;
+        break;
+      case 'language':
+        result[key] = productFeed.language;
+        break;
+      case 'status':
+        result[key] = productFeed.status;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeTopLevelProductFeedsConnection(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const productFeeds: ProductFeedRecord[] = [];
+  const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
+    productFeeds,
+    field,
+    variables,
+    (productFeed) => productFeed.id,
+  );
+
+  return serializeConnection(field, {
+    items,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (productFeed) => productFeed.id,
+    serializeNode: (productFeed, selection) =>
+      serializeProductFeedSelectionSet(productFeed, selection.selectionSet?.selections ?? []),
+  });
+}
+
 function serializeMediaImageSelectionSet(
   imageUrl: string | null,
   selections: readonly SelectionNode[],
@@ -5564,7 +6316,7 @@ function matchesProductTimestampTerm(productValue: string, rawValue: string): bo
   }
 
   const operator = match[1] ?? '=';
-  const thresholdValue = stripSearchValueQuotes(match[2]?.trim() ?? '');
+  const thresholdValue = stripSearchQueryValueQuotes(match[2]?.trim() ?? '');
   if (!thresholdValue) {
     return true;
   }
@@ -5591,21 +6343,8 @@ function matchesProductTimestampTerm(productValue: string, rawValue: string): bo
   }
 }
 
-function stripSearchValueQuotes(value: string): string {
-  const trimmed = value.trim();
-  if (trimmed.length >= 2) {
-    const firstCharacter = trimmed[0];
-    const lastCharacter = trimmed[trimmed.length - 1];
-    if ((firstCharacter === '"' || firstCharacter === "'") && firstCharacter === lastCharacter) {
-      return trimmed.slice(1, -1);
-    }
-  }
-
-  return trimmed;
-}
-
 function matchesNullableProductTimestampTerm(productValue: string | null, rawValue: string): boolean {
-  const normalizedValue = stripSearchValueQuotes(rawValue);
+  const normalizedValue = stripSearchQueryValueQuotes(rawValue);
   if (normalizedValue === '*') {
     return productValue !== null;
   }
@@ -5618,7 +6357,7 @@ function isProductPublished(product: Pick<ProductRecord, 'publicationIds' | 'sta
 }
 
 function matchesProductPublicationStatus(product: ProductRecord, rawValue: string): boolean {
-  const normalizedValue = stripSearchValueQuotes(rawValue).trim().toLowerCase();
+  const normalizedValue = stripSearchQueryValueQuotes(rawValue).trim().toLowerCase();
   if (normalizedValue === 'published' || normalizedValue === 'visible') {
     return isProductPublished(product);
   }
@@ -5631,35 +6370,8 @@ function matchesProductPublicationStatus(product: ProductRecord, rawValue: strin
 
   return true;
 }
-
-function isPrefixPattern(rawValue: string): boolean {
-  return rawValue.endsWith('*');
-}
-
 function matchesStringValue(candidate: string, rawValue: string, matchMode: 'includes' | 'exact'): boolean {
-  const value = rawValue.trim().toLowerCase();
-  if (!value) {
-    return true;
-  }
-
-  const prefixMode = isPrefixPattern(value);
-  const normalizedValue = prefixMode ? value.slice(0, -1) : value;
-  if (!normalizedValue) {
-    return true;
-  }
-
-  const normalizedCandidate = candidate.toLowerCase();
-  if (prefixMode) {
-    if (normalizedCandidate.startsWith(normalizedValue)) {
-      return true;
-    }
-
-    return normalizedCandidate.split(/[^a-z0-9]+/).some((part) => part.startsWith(normalizedValue));
-  }
-
-  return matchMode === 'exact'
-    ? normalizedCandidate === normalizedValue
-    : normalizedCandidate.includes(normalizedValue);
+  return matchesSearchQueryString(candidate, rawValue, matchMode, { wordPrefix: true });
 }
 
 function getSearchableProductTags(product: ProductRecord): string[] {
@@ -5700,17 +6412,13 @@ function matchesProductSearchText(product: ProductRecord, rawValue: string): boo
   return searchableValues.some((candidate) => matchesStringValue(candidate, rawValue, 'includes'));
 }
 
-function searchTermValue(term: SearchQueryTerm): string {
-  return term.comparator === null ? term.value : `${term.comparator}${term.value}`;
-}
-
 function matchesPositiveProductQueryTerm(product: ProductRecord, term: SearchQueryTerm): boolean {
   if (term.field === null) {
     return matchesProductSearchText(product, term.value);
   }
 
   const field = term.field.toLowerCase();
-  const value = searchTermValue(term);
+  const value = searchQueryTermValue(term);
 
   switch (field) {
     case 'title':
@@ -5777,45 +6485,8 @@ function matchesPositiveProductQueryTerm(product: ProductRecord, term: SearchQue
   }
 }
 
-function matchesProductQueryTerm(product: ProductRecord, term: SearchQueryTerm): boolean {
-  if (!term.raw) {
-    return true;
-  }
-
-  if (term.negated && !term.value && term.field === null) {
-    return true;
-  }
-
-  const matches = matchesPositiveProductQueryTerm(product, term);
-  return term.negated ? !matches : matches;
-}
-
-function matchesProductsQueryNode(product: ProductRecord, node: SearchQueryNode): boolean {
-  switch (node.type) {
-    case 'term':
-      return matchesProductQueryTerm(product, node.term);
-    case 'and':
-      return node.children.every((child) => matchesProductsQueryNode(product, child));
-    case 'or':
-      return node.children.some((child) => matchesProductsQueryNode(product, child));
-    case 'not':
-      return !matchesProductsQueryNode(product, node.child);
-    default:
-      return true;
-  }
-}
-
 function applyProductsQuery(products: ProductRecord[], rawQuery: unknown): ProductRecord[] {
-  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
-    return products;
-  }
-
-  const parsedQuery = parseSearchQuery(rawQuery, { recognizeNotKeyword: true });
-  if (!parsedQuery) {
-    return products;
-  }
-
-  return products.filter((product) => matchesProductsQueryNode(product, parsedQuery));
+  return applySearchQuery(products, rawQuery, { recognizeNotKeyword: true }, matchesPositiveProductQueryTerm);
 }
 
 function collectionIsSmart(collection: CollectionRecord | ProductCollectionRecord): boolean {
@@ -5823,7 +6494,7 @@ function collectionIsSmart(collection: CollectionRecord | ProductCollectionRecor
 }
 
 function matchesResourceIdValue(resourceId: string, rawValue: string): boolean {
-  const normalizedValue = stripSearchValueQuotes(rawValue).trim();
+  const normalizedValue = stripSearchQueryValueQuotes(rawValue).trim();
   if (!normalizedValue) {
     return true;
   }
@@ -5842,7 +6513,7 @@ function matchesResourceIdRange(resourceId: string, rawValue: string): boolean {
   }
 
   const operator = match[1] ?? '=';
-  const thresholdValue = stripSearchValueQuotes(match[2]?.trim() ?? '');
+  const thresholdValue = stripSearchQueryValueQuotes(match[2]?.trim() ?? '');
   if (!thresholdValue) {
     return true;
   }
@@ -5900,7 +6571,7 @@ function matchesPositiveCollectionQueryTerm(
   }
 
   const field = term.field.toLowerCase();
-  const value = searchTermValue(term);
+  const value = searchQueryTermValue(term);
 
   switch (field) {
     case 'title':
@@ -5908,7 +6579,7 @@ function matchesPositiveCollectionQueryTerm(
     case 'handle':
       return matchesStringValue(collection.handle, value, 'exact');
     case 'collection_type': {
-      const normalizedValue = stripSearchValueQuotes(value).trim().toLowerCase();
+      const normalizedValue = stripSearchQueryValueQuotes(value).trim().toLowerCase();
       if (normalizedValue === 'smart') {
         return collectionIsSmart(collection);
       }
@@ -5933,54 +6604,11 @@ function matchesPositiveCollectionQueryTerm(
   }
 }
 
-function matchesCollectionQueryTerm(
-  collection: CollectionRecord | ProductCollectionRecord,
-  term: SearchQueryTerm,
-): boolean {
-  if (!term.raw) {
-    return true;
-  }
-
-  if (term.negated && !term.value && term.field === null) {
-    return true;
-  }
-
-  const matches = matchesPositiveCollectionQueryTerm(collection, term);
-  return term.negated ? !matches : matches;
-}
-
-function matchesCollectionsQueryNode(
-  collection: CollectionRecord | ProductCollectionRecord,
-  node: SearchQueryNode,
-): boolean {
-  switch (node.type) {
-    case 'term':
-      return matchesCollectionQueryTerm(collection, node.term);
-    case 'and':
-      return node.children.every((child) => matchesCollectionsQueryNode(collection, child));
-    case 'or':
-      return node.children.some((child) => matchesCollectionsQueryNode(collection, child));
-    case 'not':
-      return !matchesCollectionsQueryNode(collection, node.child);
-    default:
-      return true;
-  }
-}
-
 function applyCollectionsQuery<T extends CollectionRecord | ProductCollectionRecord>(
   collections: T[],
   rawQuery: unknown,
 ): T[] {
-  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
-    return collections;
-  }
-
-  const parsedQuery = parseSearchQuery(rawQuery, { recognizeNotKeyword: true });
-  if (!parsedQuery) {
-    return collections;
-  }
-
-  return collections.filter((collection) => matchesCollectionsQueryNode(collection, parsedQuery));
+  return applySearchQuery(collections, rawQuery, { recognizeNotKeyword: true }, matchesPositiveCollectionQueryTerm);
 }
 
 function compareCollectionIds(leftId: string, rightId: string): number {
@@ -7065,7 +7693,7 @@ export function handleProductMutation(
         );
       }
 
-      const product = syncProductInventorySummary(productId) ?? store.getEffectiveProductById(productId);
+      const product = syncProductSetInventorySummary(productId, existing) ?? store.getEffectiveProductById(productId);
       return {
         data: {
           [responseKey]: {
@@ -7902,9 +8530,68 @@ export function handleProductMutation(
         },
       };
     }
+    case 'productReorderMedia': {
+      const rawProductId = args['id'];
+      const productId = typeof rawProductId === 'string' ? rawProductId : null;
+      if (!productId) {
+        return {
+          data: {
+            [responseKey]: {
+              job: null,
+              mediaUserErrors: [{ field: ['id'], message: 'Product id is required' }],
+            },
+          },
+        };
+      }
+
+      const existingProduct = store.getEffectiveProductById(productId);
+      if (!existingProduct) {
+        return {
+          data: {
+            [responseKey]: {
+              job: null,
+              mediaUserErrors: [{ field: ['id'], message: 'Product not found' }],
+            },
+          },
+        };
+      }
+
+      const result = reorderProductMedia(productId, args['moves']);
+      return {
+        data: {
+          [responseKey]: {
+            job: result.job
+              ? serializeJobSelectionSet(result.job, getChildField(field, 'job')?.selectionSet?.selections ?? [])
+              : null,
+            mediaUserErrors: result.userErrors,
+          },
+        },
+      };
+    }
     case 'productCreateMedia': {
       const rawProductId = args['productId'];
       const productId = typeof rawProductId === 'string' ? rawProductId : null;
+      if (productId === '') {
+        return buildInvalidProductMediaProductIdVariableError(productId, document);
+      }
+
+      const mediaInput = Array.isArray(args['media']) ? args['media'] : [];
+      for (const [mediaIndex, media] of mediaInput.entries()) {
+        if (!isObject(media)) {
+          continue;
+        }
+
+        const rawMediaContentType = media['mediaContentType'];
+        if (typeof rawMediaContentType === 'string' && !CREATE_MEDIA_CONTENT_TYPES.has(rawMediaContentType)) {
+          return buildInvalidProductMediaContentTypeVariableError(
+            mediaInput,
+            mediaIndex,
+            rawMediaContentType,
+            document,
+          );
+        }
+      }
+
       if (!productId) {
         return {
           data: {
@@ -7921,27 +8608,40 @@ export function handleProductMutation(
       if (!existingProduct) {
         return {
           data: {
-            [responseKey]: {
-              media: [],
-              mediaUserErrors: [{ field: ['productId'], message: 'Product not found' }],
-              product: null,
-            },
+            [responseKey]: mediaValidationProductNotFoundPayload('create'),
           },
         };
       }
 
       const existingMedia = store.getEffectiveMediaByProductId(productId);
-      const createdMedia = (Array.isArray(args['media']) ? args['media'] : [])
-        .filter((media): media is Record<string, unknown> => isObject(media))
-        .map((media, index) => makeCreatedMediaRecord(productId, media, existingMedia.length + index));
+      const createdMedia: ProductMediaRecord[] = [];
+      const mediaUserErrors: Array<{ field: string[]; message: string }> = [];
+      for (const [mediaIndex, media] of mediaInput.entries()) {
+        if (!isObject(media)) {
+          continue;
+        }
+
+        const mediaContentType = typeof media['mediaContentType'] === 'string' ? media['mediaContentType'] : 'IMAGE';
+        if (mediaContentType === 'IMAGE' && !isValidMediaSource(media['originalSource'])) {
+          mediaUserErrors.push({
+            field: ['media', `${mediaIndex}`, 'originalSource'],
+            message: 'Image URL is invalid',
+          });
+          continue;
+        }
+
+        createdMedia.push(makeCreatedMediaRecord(productId, media, existingMedia.length + createdMedia.length));
+      }
       const nextMedia = [...existingMedia, ...createdMedia];
-      store.replaceStagedMediaForProduct(productId, nextMedia);
+      if (createdMedia.length > 0) {
+        store.replaceStagedMediaForProduct(productId, nextMedia);
+      }
 
       const response = {
         data: {
           [responseKey]: {
             media: serializeMediaPayload(createdMedia, getChildField(field, 'media')),
-            mediaUserErrors: [],
+            mediaUserErrors,
             product: serializeProduct(
               store.getEffectiveProductById(productId),
               getChildField(field, 'product'),
@@ -7951,16 +8651,22 @@ export function handleProductMutation(
         },
       };
 
-      store.replaceStagedMediaForProduct(productId, [
-        ...existingMedia,
-        ...createdMedia.map((mediaRecord) => transitionMediaToProcessing(mediaRecord)),
-      ]);
+      if (createdMedia.length > 0) {
+        store.replaceStagedMediaForProduct(productId, [
+          ...existingMedia,
+          ...createdMedia.map((mediaRecord) => transitionMediaToProcessing(mediaRecord)),
+        ]);
+      }
 
       return response;
     }
     case 'productUpdateMedia': {
       const rawProductId = args['productId'];
       const productId = typeof rawProductId === 'string' ? rawProductId : null;
+      if (productId === '') {
+        return buildInvalidProductMediaProductIdVariableError(productId, document);
+      }
+
       if (!productId) {
         return {
           data: {
@@ -7976,10 +8682,7 @@ export function handleProductMutation(
       if (!existingProduct) {
         return {
           data: {
-            [responseKey]: {
-              media: [],
-              mediaUserErrors: [{ field: ['productId'], message: 'Product not found' }],
-            },
+            [responseKey]: mediaValidationProductNotFoundPayload('update'),
           },
         };
       }
@@ -7992,11 +8695,16 @@ export function handleProductMutation(
         (media) => typeof media['id'] !== 'string' || !effectiveMedia.some((candidate) => candidate.id === media['id']),
       );
       if (missingMediaId) {
+        const rawMediaId = missingMediaId['id'];
+        const mediaUserError =
+          typeof rawMediaId === 'string'
+            ? { field: ['media'], message: `Media id ${rawMediaId} does not exist` }
+            : { field: ['media', 'id'], message: 'Media id is required' };
         return {
           data: {
             [responseKey]: {
-              media: [],
-              mediaUserErrors: [{ field: ['media', 'id'], message: 'Media id is required' }],
+              media: typeof rawMediaId === 'string' ? null : [],
+              mediaUserErrors: [mediaUserError],
             },
           },
         };
@@ -8048,6 +8756,10 @@ export function handleProductMutation(
     case 'productDeleteMedia': {
       const rawProductId = args['productId'];
       const productId = typeof rawProductId === 'string' ? rawProductId : null;
+      if (productId === '') {
+        return buildInvalidProductMediaProductIdVariableError(productId, document);
+      }
+
       if (!productId) {
         return {
           data: {
@@ -8065,12 +8777,7 @@ export function handleProductMutation(
       if (!existingProduct) {
         return {
           data: {
-            [responseKey]: {
-              deletedMediaIds: [],
-              deletedProductImageIds: [],
-              mediaUserErrors: [{ field: ['productId'], message: 'Product not found' }],
-              product: null,
-            },
+            [responseKey]: mediaValidationProductNotFoundPayload('delete'),
           },
         };
       }
@@ -8079,6 +8786,26 @@ export function handleProductMutation(
         ? args['mediaIds'].filter((mediaId): mediaId is string => typeof mediaId === 'string')
         : [];
       const effectiveMedia = store.getEffectiveMediaByProductId(productId);
+      const unknownMediaId = mediaIds.find(
+        (mediaId) => !effectiveMedia.some((mediaRecord) => mediaRecord.id === mediaId),
+      );
+      if (unknownMediaId) {
+        return {
+          data: {
+            [responseKey]: {
+              deletedMediaIds: null,
+              deletedProductImageIds: null,
+              mediaUserErrors: [{ field: ['mediaIds'], message: `Media id ${unknownMediaId} does not exist` }],
+              product: serializeProduct(
+                store.getEffectiveProductById(productId),
+                getChildField(field, 'product'),
+                variables,
+              ),
+            },
+          },
+        };
+      }
+
       const deletedMedia = effectiveMedia.filter(
         (mediaRecord) => typeof mediaRecord.id === 'string' && mediaIds.includes(mediaRecord.id),
       );
@@ -8378,8 +9105,12 @@ export function handleProductMutation(
       const inputsByOwnerId = new Map<string, Record<string, unknown>[]>();
       for (const input of inputs) {
         const ownerId = input['ownerId'] as string;
+        const owner = resolveProductMetafieldOwner(ownerId);
+        if (!owner) {
+          continue;
+        }
         const ownerInputs = inputsByOwnerId.get(ownerId) ?? [];
-        ownerInputs.push(normalizeMetafieldsSetInput(input));
+        ownerInputs.push(normalizeMetafieldsSetInput(input, owner));
         inputsByOwnerId.set(ownerId, ownerInputs);
       }
 
@@ -8659,7 +9390,7 @@ export function handleProductMutation(
             [responseKey]: {
               product: null,
               productVariants: [],
-              userErrors: [{ field: ['productId'], message: 'Product not found' }],
+              userErrors: [{ field: ['productId'], message: 'Product does not exist' }],
             },
           },
         };
@@ -8667,9 +9398,23 @@ export function handleProductMutation(
 
       const effectiveVariants = store.getEffectiveVariantsByProductId(productId);
       const defaultVariant = effectiveVariants[0] ?? null;
-      const createdVariants = (Array.isArray(args['variants']) ? args['variants'] : [])
-        .filter((variant): variant is Record<string, unknown> => isObject(variant))
-        .map((variant) => makeCreatedVariantRecord(productId, variant, defaultVariant));
+      const variantInputs = readBulkVariantInputs(args['variants']);
+      const userErrors = validateBulkCreateVariantBatch(productId, variantInputs);
+      if (userErrors.length > 0) {
+        return {
+          data: {
+            [responseKey]: {
+              product: null,
+              productVariants: [],
+              userErrors,
+            },
+          },
+        };
+      }
+
+      const createdVariants = variantInputs.map((variant) =>
+        makeCreatedVariantRecord(productId, variant, defaultVariant),
+      );
       const nextVariants = [...effectiveVariants, ...createdVariants];
       store.replaceStagedVariantsForProduct(productId, nextVariants);
       store.replaceStagedOptionsForProduct(
@@ -8709,8 +9454,8 @@ export function handleProductMutation(
           data: {
             [responseKey]: {
               product: null,
-              productVariants: [],
-              userErrors: [{ field: ['productId'], message: 'Product not found' }],
+              productVariants: null,
+              userErrors: [{ field: ['productId'], message: 'Product does not exist' }],
             },
           },
         };
@@ -8718,27 +9463,23 @@ export function handleProductMutation(
 
       const effectiveVariants = store.getEffectiveVariantsByProductId(productId);
       const variantsById = new Map(effectiveVariants.map((variant) => [variant.id, variant]));
-      const updates = (Array.isArray(args['variants']) ? args['variants'] : []).filter(
-        (variant): variant is Record<string, unknown> => isObject(variant),
-      );
-      const inventoryQuantityUpdateIndex = updates.findIndex((variant) => hasOwnField(variant, 'inventoryQuantities'));
-      if (inventoryQuantityUpdateIndex >= 0) {
+      const updates = readBulkVariantInputs(args['variants']);
+      const userErrors = validateBulkUpdateVariantBatch(productId, updates, variantsById);
+      if (userErrors.length > 0) {
         return {
           data: {
             [responseKey]: {
-              product: null,
-              productVariants: [],
-              userErrors: [
-                {
-                  field: ['variants', String(inventoryQuantityUpdateIndex), 'inventoryQuantities'],
-                  message:
-                    'Inventory quantities can only be provided during create. To update inventory for existing variants, use inventoryAdjustQuantities.',
-                },
-              ],
+              product:
+                userErrors[0]?.field === null
+                  ? null
+                  : serializeProduct(existingProduct, getChildField(field, 'product'), variables),
+              productVariants: null,
+              userErrors,
             },
           },
         };
       }
+
       const updatedVariants: ProductVariantRecord[] = [];
       const nextVariants = effectiveVariants.map((variant) => {
         const update = updates.find((candidate) => candidate['id'] === variant.id);
@@ -8750,21 +9491,6 @@ export function handleProductMutation(
         updatedVariants.push(updatedVariant);
         return updatedVariant;
       });
-
-      const missingVariantId = updates.find(
-        (variant) => typeof variant['id'] !== 'string' || !variantsById.has(variant['id']),
-      );
-      if (missingVariantId) {
-        return {
-          data: {
-            [responseKey]: {
-              product: null,
-              productVariants: [],
-              userErrors: [{ field: ['variants', 'id'], message: 'Variant id is required' }],
-            },
-          },
-        };
-      }
 
       store.replaceStagedVariantsForProduct(productId, nextVariants);
       store.replaceStagedOptionsForProduct(
@@ -8803,7 +9529,7 @@ export function handleProductMutation(
           data: {
             [responseKey]: {
               product: null,
-              userErrors: [{ field: ['productId'], message: 'Product not found' }],
+              userErrors: [{ field: ['productId'], message: 'Product does not exist' }],
             },
           },
         };
@@ -8812,9 +9538,29 @@ export function handleProductMutation(
       const variantIds = Array.isArray(args['variantsIds'])
         ? args['variantsIds'].filter((variantId): variantId is string => typeof variantId === 'string')
         : [];
-      const nextVariants = store
-        .getEffectiveVariantsByProductId(productId)
-        .filter((variant) => !variantIds.includes(variant.id));
+      const effectiveVariants = store.getEffectiveVariantsByProductId(productId);
+      const variantsById = new Map(effectiveVariants.map((variant) => [variant.id, variant]));
+      const missingVariantIndex =
+        effectiveVariants.length > 0
+          ? variantIds.findIndex((variantId) => !variantsById.has(variantId) && isKnownMissingShopifyGid(variantId))
+          : -1;
+      if (missingVariantIndex >= 0) {
+        return {
+          data: {
+            [responseKey]: {
+              product: null,
+              userErrors: [
+                {
+                  field: ['variantsIds', String(missingVariantIndex)],
+                  message: 'At least one variant does not belong to the product',
+                },
+              ],
+            },
+          },
+        };
+      }
+
+      const nextVariants = effectiveVariants.filter((variant) => !variantIds.includes(variant.id));
       store.replaceStagedVariantsForProduct(productId, nextVariants);
       store.replaceStagedOptionsForProduct(
         productId,
@@ -8827,6 +9573,42 @@ export function handleProductMutation(
           [responseKey]: {
             product: serializeProduct(product, getChildField(field, 'product'), variables),
             userErrors: [],
+          },
+        },
+      };
+    }
+    case 'productVariantsBulkReorder': {
+      const rawProductId = args['productId'];
+      const productId = typeof rawProductId === 'string' ? rawProductId : null;
+      if (!productId) {
+        return {
+          data: {
+            [responseKey]: {
+              product: null,
+              userErrors: [{ field: ['productId'], message: 'Product id is required' }],
+            },
+          },
+        };
+      }
+
+      const existingProduct = store.getEffectiveProductById(productId);
+      if (!existingProduct) {
+        return {
+          data: {
+            [responseKey]: {
+              product: null,
+              userErrors: [{ field: ['productId'], message: 'Product not found' }],
+            },
+          },
+        };
+      }
+
+      const result = reorderProductVariants(productId, args['positions']);
+      return {
+        data: {
+          [responseKey]: {
+            product: serializeProduct(result.product, getChildField(field, 'product'), variables),
+            userErrors: result.userErrors,
           },
         },
       };
@@ -8877,6 +9659,14 @@ export function handleProductQuery(
       }
       case 'productsCount': {
         data[responseKey] = serializeProductsCount(args['query'], field.selectionSet?.selections ?? []);
+        break;
+      }
+      case 'productFeed': {
+        data[responseKey] = null;
+        break;
+      }
+      case 'productFeeds': {
+        data[responseKey] = serializeTopLevelProductFeedsConnection(field, variables);
         break;
       }
       case 'productVariant': {

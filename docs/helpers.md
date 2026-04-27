@@ -7,7 +7,10 @@ This document catalogs shared helper surfaces that future work should reuse befo
 Shared helpers for GraphQL Admin proxy serializers.
 
 - `getFieldResponseKey(field)` returns the Shopify GraphQL response key for a field, preserving aliases.
+- `getNodeLocation(node)` and `getVariableDefinitionLocation(document, variableName)` return Shopify-like `{ line, column }` GraphQL validation locations for AST nodes and variable definitions.
 - `isPlainObject(value)` narrows unknown values before proxy serializers read or hydrate object-shaped Shopify payloads.
+- `readStringValue(value)`, `readNumberValue(value)`, and `readBooleanValue(value)` are small scalar readers for serializers and upstream hydrators that need null-on-mismatch behavior at object boundaries.
+- `readPlainObjectArray(value)` filters unknown array values down to plain objects before normalizing nested upstream payloads.
 - `getDocumentFragments(document)` parses reusable fragment definitions from a GraphQL document for serializers that project stored snapshot data through the requested selection set.
 - `readGraphqlDataResponsePayload(payload, responseKey)` reads a root `data` payload by response key, returning `null` for malformed or absent upstream payloads so hydrate paths keep Shopify-like no-data behavior.
 - `projectGraphqlValue(value, selections, fragments, options)` and `projectGraphqlObject(source, selections, fragments, options)` project stored objects, arrays, fragment spreads, inline fragments, aliases, `__typename`, and connection `nodes` fallback behavior through a selected GraphQL shape. Use `options.projectFieldValue` only when a resource needs field-specific projection such as nested connection filtering.
@@ -33,3 +36,25 @@ Shared helpers for owner-scoped metafield serializers and staging input handling
 - `mergeMetafieldRecords(existing, next)` merges hydrated singular and connection metafields by `(namespace, key)` when upstream payloads provide both shapes.
 
 Use this module before adding product-, customer-, or order-local metafield serializer/upsert helpers. Owner-specific validation, store placement, and captured Shopify quirks should remain in the resource module that owns them.
+
+## `src/search-query-parser.ts`
+
+Shared helpers for Shopify Admin `query:` parsing, query execution, and common term matching.
+
+- `parseSearchQuery(raw, options)` parses boolean-style Shopify search syntax into `SearchQueryNode` trees with implicit `AND`, `OR`, grouped expressions, leading `-` negation, optional `NOT`, field names, comparators, and quote handling.
+- `applySearchQuery(items, rawQuery, options, matchesPositiveTerm)` is the preferred helper for endpoints that support boolean/grouped search. Resource modules provide only the domain-specific positive term matcher; the shared helper handles raw-query guards, parsing, AST traversal, and term/group negation.
+- `parseSearchQueryTermList(rawQuery, options)` and `applySearchQueryTerms(items, rawQuery, options, matchesPositiveTerm)` cover endpoints whose captured behavior is still a simple term-list/implicit-AND subset. Use options such as `ignoredKeywords`, `preserveQuotesInTerms`, and `dropEmptyValues` to mirror endpoint-specific evidence without duplicating raw-query guards.
+- `searchQueryTermValue(term)` reconstructs comparator-prefixed values such as `>=2026-01-01` for endpoint matchers.
+- `stripSearchQueryValueQuotes(value)`, `normalizeSearchQueryValue(value)`, `matchesSearchQueryString(...)`, `matchesSearchQueryNumber(...)`, and `matchesSearchQueryDate(...)` provide reusable primitive matching behavior for field filters.
+
+New or expanded endpoint search support should use this module for parsing, execution, and primitive matching. Keep endpoint-specific Shopify semantics in the resource module's positive term matcher, especially unsupported fields, known no-op warning behavior, and domain-specific search-index lag.
+
+## `src/shopify/upstream-request.ts`
+
+Shared higher-level helpers for forwarding Admin GraphQL requests to upstream Shopify from Koa routes.
+
+- `buildForwardedGraphQLHeaders(ctx)` copies forwardable inbound request headers into the Shopify request, omitting hop-by-hop/framing headers such as `host`, `connection`, `transfer-encoding`, and `content-length`, forcing `content-type: application/json` for the serialized GraphQL body, and setting a proxy-specific `user-agent`.
+- `buildShopifyDraftProxyUserAgent(incomingUserAgent)` returns `shopify-draft-proxy` when no incoming user agent exists, or `shopify-draft-proxy (wrapping <incoming>)` when the client supplied one.
+- `requestUpstreamGraphQL(upstream, ctx, input)` sends a GraphQL request through an `UpstreamGraphQLClient` using the forwarded header policy, the current route path by default, and an explicit body. Pass `path` for replay paths such as `__meta/commit`.
+
+Use this module when a runtime route needs to forward a GraphQL operation to Shopify. Local staging branches should still synthesize responses without runtime Shopify writes; this helper is only for read-through, unsupported passthrough, and explicit commit replay paths.

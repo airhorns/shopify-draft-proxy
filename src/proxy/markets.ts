@@ -1,7 +1,13 @@
 import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
-import { parseSearchQuery, type SearchQueryNode, type SearchQueryTerm } from '../search-query-parser.js';
+import {
+  applySearchQuery,
+  matchesSearchQueryString,
+  searchQueryTermValue,
+  stripSearchQueryValueQuotes,
+  type SearchQueryTerm,
+} from '../search-query-parser.js';
 import {
   defaultGraphqlTypeConditionApplies,
   getDocumentFragments,
@@ -23,6 +29,8 @@ import type {
   MarketRecord,
   PriceListRecord,
   ProductMetafieldRecord,
+  ProductRecord,
+  ProductVariantRecord,
   WebPresenceRecord,
 } from '../state/types.js';
 
@@ -75,6 +83,262 @@ const COUNTRY_CURRENCIES: Record<string, string> = {
   NZ: 'NZD',
   US: 'USD',
 };
+
+const SHOPIFY_COUNTRY_CODES = new Set(
+  [
+    'AF',
+    'AX',
+    'AL',
+    'DZ',
+    'AD',
+    'AO',
+    'AI',
+    'AG',
+    'AR',
+    'AM',
+    'AW',
+    'AC',
+    'AU',
+    'AT',
+    'AZ',
+    'BS',
+    'BH',
+    'BD',
+    'BB',
+    'BY',
+    'BE',
+    'BZ',
+    'BJ',
+    'BM',
+    'BT',
+    'BO',
+    'BA',
+    'BW',
+    'BV',
+    'BR',
+    'IO',
+    'BN',
+    'BG',
+    'BF',
+    'BI',
+    'KH',
+    'CA',
+    'CV',
+    'BQ',
+    'KY',
+    'CF',
+    'TD',
+    'CL',
+    'CN',
+    'CX',
+    'CC',
+    'CO',
+    'KM',
+    'CG',
+    'CD',
+    'CK',
+    'CR',
+    'HR',
+    'CU',
+    'CW',
+    'CY',
+    'CZ',
+    'CI',
+    'DK',
+    'DJ',
+    'DM',
+    'DO',
+    'EC',
+    'EG',
+    'SV',
+    'GQ',
+    'ER',
+    'EE',
+    'SZ',
+    'ET',
+    'FK',
+    'FO',
+    'FJ',
+    'FI',
+    'FR',
+    'GF',
+    'PF',
+    'TF',
+    'GA',
+    'GM',
+    'GE',
+    'DE',
+    'GH',
+    'GI',
+    'GR',
+    'GL',
+    'GD',
+    'GP',
+    'GT',
+    'GG',
+    'GN',
+    'GW',
+    'GY',
+    'HT',
+    'HM',
+    'VA',
+    'HN',
+    'HK',
+    'HU',
+    'IS',
+    'IN',
+    'ID',
+    'IR',
+    'IQ',
+    'IE',
+    'IM',
+    'IL',
+    'IT',
+    'JM',
+    'JP',
+    'JE',
+    'JO',
+    'KZ',
+    'KE',
+    'KI',
+    'KP',
+    'XK',
+    'KW',
+    'KG',
+    'LA',
+    'LV',
+    'LB',
+    'LS',
+    'LR',
+    'LY',
+    'LI',
+    'LT',
+    'LU',
+    'MO',
+    'MG',
+    'MW',
+    'MY',
+    'MV',
+    'ML',
+    'MT',
+    'MQ',
+    'MR',
+    'MU',
+    'YT',
+    'MX',
+    'MD',
+    'MC',
+    'MN',
+    'ME',
+    'MS',
+    'MA',
+    'MZ',
+    'MM',
+    'NA',
+    'NR',
+    'NP',
+    'NL',
+    'AN',
+    'NC',
+    'NZ',
+    'NI',
+    'NE',
+    'NG',
+    'NU',
+    'NF',
+    'MK',
+    'NO',
+    'OM',
+    'PK',
+    'PS',
+    'PA',
+    'PG',
+    'PY',
+    'PE',
+    'PH',
+    'PN',
+    'PL',
+    'PT',
+    'QA',
+    'CM',
+    'RE',
+    'RO',
+    'RU',
+    'RW',
+    'BL',
+    'SH',
+    'KN',
+    'LC',
+    'MF',
+    'PM',
+    'WS',
+    'SM',
+    'ST',
+    'SA',
+    'SN',
+    'RS',
+    'SC',
+    'SL',
+    'SG',
+    'SX',
+    'SK',
+    'SI',
+    'SB',
+    'SO',
+    'ZA',
+    'GS',
+    'KR',
+    'SS',
+    'ES',
+    'LK',
+    'VC',
+    'SD',
+    'SR',
+    'SJ',
+    'SE',
+    'CH',
+    'SY',
+    'TW',
+    'TJ',
+    'TZ',
+    'TH',
+    'TL',
+    'TG',
+    'TK',
+    'TO',
+    'TT',
+    'TA',
+    'TN',
+    'TR',
+    'TM',
+    'TC',
+    'TV',
+    'UG',
+    'UA',
+    'AE',
+    'GB',
+    'US',
+    'UM',
+    'UY',
+    'UZ',
+    'VU',
+    'VE',
+    'VN',
+    'VG',
+    'WF',
+    'EH',
+    'YE',
+    'ZM',
+    'ZW',
+    'ZZ',
+  ].sort(),
+);
+
+const SHOPIFY_COUNTRY_CODE_LIST = Array.from(SHOPIFY_COUNTRY_CODES).join(', ');
+
+function marketsResolvedValuesPayloadKey(countryCode: string | null): string {
+  return `marketsResolvedValues:${countryCode ?? '*'}`;
+}
 
 const LOCALE_NAMES: Record<string, string> = {
   de: 'German',
@@ -223,57 +487,40 @@ function projectMarketValue(
   });
 }
 
+function priceListPriceNodeMatchesPositiveQueryTerm(node: unknown, term: SearchQueryTerm): boolean {
+  if (!isPlainObject(node)) {
+    return false;
+  }
+
+  const variant = isPlainObject(node['variant']) ? node['variant'] : null;
+  const product = isPlainObject(variant?.['product']) ? variant['product'] : null;
+  const field = term.field?.toLowerCase() ?? null;
+  const value = stripSearchQueryValueQuotes(searchQueryTermValue(term));
+  const variantId = typeof variant?.['id'] === 'string' ? variant['id'] : null;
+  const productId = typeof product?.['id'] === 'string' ? product['id'] : null;
+
+  if (field === 'variant_id') {
+    return (
+      matchesStringValue(variantId, value, 'exact') ||
+      (variantId !== null && String(resourceNumericId(variantId)) === value)
+    );
+  }
+
+  if (field === 'product_id') {
+    return (
+      matchesStringValue(productId, value, 'exact') ||
+      (productId !== null && String(resourceNumericId(productId)) === value)
+    );
+  }
+
+  return true;
+}
+
 function priceListPriceNodeMatchesQuery(node: unknown, rawQuery: unknown): boolean {
-  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
-    return true;
-  }
-
-  const parsedQuery = parseSearchQuery(rawQuery, { recognizeNotKeyword: true });
-  if (!parsedQuery) {
-    return true;
-  }
-
-  const matchesTerm = (term: SearchQueryTerm): boolean => {
-    if (!term.raw) {
-      return true;
-    }
-
-    if (!isPlainObject(node)) {
-      return false;
-    }
-
-    const variant = isPlainObject(node['variant']) ? node['variant'] : null;
-    const product = isPlainObject(variant?.['product']) ? variant['product'] : null;
-    const field = term.field?.toLowerCase() ?? null;
-    const value = stripSearchValueQuotes(searchTermValue(term));
-    const variantId = typeof variant?.['id'] === 'string' ? variant['id'] : null;
-    const productId = typeof product?.['id'] === 'string' ? product['id'] : null;
-    const matches =
-      field === 'variant_id'
-        ? matchesStringValue(variantId, value, 'exact') ||
-          (variantId !== null && String(resourceNumericId(variantId)) === value)
-        : field === 'product_id'
-          ? matchesStringValue(productId, value, 'exact') ||
-            (productId !== null && String(resourceNumericId(productId)) === value)
-          : true;
-
-    return term.negated ? !matches : matches;
-  };
-
-  const matchesNode = (queryNode: SearchQueryNode): boolean => {
-    switch (queryNode.type) {
-      case 'term':
-        return matchesTerm(queryNode.term);
-      case 'and':
-        return queryNode.children.every((child) => matchesNode(child));
-      case 'or':
-        return queryNode.children.some((child) => matchesNode(child));
-      case 'not':
-        return !matchesNode(queryNode.child);
-    }
-  };
-
-  return matchesNode(parsedQuery);
+  return (
+    applySearchQuery([node], rawQuery, { recognizeNotKeyword: true }, priceListPriceNodeMatchesPositiveQueryTerm)
+      .length > 0
+  );
 }
 
 function projectPriceListPricesConnection(
@@ -557,9 +804,74 @@ function collectPriceListNodes(
   return priceLists;
 }
 
+function buyerSignalCountryCode(rawBuyerSignal: unknown): string | null {
+  if (!isPlainObject(rawBuyerSignal) || typeof rawBuyerSignal['countryCode'] !== 'string') {
+    return null;
+  }
+
+  const countryCode = rawBuyerSignal['countryCode'];
+  return SHOPIFY_COUNTRY_CODES.has(countryCode) ? countryCode : null;
+}
+
+function buyerSignalVariableName(field: FieldNode): string | null {
+  const argument = field.arguments?.find((candidate) => candidate.name.value === 'buyerSignal') ?? null;
+  return argument?.value.kind === Kind.VARIABLE ? argument.value.name.value : null;
+}
+
+function invalidBuyerSignalCountryCodeError(field: FieldNode, rawCountryCode: unknown): Record<string, unknown> {
+  const variableName = buyerSignalVariableName(field);
+  const value = typeof rawCountryCode === 'string' ? rawCountryCode : String(rawCountryCode);
+  const message = variableName
+    ? `Variable $${variableName} of type BuyerSignalInput! was provided invalid value for countryCode (Expected "${value}" to be one of: ${SHOPIFY_COUNTRY_CODE_LIST})`
+    : `Argument 'buyerSignal' on Field 'marketsResolvedValues' has an invalid value for countryCode (Expected "${value}" to be one of: ${SHOPIFY_COUNTRY_CODE_LIST}).`;
+
+  return {
+    message,
+    extensions: {
+      code: variableName ? 'INVALID_VARIABLE' : 'argumentLiteralsIncompatible',
+      value: variableName ? { countryCode: rawCountryCode } : undefined,
+      problems: [
+        {
+          path: ['countryCode'],
+          explanation: `Expected "${value}" to be one of: ${SHOPIFY_COUNTRY_CODE_LIST}`,
+        },
+      ],
+    },
+  };
+}
+
+function validateMarketsResolvedValuesBuyerSignal(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown>[] {
+  if (!field.arguments?.some((argument) => argument.name.value === 'buyerSignal')) {
+    return [];
+  }
+
+  const args = getFieldArguments(field, variables);
+  const buyerSignal = args['buyerSignal'];
+  const countryCode = isPlainObject(buyerSignal) ? buyerSignal['countryCode'] : undefined;
+
+  if (typeof countryCode !== 'string' || !SHOPIFY_COUNTRY_CODES.has(countryCode)) {
+    return [invalidBuyerSignalCountryCodeError(field, countryCode)];
+  }
+
+  return [];
+}
+
+function marketsResolvedValuesPayloadKeyFromDocument(document: string, variables: Record<string, unknown>): string {
+  const resolvedValuesField = getRootFields(document).find((field) => field.name.value === 'marketsResolvedValues');
+  if (!resolvedValuesField) {
+    return marketsResolvedValuesPayloadKey(null);
+  }
+
+  const args = getFieldArguments(resolvedValuesField, variables);
+  return marketsResolvedValuesPayloadKey(buyerSignalCountryCode(args['buyerSignal']));
+}
+
 export function hydrateMarketsFromUpstreamResponse(
-  _document: string,
-  _variables: Record<string, unknown>,
+  document: string,
+  variables: Record<string, unknown>,
   upstreamPayload: unknown,
 ): void {
   for (const rootField of [
@@ -582,6 +894,9 @@ export function hydrateMarketsFromUpstreamResponse(
     }
 
     store.setBaseMarketsRootPayload(rootField, rootPayload);
+    if (rootField === 'marketsResolvedValues') {
+      store.setBaseMarketsRootPayload(marketsResolvedValuesPayloadKeyFromDocument(document, variables), rootPayload);
+    }
     store.upsertBaseWebPresences(collectWebPresenceNodes(rootPayload));
     store.upsertBaseCatalogs(collectCatalogNodes(rootPayload));
     store.upsertBasePriceLists(collectPriceListNodes(rootPayload));
@@ -594,18 +909,6 @@ export function hydrateMarketsFromUpstreamResponse(
       store.upsertBaseMarkets(collectMarketNodes(rootPayload));
     }
   }
-}
-
-function stripSearchValueQuotes(rawValue: string): string {
-  const value = rawValue.trim();
-  if (
-    value.length >= 2 &&
-    ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'")))
-  ) {
-    return value.slice(1, -1);
-  }
-
-  return value;
 }
 
 function marketNumericId(market: MarketRecord): number | null {
@@ -623,17 +926,11 @@ function matchesStringValue(candidate: unknown, rawValue: string, mode: 'exact' 
     return false;
   }
 
-  const value = stripSearchValueQuotes(rawValue).toLowerCase();
-  const normalizedCandidate = candidate.toLowerCase();
-  return mode === 'includes' ? normalizedCandidate.includes(value) : normalizedCandidate === value;
-}
-
-function searchTermValue(term: SearchQueryTerm): string {
-  return term.comparator === null ? term.value : `${term.comparator}${term.value}`;
+  return matchesSearchQueryString(candidate, rawValue, mode);
 }
 
 function compareMarketId(marketId: number, rawValue: string): boolean {
-  const match = stripSearchValueQuotes(rawValue).match(/^(<=|>=|<|>|=)?\s*(?:gid:\/\/shopify\/Market\/)?(\d+)$/u);
+  const match = stripSearchQueryValueQuotes(rawValue).match(/^(<=|>=|<|>|=)?\s*(?:gid:\/\/shopify\/Market\/)?(\d+)$/u);
   if (!match) {
     return false;
   }
@@ -667,7 +964,7 @@ function marketConditionTypes(market: MarketRecord): string[] {
 
 function matchesPositiveMarketQueryTerm(market: MarketRecord, term: SearchQueryTerm): boolean {
   if (term.field === null) {
-    const value = stripSearchValueQuotes(term.value);
+    const value = stripSearchQueryValueQuotes(term.value);
     return (
       matchesStringValue(market.data['name'], value, 'includes') ||
       matchesStringValue(market.data['handle'], value, 'includes') ||
@@ -676,7 +973,7 @@ function matchesPositiveMarketQueryTerm(market: MarketRecord, term: SearchQueryT
   }
 
   const field = term.field.toLowerCase();
-  const value = searchTermValue(term);
+  const value = searchQueryTermValue(term);
 
   switch (field) {
     case 'id': {
@@ -695,7 +992,7 @@ function matchesPositiveMarketQueryTerm(market: MarketRecord, term: SearchQueryT
     case 'type':
       return matchesStringValue(market.data['type'], value, 'exact');
     case 'market_condition_types': {
-      const expectedTypes = stripSearchValueQuotes(value)
+      const expectedTypes = stripSearchQueryValueQuotes(value)
         .split(',')
         .map((entry) => entry.trim().toUpperCase())
         .filter(Boolean);
@@ -707,39 +1004,8 @@ function matchesPositiveMarketQueryTerm(market: MarketRecord, term: SearchQueryT
   }
 }
 
-function matchesMarketQueryTerm(market: MarketRecord, term: SearchQueryTerm): boolean {
-  if (!term.raw) {
-    return true;
-  }
-
-  const matches = matchesPositiveMarketQueryTerm(market, term);
-  return term.negated ? !matches : matches;
-}
-
-function matchesMarketQueryNode(market: MarketRecord, node: SearchQueryNode): boolean {
-  switch (node.type) {
-    case 'term':
-      return matchesMarketQueryTerm(market, node.term);
-    case 'and':
-      return node.children.every((child) => matchesMarketQueryNode(market, child));
-    case 'or':
-      return node.children.some((child) => matchesMarketQueryNode(market, child));
-    case 'not':
-      return !matchesMarketQueryNode(market, node.child);
-  }
-}
-
 function applyMarketsQuery(markets: MarketRecord[], rawQuery: unknown): MarketRecord[] {
-  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
-    return markets;
-  }
-
-  const parsedQuery = parseSearchQuery(rawQuery, { recognizeNotKeyword: true });
-  if (!parsedQuery) {
-    return markets;
-  }
-
-  return markets.filter((market) => matchesMarketQueryNode(market, parsedQuery));
+  return applySearchQuery(markets, rawQuery, { recognizeNotKeyword: true }, matchesPositiveMarketQueryTerm);
 }
 
 function applyRootMarketFilters(markets: MarketRecord[], args: Record<string, unknown>): MarketRecord[] {
@@ -837,7 +1103,7 @@ function catalogHasType(catalog: CatalogRecord, rawType: unknown): boolean {
 }
 
 function compareCatalogId(catalogId: number, rawValue: string): boolean {
-  const match = stripSearchValueQuotes(rawValue).match(
+  const match = stripSearchQueryValueQuotes(rawValue).match(
     /^(<=|>=|<|>|=)?\s*(?:gid:\/\/shopify\/(?:MarketCatalog|CompanyLocationCatalog|AppCatalog|Catalog)\/)?(\d+)$/u,
   );
   if (!match) {
@@ -867,55 +1133,42 @@ function matchesCatalogQueryTerm(catalog: CatalogRecord, term: SearchQueryTerm):
     return true;
   }
 
-  const value = searchTermValue(term);
+  const value = searchQueryTermValue(term);
   const field = term.field?.toLowerCase() ?? null;
-  const matches =
-    field === null
-      ? matchesStringValue(catalog.data['title'], value, 'includes') ||
-        matchesStringValue(catalog.id, value, 'includes')
-      : field === 'id'
-        ? matchesStringValue(catalog.id, value, 'exact') ||
-          (resourceNumericId(catalog.id) !== null && compareCatalogId(resourceNumericId(catalog.id)!, value))
-        : field === 'title'
-          ? matchesStringValue(catalog.data['title'], value, 'includes')
-          : field === 'status'
-            ? matchesStringValue(catalog.data['status'], value, 'exact')
-            : field === 'market_id'
-              ? catalogMarkets(catalog).some(
-                  (edge) =>
-                    isPlainObject(edge.node) &&
-                    typeof edge.node['id'] === 'string' &&
-                    matchesStringValue(edge.node['id'], value, 'exact'),
-                )
-              : true;
 
-  return term.negated ? !matches : matches;
-}
-
-function matchesCatalogQueryNode(catalog: CatalogRecord, node: SearchQueryNode): boolean {
-  switch (node.type) {
-    case 'term':
-      return matchesCatalogQueryTerm(catalog, node.term);
-    case 'and':
-      return node.children.every((child) => matchesCatalogQueryNode(catalog, child));
-    case 'or':
-      return node.children.some((child) => matchesCatalogQueryNode(catalog, child));
-    case 'not':
-      return !matchesCatalogQueryNode(catalog, node.child);
+  if (field === null) {
+    return (
+      matchesStringValue(catalog.data['title'], value, 'includes') || matchesStringValue(catalog.id, value, 'includes')
+    );
   }
+
+  if (field === 'id') {
+    const numericId = resourceNumericId(catalog.id);
+    return matchesStringValue(catalog.id, value, 'exact') || (numericId !== null && compareCatalogId(numericId, value));
+  }
+
+  if (field === 'title') {
+    return matchesStringValue(catalog.data['title'], value, 'includes');
+  }
+
+  if (field === 'status') {
+    return matchesStringValue(catalog.data['status'], value, 'exact');
+  }
+
+  if (field === 'market_id') {
+    return catalogMarkets(catalog).some(
+      (edge) =>
+        isPlainObject(edge.node) &&
+        typeof edge.node['id'] === 'string' &&
+        matchesStringValue(edge.node['id'], value, 'exact'),
+    );
+  }
+
+  return true;
 }
 
 function applyCatalogsQuery(catalogs: CatalogRecord[], rawQuery: unknown): CatalogRecord[] {
-  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
-    return catalogs;
-  }
-
-  const parsedQuery = parseSearchQuery(rawQuery, { recognizeNotKeyword: true });
-  if (!parsedQuery) {
-    return catalogs;
-  }
-
-  return catalogs.filter((catalog) => matchesCatalogQueryNode(catalog, parsedQuery));
+  return applySearchQuery(catalogs, rawQuery, { recognizeNotKeyword: true }, matchesCatalogQueryTerm);
 }
 
 function compareCatalogsBySortKey(left: CatalogRecord, right: CatalogRecord, rawSortKey: unknown): number {
@@ -991,7 +1244,7 @@ function comparePriceListsBySortKey(left: PriceListRecord, right: PriceListRecor
 
 function listPriceListsForConnection(field: FieldNode, variables: Record<string, unknown>): PriceListRecord[] {
   const args = getFieldArguments(field, variables);
-  const sortedPriceLists = [...store.listBasePriceLists()].sort((left, right) =>
+  const sortedPriceLists = [...store.listEffectivePriceLists()].sort((left, right) =>
     comparePriceListsBySortKey(left, right, args['sortKey']),
   );
   return args['reverse'] === true ? sortedPriceLists.reverse() : sortedPriceLists;
@@ -2151,6 +2404,10 @@ function catalogError(field: string[], message: string, code: string): MarketUse
   return { field, message, code };
 }
 
+function priceListError(field: string[], message: string, code: string): MarketUserError {
+  return { field, message, code };
+}
+
 function catalogMarketIds(catalog: CatalogRecord): string[] {
   return catalogMarkets(catalog).flatMap((edge) =>
     isPlainObject(edge.node) && typeof edge.node['id'] === 'string' ? [edge.node['id']] : [],
@@ -2244,7 +2501,7 @@ function linkedPriceList(rawPriceListId: unknown, existing: Record<string, unkno
     return null;
   }
   if (typeof rawPriceListId === 'string' && rawPriceListId.length > 0) {
-    return store.getBasePriceListById(rawPriceListId) ?? { __typename: 'PriceList', id: rawPriceListId };
+    return store.getEffectivePriceListById(rawPriceListId) ?? { __typename: 'PriceList', id: rawPriceListId };
   }
   return existing?.['priceList'] ?? null;
 }
@@ -2311,6 +2568,333 @@ function buildCatalogRecord(
 
 function selectedCatalogPayload(catalog: CatalogRecord | null): unknown {
   return catalog ? catalog.data : null;
+}
+
+function selectedPriceListPayload(priceList: PriceListRecord | null): unknown {
+  return priceList ? priceList.data : null;
+}
+
+function priceListNameInUse(name: string, excludedPriceListId?: string): boolean {
+  return store
+    .listEffectivePriceLists()
+    .some((priceList) => priceList.data['name'] === name && priceList.id !== excludedPriceListId);
+}
+
+function priceListCurrencyFromInput(
+  input: Record<string, unknown>,
+  existing: Record<string, unknown> | null,
+  errors: MarketUserError[],
+): string {
+  const rawCurrency = input['currency'];
+  const existingCurrency = typeof existing?.['currency'] === 'string' ? existing['currency'] : 'USD';
+  if (rawCurrency === undefined) {
+    return existingCurrency;
+  }
+
+  if (typeof rawCurrency !== 'string' || !CURRENCY_NAMES[rawCurrency]) {
+    errors.push(priceListError(['input', 'currency'], "Currency isn't included in the list", 'INCLUSION'));
+    return existingCurrency;
+  }
+
+  return rawCurrency;
+}
+
+function priceListParentFromInput(input: Record<string, unknown>, existing: Record<string, unknown> | null): unknown {
+  if (!hasOwnProperty(input, 'parent')) {
+    return existing?.['parent'] ?? null;
+  }
+
+  const parent = readInput(input['parent']);
+  const adjustment = readInput(parent['adjustment']);
+  const type = typeof adjustment['type'] === 'string' ? adjustment['type'] : null;
+  const value = typeof adjustment['value'] === 'number' ? adjustment['value'] : null;
+  return type && value !== null
+    ? {
+        adjustment: {
+          type,
+          value,
+        },
+      }
+    : null;
+}
+
+function emptyPriceListPricesConnection(): Record<string, unknown> {
+  return {
+    edges: [],
+    pageInfo: {
+      hasNextPage: false,
+      hasPreviousPage: false,
+      startCursor: null,
+      endCursor: null,
+    },
+  };
+}
+
+function buildPriceListRecord(
+  id: string,
+  input: Record<string, unknown>,
+  existingPriceList: PriceListRecord | null,
+  errors: MarketUserError[],
+): PriceListRecord {
+  const existing = existingPriceList?.data ?? null;
+  const rawName = input['name'];
+  const name =
+    typeof rawName === 'string' ? rawName.trim() : typeof existing?.['name'] === 'string' ? existing['name'] : '';
+
+  if (name.length === 0) {
+    errors.push(priceListError(['input', 'name'], "Name can't be blank", 'BLANK'));
+  } else if (priceListNameInUse(name, existingPriceList?.id)) {
+    errors.push(priceListError(['input', 'name'], `Name '${name}' has already been taken`, 'TAKEN'));
+  }
+
+  const currency = priceListCurrencyFromInput(input, existing, errors);
+  const currencyChanged =
+    typeof existing?.['currency'] === 'string' &&
+    hasOwnProperty(input, 'currency') &&
+    existing['currency'] !== currency &&
+    errors.length === 0;
+  const catalog =
+    hasOwnProperty(input, 'catalogId') && typeof input['catalogId'] === 'string'
+      ? store.getEffectiveCatalogById(input['catalogId'])
+      : (existing?.['catalog'] ?? null);
+
+  if (typeof input['catalogId'] === 'string' && !catalog) {
+    errors.push(priceListError(['input', 'catalogId'], 'Catalog does not exist', 'CATALOG_NOT_FOUND'));
+  }
+
+  const existingPrices = isPlainObject(existing?.['prices']) ? existing['prices'] : emptyPriceListPricesConnection();
+  const prices = currencyChanged ? emptyPriceListPricesConnection() : existingPrices;
+  const fixedPricesCount = readConnectionEdges(prices).filter(
+    (edge) => isPlainObject(edge.node) && edge.node['originType'] === 'FIXED',
+  ).length;
+  const now = makeSyntheticTimestamp();
+  const data: Record<string, unknown> = {
+    ...(existing ? structuredClone(existing) : {}),
+    __typename: 'PriceList',
+    id,
+    name,
+    currency,
+    fixedPricesCount,
+    parent: priceListParentFromInput(input, existing),
+    catalog,
+    prices,
+    quantityRules: isPlainObject(existing?.['quantityRules']) ? existing['quantityRules'] : emptyConnection(),
+    createdAt: typeof existing?.['createdAt'] === 'string' ? existing['createdAt'] : now,
+    updatedAt: now,
+  };
+
+  return {
+    id,
+    cursor: existingPriceList?.cursor ?? id,
+    data: data as Record<string, JsonValue>,
+  };
+}
+
+function readPriceListIdArgument(args: Record<string, unknown>): string | null {
+  const input = readInput(args['input']);
+  const rawId = args['priceListId'] ?? args['id'] ?? input['priceListId'] ?? input['id'];
+  return typeof rawId === 'string' && rawId.length > 0 ? rawId : null;
+}
+
+function readFixedPriceInputs(args: Record<string, unknown>, names: string[]): Record<string, unknown>[] {
+  const input = readInput(args['input']);
+  for (const name of names) {
+    const raw = args[name] ?? input[name];
+    if (Array.isArray(raw)) {
+      return raw.filter(isPlainObject);
+    }
+  }
+  return [];
+}
+
+function readFixedPriceVariantIds(args: Record<string, unknown>, names: string[]): string[] {
+  const input = readInput(args['input']);
+  for (const name of names) {
+    const raw = args[name] ?? input[name];
+    const values = readStringArray(raw);
+    if (values.length > 0) {
+      return values;
+    }
+  }
+  return [];
+}
+
+function moneyPayload(rawMoney: unknown, currencyCode: string): Record<string, unknown> | null {
+  if (!isPlainObject(rawMoney)) {
+    return null;
+  }
+
+  const rawAmount = rawMoney['amount'];
+  const amount =
+    typeof rawAmount === 'number'
+      ? rawAmount.toFixed(2)
+      : typeof rawAmount === 'string' && rawAmount.trim().length > 0
+        ? rawAmount.trim()
+        : null;
+  if (amount === null) {
+    return null;
+  }
+
+  return {
+    amount,
+    currencyCode:
+      typeof rawMoney['currencyCode'] === 'string' && rawMoney['currencyCode'].length > 0
+        ? rawMoney['currencyCode']
+        : currencyCode,
+  };
+}
+
+function variantPriceListNode(
+  variant: ProductVariantRecord,
+  product: ProductRecord | null,
+  input: Record<string, unknown>,
+  currencyCode: string,
+): Record<string, unknown> | null {
+  const price = moneyPayload(input['price'], currencyCode);
+  if (!price) {
+    return null;
+  }
+
+  return {
+    price,
+    compareAtPrice: moneyPayload(input['compareAtPrice'], currencyCode),
+    originType: 'FIXED',
+    variant: {
+      id: variant.id,
+      sku: variant.sku,
+      product: {
+        id: variant.productId,
+        title: product?.title ?? null,
+      },
+    },
+  };
+}
+
+function fixedPriceVariantId(edge: ConnectionEdge): string | null {
+  if (!isPlainObject(edge.node) || edge.node['originType'] !== 'FIXED') {
+    return null;
+  }
+  const variant = isPlainObject(edge.node['variant']) ? edge.node['variant'] : null;
+  return typeof variant?.['id'] === 'string' ? variant['id'] : null;
+}
+
+function rebuildPriceListWithEdges(priceList: PriceListRecord, edges: ConnectionEdge[]): PriceListRecord {
+  const fixedPricesCount = edges.filter((edge) => fixedPriceVariantId(edge) !== null).length;
+  const data: Record<string, unknown> = {
+    ...structuredClone(priceList.data),
+    fixedPricesCount,
+    prices: {
+      edges: edges.map((edge) => ({
+        cursor: edge.cursor,
+        node: edge.node,
+      })),
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: edges[0]?.cursor ?? null,
+        endCursor: edges.at(-1)?.cursor ?? null,
+      },
+    },
+    updatedAt: makeSyntheticTimestamp(),
+  };
+
+  return {
+    id: priceList.id,
+    cursor: priceList.cursor,
+    data: data as Record<string, JsonValue>,
+  };
+}
+
+function upsertFixedPriceNodes(
+  priceList: PriceListRecord,
+  inputs: Record<string, unknown>[],
+  mode: 'add' | 'update' | 'upsert',
+  errors: MarketUserError[],
+): { priceList: PriceListRecord; changedVariantIds: string[] } {
+  const currencyCode = typeof priceList.data['currency'] === 'string' ? priceList.data['currency'] : 'USD';
+  const edgesByVariantId = new Map<string, ConnectionEdge>();
+  const otherEdges: ConnectionEdge[] = [];
+  const changedVariantIds: string[] = [];
+
+  for (const edge of readConnectionEdges(priceList.data['prices'])) {
+    const variantId = fixedPriceVariantId(edge);
+    if (variantId) {
+      edgesByVariantId.set(variantId, edge);
+    } else {
+      otherEdges.push(edge);
+    }
+  }
+
+  for (const input of inputs) {
+    const variantId = typeof input['variantId'] === 'string' ? input['variantId'] : null;
+    if (!variantId) {
+      errors.push(priceListError(['prices', 'variantId'], 'Variant does not exist', 'VARIANT_NOT_FOUND'));
+      continue;
+    }
+
+    const existing = edgesByVariantId.get(variantId);
+    if (mode === 'add' && existing) {
+      errors.push(priceListError(['prices', 'variantId'], 'Fixed price already exists', 'TAKEN'));
+      continue;
+    }
+    if (mode === 'update' && !existing) {
+      errors.push(priceListError(['prices', 'variantId'], 'Fixed price does not exist', 'NOT_FOUND'));
+      continue;
+    }
+
+    const variant = store.getEffectiveVariantById(variantId);
+    if (!variant) {
+      errors.push(priceListError(['prices', 'variantId'], 'Variant does not exist', 'VARIANT_NOT_FOUND'));
+      continue;
+    }
+
+    const product = store.getEffectiveProductById(variant.productId);
+    const node = variantPriceListNode(variant, product, input, currencyCode);
+    if (!node) {
+      errors.push(priceListError(['prices', 'price'], "Price can't be blank", 'BLANK'));
+      continue;
+    }
+
+    edgesByVariantId.set(variantId, {
+      cursor: variantId,
+      node,
+    });
+    changedVariantIds.push(variantId);
+  }
+
+  return {
+    priceList: rebuildPriceListWithEdges(priceList, [...otherEdges, ...edgesByVariantId.values()]),
+    changedVariantIds,
+  };
+}
+
+function deleteFixedPriceNodes(
+  priceList: PriceListRecord,
+  variantIds: string[],
+  errors: MarketUserError[],
+): { priceList: PriceListRecord; deletedVariantIds: string[] } {
+  const deleteIds = new Set(variantIds);
+  const deletedVariantIds: string[] = [];
+  const edges = readConnectionEdges(priceList.data['prices']).filter((edge) => {
+    const variantId = fixedPriceVariantId(edge);
+    if (!variantId || !deleteIds.has(variantId)) {
+      return true;
+    }
+    deletedVariantIds.push(variantId);
+    return false;
+  });
+
+  for (const variantId of variantIds) {
+    if (!deletedVariantIds.includes(variantId)) {
+      errors.push(priceListError(['variantIds'], 'Fixed price does not exist', 'NOT_FOUND'));
+      break;
+    }
+  }
+
+  return {
+    priceList: rebuildPriceListWithEdges(priceList, edges),
+    deletedVariantIds,
+  };
 }
 
 function handleCatalogCreate(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
@@ -2444,6 +3028,260 @@ function handleCatalogDelete(field: FieldNode, variables: Record<string, unknown
   return projectMutationPayload(
     {
       deletedId: errors.length === 0 ? id : null,
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function handlePriceListCreate(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+  const args = getFieldArguments(field, variables);
+  const input = readInput(args['input']);
+  const errors: MarketUserError[] = [];
+  const priceList = buildPriceListRecord(makeSyntheticGid('PriceList'), input, null, errors);
+
+  if (errors.length === 0) {
+    store.stageCreatePriceList(priceList);
+  }
+
+  return projectMutationPayload(
+    {
+      priceList: errors.length === 0 ? selectedPriceListPayload(priceList) : null,
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function handlePriceListUpdate(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+  const args = getFieldArguments(field, variables);
+  const id = typeof args['id'] === 'string' ? args['id'] : null;
+  const input = readInput(args['input']);
+  const errors: MarketUserError[] = [];
+  const existingPriceList = id ? store.getEffectivePriceListRecordById(id) : null;
+
+  if (!id || !existingPriceList) {
+    errors.push(priceListError(['id'], 'Price list does not exist', 'PRICE_LIST_NOT_FOUND'));
+  }
+
+  const priceList = id && existingPriceList ? buildPriceListRecord(id, input, existingPriceList, errors) : null;
+  if (errors.length === 0 && priceList) {
+    store.stageUpdatePriceList(priceList);
+  }
+
+  return projectMutationPayload(
+    {
+      priceList: errors.length === 0 ? selectedPriceListPayload(priceList) : null,
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function handlePriceListDelete(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+  const args = getFieldArguments(field, variables);
+  const id = typeof args['id'] === 'string' ? args['id'] : null;
+  const errors: MarketUserError[] = [];
+  const existingPriceList = id ? store.getEffectivePriceListRecordById(id) : null;
+
+  if (!id || !existingPriceList) {
+    errors.push(priceListError(['id'], 'Price list does not exist', 'PRICE_LIST_NOT_FOUND'));
+  }
+
+  if (errors.length === 0 && id) {
+    store.stageDeletePriceList(id);
+  }
+
+  return projectMutationPayload(
+    {
+      deletedId: errors.length === 0 ? id : null,
+      priceList: errors.length === 0 ? selectedPriceListPayload(existingPriceList) : null,
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function handlePriceListFixedPricesAdd(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
+  const args = getFieldArguments(field, variables);
+  const priceListId = readPriceListIdArgument(args);
+  const errors: MarketUserError[] = [];
+  const existingPriceList = priceListId ? store.getEffectivePriceListRecordById(priceListId) : null;
+
+  if (!priceListId || !existingPriceList) {
+    errors.push(priceListError(['priceListId'], 'Price list does not exist', 'PRICE_LIST_NOT_FOUND'));
+  }
+
+  const fixedPrices = readFixedPriceInputs(args, ['prices', 'fixedPrices', 'pricesToAdd']);
+  const { priceList, changedVariantIds } = existingPriceList
+    ? upsertFixedPriceNodes(existingPriceList, fixedPrices, 'add', errors)
+    : { priceList: null, changedVariantIds: [] };
+
+  if (errors.length === 0 && priceList) {
+    store.stageUpdatePriceList(priceList);
+  }
+
+  return projectMutationPayload(
+    {
+      priceList: errors.length === 0 ? selectedPriceListPayload(priceList) : null,
+      fixedPriceVariantIds: errors.length === 0 ? changedVariantIds : [],
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function handlePriceListFixedPricesUpdate(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
+  const args = getFieldArguments(field, variables);
+  const priceListId = readPriceListIdArgument(args);
+  const errors: MarketUserError[] = [];
+  const existingPriceList = priceListId ? store.getEffectivePriceListRecordById(priceListId) : null;
+
+  if (!priceListId || !existingPriceList) {
+    errors.push(priceListError(['priceListId'], 'Price list does not exist', 'PRICE_LIST_NOT_FOUND'));
+  }
+
+  const fixedPrices = readFixedPriceInputs(args, ['prices', 'fixedPrices', 'pricesToUpdate']);
+  const { priceList, changedVariantIds } = existingPriceList
+    ? upsertFixedPriceNodes(existingPriceList, fixedPrices, 'update', errors)
+    : { priceList: null, changedVariantIds: [] };
+
+  if (errors.length === 0 && priceList) {
+    store.stageUpdatePriceList(priceList);
+  }
+
+  return projectMutationPayload(
+    {
+      priceList: errors.length === 0 ? selectedPriceListPayload(priceList) : null,
+      fixedPriceVariantIds: errors.length === 0 ? changedVariantIds : [],
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function handlePriceListFixedPricesDelete(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
+  const args = getFieldArguments(field, variables);
+  const priceListId = readPriceListIdArgument(args);
+  const errors: MarketUserError[] = [];
+  const existingPriceList = priceListId ? store.getEffectivePriceListRecordById(priceListId) : null;
+
+  if (!priceListId || !existingPriceList) {
+    errors.push(priceListError(['priceListId'], 'Price list does not exist', 'PRICE_LIST_NOT_FOUND'));
+  }
+
+  const variantIds = readFixedPriceVariantIds(args, ['variantIds', 'variantsToDelete', 'fixedPriceVariantIds']);
+  const { priceList, deletedVariantIds } = existingPriceList
+    ? deleteFixedPriceNodes(existingPriceList, variantIds, errors)
+    : { priceList: null, deletedVariantIds: [] };
+
+  if (errors.length === 0 && priceList) {
+    store.stageUpdatePriceList(priceList);
+  }
+
+  return projectMutationPayload(
+    {
+      priceList: errors.length === 0 ? selectedPriceListPayload(priceList) : null,
+      deletedFixedPriceVariantIds: errors.length === 0 ? deletedVariantIds : [],
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function handlePriceListFixedPricesByProductUpdate(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
+  const args = getFieldArguments(field, variables);
+  const input = readInput(args['input']);
+  const priceListId = readPriceListIdArgument(args);
+  const productId =
+    typeof args['productId'] === 'string'
+      ? args['productId']
+      : typeof input['productId'] === 'string'
+        ? input['productId']
+        : null;
+  const errors: MarketUserError[] = [];
+  const existingPriceList = priceListId ? store.getEffectivePriceListRecordById(priceListId) : null;
+  const product = productId ? store.getEffectiveProductById(productId) : null;
+
+  if (!priceListId || !existingPriceList) {
+    errors.push(priceListError(['priceListId'], 'Price list does not exist', 'PRICE_LIST_NOT_FOUND'));
+  }
+  if (!productId || !product) {
+    errors.push(priceListError(['productId'], 'Product does not exist', 'PRODUCT_NOT_FOUND'));
+  }
+
+  const productVariantIds = new Set(
+    productId ? store.getEffectiveVariantsByProductId(productId).map((variant) => variant.id) : [],
+  );
+  const fixedPrices = readFixedPriceInputs(args, ['prices', 'fixedPrices', 'pricesToAdd', 'pricesToUpdate']);
+  for (const fixedPrice of fixedPrices) {
+    if (typeof fixedPrice['variantId'] === 'string' && !productVariantIds.has(fixedPrice['variantId'])) {
+      errors.push(priceListError(['prices', 'variantId'], 'Variant does not belong to product', 'VARIANT_NOT_FOUND'));
+    }
+  }
+
+  const deletedVariantIds = readFixedPriceVariantIds(args, [
+    'variantIds',
+    'variantsToDelete',
+    'fixedPriceVariantIds',
+    'pricesToDelete',
+  ]);
+  for (const variantId of deletedVariantIds) {
+    if (!productVariantIds.has(variantId)) {
+      errors.push(priceListError(['variantIds'], 'Variant does not belong to product', 'VARIANT_NOT_FOUND'));
+    }
+  }
+
+  let priceList = existingPriceList;
+  let changedVariantIds: string[] = [];
+  let removedVariantIds: string[] = [];
+  if (existingPriceList && errors.length === 0) {
+    const upserted = upsertFixedPriceNodes(existingPriceList, fixedPrices, 'upsert', errors);
+    const deleted = deleteFixedPriceNodes(upserted.priceList, deletedVariantIds, errors);
+    priceList = deleted.priceList;
+    changedVariantIds = upserted.changedVariantIds;
+    removedVariantIds = deleted.deletedVariantIds;
+  }
+
+  if (errors.length === 0 && priceList) {
+    store.stageUpdatePriceList(priceList);
+  }
+
+  return projectMutationPayload(
+    {
+      priceList: errors.length === 0 ? selectedPriceListPayload(priceList) : null,
+      fixedPriceVariantIds: errors.length === 0 ? changedVariantIds : [],
+      deletedFixedPriceVariantIds: errors.length === 0 ? removedVariantIds : [],
       userErrors: errors,
     },
     field,
@@ -2813,6 +3651,179 @@ function serializeWebPresencesConnection(
   });
 }
 
+function marketRegionCountryEdges(market: MarketRecord): ConnectionEdge[] {
+  const conditions = isPlainObject(market.data['conditions']) ? market.data['conditions'] : {};
+  const regionsCondition = isPlainObject(conditions['regionsCondition'])
+    ? (conditions['regionsCondition'] as Record<string, unknown>)
+    : {};
+  return readConnectionEdges(regionsCondition['regions']);
+}
+
+function marketRegionCountryCode(edge: ConnectionEdge): string | null {
+  if (!isPlainObject(edge.node) || typeof edge.node['code'] !== 'string') {
+    return null;
+  }
+
+  const countryCode = edge.node['code'].toUpperCase();
+  return /^[A-Z]{2}$/u.test(countryCode) ? countryCode : null;
+}
+
+function marketMatchesBuyerCountry(market: MarketRecord, countryCode: string): boolean {
+  if (market.data['status'] !== 'ACTIVE') {
+    return false;
+  }
+
+  return marketRegionCountryEdges(market).some((edge) => marketRegionCountryCode(edge) === countryCode);
+}
+
+function resolveMarketForBuyerCountry(countryCode: string): MarketRecord | null {
+  return store.listEffectiveMarkets().find((market) => marketMatchesBuyerCountry(market, countryCode)) ?? null;
+}
+
+function resolvedCurrencyCode(market: MarketRecord | null, countryCode: string | null): string {
+  if (market) {
+    for (const edge of marketRegionCountryEdges(market)) {
+      if (countryCode !== null && marketRegionCountryCode(edge) !== countryCode) {
+        continue;
+      }
+
+      if (
+        isPlainObject(edge.node) &&
+        isPlainObject(edge.node['currency']) &&
+        typeof edge.node['currency']['currencyCode'] === 'string'
+      ) {
+        return edge.node['currency']['currencyCode'];
+      }
+    }
+
+    if (
+      isPlainObject(market.data['currencySettings']) &&
+      isPlainObject(market.data['currencySettings']['baseCurrency']) &&
+      typeof market.data['currencySettings']['baseCurrency']['currencyCode'] === 'string'
+    ) {
+      return market.data['currencySettings']['baseCurrency']['currencyCode'];
+    }
+  }
+
+  return countryCode ? (COUNTRY_CURRENCIES[countryCode] ?? 'USD') : 'USD';
+}
+
+function resolvedPriceInclusivity(market: MarketRecord | null): Record<string, boolean> {
+  const priceInclusions = market && isPlainObject(market.data['priceInclusions']) ? market.data['priceInclusions'] : {};
+  const dutiesStrategy =
+    typeof priceInclusions['inclusiveDutiesPricingStrategy'] === 'string'
+      ? priceInclusions['inclusiveDutiesPricingStrategy']
+      : null;
+  const taxStrategy =
+    typeof priceInclusions['inclusiveTaxPricingStrategy'] === 'string'
+      ? priceInclusions['inclusiveTaxPricingStrategy']
+      : null;
+
+  return {
+    dutiesIncluded: dutiesStrategy === 'INCLUDES_DUTIES_IN_PRICE',
+    taxesIncluded: taxStrategy === 'INCLUDES_TAXES_IN_PRICE',
+  };
+}
+
+function webPresenceReferencesMarket(webPresence: WebPresenceRecord, marketId: string): boolean {
+  return readConnectionEdges(webPresence.data['markets']).some(
+    (edge) => isPlainObject(edge.node) && typeof edge.node['id'] === 'string' && edge.node['id'] === marketId,
+  );
+}
+
+function webPresencesForMarket(market: MarketRecord | null): WebPresenceRecord[] {
+  if (!market) {
+    return [];
+  }
+
+  const webPresencesById = new Map<string, WebPresenceRecord>();
+  for (const edge of readConnectionEdges(market.data['webPresences'])) {
+    if (!isPlainObject(edge.node) || typeof edge.node['id'] !== 'string') {
+      continue;
+    }
+
+    const effectiveWebPresence = store.getEffectiveWebPresenceRecordById(edge.node['id']);
+    webPresencesById.set(
+      edge.node['id'],
+      effectiveWebPresence ?? {
+        id: edge.node['id'],
+        cursor: edge.cursor,
+        data: edge.node as Record<string, JsonValue>,
+      },
+    );
+  }
+
+  for (const webPresence of store.listEffectiveWebPresences()) {
+    if (webPresenceReferencesMarket(webPresence, market.id)) {
+      webPresencesById.set(webPresence.id, webPresence);
+    }
+  }
+
+  return Array.from(webPresencesById.values());
+}
+
+function catalogsForMarket(market: MarketRecord | null): CatalogRecord[] {
+  if (!market) {
+    return [];
+  }
+
+  const catalogsById = new Map<string, CatalogRecord>();
+  for (const edge of readConnectionEdges(market.data['catalogs'])) {
+    if (!isPlainObject(edge.node) || typeof edge.node['id'] !== 'string') {
+      continue;
+    }
+
+    const effectiveCatalog = store.getEffectiveCatalogRecordById(edge.node['id']);
+    catalogsById.set(
+      edge.node['id'],
+      effectiveCatalog ?? {
+        id: edge.node['id'],
+        cursor: edge.cursor,
+        data: edge.node as Record<string, JsonValue>,
+      },
+    );
+  }
+
+  for (const catalog of store.listEffectiveCatalogs()) {
+    if (catalogReferencesMarket(catalog, market.id)) {
+      catalogsById.set(catalog.id, catalog);
+    }
+  }
+
+  return Array.from(catalogsById.values());
+}
+
+function connectionPayloadFromRecords<
+  T extends { id: string; cursor?: string | null | undefined; data: Record<string, JsonValue> },
+>(records: T[], getCursorValue: (record: T) => string): Record<string, unknown> {
+  const edges = records.map((record) => ({
+    cursor: getCursorValue(record),
+    node: record.data,
+  }));
+
+  return {
+    edges,
+    pageInfo: {
+      hasNextPage: false,
+      hasPreviousPage: false,
+      startCursor: edges[0]?.cursor ?? null,
+      endCursor: edges.at(-1)?.cursor ?? null,
+    },
+  };
+}
+
+function buildMarketsResolvedValuesPayload(
+  market: MarketRecord | null,
+  countryCode: string | null,
+): Record<string, unknown> {
+  return {
+    currencyCode: resolvedCurrencyCode(market, countryCode),
+    priceInclusivity: resolvedPriceInclusivity(market),
+    catalogs: connectionPayloadFromRecords(catalogsForMarket(market), catalogCursor),
+    webPresences: connectionPayloadFromRecords(webPresencesForMarket(market), webPresenceCursor),
+  };
+}
+
 function overlayMarketsResolvedValuesWebPresences(rootPayload: unknown): unknown {
   if (!isPlainObject(rootPayload)) {
     return rootPayload;
@@ -2838,6 +3849,30 @@ function overlayMarketsResolvedValuesWebPresences(rootPayload: unknown): unknown
       },
     },
   };
+}
+
+function serializeMarketsResolvedValues(field: FieldNode, variables: Record<string, unknown>): unknown {
+  const args = getFieldArguments(field, variables);
+  const countryCode = buyerSignalCountryCode(args['buyerSignal']);
+  const exactBasePayload = store.getBaseMarketsRootPayload(marketsResolvedValuesPayloadKey(countryCode));
+  const wildcardBasePayload = store.getBaseMarketsRootPayload(marketsResolvedValuesPayloadKey(null));
+  const legacyBasePayload = store.getBaseMarketsRootPayload('marketsResolvedValues');
+  const matchedMarket = countryCode ? resolveMarketForBuyerCountry(countryCode) : null;
+
+  if (!store.hasStagedMarkets() && !store.hasStagedPriceLists() && exactBasePayload !== null) {
+    return exactBasePayload;
+  }
+
+  if (matchedMarket) {
+    return buildMarketsResolvedValuesPayload(matchedMarket, countryCode);
+  }
+
+  const fallbackBasePayload = exactBasePayload ?? wildcardBasePayload ?? legacyBasePayload;
+  if (fallbackBasePayload !== null) {
+    return overlayMarketsResolvedValuesWebPresences(fallbackBasePayload);
+  }
+
+  return buildMarketsResolvedValuesPayload(null, countryCode);
 }
 
 function rootPayloadForField(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
@@ -2887,14 +3922,14 @@ function rootPayloadForField(field: FieldNode, variables: Record<string, unknown
     case 'priceList': {
       const args = getFieldArguments(field, variables);
       const id = typeof args['id'] === 'string' ? args['id'] : null;
-      return id ? store.getBasePriceListById(id) : null;
+      return id ? store.getEffectivePriceListById(id) : null;
     }
     case 'priceLists':
       return serializePriceListsConnection(field, variables, fragments);
     case 'webPresences':
       return serializeWebPresencesConnection(field, variables, fragments);
     case 'marketsResolvedValues':
-      return overlayMarketsResolvedValuesWebPresences(store.getBaseMarketsRootPayload(field.name.value));
+      return serializeMarketsResolvedValues(field, variables);
     default:
       return null;
   }
@@ -2902,9 +3937,17 @@ function rootPayloadForField(field: FieldNode, variables: Record<string, unknown
 
 export function handleMarketsQuery(document: string, variables: Record<string, unknown>): Record<string, unknown> {
   const data: Record<string, unknown> = {};
+  const errors: Record<string, unknown>[] = [];
   const fragments = getDocumentFragments(document);
 
   for (const field of getRootFields(document)) {
+    if (field.name.value === 'marketsResolvedValues') {
+      errors.push(...validateMarketsResolvedValuesBuyerSignal(field, variables));
+      if (errors.length > 0) {
+        continue;
+      }
+    }
+
     const key = getFieldResponseKey(field);
     const rootPayload = rootPayloadForField(field, variables, fragments);
     data[key] =
@@ -2920,6 +3963,10 @@ export function handleMarketsQuery(document: string, variables: Record<string, u
         : field.selectionSet
           ? projectMarketValue(rootPayload, field.selectionSet.selections, fragments, variables)
           : rootPayload;
+  }
+
+  if (errors.length > 0) {
+    return { errors };
   }
 
   return { data };
@@ -2952,6 +3999,27 @@ export function handleMarketMutation(document: string, variables: Record<string,
         break;
       case 'catalogDelete':
         data[key] = handleCatalogDelete(field, variables, fragments);
+        break;
+      case 'priceListCreate':
+        data[key] = handlePriceListCreate(field, variables, fragments);
+        break;
+      case 'priceListUpdate':
+        data[key] = handlePriceListUpdate(field, variables, fragments);
+        break;
+      case 'priceListDelete':
+        data[key] = handlePriceListDelete(field, variables, fragments);
+        break;
+      case 'priceListFixedPricesAdd':
+        data[key] = handlePriceListFixedPricesAdd(field, variables, fragments);
+        break;
+      case 'priceListFixedPricesUpdate':
+        data[key] = handlePriceListFixedPricesUpdate(field, variables, fragments);
+        break;
+      case 'priceListFixedPricesDelete':
+        data[key] = handlePriceListFixedPricesDelete(field, variables, fragments);
+        break;
+      case 'priceListFixedPricesByProductUpdate':
+        data[key] = handlePriceListFixedPricesByProductUpdate(field, variables, fragments);
         break;
       case 'webPresenceCreate':
         data[key] = handleWebPresenceCreate(field, variables, fragments);

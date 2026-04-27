@@ -1,0 +1,28 @@
+mutation MetaobjectDefinitionStandardEnable($type: String!) {
+  standardMetaobjectDefinitionEnable(type: $type) {
+    metaobjectDefinition {
+      id
+      type
+      name
+      displayNameKey
+      standardTemplate {
+        type
+        name
+      }
+      fieldDefinitions {
+        key
+        name
+        required
+        type {
+          name
+          category
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -1,0 +1,23 @@
+mutation DiscountCodeBxgyLifecycleDeactivate($id: ID!) {
+  discountCodeDeactivate(id: $id) {
+    codeDiscountNode {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBxgy {
+          title
+          status
+          summary
+          startsAt
+          endsAt
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

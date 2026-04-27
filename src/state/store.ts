@@ -1,4 +1,11 @@
 import type {
+  AbandonedCheckoutRecord,
+  AbandonmentDeliveryActivityRecord,
+  AbandonmentRecord,
+  B2BCompanyContactRecord,
+  B2BCompanyContactRoleRecord,
+  B2BCompanyLocationRecord,
+  B2BCompanyRecord,
   BusinessEntityRecord,
   CalculatedOrderRecord,
   CarrierServiceRecord,
@@ -10,6 +17,7 @@ import type {
   CustomerMetafieldRecord,
   CustomerPaymentMethodRecord,
   CustomerRecord,
+  CustomerSegmentMembersQueryRecord,
   DeliveryProfileRecord,
   DiscountRecord,
   DiscountBulkOperationRecord,
@@ -19,10 +27,14 @@ import type {
   LocationRecord,
   MarketLocalizationRecord,
   MarketRecord,
+  MarketingEngagementRecord,
   MarketingRecord,
+  MetaobjectDefinitionRecord,
   MetafieldDefinitionRecord,
   MutationLogEntry,
   NormalizedStateSnapshotFile,
+  OnlineStoreContentKind,
+  OnlineStoreContentRecord,
   OrderMandatePaymentRecord,
   OrderRecord,
   PaymentCustomizationRecord,
@@ -38,6 +50,7 @@ import type {
   SegmentRecord,
   ShopRecord,
   StateSnapshot,
+  WebhookSubscriptionRecord,
   WebPresenceRecord,
 } from './types.js';
 import { compareShopifyResourceIds } from '../shopify/resource-ids.js';
@@ -71,16 +84,40 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   customerAddresses: {},
   customerPaymentMethods: {},
   segments: {},
+  customerSegmentMembersQueries: {},
+  webhookSubscriptions: {},
+  webhookSubscriptionOrder: [],
   marketingActivities: {},
   marketingActivityOrder: [],
   marketingEvents: {},
   marketingEventOrder: [],
+  marketingEngagements: {},
+  marketingEngagementOrder: [],
+  deletedMarketingActivityIds: {},
+  deletedMarketingEventIds: {},
+  deletedMarketingEngagementIds: {},
+  onlineStoreArticles: {},
+  onlineStoreArticleOrder: [],
+  onlineStoreBlogs: {},
+  onlineStoreBlogOrder: [],
+  onlineStorePages: {},
+  onlineStorePageOrder: [],
+  onlineStoreComments: {},
+  onlineStoreCommentOrder: [],
   discounts: {},
   discountBulkOperations: {},
   paymentCustomizations: {},
   paymentCustomizationOrder: [],
   businessEntities: {},
   businessEntityOrder: [],
+  b2bCompanies: {},
+  b2bCompanyOrder: [],
+  b2bCompanyContacts: {},
+  b2bCompanyContactOrder: [],
+  b2bCompanyContactRoles: {},
+  b2bCompanyContactRoleOrder: [],
+  b2bCompanyLocations: {},
+  b2bCompanyLocationOrder: [],
   markets: {},
   marketOrder: [],
   webPresences: {},
@@ -92,11 +129,16 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   priceListOrder: [],
   deliveryProfiles: {},
   deliveryProfileOrder: [],
+  abandonedCheckouts: {},
+  abandonedCheckoutOrder: [],
+  abandonments: {},
+  abandonmentOrder: [],
   productCollections: {},
   productMedia: {},
   files: {},
   productMetafields: {},
   metafieldDefinitions: {},
+  metaobjectDefinitions: {},
   customerMetafields: {},
   deletedProductIds: {},
   deletedFileIds: {},
@@ -106,13 +148,22 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedCarrierServiceIds: {},
   deletedCustomerIds: {},
   deletedCustomerAddressIds: {},
+  deletedCustomerPaymentMethodIds: {},
   deletedSegmentIds: {},
+  deletedWebhookSubscriptionIds: {},
+  deletedOnlineStoreArticleIds: {},
+  deletedOnlineStoreBlogIds: {},
+  deletedOnlineStorePageIds: {},
+  deletedOnlineStoreCommentIds: {},
   deletedDiscountIds: {},
   deletedPaymentCustomizationIds: {},
   deletedMarketIds: {},
   deletedCatalogIds: {},
+  deletedPriceListIds: {},
   deletedWebPresenceIds: {},
   deletedDeliveryProfileIds: {},
+  deletedMetafieldDefinitionIds: {},
+  deletedMetaobjectDefinitionIds: {},
   mergedCustomerIds: {},
   customerMergeRequests: {},
 };
@@ -172,6 +223,39 @@ function marketLocalizationStorageKey(
 
 function readCollectionPosition(collection: ProductCollectionRecord): number | null {
   return typeof collection.position === 'number' && Number.isFinite(collection.position) ? collection.position : null;
+}
+
+function readMarketingNestedObject(source: Record<string, unknown>, field: string): Record<string, unknown> | null {
+  const value = source[field];
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function readMarketingEventId(source: Record<string, unknown>): string | null {
+  const event = readMarketingNestedObject(source, 'marketingEvent');
+  const id = event?.['id'];
+  return typeof id === 'string' && id.length > 0 ? id : null;
+}
+
+function readMarketingRemoteId(source: Record<string, unknown>): string | null {
+  const remoteId = source['remoteId'];
+  if (typeof remoteId === 'string' && remoteId.length > 0) {
+    return remoteId;
+  }
+
+  const event = readMarketingNestedObject(source, 'marketingEvent');
+  const eventRemoteId = event?.['remoteId'];
+  return typeof eventRemoteId === 'string' && eventRemoteId.length > 0 ? eventRemoteId : null;
+}
+
+function readMarketingChannelHandle(source: Record<string, unknown>): string | null {
+  const channelHandle = source['channelHandle'];
+  if (typeof channelHandle === 'string' && channelHandle.length > 0) {
+    return channelHandle;
+  }
+
+  const event = readMarketingNestedObject(source, 'marketingEvent');
+  const eventChannelHandle = event?.['channelHandle'];
+  return typeof eventChannelHandle === 'string' && eventChannelHandle.length > 0 ? eventChannelHandle : null;
 }
 
 function mergeCollectionRecords(
@@ -342,6 +426,7 @@ function mergeCustomerRecords(base: CustomerRecord | null, staged: CustomerRecor
     note: staged.note ?? base.note,
     canDelete: staged.canDelete ?? base.canDelete,
     verifiedEmail: staged.verifiedEmail ?? base.verifiedEmail,
+    dataSaleOptOut: staged.dataSaleOptOut ?? base.dataSaleOptOut ?? false,
     taxExempt: staged.taxExempt ?? base.taxExempt,
     taxExemptions: structuredClone(staged.taxExemptions ?? base.taxExemptions ?? []),
     state: staged.state ?? base.state,
@@ -501,6 +586,8 @@ export class InMemoryStore {
 
   upsertBaseCustomerPaymentMethods(paymentMethods: CustomerPaymentMethodRecord[]): void {
     for (const paymentMethod of paymentMethods) {
+      delete this.baseState.deletedCustomerPaymentMethodIds[paymentMethod.id];
+      delete this.stagedState.deletedCustomerPaymentMethodIds[paymentMethod.id];
       this.baseState.customerPaymentMethods[paymentMethod.id] = structuredClone(paymentMethod);
     }
   }
@@ -525,6 +612,80 @@ export class InMemoryStore {
         (left, right) =>
           (left.creationDate ?? '').localeCompare(right.creationDate ?? '') || left.id.localeCompare(right.id),
       );
+  }
+
+  upsertBaseWebhookSubscriptions(webhookSubscriptions: WebhookSubscriptionRecord[]): void {
+    for (const webhookSubscription of webhookSubscriptions) {
+      delete this.baseState.deletedWebhookSubscriptionIds[webhookSubscription.id];
+      delete this.stagedState.deletedWebhookSubscriptionIds[webhookSubscription.id];
+      this.baseState.webhookSubscriptions[webhookSubscription.id] = structuredClone(webhookSubscription);
+      if (!this.baseState.webhookSubscriptionOrder.includes(webhookSubscription.id)) {
+        this.baseState.webhookSubscriptionOrder.push(webhookSubscription.id);
+      }
+    }
+  }
+
+  upsertStagedWebhookSubscription(webhookSubscription: WebhookSubscriptionRecord): void {
+    delete this.stagedState.deletedWebhookSubscriptionIds[webhookSubscription.id];
+    this.stagedState.webhookSubscriptions[webhookSubscription.id] = structuredClone(webhookSubscription);
+    if (
+      !this.baseState.webhookSubscriptionOrder.includes(webhookSubscription.id) &&
+      !this.stagedState.webhookSubscriptionOrder.includes(webhookSubscription.id)
+    ) {
+      this.stagedState.webhookSubscriptionOrder.push(webhookSubscription.id);
+    }
+  }
+
+  deleteStagedWebhookSubscription(webhookSubscriptionId: string): void {
+    delete this.stagedState.webhookSubscriptions[webhookSubscriptionId];
+    this.stagedState.deletedWebhookSubscriptionIds[webhookSubscriptionId] = true;
+  }
+
+  getEffectiveWebhookSubscriptionById(webhookSubscriptionId: string): WebhookSubscriptionRecord | null {
+    if (this.stagedState.deletedWebhookSubscriptionIds[webhookSubscriptionId]) {
+      return null;
+    }
+
+    const webhookSubscription =
+      this.stagedState.webhookSubscriptions[webhookSubscriptionId] ??
+      this.baseState.webhookSubscriptions[webhookSubscriptionId] ??
+      null;
+    return webhookSubscription ? structuredClone(webhookSubscription) : null;
+  }
+
+  listEffectiveWebhookSubscriptions(): WebhookSubscriptionRecord[] {
+    const orderedIds = new Set([
+      ...this.baseState.webhookSubscriptionOrder,
+      ...this.stagedState.webhookSubscriptionOrder,
+    ]);
+    const orderedWebhookSubscriptions = [...orderedIds]
+      .map((webhookSubscriptionId) => this.getEffectiveWebhookSubscriptionById(webhookSubscriptionId))
+      .filter((webhookSubscription): webhookSubscription is WebhookSubscriptionRecord => webhookSubscription !== null);
+    const unorderedWebhookSubscriptions = Object.values({
+      ...this.baseState.webhookSubscriptions,
+      ...this.stagedState.webhookSubscriptions,
+    })
+      .filter((webhookSubscription) => !orderedIds.has(webhookSubscription.id))
+      .filter((webhookSubscription) => !this.stagedState.deletedWebhookSubscriptionIds[webhookSubscription.id])
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id))
+      .map((webhookSubscription) => structuredClone(webhookSubscription));
+
+    return [...orderedWebhookSubscriptions, ...unorderedWebhookSubscriptions];
+  }
+
+  hasWebhookSubscriptions(): boolean {
+    return (
+      Object.keys(this.baseState.webhookSubscriptions).length > 0 ||
+      Object.keys(this.stagedState.webhookSubscriptions).length > 0 ||
+      Object.keys(this.stagedState.deletedWebhookSubscriptionIds).length > 0
+    );
+  }
+
+  hasStagedWebhookSubscriptions(): boolean {
+    return (
+      Object.keys(this.stagedState.webhookSubscriptions).length > 0 ||
+      Object.keys(this.stagedState.deletedWebhookSubscriptionIds).length > 0
+    );
   }
 
   private upsertBaseMarketingRecords(
@@ -578,6 +739,62 @@ export class InMemoryStore {
     this.upsertBaseMarketingRecords(this.baseState.marketingEvents, this.baseState.marketingEventOrder, records);
   }
 
+  private stageMarketingRecord(
+    bucket: Record<string, MarketingRecord>,
+    order: string[],
+    deletedBucket: Record<string, boolean>,
+    record: MarketingRecord,
+  ): MarketingRecord {
+    delete deletedBucket[record.id];
+    bucket[record.id] = structuredClone(record);
+    if (!order.includes(record.id)) {
+      order.push(record.id);
+    }
+    return structuredClone(record);
+  }
+
+  stageMarketingActivity(record: MarketingRecord): MarketingRecord {
+    return this.stageMarketingRecord(
+      this.stagedState.marketingActivities,
+      this.stagedState.marketingActivityOrder,
+      this.stagedState.deletedMarketingActivityIds,
+      record,
+    );
+  }
+
+  stageMarketingEvent(record: MarketingRecord): MarketingRecord {
+    return this.stageMarketingRecord(
+      this.stagedState.marketingEvents,
+      this.stagedState.marketingEventOrder,
+      this.stagedState.deletedMarketingEventIds,
+      record,
+    );
+  }
+
+  stageDeleteMarketingActivity(activityId: string): void {
+    const activity = this.getEffectiveMarketingActivityRecordById(activityId);
+    const eventId = activity ? readMarketingEventId(activity.data) : null;
+
+    delete this.stagedState.marketingActivities[activityId];
+    this.stagedState.deletedMarketingActivityIds[activityId] = true;
+
+    if (eventId) {
+      delete this.stagedState.marketingEvents[eventId];
+      this.stagedState.deletedMarketingEventIds[eventId] = true;
+    }
+  }
+
+  stageDeleteAllExternalMarketingActivities(): string[] {
+    const deletedIds: string[] = [];
+    for (const activity of this.listEffectiveMarketingActivities()) {
+      if (activity.data['isExternal'] === true) {
+        this.stageDeleteMarketingActivity(activity.id);
+        deletedIds.push(activity.id);
+      }
+    }
+    return deletedIds;
+  }
+
   getBaseMarketingActivityById(activityId: string): unknown | null {
     const activity = this.baseState.marketingActivities[activityId];
     return activity === undefined ? null : structuredClone(activity.data);
@@ -588,12 +805,145 @@ export class InMemoryStore {
     return event === undefined ? null : structuredClone(event.data);
   }
 
+  getEffectiveMarketingActivityById(activityId: string): unknown | null {
+    const activity = this.getEffectiveMarketingActivityRecordById(activityId);
+    return activity ? structuredClone(activity.data) : null;
+  }
+
+  getEffectiveMarketingEventById(eventId: string): unknown | null {
+    const event = this.getEffectiveMarketingEventRecordById(eventId);
+    return event ? structuredClone(event.data) : null;
+  }
+
+  getEffectiveMarketingActivityRecordById(activityId: string): MarketingRecord | null {
+    if (this.stagedState.deletedMarketingActivityIds[activityId]) {
+      return null;
+    }
+
+    const activity = this.stagedState.marketingActivities[activityId] ?? this.baseState.marketingActivities[activityId];
+    return activity ? structuredClone(activity) : null;
+  }
+
+  getEffectiveMarketingEventRecordById(eventId: string): MarketingRecord | null {
+    if (this.stagedState.deletedMarketingEventIds[eventId]) {
+      return null;
+    }
+
+    const event = this.stagedState.marketingEvents[eventId] ?? this.baseState.marketingEvents[eventId];
+    return event ? structuredClone(event) : null;
+  }
+
+  getEffectiveMarketingActivityByRemoteId(remoteId: string): MarketingRecord | null {
+    return (
+      this.listEffectiveMarketingActivities().find((activity) => {
+        return readMarketingRemoteId(activity.data) === remoteId;
+      }) ?? null
+    );
+  }
+
   listBaseMarketingActivities(): MarketingRecord[] {
     return this.listBaseMarketingRecords(this.baseState.marketingActivities, this.baseState.marketingActivityOrder);
   }
 
   listBaseMarketingEvents(): MarketingRecord[] {
     return this.listBaseMarketingRecords(this.baseState.marketingEvents, this.baseState.marketingEventOrder);
+  }
+
+  listEffectiveMarketingActivities(): MarketingRecord[] {
+    return this.listEffectiveMarketingRecords(
+      this.baseState.marketingActivities,
+      this.baseState.marketingActivityOrder,
+      this.stagedState.marketingActivities,
+      this.stagedState.marketingActivityOrder,
+      this.stagedState.deletedMarketingActivityIds,
+    );
+  }
+
+  listEffectiveMarketingEvents(): MarketingRecord[] {
+    return this.listEffectiveMarketingRecords(
+      this.baseState.marketingEvents,
+      this.baseState.marketingEventOrder,
+      this.stagedState.marketingEvents,
+      this.stagedState.marketingEventOrder,
+      this.stagedState.deletedMarketingEventIds,
+    );
+  }
+
+  hasStagedMarketingRecords(): boolean {
+    return (
+      Object.keys(this.stagedState.marketingActivities).length > 0 ||
+      Object.keys(this.stagedState.marketingEvents).length > 0 ||
+      Object.keys(this.stagedState.marketingEngagements).length > 0 ||
+      Object.keys(this.stagedState.deletedMarketingActivityIds).length > 0 ||
+      Object.keys(this.stagedState.deletedMarketingEventIds).length > 0 ||
+      Object.keys(this.stagedState.deletedMarketingEngagementIds).length > 0
+    );
+  }
+
+  stageMarketingEngagement(record: MarketingEngagementRecord): MarketingEngagementRecord {
+    delete this.stagedState.deletedMarketingEngagementIds[record.id];
+    this.stagedState.marketingEngagements[record.id] = structuredClone(record);
+    if (!this.stagedState.marketingEngagementOrder.includes(record.id)) {
+      this.stagedState.marketingEngagementOrder.push(record.id);
+    }
+    return structuredClone(record);
+  }
+
+  stageDeleteMarketingEngagement(engagementId: string): void {
+    delete this.stagedState.marketingEngagements[engagementId];
+    this.stagedState.deletedMarketingEngagementIds[engagementId] = true;
+  }
+
+  stageDeleteMarketingEngagementsByChannelHandle(channelHandle: string): string[] {
+    const deletedIds: string[] = [];
+    for (const engagement of this.listEffectiveMarketingEngagements()) {
+      if (engagement.channelHandle === channelHandle) {
+        this.stageDeleteMarketingEngagement(engagement.id);
+        deletedIds.push(engagement.id);
+      }
+    }
+    return deletedIds;
+  }
+
+  stageDeleteAllChannelMarketingEngagements(): string[] {
+    const deletedIds: string[] = [];
+    for (const engagement of this.listEffectiveMarketingEngagements()) {
+      if (engagement.channelHandle !== null && engagement.channelHandle !== undefined) {
+        this.stageDeleteMarketingEngagement(engagement.id);
+        deletedIds.push(engagement.id);
+      }
+    }
+    return deletedIds;
+  }
+
+  listEffectiveMarketingEngagements(): MarketingEngagementRecord[] {
+    const merged = new Map<string, MarketingEngagementRecord>();
+    const orderedIds = [...this.baseState.marketingEngagementOrder, ...this.stagedState.marketingEngagementOrder];
+    const allRecords = {
+      ...this.baseState.marketingEngagements,
+      ...this.stagedState.marketingEngagements,
+    };
+
+    for (const id of orderedIds) {
+      const record = allRecords[id];
+      if (record && !this.stagedState.deletedMarketingEngagementIds[id]) {
+        merged.set(id, record);
+      }
+    }
+
+    for (const record of Object.values(allRecords)) {
+      if (!merged.has(record.id) && !this.stagedState.deletedMarketingEngagementIds[record.id]) {
+        merged.set(record.id, record);
+      }
+    }
+
+    return structuredClone([...merged.values()]);
+  }
+
+  hasKnownMarketingChannelHandle(channelHandle: string): boolean {
+    return this.listEffectiveMarketingEvents().some(
+      (event) => readMarketingChannelHandle(event.data) === channelHandle,
+    );
   }
 
   private listBaseMarketingRecords(bucket: Record<string, MarketingRecord>, order: string[]): MarketingRecord[] {
@@ -606,6 +956,165 @@ export class InMemoryStore {
       .sort((left, right) => left.id.localeCompare(right.id));
 
     return structuredClone([...orderedRecords, ...unorderedRecords]);
+  }
+
+  private listEffectiveMarketingRecords(
+    baseBucket: Record<string, MarketingRecord>,
+    baseOrder: string[],
+    stagedBucket: Record<string, MarketingRecord>,
+    stagedOrder: string[],
+    deletedBucket: Record<string, boolean>,
+  ): MarketingRecord[] {
+    const merged = new Map<string, MarketingRecord>();
+    for (const record of this.listBaseMarketingRecords(baseBucket, baseOrder)) {
+      if (!deletedBucket[record.id]) {
+        merged.set(record.id, record);
+      }
+    }
+    for (const record of this.listBaseMarketingRecords(stagedBucket, stagedOrder)) {
+      if (!deletedBucket[record.id]) {
+        merged.set(record.id, record);
+      }
+    }
+
+    return structuredClone([...merged.values()]);
+  }
+
+  private onlineStoreBucket(
+    snapshot: StateSnapshot,
+    kind: OnlineStoreContentKind,
+  ): Record<string, OnlineStoreContentRecord> {
+    switch (kind) {
+      case 'article':
+        return snapshot.onlineStoreArticles;
+      case 'blog':
+        return snapshot.onlineStoreBlogs;
+      case 'page':
+        return snapshot.onlineStorePages;
+      case 'comment':
+        return snapshot.onlineStoreComments;
+    }
+  }
+
+  private onlineStoreOrder(snapshot: StateSnapshot, kind: OnlineStoreContentKind): string[] {
+    switch (kind) {
+      case 'article':
+        return snapshot.onlineStoreArticleOrder;
+      case 'blog':
+        return snapshot.onlineStoreBlogOrder;
+      case 'page':
+        return snapshot.onlineStorePageOrder;
+      case 'comment':
+        return snapshot.onlineStoreCommentOrder;
+    }
+  }
+
+  private onlineStoreDeletedIds(snapshot: StateSnapshot, kind: OnlineStoreContentKind): Record<string, true> {
+    switch (kind) {
+      case 'article':
+        return snapshot.deletedOnlineStoreArticleIds;
+      case 'blog':
+        return snapshot.deletedOnlineStoreBlogIds;
+      case 'page':
+        return snapshot.deletedOnlineStorePageIds;
+      case 'comment':
+        return snapshot.deletedOnlineStoreCommentIds;
+    }
+  }
+
+  upsertBaseOnlineStoreContent(records: OnlineStoreContentRecord[]): void {
+    for (const record of records) {
+      const bucket = this.onlineStoreBucket(this.baseState, record.kind);
+      const order = this.onlineStoreOrder(this.baseState, record.kind);
+      const baseDeletedIds = this.onlineStoreDeletedIds(this.baseState, record.kind);
+      const stagedDeletedIds = this.onlineStoreDeletedIds(this.stagedState, record.kind);
+
+      delete baseDeletedIds[record.id];
+      delete stagedDeletedIds[record.id];
+      bucket[record.id] = structuredClone(record);
+      if (!order.includes(record.id)) {
+        order.push(record.id);
+      }
+    }
+  }
+
+  upsertStagedOnlineStoreContent(record: OnlineStoreContentRecord): void {
+    const bucket = this.onlineStoreBucket(this.stagedState, record.kind);
+    const baseOrder = this.onlineStoreOrder(this.baseState, record.kind);
+    const stagedOrder = this.onlineStoreOrder(this.stagedState, record.kind);
+    const stagedDeletedIds = this.onlineStoreDeletedIds(this.stagedState, record.kind);
+
+    delete stagedDeletedIds[record.id];
+    bucket[record.id] = structuredClone(record);
+    if (!baseOrder.includes(record.id) && !stagedOrder.includes(record.id)) {
+      stagedOrder.push(record.id);
+    }
+  }
+
+  deleteStagedOnlineStoreContent(kind: OnlineStoreContentKind, id: string): void {
+    const bucket = this.onlineStoreBucket(this.stagedState, kind);
+    const stagedDeletedIds = this.onlineStoreDeletedIds(this.stagedState, kind);
+    delete bucket[id];
+    stagedDeletedIds[id] = true;
+  }
+
+  getEffectiveOnlineStoreContentById(kind: OnlineStoreContentKind, id: string): OnlineStoreContentRecord | null {
+    const stagedDeletedIds = this.onlineStoreDeletedIds(this.stagedState, kind);
+    if (stagedDeletedIds[id]) {
+      return null;
+    }
+
+    const record =
+      this.onlineStoreBucket(this.stagedState, kind)[id] ?? this.onlineStoreBucket(this.baseState, kind)[id];
+    return record ? structuredClone(record) : null;
+  }
+
+  listEffectiveOnlineStoreContent(kind: OnlineStoreContentKind): OnlineStoreContentRecord[] {
+    const orderedIds = new Set([
+      ...this.onlineStoreOrder(this.baseState, kind),
+      ...this.onlineStoreOrder(this.stagedState, kind),
+    ]);
+    const orderedRecords = [...orderedIds]
+      .map((id) => this.getEffectiveOnlineStoreContentById(kind, id))
+      .filter((record): record is OnlineStoreContentRecord => record !== null);
+    const stagedDeletedIds = this.onlineStoreDeletedIds(this.stagedState, kind);
+    const unorderedRecords = Object.values({
+      ...this.onlineStoreBucket(this.baseState, kind),
+      ...this.onlineStoreBucket(this.stagedState, kind),
+    })
+      .filter((record) => !orderedIds.has(record.id))
+      .filter((record) => !stagedDeletedIds[record.id])
+      .sort(
+        (left, right) =>
+          (right.updatedAt ?? '').localeCompare(left.updatedAt ?? '') ||
+          (right.createdAt ?? '').localeCompare(left.createdAt ?? '') ||
+          compareShopifyResourceIds(left.id, right.id),
+      );
+
+    return structuredClone([...orderedRecords, ...unorderedRecords]);
+  }
+
+  hasOnlineStoreContent(): boolean {
+    return (
+      Object.keys(this.baseState.onlineStoreArticles).length > 0 ||
+      Object.keys(this.baseState.onlineStoreBlogs).length > 0 ||
+      Object.keys(this.baseState.onlineStorePages).length > 0 ||
+      Object.keys(this.baseState.onlineStoreComments).length > 0 ||
+      this.hasStagedOnlineStoreContent()
+    );
+  }
+
+  hasStagedOnlineStoreContent(): boolean {
+    return (
+      Object.keys(this.stagedState.onlineStoreArticles).length > 0 ||
+      Object.keys(this.stagedState.onlineStoreBlogs).length > 0 ||
+      Object.keys(this.stagedState.onlineStorePages).length > 0 ||
+      Object.keys(this.stagedState.onlineStoreComments).length > 0 ||
+      Object.keys(this.stagedState.deletedOnlineStoreArticleIds).length > 0 ||
+      Object.keys(this.stagedState.deletedOnlineStoreBlogIds).length > 0 ||
+      Object.keys(this.stagedState.deletedOnlineStorePageIds).length > 0 ||
+      Object.keys(this.stagedState.deletedOnlineStoreCommentIds).length > 0
+    );
   }
 
   stageCreateSegment(segment: SegmentRecord): SegmentRecord {
@@ -623,6 +1132,26 @@ export class InMemoryStore {
   stageDeleteSegment(segmentId: string): void {
     delete this.stagedState.segments[segmentId];
     this.stagedState.deletedSegmentIds[segmentId] = true;
+  }
+
+  stageCustomerSegmentMembersQuery(query: CustomerSegmentMembersQueryRecord): CustomerSegmentMembersQueryRecord {
+    this.stagedState.customerSegmentMembersQueries[query.id] = structuredClone(query);
+    return structuredClone(query);
+  }
+
+  getEffectiveCustomerSegmentMembersQueryById(queryId: string): CustomerSegmentMembersQueryRecord | null {
+    const query =
+      this.stagedState.customerSegmentMembersQueries[queryId] ??
+      this.baseState.customerSegmentMembersQueries[queryId] ??
+      null;
+    return query ? structuredClone(query) : null;
+  }
+
+  hasCustomerSegmentMembersQueries(): boolean {
+    return (
+      Object.keys(this.baseState.customerSegmentMembersQueries).length > 0 ||
+      Object.keys(this.stagedState.customerSegmentMembersQueries).length > 0
+    );
   }
 
   getEffectiveSegmentById(segmentId: string): SegmentRecord | null {
@@ -970,6 +1499,96 @@ export class InMemoryStore {
     return businessEntity ? structuredClone(businessEntity) : null;
   }
 
+  upsertBaseB2BCompanies(companies: B2BCompanyRecord[]): void {
+    for (const company of companies) {
+      this.baseState.b2bCompanies[company.id] = structuredClone(company);
+      if (!this.baseState.b2bCompanyOrder.includes(company.id)) {
+        this.baseState.b2bCompanyOrder.push(company.id);
+      }
+    }
+  }
+
+  upsertBaseB2BCompanyContacts(contacts: B2BCompanyContactRecord[]): void {
+    for (const contact of contacts) {
+      this.baseState.b2bCompanyContacts[contact.id] = structuredClone(contact);
+      if (!this.baseState.b2bCompanyContactOrder.includes(contact.id)) {
+        this.baseState.b2bCompanyContactOrder.push(contact.id);
+      }
+    }
+  }
+
+  upsertBaseB2BCompanyContactRoles(roles: B2BCompanyContactRoleRecord[]): void {
+    for (const role of roles) {
+      this.baseState.b2bCompanyContactRoles[role.id] = structuredClone(role);
+      if (!this.baseState.b2bCompanyContactRoleOrder.includes(role.id)) {
+        this.baseState.b2bCompanyContactRoleOrder.push(role.id);
+      }
+    }
+  }
+
+  upsertBaseB2BCompanyLocations(locations: B2BCompanyLocationRecord[]): void {
+    for (const location of locations) {
+      this.baseState.b2bCompanyLocations[location.id] = structuredClone(location);
+      if (!this.baseState.b2bCompanyLocationOrder.includes(location.id)) {
+        this.baseState.b2bCompanyLocationOrder.push(location.id);
+      }
+    }
+  }
+
+  listEffectiveB2BCompanies(): B2BCompanyRecord[] {
+    const orderedIds = new Set(this.baseState.b2bCompanyOrder);
+    const orderedCompanies = this.baseState.b2bCompanyOrder
+      .map((id) => this.baseState.b2bCompanies[id] ?? null)
+      .filter((company): company is B2BCompanyRecord => company !== null);
+    const unorderedCompanies = Object.values(this.baseState.b2bCompanies)
+      .filter((company) => !orderedIds.has(company.id))
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
+
+    return structuredClone([...orderedCompanies, ...unorderedCompanies]);
+  }
+
+  getEffectiveB2BCompanyById(companyId: string): B2BCompanyRecord | null {
+    const company = this.baseState.b2bCompanies[companyId] ?? null;
+    return company ? structuredClone(company) : null;
+  }
+
+  listEffectiveB2BCompanyContacts(): B2BCompanyContactRecord[] {
+    return this.listOrderedB2BRecords(this.baseState.b2bCompanyContacts, this.baseState.b2bCompanyContactOrder);
+  }
+
+  getEffectiveB2BCompanyContactById(contactId: string): B2BCompanyContactRecord | null {
+    const contact = this.baseState.b2bCompanyContacts[contactId] ?? null;
+    return contact ? structuredClone(contact) : null;
+  }
+
+  listEffectiveB2BCompanyContactRoles(): B2BCompanyContactRoleRecord[] {
+    return this.listOrderedB2BRecords(this.baseState.b2bCompanyContactRoles, this.baseState.b2bCompanyContactRoleOrder);
+  }
+
+  getEffectiveB2BCompanyContactRoleById(roleId: string): B2BCompanyContactRoleRecord | null {
+    const role = this.baseState.b2bCompanyContactRoles[roleId] ?? null;
+    return role ? structuredClone(role) : null;
+  }
+
+  listEffectiveB2BCompanyLocations(): B2BCompanyLocationRecord[] {
+    return this.listOrderedB2BRecords(this.baseState.b2bCompanyLocations, this.baseState.b2bCompanyLocationOrder);
+  }
+
+  getEffectiveB2BCompanyLocationById(locationId: string): B2BCompanyLocationRecord | null {
+    const location = this.baseState.b2bCompanyLocations[locationId] ?? null;
+    return location ? structuredClone(location) : null;
+  }
+
+  private listOrderedB2BRecords<T extends { id: string }>(records: Record<string, T>, order: string[]): T[] {
+    const orderedIds = new Set(order);
+    const orderedRecords = order.map((id) => records[id] ?? null).filter((record): record is T => record !== null);
+    const unorderedRecords = Object.values(records)
+      .filter((record) => !orderedIds.has(record.id))
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
+
+    return structuredClone([...orderedRecords, ...unorderedRecords]);
+  }
+
   upsertBaseMarkets(markets: Array<MarketRecord | { market: unknown; cursor?: string | null } | unknown>): void {
     for (const candidate of markets) {
       if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
@@ -1137,6 +1756,8 @@ export class InMemoryStore {
       const priceList = rawPriceList as Record<string, unknown>;
       const id = priceList['id'];
       if (typeof id === 'string' && id.length > 0) {
+        delete this.baseState.deletedPriceListIds[id];
+        delete this.stagedState.deletedPriceListIds[id];
         const previous = this.baseState.priceLists[id];
         const cursor = typeof rawCursor === 'string' && rawCursor.length > 0 ? rawCursor : (previous?.cursor ?? null);
         this.baseState.priceLists[id] = {
@@ -1152,6 +1773,32 @@ export class InMemoryStore {
         }
       }
     }
+  }
+
+  stageCreatePriceList(priceList: PriceListRecord): PriceListRecord {
+    delete this.stagedState.deletedPriceListIds[priceList.id];
+    this.stagedState.priceLists[priceList.id] = structuredClone(priceList);
+    if (!this.stagedState.priceListOrder.includes(priceList.id)) {
+      this.stagedState.priceListOrder.push(priceList.id);
+    }
+    return structuredClone(priceList);
+  }
+
+  stageUpdatePriceList(priceList: PriceListRecord): PriceListRecord {
+    delete this.stagedState.deletedPriceListIds[priceList.id];
+    this.stagedState.priceLists[priceList.id] = structuredClone(priceList);
+    if (
+      !this.baseState.priceListOrder.includes(priceList.id) &&
+      !this.stagedState.priceListOrder.includes(priceList.id)
+    ) {
+      this.stagedState.priceListOrder.push(priceList.id);
+    }
+    return structuredClone(priceList);
+  }
+
+  stageDeletePriceList(priceListId: string): void {
+    delete this.stagedState.priceLists[priceListId];
+    this.stagedState.deletedPriceListIds[priceListId] = true;
   }
 
   upsertBaseDeliveryProfiles(deliveryProfiles: DeliveryProfileRecord[]): void {
@@ -1248,6 +1895,19 @@ export class InMemoryStore {
     return this.getBasePriceListRecordById(priceListId)?.data ?? null;
   }
 
+  getEffectivePriceListRecordById(priceListId: string): PriceListRecord | null {
+    if (this.stagedState.deletedPriceListIds[priceListId] || this.baseState.deletedPriceListIds[priceListId]) {
+      return null;
+    }
+
+    const priceList = this.stagedState.priceLists[priceListId] ?? this.baseState.priceLists[priceListId] ?? null;
+    return priceList ? structuredClone(priceList) : null;
+  }
+
+  getEffectivePriceListById(priceListId: string): unknown | null {
+    return this.getEffectivePriceListRecordById(priceListId)?.data ?? null;
+  }
+
   listBasePriceLists(): PriceListRecord[] {
     const orderedIds = new Set(this.baseState.priceListOrder);
     const orderedPriceLists = this.baseState.priceListOrder
@@ -1258,6 +1918,30 @@ export class InMemoryStore {
       .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
 
     return structuredClone([...orderedPriceLists, ...unorderedPriceLists]);
+  }
+
+  listEffectivePriceLists(): PriceListRecord[] {
+    const orderedIds = new Set([...this.baseState.priceListOrder, ...this.stagedState.priceListOrder]);
+    const orderedPriceLists = [...orderedIds]
+      .map((id) => this.getEffectivePriceListRecordById(id))
+      .filter((priceList): priceList is PriceListRecord => priceList !== null);
+    const unorderedPriceLists = Object.values({
+      ...this.baseState.priceLists,
+      ...this.stagedState.priceLists,
+    })
+      .filter((priceList) => !orderedIds.has(priceList.id))
+      .map((priceList) => this.getEffectivePriceListRecordById(priceList.id))
+      .filter((priceList): priceList is PriceListRecord => priceList !== null)
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
+
+    return structuredClone([...orderedPriceLists, ...unorderedPriceLists]);
+  }
+
+  hasStagedPriceLists(): boolean {
+    return (
+      Object.keys(this.stagedState.priceLists).length > 0 ||
+      Object.keys(this.stagedState.deletedPriceListIds).length > 0
+    );
   }
 
   setBaseMarketsRootPayload(rootField: string, payload: unknown): void {
@@ -1563,6 +2247,112 @@ export class InMemoryStore {
     return request ? structuredClone(request) : null;
   }
 
+  upsertBaseAbandonedCheckouts(checkouts: AbandonedCheckoutRecord[]): void {
+    for (const checkout of checkouts) {
+      this.baseState.abandonedCheckouts[checkout.id] = structuredClone(checkout);
+      if (!this.baseState.abandonedCheckoutOrder.includes(checkout.id)) {
+        this.baseState.abandonedCheckoutOrder.push(checkout.id);
+      }
+    }
+  }
+
+  upsertBaseAbandonments(abandonments: AbandonmentRecord[]): void {
+    for (const abandonment of abandonments) {
+      this.baseState.abandonments[abandonment.id] = structuredClone(abandonment);
+      if (!this.baseState.abandonmentOrder.includes(abandonment.id)) {
+        this.baseState.abandonmentOrder.push(abandonment.id);
+      }
+    }
+  }
+
+  getAbandonedCheckoutById(checkoutId: string): AbandonedCheckoutRecord | null {
+    const checkout = this.stagedState.abandonedCheckouts[checkoutId] ?? this.baseState.abandonedCheckouts[checkoutId];
+    return checkout ? structuredClone(checkout) : null;
+  }
+
+  getAbandonmentById(abandonmentId: string): AbandonmentRecord | null {
+    const abandonment = this.stagedState.abandonments[abandonmentId] ?? this.baseState.abandonments[abandonmentId];
+    return abandonment ? structuredClone(abandonment) : null;
+  }
+
+  getAbandonmentByAbandonedCheckoutId(checkoutId: string): AbandonmentRecord | null {
+    return this.getAbandonments().find((abandonment) => abandonment.abandonedCheckoutId === checkoutId) ?? null;
+  }
+
+  getAbandonedCheckouts(): AbandonedCheckoutRecord[] {
+    const mergedCheckouts = new Map<string, AbandonedCheckoutRecord>();
+    for (const id of [...this.baseState.abandonedCheckoutOrder, ...this.stagedState.abandonedCheckoutOrder]) {
+      const checkout = this.getAbandonedCheckoutById(id);
+      if (checkout) {
+        mergedCheckouts.set(id, checkout);
+      }
+    }
+    for (const checkout of [
+      ...Object.values(this.baseState.abandonedCheckouts),
+      ...Object.values(this.stagedState.abandonedCheckouts),
+    ]) {
+      if (!mergedCheckouts.has(checkout.id)) {
+        mergedCheckouts.set(checkout.id, structuredClone(checkout));
+      }
+    }
+    return Array.from(mergedCheckouts.values()).sort((left, right) => {
+      const leftCreatedAt = typeof left.data['createdAt'] === 'string' ? left.data['createdAt'] : '';
+      const rightCreatedAt = typeof right.data['createdAt'] === 'string' ? right.data['createdAt'] : '';
+      return rightCreatedAt.localeCompare(leftCreatedAt) || compareShopifyResourceIds(right.id, left.id);
+    });
+  }
+
+  getAbandonments(): AbandonmentRecord[] {
+    const mergedAbandonments = new Map<string, AbandonmentRecord>();
+    for (const id of [...this.baseState.abandonmentOrder, ...this.stagedState.abandonmentOrder]) {
+      const abandonment = this.getAbandonmentById(id);
+      if (abandonment) {
+        mergedAbandonments.set(id, abandonment);
+      }
+    }
+    for (const abandonment of [
+      ...Object.values(this.baseState.abandonments),
+      ...Object.values(this.stagedState.abandonments),
+    ]) {
+      if (!mergedAbandonments.has(abandonment.id)) {
+        mergedAbandonments.set(abandonment.id, structuredClone(abandonment));
+      }
+    }
+    return Array.from(mergedAbandonments.values()).sort((left, right) => {
+      const leftCreatedAt = typeof left.data['createdAt'] === 'string' ? left.data['createdAt'] : '';
+      const rightCreatedAt = typeof right.data['createdAt'] === 'string' ? right.data['createdAt'] : '';
+      return rightCreatedAt.localeCompare(leftCreatedAt) || compareShopifyResourceIds(right.id, left.id);
+    });
+  }
+
+  stageAbandonmentDeliveryActivity(
+    abandonmentId: string,
+    activity: AbandonmentDeliveryActivityRecord,
+  ): AbandonmentRecord | null {
+    const abandonment = this.getAbandonmentById(abandonmentId);
+    if (!abandonment) {
+      return null;
+    }
+
+    const staged: AbandonmentRecord = {
+      ...abandonment,
+      data: {
+        ...structuredClone(abandonment.data),
+        emailState: activity.deliveryStatus,
+        ...(activity.deliveredAt ? { emailSentAt: activity.deliveredAt } : {}),
+      },
+      deliveryActivities: {
+        ...structuredClone(abandonment.deliveryActivities),
+        [activity.marketingActivityId]: structuredClone(activity),
+      },
+    };
+    this.stagedState.abandonments[staged.id] = structuredClone(staged);
+    if (!this.stagedState.abandonmentOrder.includes(staged.id)) {
+      this.stagedState.abandonmentOrder.push(staged.id);
+    }
+    return structuredClone(staged);
+  }
+
   upsertBaseOrders(orders: OrderRecord[]): void {
     for (const order of orders) {
       this.baseOrders[order.id] = structuredClone(order);
@@ -1577,6 +2367,10 @@ export class InMemoryStore {
   getOrderById(orderId: string): OrderRecord | null {
     const order = this.stagedOrders[orderId] ?? this.baseOrders[orderId];
     return order ? structuredClone(order) : null;
+  }
+
+  hasStagedOrder(orderId: string): boolean {
+    return Object.prototype.hasOwnProperty.call(this.stagedOrders, orderId);
   }
 
   getOrders(): OrderRecord[] {
@@ -1938,14 +2732,59 @@ export class InMemoryStore {
 
   upsertBaseMetafieldDefinitions(definitions: MetafieldDefinitionRecord[]): void {
     for (const definition of definitions) {
+      delete this.baseState.deletedMetafieldDefinitionIds[definition.id];
+      delete this.stagedState.deletedMetafieldDefinitionIds[definition.id];
       this.baseState.metafieldDefinitions[definition.id] = structuredClone(definition);
     }
   }
 
   upsertStagedMetafieldDefinitions(definitions: MetafieldDefinitionRecord[]): void {
     for (const definition of definitions) {
+      delete this.stagedState.deletedMetafieldDefinitionIds[definition.id];
       this.stagedState.metafieldDefinitions[definition.id] = structuredClone(definition);
     }
+  }
+
+  stageDeleteMetafieldDefinition(definitionId: string): void {
+    delete this.stagedState.metafieldDefinitions[definitionId];
+    this.stagedState.deletedMetafieldDefinitionIds[definitionId] = true;
+  }
+
+  deleteProductMetafieldsForDefinition(definition: { ownerType: string; namespace: string; key: string }): void {
+    if (definition.ownerType !== 'PRODUCT') {
+      return;
+    }
+
+    for (const metafields of [this.baseState.productMetafields, this.stagedState.productMetafields]) {
+      for (const [metafieldId, metafield] of Object.entries(metafields)) {
+        const ownerType = metafield.ownerType ?? (metafield.productId ? 'PRODUCT' : null);
+        if (
+          ownerType === 'PRODUCT' &&
+          metafield.namespace === definition.namespace &&
+          metafield.key === definition.key
+        ) {
+          delete metafields[metafieldId];
+        }
+      }
+    }
+  }
+
+  upsertBaseMetaobjectDefinitions(definitions: MetaobjectDefinitionRecord[]): void {
+    for (const definition of definitions) {
+      this.baseState.metaobjectDefinitions[definition.id] = structuredClone(definition);
+    }
+  }
+
+  upsertStagedMetaobjectDefinitions(definitions: MetaobjectDefinitionRecord[]): void {
+    for (const definition of definitions) {
+      delete this.stagedState.deletedMetaobjectDefinitionIds[definition.id];
+      this.stagedState.metaobjectDefinitions[definition.id] = structuredClone(definition);
+    }
+  }
+
+  deleteStagedMetaobjectDefinition(definitionId: string): void {
+    delete this.stagedState.metaobjectDefinitions[definitionId];
+    this.stagedState.deletedMetaobjectDefinitionIds[definitionId] = true;
   }
 
   replaceBaseMetafieldsForProduct(productId: string, metafields: ProductMetafieldRecord[]): void {
@@ -2126,12 +2965,27 @@ export class InMemoryStore {
     return address ? structuredClone(address) : null;
   }
 
-  getEffectiveCustomerPaymentMethodById(paymentMethodId: string): CustomerPaymentMethodRecord | null {
+  getEffectiveCustomerPaymentMethodById(
+    paymentMethodId: string,
+    options: { showRevoked?: boolean } = {},
+  ): CustomerPaymentMethodRecord | null {
+    if (this.stagedState.deletedCustomerPaymentMethodIds[paymentMethodId]) {
+      return null;
+    }
+
     const paymentMethod =
       this.stagedState.customerPaymentMethods[paymentMethodId] ??
       this.baseState.customerPaymentMethods[paymentMethodId] ??
       null;
-    return paymentMethod ? structuredClone(paymentMethod) : null;
+    if (!paymentMethod || this.stagedState.deletedCustomerIds[paymentMethod.customerId]) {
+      return null;
+    }
+
+    if (paymentMethod.revokedAt && options.showRevoked !== true) {
+      return null;
+    }
+
+    return structuredClone(paymentMethod);
   }
 
   listEffectiveCustomerAddresses(customerId: string): CustomerAddressRecord[] {
@@ -2157,6 +3011,33 @@ export class InMemoryStore {
     }
 
     return addresses.sort(compareCustomerAddresses);
+  }
+
+  listEffectiveCustomerPaymentMethods(
+    customerId: string,
+    options: { showRevoked?: boolean } = {},
+  ): CustomerPaymentMethodRecord[] {
+    if (this.stagedState.deletedCustomerIds[customerId]) {
+      return [];
+    }
+
+    const paymentMethodIds = new Set([
+      ...Object.keys(this.baseState.customerPaymentMethods),
+      ...Object.keys(this.stagedState.customerPaymentMethods),
+    ]);
+    const paymentMethods: CustomerPaymentMethodRecord[] = [];
+
+    for (const paymentMethodId of Array.from(paymentMethodIds)) {
+      const paymentMethod = this.getEffectiveCustomerPaymentMethodById(paymentMethodId, options);
+      if (paymentMethod?.customerId === customerId) {
+        paymentMethods.push(paymentMethod);
+      }
+    }
+
+    return paymentMethods.sort(
+      (left, right) =>
+        (left.cursor ?? left.id).localeCompare(right.cursor ?? right.id) || left.id.localeCompare(right.id),
+    );
   }
 
   listEffectiveCustomers(): CustomerRecord[] {
@@ -2231,6 +3112,14 @@ export class InMemoryStore {
 
   hasBaseCustomers(): boolean {
     return Object.keys(this.baseState.customers).length > 0;
+  }
+
+  hasCustomerPaymentMethods(): boolean {
+    return (
+      Object.keys(this.baseState.customerPaymentMethods).length > 0 ||
+      Object.keys(this.stagedState.customerPaymentMethods).length > 0 ||
+      Object.keys(this.stagedState.deletedCustomerPaymentMethodIds).length > 0
+    );
   }
 
   hasStagedCustomers(): boolean {
@@ -2530,10 +3419,18 @@ export class InMemoryStore {
     const definitionsById = new Map<string, MetafieldDefinitionRecord>();
 
     for (const definition of Object.values(this.baseState.metafieldDefinitions)) {
+      if (this.stagedState.deletedMetafieldDefinitionIds[definition.id]) {
+        continue;
+      }
+
       definitionsById.set(definition.id, structuredClone(definition));
     }
 
     for (const definition of Object.values(this.stagedState.metafieldDefinitions)) {
+      if (this.stagedState.deletedMetafieldDefinitionIds[definition.id]) {
+        continue;
+      }
+
       definitionsById.set(definition.id, structuredClone(definition));
     }
 
@@ -2547,6 +3444,10 @@ export class InMemoryStore {
   }
 
   getEffectiveMetafieldDefinitionById(definitionId: string): MetafieldDefinitionRecord | null {
+    if (this.stagedState.deletedMetafieldDefinitionIds[definitionId]) {
+      return null;
+    }
+
     const definition =
       this.stagedState.metafieldDefinitions[definitionId] ?? this.baseState.metafieldDefinitions[definitionId];
     return definition ? structuredClone(definition) : null;
@@ -2565,6 +3466,52 @@ export class InMemoryStore {
           candidate.key === identifier.key,
       ) ?? null;
     return definition ? structuredClone(definition) : null;
+  }
+
+  listEffectiveMetaobjectDefinitions(): MetaobjectDefinitionRecord[] {
+    const definitionsById = new Map<string, MetaobjectDefinitionRecord>();
+
+    for (const definition of Object.values(this.baseState.metaobjectDefinitions)) {
+      if (this.stagedState.deletedMetaobjectDefinitionIds[definition.id]) {
+        continue;
+      }
+      definitionsById.set(definition.id, structuredClone(definition));
+    }
+
+    for (const definition of Object.values(this.stagedState.metaobjectDefinitions)) {
+      definitionsById.set(definition.id, structuredClone(definition));
+    }
+
+    return [...definitionsById.values()].sort(
+      (left, right) => left.type.localeCompare(right.type) || compareShopifyResourceIds(left.id, right.id),
+    );
+  }
+
+  getEffectiveMetaobjectDefinitionById(definitionId: string): MetaobjectDefinitionRecord | null {
+    if (this.stagedState.deletedMetaobjectDefinitionIds[definitionId]) {
+      return null;
+    }
+
+    const definition =
+      this.stagedState.metaobjectDefinitions[definitionId] ?? this.baseState.metaobjectDefinitions[definitionId];
+    return definition ? structuredClone(definition) : null;
+  }
+
+  findEffectiveMetaobjectDefinitionByType(type: string): MetaobjectDefinitionRecord | null {
+    const definition = this.listEffectiveMetaobjectDefinitions().find((candidate) => candidate.type === type) ?? null;
+    return definition ? structuredClone(definition) : null;
+  }
+
+  hasEffectiveMetaobjectDefinitions(): boolean {
+    return (
+      Object.keys(this.baseState.metaobjectDefinitions).length > 0 ||
+      Object.keys(this.stagedState.metaobjectDefinitions).length > 0 ||
+      Object.keys(this.stagedState.deletedMetaobjectDefinitionIds).length > 0
+    );
+  }
+
+  hasStagedMetaobjectDefinitions(): boolean {
+    return Object.keys(this.stagedState.metaobjectDefinitions).length > 0;
   }
 
   getEffectiveMetafieldsByProductId(productId: string): ProductMetafieldRecord[] {
@@ -2607,6 +3554,7 @@ export class InMemoryStore {
       this.stagedMediaFamilies.size > 0 ||
       Object.keys(this.stagedState.productMetafields).length > 0 ||
       Object.keys(this.stagedState.metafieldDefinitions).length > 0 ||
+      Object.keys(this.stagedState.deletedMetafieldDefinitionIds).length > 0 ||
       Object.keys(this.stagedState.deletedProductIds).length > 0 ||
       Object.keys(this.stagedState.deletedCollectionIds).length > 0
     );

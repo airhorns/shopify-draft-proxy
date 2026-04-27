@@ -1,4 +1,4 @@
-import { Kind, parse, type FieldNode, type FragmentDefinitionNode, type SelectionNode } from 'graphql';
+import { Kind, parse, type ASTNode, type FieldNode, type FragmentDefinitionNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments } from '../graphql/root-field.js';
 
@@ -7,6 +7,8 @@ export type SelectedFieldOptions = {
 };
 
 export type FragmentMap = Map<string, FragmentDefinitionNode>;
+
+export type GraphqlErrorLocation = { line: number; column: number };
 
 export type ProjectGraphqlFieldProjection = { handled: true; value: unknown } | { handled: false };
 
@@ -54,8 +56,29 @@ export function getFieldResponseKey(field: FieldNode): string {
   return field.alias?.value ?? field.name.value;
 }
 
+export function getNodeLocation(node: ASTNode): GraphqlErrorLocation[] {
+  const token = node.loc?.startToken;
+  return token ? [{ line: token.line, column: token.column }] : [];
+}
+
 export function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+export function readStringValue(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
+export function readNumberValue(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+export function readBooleanValue(value: unknown): boolean | null {
+  return typeof value === 'boolean' ? value : null;
+}
+
+export function readPlainObjectArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.filter(isPlainObject) : [];
 }
 
 export function defaultGraphqlTypeConditionApplies(
@@ -158,6 +181,24 @@ export function getDocumentFragments(document: string): FragmentMap {
       .filter((definition): definition is FragmentDefinitionNode => definition.kind === Kind.FRAGMENT_DEFINITION)
       .map((definition) => [definition.name.value, definition]),
   );
+}
+
+export function getVariableDefinitionLocation(document: string, variableName: string): GraphqlErrorLocation[] {
+  const ast = parse(document);
+  for (const definition of ast.definitions) {
+    if (definition.kind !== Kind.OPERATION_DEFINITION) {
+      continue;
+    }
+
+    const variableDefinition = definition.variableDefinitions?.find(
+      (candidate) => candidate.variable.name.value === variableName,
+    );
+    if (variableDefinition) {
+      return getNodeLocation(variableDefinition);
+    }
+  }
+
+  return [];
 }
 
 export function readGraphqlDataResponsePayload(upstreamPayload: unknown, responseKey: string): unknown {

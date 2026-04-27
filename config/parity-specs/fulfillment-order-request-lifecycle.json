@@ -1,0 +1,165 @@
+{
+  "scenarioId": "fulfillment-order-request-lifecycle",
+  "operationNames": [
+    "fulfillmentOrderSubmitFulfillmentRequest",
+    "fulfillmentOrderAcceptFulfillmentRequest",
+    "fulfillmentOrderRejectFulfillmentRequest",
+    "fulfillmentOrderSubmitCancellationRequest",
+    "fulfillmentOrderAcceptCancellationRequest",
+    "fulfillmentOrderRejectCancellationRequest"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity",
+    "runtime-staging",
+    "side-effect-safety"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/fulfillment-order-request-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/order-fulfillment-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/fulfillment-order-submit-request-lifecycle.graphql",
+    "variablesCapturePath": "$.partialSubmit.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "partial-submit-user-errors",
+        "capturePath": "$.partialSubmit.response.data.fulfillmentOrderSubmitFulfillmentRequest.userErrors",
+        "proxyPath": "$.data.fulfillmentOrderSubmitFulfillmentRequest.userErrors"
+      },
+      {
+        "name": "partial-submit-original-status",
+        "capturePath": "$.partialSubmit.response.data.fulfillmentOrderSubmitFulfillmentRequest.originalFulfillmentOrder.status",
+        "proxyPath": "$.data.fulfillmentOrderSubmitFulfillmentRequest.originalFulfillmentOrder.status"
+      },
+      {
+        "name": "partial-submit-original-request-status",
+        "capturePath": "$.partialSubmit.response.data.fulfillmentOrderSubmitFulfillmentRequest.originalFulfillmentOrder.requestStatus",
+        "proxyPath": "$.data.fulfillmentOrderSubmitFulfillmentRequest.originalFulfillmentOrder.requestStatus"
+      },
+      {
+        "name": "partial-submit-merchant-request-kind",
+        "capturePath": "$.partialSubmit.response.data.fulfillmentOrderSubmitFulfillmentRequest.originalFulfillmentOrder.merchantRequests.nodes[0].kind",
+        "proxyPath": "$.data.fulfillmentOrderSubmitFulfillmentRequest.originalFulfillmentOrder.merchantRequests.nodes[0].kind"
+      },
+      {
+        "name": "partial-submit-merchant-request-message",
+        "capturePath": "$.partialSubmit.response.data.fulfillmentOrderSubmitFulfillmentRequest.originalFulfillmentOrder.merchantRequests.nodes[0].message",
+        "proxyPath": "$.data.fulfillmentOrderSubmitFulfillmentRequest.originalFulfillmentOrder.merchantRequests.nodes[0].message"
+      },
+      {
+        "name": "partial-submit-merchant-request-options",
+        "capturePath": "$.partialSubmit.response.data.fulfillmentOrderSubmitFulfillmentRequest.originalFulfillmentOrder.merchantRequests.nodes[0].requestOptions",
+        "proxyPath": "$.data.fulfillmentOrderSubmitFulfillmentRequest.originalFulfillmentOrder.merchantRequests.nodes[0].requestOptions"
+      },
+      {
+        "name": "partial-submit-original-line-item",
+        "capturePath": "$.partialSubmit.response.data.fulfillmentOrderSubmitFulfillmentRequest.originalFulfillmentOrder.lineItems.nodes[0]",
+        "proxyPath": "$.data.fulfillmentOrderSubmitFulfillmentRequest.originalFulfillmentOrder.lineItems.nodes[0]"
+      },
+      {
+        "name": "partial-submit-submitted-status",
+        "capturePath": "$.partialSubmit.response.data.fulfillmentOrderSubmitFulfillmentRequest.submittedFulfillmentOrder",
+        "proxyPath": "$.data.fulfillmentOrderSubmitFulfillmentRequest.submittedFulfillmentOrder"
+      },
+      {
+        "name": "partial-submit-unsubmitted-status",
+        "capturePath": "$.partialSubmit.response.data.fulfillmentOrderSubmitFulfillmentRequest.unsubmittedFulfillmentOrder.requestStatus",
+        "proxyPath": "$.data.fulfillmentOrderSubmitFulfillmentRequest.unsubmittedFulfillmentOrder.requestStatus"
+      },
+      {
+        "name": "partial-submit-unsubmitted-line-quantity",
+        "capturePath": "$.partialSubmit.response.data.fulfillmentOrderSubmitFulfillmentRequest.unsubmittedFulfillmentOrder.lineItems.nodes[0].remainingQuantity",
+        "proxyPath": "$.data.fulfillmentOrderSubmitFulfillmentRequest.unsubmittedFulfillmentOrder.lineItems.nodes[0].remainingQuantity"
+      },
+      {
+        "name": "downstream-submitted-read-request-status",
+        "capturePath": "$.partialSubmit.response.data.fulfillmentOrderSubmitFulfillmentRequest.originalFulfillmentOrder.requestStatus",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/fulfillment-order-request-direct-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.fulfillmentOrderSubmitFulfillmentRequest.originalFulfillmentOrder.id"
+            }
+          }
+        },
+        "proxyPath": "$.data.fulfillmentOrder.requestStatus"
+      },
+      {
+        "name": "accept-fulfillment-request",
+        "capturePath": "$.acceptFulfillmentRequest.response.data.fulfillmentOrderAcceptFulfillmentRequest",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/fulfillment-order-accept-request-lifecycle.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.fulfillmentOrderSubmitFulfillmentRequest.originalFulfillmentOrder.id"
+            },
+            "message": "HAR-233 accepted",
+            "estimatedShippedAt": "2026-04-27T00:00:00Z"
+          }
+        },
+        "proxyPath": "$.data.fulfillmentOrderAcceptFulfillmentRequest"
+      },
+      {
+        "name": "submit-cancellation-request",
+        "capturePath": "$.submitCancellationRequest.response.data.fulfillmentOrderSubmitCancellationRequest",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/fulfillment-order-submit-cancellation-request-lifecycle.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.fulfillmentOrderSubmitFulfillmentRequest.originalFulfillmentOrder.id"
+            },
+            "message": "HAR-233 cancel requested"
+          }
+        },
+        "proxyPath": "$.data.fulfillmentOrderSubmitCancellationRequest"
+      },
+      {
+        "name": "accept-cancellation-request",
+        "capturePath": "$.acceptCancellationRequest.response.data.fulfillmentOrderAcceptCancellationRequest",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/fulfillment-order-accept-cancellation-request-lifecycle.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.fulfillmentOrderSubmitFulfillmentRequest.originalFulfillmentOrder.id"
+            },
+            "message": "HAR-233 accepted cancellation"
+          }
+        },
+        "proxyPath": "$.data.fulfillmentOrderAcceptCancellationRequest"
+      },
+      {
+        "name": "reject-fulfillment-request",
+        "capturePath": "$.rejectFulfillmentRequest.response.data.fulfillmentOrderRejectFulfillmentRequest",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/fulfillment-order-reject-request-lifecycle.graphql",
+          "variables": {
+            "id": "gid://shopify/FulfillmentOrder/9633912815922",
+            "message": "HAR-233 rejected"
+          }
+        },
+        "proxyPath": "$.data.fulfillmentOrderRejectFulfillmentRequest"
+      },
+      {
+        "name": "reject-cancellation-request",
+        "capturePath": "$.rejectCancellationRequest.response.data.fulfillmentOrderRejectCancellationRequest",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/fulfillment-order-reject-cancellation-request-lifecycle.graphql",
+          "variables": {
+            "id": "gid://shopify/FulfillmentOrder/9633912914226",
+            "message": "HAR-233 cancel rejected"
+          }
+        },
+        "proxyPath": "$.data.fulfillmentOrderRejectCancellationRequest"
+      }
+    ]
+  },
+  "notes": "HAR-233 captured Admin GraphQL 2026-04 fulfillment-order request lifecycle behavior using a disposable API fulfillment service and fulfillmentOrderMove setup. The fixture records partial fulfillment request splitting, merchantRequests message/options payloads, accept/reject fulfillment request transitions, submit/accept/reject cancellation request transitions, invalid-id RESOURCE_NOT_FOUND branches, and cleanup attempts. The generic parity runner now seeds the captured fulfillment-order preconditions and replays the request/cancellation lifecycle against the local proxy harness without invoking fulfillment-service callbacks; the runtime integration test continues to cover mutation-log/state inspection and broader downstream order/assigned fulfillment-order reads."
+}

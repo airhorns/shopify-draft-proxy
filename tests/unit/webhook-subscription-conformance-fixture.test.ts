@@ -41,7 +41,7 @@ function rootFieldNames(relativePath: string): string[] {
 }
 
 describe('webhook subscription conformance fixture', () => {
-  it('discovers captured fixture evidence without enabling runtime support', () => {
+  it('discovers captured fixture evidence while routing supported create staging locally', () => {
     const scenarios = loadConformanceScenarios(repoRoot);
     const scenario = scenarios.find((candidate) => candidate.id === 'webhook-subscription-conformance');
     const paritySpec = readJson<ParitySpec>(specPath);
@@ -61,14 +61,24 @@ describe('webhook subscription conformance fixture', () => {
     expect(classifyParityScenarioState(scenario!, paritySpec)).toBe('enforced-by-fixture');
 
     const parsedCreate = parseOperation(readText('config/parity-requests/webhookSubscriptionCreate-parity.graphql'));
+    const parsedCatalog = parseOperation(readText('config/parity-requests/webhook-subscription-catalog-read.graphql'));
+    expect(getOperationCapability(parsedCatalog)).toMatchObject({
+      domain: 'webhooks',
+      execution: 'overlay-read',
+      operationName: 'webhookSubscriptions',
+    });
+    expect(findOperationRegistryEntry('query', ['webhookSubscriptions'])).toMatchObject({
+      domain: 'webhooks',
+      implemented: true,
+    });
     expect(getOperationCapability(parsedCreate)).toMatchObject({
-      domain: 'unknown',
-      execution: 'passthrough',
-      operationName: 'WebhookSubscriptionCreateParity',
+      domain: 'webhooks',
+      execution: 'stage-locally',
+      operationName: 'webhookSubscriptionCreate',
     });
     expect(findOperationRegistryEntry('mutation', ['webhookSubscriptionCreate'])).toMatchObject({
       domain: 'webhooks',
-      implemented: false,
+      implemented: true,
     });
   });
 

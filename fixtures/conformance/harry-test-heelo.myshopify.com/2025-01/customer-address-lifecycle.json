@@ -1,22 +1,22 @@
 {
-  "capturedAt": "2026-04-25T16:49:53.295Z",
+  "capturedAt": "2026-04-25T22:50:27.257Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "createCustomer": {
     "variables": {
       "input": {
-        "email": "hermes-address-1777135791969@example.com",
+        "email": "hermes-address-1777157408181@example.com",
         "firstName": "Hermes",
         "lastName": "Address",
-        "tags": ["parity", "address-1777135791969"]
+        "tags": ["parity", "address-1777157408181"]
       }
     },
     "response": {
       "data": {
         "customerCreate": {
           "customer": {
-            "id": "gid://shopify/Customer/10539997495602",
-            "email": "hermes-address-1777135791969@example.com"
+            "id": "gid://shopify/Customer/10540982698290",
+            "email": "hermes-address-1777157408181@example.com"
           },
           "userErrors": []
         }
@@ -36,7 +36,7 @@
   },
   "createFirstAddress": {
     "variables": {
-      "customerId": "gid://shopify/Customer/10539997495602",
+      "customerId": "gid://shopify/Customer/10540982698290",
       "address": {
         "firstName": "Hermes",
         "lastName": "Default",
@@ -53,7 +53,7 @@
       "data": {
         "customerAddressCreate": {
           "address": {
-            "id": "gid://shopify/MailingAddress/12033971323186?model_name=CustomerAddress",
+            "id": "gid://shopify/MailingAddress/12034410021170?model_name=CustomerAddress",
             "firstName": "Hermes",
             "lastName": "Default",
             "address1": "1 Main St",
@@ -87,7 +87,7 @@
   },
   "createSecondAddress": {
     "variables": {
-      "customerId": "gid://shopify/Customer/10539997495602",
+      "customerId": "gid://shopify/Customer/10540982698290",
       "address": {
         "address1": "2 Side St",
         "city": "Toronto",
@@ -101,7 +101,7 @@
       "data": {
         "customerAddressCreate": {
           "address": {
-            "id": "gid://shopify/MailingAddress/12033971355954?model_name=CustomerAddress",
+            "id": "gid://shopify/MailingAddress/12034410053938?model_name=CustomerAddress",
             "firstName": "Hermes",
             "lastName": "Address",
             "address1": "2 Side St",
@@ -135,8 +135,8 @@
   },
   "updateSecondAddress": {
     "variables": {
-      "customerId": "gid://shopify/Customer/10539997495602",
-      "addressId": "gid://shopify/MailingAddress/12033971355954?model_name=CustomerAddress",
+      "customerId": "gid://shopify/Customer/10540982698290",
+      "addressId": "gid://shopify/MailingAddress/12034410053938?model_name=CustomerAddress",
       "address": {
         "city": "Montreal",
         "provinceCode": "QC",
@@ -148,7 +148,7 @@
       "data": {
         "customerAddressUpdate": {
           "address": {
-            "id": "gid://shopify/MailingAddress/12033971355954?model_name=CustomerAddress",
+            "id": "gid://shopify/MailingAddress/12034410053938?model_name=CustomerAddress",
             "firstName": "Hermes",
             "lastName": "Address",
             "address1": "2 Side St",
@@ -182,20 +182,20 @@
   },
   "defaultAddress": {
     "variables": {
-      "customerId": "gid://shopify/Customer/10539997495602",
-      "addressId": "gid://shopify/MailingAddress/12033971355954?model_name=CustomerAddress"
+      "customerId": "gid://shopify/Customer/10540982698290",
+      "addressId": "gid://shopify/MailingAddress/12034410053938?model_name=CustomerAddress"
     },
     "response": {
       "data": {
         "customerUpdateDefaultAddress": {
           "customer": {
-            "id": "gid://shopify/Customer/10539997495602",
-            "email": "hermes-address-1777135791969@example.com",
+            "id": "gid://shopify/Customer/10540982698290",
+            "email": "hermes-address-1777157408181@example.com",
             "firstName": "Hermes",
             "lastName": "Address",
             "displayName": "Hermes Address",
             "defaultAddress": {
-              "id": "gid://shopify/MailingAddress/12033971355954?model_name=CustomerAddress",
+              "id": "gid://shopify/MailingAddress/12034410053938?model_name=CustomerAddress",
               "address1": "2 Side St",
               "city": "Montreal",
               "country": "Canada",
@@ -207,7 +207,7 @@
             "addressesV2": {
               "nodes": [
                 {
-                  "id": "gid://shopify/MailingAddress/12033971323186?model_name=CustomerAddress",
+                  "id": "gid://shopify/MailingAddress/12034410021170?model_name=CustomerAddress",
                   "address1": "1 Main St",
                   "city": "Ottawa",
                   "country": "Canada",
@@ -217,7 +217,7 @@
                   "formattedArea": "Ottawa ON, Canada"
                 },
                 {
-                  "id": "gid://shopify/MailingAddress/12033971355954?model_name=CustomerAddress",
+                  "id": "gid://shopify/MailingAddress/12034410053938?model_name=CustomerAddress",
                   "address1": "2 Side St",
                   "city": "Montreal",
                   "country": "Canada",
@@ -229,16 +229,16 @@
               ],
               "edges": [
                 {
-                  "cursor": "eyJsYXN0X2lkIjoxMjAzMzk3MTMyMzE4NiwibGFzdF92YWx1ZSI6IjEyMDMzOTcxMzIzMTg2In0=",
+                  "cursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDAyMTE3MCwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMDIxMTcwIn0=",
                   "node": {
-                    "id": "gid://shopify/MailingAddress/12033971323186?model_name=CustomerAddress",
+                    "id": "gid://shopify/MailingAddress/12034410021170?model_name=CustomerAddress",
                     "city": "Ottawa"
                   }
                 },
                 {
-                  "cursor": "eyJsYXN0X2lkIjoxMjAzMzk3MTM1NTk1NCwibGFzdF92YWx1ZSI6IjEyMDMzOTcxMzU1OTU0In0=",
+                  "cursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDA1MzkzOCwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMDUzOTM4In0=",
                   "node": {
-                    "id": "gid://shopify/MailingAddress/12033971355954?model_name=CustomerAddress",
+                    "id": "gid://shopify/MailingAddress/12034410053938?model_name=CustomerAddress",
                     "city": "Montreal"
                   }
                 }
@@ -246,8 +246,8 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoxMjAzMzk3MTMyMzE4NiwibGFzdF92YWx1ZSI6IjEyMDMzOTcxMzIzMTg2In0=",
-                "endCursor": "eyJsYXN0X2lkIjoxMjAzMzk3MTM1NTk1NCwibGFzdF92YWx1ZSI6IjEyMDMzOTcxMzU1OTU0In0="
+                "startCursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDAyMTE3MCwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMDIxMTcwIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDA1MzkzOCwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMDUzOTM4In0="
               }
             }
           },
@@ -269,13 +269,13 @@
   },
   "deleteFirstAddress": {
     "variables": {
-      "customerId": "gid://shopify/Customer/10539997495602",
-      "addressId": "gid://shopify/MailingAddress/12033971323186?model_name=CustomerAddress"
+      "customerId": "gid://shopify/Customer/10540982698290",
+      "addressId": "gid://shopify/MailingAddress/12034410021170?model_name=CustomerAddress"
     },
     "response": {
       "data": {
         "customerAddressDelete": {
-          "deletedAddressId": "gid://shopify/MailingAddress/12033971323186?model_name=CustomerAddress",
+          "deletedAddressId": "gid://shopify/MailingAddress/12034410021170?model_name=CustomerAddress",
           "userErrors": []
         }
       },
@@ -285,7 +285,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1987,
+            "currentlyAvailable": 1990,
             "restoreRate": 100
           }
         }
@@ -294,22 +294,22 @@
   },
   "downstreamRead": {
     "variables": {
-      "id": "gid://shopify/Customer/10539997495602",
+      "id": "gid://shopify/Customer/10540982698290",
       "identifier": {
-        "emailAddress": "hermes-address-1777135791969@example.com"
+        "emailAddress": "hermes-address-1777157408181@example.com"
       },
-      "query": "email:hermes-address-1777135791969@example.com"
+      "query": "email:hermes-address-1777157408181@example.com"
     },
     "response": {
       "data": {
         "customer": {
-          "id": "gid://shopify/Customer/10539997495602",
-          "email": "hermes-address-1777135791969@example.com",
+          "id": "gid://shopify/Customer/10540982698290",
+          "email": "hermes-address-1777157408181@example.com",
           "firstName": "Hermes",
           "lastName": "Address",
           "displayName": "Hermes Address",
           "defaultAddress": {
-            "id": "gid://shopify/MailingAddress/12033971355954?model_name=CustomerAddress",
+            "id": "gid://shopify/MailingAddress/12034410053938?model_name=CustomerAddress",
             "address1": "2 Side St",
             "city": "Montreal",
             "country": "Canada",
@@ -321,7 +321,7 @@
           "addressesV2": {
             "nodes": [
               {
-                "id": "gid://shopify/MailingAddress/12033971355954?model_name=CustomerAddress",
+                "id": "gid://shopify/MailingAddress/12034410053938?model_name=CustomerAddress",
                 "address1": "2 Side St",
                 "city": "Montreal",
                 "country": "Canada",
@@ -333,9 +333,9 @@
             ],
             "edges": [
               {
-                "cursor": "eyJsYXN0X2lkIjoxMjAzMzk3MTM1NTk1NCwibGFzdF92YWx1ZSI6IjEyMDMzOTcxMzU1OTU0In0=",
+                "cursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDA1MzkzOCwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMDUzOTM4In0=",
                 "node": {
-                  "id": "gid://shopify/MailingAddress/12033971355954?model_name=CustomerAddress",
+                  "id": "gid://shopify/MailingAddress/12034410053938?model_name=CustomerAddress",
                   "city": "Montreal"
                 }
               }
@@ -343,19 +343,19 @@
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjoxMjAzMzk3MTM1NTk1NCwibGFzdF92YWx1ZSI6IjEyMDMzOTcxMzU1OTU0In0=",
-              "endCursor": "eyJsYXN0X2lkIjoxMjAzMzk3MTM1NTk1NCwibGFzdF92YWx1ZSI6IjEyMDMzOTcxMzU1OTU0In0="
+              "startCursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDA1MzkzOCwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMDUzOTM4In0=",
+              "endCursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDA1MzkzOCwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMDUzOTM4In0="
             }
           }
         },
         "customerByIdentifier": {
-          "id": "gid://shopify/Customer/10539997495602",
-          "email": "hermes-address-1777135791969@example.com",
+          "id": "gid://shopify/Customer/10540982698290",
+          "email": "hermes-address-1777157408181@example.com",
           "firstName": "Hermes",
           "lastName": "Address",
           "displayName": "Hermes Address",
           "defaultAddress": {
-            "id": "gid://shopify/MailingAddress/12033971355954?model_name=CustomerAddress",
+            "id": "gid://shopify/MailingAddress/12034410053938?model_name=CustomerAddress",
             "address1": "2 Side St",
             "city": "Montreal",
             "country": "Canada",
@@ -367,7 +367,7 @@
           "addressesV2": {
             "nodes": [
               {
-                "id": "gid://shopify/MailingAddress/12033971355954?model_name=CustomerAddress",
+                "id": "gid://shopify/MailingAddress/12034410053938?model_name=CustomerAddress",
                 "address1": "2 Side St",
                 "city": "Montreal",
                 "country": "Canada",
@@ -379,9 +379,9 @@
             ],
             "edges": [
               {
-                "cursor": "eyJsYXN0X2lkIjoxMjAzMzk3MTM1NTk1NCwibGFzdF92YWx1ZSI6IjEyMDMzOTcxMzU1OTU0In0=",
+                "cursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDA1MzkzOCwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMDUzOTM4In0=",
                 "node": {
-                  "id": "gid://shopify/MailingAddress/12033971355954?model_name=CustomerAddress",
+                  "id": "gid://shopify/MailingAddress/12034410053938?model_name=CustomerAddress",
                   "city": "Montreal"
                 }
               }
@@ -389,8 +389,8 @@
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjoxMjAzMzk3MTM1NTk1NCwibGFzdF92YWx1ZSI6IjEyMDMzOTcxMzU1OTU0In0=",
-              "endCursor": "eyJsYXN0X2lkIjoxMjAzMzk3MTM1NTk1NCwibGFzdF92YWx1ZSI6IjEyMDMzOTcxMzU1OTU0In0="
+              "startCursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDA1MzkzOCwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMDUzOTM4In0=",
+              "endCursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDA1MzkzOCwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMDUzOTM4In0="
             }
           }
         },
@@ -408,7 +408,397 @@
           "actualQueryCost": 17,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1982,
+            "currentlyAvailable": 1983,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "createThirdAddressOmittedSetAsDefault": {
+    "variables": {
+      "customerId": "gid://shopify/Customer/10540982698290",
+      "address": {
+        "address1": "3 Null Default St",
+        "city": "Vancouver",
+        "countryCode": "CA",
+        "provinceCode": "BC",
+        "zip": "V6B 1A1"
+      }
+    },
+    "response": {
+      "data": {
+        "customerAddressCreate": {
+          "address": {
+            "id": "gid://shopify/MailingAddress/12034410086706?model_name=CustomerAddress",
+            "firstName": "Hermes",
+            "lastName": "Address",
+            "address1": "3 Null Default St",
+            "address2": null,
+            "city": "Vancouver",
+            "company": null,
+            "country": "Canada",
+            "countryCodeV2": "CA",
+            "province": "British Columbia",
+            "provinceCode": "BC",
+            "zip": "V6B 1A1",
+            "phone": null,
+            "name": "Hermes Address",
+            "formattedArea": "Vancouver BC, Canada"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "createdAddressId": "gid://shopify/MailingAddress/12034410086706?model_name=CustomerAddress"
+  },
+  "createDuplicateAddress": {
+    "variables": {
+      "customerId": "gid://shopify/Customer/10540982698290",
+      "address": {
+        "address1": "3 Null Default St",
+        "city": "Vancouver",
+        "countryCode": "CA",
+        "provinceCode": "BC",
+        "zip": "V6B 1A1"
+      },
+      "setAsDefault": false
+    },
+    "response": {
+      "data": {
+        "customerAddressCreate": {
+          "address": null,
+          "userErrors": [
+            {
+              "field": ["address"],
+              "message": "Address already exists"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "orderingRead": {
+    "variables": {
+      "id": "gid://shopify/Customer/10540982698290",
+      "identifier": {
+        "emailAddress": "hermes-address-1777157408181@example.com"
+      },
+      "query": "email:hermes-address-1777157408181@example.com"
+    },
+    "response": {
+      "data": {
+        "customer": {
+          "id": "gid://shopify/Customer/10540982698290",
+          "email": "hermes-address-1777157408181@example.com",
+          "firstName": "Hermes",
+          "lastName": "Address",
+          "displayName": "Hermes Address",
+          "defaultAddress": {
+            "id": "gid://shopify/MailingAddress/12034410053938?model_name=CustomerAddress",
+            "address1": "2 Side St",
+            "city": "Montreal",
+            "country": "Canada",
+            "countryCodeV2": "CA",
+            "provinceCode": "QC",
+            "zip": "H2Y 1C6",
+            "formattedArea": "Montreal QC, Canada"
+          },
+          "addressesV2": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MailingAddress/12034410053938?model_name=CustomerAddress",
+                "address1": "2 Side St",
+                "city": "Montreal",
+                "country": "Canada",
+                "countryCodeV2": "CA",
+                "provinceCode": "QC",
+                "zip": "H2Y 1C6",
+                "formattedArea": "Montreal QC, Canada"
+              },
+              {
+                "id": "gid://shopify/MailingAddress/12034410086706?model_name=CustomerAddress",
+                "address1": "3 Null Default St",
+                "city": "Vancouver",
+                "country": "Canada",
+                "countryCodeV2": "CA",
+                "provinceCode": "BC",
+                "zip": "V6B 1A1",
+                "formattedArea": "Vancouver BC, Canada"
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDA1MzkzOCwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMDUzOTM4In0=",
+                "node": {
+                  "id": "gid://shopify/MailingAddress/12034410053938?model_name=CustomerAddress",
+                  "city": "Montreal"
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDA4NjcwNiwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMDg2NzA2In0=",
+                "node": {
+                  "id": "gid://shopify/MailingAddress/12034410086706?model_name=CustomerAddress",
+                  "city": "Vancouver"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDA1MzkzOCwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMDUzOTM4In0=",
+              "endCursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDA4NjcwNiwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMDg2NzA2In0="
+            }
+          }
+        },
+        "customerByIdentifier": {
+          "id": "gid://shopify/Customer/10540982698290",
+          "email": "hermes-address-1777157408181@example.com",
+          "firstName": "Hermes",
+          "lastName": "Address",
+          "displayName": "Hermes Address",
+          "defaultAddress": {
+            "id": "gid://shopify/MailingAddress/12034410053938?model_name=CustomerAddress",
+            "address1": "2 Side St",
+            "city": "Montreal",
+            "country": "Canada",
+            "countryCodeV2": "CA",
+            "provinceCode": "QC",
+            "zip": "H2Y 1C6",
+            "formattedArea": "Montreal QC, Canada"
+          },
+          "addressesV2": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MailingAddress/12034410053938?model_name=CustomerAddress",
+                "address1": "2 Side St",
+                "city": "Montreal",
+                "country": "Canada",
+                "countryCodeV2": "CA",
+                "provinceCode": "QC",
+                "zip": "H2Y 1C6",
+                "formattedArea": "Montreal QC, Canada"
+              },
+              {
+                "id": "gid://shopify/MailingAddress/12034410086706?model_name=CustomerAddress",
+                "address1": "3 Null Default St",
+                "city": "Vancouver",
+                "country": "Canada",
+                "countryCodeV2": "CA",
+                "provinceCode": "BC",
+                "zip": "V6B 1A1",
+                "formattedArea": "Vancouver BC, Canada"
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDA1MzkzOCwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMDUzOTM4In0=",
+                "node": {
+                  "id": "gid://shopify/MailingAddress/12034410053938?model_name=CustomerAddress",
+                  "city": "Montreal"
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDA4NjcwNiwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMDg2NzA2In0=",
+                "node": {
+                  "id": "gid://shopify/MailingAddress/12034410086706?model_name=CustomerAddress",
+                  "city": "Vancouver"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDA1MzkzOCwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMDUzOTM4In0=",
+              "endCursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDA4NjcwNiwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMDg2NzA2In0="
+            }
+          }
+        },
+        "customers": {
+          "nodes": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 47,
+          "actualQueryCost": 17,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1983,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "deleteDefaultAddress": {
+    "variables": {
+      "customerId": "gid://shopify/Customer/10540982698290",
+      "addressId": "gid://shopify/MailingAddress/12034410053938?model_name=CustomerAddress"
+    },
+    "response": {
+      "data": {
+        "customerAddressDelete": {
+          "deletedAddressId": "gid://shopify/MailingAddress/12034410053938?model_name=CustomerAddress",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "deleteDefaultRead": {
+    "variables": {
+      "id": "gid://shopify/Customer/10540982698290",
+      "identifier": {
+        "emailAddress": "hermes-address-1777157408181@example.com"
+      },
+      "query": "email:hermes-address-1777157408181@example.com"
+    },
+    "response": {
+      "data": {
+        "customer": {
+          "id": "gid://shopify/Customer/10540982698290",
+          "email": "hermes-address-1777157408181@example.com",
+          "firstName": "Hermes",
+          "lastName": "Address",
+          "displayName": "Hermes Address",
+          "defaultAddress": {
+            "id": "gid://shopify/MailingAddress/12034410086706?model_name=CustomerAddress",
+            "address1": "3 Null Default St",
+            "city": "Vancouver",
+            "country": "Canada",
+            "countryCodeV2": "CA",
+            "provinceCode": "BC",
+            "zip": "V6B 1A1",
+            "formattedArea": "Vancouver BC, Canada"
+          },
+          "addressesV2": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MailingAddress/12034410086706?model_name=CustomerAddress",
+                "address1": "3 Null Default St",
+                "city": "Vancouver",
+                "country": "Canada",
+                "countryCodeV2": "CA",
+                "provinceCode": "BC",
+                "zip": "V6B 1A1",
+                "formattedArea": "Vancouver BC, Canada"
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDA4NjcwNiwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMDg2NzA2In0=",
+                "node": {
+                  "id": "gid://shopify/MailingAddress/12034410086706?model_name=CustomerAddress",
+                  "city": "Vancouver"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDA4NjcwNiwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMDg2NzA2In0=",
+              "endCursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDA4NjcwNiwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMDg2NzA2In0="
+            }
+          }
+        },
+        "customerByIdentifier": {
+          "id": "gid://shopify/Customer/10540982698290",
+          "email": "hermes-address-1777157408181@example.com",
+          "firstName": "Hermes",
+          "lastName": "Address",
+          "displayName": "Hermes Address",
+          "defaultAddress": {
+            "id": "gid://shopify/MailingAddress/12034410086706?model_name=CustomerAddress",
+            "address1": "3 Null Default St",
+            "city": "Vancouver",
+            "country": "Canada",
+            "countryCodeV2": "CA",
+            "provinceCode": "BC",
+            "zip": "V6B 1A1",
+            "formattedArea": "Vancouver BC, Canada"
+          },
+          "addressesV2": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MailingAddress/12034410086706?model_name=CustomerAddress",
+                "address1": "3 Null Default St",
+                "city": "Vancouver",
+                "country": "Canada",
+                "countryCodeV2": "CA",
+                "provinceCode": "BC",
+                "zip": "V6B 1A1",
+                "formattedArea": "Vancouver BC, Canada"
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDA4NjcwNiwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMDg2NzA2In0=",
+                "node": {
+                  "id": "gid://shopify/MailingAddress/12034410086706?model_name=CustomerAddress",
+                  "city": "Vancouver"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDA4NjcwNiwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMDg2NzA2In0=",
+              "endCursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDA4NjcwNiwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMDg2NzA2In0="
+            }
+          }
+        },
+        "customers": {
+          "nodes": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 47,
+          "actualQueryCost": 17,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1983,
             "restoreRate": 100
           }
         }
@@ -449,7 +839,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1985,
+              "currentlyAvailable": 1987,
               "restoreRate": 100
             }
           }
@@ -458,7 +848,7 @@
     },
     "unknownAddressUpdate": {
       "variables": {
-        "customerId": "gid://shopify/Customer/10539997495602",
+        "customerId": "gid://shopify/Customer/10540982698290",
         "addressId": "gid://shopify/MailingAddress/999999999999999",
         "address": {
           "city": "Ghost"
@@ -490,7 +880,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1984,
+              "currentlyAvailable": 1988,
               "restoreRate": 100
             }
           }
@@ -499,7 +889,7 @@
     },
     "unknownDefaultAddress": {
       "variables": {
-        "customerId": "gid://shopify/Customer/10539997495602",
+        "customerId": "gid://shopify/Customer/10540982698290",
         "addressId": "gid://shopify/MailingAddress/999999999999999"
       },
       "response": {
@@ -527,7 +917,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1986,
+              "currentlyAvailable": 1987,
               "restoreRate": 100
             }
           }
@@ -536,7 +926,7 @@
     },
     "unknownAddressDelete": {
       "variables": {
-        "customerId": "gid://shopify/Customer/10539997495602",
+        "customerId": "gid://shopify/Customer/10540982698290",
         "addressId": "gid://shopify/MailingAddress/999999999999999"
       },
       "response": {
@@ -564,8 +954,613 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1987,
+              "currentlyAvailable": 1986,
               "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "blankAddressCreate": {
+      "variables": {
+        "customerId": "gid://shopify/Customer/10540982731058",
+        "address": {},
+        "setAsDefault": true
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerAddressCreate": {
+            "address": {
+              "id": "gid://shopify/MailingAddress/12034410185010?model_name=CustomerAddress",
+              "firstName": "Hermes",
+              "lastName": "AddressValidation",
+              "address1": null,
+              "address2": null,
+              "city": null,
+              "company": null,
+              "country": null,
+              "countryCodeV2": null,
+              "province": null,
+              "provinceCode": null,
+              "zip": null,
+              "phone": null,
+              "name": "Hermes AddressValidation",
+              "formattedArea": null
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "blankStringAddressCreate": {
+      "variables": {
+        "customerId": "gid://shopify/Customer/10540982731058",
+        "address": {
+          "firstName": "",
+          "lastName": "",
+          "address1": "",
+          "city": "",
+          "countryCode": "CA",
+          "provinceCode": "",
+          "zip": ""
+        },
+        "setAsDefault": false
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerAddressCreate": {
+            "address": {
+              "id": "gid://shopify/MailingAddress/12034410217778?model_name=CustomerAddress",
+              "firstName": "Hermes",
+              "lastName": "AddressValidation",
+              "address1": null,
+              "address2": null,
+              "city": null,
+              "company": null,
+              "country": "Canada",
+              "countryCodeV2": "CA",
+              "province": null,
+              "provinceCode": null,
+              "zip": null,
+              "phone": null,
+              "name": "Hermes AddressValidation",
+              "formattedArea": "Canada"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "invalidProvinceCreate": {
+      "variables": {
+        "customerId": "gid://shopify/Customer/10540982731058",
+        "address": {
+          "address1": "5 Invalid Province St",
+          "city": "Ottawa",
+          "countryCode": "CA",
+          "provinceCode": "ZZ",
+          "zip": "K1A 0B1"
+        },
+        "setAsDefault": false
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerAddressCreate": {
+            "address": null,
+            "userErrors": [
+              {
+                "field": ["address", "province"],
+                "message": "Province is invalid"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "invalidCountryCreate": {
+      "variables": {
+        "customerId": "gid://shopify/Customer/10540982731058",
+        "address": {
+          "address1": "6 Invalid Country St",
+          "city": "Nowhere",
+          "countryCode": "ZZ",
+          "provinceCode": "ZZ",
+          "zip": "00000"
+        },
+        "setAsDefault": false
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerAddressCreate": {
+            "address": null,
+            "userErrors": [
+              {
+                "field": ["address", "country"],
+                "message": "Country is invalid"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "invalidPostalCreate": {
+      "variables": {
+        "customerId": "gid://shopify/Customer/10540982731058",
+        "address": {
+          "address1": "7 Postal St",
+          "city": "Ottawa",
+          "countryCode": "CA",
+          "provinceCode": "ON",
+          "zip": "not-a-postal-code"
+        },
+        "setAsDefault": false
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerAddressCreate": {
+            "address": {
+              "id": "gid://shopify/MailingAddress/12034410250546?model_name=CustomerAddress",
+              "firstName": "Hermes",
+              "lastName": "AddressValidation",
+              "address1": "7 Postal St",
+              "address2": null,
+              "city": "Ottawa",
+              "company": null,
+              "country": "Canada",
+              "countryCodeV2": "CA",
+              "province": "Ontario",
+              "provinceCode": "ON",
+              "zip": "not-a-postal-code",
+              "phone": null,
+              "name": "Hermes AddressValidation",
+              "formattedArea": "Ottawa ON, Canada"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "crossCustomerUpdate": {
+      "variables": {
+        "customerId": "gid://shopify/Customer/10540982731058",
+        "addressId": "gid://shopify/MailingAddress/12034410152242?model_name=CustomerAddress",
+        "address": {
+          "city": "Cross Customer"
+        },
+        "setAsDefault": false
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerAddressUpdate": {
+            "address": null,
+            "userErrors": [
+              {
+                "field": ["addressId"],
+                "message": "Address does not exist"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "crossCustomerDefault": {
+      "variables": {
+        "customerId": "gid://shopify/Customer/10540982731058",
+        "addressId": "gid://shopify/MailingAddress/12034410152242?model_name=CustomerAddress"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerUpdateDefaultAddress": {
+            "customer": {
+              "id": "gid://shopify/Customer/10540982731058",
+              "email": "hermes-address-validation-1777157408181@example.com",
+              "firstName": "Hermes",
+              "lastName": "AddressValidation",
+              "displayName": "Hermes AddressValidation",
+              "defaultAddress": {
+                "id": "gid://shopify/MailingAddress/12034410185010?model_name=CustomerAddress",
+                "address1": null,
+                "city": null,
+                "country": null,
+                "countryCodeV2": null,
+                "provinceCode": null,
+                "zip": null,
+                "formattedArea": null
+              },
+              "addressesV2": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/MailingAddress/12034410185010?model_name=CustomerAddress",
+                    "address1": null,
+                    "city": null,
+                    "country": null,
+                    "countryCodeV2": null,
+                    "provinceCode": null,
+                    "zip": null,
+                    "formattedArea": null
+                  },
+                  {
+                    "id": "gid://shopify/MailingAddress/12034410217778?model_name=CustomerAddress",
+                    "address1": null,
+                    "city": null,
+                    "country": "Canada",
+                    "countryCodeV2": "CA",
+                    "provinceCode": null,
+                    "zip": null,
+                    "formattedArea": "Canada"
+                  },
+                  {
+                    "id": "gid://shopify/MailingAddress/12034410250546?model_name=CustomerAddress",
+                    "address1": "7 Postal St",
+                    "city": "Ottawa",
+                    "country": "Canada",
+                    "countryCodeV2": "CA",
+                    "provinceCode": "ON",
+                    "zip": "not-a-postal-code",
+                    "formattedArea": "Ottawa ON, Canada"
+                  }
+                ],
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDE4NTAxMCwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMTg1MDEwIn0=",
+                    "node": {
+                      "id": "gid://shopify/MailingAddress/12034410185010?model_name=CustomerAddress",
+                      "city": null
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDIxNzc3OCwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMjE3Nzc4In0=",
+                    "node": {
+                      "id": "gid://shopify/MailingAddress/12034410217778?model_name=CustomerAddress",
+                      "city": null
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDI1MDU0NiwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMjUwNTQ2In0=",
+                    "node": {
+                      "id": "gid://shopify/MailingAddress/12034410250546?model_name=CustomerAddress",
+                      "city": "Ottawa"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDE4NTAxMCwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMTg1MDEwIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDI1MDU0NiwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMjUwNTQ2In0="
+                }
+              }
+            },
+            "userErrors": [
+              {
+                "field": ["addressId"],
+                "message": "Address does not exist"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 16,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1984,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "crossCustomerDelete": {
+      "variables": {
+        "customerId": "gid://shopify/Customer/10540982731058",
+        "addressId": "gid://shopify/MailingAddress/12034410152242?model_name=CustomerAddress"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerAddressDelete": {
+            "deletedAddressId": null,
+            "userErrors": [
+              {
+                "field": ["addressId"],
+                "message": "Address does not exist"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1985,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "customerSetValidAddresses": {
+      "variables": {
+        "identifier": {
+          "id": "gid://shopify/Customer/10540982731058"
+        },
+        "input": {
+          "email": "hermes-address-validation-1777157408181@example.com",
+          "addresses": [
+            {
+              "address1": "8 CustomerSet St",
+              "city": "Toronto",
+              "countryCode": "CA",
+              "provinceCode": "ON",
+              "zip": "M5H 2N2"
+            },
+            {
+              "address1": "8 CustomerSet St",
+              "city": "Toronto",
+              "countryCode": "CA",
+              "provinceCode": "ON",
+              "zip": "M5H 2N2"
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerSet": {
+            "customer": {
+              "id": "gid://shopify/Customer/10540982731058",
+              "email": "hermes-address-validation-1777157408181@example.com",
+              "firstName": "Hermes",
+              "lastName": "AddressValidation",
+              "displayName": "Hermes AddressValidation",
+              "defaultAddress": {
+                "id": "gid://shopify/MailingAddress/12034410283314?model_name=CustomerAddress",
+                "address1": "8 CustomerSet St",
+                "city": "Toronto",
+                "country": "Canada",
+                "countryCodeV2": "CA",
+                "provinceCode": "ON",
+                "zip": "M5H 2N2",
+                "formattedArea": "Toronto ON, Canada"
+              },
+              "addressesV2": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/MailingAddress/12034410283314?model_name=CustomerAddress",
+                    "address1": "8 CustomerSet St",
+                    "city": "Toronto",
+                    "country": "Canada",
+                    "countryCodeV2": "CA",
+                    "provinceCode": "ON",
+                    "zip": "M5H 2N2",
+                    "formattedArea": "Toronto ON, Canada"
+                  }
+                ],
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDI4MzMxNCwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMjgzMzE0In0=",
+                    "node": {
+                      "id": "gid://shopify/MailingAddress/12034410283314?model_name=CustomerAddress",
+                      "city": "Toronto"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDI4MzMxNCwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMjgzMzE0In0=",
+                  "endCursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDI4MzMxNCwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMjgzMzE0In0="
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 15,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1981,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "customerSetBlankAddresses": {
+      "variables": {
+        "identifier": {
+          "id": "gid://shopify/Customer/10540982731058"
+        },
+        "input": {
+          "email": "hermes-address-validation-1777157408181@example.com",
+          "addresses": [{}]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerSet": {
+            "customer": {
+              "id": "gid://shopify/Customer/10540982731058",
+              "email": "hermes-address-validation-1777157408181@example.com",
+              "firstName": "Hermes",
+              "lastName": "AddressValidation",
+              "displayName": "Hermes AddressValidation",
+              "defaultAddress": {
+                "id": "gid://shopify/MailingAddress/12034410316082?model_name=CustomerAddress",
+                "address1": null,
+                "city": null,
+                "country": null,
+                "countryCodeV2": null,
+                "provinceCode": null,
+                "zip": null,
+                "formattedArea": null
+              },
+              "addressesV2": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/MailingAddress/12034410316082?model_name=CustomerAddress",
+                    "address1": null,
+                    "city": null,
+                    "country": null,
+                    "countryCodeV2": null,
+                    "provinceCode": null,
+                    "zip": null,
+                    "formattedArea": null
+                  }
+                ],
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDMxNjA4MiwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMzE2MDgyIn0=",
+                    "node": {
+                      "id": "gid://shopify/MailingAddress/12034410316082?model_name=CustomerAddress",
+                      "city": null
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDMxNjA4MiwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMzE2MDgyIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoxMjAzNDQxMDMxNjA4MiwibGFzdF92YWx1ZSI6IjEyMDM0NDEwMzE2MDgyIn0="
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 15,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1982,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "maximumAddressProbe": {
+      "attempted": 105,
+      "successCount": 105,
+      "firstFailure": null,
+      "lastSuccess": {
+        "index": 104,
+        "response": {
+          "data": {
+            "customerAddressCreate": {
+              "address": {
+                "id": "gid://shopify/MailingAddress/12034413855026?model_name=CustomerAddress",
+                "firstName": "Hermes",
+                "lastName": "AddressMaximum",
+                "address1": "104 Maximum Address St",
+                "address2": null,
+                "city": "Ottawa",
+                "company": null,
+                "country": "Canada",
+                "countryCodeV2": "CA",
+                "province": "Ontario",
+                "provinceCode": "ON",
+                "zip": "K1A 0B1",
+                "phone": null,
+                "name": "Hermes AddressMaximum",
+                "formattedArea": "Ottawa ON, Canada"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
             }
           }
         }
