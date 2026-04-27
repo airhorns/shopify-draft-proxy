@@ -7,7 +7,7 @@ import { store } from '../state/store.js';
 import type { MutationLogInterpretedMetadata } from '../state/types.js';
 import type { AppConfig } from '../config.js';
 import { createUpstreamGraphQLClient } from '../shopify/upstream-client.js';
-import { requestUpstreamGraphQL } from '../shopify/upstream-request.js';
+import { requestUpstreamGraphQL, type IncomingGraphQLRequestContext } from '../shopify/upstream-request.js';
 import { ADMIN_PLATFORM_QUERY_ROOTS, FLOW_UTILITY_MUTATION_ROOTS, handleAdminPlatformQuery } from './admin-platform.js';
 import { handleB2BQuery } from './b2b.js';
 import { handleBulkOperationMutation, handleBulkOperationQuery } from './bulk-operations.js';
@@ -73,6 +73,22 @@ interface GraphQLBody {
   variables?: unknown;
   operationName?: unknown;
   extensions?: unknown;
+}
+
+export interface ProxyGraphQLRequest {
+  path: string;
+  headers?: Record<string, string | string[] | undefined>;
+  body?: unknown;
+}
+
+export interface ProxyGraphQLResponse {
+  status: number;
+  body: unknown;
+}
+
+interface ProxyGraphQLContext extends IncomingGraphQLRequestContext {
+  status: number;
+  body: unknown;
 }
 
 const APP_DISCOUNT_MUTATION_ROOTS = new Set([
@@ -500,7 +516,7 @@ type ProxyLogger = Pick<typeof logger, 'debug'>;
 type UpstreamGraphQLClient = ReturnType<typeof createUpstreamGraphQLClient>;
 
 interface ProxyDispatchRequest {
-  ctx: Koa.Context;
+  ctx: ProxyGraphQLContext;
   body: { query: string };
   variables: Record<string, unknown>;
   requestBody: Record<string, unknown>;
@@ -2033,93 +2049,120 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
   },
 ];
 
-export function createProxyRouter(config: AppConfig): Router {
-  const router = new Router();
+export async function processProxyGraphQLRequest(
+  config: AppConfig,
+  input: ProxyGraphQLRequest,
+): Promise<ProxyGraphQLResponse> {
   const upstream = createUpstreamGraphQLClient(config.shopifyAdminOrigin);
   const proxyLogger = logger.child({ component: 'proxy' });
+  const ctx: ProxyGraphQLContext = {
+    path: input.path,
+    request: {
+      headers: input.headers ?? {},
+    },
+    status: 200,
+    body: null,
+  };
+  const body = input.body as GraphQLBody;
 
-  router.post('/admin/api/:version/graphql.json', async (ctx: Koa.Context) => {
-    const body = ctx.request.body as GraphQLBody;
+  if (typeof body?.query !== 'string') {
+    return {
+      status: 400,
+      body: { errors: [{ message: 'Expected string GraphQL query' }] },
+    };
+  }
 
-    if (typeof body?.query !== 'string') {
-      ctx.status = 400;
-      ctx.body = { errors: [{ message: 'Expected string GraphQL query' }] };
-      return;
+  const variables = readVariables(body.variables);
+  const requestBody = readOriginalRequestBody(body);
+  const parsed = parseOperation(body.query);
+  const capability = getOperationCapability(parsed);
+  const primaryRootField = parsed.rootFields[0] ?? capability.operationName;
+  const dispatchRequest: ProxyDispatchRequest = {
+    ctx,
+    body: { query: body.query },
+    variables,
+    requestBody,
+    parsed,
+    capability,
+    primaryRootField,
+    config,
+    upstream,
+    proxyLogger,
+  };
+
+  for (const dispatcher of DOMAIN_DISPATCHERS) {
+    if (!dispatcher.canHandle(dispatchRequest)) {
+      continue;
     }
 
-    const variables = readVariables(body.variables);
-    const requestBody = readOriginalRequestBody(body);
-    const parsed = parseOperation(body.query);
-    const capability = getOperationCapability(parsed);
-    const primaryRootField = parsed.rootFields[0] ?? capability.operationName;
-    const dispatchRequest: ProxyDispatchRequest = {
-      ctx,
-      body: { query: body.query },
+    const handled =
+      parsed.type === 'mutation'
+        ? await dispatcher.handleMutation?.(dispatchRequest)
+        : await dispatcher.handleQuery?.(dispatchRequest);
+
+    if (handled) {
+      return {
+        status: ctx.status,
+        body: ctx.body,
+      };
+    }
+  }
+
+  if (parsed.type === 'mutation') {
+    const unsupportedObservability = buildUnsupportedMutationObservability(parsed);
+    proxyLogger.warn(
+      {
+        execution: capability.execution,
+        operationName: capability.operationName,
+        operationType: parsed.type,
+        rootFields: parsed.rootFields,
+        registeredOperation: unsupportedObservability.registeredOperation,
+        safety: unsupportedObservability.safety,
+      },
+      'proxying unsupported mutation upstream',
+    );
+
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: ctx.path,
+      query: body.query,
       variables,
       requestBody,
-      parsed,
-      capability,
-      primaryRootField,
-      config,
-      upstream,
-      proxyLogger,
-    };
-
-    for (const dispatcher of DOMAIN_DISPATCHERS) {
-      if (!dispatcher.canHandle(dispatchRequest)) {
-        continue;
-      }
-
-      const handled =
-        parsed.type === 'mutation'
-          ? await dispatcher.handleMutation?.(dispatchRequest)
-          : await dispatcher.handleQuery?.(dispatchRequest);
-
-      if (handled) {
-        return;
-      }
-    }
-
-    if (parsed.type === 'mutation') {
-      const unsupportedObservability = buildUnsupportedMutationObservability(parsed);
-      proxyLogger.warn(
-        {
-          execution: capability.execution,
-          operationName: capability.operationName,
-          operationType: parsed.type,
-          rootFields: parsed.rootFields,
-          registeredOperation: unsupportedObservability.registeredOperation,
-          safety: unsupportedObservability.safety,
-        },
-        'proxying unsupported mutation upstream',
-      );
-
-      store.appendLog({
-        id: makeSyntheticGid('MutationLogEntry'),
-        receivedAt: makeSyntheticTimestamp(),
-        operationName: capability.operationName,
-        path: ctx.path,
-        query: body.query,
-        variables,
-        requestBody,
-        status: 'proxied',
-        interpreted: {
-          ...interpretMutationLogEntry(parsed, capability),
-          ...unsupportedObservability,
-        },
-        notes: unsupportedMutationNotes(parsed),
-      });
-    }
-
-    const response = await requestUpstreamGraphQL(upstream, ctx, {
-      body: {
-        query: body.query,
-        variables,
+      status: 'proxied',
+      interpreted: {
+        ...interpretMutationLogEntry(parsed, capability),
+        ...unsupportedObservability,
       },
+      notes: unsupportedMutationNotes(parsed),
     });
+  }
 
+  const response = await requestUpstreamGraphQL(upstream, ctx, {
+    body: {
+      query: body.query,
+      variables,
+    },
+  });
+
+  return {
+    status: response.status,
+    body: await response.json(),
+  };
+}
+
+export function createProxyRouter(config: AppConfig): Router {
+  const router = new Router();
+
+  router.post('/admin/api/:version/graphql.json', async (ctx: Koa.Context) => {
+    const response = await processProxyGraphQLRequest(config, {
+      path: ctx.path,
+      headers: ctx.request.headers,
+      body: ctx.request.body,
+    });
     ctx.status = response.status;
-    ctx.body = await response.json();
+    ctx.body = response.body;
   });
 
   return router;

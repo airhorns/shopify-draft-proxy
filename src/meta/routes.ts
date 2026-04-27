@@ -2,12 +2,12 @@ import Router from '@koa/router';
 import type Koa from 'koa';
 import type { AppConfig } from '../config.js';
 import { createUpstreamGraphQLClient } from '../shopify/upstream-client.js';
-import { requestUpstreamGraphQL } from '../shopify/upstream-request.js';
+import { requestUpstreamGraphQL, type IncomingGraphQLRequestContext } from '../shopify/upstream-request.js';
 import { store } from '../state/store.js';
 import { isProxySyntheticGid, resetSyntheticIdentity } from '../state/synthetic-identity.js';
 import type { MutationLogEntry } from '../state/types.js';
 
-interface CommitAttempt {
+export interface CommitAttempt {
   logEntryId: string;
   operationName: string | null;
   path: string;
@@ -17,6 +17,22 @@ interface CommitAttempt {
   upstreamBody: unknown;
   upstreamError: { message: string } | null;
   responseBody: unknown;
+}
+
+export interface MetaHealthResponse {
+  ok: true;
+  message: string;
+}
+
+export interface MetaResetResponse {
+  ok: true;
+  message: string;
+}
+
+export interface MetaCommitResponse {
+  ok: boolean;
+  stopIndex: number | null;
+  attempts: CommitAttempt[];
 }
 
 function logEntryRequiresCommit(entry: MutationLogEntry): boolean {
@@ -176,7 +192,7 @@ function renderMutationLogRows(entries: MutationLogEntry[]): string {
     .join('');
 }
 
-function renderMetaWebUi(config: AppConfig): string {
+export function renderMetaWebUi(config: AppConfig): string {
   const log = { entries: store.getLog() };
   const state = store.getState();
 
@@ -599,9 +615,127 @@ function renderMetaWebUi(config: AppConfig): string {
 </html>`;
 }
 
+export function getMetaHealth(): MetaHealthResponse {
+  return {
+    ok: true,
+    message: 'shopify-draft-proxy is running',
+  };
+}
+
+export function getMetaConfig(config: AppConfig): Record<string, unknown> {
+  return {
+    runtime: {
+      readMode: config.readMode,
+    },
+    proxy: {
+      port: config.port,
+      shopifyAdminOrigin: config.shopifyAdminOrigin,
+    },
+    snapshot: {
+      enabled: Boolean(config.snapshotPath),
+      path: config.snapshotPath ?? null,
+    },
+  };
+}
+
+export function getMetaLog(): { entries: MutationLogEntry[] } {
+  return {
+    entries: store.getLog(),
+  };
+}
+
+export function getMetaState(): ReturnType<typeof store.getState> {
+  return store.getState();
+}
+
+export function resetMetaState(): MetaResetResponse {
+  store.restoreInitialState();
+  resetSyntheticIdentity();
+  return {
+    ok: true,
+    message: 'state reset',
+  };
+}
+
+export async function commitMetaState(
+  config: AppConfig,
+  requestContext: IncomingGraphQLRequestContext,
+): Promise<MetaCommitResponse> {
+  const upstream = createUpstreamGraphQLClient(config.shopifyAdminOrigin);
+  const pendingEntries = store.getLog().filter(logEntryRequiresCommit);
+  const attempts: CommitAttempt[] = [];
+  const syntheticIdMap = new Map<string, string>();
+  let stopIndex: number | null = null;
+
+  for (const [index, entry] of pendingEntries.entries()) {
+    try {
+      const replayBody = replaceMappedSyntheticGids(buildCommitReplayBody(entry), syntheticIdMap);
+      const response = await requestUpstreamGraphQL(upstream, requestContext, {
+        path: entry.path,
+        body: replayBody,
+      });
+      const responseBody = await response.json();
+      const failed = response.status >= 400 || responseBodyHasGraphQLErrors(responseBody);
+      const nextStatus: MutationLogEntry['status'] = failed ? 'failed' : 'committed';
+
+      if (!failed) {
+        recordCommitIdMappings(entry, responseBody, syntheticIdMap);
+      }
+
+      store.updateLogEntry(entry.id, {
+        status: nextStatus,
+        notes: failed
+          ? 'Commit replay failed against upstream Shopify.'
+          : 'Committed to upstream Shopify via __meta/commit replay.',
+      });
+
+      attempts.push({
+        logEntryId: entry.id,
+        operationName: entry.operationName,
+        path: entry.path,
+        success: !failed,
+        status: nextStatus,
+        upstreamStatus: response.status,
+        upstreamBody: responseBody,
+        upstreamError: null,
+        responseBody,
+      });
+
+      if (failed) {
+        stopIndex = index;
+        break;
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      store.updateLogEntry(entry.id, {
+        status: 'failed',
+        notes: `Commit replay failed before an upstream response was received: ${message}`,
+      });
+      attempts.push({
+        logEntryId: entry.id,
+        operationName: entry.operationName,
+        path: entry.path,
+        success: false,
+        status: 'failed',
+        upstreamStatus: null,
+        upstreamBody: null,
+        upstreamError: { message },
+        responseBody: { errors: [{ message }] },
+      });
+      stopIndex = index;
+      break;
+    }
+  }
+
+  return {
+    ok: stopIndex === null,
+    stopIndex,
+    attempts,
+  };
+}
+
 export function createMetaRouter(config: AppConfig): Router {
   const router = new Router();
-  const upstream = createUpstreamGraphQLClient(config.shopifyAdminOrigin);
 
   router.get('/__meta', (ctx: Koa.Context) => {
     ctx.type = 'html';
@@ -609,118 +743,27 @@ export function createMetaRouter(config: AppConfig): Router {
   });
 
   router.get('/__meta/health', (ctx: Koa.Context) => {
-    ctx.body = {
-      ok: true,
-      message: 'shopify-draft-proxy is running',
-    };
+    ctx.body = getMetaHealth();
   });
 
   router.get('/__meta/config', (ctx: Koa.Context) => {
-    ctx.body = {
-      runtime: {
-        readMode: config.readMode,
-      },
-      proxy: {
-        port: config.port,
-        shopifyAdminOrigin: config.shopifyAdminOrigin,
-      },
-      snapshot: {
-        enabled: Boolean(config.snapshotPath),
-        path: config.snapshotPath ?? null,
-      },
-    };
+    ctx.body = getMetaConfig(config);
   });
 
   router.get('/__meta/log', (ctx: Koa.Context) => {
-    ctx.body = {
-      entries: store.getLog(),
-    };
+    ctx.body = getMetaLog();
   });
 
   router.get('/__meta/state', (ctx: Koa.Context) => {
-    ctx.body = store.getState();
+    ctx.body = getMetaState();
   });
 
   router.post('/__meta/reset', (ctx: Koa.Context) => {
-    store.restoreInitialState();
-    resetSyntheticIdentity();
-    ctx.body = {
-      ok: true,
-      message: 'state reset',
-    };
+    ctx.body = resetMetaState();
   });
 
   router.post('/__meta/commit', async (ctx: Koa.Context) => {
-    const pendingEntries = store.getLog().filter(logEntryRequiresCommit);
-    const attempts: CommitAttempt[] = [];
-    const syntheticIdMap = new Map<string, string>();
-    let stopIndex: number | null = null;
-
-    for (const [index, entry] of pendingEntries.entries()) {
-      try {
-        const replayBody = replaceMappedSyntheticGids(buildCommitReplayBody(entry), syntheticIdMap);
-        const response = await requestUpstreamGraphQL(upstream, ctx, {
-          path: entry.path,
-          body: replayBody,
-        });
-        const responseBody = await response.json();
-        const failed = response.status >= 400 || responseBodyHasGraphQLErrors(responseBody);
-        const nextStatus: MutationLogEntry['status'] = failed ? 'failed' : 'committed';
-
-        if (!failed) {
-          recordCommitIdMappings(entry, responseBody, syntheticIdMap);
-        }
-
-        store.updateLogEntry(entry.id, {
-          status: nextStatus,
-          notes: failed
-            ? 'Commit replay failed against upstream Shopify.'
-            : 'Committed to upstream Shopify via __meta/commit replay.',
-        });
-
-        attempts.push({
-          logEntryId: entry.id,
-          operationName: entry.operationName,
-          path: entry.path,
-          success: !failed,
-          status: nextStatus,
-          upstreamStatus: response.status,
-          upstreamBody: responseBody,
-          upstreamError: null,
-          responseBody,
-        });
-
-        if (failed) {
-          stopIndex = index;
-          break;
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        store.updateLogEntry(entry.id, {
-          status: 'failed',
-          notes: `Commit replay failed before an upstream response was received: ${message}`,
-        });
-        attempts.push({
-          logEntryId: entry.id,
-          operationName: entry.operationName,
-          path: entry.path,
-          success: false,
-          status: 'failed',
-          upstreamStatus: null,
-          upstreamBody: null,
-          upstreamError: { message },
-          responseBody: { errors: [{ message }] },
-        });
-        stopIndex = index;
-        break;
-      }
-    }
-
-    ctx.body = {
-      ok: stopIndex === null,
-      stopIndex,
-      attempts,
-    };
+    ctx.body = await commitMetaState(config, ctx);
   });
 
   return router;

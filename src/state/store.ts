@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { defaultPaymentTermsTemplateOrder, defaultPaymentTermsTemplateRecordMap } from './types.js';
 import type {
   AbandonedCheckoutRecord,
@@ -4767,4 +4768,28 @@ export class InMemoryStore {
   }
 }
 
-export const store = new InMemoryStore();
+const defaultStore = new InMemoryStore();
+const storeContext = new AsyncLocalStorage<InMemoryStore>();
+
+export function getCurrentStore(): InMemoryStore {
+  return storeContext.getStore() ?? defaultStore;
+}
+
+export function getDefaultStore(): InMemoryStore {
+  return defaultStore;
+}
+
+export function runWithStore<T>(runtimeStore: InMemoryStore, callback: () => T): T {
+  return storeContext.run(runtimeStore, callback);
+}
+
+export const store = new Proxy(defaultStore, {
+  get(_target, property) {
+    const currentStore = getCurrentStore();
+    const value = Reflect.get(currentStore, property);
+    return typeof value === 'function' ? value.bind(currentStore) : value;
+  },
+  set(_target, property, value) {
+    return Reflect.set(getCurrentStore(), property, value);
+  },
+}) as InMemoryStore;

@@ -1,4 +1,3 @@
-import type Koa from 'koa';
 import type { UpstreamGraphQLClient } from './upstream-client.js';
 
 const PROXY_USER_AGENT = 'shopify-draft-proxy';
@@ -21,6 +20,13 @@ export interface UpstreamGraphQLProxyRequest {
   body: unknown;
 }
 
+export interface IncomingGraphQLRequestContext {
+  path: string;
+  request: {
+    headers: Record<string, string | string[] | undefined>;
+  };
+}
+
 export function buildShopifyDraftProxyUserAgent(incomingUserAgent: string | undefined): string {
   const trimmedIncomingUserAgent = incomingUserAgent?.trim();
   if (!trimmedIncomingUserAgent) {
@@ -30,7 +36,7 @@ export function buildShopifyDraftProxyUserAgent(incomingUserAgent: string | unde
   return `${PROXY_USER_AGENT} (wrapping ${trimmedIncomingUserAgent})`;
 }
 
-export function buildForwardedGraphQLHeaders(ctx: Koa.Context): Record<string, string> {
+export function buildForwardedGraphQLHeaders(ctx: IncomingGraphQLRequestContext): Record<string, string> {
   const headers: Record<string, string> = {};
 
   for (const [name, value] of Object.entries(ctx.request.headers)) {
@@ -50,7 +56,7 @@ export function buildForwardedGraphQLHeaders(ctx: Koa.Context): Record<string, s
 
 export async function requestUpstreamGraphQL(
   upstream: UpstreamGraphQLClient,
-  ctx: Koa.Context,
+  ctx: IncomingGraphQLRequestContext,
   input: UpstreamGraphQLProxyRequest,
 ): Promise<Response> {
   return upstream.request({
