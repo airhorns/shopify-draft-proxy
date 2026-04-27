@@ -1,0 +1,11 @@
+mutation UnknownCarrierServiceUpdate($input: DeliveryCarrierServiceUpdateInput!) {
+  carrierServiceUpdate(input: $input) {
+    carrierService {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

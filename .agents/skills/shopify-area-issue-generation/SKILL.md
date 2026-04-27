@@ -69,6 +69,8 @@ usable Shopify area.
    - fixture coverage, pending blockers, and capture scripts
    - runtime tests that already prove local staging/read behavior
    - docs notes that mention known traps or credentials limitations
+   - planned-only, blocked-only, and capture-only scenario files as evidence
+     gaps, not as coverage to preserve or duplicate in new issues
 
 ## Decomposition Rules
 
@@ -220,6 +222,9 @@ from the perspective of realistic app behavior:
 - immediate downstream reads after staged writes
 - userErrors, GraphQL validation errors, access-scope blockers, and nullability
 - fixture capture scripts and parity specs before broad runtime claims
+- executable parity or runtime-test-backed replay for every new fixture or
+  capture script; issue scopes should not ask agents to add recording-only
+  evidence
 - sensitive data and externally visible side effects
 - meta API observability where staged mutation logs/state should expose the new
   area
@@ -229,6 +234,10 @@ from the perspective of realistic app behavior:
 
 - Do not instruct future agents to send a supported mutation upstream at
   runtime.
+- Do not instruct future agents to avoid implementing a mutation family solely
+  because it can produce external side effects when committed. The proxy should
+  stage supported mutations locally at runtime and allow real side effects only
+  during explicit commit or deliberate conformance setup/cleanup.
 - Treat `expectedDifferences` as a last resort after modeling or fixture seeding
   has been exhausted.
 - Do not create `.mjs` scripts; repo scripts must be TypeScript run with `tsx`

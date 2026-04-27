@@ -21,6 +21,7 @@ import {
   MARKETING_MUTATION_ROOTS,
 } from './marketing.js';
 import { handleCustomerMutation, handleCustomerQuery, hydrateCustomersFromUpstreamResponse } from './customers.js';
+import { handleDeliverySettingsQuery } from './delivery-settings.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from './delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from './discounts.js';
 import { handleEventsQuery } from './events.js';
@@ -132,6 +133,17 @@ const DELIVERY_PROFILE_MUTATION_ROOTS = new Set([
   'deliveryProfileUpdate',
   'deliveryProfileRemove',
 ]);
+
+const DELIVERY_FUNCTION_MUTATION_ROOTS = new Set([
+  'deliveryCustomizationActivation',
+  'deliveryCustomizationCreate',
+  'deliveryCustomizationDelete',
+  'deliveryCustomizationUpdate',
+]);
+
+const DELIVERY_PROMISE_MUTATION_ROOTS = new Set(['deliveryPromiseParticipantsUpdate', 'deliveryPromiseProviderUpsert']);
+
+const DELIVERY_SETTINGS_MUTATION_ROOTS = new Set(['deliverySettingUpdate']);
 
 const CARRIER_SERVICE_MUTATION_ROOTS = new Set([
   'carrierServiceCreate',
@@ -344,6 +356,42 @@ function buildUnsupportedMutationObservability(parsed: ParsedOperation): Partial
     };
   }
 
+  if (DELIVERY_FUNCTION_MUTATION_ROOTS.has(primaryRootField)) {
+    return {
+      registeredOperation,
+      safety: {
+        classification: 'unsupported-delivery-customization-function-mutation',
+        wouldProxyToShopify: true,
+        reason:
+          'Delivery customization mutations are backed by Shopify Functions and external function IDs; local staging requires captured function ownership, validation, activation, metafield, and downstream read behavior before support.',
+      },
+    };
+  }
+
+  if (DELIVERY_PROMISE_MUTATION_ROOTS.has(primaryRootField)) {
+    return {
+      registeredOperation,
+      safety: {
+        classification: 'unsupported-delivery-promise-mutation',
+        wouldProxyToShopify: true,
+        reason:
+          'Delivery promise mutations require delivery-promise access scopes, location/owner eligibility, provider state, and participant read-after-write semantics before they can be staged locally.',
+      },
+    };
+  }
+
+  if (DELIVERY_SETTINGS_MUTATION_ROOTS.has(primaryRootField)) {
+    return {
+      registeredOperation,
+      safety: {
+        classification: 'unsupported-delivery-settings-mutation',
+        wouldProxyToShopify: true,
+        reason:
+          'Delivery setting mutations alter shop delivery configuration and legacy-mode behavior; local staging needs conformance-backed setting transitions and downstream delivery read effects before support.',
+      },
+    };
+  }
+
   if (primaryRootField && FLOW_UTILITY_MUTATION_ROOTS.has(primaryRootField)) {
     return {
       registeredOperation,
@@ -367,6 +415,18 @@ function unsupportedMutationNotes(parsed: ParsedOperation): string {
 
   if (primaryRootField && APP_BILLING_ACCESS_MUTATION_ROOTS.has(primaryRootField)) {
     return 'Unsupported app billing/access mutation would be proxied to Shopify. These roots can alter merchant billing, installation state, app scopes, or delegated tokens and require conformance-backed local staging plus raw commit replay before support.';
+  }
+
+  if (primaryRootField && DELIVERY_FUNCTION_MUTATION_ROOTS.has(primaryRootField)) {
+    return 'Unsupported delivery customization mutation would be proxied to Shopify. Delivery customizations are Shopify Function-backed and require conformance-backed local staging for function ownership, activation, metafields, and downstream reads before support.';
+  }
+
+  if (primaryRootField && DELIVERY_PROMISE_MUTATION_ROOTS.has(primaryRootField)) {
+    return 'Unsupported delivery promise mutation would be proxied to Shopify. Delivery promise provider and participant roots require delivery-promise scope evidence, owner/location eligibility, and local read-after-write modeling before support.';
+  }
+
+  if (primaryRootField && DELIVERY_SETTINGS_MUTATION_ROOTS.has(primaryRootField)) {
+    return 'Unsupported delivery settings mutation would be proxied to Shopify. Delivery setting changes alter shop delivery configuration and require conformance-backed transition and downstream read modeling before support.';
   }
 
   if (primaryRootField && FLOW_UTILITY_MUTATION_ROOTS.has(primaryRootField)) {
@@ -865,6 +925,11 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
     },
     async handleQuery(request) {
       if (request.config.readMode === 'snapshot') {
+        if (request.primaryRootField === 'deliverySettings' || request.primaryRootField === 'deliveryPromiseSettings') {
+          setGraphQLResponse(request, 200, handleDeliverySettingsQuery(request.body.query));
+          return true;
+        }
+
         if (request.primaryRootField === 'deliveryProfile' || request.primaryRootField === 'deliveryProfiles') {
           setGraphQLResponse(request, 200, handleDeliveryProfileQuery(request.body.query, request.variables));
           return true;

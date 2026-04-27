@@ -1,0 +1,16 @@
+query CarrierAfterDelete($id: ID!) {
+  carrierService(id: $id) {
+    id
+  }
+  carrierServices(first: 5, query: "id:102656770354") {
+    nodes {
+      id
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}
