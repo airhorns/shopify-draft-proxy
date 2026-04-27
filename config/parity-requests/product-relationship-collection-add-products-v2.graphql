@@ -1,0 +1,12 @@
+mutation ProductRelationshipCollectionAddProductsV2($id: ID!, $productIds: [ID!]!) {
+  collectionAddProductsV2(id: $id, productIds: $productIds) {
+    job {
+      id
+      done
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

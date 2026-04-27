@@ -146,6 +146,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   savedSearchOrder: [],
   bulkOperations: {},
   bulkOperationOrder: [],
+  bulkOperationResults: {},
   discounts: {},
   discountBulkOperations: {},
   paymentCustomizations: {},
@@ -893,6 +894,14 @@ export class InMemoryStore {
     return this.listEffectiveSellingPlanGroups().filter((group) => group.productIds.includes(productId));
   }
 
+  listEffectiveSellingPlanGroupsVisibleForProduct(productId: string): SellingPlanGroupRecord[] {
+    const variantIds = new Set(this.getEffectiveVariantsByProductId(productId).map((variant) => variant.id));
+    return this.listEffectiveSellingPlanGroups().filter(
+      (group) =>
+        group.productIds.includes(productId) || group.productVariantIds.some((variantId) => variantIds.has(variantId)),
+    );
+  }
+
   listEffectiveSellingPlanGroupsForProductVariant(variantId: string): SellingPlanGroupRecord[] {
     return this.listEffectiveSellingPlanGroups().filter((group) => group.productVariantIds.includes(variantId));
   }
@@ -1434,6 +1443,12 @@ export class InMemoryStore {
     return structuredClone(operation);
   }
 
+  stageBulkOperationResult(operation: BulkOperationRecord, jsonl: string): BulkOperationRecord {
+    const stagedOperation = this.stageBulkOperation(operation);
+    this.stagedState.bulkOperationResults[operation.id] = jsonl;
+    return stagedOperation;
+  }
+
   getEffectiveBulkOperationById(operationId: string): BulkOperationRecord | null {
     const operation =
       this.stagedState.bulkOperations[operationId] ?? this.baseState.bulkOperations[operationId] ?? null;
@@ -1461,6 +1476,12 @@ export class InMemoryStore {
       .map((operation) => structuredClone(operation));
 
     return [...orderedOperations, ...unorderedOperations];
+  }
+
+  getEffectiveBulkOperationResultJsonl(operationId: string): string | null {
+    return (
+      this.stagedState.bulkOperationResults[operationId] ?? this.baseState.bulkOperationResults[operationId] ?? null
+    );
   }
 
   cancelStagedBulkOperation(operationId: string): BulkOperationRecord | null {

@@ -58,6 +58,7 @@
     "conformance:capture-product-graph-mutations": "tsx ./scripts/capture-product-graph-mutation-conformance.mts",
     "conformance:capture-product-inventory-reads": "tsx ./scripts/capture-product-inventory-read-conformance.mts",
     "conformance:capture-product-helper-reads": "tsx ./scripts/capture-product-helper-read-conformance.mts",
+    "conformance:capture-product-relationship-roots": "SHOPIFY_CONFORMANCE_API_VERSION=2026-04 tsx ./scripts/capture-product-relationship-roots-conformance.ts",
     "conformance:capture-metafield-definition-mutations": "tsx ./scripts/capture-metafield-definition-mutation-conformance.mts",
     "conformance:capture-metafield-definition-lifecycle": "tsx ./scripts/capture-metafield-definition-lifecycle-conformance.mts",
     "conformance:capture-metaobjects": "SHOPIFY_CONFORMANCE_API_VERSION=2026-04 tsx ./scripts/capture-metaobject-read-conformance.mts",

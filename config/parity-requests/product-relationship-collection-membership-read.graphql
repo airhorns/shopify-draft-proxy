@@ -1,0 +1,31 @@
+query ProductRelationshipCollectionMembershipRead($collectionId: ID!, $productId: ID!) {
+  collection(id: $collectionId) {
+    id
+    title
+    handle
+    products(first: 10) {
+      nodes {
+        id
+        title
+        handle
+      }
+    }
+    hasProduct(id: $productId)
+    productsCount {
+      count
+      precision
+    }
+  }
+  product(id: $productId) {
+    id
+    title
+    handle
+    collections(first: 10) {
+      nodes {
+        id
+        title
+        handle
+      }
+    }
+  }
+}

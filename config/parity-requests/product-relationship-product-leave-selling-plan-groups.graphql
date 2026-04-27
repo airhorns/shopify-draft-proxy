@@ -1,0 +1,23 @@
+mutation ProductRelationshipProductLeaveSellingPlanGroups($id: ID!, $sellingPlanGroupIds: [ID!]!) {
+  productLeaveSellingPlanGroups(id: $id, sellingPlanGroupIds: $sellingPlanGroupIds) {
+    product {
+      id
+      sellingPlanGroups(first: 5) {
+        nodes {
+          id
+          name
+          merchantCode
+        }
+      }
+      sellingPlanGroupsCount {
+        count
+        precision
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

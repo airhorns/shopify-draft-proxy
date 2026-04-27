@@ -758,6 +758,23 @@ export function createMetaRouter(config: AppConfig): Router {
     ctx.body = getMetaState();
   });
 
+  router.get('/__bulk_operations/:operationId/result.jsonl', (ctx: Koa.Context) => {
+    const operationId = ctx['params']['operationId'];
+    const jsonl =
+      typeof operationId === 'string'
+        ? store.getEffectiveBulkOperationResultJsonl(`gid://shopify/BulkOperation/${operationId}`)
+        : null;
+
+    if (jsonl === null) {
+      ctx.status = 404;
+      ctx.body = 'Bulk operation result not found';
+      return;
+    }
+
+    ctx.type = 'application/jsonl';
+    ctx.body = jsonl;
+  });
+
   router.post('/__meta/reset', (ctx: Koa.Context) => {
     ctx.body = resetMetaState();
   });

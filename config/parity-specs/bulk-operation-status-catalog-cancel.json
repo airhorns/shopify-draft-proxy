@@ -12,7 +12,7 @@
     "variablesPath": "config/parity-requests/bulk-operation-status-parity-read.variables.json"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-262 captured Shopify Admin GraphQL 2026-04 BulkOperation reads, list empty filters, deprecated currentBulkOperation behavior, bulkOperationRunQuery validation, unknown-id cancel userErrors, terminal cancel userErrors, and safe query export status transitions. HAR-263 implements the local BulkOperation state/read/list/current/cancel foundation using that fixture evidence; HAR-346 promotes the read/cancel foundation to generic strict parity by seeding captured BulkOperation jobs into the local proxy harness, comparing empty read/list/current behavior, unknown and terminal cancel userErrors, local staged cancel, and read-after-local-cancel. bulkOperationRunQuery and bulkOperationRunMutation execution remain unsupported until separate lifecycle staging work exists.",
+  "notes": "HAR-262 captured Shopify Admin GraphQL 2026-04 BulkOperation reads, list empty filters, deprecated currentBulkOperation behavior, bulkOperationRunQuery validation, unknown-id cancel userErrors, terminal cancel userErrors, and safe query export status transitions. HAR-263 implements the local BulkOperation state/read/list/current/cancel foundation using that fixture evidence; HAR-346 promotes the read/cancel foundation to generic strict parity by seeding captured BulkOperation jobs into the local proxy harness, comparing empty read/list/current behavior, unknown and terminal cancel userErrors, local staged cancel, and read-after-local-cancel. HAR-264 promotes the product query export slice to executable parity by seeding captured Shopify JSONL product records, replaying bulkOperationRunQuery locally, comparing completed job shape/counters/result metadata to the captured terminal Shopify job, and verifying downstream read-after-run behavior. bulkOperationRunMutation remains unsupported until import lifecycle staging exists.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -66,12 +66,98 @@
       },
       {
         "name": "read-after-staged-cancel",
-        "capturePath": "$.lifecycle.queryExportImmediateCancel.statusPolls[0].response.data.bulkOperation",
+        "capturePath": "$.lifecycle.queryExportImmediateCancel.cancelAttempt.response.data.bulkOperationCancel.bulkOperation",
         "proxyPath": "$.data.bulkOperation",
         "proxyRequest": {
           "documentPath": "config/parity-requests/bulk-operation-by-id-parity.graphql",
-          "variablesCapturePath": "$.lifecycle.queryExportImmediateCancel.statusPolls[0].variables"
+          "variablesCapturePath": "$.lifecycle.queryExportImmediateCancel.cancelAttempt.variables"
         }
+      },
+      {
+        "name": "run-query-user-errors-empty",
+        "capturePath": "$.lifecycle.queryExportToTerminal.run.response.data.bulkOperationRunQuery.userErrors",
+        "proxyPath": "$.data.bulkOperationRunQuery.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operation-run-query-parity.graphql",
+          "variablesCapturePath": "$.lifecycle.queryExportToTerminal.run.variables"
+        }
+      },
+      {
+        "name": "run-query-completed-operation",
+        "capturePath": "$.lifecycle.queryExportToTerminal.terminalOperation",
+        "proxyPath": "$.data.bulkOperationRunQuery.bulkOperation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operation-run-query-parity.graphql",
+          "variablesCapturePath": "$.lifecycle.queryExportToTerminal.run.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.completedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy completes the synthetic export immediately with its own deterministic clock."
+          },
+          {
+            "path": "$.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy stages a new synthetic BulkOperation instead of reusing Shopify's captured timestamp."
+          },
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:BulkOperation",
+            "reason": "BulkOperation IDs are shop-generated in Shopify and synthetic in the local proxy."
+          },
+          {
+            "path": "$.fileSize",
+            "matcher": "non-empty-string",
+            "reason": "Shopify reports the stored artifact size while the proxy reports the byte length of its generated local JSONL."
+          },
+          {
+            "path": "$.url",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns a signed storage URL while the proxy serves an in-memory local result URL."
+          }
+        ]
+      },
+      {
+        "name": "read-after-local-run-query",
+        "capturePath": "$.lifecycle.queryExportToTerminal.terminalOperation",
+        "proxyPath": "$.data.bulkOperation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operation-by-id-parity.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "run-query-completed-operation",
+              "path": "$.data.bulkOperationRunQuery.bulkOperation.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.completedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy completes the synthetic export immediately with its own deterministic clock."
+          },
+          {
+            "path": "$.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy stages a new synthetic BulkOperation instead of reusing Shopify's captured timestamp."
+          },
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:BulkOperation",
+            "reason": "BulkOperation IDs are shop-generated in Shopify and synthetic in the local proxy."
+          },
+          {
+            "path": "$.fileSize",
+            "matcher": "non-empty-string",
+            "reason": "Shopify reports the stored artifact size while the proxy reports the byte length of its generated local JSONL."
+          },
+          {
+            "path": "$.url",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns a signed storage URL while the proxy serves an in-memory local result URL."
+          }
+        ]
       }
     ]
   }

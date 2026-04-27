@@ -3388,6 +3388,242 @@ describe('product draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('stages productOptionsReorder locally with option value ordering and derived variant order', async () => {
+    const productId = 'gid://shopify/Product/261';
+    const colorOptionId = 'gid://shopify/ProductOption/2611';
+    const sizeOptionId = 'gid://shopify/ProductOption/2612';
+    const redValueId = 'gid://shopify/ProductOptionValue/261101';
+    const blueValueId = 'gid://shopify/ProductOptionValue/261102';
+    const smallValueId = 'gid://shopify/ProductOptionValue/261201';
+    const mediumValueId = 'gid://shopify/ProductOptionValue/261202';
+    const redSmallVariant = {
+      ...makeBaseVariant(productId, 'gid://shopify/ProductVariant/26101', 'Red / Small', 'ORS-RS'),
+      selectedOptions: [
+        { name: 'Color', value: 'Red' },
+        { name: 'Size', value: 'Small' },
+      ],
+    };
+    const blueSmallVariant = {
+      ...makeBaseVariant(productId, 'gid://shopify/ProductVariant/26102', 'Blue / Small', 'ORS-BS'),
+      selectedOptions: [
+        { name: 'Color', value: 'Blue' },
+        { name: 'Size', value: 'Small' },
+      ],
+    };
+    const redMediumVariant = {
+      ...makeBaseVariant(productId, 'gid://shopify/ProductVariant/26103', 'Red / Medium', 'ORS-RM'),
+      selectedOptions: [
+        { name: 'Color', value: 'Red' },
+        { name: 'Size', value: 'Medium' },
+      ],
+    };
+    store.upsertBaseProducts([makeBaseProduct(productId, 'Option Reorder Shirt', 'option-reorder-shirt')]);
+    store.replaceBaseOptionsForProduct(productId, [
+      {
+        id: colorOptionId,
+        productId,
+        name: 'Color',
+        position: 1,
+        optionValues: [
+          { id: redValueId, name: 'Red', hasVariants: true },
+          { id: blueValueId, name: 'Blue', hasVariants: true },
+        ],
+      },
+      {
+        id: sizeOptionId,
+        productId,
+        name: 'Size',
+        position: 2,
+        optionValues: [
+          { id: smallValueId, name: 'Small', hasVariants: true },
+          { id: mediumValueId, name: 'Medium', hasVariants: true },
+        ],
+      },
+    ]);
+    store.replaceBaseVariantsForProduct(productId, [redSmallVariant, blueSmallVariant, redMediumVariant]);
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const reorderResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation ReorderOptions($productId: ID!, $options: [OptionReorderInput!]!) { productOptionsReorder(productId: $productId, options: $options) { product { id options { id name position values optionValues { id name hasVariants } } variants(first: 10) { nodes { id title selectedOptions { name value } } } } userErrors { field message } } }',
+        variables: {
+          productId,
+          options: [
+            { id: sizeOptionId, values: [{ id: mediumValueId }, { id: smallValueId }] },
+            { id: colorOptionId, values: [{ id: blueValueId }, { id: redValueId }] },
+          ],
+        },
+      });
+
+    expect(reorderResponse.status).toBe(200);
+    expect(reorderResponse.body).toEqual({
+      data: {
+        productOptionsReorder: {
+          product: {
+            id: productId,
+            options: [
+              {
+                id: sizeOptionId,
+                name: 'Size',
+                position: 1,
+                values: ['Small', 'Medium'],
+                optionValues: [
+                  { id: smallValueId, name: 'Small', hasVariants: true },
+                  { id: mediumValueId, name: 'Medium', hasVariants: true },
+                ],
+              },
+              {
+                id: colorOptionId,
+                name: 'Color',
+                position: 2,
+                values: ['Red', 'Blue'],
+                optionValues: [
+                  { id: redValueId, name: 'Red', hasVariants: true },
+                  { id: blueValueId, name: 'Blue', hasVariants: true },
+                ],
+              },
+            ],
+            variants: {
+              nodes: [
+                {
+                  id: redMediumVariant.id,
+                  title: 'Medium / Red',
+                  selectedOptions: [
+                    { name: 'Size', value: 'Medium' },
+                    { name: 'Color', value: 'Red' },
+                  ],
+                },
+                {
+                  id: blueSmallVariant.id,
+                  title: 'Small / Blue',
+                  selectedOptions: [
+                    { name: 'Size', value: 'Small' },
+                    { name: 'Color', value: 'Blue' },
+                  ],
+                },
+                {
+                  id: redSmallVariant.id,
+                  title: 'Small / Red',
+                  selectedOptions: [
+                    { name: 'Size', value: 'Small' },
+                    { name: 'Color', value: 'Red' },
+                  ],
+                },
+              ],
+            },
+          },
+          userErrors: [],
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('stages productVariantAppendMedia and productVariantDetachMedia with downstream variant media visibility', async () => {
+    const productId = 'gid://shopify/Product/262';
+    const variantId = 'gid://shopify/ProductVariant/26201';
+    const mediaOneId = 'gid://shopify/MediaImage/262001';
+    const mediaTwoId = 'gid://shopify/MediaImage/262002';
+    store.upsertBaseProducts([makeBaseProduct(productId, 'Variant Media Hat', 'variant-media-hat')]);
+    store.replaceBaseVariantsForProduct(productId, [makeBaseVariant(productId, variantId, 'Default Title', 'VMH')]);
+    store.replaceBaseMediaForProduct(productId, [
+      makeBaseImageMedia(productId, mediaOneId, 1, 'Front'),
+      makeBaseImageMedia(productId, mediaTwoId, 2, 'Side'),
+    ]);
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const appendResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation AppendVariantMedia($productId: ID!, $variantMedia: [ProductVariantAppendMediaInput!]!) { productVariantAppendMedia(productId: $productId, variantMedia: $variantMedia) { product { id } productVariants { id media(first: 10) { nodes { id alt mediaContentType } } } userErrors { field message } } }',
+        variables: {
+          productId,
+          variantMedia: [{ variantId, mediaIds: [mediaTwoId, mediaOneId] }],
+        },
+      });
+
+    expect(appendResponse.status).toBe(200);
+    expect(appendResponse.body).toEqual({
+      data: {
+        productVariantAppendMedia: {
+          product: { id: productId },
+          productVariants: [
+            {
+              id: variantId,
+              media: {
+                nodes: [
+                  { id: mediaTwoId, alt: 'Side', mediaContentType: 'IMAGE' },
+                  { id: mediaOneId, alt: 'Front', mediaContentType: 'IMAGE' },
+                ],
+              },
+            },
+          ],
+          userErrors: [],
+        },
+      },
+    });
+
+    const detachResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation DetachVariantMedia($productId: ID!, $variantMedia: [ProductVariantDetachMediaInput!]!) { productVariantDetachMedia(productId: $productId, variantMedia: $variantMedia) { productVariants { id media(first: 10) { nodes { id alt } } } userErrors { field message } } }',
+        variables: {
+          productId,
+          variantMedia: [{ variantId, mediaIds: [mediaTwoId] }],
+        },
+      });
+
+    expect(detachResponse.status).toBe(200);
+    expect(detachResponse.body).toEqual({
+      data: {
+        productVariantDetachMedia: {
+          productVariants: [
+            {
+              id: variantId,
+              media: {
+                nodes: [{ id: mediaOneId, alt: 'Front' }],
+              },
+            },
+          ],
+          userErrors: [],
+        },
+      },
+    });
+
+    const readResponse = await request(app).post('/admin/api/2026-04/graphql.json').send({
+      query:
+        'query VariantMedia($variantId: ID!) { productVariant(id: $variantId) { id media(first: 10) { nodes { id alt } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }',
+      variables: { variantId },
+    });
+
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body).toEqual({
+      data: {
+        productVariant: {
+          id: variantId,
+          media: {
+            nodes: [{ id: mediaOneId, alt: 'Front' }],
+            pageInfo: {
+              hasNextPage: false,
+              hasPreviousPage: false,
+              startCursor: `cursor:${mediaOneId}`,
+              endCursor: `cursor:${mediaOneId}`,
+            },
+          },
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('stages singular product variant create, update, and delete mutations locally via the same overlay model', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       return new Response(
