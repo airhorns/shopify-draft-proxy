@@ -1,0 +1,27 @@
+{
+  "scenarioId": "delivery-settings-read",
+  "operationNames": ["deliverySettings", "deliveryPromiseSettings"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "null-empty-behavior"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/delivery-customization-promise-settings-blockers.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/delivery-settings-query-shapes.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/delivery-settings-read.graphql"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-324 executable parity coverage for the safe read-only delivery settings branch captured against harry-test-heelo.myshopify.com on Admin GraphQL 2025-01. The same fixture records ACCESS_DENIED blockers for delivery customization and delivery promise reads; those blocked roots and all HAR-324 mutation roots remain registry-only gaps until authorized success/read-after-write captures exist.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "delivery-settings-read-data",
+        "capturePath": "$.settingsRead.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}
