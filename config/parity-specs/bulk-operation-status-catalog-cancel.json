@@ -1,6 +1,12 @@
 {
   "scenarioId": "bulk-operation-status-catalog-cancel",
-  "operationNames": ["bulkOperation", "bulkOperations", "currentBulkOperation", "bulkOperationCancel"],
+  "operationNames": [
+    "bulkOperation",
+    "bulkOperations",
+    "currentBulkOperation",
+    "bulkOperationRunQuery",
+    "bulkOperationCancel"
+  ],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "empty-state-parity", "user-errors-parity", "local-state-foundation"],
   "liveCaptureFiles": [

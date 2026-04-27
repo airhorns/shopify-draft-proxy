@@ -3,8 +3,12 @@ import type Koa from 'koa';
 import type { AppConfig } from '../config.js';
 import { createUpstreamGraphQLClient } from '../shopify/upstream-client.js';
 import { requestUpstreamGraphQL, type IncomingGraphQLRequestContext } from '../shopify/upstream-request.js';
-import { store } from '../state/store.js';
-import { isProxySyntheticGid, resetSyntheticIdentity } from '../state/synthetic-identity.js';
+import { store, type InMemoryStore } from '../state/store.js';
+import {
+  getCurrentSyntheticIdentity,
+  isProxySyntheticGid,
+  type SyntheticIdentityRegistry,
+} from '../state/synthetic-identity.js';
 import type { MutationLogEntry } from '../state/types.js';
 
 export interface CommitAttempt {
@@ -192,9 +196,9 @@ function renderMutationLogRows(entries: MutationLogEntry[]): string {
     .join('');
 }
 
-export function renderMetaWebUi(config: AppConfig): string {
-  const log = { entries: store.getLog() };
-  const state = store.getState();
+export function renderMetaWebUi(config: AppConfig, runtimeStore: InMemoryStore = store): string {
+  const log = { entries: runtimeStore.getLog() };
+  const state = runtimeStore.getState();
 
   return `<!doctype html>
 <html lang="en">
@@ -638,19 +642,22 @@ export function getMetaConfig(config: AppConfig): Record<string, unknown> {
   };
 }
 
-export function getMetaLog(): { entries: MutationLogEntry[] } {
+export function getMetaLog(runtimeStore: InMemoryStore = store): { entries: MutationLogEntry[] } {
   return {
-    entries: store.getLog(),
+    entries: runtimeStore.getLog(),
   };
 }
 
-export function getMetaState(): ReturnType<typeof store.getState> {
-  return store.getState();
+export function getMetaState(runtimeStore: InMemoryStore = store): ReturnType<typeof store.getState> {
+  return runtimeStore.getState();
 }
 
-export function resetMetaState(): MetaResetResponse {
-  store.restoreInitialState();
-  resetSyntheticIdentity();
+export function resetMetaState(
+  runtimeStore: InMemoryStore = store,
+  syntheticIdentity: SyntheticIdentityRegistry = getCurrentSyntheticIdentity(),
+): MetaResetResponse {
+  runtimeStore.restoreInitialState();
+  syntheticIdentity.reset();
   return {
     ok: true,
     message: 'state reset',
@@ -660,9 +667,10 @@ export function resetMetaState(): MetaResetResponse {
 export async function commitMetaState(
   config: AppConfig,
   requestContext: IncomingGraphQLRequestContext,
+  runtimeStore: InMemoryStore = store,
 ): Promise<MetaCommitResponse> {
   const upstream = createUpstreamGraphQLClient(config.shopifyAdminOrigin);
-  const pendingEntries = store.getLog().filter(logEntryRequiresCommit);
+  const pendingEntries = runtimeStore.getLog().filter(logEntryRequiresCommit);
   const attempts: CommitAttempt[] = [];
   const syntheticIdMap = new Map<string, string>();
   let stopIndex: number | null = null;
@@ -682,7 +690,7 @@ export async function commitMetaState(
         recordCommitIdMappings(entry, responseBody, syntheticIdMap);
       }
 
-      store.updateLogEntry(entry.id, {
+      runtimeStore.updateLogEntry(entry.id, {
         status: nextStatus,
         notes: failed
           ? 'Commit replay failed against upstream Shopify.'
@@ -707,7 +715,7 @@ export async function commitMetaState(
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      store.updateLogEntry(entry.id, {
+      runtimeStore.updateLogEntry(entry.id, {
         status: 'failed',
         notes: `Commit replay failed before an upstream response was received: ${message}`,
       });

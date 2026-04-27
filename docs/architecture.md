@@ -163,10 +163,18 @@ The runtime should use a normalized object graph rather than raw GraphQL blobs.
 Current implementation note:
 
 - Each `createDraftProxy(config)` call creates an isolated in-memory runtime
-  store and synthetic identity registry.
-- The Koa server defaults to the legacy process-wide runtime store for
-  backward-compatible tests and operator behavior, but it reaches that store
-  through the same public `DraftProxy` API.
+  store, mutation log, and synthetic identity registry. Embedded callers should
+  treat the returned `DraftProxy` object as the owner of runtime APIs such as
+  request processing, state/log inspection, reset/clear, and commit/flush.
+- Top-level store and synthetic identity helpers are compatibility delegates for
+  existing domain handlers and legacy server tests, not the public source of
+  truth for embedded instances. Public `DraftProxy` meta APIs pass their owned
+  store and identity explicitly, and GraphQL request processing installs the
+  instance runtime context before entering domain handlers.
+- The Koa server defaults to a legacy process-wide runtime instance for
+  backward-compatible tests and operator behavior, but it reaches that runtime
+  through the same public `DraftProxy` API and can mount an explicitly provided
+  isolated instance.
 - Domain handlers continue to use the shared `store` and synthetic identity
   imports; those imports delegate to the active proxy instance during request
   processing so the domain model remains centralized while embedded instances

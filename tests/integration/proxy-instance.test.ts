@@ -22,6 +22,29 @@ const productCreateBody = {
   },
 };
 
+function productCreateBodyWithTitle(title: string): typeof productCreateBody {
+  return {
+    ...productCreateBody,
+    variables: {
+      product: {
+        title,
+        status: 'DRAFT',
+      },
+    },
+  };
+}
+
+function readProductCreateId(responseBody: unknown): string {
+  const data = (responseBody as { data?: { productCreate?: { product?: { id?: unknown } } } }).data;
+  const id = data?.productCreate?.product?.id;
+
+  if (typeof id !== 'string') {
+    throw new Error('Expected productCreate.product.id in response body');
+  }
+
+  return id;
+}
+
 describe('draft proxy public instance API', () => {
   it('processes meta requests without creating a Koa app', async () => {
     const proxy = createDraftProxy(config);
@@ -49,33 +72,56 @@ describe('draft proxy public instance API', () => {
     });
   });
 
-  it('stages supported mutations and keeps instance state isolated', async () => {
+  it('keeps staged state, logs, resets, and synthetic IDs isolated by instance', async () => {
     const firstProxy = createDraftProxy(config);
     const secondProxy = createDraftProxy(config);
 
-    const createResponse = await firstProxy.processGraphQLRequest(productCreateBody, {
-      apiVersion: '2025-01',
-    });
+    const firstCreateResponse = await firstProxy.processGraphQLRequest(
+      productCreateBodyWithTitle('First Instance Hat'),
+      {
+        apiVersion: '2025-01',
+      },
+    );
 
-    expect(createResponse.status).toBe(200);
-    expect(createResponse.body).toMatchObject({
+    expect(firstCreateResponse.status).toBe(200);
+    expect(firstCreateResponse.body).toMatchObject({
       data: {
         productCreate: {
           product: {
-            title: 'Library Staged Hat',
+            title: 'First Instance Hat',
           },
           userErrors: [],
         },
       },
     });
+    const firstProductId = readProductCreateId(firstCreateResponse.body);
+
     expect(firstProxy.getLog().entries).toHaveLength(1);
     expect(secondProxy.getLog().entries).toEqual([]);
+    expect(Object.keys(firstProxy.getState().stagedState.products)).toEqual([firstProductId]);
+    expect(secondProxy.getState().stagedState.products).toEqual({});
 
-    expect(firstProxy.clear()).toEqual({
+    const secondCreateResponse = await secondProxy.processGraphQLRequest(
+      productCreateBodyWithTitle('Second Instance Hat'),
+      {
+        apiVersion: '2025-01',
+      },
+    );
+
+    expect(secondCreateResponse.status).toBe(200);
+    const secondProductId = readProductCreateId(secondCreateResponse.body);
+
+    expect(secondProductId).toBe(firstProductId);
+    expect(firstProxy.getState().stagedState.products[firstProductId]?.title).toBe('First Instance Hat');
+    expect(secondProxy.getState().stagedState.products[secondProductId]?.title).toBe('Second Instance Hat');
+
+    expect(secondProxy.clear()).toEqual({
       ok: true,
       message: 'state reset',
     });
-    expect(firstProxy.getLog().entries).toEqual([]);
+    expect(secondProxy.getLog().entries).toEqual([]);
+    expect(firstProxy.getLog().entries).toHaveLength(1);
+    expect(firstProxy.getState().stagedState.products[firstProductId]?.title).toBe('First Instance Hat');
   });
 
   it('lets the Koa app mount a provided proxy instance', async () => {

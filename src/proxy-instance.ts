@@ -4,7 +4,6 @@ import {
   getMetaConfig,
   getMetaHealth,
   getMetaLog,
-  getMetaState,
   renderMetaWebUi,
   resetMetaState,
   type MetaCommitResponse,
@@ -48,9 +47,10 @@ export interface DraftProxyOptions {
 
 export type DraftProxyConfigResponse = ReturnType<typeof getMetaConfig>;
 export type DraftProxyLogResponse = ReturnType<typeof getMetaLog>;
-export type DraftProxyStateResponse = ReturnType<typeof getMetaState>;
+export type DraftProxyStateResponse = ReturnType<InMemoryStore['getState']>;
 
 const ADMIN_GRAPHQL_ROUTE_PATTERN = /^\/admin\/api\/[^/]+\/graphql\.json$/u;
+const BULK_OPERATION_RESULT_ROUTE_PATTERN = /^\/__bulk_operations\/([^/]+)\/result\.jsonl$/u;
 
 function defaultGraphQLPath(apiVersion: string | undefined): string {
   return `/admin/api/${apiVersion ?? '2025-01'}/graphql.json`;
@@ -98,68 +98,84 @@ export class DraftProxy {
   }
 
   async processRequest(input: DraftProxyRequest): Promise<DraftProxyResponse> {
+    if (input.path === '/__meta') {
+      if (!methodIs(input, 'GET')) {
+        return methodNotAllowed();
+      }
+      return {
+        status: 200,
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+        body: renderMetaWebUi(this.config, this.runtimeStore),
+      };
+    }
+
+    if (input.path === '/__meta/health') {
+      if (!methodIs(input, 'GET')) {
+        return methodNotAllowed();
+      }
+      return { status: 200, body: this.health() };
+    }
+
+    if (input.path === '/__meta/config') {
+      if (!methodIs(input, 'GET')) {
+        return methodNotAllowed();
+      }
+      return { status: 200, body: this.getConfig() };
+    }
+
+    if (input.path === '/__meta/log') {
+      if (!methodIs(input, 'GET')) {
+        return methodNotAllowed();
+      }
+      return { status: 200, body: this.getLog() };
+    }
+
+    if (input.path === '/__meta/state') {
+      if (!methodIs(input, 'GET')) {
+        return methodNotAllowed();
+      }
+      return { status: 200, body: this.getState() };
+    }
+
+    if (input.path === '/__meta/reset') {
+      if (!methodIs(input, 'POST')) {
+        return methodNotAllowed();
+      }
+      return { status: 200, body: this.reset() };
+    }
+
+    if (input.path === '/__meta/commit') {
+      if (!methodIs(input, 'POST')) {
+        return methodNotAllowed();
+      }
+      return { status: 200, body: await this.commit(input.headers ?? {}) };
+    }
+
+    const bulkOperationResultMatch = BULK_OPERATION_RESULT_ROUTE_PATTERN.exec(input.path);
+    if (bulkOperationResultMatch) {
+      if (!methodIs(input, 'GET')) {
+        return methodNotAllowed();
+      }
+
+      const jsonl = this.runtimeStore.getEffectiveBulkOperationResultJsonl(
+        `gid://shopify/BulkOperation/${bulkOperationResultMatch[1]}`,
+      );
+
+      if (jsonl === null) {
+        return {
+          status: 404,
+          body: 'Bulk operation result not found',
+        };
+      }
+
+      return {
+        status: 200,
+        headers: { 'content-type': 'application/jsonl; charset=utf-8' },
+        body: jsonl,
+      };
+    }
+
     return this.withRuntimeContext(async () => {
-      if (input.path === '/__meta') {
-        if (!methodIs(input, 'GET')) {
-          return methodNotAllowed();
-        }
-        return {
-          status: 200,
-          headers: { 'content-type': 'text/html; charset=utf-8' },
-          body: renderMetaWebUi(this.config),
-        };
-      }
-
-      if (input.path === '/__meta/health') {
-        if (!methodIs(input, 'GET')) {
-          return methodNotAllowed();
-        }
-        return { status: 200, body: getMetaHealth() };
-      }
-
-      if (input.path === '/__meta/config') {
-        if (!methodIs(input, 'GET')) {
-          return methodNotAllowed();
-        }
-        return { status: 200, body: getMetaConfig(this.config) };
-      }
-
-      if (input.path === '/__meta/log') {
-        if (!methodIs(input, 'GET')) {
-          return methodNotAllowed();
-        }
-        return { status: 200, body: getMetaLog() };
-      }
-
-      if (input.path === '/__meta/state') {
-        if (!methodIs(input, 'GET')) {
-          return methodNotAllowed();
-        }
-        return { status: 200, body: getMetaState() };
-      }
-
-      if (input.path === '/__meta/reset') {
-        if (!methodIs(input, 'POST')) {
-          return methodNotAllowed();
-        }
-        return { status: 200, body: resetMetaState() };
-      }
-
-      if (input.path === '/__meta/commit') {
-        if (!methodIs(input, 'POST')) {
-          return methodNotAllowed();
-        }
-        return {
-          status: 200,
-          body: await commitMetaState(this.config, {
-            path: input.path,
-            request: {
-              headers: input.headers ?? {},
-            },
-          }),
-        };
-      }
-
       if (ADMIN_GRAPHQL_ROUTE_PATTERN.test(input.path)) {
         if (!methodIs(input, 'POST')) {
           return methodNotAllowed();
@@ -201,19 +217,19 @@ export class DraftProxy {
   }
 
   getConfig(): DraftProxyConfigResponse {
-    return this.withRuntimeContext(() => getMetaConfig(this.config));
+    return getMetaConfig(this.config);
   }
 
   getLog(): DraftProxyLogResponse {
-    return this.withRuntimeContext(() => getMetaLog());
+    return getMetaLog(this.runtimeStore);
   }
 
   getState(): DraftProxyStateResponse {
-    return this.withRuntimeContext(() => getMetaState());
+    return this.runtimeStore.getState();
   }
 
   reset(): MetaResetResponse {
-    return this.withRuntimeContext(() => resetMetaState());
+    return resetMetaState(this.runtimeStore, this.syntheticIdentity);
   }
 
   clear(): MetaResetResponse {
@@ -221,11 +237,13 @@ export class DraftProxy {
   }
 
   commit(headers: Record<string, DraftProxyHeaderValue> = {}): Promise<MetaCommitResponse> {
-    return this.withRuntimeContext(() =>
-      commitMetaState(this.config, {
+    return commitMetaState(
+      this.config,
+      {
         path: '/__meta/commit',
         request: { headers },
-      }),
+      },
+      this.runtimeStore,
     );
   }
 
