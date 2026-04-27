@@ -26,7 +26,6 @@ const paymentTermsSelection = `
       dueAt
       issuedAt
       completedAt
-      completed
       due
       amount {
         amount
@@ -125,10 +124,9 @@ describe('payment terms lifecycle staging', () => {
         nodes: [
           {
             id: expect.stringMatching(/^gid:\/\/shopify\/PaymentSchedule\/\d+$/),
-            dueAt: null,
+            dueAt: '2026-05-27T12:00:00Z',
             issuedAt: '2026-04-27T12:00:00Z',
             completedAt: null,
-            completed: false,
             due: false,
             amount: { amount: '18.5', currencyCode: 'CAD' },
             balanceDue: { amount: '18.5', currencyCode: 'CAD' },
@@ -194,11 +192,14 @@ describe('payment terms lifecycle staging', () => {
     });
     expect(updateResponse.body.data.paymentTermsUpdate.paymentTerms.paymentSchedules.nodes).toEqual([
       expect.objectContaining({
-        id: paymentScheduleId,
+        id: expect.stringMatching(/^gid:\/\/shopify\/PaymentSchedule\/\d+$/),
         dueAt: '2026-05-27T12:00:00Z',
         issuedAt: null,
       }),
     ]);
+    expect(updateResponse.body.data.paymentTermsUpdate.paymentTerms.paymentSchedules.nodes[0].id).not.toBe(
+      paymentScheduleId,
+    );
 
     const deleteMutation = `mutation PaymentTermsDelete($input: PaymentTermsDeleteInput!) {
       paymentTermsDelete(input: $input) {

@@ -144,6 +144,21 @@ function readBooleanValue(raw: unknown, fallback: boolean): boolean {
   return typeof raw === 'boolean' ? raw : fallback;
 }
 
+function addDaysTimestamp(rawTimestamp: string | null, days: number | null | undefined): string | null {
+  if (!rawTimestamp || typeof days !== 'number') {
+    return rawTimestamp ? null : null;
+  }
+
+  const timestamp = Date.parse(rawTimestamp);
+  if (!Number.isFinite(timestamp)) {
+    return null;
+  }
+
+  const nextTimestamp = new Date(timestamp);
+  nextTimestamp.setUTCDate(nextTimestamp.getUTCDate() + days);
+  return nextTimestamp.toISOString().replace('.000Z', 'Z');
+}
+
 function validationPath(prefix: string[], suffix: string[]): string[] {
   return [...prefix, ...suffix];
 }
@@ -224,20 +239,26 @@ function buildPaymentTermsFromAttributes(
   const input = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
   const template = store.getEffectivePaymentTermsTemplateById(paymentTermsTemplateId);
   const schedules = Array.isArray(input['paymentSchedules']) ? input['paymentSchedules'] : [];
-  const existingSchedules = existing?.paymentSchedules ?? [];
   const normalizedSchedules = schedules
     .filter((schedule): schedule is Record<string, unknown> => typeof schedule === 'object' && schedule !== null)
-    .map((schedule, index) => ({
-      id: existingSchedules[index]?.id ?? makeSyntheticGid('PaymentSchedule'),
-      dueAt: readString(schedule['dueAt']),
-      issuedAt: readString(schedule['issuedAt']),
-      completedAt: readString(schedule['completedAt']),
-      completed: readBooleanValue(schedule['completed'], existingSchedules[index]?.completed ?? false),
-      due: typeof schedule['due'] === 'boolean' ? schedule['due'] : (existingSchedules[index]?.due ?? false),
-      amount: normalizePaymentScheduleAmount(amountSet),
-      balanceDue: normalizePaymentScheduleAmount(amountSet),
-      totalBalance: normalizePaymentScheduleAmount(amountSet),
-    }));
+    .map((schedule) => {
+      const issuedAt = readString(schedule['issuedAt']);
+      const dueAt =
+        readString(schedule['dueAt']) ??
+        (template?.paymentTermsType === 'NET' ? addDaysTimestamp(issuedAt, template.dueInDays) : null);
+
+      return {
+        id: makeSyntheticGid('PaymentSchedule'),
+        dueAt,
+        issuedAt,
+        completedAt: readString(schedule['completedAt']),
+        completed: readBooleanValue(schedule['completed'], false),
+        due: typeof schedule['due'] === 'boolean' ? schedule['due'] : false,
+        amount: normalizePaymentScheduleAmount(amountSet),
+        balanceDue: normalizePaymentScheduleAmount(amountSet),
+        totalBalance: normalizePaymentScheduleAmount(amountSet),
+      };
+    });
 
   return {
     id: existing?.id ?? makeSyntheticGid('PaymentTerms'),
