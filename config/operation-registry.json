@@ -990,6 +990,56 @@
     "supportNotes": "Snapshot-mode payment customization catalog reads are modeled from normalized state with empty/no-data connections, cursor pagination, reverse ordering, and captured-safe enabled/function_id/id filters. No lifecycle mutations are supported."
   },
   {
+    "name": "validation",
+    "type": "query",
+    "domain": "functions",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["validation", "Validation"],
+    "runtimeTests": ["tests/integration/functions-flow.test.ts"],
+    "supportNotes": "Function validation detail reads are modeled from normalized metadata state. Function references expose stored ShopifyFunction metadata only; external Shopify Function code is never executed locally."
+  },
+  {
+    "name": "validations",
+    "type": "query",
+    "domain": "functions",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["validations", "Validations"],
+    "runtimeTests": ["tests/integration/functions-flow.test.ts"],
+    "supportNotes": "Function validation catalog reads serialize normalized local metadata with Shopify-like empty/no-data connections and cursor pagination."
+  },
+  {
+    "name": "cartTransforms",
+    "type": "query",
+    "domain": "functions",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["cartTransforms", "CartTransforms"],
+    "runtimeTests": ["tests/integration/functions-flow.test.ts"],
+    "supportNotes": "Cart transform catalog reads serialize normalized local metadata with Shopify-like empty/no-data connections and cursor pagination. Checkout cart transform execution is intentionally not modeled."
+  },
+  {
+    "name": "shopifyFunction",
+    "type": "query",
+    "domain": "functions",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["shopifyFunction", "ShopifyFunction"],
+    "runtimeTests": ["tests/integration/functions-flow.test.ts"],
+    "supportNotes": "Shopify Function detail reads expose metadata recorded from function-backed local configuration inputs. The proxy does not execute Function WASM or call extension runtimes."
+  },
+  {
+    "name": "shopifyFunctions",
+    "type": "query",
+    "domain": "functions",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["shopifyFunctions", "ShopifyFunctions"],
+    "runtimeTests": ["tests/integration/functions-flow.test.ts"],
+    "supportNotes": "Shopify Function catalog reads expose locally recorded validation/cart-transform function metadata and optional apiType filtering. The proxy does not discover or execute external Function code."
+  },
+  {
     "name": "paymentTermsTemplates",
     "type": "query",
     "domain": "payments",
@@ -3310,6 +3360,66 @@
     "matchNames": ["paymentCustomizationUpdate", "PaymentCustomizationUpdate"],
     "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
     "supportNotes": "Payment customization update stages local scalar/metafield changes over normalized records, including current functionHandle and deprecated functionId identifier changes. Unknown ids and captured Function/metafield validation branches return Shopify-like PaymentCustomizationError payloads without proxying runtime writes upstream."
+  },
+  {
+    "name": "validationCreate",
+    "type": "mutation",
+    "domain": "functions",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["validationCreate", "ValidationCreate"],
+    "runtimeTests": ["tests/integration/functions-flow.test.ts"],
+    "supportNotes": "Validation create stages normalized Function validation metadata locally, records the function handle/id as ShopifyFunction metadata, and exposes downstream validation(s)/shopifyFunction(s) reads without executing external Function code or writing to Shopify at runtime."
+  },
+  {
+    "name": "validationUpdate",
+    "type": "mutation",
+    "domain": "functions",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["validationUpdate", "ValidationUpdate"],
+    "runtimeTests": ["tests/integration/functions-flow.test.ts"],
+    "supportNotes": "Validation update stages scalar metadata changes locally over normalized validation records and refreshes downstream validation(s)/shopifyFunction(s) reads without executing external Function code."
+  },
+  {
+    "name": "validationDelete",
+    "type": "mutation",
+    "domain": "functions",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["validationDelete", "ValidationDelete"],
+    "runtimeTests": ["tests/integration/functions-flow.test.ts"],
+    "supportNotes": "Validation delete marks normalized validation metadata deleted locally. Downstream validation detail/catalog reads return null/empty structures while original raw mutations remain in the meta log for commit replay."
+  },
+  {
+    "name": "cartTransformCreate",
+    "type": "mutation",
+    "domain": "functions",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["cartTransformCreate", "CartTransformCreate"],
+    "runtimeTests": ["tests/integration/functions-flow.test.ts"],
+    "supportNotes": "Cart transform create stages normalized metadata locally, records the function handle/id as ShopifyFunction metadata, and updates downstream cartTransforms/shopifyFunction(s) reads. Checkout cart transform execution is intentionally not modeled."
+  },
+  {
+    "name": "cartTransformDelete",
+    "type": "mutation",
+    "domain": "functions",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["cartTransformDelete", "CartTransformDelete"],
+    "runtimeTests": ["tests/integration/functions-flow.test.ts"],
+    "supportNotes": "Cart transform delete marks normalized cart transform metadata deleted locally and updates downstream cartTransforms reads without executing or deregistering external Function code at runtime."
+  },
+  {
+    "name": "taxAppConfigure",
+    "type": "mutation",
+    "domain": "functions",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["taxAppConfigure", "TaxAppConfigure"],
+    "runtimeTests": ["tests/integration/functions-flow.test.ts"],
+    "supportNotes": "Tax app configure stores local readiness metadata only. It does not invoke tax calculation callbacks, validate tax app installation authority, or execute external tax logic during proxy runtime."
   },
   {
     "name": "paymentReminderSend",

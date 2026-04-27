@@ -1,0 +1,17 @@
+mutation UpdateFunctionValidation($id: ID!, $validation: ValidationUpdateInput!) {
+  validationUpdate(id: $id, validation: $validation) {
+    validation {
+      id
+      title
+      enable
+      blockOnFailure
+      functionHandle
+      updatedAt
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

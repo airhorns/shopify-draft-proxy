@@ -9,6 +9,7 @@ import type {
   BusinessEntityRecord,
   CalculatedOrderRecord,
   CarrierServiceRecord,
+  CartTransformRecord,
   ChannelRecord,
   CatalogRecord,
   CollectionRecord,
@@ -57,9 +58,12 @@ import type {
   PublicationRecord,
   SegmentRecord,
   ShopRecord,
+  ShopifyFunctionRecord,
   ShopLocaleRecord,
   StateSnapshot,
+  TaxAppConfigurationRecord,
   TranslationRecord,
+  ValidationRecord,
   WebhookSubscriptionRecord,
   WebPresenceRecord,
 } from './types.js';
@@ -125,6 +129,13 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   discountBulkOperations: {},
   paymentCustomizations: {},
   paymentCustomizationOrder: [],
+  shopifyFunctions: {},
+  shopifyFunctionOrder: [],
+  validations: {},
+  validationOrder: [],
+  cartTransforms: {},
+  cartTransformOrder: [],
+  taxAppConfiguration: null,
   businessEntities: {},
   businessEntityOrder: [],
   b2bCompanies: {},
@@ -180,6 +191,8 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedOnlineStoreCommentIds: {},
   deletedDiscountIds: {},
   deletedPaymentCustomizationIds: {},
+  deletedValidationIds: {},
+  deletedCartTransformIds: {},
   deletedMarketIds: {},
   deletedCatalogIds: {},
   deletedPriceListIds: {},
@@ -1310,6 +1323,131 @@ export class InMemoryStore {
   deleteStagedPaymentCustomization(paymentCustomizationId: string): void {
     delete this.stagedState.paymentCustomizations[paymentCustomizationId];
     this.stagedState.deletedPaymentCustomizationIds[paymentCustomizationId] = true;
+  }
+
+  upsertStagedShopifyFunction(shopifyFunction: ShopifyFunctionRecord): void {
+    this.stagedState.shopifyFunctions[shopifyFunction.id] = structuredClone(shopifyFunction);
+    if (
+      !this.baseState.shopifyFunctionOrder.includes(shopifyFunction.id) &&
+      !this.stagedState.shopifyFunctionOrder.includes(shopifyFunction.id)
+    ) {
+      this.stagedState.shopifyFunctionOrder.push(shopifyFunction.id);
+    }
+  }
+
+  getEffectiveShopifyFunctionById(shopifyFunctionId: string): ShopifyFunctionRecord | null {
+    const shopifyFunction =
+      this.stagedState.shopifyFunctions[shopifyFunctionId] ??
+      this.baseState.shopifyFunctions[shopifyFunctionId] ??
+      null;
+    return shopifyFunction ? structuredClone(shopifyFunction) : null;
+  }
+
+  listEffectiveShopifyFunctions(): ShopifyFunctionRecord[] {
+    const orderedIds = new Set([...this.baseState.shopifyFunctionOrder, ...this.stagedState.shopifyFunctionOrder]);
+    const orderedFunctions = Array.from(orderedIds)
+      .map((id) => this.getEffectiveShopifyFunctionById(id))
+      .filter((shopifyFunction): shopifyFunction is ShopifyFunctionRecord => shopifyFunction !== null);
+    const unorderedFunctions = Object.values({
+      ...this.baseState.shopifyFunctions,
+      ...this.stagedState.shopifyFunctions,
+    })
+      .filter((shopifyFunction) => !orderedIds.has(shopifyFunction.id))
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
+
+    return structuredClone([...orderedFunctions, ...unorderedFunctions]);
+  }
+
+  upsertStagedValidation(validation: ValidationRecord): void {
+    delete this.stagedState.deletedValidationIds[validation.id];
+    this.stagedState.validations[validation.id] = structuredClone(validation);
+    if (
+      !this.baseState.validationOrder.includes(validation.id) &&
+      !this.stagedState.validationOrder.includes(validation.id)
+    ) {
+      this.stagedState.validationOrder.push(validation.id);
+    }
+  }
+
+  deleteStagedValidation(validationId: string): void {
+    delete this.stagedState.validations[validationId];
+    this.stagedState.deletedValidationIds[validationId] = true;
+  }
+
+  getEffectiveValidationById(validationId: string): ValidationRecord | null {
+    if (this.stagedState.deletedValidationIds[validationId]) {
+      return null;
+    }
+
+    const validation = this.stagedState.validations[validationId] ?? this.baseState.validations[validationId] ?? null;
+    return validation ? structuredClone(validation) : null;
+  }
+
+  listEffectiveValidations(): ValidationRecord[] {
+    const orderedIds = new Set([...this.baseState.validationOrder, ...this.stagedState.validationOrder]);
+    const orderedValidations = Array.from(orderedIds)
+      .map((id) => this.getEffectiveValidationById(id))
+      .filter((validation): validation is ValidationRecord => validation !== null);
+    const unorderedValidations = Object.values({
+      ...this.baseState.validations,
+      ...this.stagedState.validations,
+    })
+      .filter((validation) => !orderedIds.has(validation.id))
+      .filter((validation) => !this.stagedState.deletedValidationIds[validation.id])
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
+
+    return structuredClone([...orderedValidations, ...unorderedValidations]);
+  }
+
+  upsertStagedCartTransform(cartTransform: CartTransformRecord): void {
+    delete this.stagedState.deletedCartTransformIds[cartTransform.id];
+    this.stagedState.cartTransforms[cartTransform.id] = structuredClone(cartTransform);
+    if (
+      !this.baseState.cartTransformOrder.includes(cartTransform.id) &&
+      !this.stagedState.cartTransformOrder.includes(cartTransform.id)
+    ) {
+      this.stagedState.cartTransformOrder.push(cartTransform.id);
+    }
+  }
+
+  deleteStagedCartTransform(cartTransformId: string): void {
+    delete this.stagedState.cartTransforms[cartTransformId];
+    this.stagedState.deletedCartTransformIds[cartTransformId] = true;
+  }
+
+  getEffectiveCartTransformById(cartTransformId: string): CartTransformRecord | null {
+    if (this.stagedState.deletedCartTransformIds[cartTransformId]) {
+      return null;
+    }
+
+    const cartTransform =
+      this.stagedState.cartTransforms[cartTransformId] ?? this.baseState.cartTransforms[cartTransformId] ?? null;
+    return cartTransform ? structuredClone(cartTransform) : null;
+  }
+
+  listEffectiveCartTransforms(): CartTransformRecord[] {
+    const orderedIds = new Set([...this.baseState.cartTransformOrder, ...this.stagedState.cartTransformOrder]);
+    const orderedCartTransforms = Array.from(orderedIds)
+      .map((id) => this.getEffectiveCartTransformById(id))
+      .filter((cartTransform): cartTransform is CartTransformRecord => cartTransform !== null);
+    const unorderedCartTransforms = Object.values({
+      ...this.baseState.cartTransforms,
+      ...this.stagedState.cartTransforms,
+    })
+      .filter((cartTransform) => !orderedIds.has(cartTransform.id))
+      .filter((cartTransform) => !this.stagedState.deletedCartTransformIds[cartTransform.id])
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
+
+    return structuredClone([...orderedCartTransforms, ...unorderedCartTransforms]);
+  }
+
+  setStagedTaxAppConfiguration(configuration: TaxAppConfigurationRecord): void {
+    this.stagedState.taxAppConfiguration = structuredClone(configuration);
+  }
+
+  getEffectiveTaxAppConfiguration(): TaxAppConfigurationRecord | null {
+    const configuration = this.stagedState.taxAppConfiguration ?? this.baseState.taxAppConfiguration ?? null;
+    return configuration ? structuredClone(configuration) : null;
   }
 
   upsertBaseBusinessEntities(businessEntities: BusinessEntityRecord[]): void {
@@ -3589,6 +3727,21 @@ export class InMemoryStore {
       Object.keys(this.baseState.paymentCustomizations).length > 0 ||
       Object.keys(this.stagedState.paymentCustomizations).length > 0 ||
       Object.keys(this.stagedState.deletedPaymentCustomizationIds).length > 0
+    );
+  }
+
+  hasFunctionMetadata(): boolean {
+    return (
+      Object.keys(this.baseState.shopifyFunctions).length > 0 ||
+      Object.keys(this.stagedState.shopifyFunctions).length > 0 ||
+      Object.keys(this.baseState.validations).length > 0 ||
+      Object.keys(this.stagedState.validations).length > 0 ||
+      Object.keys(this.stagedState.deletedValidationIds).length > 0 ||
+      Object.keys(this.baseState.cartTransforms).length > 0 ||
+      Object.keys(this.stagedState.cartTransforms).length > 0 ||
+      Object.keys(this.stagedState.deletedCartTransformIds).length > 0 ||
+      this.baseState.taxAppConfiguration !== null ||
+      this.stagedState.taxAppConfiguration !== null
     );
   }
 
