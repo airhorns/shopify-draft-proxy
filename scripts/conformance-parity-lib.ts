@@ -34,6 +34,8 @@ import { handleB2BQuery } from '../src/proxy/b2b.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from '../src/proxy/delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from '../src/proxy/discounts.js';
 import { handleEventsQuery } from '../src/proxy/events.js';
+import { handleFunctionMutation, handleFunctionQuery } from '../src/proxy/functions.js';
+import { handleGiftCardMutation, handleGiftCardQuery } from '../src/proxy/gift-cards.js';
 import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
 import {
   handleMarketingMutation,
@@ -95,6 +97,8 @@ import type {
   DraftOrderLineItemRecord,
   DraftOrderRecord,
   DraftOrderShippingLineRecord,
+  GiftCardConfigurationRecord,
+  GiftCardRecord,
   InventoryLevelRecord,
   LocaleRecord,
   LocationRecord,
@@ -110,6 +114,8 @@ import type {
   OrderShippingLineRecord,
   ProductCollectionRecord,
   MetafieldDefinitionRecord,
+  ChannelRecord,
+  PublicationRecord,
   ProductMetafieldRecord,
   ProductMediaRecord,
   ProductOptionRecord,
@@ -119,6 +125,8 @@ import type {
   ShopRecord,
   ShopLocaleRecord,
   DiscountRecord,
+  StoreCreditAccountRecord,
+  MoneyV2Record,
 } from '../src/state/types.js';
 
 function interpretMutationLogEntry(
@@ -872,6 +880,44 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'stage-locally' && capability.domain === 'gift-cards') {
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2025-01/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: handleGiftCardMutation(document, variables),
+    };
+  }
+
+  if (capability.execution === 'stage-locally' && capability.domain === 'functions') {
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2026-04/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: handleFunctionMutation(document, variables),
+    };
+  }
+
   if (capability.execution === 'stage-locally' && capability.domain === 'privacy') {
     store.appendLog({
       id: makeSyntheticGid('MutationLogEntry'),
@@ -1188,6 +1234,20 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'overlay-read' && capability.domain === 'gift-cards') {
+    return {
+      status: 200,
+      body: handleGiftCardQuery(document, variables),
+    };
+  }
+
+  if (capability.execution === 'overlay-read' && capability.domain === 'functions') {
+    return {
+      status: 200,
+      body: handleFunctionQuery(document, variables),
+    };
+  }
+
   if (capability.execution === 'overlay-read' && capability.domain === 'orders') {
     const upstreamPayloadIsResponseEnvelope =
       isPlainObject(upstreamPayload) && ('data' in upstreamPayload || 'errors' in upstreamPayload);
@@ -1362,7 +1422,9 @@ function hasStagedState(): boolean {
     Object.keys(stagedState.deletedDiscountIds).length > 0 ||
     Object.keys(stagedState.orders).length > 0 ||
     Object.keys(stagedState.draftOrders).length > 0 ||
-    Object.keys(stagedState.calculatedOrders).length > 0
+    Object.keys(stagedState.calculatedOrders).length > 0 ||
+    Object.keys(stagedState.giftCards).length > 0 ||
+    Object.keys(stagedState.deletedGiftCardIds).length > 0
   );
 }
 
@@ -1432,6 +1494,114 @@ function readArrayField(value: Record<string, unknown> | null | undefined, key: 
 function readNullableStringField(value: Record<string, unknown> | null | undefined, key: string): string | null {
   const fieldValue = value?.[key];
   return typeof fieldValue === 'string' ? fieldValue : null;
+}
+
+function giftCardTail(id: string): string {
+  return id.split('/').at(-1)?.split('?')[0] ?? id;
+}
+
+function readMoneyRecord(value: Record<string, unknown> | null | undefined): MoneyV2Record {
+  return {
+    amount: readStringField(value, 'amount') ?? '0.0',
+    currencyCode: readStringField(value, 'currencyCode') ?? 'CAD',
+  };
+}
+
+function makeSeedGiftCard(source: Record<string, unknown>): GiftCardRecord | null {
+  const id = readStringField(source, 'id');
+  if (!id?.startsWith('gid://shopify/GiftCard/')) {
+    return null;
+  }
+
+  const lastCharacters = readStringField(source, 'lastCharacters') ?? giftCardTail(id).slice(-4).padStart(4, '0');
+  const initialValue = readMoneyRecord(readRecordField(source, 'initialValue'));
+  const balance = readMoneyRecord(readRecordField(source, 'balance') ?? readRecordField(source, 'initialValue'));
+  const transactionNodes = readArrayField(readRecordField(source, 'transactions'), 'nodes').filter(isPlainObject);
+
+  return {
+    id,
+    legacyResourceId: readNullableStringField(source, 'legacyResourceId') ?? giftCardTail(id),
+    lastCharacters,
+    maskedCode: readStringField(source, 'maskedCode') ?? `**** **** **** ${lastCharacters}`,
+    enabled: readBooleanField(source, 'enabled') ?? true,
+    deactivatedAt: readNullableStringField(source, 'deactivatedAt'),
+    expiresOn: readNullableStringField(source, 'expiresOn'),
+    note: readNullableStringField(source, 'note'),
+    templateSuffix: readNullableStringField(source, 'templateSuffix'),
+    createdAt: readStringField(source, 'createdAt') ?? '2026-01-01T00:00:00Z',
+    updatedAt: readStringField(source, 'updatedAt') ?? '2026-01-01T00:00:00Z',
+    initialValue,
+    balance,
+    customerId: readNullableStringField(readRecordField(source, 'customer'), 'id'),
+    recipientId: readNullableStringField(readRecordField(source, 'recipient'), 'id'),
+    transactions: transactionNodes.map((transaction) => {
+      const amount = readMoneyRecord(readRecordField(transaction, 'amount'));
+      return {
+        id: readStringField(transaction, 'id') ?? makeSyntheticGid('GiftCardTransaction'),
+        kind: (amount.amount ?? '0.0').startsWith('-') ? ('DEBIT' as const) : ('CREDIT' as const),
+        amount,
+        processedAt: readStringField(transaction, 'processedAt') ?? '2026-01-01T00:00:00Z',
+        note: readNullableStringField(transaction, 'note'),
+      };
+    }),
+  };
+}
+
+function makeSeedGiftCardConfiguration(
+  source: Record<string, unknown> | null | undefined,
+): GiftCardConfigurationRecord | null {
+  if (!source) {
+    return null;
+  }
+
+  return {
+    issueLimit: readMoneyRecord(readRecordField(source, 'issueLimit')),
+    purchaseLimit: readMoneyRecord(readRecordField(source, 'purchaseLimit')),
+  };
+}
+
+function seedGiftCardLifecyclePreconditions(capture: unknown): boolean {
+  const recordsById = new Map<string, GiftCardRecord>();
+  const addGiftCard = (source: unknown): void => {
+    if (!isPlainObject(source)) {
+      return;
+    }
+    const record = makeSeedGiftCard(source);
+    if (record) {
+      recordsById.set(record.id, record);
+    }
+  };
+
+  addGiftCard(readJsonPath(capture, '$.operations.create.response.payload.data.giftCardCreate.giftCard'));
+  addGiftCard(readJsonPath(capture, '$.create.response.payload.data.giftCardCreate.giftCard'));
+
+  const emptyReadNodes = readJsonPath(capture, '$.operations.emptyRead.response.payload.data.giftCards.nodes');
+  for (const node of (Array.isArray(emptyReadNodes) ? emptyReadNodes : []).filter(isPlainObject)) {
+    addGiftCard(node);
+  }
+
+  const configuration =
+    makeSeedGiftCardConfiguration(
+      readJsonPath(capture, '$.operations.configurationRead.response.payload.data.giftCardConfiguration') as Record<
+        string,
+        unknown
+      > | null,
+    ) ??
+    makeSeedGiftCardConfiguration(
+      readJsonPath(capture, '$.configurationRead.response.payload.data.giftCardConfiguration') as Record<
+        string,
+        unknown
+      > | null,
+    );
+
+  if (recordsById.size > 0) {
+    store.upsertBaseGiftCards([...recordsById.values()]);
+  }
+  if (configuration) {
+    store.upsertBaseGiftCardConfiguration(configuration);
+  }
+
+  return recordsById.size > 0 || configuration !== null;
 }
 
 function readStringArrayField(value: Record<string, unknown> | null | undefined, key: string): string[] {
@@ -1952,6 +2122,8 @@ function seedCustomerMutationPreconditions(
     mutationName !== 'customerEmailMarketingConsentUpdate' &&
     mutationName !== 'customerSmsMarketingConsentUpdate' &&
     mutationName !== 'dataSaleOptOut' &&
+    mutationName !== 'customerRequestDataErasure' &&
+    mutationName !== 'customerCancelDataErasure' &&
     mutationName !== 'customerAddTaxExemptions' &&
     mutationName !== 'customerRemoveTaxExemptions' &&
     mutationName !== 'customerReplaceTaxExemptions'
@@ -1961,13 +2133,16 @@ function seedCustomerMutationPreconditions(
 
   const input = readRecordField(variables, 'input');
   const customerPayload = readRecordField(payload, 'customer');
-  const preconditionPayload = firstObjectValue(readJsonPath(capture, '$.precondition.response.data'));
+  const preconditionPayload =
+    firstObjectValue(readJsonPath(capture, '$.precondition.response.data')) ??
+    readCustomerCreatePayloadFromCapture(capture as Record<string, unknown>, 'customerCreate');
   const preconditionCustomerPayload = readRecordField(preconditionPayload, 'customer');
   const downstreamRead = readRecordField(capture as Record<string, unknown>, 'downstreamRead');
   const downstreamData =
     readRecordField(downstreamRead, 'data') ?? readRecordField(readRecordField(downstreamRead, 'response'), 'data');
   const downstreamCount = readNumberField(readRecordField(downstreamData, 'customersCount'), 'count');
   const targetCustomerId =
+    readStringField(variables, 'customerId') ??
     readStringField(input, 'id') ??
     readStringField(input, 'customerId') ??
     readStringField(customerPayload, 'id') ??
@@ -1997,6 +2172,66 @@ function seedCustomerMutationPreconditions(
   if (seedCustomers.length > 0) {
     store.upsertBaseCustomers(seedCustomers);
   }
+
+  return true;
+}
+
+function readStoreCreditMoney(
+  value: Record<string, unknown> | null | undefined,
+): StoreCreditAccountRecord['balance'] | null {
+  const amount = readStringField(value, 'amount');
+  const currencyCode = readStringField(value, 'currencyCode');
+  if (!amount || !currencyCode) {
+    return null;
+  }
+
+  return {
+    amount,
+    currencyCode,
+  };
+}
+
+function seedStoreCreditAccountPreconditions(capture: unknown): boolean {
+  if (!isPlainObject(capture)) {
+    return false;
+  }
+
+  const setupCreditPayload = readRecordField(
+    readRecordField(readRecordField(readRecordField(capture, 'setup'), 'createAccountCredit'), 'response'),
+    'data',
+  );
+  const setupTransaction = readRecordField(
+    readRecordField(setupCreditPayload, 'storeCreditAccountCredit'),
+    'storeCreditAccountTransaction',
+  );
+  const accountPayload = readRecordField(setupTransaction, 'account');
+  const accountId = readStringField(accountPayload, 'id');
+  const createdCustomerPayload = readRecordField(
+    readRecordField(
+      readRecordField(readRecordField(readRecordField(capture, 'setup'), 'createCustomer'), 'response'),
+      'data',
+    ),
+    'customerCreate',
+  );
+  const createdCustomer = readRecordField(createdCustomerPayload, 'customer');
+  const customerId =
+    readStringField(readRecordField(accountPayload, 'owner'), 'id') ?? readStringField(createdCustomer, 'id');
+  const balance = readStoreCreditMoney(readRecordField(accountPayload, 'balance'));
+
+  if (!accountId || !customerId || !balance) {
+    return false;
+  }
+
+  const customerPayload = createdCustomer ?? readRecordField(accountPayload, 'owner');
+  store.upsertBaseCustomers([makeSeedCustomer(customerId, customerPayload)]);
+  store.upsertBaseStoreCreditAccounts([
+    {
+      id: accountId,
+      customerId,
+      cursor: null,
+      balance,
+    },
+  ]);
 
   return true;
 }
@@ -4522,6 +4757,38 @@ function makeSeedCollection(collectionId: string, source: Record<string, unknown
   };
 }
 
+function readSeedPublication(source: Record<string, unknown>): PublicationRecord | null {
+  const id = readStringField(source, 'id');
+  if (!id?.startsWith('gid://shopify/Publication/')) {
+    return null;
+  }
+
+  return {
+    id,
+    name: readStringField(source, 'name'),
+    autoPublish: readBooleanField(source, 'autoPublish') ?? undefined,
+    supportsFuturePublishing: readBooleanField(source, 'supportsFuturePublishing') ?? undefined,
+    catalogId: readStringField(source, 'catalogId') ?? undefined,
+    channelId: readStringField(source, 'channelId') ?? undefined,
+    cursor: readStringField(source, 'cursor') ?? undefined,
+  };
+}
+
+function readSeedChannel(source: Record<string, unknown>): ChannelRecord | null {
+  const id = readStringField(source, 'id');
+  if (!id?.startsWith('gid://shopify/Channel/')) {
+    return null;
+  }
+
+  return {
+    id,
+    name: readStringField(source, 'name'),
+    handle: readStringField(source, 'handle') ?? undefined,
+    publicationId: readStringField(source, 'publicationId') ?? undefined,
+    cursor: readStringField(source, 'cursor') ?? undefined,
+  };
+}
+
 function seedProductOptionState(productId: string, variables: Record<string, unknown>, capture?: unknown): void {
   const preMutationProduct = capture === undefined ? null : readPreMutationProduct(capture, productId);
   if (preMutationProduct) {
@@ -5830,6 +6097,27 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       store.replaceBaseVariantsForProduct(productId, variants);
     }
   }
+  const seedCollections = readArrayField(capture as Record<string, unknown>, 'seedCollections').filter(isPlainObject);
+  for (const seedCollection of seedCollections) {
+    const collectionId = readStringField(seedCollection, 'id');
+    if (collectionId?.startsWith('gid://shopify/Collection/')) {
+      store.upsertBaseCollections([makeSeedCollection(collectionId, seedCollection)]);
+    }
+  }
+  const seedPublications = readArrayField(capture as Record<string, unknown>, 'seedPublications')
+    .filter(isPlainObject)
+    .map(readSeedPublication)
+    .filter((publication): publication is PublicationRecord => publication !== null);
+  if (seedPublications.length > 0) {
+    store.upsertBasePublications(seedPublications);
+  }
+  const seedChannels = readArrayField(capture as Record<string, unknown>, 'seedChannels')
+    .filter(isPlainObject)
+    .map(readSeedChannel)
+    .filter((channel): channel is ChannelRecord => channel !== null);
+  if (seedChannels.length > 0) {
+    store.upsertBaseChannels(seedChannels);
+  }
   seedExplicitProductMediaPreconditions(capture);
   seedLocalizationPreconditions(capture);
 
@@ -5843,6 +6131,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   }
 
   if (seedInventoryQuantityRootPreconditions(capture)) {
+    return;
+  }
+
+  if (seedGiftCardLifecyclePreconditions(capture)) {
     return;
   }
 
@@ -5877,6 +6169,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   }
 
   if (seedCustomerInputValidationPreconditions(capture)) {
+    return;
+  }
+
+  if (seedStoreCreditAccountPreconditions(capture)) {
     return;
   }
 

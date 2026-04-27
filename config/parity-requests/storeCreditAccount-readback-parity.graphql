@@ -1,0 +1,33 @@
+query StoreCreditAccountReadbackParity($customerId: ID!, $accountId: ID!) {
+  customer(id: $customerId) {
+    id
+    email
+    displayName
+    storeCreditAccounts(first: 5) {
+      nodes {
+        id
+        balance {
+          amount
+          currencyCode
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+  }
+  storeCreditAccount(id: $accountId) {
+    id
+    balance {
+      amount
+      currencyCode
+    }
+    owner {
+      ... on Customer {
+        id
+        email
+      }
+    }
+  }
+}

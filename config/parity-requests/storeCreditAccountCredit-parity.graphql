@@ -1,0 +1,34 @@
+mutation StoreCreditAccountCreditParity($id: ID!, $creditInput: StoreCreditAccountCreditInput!) {
+  storeCreditAccountCredit(id: $id, creditInput: $creditInput) {
+    storeCreditAccountTransaction {
+      amount {
+        amount
+        currencyCode
+      }
+      balanceAfterTransaction {
+        amount
+        currencyCode
+      }
+      event
+      origin
+      account {
+        id
+        balance {
+          amount
+          currencyCode
+        }
+        owner {
+          ... on Customer {
+            id
+            email
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

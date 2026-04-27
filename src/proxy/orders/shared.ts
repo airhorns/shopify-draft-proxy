@@ -14,6 +14,7 @@ import type {
   DraftOrderRecord,
   DraftOrderShippingLineRecord,
   MoneyV2Record,
+  PaymentScheduleRecord,
   OrderCustomerRecord,
   OrderDiscountApplicationRecord,
   OrderLineItemRecord,
@@ -329,28 +330,52 @@ function buildDraftOrderCustomerFromInput(inputRecord: Record<string, unknown>):
   };
 }
 
-function normalizeDraftOrderPaymentTerms(raw: unknown): DraftOrderPaymentTermsRecord | null {
+function normalizePaymentScheduleAmount(
+  amountSet: { shopMoney: MoneyV2Record } | null | undefined,
+): MoneyV2Record | null {
+  return amountSet?.shopMoney ? structuredClone(amountSet.shopMoney) : null;
+}
+
+function normalizeDraftOrderPaymentTerms(
+  raw: unknown,
+  amountSet?: { shopMoney: MoneyV2Record } | null,
+): DraftOrderPaymentTermsRecord | null {
   if (typeof raw !== 'object' || raw === null) {
     return null;
   }
 
   const paymentTerms = raw as Record<string, unknown>;
   const schedules = Array.isArray(paymentTerms['paymentSchedules']) ? paymentTerms['paymentSchedules'] : [];
-  const firstSchedule = schedules.find(
-    (schedule): schedule is Record<string, unknown> => typeof schedule === 'object' && schedule !== null,
-  );
+  const normalizedSchedules: PaymentScheduleRecord[] = schedules
+    .filter((schedule): schedule is Record<string, unknown> => typeof schedule === 'object' && schedule !== null)
+    .map((schedule) => ({
+      id: makeSyntheticGid('PaymentSchedule'),
+      dueAt: readString(schedule['dueAt']),
+      issuedAt: readString(schedule['issuedAt']),
+      completedAt: readString(schedule['completedAt']),
+      completed: readBoolean(schedule['completed'], false),
+      due: typeof schedule['due'] === 'boolean' ? schedule['due'] : false,
+      amount: normalizePaymentScheduleAmount(amountSet),
+      balanceDue: normalizePaymentScheduleAmount(amountSet),
+      totalBalance: normalizePaymentScheduleAmount(amountSet),
+    }));
+  const firstSchedule = normalizedSchedules[0] ?? null;
   const hasDueAt = typeof firstSchedule?.['dueAt'] === 'string';
   const hasIssuedAt = typeof firstSchedule?.['issuedAt'] === 'string';
-  const name = hasDueAt ? 'Due on date' : hasIssuedAt ? 'Net terms' : 'Custom payment terms';
+  const templateId = readString(paymentTerms['paymentTermsTemplateId']);
+  const template = templateId ? store.getEffectivePaymentTermsTemplateById(templateId) : null;
+  const name = template?.name ?? (hasDueAt ? 'Fixed' : hasIssuedAt ? 'Net terms' : 'Custom payment terms');
+  const paymentTermsType = template?.paymentTermsType ?? (hasDueAt ? 'FIXED' : hasIssuedAt ? 'NET' : 'UNKNOWN');
 
   return {
     id: makeSyntheticGid('PaymentTerms'),
     due: false,
     overdue: false,
-    dueInDays: null,
+    dueInDays: template?.dueInDays ?? null,
     paymentTermsName: name,
-    paymentTermsType: hasDueAt ? 'FIXED' : hasIssuedAt ? 'NET' : 'UNKNOWN',
-    translatedName: name,
+    paymentTermsType,
+    translatedName: template?.translatedName ?? name,
+    paymentSchedules: normalizedSchedules,
   };
 }
 
@@ -843,6 +868,7 @@ export function buildOrderFromInput(input: unknown): OrderRecord {
     customer,
     shippingLines,
     lineItems,
+    paymentTerms: null,
     fulfillments: [],
     fulfillmentOrders: [],
     transactions: normalizedTransactions,
@@ -895,7 +921,9 @@ export function buildDraftOrderFromInput(input: unknown, shopifyAdminOrigin: str
     taxExempt: readBoolean(inputRecord['taxExempt'], false),
     taxesIncluded: readBoolean(inputRecord['taxesIncluded'], false),
     reserveInventoryUntil: readString(inputRecord['reserveInventoryUntil']),
-    paymentTerms: normalizeDraftOrderPaymentTerms(inputRecord['paymentTerms']),
+    paymentTerms: normalizeDraftOrderPaymentTerms(inputRecord['paymentTerms'], {
+      shopMoney: normalizeMoney(total, currencyCode),
+    }),
     appliedDiscount,
     customAttributes: normalizeDraftOrderAttributes(inputRecord['customAttributes']),
     billingAddress: normalizeDraftOrderAddress(inputRecord['billingAddress']),
@@ -1001,6 +1029,9 @@ export function buildUpdatedDraftOrder(
     shippingLine: Object.hasOwn(inputRecord, 'shippingLine')
       ? normalizeDraftOrderShippingLine(inputRecord['shippingLine'], currencyCode)
       : structuredClone(draftOrder.shippingLine),
+    paymentTerms: Object.hasOwn(inputRecord, 'paymentTerms')
+      ? normalizeDraftOrderPaymentTerms(inputRecord['paymentTerms'], draftOrder.totalPriceSet)
+      : structuredClone(draftOrder.paymentTerms),
     updatedAt,
     lineItems,
   });
@@ -1307,6 +1338,7 @@ export function buildOrderFromCompletedDraftOrder(
     customer: buildOrderCustomerFromDraftOrder(draftOrder),
     shippingLines: buildOrderShippingLinesFromDraftOrder(draftOrder),
     lineItems: buildOrderLineItemsFromDraftOrder(draftOrder),
+    paymentTerms: structuredClone(draftOrder.paymentTerms),
     transactions: [],
     refunds: [],
     returns: [],

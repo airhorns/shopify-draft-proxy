@@ -1,6 +1,10 @@
 # Hard and Weird Notes
 
-This file records implementation surprises and fidelity traps discovered while building the first supported product queries/mutations.
+This file records implementation surprises and fidelity traps discovered while building Shopify Admin GraphQL parity.
+
+Endpoint docs are the source of truth for current support status, runtime behavior, validation anchors, and coverage gaps. Treat this file as a searchable field notebook: use it to find traps, fixture names, and historical failure modes, then confirm current behavior in `docs/endpoints/*.md`, the operation registry, parity specs, and tests before implementing.
+
+Entries below intentionally preserve old access and credential lessons when those lessons are still useful for diagnosing future regressions. Historical entries should not be read as current blockers unless an endpoint doc, parity spec, or fresh capture says the blocker is still active.
 
 ## 1. GraphQL operation names are not reliable routing keys
 
@@ -32,13 +36,15 @@ The hard part is not `productCreate` itself — it is making all the following r
 - search semantics
 - status/publication visibility
 
-Current implementation only supports a narrow product subset:
+Historical context: the first product overlay implementation only supported a narrow subset:
 
 - scalar product fields: `id`, `title`, `handle`, `status`, `createdAt`, `updatedAt`
 - `products { nodes }`
 - `products { edges { cursor node } }`
 - basic `pageInfo`
 - simple `first` slicing
+
+That early subset is not the current product coverage contract. Use `docs/endpoints/products.md` for supported product roots and validation anchors. The durable lesson here is that every new locally staged write needs downstream read-after-write coverage for the list, search, pagination, and derived-field surfaces it affects.
 
 ## 3. Shopify empty-data behavior is field-specific, not generic
 
@@ -101,7 +107,7 @@ Practical rule:
 - when the source slug already ends in digits, de-duplication should increment that numeric tail instead of blindly appending another `-1`
 - keep title-only updates handle-stable in the first local parity slice rather than re-slugifying the new title
 
-## 6. Product update semantics are under-modeled
+## 6. Product update semantics are mode-sensitive
 
 Current `productUpdate` behavior is intentionally split by runtime mode:
 
@@ -109,11 +115,7 @@ Current `productUpdate` behavior is intentionally split by runtime mode:
 - in `snapshot` mode, an unknown product id now returns the live-backed Shopify userError slice (`field: ['id']`, `message: 'Product does not exist'`)
 - in `passthrough` / `live-hybrid` mode, the proxy still allows sparse staged updates/deletes before hydration so later overlay reads can apply those writes once the upstream product is learned
 
-That split is useful for the digital-twin architecture, but it is not a perfect one-to-one mirror of Shopify in every mode. Real parity work still needs:
-
-- better missing-record behavior once the proxy can distinguish "not hydrated yet" from "truly nonexistent upstream id" without sending supported writes to Shopify
-- broader validation/userErrors beyond the now-captured create blank-title and update/delete unknown-id slices
-- understanding which fields are required vs optional vs server-derived
+That split is useful for the digital-twin architecture, but it is not a perfect one-to-one mirror of Shopify in every mode. Current product support and validation anchors live in `docs/endpoints/products.md`; this note is here to preserve the design trap that missing-record behavior can differ between snapshot proof and live-hybrid hydration.
 
 ### 6a. Product mutation validation parity is mode-sensitive
 
@@ -134,11 +136,13 @@ Live write capture on this host settled five concrete validation slices:
 
 The local proxy can safely mirror the unknown-id `productCreate` / `productUpdate` / `productDelete` cases in `snapshot` mode because there is no upstream hydration path to preserve, and `productChangeStatus` can mirror the captured unknown-id slice more broadly because staging a phantom status-only row is lower-value than keeping the live error parity honest. By contrast, for supported staged writes in `passthrough` / `live-hybrid`, the proxy still needs the sparse-update/sparse-delete escape hatch for real upstream products that have not been hydrated yet. Treat those different behaviors as intentional architectural splits, not as evidence that the live validation slices were wrong.
 
-## 7. Order-domain access is split across three different live surfaces on this host
+## 7. Order-domain access history must not override current endpoint docs
 
 The first unattended orders-domain probes on this host settled an easy mistake to make when the same token already works for product/customer/collection/inventory write capture: Shopify's order-related surfaces do **not** open up uniformly under the current `shpca_...` user token.
 
-Current live findings on this host:
+Current support status for orders, draft orders, returns, fulfillment, and order-editing lives in `docs/endpoints/orders.md`, `docs/endpoints/returns.md`, and `docs/endpoints/shipping-fulfillments.md`. The mixed chronology below is kept for diagnosis: older access-denied results explain how a credential can fail, while newer fixture-backed findings explain why those old access failures should not be reintroduced as current blocker claims.
+
+Current and historical live findings on this host:
 
 - direct-order _reads_ are partially usable even before order writes are:
   - `order(id: "gid://shopify/Order/0")` returned `null`
@@ -168,7 +172,7 @@ Current live findings on this host:
   - `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-detail.json`
 - a later healthy-probe pass confirmed the current repo credential can now recapture that same happy-path slice directly on this host
   - practical consequence: `draftOrderCreate` is no longer the remaining live creation blocker on the current repo credential
-  - the next remaining creation blocker is `draftOrderComplete`, not draft creation itself
+  - historical consequence at that point: `draftOrderComplete` became the next creation blocker, but newer evidence below and `docs/endpoints/orders.md` now cover the supported local completion slice
 - `draftOrderComplete` exists in the current schema and is now captured for the draft-to-order bridge when the conformance credential can mark the draft as paid
 - but live `draftOrderComplete` has four easy-to-confuse branches on this host:
   - omitting the inline required `id` argument fails first with top-level GraphQL `missingRequiredArguments` (`Field 'draftOrderComplete' is missing required arguments: id`) before Shopify reaches the root's write-access gate
@@ -216,8 +220,8 @@ Practical rule:
 - the first landed direct-order runtime slice is now: stage `orderCreate` locally, then replay the created order through immediate `order(id:)` and narrow staged `orders` / `ordersCount` reads without hitting upstream
 - broader live order catalog/count parity after create is still separate from that first staged runtime slice because the real store can already contain other merchant orders before the new create happens
 - do not proxy obviously invalid supported `orderCreate` requests upstream in `live-hybrid` once a captured GraphQL-validation slice already exists; on this host the missing-`$order` `INVALID_VARIABLE` branch is short-circuited locally and the happy-path create is now staged locally too
-- track direct orders (`orderCreate`), draft-order creation (`draftOrderCreate`), and draft-order completion (`draftOrderComplete`) as **separate** creation work items because they can move independently on this host; at the moment only completion remains live-blocked on the repo credential
-- track draft-order _reads_ separately from draft-order _writes_; on this host the read blockers already appear before the completion blocker is solved
+- track direct orders (`orderCreate`), draft-order creation (`draftOrderCreate`), and draft-order completion (`draftOrderComplete`) as **separate** creation work items because they moved independently on this host; check `docs/endpoints/orders.md` for the current support boundary
+- track draft-order _reads_ separately from draft-order _writes_; earlier captures showed read and write access could unblock in different phases
 - for direct orders, keep the earlier offline-token lesson recorded as historical context rather than a live blocker claim; the current repo credential can now capture the first `orderCreate` happy path on this host
 - for draft-order reads, let `corepack pnpm conformance:capture-orders` own the state transition explicitly:
   - on a healthy run it should refresh `draft-orders-catalog.json` / `draft-orders-count.json`
@@ -227,10 +231,10 @@ Practical rule:
   - the local replay should interpret synthetic `after` / `before` cursors against the staged newest-first order and recompute `hasNextPage` / `hasPreviousPage` from the sliced window
   - on this repo that means `draftOrders(first: 1, after: <newest-cursor>)` should return the middle staged draft with both `hasNextPage` and `hasPreviousPage` true, while `draftOrders(last: 1, before: <middle-cursor>)` should return the newest staged draft with `hasNextPage: true` and `hasPreviousPage: false`
   - practical consequence: keep the synthetic cursor-window helper and the focused integration coverage aligned so later order-domain edits do not regress draft catalog pagination back to a naive `slice(0, first)` implementation
-- for draft-order completion, a future live conformance credential must satisfy `write_draft_orders` plus mark-as-paid or set-payment-terms permission
-- refresh the HAR-186 evidence with `corepack pnpm conformance:capture-orders` instead of leaving order-domain creation assumptions stale
+- for draft-order completion, keep the older `write_draft_orders` plus mark-as-paid / payment-terms permission lesson as historical access context only; the current local staged behavior and remaining payment-term boundaries belong in `docs/endpoints/orders.md`
+- refresh order-family evidence with the current capture scripts instead of leaving order-domain creation assumptions stale
 
-### 7a-refresh. Repo-local auth refresh needs a client-id fallback, not just the rotated token payload
+### 7a-refresh. Historical repo-local auth refresh needed a client-id fallback
 
 A later healthy-again pass on this host exposed a repo-local repair bug rather than another Shopify auth limitation: `corepack pnpm conformance:refresh-auth` assumed `.manual-store-auth-token.json` always retained `client_id`, but the current persisted expiring-token payload on this host does **not** keep that field.
 
@@ -304,7 +308,7 @@ Practical rule:
 - do **not** keep the worklist phrased as if the host credential is still healthy enough for direct-order empty-state probing once the current run is returning `401`
 - durable next step: switch the repo to a dedicated Admin API token for orders work or re-authenticate Shopify CLI and persist the rotated grant pair before trusting any new order-domain capture output
 
-### 7a. Merchant-realistic order-creation scaffolds need address, shipping, and custom-attribute surfaces before happy-path capture exists
+### 7a. Historical merchant-realistic order-creation scaffolds needed richer surfaces before happy-path capture existed
 
 Once the first order-creation blockers were wired, the next easy mistake was to leave the parity requests at a too-thin `email + note + one line item` shape. Live schema introspection on this host showed the first useful merchant-facing create surfaces are already richer even before writes are allowed:
 
@@ -321,7 +325,7 @@ Once the first order-creation blockers were wired, the next easy mistake was to 
 
 Practical rule:
 
-- even while `orderCreate` and `draftOrderCreate` remain blocked on real credentials, keep their checked-in parity requests merchant-realistic enough to exercise contact/address/shipping metadata rather than only a bare custom line item
+- before `orderCreate` and `draftOrderCreate` happy-path captures existed, keeping checked-in parity requests merchant-realistic was still useful because it exercised contact/address/shipping metadata rather than only a bare custom line item
 - for direct orders on this host, a good first parity-plan slice is:
   - one custom line item
   - one shipping line
@@ -338,7 +342,7 @@ Practical rule:
 
 ### 7a-live. Bearer-token fallback later unlocked the first real draft-order happy path on this host
 
-A later unattended pass found an important split inside the same order-creation family: even though direct `orderCreate` still stayed blocked behind Shopify's offline-token rule, the repo's bearer-token fallback path _did_ unlock the first merchant-realistic draft-order creation slice.
+A later unattended pass found an important split inside the same order-creation family: while direct `orderCreate` was still blocked behind Shopify's offline-token rule at that point, the repo's bearer-token fallback path _did_ unlock the first merchant-realistic draft-order creation slice.
 
 Important live findings:
 
@@ -461,7 +465,7 @@ Important live findings:
 Practical rule:
 
 1. keep the inline missing/null draft-order create validation branches separate from the missing-`$input` variables-path `INVALID_VARIABLE` response; Shopify does **not** collapse them to one shared error shape
-2. it is valid to capture these branches in `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-create-inline-missing-input.json`, `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-create-inline-null-input.json`, and `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-create-missing-input.json` and wire snapshot-mode local parity to them even while real `draftOrderCreate` remains blocked on draft-order write/manage access
+2. it was valid to capture these branches in `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-create-inline-missing-input.json`, `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-create-inline-null-input.json`, and `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-create-missing-input.json` and wire snapshot-mode local parity to them even before real `draftOrderCreate` happy-path access was available
 3. do not overclaim from this small win: a present-but-empty `{ input: {} }` payload still hits the access-denied blocker on this host rather than revealing deeper resolver-level validation
 
 ## 8. `orderUpdate` is the first order-edit root with a safe live validation slice on this host
@@ -497,7 +501,7 @@ After the initial orders-domain creation scaffolding landed, the next easy mista
   - `email`, `phone`, `poNumber`, `shippingAddress`, `customAttributes`, and order-scoped `metafields`
   - downstream `order(id:)` reads expose the staged values, including `customer.email` when the input updates `email`
   - `billingAddress` is intentionally not part of that local `orderUpdate` slice because the current `OrderInput` docs do not expose it
-  - live capture for this expanded slice is currently blocked by the saved conformance credential: `corepack pnpm conformance:probe` fails with `Stored Shopify conformance access token is invalid and refresh failed: This request requires an active refresh_token`
+  - live capture for this expanded slice was blocked during that increment by the saved conformance credential: `corepack pnpm conformance:probe` failed with `Stored Shopify conformance access token is invalid and refresh failed: This request requires an active refresh_token`
   - shared conformance auth repair is tracked in HAR-185 instead of a checked-in pending blocker doc
 - adjacent live-hybrid rule: once the unknown-id `orderUpdate` branch is captured, do not keep proxying that obviously invalid supported edit upstream in `live-hybrid`; short-circuit the captured `order: null` + `userErrors[{ field: ['id'], message: 'Order does not exist' }]` response locally, and now also short-circuit the first synthetic/local happy-path edit slice locally while leaving broader non-local orderUpdate semantics in passthrough until live parity exists
 - equally important consequence: this does **not** prove the broader order-edit family is ready
@@ -508,13 +512,13 @@ Practical rule:
 - treat `orderUpdate` as the first evidence-backed order-editing increment, but keep it explicitly narrow
 - mirror the captured unknown-id userError **and** the missing-id `INVALID_VARIABLE` branch in `snapshot` mode without hitting upstream
 - do not claim live parity for the expanded simple-update field slice until a fresh Shopify conformance grant captures `orderUpdate-expanded-live-parity`
-- keep `live-hybrid` conservative until non-empty local order hydration/edit semantics exist; passthrough is safer than inventing order state
+- keep `live-hybrid` conservative for any order-edit branch that lacks non-empty local order hydration/edit semantics; passthrough is safer than inventing order state outside the currently documented support boundary
 - do not let this small success erase the remaining creation/read blockers:
-  `orderCreate` still needs `write_orders` plus an offline token, and
-  setting draft-order payment terms still needs merchant permission to set
-  payment terms
+  direct order creation and draft-order payment-term behavior have separate
+  permission/capture histories, so check `docs/endpoints/orders.md` before
+  treating either as blocked or fully modeled
 
-### 8a. The first calculated-order edit family is blocked uniformly on `write_order_edits` on this host
+### 8a. Calculated-order edit evidence moved from access blocker to local session support
 
 A follow-up probe on this host established that the next obvious order-editing roots do exist in the live 2025-01 schema, but they still do not reveal safe unknown-id/session semantics under the current unattended credential.
 
@@ -531,7 +535,7 @@ Current live findings on this host:
 
 - keep the captured workflow parity requests checked in so later live capture can compare full begin/add/set/commit sequences rather than isolated root placeholders
 - refresh HAR-115 with `corepack pnpm conformance:capture-orders` evidence instead of leaving the order-edit family as a generic worklist bullet
-- do not skip ahead to fulfillment just because the edit roots introspect cleanly; the current host still needs a `write_order_edits`-capable credential before broader order-edit parity can become evidence-backed runtime work
+- do not skip ahead to fulfillment just because the edit roots introspect cleanly; order-edit expansion still needs evidence-backed runtime work rather than assumptions from schema presence alone
 - newer local-runtime consequence: even without that credential, the proxy can still support a minimal but coherent local calculated-order session for synthetic/local orders only
   - `orderEditBegin` clones a staged/local order into a synthetic `CalculatedOrder` session with synthetic `CalculatedLineItem` ids for the current editable line set
   - `orderEditAddVariant` can append a variant-derived calculated line item using the effective local product/variant graph
@@ -544,7 +548,7 @@ Current live findings on this host:
   - `orderEditSetQuantity(... quantity: 0, restock: true)` on an existing line did not remove the historical line node from `order.lineItems`; downstream `quantity` stayed at the historical value while `currentQuantity` became `0`
   - duplicate `orderEditAddVariant` with `allowDuplicates: false` still returned an added calculated line item and no `userErrors` in the captured branch, so do not model that argument as a blanket duplicate rejection
 
-## 9. The first fulfillment root on this host is _not_ blocked the same way as the rest of the fulfillment lifecycle
+## 9. Fulfillment validation and lifecycle support arrived in layers
 
 Once the repo had creation/editing scaffolding for direct orders and draft orders, the next easy assumption was that fulfillment roots would also just be generic scope blockers under the same unattended credential. The first live fulfillment probes on this host showed a more useful split:
 
@@ -562,7 +566,7 @@ Once the repo had creation/editing scaffolding for direct orders and draft order
     - `fulfillmentCancel` inline missing `id` -> `missingRequiredArguments`
     - `fulfillmentCancel` inline `id: null` -> `argumentLiteralsIncompatible`
     - `fulfillmentCancel` missing required `$id` -> `INVALID_VARIABLE`
-  - broader happy-path probes with concrete ids are still blocked differently under the current host credential:
+  - broader happy-path probes with concrete ids were still blocked differently under the host credential at that point:
     - `fulfillmentTrackingInfoUpdate` returned `ACCESS_DENIED` requiring one of `write_assigned_fulfillment_orders`, `write_merchant_managed_fulfillment_orders`, or `write_third_party_fulfillment_orders`, plus the `fulfill_and_ship_orders` permission
     - `fulfillmentCancel` returned a generic `ACCESS_DENIED` payload on this host
 
@@ -570,8 +574,8 @@ Practical rule:
 
 - treat `fulfillmentCreate` invalid-id handling as the first evidence-backed fulfillment increment, but do not stop there once later fulfillment roots reveal their own safe pre-access validation slices
 - mirror the captured `RESOURCE_NOT_FOUND` / `invalid id` `fulfillmentCreate` branch and the newer fulfillment-lifecycle validation branches locally in both `snapshot` and `live-hybrid` so obviously invalid fulfillment requests stop leaking upstream
-- keep the broader fulfillment lifecycle (`fulfillmentTrackingInfoUpdate`, `fulfillmentCancel`, and eventual downstream fulfillment read effects) blocked on fresh live evidence instead of guessing success semantics from the validation-only slices
-- once order creation/editing scaffolding exists, do not leave those broader fulfillment roots as free-text notes only; add them to `config/operation-registry.json`, captured validation fixtures, and explicit parity-request/spec files so convention-discovered conformance reports show both the landed validation progress and the remaining blockers honestly
+- do not infer fulfillment success semantics from validation-only slices; current lifecycle coverage and remaining boundaries are documented in `docs/endpoints/orders.md` and `docs/endpoints/shipping-fulfillments.md`
+- once a fulfillment root has evidence-backed behavior, keep the operation registry and executable parity evidence aligned instead of leaving implemented behavior as free-text notes only
 - keep the fulfillment lifecycle blocker machine-readable in parity-spec blocker details and HAR-187, including the split between `fulfillmentTrackingInfoUpdate`'s scope+permission gate and `fulfillmentCancel`'s still-generic `ACCESS_DENIED` payload on this host after the pre-access validation branches are exhausted
 
 ### 9a. Fulfillment services couple tightly to locations, but their handles do not follow renames
@@ -852,7 +856,11 @@ Practical rule:
 - `reset()` should restore that baseline and clear only staged state/logs/lag markers
 - for customer snapshots, preserving the hydrated catalog/search connection baselines matters too, not just the customer rows; otherwise snapshot-mode customer cursors and baseline `pageInfo` silently drift back to synthetic defaults after reset
 
-## 13. On this host, Shopify account bearer tokens work directly against Admin GraphQL
+## Historical credential and access notes
+
+The notes in this section are retained for diagnosing conformance auth regressions. They are not endpoint support statements.
+
+### Shopify account bearer tokens worked directly against Admin GraphQL on this host
 
 A useful discovery for conformance work on this host class:
 
@@ -1958,6 +1966,22 @@ Practical rule for the proxy:
 - for unknown valid emails, create a local opted-out customer instead of returning a not-found userError
 - treat invalid email strings as captured payload userErrors, not as top-level GraphQL errors, when local request parsing reaches the resolver path
 
+### 44c. Customer data-erasure roots are privacy side effects without visible customer-field mutation
+
+HAR-322 recapture on `harry-test-heelo.myshopify.com` / Admin GraphQL 2025-01 after `write_customer_data_erasure` was granted settled the first success path:
+
+- `customerRequestDataErasure(customerId:)` returns the requested `customerId` and an empty `userErrors` array for a disposable customer
+- an immediate `customer(id:)` read after the request returned the same selected customer fields; no explicit customer-field marker exposed the scheduled erasure
+- `customerCancelDataErasure(customerId:)` returns the same `customerId` and empty `userErrors` after a request is scheduled
+- unknown customer ids return payload `userErrors[{ field: ["customerId"], message: "Customer does not exist", code: "DOES_NOT_EXIST" }]`
+- canceling again after the scheduled erasure was already canceled returns `customerId: null` with `code: "NOT_BEING_ERASED"`
+
+Practical rule for the proxy:
+
+- keep request/cancel as local audit intents rather than customer-field updates
+- use the captured no-period / `DOES_NOT_EXIST` unknown-customer error for these roots, even though older customer tax-exemption captures used a period in the message
+- preserve original raw mutations for commit replay because the real side effect remains sensitive and intentionally deferred
+
 ## 45. Rich collection fields need a real collection row, not only membership rows
 
 Extending collection reads past `id` / `title` / `handle` exposed the limit of deriving every collection only from `product.collections` memberships.
@@ -2499,19 +2523,20 @@ Capture prerequisites and safety constraints:
   - update/delete unknown `gid://shopify/PaymentCustomization/0` return `PAYMENT_CUSTOMIZATION_NOT_FOUND` under `['id']`; activation unknown ids return the same code under `['ids']` with an empty `ids` payload
   - activation with an empty `ids` list returns `ids: []` and no user errors
 - HAR-224 hardened the local runtime against the 2026-04 `PaymentCustomizationInput` docs: `functionHandle` is the current Function identifier, `functionId` remains deprecated but accepted for the captured parity branch, requests with both identifiers return `MULTIPLE_FUNCTION_IDENTIFIERS`, captured missing Function handles return `FUNCTION_NOT_FOUND`, malformed owner metafields return `INVALID_METAFIELDS`, and duplicate activation ids are handled idempotently
+- HAR-221 captured `paymentTermsTemplates` against `harry-test-heelo.myshopify.com` on 2026-04-27. The standard catalog order is receipt, fulfillment, net 7/15/30/45/60/90, then fixed; `paymentTermsType: NET` filters to only the six net templates while preserving ids, names, descriptions, due-day values, and translated names.
 - customer payment method live captures remain blocked on `read_customer_payment_methods` even though `read_customers` is present; seeded-state reads are safe to model without vaulting because they only serialize already-captured or hand-seeded normalized state
 - customer payment method writes require `write_customers` plus `write_customer_payment_methods` and must use isolated test customers/payment methods because card sessions, duplication data, update URLs, revocation, and remote gateway identifiers are sensitive
 - customer payment method credit-card/PayPal create and update roots can eventually be staged locally only after isolated fixture evidence settles instrument payloads and read-after-write behavior. Remote create also needs polling/asynchronous status evidence through `customerPaymentMethod`. Duplication data and update URLs must be treated as sensitive ephemeral payment material. Revoke is destructive for recurring billing flows, and update-email is customer-visible mail, so both stay unsupported until a safe no-recipient or disposable-method plan exists.
 - Revoked payment methods must stay hidden from root and customer-owned lookups unless `showRevoked: true` is supplied. `customerPaymentMethodSendUpdateEmail` is locally buffered when the payment method exists in the local customer-payment graph; the runtime must not deliver customer email upstream outside explicit commit replay.
 - order payment captures and voids require order write scopes plus merchant permissions (`capture_payments_for_orders` for capture and cancel-order permission for void) and an isolated authorized transaction because successful paths capture or void real payment authorization
 - mandate payment requires `write_payment_mandate`, `pay_orders_by_vaulted_card` permission, mandate-backed schedule data, idempotency-key coverage, and Shopify Plus coverage for amount-specific branches
-- payment terms template reads are currently capture-ready; payment terms writes have `write_payment_terms` on the app manifest but still require order or draft-order access and an isolated order/payment schedule because they change due dates and payment status
+- payment terms template reads are captured and locally modeled as a read-only catalog; payment terms writes have `write_payment_terms` on the app manifest but still require order or draft-order access and an isolated order/payment schedule because they change due dates and payment status
 - payment reminders require `write_orders` and a no-recipient or otherwise safe email plan because the happy path sends customer-visible mail
 - Shop Pay payment request receipt reads and tender transaction reads are currently capture-ready for empty/null behavior, but capture should avoid creating customer-visible payment requests just to produce receipt data
 
 Practical rule:
 
-- keep scaffold-only payment roots out of capability routing until captured evidence and local modeling exist for each family; the current exception is the read-only payment customization slice backed by empty/null evidence plus normalized snapshot rows
+- keep scaffold-only payment roots out of capability routing until captured evidence and local modeling exist for each family; the current exceptions are the read-only payment customization slice backed by empty/null evidence plus normalized snapshot rows and the read-only payment terms template catalog backed by captured list/filter evidence
 - do not add parity specs or parity request placeholders for payment roots until there is captured interaction evidence that can run as working conformance coverage
 - future runtime support must stage supported payment mutations locally and preserve raw mutation order for commit; unknown unsupported operations can still fall through the generic passthrough escape hatch with observability
 
@@ -2778,7 +2803,23 @@ Practical rule:
 - keep hold/move/reroute/progress semantics out of this slice even though live setup used `fulfillmentOrderMove`; that move was conformance setup, not locally supported request-lifecycle behavior
 - do not infer broader fulfillment-service assignment filtering from `assignedFulfillmentOrders`; the current local read exposes staged order-backed records so tests can see request transitions, while broader live access-scope behavior remains separate evidence
 
-## 71. Finance/risk/POS roots need strong data minimization
+## 71. Gift-card search accepts id, but not obvious scalar display fields
+
+HAR-310 re-captured gift-card evidence on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com` after the conformance grant gained `read_gift_cards` and `write_gift_cards`.
+
+Captured facts:
+
+- `giftCards(query: "id:999999999999")` and `giftCardsCount(query: "id:999999999999")` returned an empty connection/count with no search warnings
+- `giftCards(query: "last_characters:...")`, `giftCards(query: "enabled:false")`, and `giftCards(query: "active:false")` returned unfiltered results plus invalid-search-field warnings
+- `giftCardCredit` and `giftCardDebit` require `write_gift_card_transactions`, which is separate from `write_gift_cards`
+- selecting `giftCard.transactions.nodes` requires `read_gift_card_transactions`, which is separate from `read_gift_cards`
+
+Practical rule:
+
+- keep local gift-card search filtering limited to confirmed Shopify search fields such as `id`; invalid fields should not narrow local results
+- treat credit/debit transaction support as locally staged runtime behavior backed by current integration tests until live transaction scopes are added and successful payloads can be captured
+
+## 72. Finance/risk/POS roots need strong data minimization
 
 HAR-316 captured finance/risk root evidence on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com` in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/finance-risk-access-read.json`.
 

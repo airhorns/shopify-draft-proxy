@@ -24,6 +24,7 @@ import type {
   DraftOrderRecord,
   DraftOrderShippingLineRecord,
   MoneyV2Record,
+  PaymentScheduleRecord,
   OrderCustomerRecord,
   OrderDiscountApplicationRecord,
   OrderFulfillmentEventRecord,
@@ -686,7 +687,7 @@ function serializeDraftOrderPaymentTerms(
         result[key] = paymentTerms.translatedName;
         break;
       case 'paymentSchedules':
-        result[key] = serializeDraftOrderLineItemsConnection(selection, []);
+        result[key] = serializePaymentSchedulesConnection(selection, paymentTerms.paymentSchedules ?? []);
         break;
       default:
         result[key] = null;
@@ -694,6 +695,65 @@ function serializeDraftOrderPaymentTerms(
     }
   }
   return result;
+}
+
+function serializePaymentScheduleNode(field: FieldNode, schedule: PaymentScheduleRecord): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = schedule.id;
+        break;
+      case 'dueAt':
+        result[key] = schedule.dueAt;
+        break;
+      case 'issuedAt':
+        result[key] = schedule.issuedAt;
+        break;
+      case 'completedAt':
+        result[key] = schedule.completedAt;
+        break;
+      case 'completed':
+        result[key] = schedule.completed ?? false;
+        break;
+      case 'due':
+        result[key] = schedule.due ?? false;
+        break;
+      case 'amount':
+        result[key] = serializeMoneyField(selection, schedule.amount ?? null);
+        break;
+      case 'balanceDue':
+        result[key] = serializeMoneyField(selection, schedule.balanceDue ?? null);
+        break;
+      case 'totalBalance':
+        result[key] = serializeMoneyField(selection, schedule.totalBalance ?? null);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializePaymentSchedulesConnection(
+  field: FieldNode,
+  schedules: PaymentScheduleRecord[],
+): Record<string, unknown> {
+  const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
+    schedules,
+    field,
+    {},
+    (schedule) => schedule.id,
+  );
+  return serializeConnection(field, {
+    items,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (schedule) => schedule.id,
+    serializeNode: (schedule, selection) => serializePaymentScheduleNode(selection, schedule),
+  });
 }
 
 function serializeDraftOrderLineItemNode(
@@ -2908,6 +2968,9 @@ export function serializeOrderNode(
         break;
       case 'customer':
         result[key] = serializeOrderCustomer(selection, order.customer);
+        break;
+      case 'paymentTerms':
+        result[key] = serializeDraftOrderPaymentTerms(selection, order.paymentTerms ?? null);
         break;
       case 'shippingLines':
         result[key] = serializeOrderShippingLinesConnection(selection, order.shippingLines);

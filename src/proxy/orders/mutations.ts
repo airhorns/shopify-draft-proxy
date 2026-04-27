@@ -321,6 +321,11 @@ function validateDraftOrderCreateInput(input: unknown): Array<{ field: string[] 
       field: null,
       message: 'Payment terms template id can not be empty.',
     });
+  } else if (paymentTerms !== null) {
+    userErrors.push({
+      field: null,
+      message: 'The user must have access to set payment terms.',
+    });
   }
 
   lineItems.forEach((lineItem, index) => {
@@ -2999,6 +3004,21 @@ export function handleOrderMutation(
       const input = readDraftOrderUpdateInput(variables);
       if (inlineInputArgument.value.kind === Kind.VARIABLE && input === null) {
         errors.push(buildMissingVariableError(inlineInputArgument.value.name.value, 'DraftOrderInput!'));
+        continue;
+      }
+
+      const inputRecord = typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {};
+      const paymentTerms = typeof inputRecord['paymentTerms'] === 'object' ? inputRecord['paymentTerms'] : null;
+      if (paymentTerms !== null) {
+        const hasTemplateId = typeof (paymentTerms as Record<string, unknown>)['paymentTermsTemplateId'] === 'string';
+        data[key] = serializeDraftOrderMutationPayload(field, null, [
+          {
+            field: null,
+            message: hasTemplateId
+              ? 'The user must have access to set payment terms.'
+              : 'Payment terms template id can not be empty.',
+          },
+        ]);
         continue;
       }
 

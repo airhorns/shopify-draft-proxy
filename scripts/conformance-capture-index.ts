@@ -13,6 +13,7 @@ const domainSchema = z.enum([
   'discounts',
   'draft-orders',
   'files',
+  'gift-cards',
   'inventory',
   'marketing',
   'markets',
@@ -588,6 +589,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'gift-cards',
+    packageScript: 'conformance:capture-gift-cards',
+    scriptPath: 'scripts/capture-gift-card-conformance.ts',
+    purpose: 'Gift-card read/configuration/count behavior plus create/update/credit/debit/deactivate lifecycle parity.',
+    requiredAuthScopes: [
+      'read_gift_cards',
+      'write_gift_cards',
+      'read_gift_card_transactions',
+      'write_gift_card_transactions',
+    ],
+    fixtureOutputs: [`${CAPTURE_ROOT}gift-card-lifecycle.json`, 'config/parity-specs/gift-card-lifecycle.json'],
+    cleanupBehavior:
+      'Creates a disposable gift card, records transaction lifecycle behavior, and deactivates it; notification roots are not executed.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'customers',
     packageScript: 'conformance:capture-customers',
     scriptPath: 'scripts/capture-customer-conformance.mts',
@@ -611,13 +628,42 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     domain: 'customers',
     packageScript: 'conformance:capture-customer-input-validation',
     scriptPath: 'scripts/capture-customer-input-validation-conformance.ts',
-    purpose: 'Customer mutation input validation, userErrors, and downstream read branches.',
-    requiredAuthScopes: ['read_customers', 'write_customers'],
+    purpose: 'Customer input validation, normalization, duplicate identity, and downstream read behavior.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'read_customer_merge', 'write_customer_merge'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}customer-input-validation-parity.json`,
       'config/parity-specs/customerInputValidation-parity.json',
+      'config/parity-requests/customerInputValidation-*.graphql',
     ],
-    cleanupBehavior: 'Creates disposable customers for validation probes and removes remaining records.',
+    cleanupBehavior: 'Creates disposable customers; deletes remaining records after delete and merge probes.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
+    packageScript: 'conformance:capture-customer-account-page-data-erasure',
+    scriptPath: 'scripts/capture-customer-account-page-data-erasure-conformance.ts',
+    purpose: 'Customer Account page reads plus customer data-erasure request/cancel success and validation payloads.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'write_customer_data_erasure'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-account-page-data-erasure.json`,
+      'config/parity-specs/customer-account-page-data-erasure.json',
+    ],
+    cleanupBehavior:
+      'Creates a disposable customer, requests and cancels data erasure, then cancels again and deletes the customer in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
+    packageScript: 'conformance:capture-store-credit',
+    scriptPath: 'scripts/capture-store-credit-conformance.ts',
+    purpose: 'Store credit account creation setup, account-id credit/debit mutations, and downstream balance reads.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'store credit account access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}store-credit-account-parity.json`,
+      'config/parity-specs/store-credit-account-local-staging.json',
+    ],
+    cleanupBehavior:
+      'Creates a disposable customer, credits/debits a real store credit account, debits the remaining balance back to zero, then deletes the customer.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
