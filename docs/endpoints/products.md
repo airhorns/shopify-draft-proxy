@@ -27,6 +27,7 @@ Overlay reads:
 - `productResourceFeedback`
 - `inventoryItem`
 - `inventoryItems`
+- `inventoryShipment`
 - `inventoryLevel`
 - `inventoryProperties`
 - `collection`
@@ -74,6 +75,15 @@ Local staged mutations:
 - `inventoryActivate`
 - `inventoryDeactivate`
 - `inventoryBulkToggleActivation`
+- `inventoryShipmentCreate`
+- `inventoryShipmentCreateInTransit`
+- `inventoryShipmentAddItems`
+- `inventoryShipmentRemoveItems`
+- `inventoryShipmentUpdateItemQuantities`
+- `inventoryShipmentSetTracking`
+- `inventoryShipmentMarkInTransit`
+- `inventoryShipmentReceive`
+- `inventoryShipmentDelete`
 - `metafieldsSet`
 - `metafieldsDelete`
 - `metafieldDelete`
@@ -147,6 +157,8 @@ These product-adjacent roots are registered in the operation registry as product
 - `inventoryProperties` returns the captured 2025-01 inventory quantity-name catalog: `available`, `committed`, `damaged`, `incoming`, `on_hand`, `quality_control`, `reserved`, and `safety_stock`, including `belongsTo` / `comprises` relationships used by local quantity staging.
 - `inventorySetQuantities` stages absolute quantity writes over effective inventory item levels without runtime Shopify writes. Captured 2025-01 evidence showed `ignoreCompareQuantity: true` accepting available set writes, returning an `InventoryAdjustmentGroup`, mirroring available deltas into `on_hand` changes, immediately updating `inventoryItem.variant.inventoryQuantity`, and leaving `product.totalInventory` stale in immediate downstream reads. The local model also applies the same `on_hand` relationship for other component quantity names and rejects `on_hand` as a directly staged quantity name.
 - `inventoryMoveQuantities` stages same-location quantity moves over effective inventory item levels. Captured 2025-01 evidence showed an available-to-damaged move returning two `InventoryChange` rows, keeping `on_hand` unchanged because both names belong to `on_hand`, updating variant inventory quantity from available totals, and preserving stale product-level `totalInventory`. Different-location moves, same-name moves, and unsupported ledger-document branches return visible local `userErrors` and do not contact Shopify.
+- Inventory shipment lifecycle support is bounded to product-backed inventory items. Live 2025-01 schema introspection confirmed `inventoryShipment(id:)`, the shipment payload fields (`lineItems`, `lineItemsCount`, status totals, and `tracking`), and the mutation argument names for create/create-in-transit, add/remove/update items, set tracking, mark in transit, receive, and delete. Direct live payload capture for these roots is currently blocked because the conformance grant lacks `read_inventory_shipments` / `write_inventory_shipments`; the executable parity fixture records that blocker and compares the local proxy's create-in-transit, shipment detail read, and downstream inventory read behavior against the staged recording. Local staging preserves `movementId` as metadata but does not yet model transfer routing, origin/destination movement topology, or Shopify shipment name allocation.
+- Staged shipment quantities update the same effective inventory-level graph used by `inventoryItem` reads: create-in-transit and mark-in-transit add unreceived quantities to `incoming`; add/remove/update item mutations adjust `incoming` atomically for in-transit shipments; receive with `ACCEPTED` moves quantities from `incoming` into `available` and `on_hand`; receive with `REJECTED` only reduces `incoming`; delete reverses remaining unreceived `incoming` and tombstones the local shipment. Rejected shipment mutations leave shipment and inventory state unchanged and return local `userErrors` without upstream writes.
 - `collectionByIdentifier` supports id and handle identifier branches against effective local collection state. `customId` returns `null` until collection unique-metafield evidence exists.
 - `collectionByHandle` is a deprecated Shopify root but is supported as a handle lookup over effective local collection state.
 - Missing product-adjacent by-id roots return `null` without inventing records. The `product-related-by-id-not-found-read` parity scenario captures this for `collection(id:)`, `productVariant(id:)`, `inventoryItem(id:)`, and `inventoryLevel(id:)`.
@@ -159,6 +171,7 @@ These product-adjacent roots are registered in the operation registry as product
 
 - Runtime flows: `tests/integration/product-draft-flow.test.ts`
 - Inventory quantity roots: `tests/integration/inventory-quantity-roots.test.ts`
+- Inventory shipment lifecycle roots: `tests/integration/inventory-shipment-flow.test.ts`, `config/parity-specs/inventory-shipment-lifecycle-local-staging.json`, and `fixtures/conformance/local-runtime/2026-04/inventory-shipment-lifecycle-local-staging.json`
 - Product reads: `tests/integration/product-query-shapes.test.ts`
 - Collection reads and mutations: `tests/integration/collection-query-shapes.test.ts`, `tests/integration/collection-draft-flow.test.ts`
 - Location and publication reads: `tests/integration/location-query-shapes.test.ts`, `tests/integration/publication-query-shapes.test.ts`
