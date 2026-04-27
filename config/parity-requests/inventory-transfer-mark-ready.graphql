@@ -1,0 +1,21 @@
+mutation InventoryTransferMarkReadyParity($id: ID!) {
+  inventoryTransferMarkAsReadyToShip(id: $id) {
+    inventoryTransfer {
+      status
+      totalQuantity
+      lineItems(first: 10) {
+        nodes {
+          totalQuantity
+          shippableQuantity
+          shippedQuantity
+          processableQuantity
+          pickedForShipmentQuantity
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

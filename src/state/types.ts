@@ -109,6 +109,37 @@ export const inventoryLevelRecordSchema = z.strictObject({
 });
 export type InventoryLevelRecord = z.infer<typeof inventoryLevelRecordSchema>;
 
+export const inventoryTransferLocationSnapshotRecordSchema = z.strictObject({
+  id: nullableStringSchema,
+  name: z.string(),
+  snapshottedAt: z.string(),
+});
+export type InventoryTransferLocationSnapshotRecord = z.infer<typeof inventoryTransferLocationSnapshotRecordSchema>;
+
+export const inventoryTransferLineItemRecordSchema = z.strictObject({
+  id: z.string(),
+  inventoryItemId: z.string(),
+  title: nullableStringSchema,
+  totalQuantity: z.number().int(),
+  shippedQuantity: z.number().int().default(0),
+  pickedForShipmentQuantity: z.number().int().default(0),
+});
+export type InventoryTransferLineItemRecord = z.infer<typeof inventoryTransferLineItemRecordSchema>;
+
+export const inventoryTransferRecordSchema = z.strictObject({
+  id: z.string(),
+  name: z.string(),
+  referenceName: nullableStringSchema,
+  status: z.enum(['DRAFT', 'READY_TO_SHIP', 'IN_PROGRESS', 'TRANSFERRED', 'CANCELED', 'OTHER']),
+  note: nullableStringSchema,
+  tags: z.array(z.string()),
+  dateCreated: z.string(),
+  origin: inventoryTransferLocationSnapshotRecordSchema.nullable(),
+  destination: inventoryTransferLocationSnapshotRecordSchema.nullable(),
+  lineItems: z.array(inventoryTransferLineItemRecordSchema),
+});
+export type InventoryTransferRecord = z.infer<typeof inventoryTransferRecordSchema>;
+
 export const inventoryShipmentTrackingRecordSchema = z.strictObject({
   trackingNumber: nullableStringSchema,
   company: nullableStringSchema,
@@ -2135,6 +2166,8 @@ export const stateSnapshotSchema = z.strictObject({
   productVariants: z.record(z.string(), productVariantRecordSchema),
   productOptions: z.record(z.string(), productOptionRecordSchema),
   productOperations: z.record(z.string(), productOperationRecordSchema).default({}),
+  inventoryTransfers: z.record(z.string(), inventoryTransferRecordSchema).default({}),
+  inventoryTransferOrder: z.array(z.string()).default([]),
   locations: z.record(z.string(), locationRecordSchema).default({}),
   locationOrder: z.array(z.string()).default([]),
   fulfillmentServices: z.record(z.string(), fulfillmentServiceRecordSchema).default({}),
@@ -2239,6 +2272,7 @@ export const stateSnapshotSchema = z.strictObject({
   metaobjects: z.record(z.string(), metaobjectRecordSchema).default({}),
   customerMetafields: z.record(z.string(), customerMetafieldRecordSchema).default({}),
   deletedProductIds: z.record(z.string(), z.literal(true)),
+  deletedInventoryTransferIds: z.record(z.string(), z.literal(true)).default({}),
   deletedFileIds: z.record(z.string(), z.literal(true)).default({}),
   deletedCollectionIds: z.record(z.string(), z.literal(true)),
   deletedPublicationIds: z.record(z.string(), z.literal(true)).default({}),
