@@ -31,6 +31,12 @@ Local staged mutations:
 - `fulfillmentCreate`
 - `fulfillmentTrackingInfoUpdate`
 - `fulfillmentCancel`
+- `fulfillmentOrderHold`
+- `fulfillmentOrderReleaseHold`
+- `fulfillmentOrderMove`
+- `fulfillmentOrderReportProgress`
+- `fulfillmentOrderOpen`
+- `fulfillmentOrderCancel`
 - `orderCreate`
 - `refundCreate`
 - `draftOrderCreate`
@@ -48,7 +54,7 @@ Local staged mutations:
 ## Behavior notes
 
 - Order and draft-order reads use the shared Shopify-style search parser for catalog, count, invalid-query, and pagination slices covered by parity fixtures.
-- Order fulfillment mutations stage locally in snapshot mode. `fulfillmentCreate` covers validation slices plus order-backed creation from local fulfillment orders, while `fulfillmentEventCreate`, `fulfillmentTrackingInfoUpdate`, and `fulfillmentCancel` update seeded or staged fulfillment records locally. Fulfillment-order request/cancellation roots now stage against order-backed fulfillment orders: submit can split partial quantities into submitted/unsubmitted fulfillment orders, accept/reject fulfillment requests update request status, and cancellation submit/accept/reject preserves merchant request history.
+- Order fulfillment mutations stage locally in snapshot mode. `fulfillmentCreate` covers validation slices plus order-backed creation from local fulfillment orders, while `fulfillmentEventCreate`, `fulfillmentTrackingInfoUpdate`, and `fulfillmentCancel` update seeded or staged fulfillment records locally. Fulfillment-order request/cancellation roots stage against order-backed fulfillment orders: submit can split partial quantities into submitted/unsubmitted fulfillment orders, accept/reject fulfillment requests update request status, and cancellation submit/accept/reject preserves merchant request history. HAR-234 fulfillment-order lifecycle support stages held, released, moved, progress-reported, reopened, and cancelled fulfillment orders from the same order-owned fulfillment-order graph and keeps downstream nested/top-level reads consistent without upstream writes.
 - Nested `Order.fulfillments` and `Order.fulfillmentOrders` remain the order-owned source for top-level fulfillment reads. The shipping/fulfillments endpoint docs describe the top-level `fulfillment(id:)`, `fulfillmentOrder(id:)`, and fulfillment-order catalog roots that now serialize from the same local order graph.
 - Fulfillment flows return Shopify-shaped `userErrors` and expose staged state through immediate downstream order fulfillment reads without sending supported mutations to Shopify at runtime. Staged fulfillment events are visible through both top-level `fulfillment(id:)` and nested `Order.fulfillments.events`, and tracking/cancel updates preserve event history and shipment milestone fields. Staged fulfillment-order request statuses and merchant request messages are visible through `fulfillmentOrder`, `fulfillmentOrders`, `assignedFulfillmentOrders`, and nested `Order.fulfillmentOrders`; no fulfillment-service notification callbacks are invoked. Broader shipping/fulfillment roots and coverage boundaries are tracked in `docs/endpoints/shipping-fulfillments.md`.
 - Draft-order create/complete/update/duplicate/delete/invoice/create-from-order flows preserve staged state for downstream reads and commit replay.
@@ -81,6 +87,7 @@ Local staged mutations:
 - Order create/update flows: `tests/integration/order-creation-flow.test.ts`, `tests/integration/order-draft-flow.test.ts`
 - Draft-order mutation family: `tests/integration/draft-order-mutation-family-flow.test.ts`
 - Fulfillments: `tests/integration/order-fulfillment-flow.test.ts`, `tests/integration/order-query-shapes.test.ts`
+- Fulfillment-order lifecycle capture: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/fulfillment-order-lifecycle.json`
 - Order editing: `tests/integration/order-edit-flow.test.ts`
 - Refunds and shipping-refund aggregates: `tests/integration/order-refund-flow.test.ts`
 - Conformance fixtures and requests: `config/parity-specs/order*.json`, `config/parity-specs/draftOrder*.json`, `config/parity-specs/draftOrders*.json`, `config/parity-specs/fulfillment*.json`, `config/parity-specs/refund*.json`, and matching files under `config/parity-requests/`

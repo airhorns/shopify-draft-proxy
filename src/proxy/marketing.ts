@@ -10,6 +10,7 @@ import {
   type SearchQueryNode,
   type SearchQueryTerm,
 } from '../search-query-parser.js';
+import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type { MarketingRecord } from '../state/types.js';
 import {
@@ -34,6 +35,26 @@ type MarketingConnectionItem = {
 
 const ACTIVITY_ID_PREFIX = 'gid://shopify/MarketingActivity/';
 const EVENT_ID_PREFIX = 'gid://shopify/MarketingEvent/';
+
+const MARKETING_ACTIVITY_MUTATION_ROOTS = new Set([
+  'marketingActivityCreateExternal',
+  'marketingActivityUpdateExternal',
+  'marketingActivityUpsertExternal',
+  'marketingActivityDeleteExternal',
+  'marketingActivitiesDeleteAllExternal',
+]);
+
+type MarketingMutationResult = {
+  response: { data: Record<string, unknown> };
+  stagedResourceIds: string[];
+  notes: string;
+};
+
+type MarketingUserError = {
+  field: string[] | null;
+  message: string;
+  code: string | null;
+};
 
 function collectConnectionCandidates(value: unknown): Array<{ data: unknown; cursor?: string | null }> {
   if (!isPlainObject(value) || !Array.isArray(value['edges'])) {
@@ -130,6 +151,19 @@ function readString(source: Record<string, unknown>, field: string): string | nu
   return typeof value === 'string' ? value : null;
 }
 
+function readObject(source: Record<string, unknown>, field: string): Record<string, unknown> | null {
+  const value = source[field];
+  return isPlainObject(value) ? value : null;
+}
+
+function readInput(raw: unknown): Record<string, unknown> {
+  return isPlainObject(raw) ? raw : {};
+}
+
+function toMarketingData(value: Record<string, unknown>): MarketingRecord['data'] {
+  return structuredClone(value) as MarketingRecord['data'];
+}
+
 function idNumber(id: string): number | null {
   const value = id.split('/').at(-1);
   if (!value) {
@@ -153,6 +187,68 @@ function matchesIdTerm(id: string, term: SearchQueryTerm): boolean {
 function appName(source: Record<string, unknown>): string | null {
   const app = source['app'];
   return isPlainObject(app) ? (readString(app, 'name') ?? readString(app, 'title')) : null;
+}
+
+function marketingRemoteId(source: Record<string, unknown>): string | null {
+  const remoteId = readString(source, 'remoteId');
+  if (remoteId) {
+    return remoteId;
+  }
+
+  const event = readObject(source, 'marketingEvent');
+  return event ? readString(event, 'remoteId') : null;
+}
+
+function readUtm(source: Record<string, unknown>): Record<string, unknown> | null {
+  const utm = readObject(source, 'utm') ?? readObject(source, 'utmParameters');
+  const candidate = utm ?? source;
+
+  const campaign = readString(candidate, 'campaign');
+  const sourceValue = readString(candidate, 'source');
+  const medium = readString(candidate, 'medium');
+  return campaign && sourceValue && medium ? { campaign, source: sourceValue, medium } : null;
+}
+
+function sameUtm(left: Record<string, unknown> | null, right: Record<string, unknown> | null): boolean {
+  if (left === null && right === null) {
+    return true;
+  }
+
+  if (left === null || right === null) {
+    return false;
+  }
+
+  return (
+    left['campaign'] === right['campaign'] && left['source'] === right['source'] && left['medium'] === right['medium']
+  );
+}
+
+function statusLabel(status: string | null): string {
+  switch (status) {
+    case 'ACTIVE':
+      return 'Sending';
+    case 'INACTIVE':
+      return 'Sent';
+    case 'PAUSED':
+      return 'Paused';
+    case 'SCHEDULED':
+      return 'Scheduled';
+    case 'DELETED_EXTERNALLY':
+      return 'Deleted externally';
+    case 'UNDEFINED':
+    default:
+      return 'Undefined';
+  }
+}
+
+function sourceAndMedium(marketingChannelType: string | null, tactic: string | null): string {
+  if (marketingChannelType === 'EMAIL' && tactic === 'NEWSLETTER') {
+    return 'Email newsletter';
+  }
+
+  const channel = marketingChannelType ? marketingChannelType.toLowerCase() : 'external';
+  const tacticLabel = tactic ? tactic.toLowerCase().replaceAll('_', ' ') : 'marketing';
+  return `${channel[0]?.toUpperCase() ?? 'E'}${channel.slice(1)} ${tacticLabel}`;
 }
 
 function matchesActivityTerm(source: Record<string, unknown>, term: SearchQueryTerm): boolean {
@@ -278,7 +374,7 @@ function filterRecords(
     if (remoteIds.length > 0) {
       const ids = new Set(remoteIds.filter((id): id is string => typeof id === 'string'));
       filtered = filtered.filter((record) => {
-        const remoteId = readString(record.data, 'remoteId');
+        const remoteId = marketingRemoteId(record.data);
         return remoteId !== null && ids.has(remoteId);
       });
     }
@@ -327,28 +423,386 @@ function buildConnection(
   });
 }
 
+function marketingValidationPayload(rootField: string, userErrors: MarketingUserError[]): Record<string, unknown> {
+  switch (rootField) {
+    case 'marketingActivityDeleteExternal':
+      return { deletedMarketingActivityId: null, userErrors };
+    case 'marketingActivitiesDeleteAllExternal':
+      return { job: null, userErrors };
+    default:
+      return { marketingActivity: null, userErrors };
+  }
+}
+
+function nonHierarchicalUtmError(): MarketingUserError {
+  return {
+    field: ['input'],
+    message: 'Non-hierarchical marketing activities must have UTM parameters or a URL parameter value.',
+    code: 'NON_HIERARCHIAL_REQUIRES_UTM_URL_PARAMETER',
+  };
+}
+
+function marketingActivityMissingError(): MarketingUserError {
+  return {
+    field: null,
+    message: 'Marketing activity does not exist.',
+    code: 'MARKETING_ACTIVITY_DOES_NOT_EXIST',
+  };
+}
+
+function immutableUtmError(): MarketingUserError {
+  return {
+    field: ['input'],
+    message: 'UTM parameters cannot be modified.',
+    code: 'IMMUTABLE_UTM_PARAMETERS',
+  };
+}
+
+function duplicateExternalActivityError(): MarketingUserError {
+  return {
+    field: ['input'],
+    message: 'Validation failed: Remote ID has already been taken, Utm campaign has already been taken',
+    code: null,
+  };
+}
+
+function hasAttribution(input: Record<string, unknown>): boolean {
+  return readUtm(input) !== null || typeof input['urlParameterValue'] === 'string';
+}
+
+function eventEndedAtForStatus(status: string | null, timestamp: string): string | null {
+  return status === 'INACTIVE' || status === 'DELETED_EXTERNALLY' ? timestamp : null;
+}
+
+function buildMarketingRecordsFromCreateInput(input: Record<string, unknown>): {
+  activity: MarketingRecord;
+  event: MarketingRecord;
+} {
+  const activityId = makeSyntheticGid('MarketingActivity');
+  const eventId = makeSyntheticGid('MarketingEvent');
+  const timestamp = makeSyntheticTimestamp();
+  const title = readString(input, 'title') ?? '';
+  const remoteId = readString(input, 'remoteId');
+  const status = readString(input, 'status') ?? 'UNDEFINED';
+  const tactic = readString(input, 'tactic') ?? 'NEWSLETTER';
+  const marketingChannelType = readString(input, 'marketingChannelType') ?? 'EMAIL';
+  const sourceMedium = sourceAndMedium(marketingChannelType, tactic);
+  const utm = readUtm(input);
+  const remoteUrl = readString(input, 'remoteUrl');
+  const remotePreviewImageUrl = readString(input, 'remotePreviewImageUrl');
+  const scheduledEnd = readString(input, 'scheduledEnd');
+  const startedAt = readString(input, 'start') ?? readString(input, 'scheduledStart') ?? timestamp;
+  const endedAt = readString(input, 'end') ?? eventEndedAtForStatus(status, timestamp);
+
+  const eventData: Record<string, unknown> = {
+    __typename: 'MarketingEvent',
+    id: eventId,
+    legacyResourceId: idNumber(eventId) ?? 0,
+    type: tactic,
+    remoteId,
+    startedAt,
+    endedAt,
+    scheduledToEndAt: scheduledEnd,
+    manageUrl: remoteUrl,
+    previewUrl: remotePreviewImageUrl,
+    utmCampaign: readString(utm ?? {}, 'campaign'),
+    utmMedium: readString(utm ?? {}, 'medium'),
+    utmSource: readString(utm ?? {}, 'source'),
+    description: title,
+    marketingChannelType,
+    sourceAndMedium: sourceMedium,
+    channelHandle: readString(input, 'channelHandle'),
+  };
+
+  const activityData: Record<string, unknown> = {
+    __typename: 'MarketingActivity',
+    id: activityId,
+    title,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    status,
+    statusLabel: statusLabel(status),
+    tactic,
+    marketingChannelType,
+    sourceAndMedium: sourceMedium,
+    isExternal: true,
+    inMainWorkflowVersion: false,
+    urlParameterValue: readString(input, 'urlParameterValue'),
+    parentActivityId: readString(input, 'parentActivityId'),
+    parentRemoteId: readString(input, 'parentRemoteId'),
+    hierarchyLevel: readString(input, 'hierarchyLevel'),
+    remoteId,
+    utmParameters: utm,
+    marketingEvent: eventData,
+  };
+
+  return {
+    activity: { id: activityId, cursor: null, data: toMarketingData(activityData) },
+    event: { id: eventId, cursor: null, data: toMarketingData(eventData) },
+  };
+}
+
+function applyExternalActivityUpdate(
+  record: MarketingRecord,
+  input: Record<string, unknown>,
+): {
+  activity: MarketingRecord;
+  event: MarketingRecord;
+} {
+  const timestamp = makeSyntheticTimestamp();
+  const existingActivity = structuredClone(record.data);
+  const existingEvent = readObject(existingActivity, 'marketingEvent') ?? {};
+  const status = readString(input, 'status') ?? readString(existingActivity, 'status') ?? 'UNDEFINED';
+  const tactic = readString(input, 'tactic') ?? readString(existingActivity, 'tactic') ?? 'NEWSLETTER';
+  const marketingChannelType =
+    readString(input, 'marketingChannelType') ?? readString(existingActivity, 'marketingChannelType') ?? 'EMAIL';
+  const title = readString(input, 'title') ?? readString(existingActivity, 'title') ?? '';
+  const sourceMedium = sourceAndMedium(marketingChannelType, tactic);
+  const eventId = readString(existingEvent, 'id') ?? makeSyntheticGid('MarketingEvent');
+  const remoteId = marketingRemoteId(existingActivity);
+  const existingUtm = readObject(existingActivity, 'utmParameters');
+  const endedAt =
+    readString(input, 'end') ??
+    (status === readString(existingActivity, 'status')
+      ? readString(existingEvent, 'endedAt')
+      : eventEndedAtForStatus(status, timestamp));
+
+  const eventData: Record<string, unknown> = {
+    ...existingEvent,
+    __typename: 'MarketingEvent',
+    id: eventId,
+    legacyResourceId: idNumber(eventId) ?? readString(existingEvent, 'legacyResourceId') ?? 0,
+    type: tactic,
+    remoteId,
+    startedAt:
+      readString(input, 'start') ??
+      readString(input, 'scheduledStart') ??
+      readString(existingEvent, 'startedAt') ??
+      timestamp,
+    endedAt,
+    scheduledToEndAt: readString(input, 'scheduledEnd') ?? readString(existingEvent, 'scheduledToEndAt'),
+    manageUrl: readString(input, 'remoteUrl') ?? readString(existingEvent, 'manageUrl'),
+    previewUrl: readString(input, 'remotePreviewImageUrl') ?? readString(existingEvent, 'previewUrl'),
+    utmCampaign: readString(existingUtm ?? {}, 'campaign'),
+    utmMedium: readString(existingUtm ?? {}, 'medium'),
+    utmSource: readString(existingUtm ?? {}, 'source'),
+    description: title,
+    marketingChannelType,
+    sourceAndMedium: sourceMedium,
+  };
+
+  const activityData: Record<string, unknown> = {
+    ...existingActivity,
+    title,
+    updatedAt: timestamp,
+    status,
+    statusLabel: statusLabel(status),
+    tactic,
+    marketingChannelType,
+    sourceAndMedium: sourceMedium,
+    marketingEvent: eventData,
+  };
+
+  return {
+    activity: { id: record.id, cursor: record.cursor ?? null, data: toMarketingData(activityData) },
+    event: { id: eventId, cursor: null, data: toMarketingData(eventData) },
+  };
+}
+
+function stageMarketingRecords(records: { activity: MarketingRecord; event: MarketingRecord }): void {
+  store.stageMarketingEvent(records.event);
+  store.stageMarketingActivity(records.activity);
+}
+
+function buildMutationRootPayload(
+  rootField: string,
+  args: Record<string, unknown>,
+): {
+  payload: Record<string, unknown>;
+  stagedResourceIds: string[];
+} {
+  if (rootField === 'marketingActivityCreateExternal') {
+    const input = readInput(args['input']);
+    if (!hasAttribution(input)) {
+      return { payload: marketingValidationPayload(rootField, [nonHierarchicalUtmError()]), stagedResourceIds: [] };
+    }
+
+    const remoteId = readString(input, 'remoteId');
+    if (remoteId && store.getEffectiveMarketingActivityByRemoteId(remoteId)) {
+      return {
+        payload: marketingValidationPayload(rootField, [duplicateExternalActivityError()]),
+        stagedResourceIds: [],
+      };
+    }
+
+    const records = buildMarketingRecordsFromCreateInput(input);
+    stageMarketingRecords(records);
+    return {
+      payload: { marketingActivity: records.activity.data, userErrors: [] },
+      stagedResourceIds: [records.activity.id, records.event.id],
+    };
+  }
+
+  if (rootField === 'marketingActivityUpdateExternal') {
+    const input = readInput(args['input']);
+    const remoteId = typeof args['remoteId'] === 'string' ? args['remoteId'] : null;
+    const activityId = typeof args['marketingActivityId'] === 'string' ? args['marketingActivityId'] : null;
+    const activity = remoteId
+      ? store.getEffectiveMarketingActivityByRemoteId(remoteId)
+      : activityId
+        ? store.getEffectiveMarketingActivityRecordById(activityId)
+        : null;
+
+    if (!activity) {
+      return {
+        payload: marketingValidationPayload(rootField, [marketingActivityMissingError()]),
+        stagedResourceIds: [],
+      };
+    }
+
+    const requestedUtm = readInput(args['utm']);
+    if (
+      Object.keys(requestedUtm).length > 0 &&
+      !sameUtm(readObject(activity.data, 'utmParameters'), readUtm(requestedUtm))
+    ) {
+      return { payload: marketingValidationPayload(rootField, [immutableUtmError()]), stagedResourceIds: [] };
+    }
+
+    const records = applyExternalActivityUpdate(activity, input);
+    stageMarketingRecords(records);
+    return {
+      payload: { marketingActivity: records.activity.data, userErrors: [] },
+      stagedResourceIds: [records.activity.id, records.event.id],
+    };
+  }
+
+  if (rootField === 'marketingActivityUpsertExternal') {
+    const input = readInput(args['input']);
+    const remoteId = readString(input, 'remoteId');
+    const existing = remoteId ? store.getEffectiveMarketingActivityByRemoteId(remoteId) : null;
+
+    if (!existing) {
+      if (!hasAttribution(input)) {
+        return { payload: marketingValidationPayload(rootField, [nonHierarchicalUtmError()]), stagedResourceIds: [] };
+      }
+
+      const records = buildMarketingRecordsFromCreateInput(input);
+      stageMarketingRecords(records);
+      return {
+        payload: { marketingActivity: records.activity.data, userErrors: [] },
+        stagedResourceIds: [records.activity.id, records.event.id],
+      };
+    }
+
+    if (!sameUtm(readObject(existing.data, 'utmParameters'), readUtm(input))) {
+      return { payload: marketingValidationPayload(rootField, [immutableUtmError()]), stagedResourceIds: [] };
+    }
+
+    const records = applyExternalActivityUpdate(existing, input);
+    stageMarketingRecords(records);
+    return {
+      payload: { marketingActivity: records.activity.data, userErrors: [] },
+      stagedResourceIds: [records.activity.id, records.event.id],
+    };
+  }
+
+  if (rootField === 'marketingActivityDeleteExternal') {
+    const remoteId = typeof args['remoteId'] === 'string' ? args['remoteId'] : null;
+    const activityId = typeof args['marketingActivityId'] === 'string' ? args['marketingActivityId'] : null;
+    const activity = remoteId
+      ? store.getEffectiveMarketingActivityByRemoteId(remoteId)
+      : activityId
+        ? store.getEffectiveMarketingActivityRecordById(activityId)
+        : null;
+
+    if (!activity) {
+      return {
+        payload: marketingValidationPayload(rootField, [marketingActivityMissingError()]),
+        stagedResourceIds: [],
+      };
+    }
+
+    store.stageDeleteMarketingActivity(activity.id);
+    return {
+      payload: { deletedMarketingActivityId: activity.id, userErrors: [] },
+      stagedResourceIds: [activity.id],
+    };
+  }
+
+  if (rootField === 'marketingActivitiesDeleteAllExternal') {
+    const deletedIds = store.stageDeleteAllExternalMarketingActivities();
+    const jobId = makeSyntheticGid('Job');
+    return {
+      payload: {
+        job: {
+          __typename: 'Job',
+          id: jobId,
+          done: false,
+        },
+        userErrors: [],
+      },
+      stagedResourceIds: [jobId, ...deletedIds],
+    };
+  }
+
+  return { payload: {}, stagedResourceIds: [] };
+}
+
+export function handleMarketingMutation(
+  document: string,
+  variables: Record<string, unknown> = {},
+): MarketingMutationResult | null {
+  const data: Record<string, unknown> = {};
+  const fragments = getDocumentFragments(document);
+  const stagedResourceIds: string[] = [];
+  let handled = false;
+
+  for (const field of getRootFields(document)) {
+    const rootField = field.name.value;
+    if (!MARKETING_ACTIVITY_MUTATION_ROOTS.has(rootField)) {
+      continue;
+    }
+
+    handled = true;
+    const args = getFieldArguments(field, variables);
+    const { payload, stagedResourceIds: rootStagedResourceIds } = buildMutationRootPayload(rootField, args);
+    stagedResourceIds.push(...rootStagedResourceIds);
+    data[getFieldResponseKey(field)] = field.selectionSet
+      ? projectGraphqlValue(payload, field.selectionSet.selections, fragments)
+      : payload;
+  }
+
+  return handled
+    ? {
+        response: { data },
+        stagedResourceIds: [...new Set(stagedResourceIds)],
+        notes: 'Staged locally in the in-memory marketing activity draft store.',
+      }
+    : null;
+}
+
 function rootPayloadForField(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
   const args = getFieldArguments(field, variables);
 
   switch (field.name.value) {
     case 'marketingActivity': {
       const id = typeof args['id'] === 'string' ? args['id'] : null;
-      return id ? store.getBaseMarketingActivityById(id) : null;
+      return id ? store.getEffectiveMarketingActivityById(id) : null;
     }
     case 'marketingActivities':
       return buildConnection(
-        filterRecords(store.listBaseMarketingActivities(), field, variables, 'activity'),
+        filterRecords(store.listEffectiveMarketingActivities(), field, variables, 'activity'),
         field,
         variables,
         fragments,
       );
     case 'marketingEvent': {
       const id = typeof args['id'] === 'string' ? args['id'] : null;
-      return id ? store.getBaseMarketingEventById(id) : null;
+      return id ? store.getEffectiveMarketingEventById(id) : null;
     }
     case 'marketingEvents':
       return buildConnection(
-        filterRecords(store.listBaseMarketingEvents(), field, variables, 'event'),
+        filterRecords(store.listEffectiveMarketingEvents(), field, variables, 'event'),
         field,
         variables,
         fragments,
