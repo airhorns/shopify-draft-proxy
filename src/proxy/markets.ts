@@ -1,7 +1,13 @@
 import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
-import { parseSearchQuery, type SearchQueryNode, type SearchQueryTerm } from '../search-query-parser.js';
+import {
+  applySearchQuery,
+  matchesSearchQueryString,
+  searchQueryTermValue,
+  stripSearchQueryValueQuotes,
+  type SearchQueryTerm,
+} from '../search-query-parser.js';
 import {
   defaultGraphqlTypeConditionApplies,
   getDocumentFragments,
@@ -225,57 +231,40 @@ function projectMarketValue(
   });
 }
 
+function priceListPriceNodeMatchesPositiveQueryTerm(node: unknown, term: SearchQueryTerm): boolean {
+  if (!isPlainObject(node)) {
+    return false;
+  }
+
+  const variant = isPlainObject(node['variant']) ? node['variant'] : null;
+  const product = isPlainObject(variant?.['product']) ? variant['product'] : null;
+  const field = term.field?.toLowerCase() ?? null;
+  const value = stripSearchQueryValueQuotes(searchQueryTermValue(term));
+  const variantId = typeof variant?.['id'] === 'string' ? variant['id'] : null;
+  const productId = typeof product?.['id'] === 'string' ? product['id'] : null;
+
+  if (field === 'variant_id') {
+    return (
+      matchesStringValue(variantId, value, 'exact') ||
+      (variantId !== null && String(resourceNumericId(variantId)) === value)
+    );
+  }
+
+  if (field === 'product_id') {
+    return (
+      matchesStringValue(productId, value, 'exact') ||
+      (productId !== null && String(resourceNumericId(productId)) === value)
+    );
+  }
+
+  return true;
+}
+
 function priceListPriceNodeMatchesQuery(node: unknown, rawQuery: unknown): boolean {
-  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
-    return true;
-  }
-
-  const parsedQuery = parseSearchQuery(rawQuery, { recognizeNotKeyword: true });
-  if (!parsedQuery) {
-    return true;
-  }
-
-  const matchesTerm = (term: SearchQueryTerm): boolean => {
-    if (!term.raw) {
-      return true;
-    }
-
-    if (!isPlainObject(node)) {
-      return false;
-    }
-
-    const variant = isPlainObject(node['variant']) ? node['variant'] : null;
-    const product = isPlainObject(variant?.['product']) ? variant['product'] : null;
-    const field = term.field?.toLowerCase() ?? null;
-    const value = stripSearchValueQuotes(searchTermValue(term));
-    const variantId = typeof variant?.['id'] === 'string' ? variant['id'] : null;
-    const productId = typeof product?.['id'] === 'string' ? product['id'] : null;
-    const matches =
-      field === 'variant_id'
-        ? matchesStringValue(variantId, value, 'exact') ||
-          (variantId !== null && String(resourceNumericId(variantId)) === value)
-        : field === 'product_id'
-          ? matchesStringValue(productId, value, 'exact') ||
-            (productId !== null && String(resourceNumericId(productId)) === value)
-          : true;
-
-    return term.negated ? !matches : matches;
-  };
-
-  const matchesNode = (queryNode: SearchQueryNode): boolean => {
-    switch (queryNode.type) {
-      case 'term':
-        return matchesTerm(queryNode.term);
-      case 'and':
-        return queryNode.children.every((child) => matchesNode(child));
-      case 'or':
-        return queryNode.children.some((child) => matchesNode(child));
-      case 'not':
-        return !matchesNode(queryNode.child);
-    }
-  };
-
-  return matchesNode(parsedQuery);
+  return (
+    applySearchQuery([node], rawQuery, { recognizeNotKeyword: true }, priceListPriceNodeMatchesPositiveQueryTerm)
+      .length > 0
+  );
 }
 
 function projectPriceListPricesConnection(
@@ -598,18 +587,6 @@ export function hydrateMarketsFromUpstreamResponse(
   }
 }
 
-function stripSearchValueQuotes(rawValue: string): string {
-  const value = rawValue.trim();
-  if (
-    value.length >= 2 &&
-    ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'")))
-  ) {
-    return value.slice(1, -1);
-  }
-
-  return value;
-}
-
 function marketNumericId(market: MarketRecord): number | null {
   const match = market.id.match(/\/(\d+)$/u);
   if (!match) {
@@ -625,17 +602,11 @@ function matchesStringValue(candidate: unknown, rawValue: string, mode: 'exact' 
     return false;
   }
 
-  const value = stripSearchValueQuotes(rawValue).toLowerCase();
-  const normalizedCandidate = candidate.toLowerCase();
-  return mode === 'includes' ? normalizedCandidate.includes(value) : normalizedCandidate === value;
-}
-
-function searchTermValue(term: SearchQueryTerm): string {
-  return term.comparator === null ? term.value : `${term.comparator}${term.value}`;
+  return matchesSearchQueryString(candidate, rawValue, mode);
 }
 
 function compareMarketId(marketId: number, rawValue: string): boolean {
-  const match = stripSearchValueQuotes(rawValue).match(/^(<=|>=|<|>|=)?\s*(?:gid:\/\/shopify\/Market\/)?(\d+)$/u);
+  const match = stripSearchQueryValueQuotes(rawValue).match(/^(<=|>=|<|>|=)?\s*(?:gid:\/\/shopify\/Market\/)?(\d+)$/u);
   if (!match) {
     return false;
   }
@@ -669,7 +640,7 @@ function marketConditionTypes(market: MarketRecord): string[] {
 
 function matchesPositiveMarketQueryTerm(market: MarketRecord, term: SearchQueryTerm): boolean {
   if (term.field === null) {
-    const value = stripSearchValueQuotes(term.value);
+    const value = stripSearchQueryValueQuotes(term.value);
     return (
       matchesStringValue(market.data['name'], value, 'includes') ||
       matchesStringValue(market.data['handle'], value, 'includes') ||
@@ -678,7 +649,7 @@ function matchesPositiveMarketQueryTerm(market: MarketRecord, term: SearchQueryT
   }
 
   const field = term.field.toLowerCase();
-  const value = searchTermValue(term);
+  const value = searchQueryTermValue(term);
 
   switch (field) {
     case 'id': {
@@ -697,7 +668,7 @@ function matchesPositiveMarketQueryTerm(market: MarketRecord, term: SearchQueryT
     case 'type':
       return matchesStringValue(market.data['type'], value, 'exact');
     case 'market_condition_types': {
-      const expectedTypes = stripSearchValueQuotes(value)
+      const expectedTypes = stripSearchQueryValueQuotes(value)
         .split(',')
         .map((entry) => entry.trim().toUpperCase())
         .filter(Boolean);
@@ -709,39 +680,8 @@ function matchesPositiveMarketQueryTerm(market: MarketRecord, term: SearchQueryT
   }
 }
 
-function matchesMarketQueryTerm(market: MarketRecord, term: SearchQueryTerm): boolean {
-  if (!term.raw) {
-    return true;
-  }
-
-  const matches = matchesPositiveMarketQueryTerm(market, term);
-  return term.negated ? !matches : matches;
-}
-
-function matchesMarketQueryNode(market: MarketRecord, node: SearchQueryNode): boolean {
-  switch (node.type) {
-    case 'term':
-      return matchesMarketQueryTerm(market, node.term);
-    case 'and':
-      return node.children.every((child) => matchesMarketQueryNode(market, child));
-    case 'or':
-      return node.children.some((child) => matchesMarketQueryNode(market, child));
-    case 'not':
-      return !matchesMarketQueryNode(market, node.child);
-  }
-}
-
 function applyMarketsQuery(markets: MarketRecord[], rawQuery: unknown): MarketRecord[] {
-  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
-    return markets;
-  }
-
-  const parsedQuery = parseSearchQuery(rawQuery, { recognizeNotKeyword: true });
-  if (!parsedQuery) {
-    return markets;
-  }
-
-  return markets.filter((market) => matchesMarketQueryNode(market, parsedQuery));
+  return applySearchQuery(markets, rawQuery, { recognizeNotKeyword: true }, matchesPositiveMarketQueryTerm);
 }
 
 function applyRootMarketFilters(markets: MarketRecord[], args: Record<string, unknown>): MarketRecord[] {
@@ -839,7 +779,7 @@ function catalogHasType(catalog: CatalogRecord, rawType: unknown): boolean {
 }
 
 function compareCatalogId(catalogId: number, rawValue: string): boolean {
-  const match = stripSearchValueQuotes(rawValue).match(
+  const match = stripSearchQueryValueQuotes(rawValue).match(
     /^(<=|>=|<|>|=)?\s*(?:gid:\/\/shopify\/(?:MarketCatalog|CompanyLocationCatalog|AppCatalog|Catalog)\/)?(\d+)$/u,
   );
   if (!match) {
@@ -869,55 +809,42 @@ function matchesCatalogQueryTerm(catalog: CatalogRecord, term: SearchQueryTerm):
     return true;
   }
 
-  const value = searchTermValue(term);
+  const value = searchQueryTermValue(term);
   const field = term.field?.toLowerCase() ?? null;
-  const matches =
-    field === null
-      ? matchesStringValue(catalog.data['title'], value, 'includes') ||
-        matchesStringValue(catalog.id, value, 'includes')
-      : field === 'id'
-        ? matchesStringValue(catalog.id, value, 'exact') ||
-          (resourceNumericId(catalog.id) !== null && compareCatalogId(resourceNumericId(catalog.id)!, value))
-        : field === 'title'
-          ? matchesStringValue(catalog.data['title'], value, 'includes')
-          : field === 'status'
-            ? matchesStringValue(catalog.data['status'], value, 'exact')
-            : field === 'market_id'
-              ? catalogMarkets(catalog).some(
-                  (edge) =>
-                    isPlainObject(edge.node) &&
-                    typeof edge.node['id'] === 'string' &&
-                    matchesStringValue(edge.node['id'], value, 'exact'),
-                )
-              : true;
 
-  return term.negated ? !matches : matches;
-}
-
-function matchesCatalogQueryNode(catalog: CatalogRecord, node: SearchQueryNode): boolean {
-  switch (node.type) {
-    case 'term':
-      return matchesCatalogQueryTerm(catalog, node.term);
-    case 'and':
-      return node.children.every((child) => matchesCatalogQueryNode(catalog, child));
-    case 'or':
-      return node.children.some((child) => matchesCatalogQueryNode(catalog, child));
-    case 'not':
-      return !matchesCatalogQueryNode(catalog, node.child);
+  if (field === null) {
+    return (
+      matchesStringValue(catalog.data['title'], value, 'includes') || matchesStringValue(catalog.id, value, 'includes')
+    );
   }
+
+  if (field === 'id') {
+    const numericId = resourceNumericId(catalog.id);
+    return matchesStringValue(catalog.id, value, 'exact') || (numericId !== null && compareCatalogId(numericId, value));
+  }
+
+  if (field === 'title') {
+    return matchesStringValue(catalog.data['title'], value, 'includes');
+  }
+
+  if (field === 'status') {
+    return matchesStringValue(catalog.data['status'], value, 'exact');
+  }
+
+  if (field === 'market_id') {
+    return catalogMarkets(catalog).some(
+      (edge) =>
+        isPlainObject(edge.node) &&
+        typeof edge.node['id'] === 'string' &&
+        matchesStringValue(edge.node['id'], value, 'exact'),
+    );
+  }
+
+  return true;
 }
 
 function applyCatalogsQuery(catalogs: CatalogRecord[], rawQuery: unknown): CatalogRecord[] {
-  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
-    return catalogs;
-  }
-
-  const parsedQuery = parseSearchQuery(rawQuery, { recognizeNotKeyword: true });
-  if (!parsedQuery) {
-    return catalogs;
-  }
-
-  return catalogs.filter((catalog) => matchesCatalogQueryNode(catalog, parsedQuery));
+  return applySearchQuery(catalogs, rawQuery, { recognizeNotKeyword: true }, matchesCatalogQueryTerm);
 }
 
 function compareCatalogsBySortKey(left: CatalogRecord, right: CatalogRecord, rawSortKey: unknown): number {
