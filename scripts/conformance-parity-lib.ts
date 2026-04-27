@@ -2120,6 +2120,84 @@ function seedCustomerByIdentifierPreconditions(capture: unknown): boolean {
   return true;
 }
 
+function readCustomerFromCapturedCreate(source: Record<string, unknown> | null): Record<string, unknown> | null {
+  return readRecordField(
+    readRecordField(readRecordField(readRecordField(source, 'response'), 'data'), 'customerCreate'),
+    'customer',
+  );
+}
+
+function seedCustomerInputValidationPreconditions(capture: unknown): boolean {
+  if (!isPlainObject(capture)) {
+    return false;
+  }
+
+  const createScenarios = readRecordField(capture, 'createScenarios');
+  const updateScenarios = readRecordField(capture, 'updateScenarios');
+  if (!createScenarios || !updateScenarios) {
+    return false;
+  }
+
+  const seedCustomers = new Map<string, CustomerRecord>();
+  const addCustomerPayload = (payload: Record<string, unknown> | null): void => {
+    const customerId = readStringField(payload, 'id');
+    if (!customerId || seedCustomers.has(customerId)) {
+      return;
+    }
+    seedCustomers.set(customerId, makeSeedCustomer(customerId, payload));
+  };
+  const addCapturedCreate = (source: Record<string, unknown> | null): void => {
+    addCustomerPayload(readCustomerFromCapturedCreate(source));
+  };
+  const addBaseCustomer = (baseCustomer: Record<string, unknown> | null): void => {
+    const customerId = readStringField(baseCustomer, 'id');
+    if (!customerId || seedCustomers.has(customerId)) {
+      return;
+    }
+    const email = readStringField(baseCustomer, 'email');
+    const phone = readStringField(baseCustomer, 'phone');
+    seedCustomers.set(
+      customerId,
+      makeSeedCustomer(customerId, {
+        id: customerId,
+        email,
+        displayName: email,
+        locale: 'en',
+        verifiedEmail: email ? true : null,
+        taxExempt: false,
+        tags: ['input-validation'],
+        defaultEmailAddress: email ? { emailAddress: email } : null,
+        defaultPhoneNumber: phone ? { phoneNumber: phone } : null,
+      }),
+    );
+  };
+
+  const preconditions = readRecordField(capture, 'preconditions');
+  for (const key of ['primary', 'duplicateTarget']) {
+    addCapturedCreate(readRecordField(preconditions, key));
+  }
+
+  for (const scenario of Object.values(updateScenarios)) {
+    if (isPlainObject(scenario)) {
+      addBaseCustomer(readRecordField(scenario, 'baseCustomer'));
+    }
+  }
+
+  const deletedCustomerUpdate = readRecordField(capture, 'deletedCustomerUpdate');
+  addCapturedCreate(readRecordField(deletedCustomerUpdate, 'precondition'));
+
+  const mergedCustomerUpdate = readRecordField(capture, 'mergedCustomerUpdate');
+  addCapturedCreate(readRecordField(mergedCustomerUpdate, 'mergeSource'));
+  addCapturedCreate(readRecordField(mergedCustomerUpdate, 'mergeTarget'));
+
+  if (seedCustomers.size === 0) {
+    return false;
+  }
+
+  store.upsertBaseCustomers([...seedCustomers.values()]);
+  return true;
+}
+
 function readShopifyPaymentsAccountRecord(source: Record<string, unknown> | null): ShopifyPaymentsAccountRecord | null {
   if (!source) {
     return null;
@@ -5795,6 +5873,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   }
 
   if (seedCustomerMergePreconditions(capture, variables, mutationName)) {
+    return;
+  }
+
+  if (seedCustomerInputValidationPreconditions(capture)) {
     return;
   }
 
