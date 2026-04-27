@@ -1,4 +1,7 @@
 import type {
+  AbandonedCheckoutRecord,
+  AbandonmentDeliveryActivityRecord,
+  AbandonmentRecord,
   B2BCompanyContactRecord,
   B2BCompanyContactRoleRecord,
   B2BCompanyLocationRecord,
@@ -129,6 +132,10 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deliveryProfileOrder: [],
   sellingPlanGroups: {},
   sellingPlanGroupOrder: [],
+  abandonedCheckouts: {},
+  abandonedCheckoutOrder: [],
+  abandonments: {},
+  abandonmentOrder: [],
   productCollections: {},
   productMedia: {},
   files: {},
@@ -2319,6 +2326,112 @@ export class InMemoryStore {
   getCustomerMergeRequest(jobId: string): CustomerMergeRequestRecord | null {
     const request = this.stagedState.customerMergeRequests[jobId] ?? this.baseState.customerMergeRequests[jobId];
     return request ? structuredClone(request) : null;
+  }
+
+  upsertBaseAbandonedCheckouts(checkouts: AbandonedCheckoutRecord[]): void {
+    for (const checkout of checkouts) {
+      this.baseState.abandonedCheckouts[checkout.id] = structuredClone(checkout);
+      if (!this.baseState.abandonedCheckoutOrder.includes(checkout.id)) {
+        this.baseState.abandonedCheckoutOrder.push(checkout.id);
+      }
+    }
+  }
+
+  upsertBaseAbandonments(abandonments: AbandonmentRecord[]): void {
+    for (const abandonment of abandonments) {
+      this.baseState.abandonments[abandonment.id] = structuredClone(abandonment);
+      if (!this.baseState.abandonmentOrder.includes(abandonment.id)) {
+        this.baseState.abandonmentOrder.push(abandonment.id);
+      }
+    }
+  }
+
+  getAbandonedCheckoutById(checkoutId: string): AbandonedCheckoutRecord | null {
+    const checkout = this.stagedState.abandonedCheckouts[checkoutId] ?? this.baseState.abandonedCheckouts[checkoutId];
+    return checkout ? structuredClone(checkout) : null;
+  }
+
+  getAbandonmentById(abandonmentId: string): AbandonmentRecord | null {
+    const abandonment = this.stagedState.abandonments[abandonmentId] ?? this.baseState.abandonments[abandonmentId];
+    return abandonment ? structuredClone(abandonment) : null;
+  }
+
+  getAbandonmentByAbandonedCheckoutId(checkoutId: string): AbandonmentRecord | null {
+    return this.getAbandonments().find((abandonment) => abandonment.abandonedCheckoutId === checkoutId) ?? null;
+  }
+
+  getAbandonedCheckouts(): AbandonedCheckoutRecord[] {
+    const mergedCheckouts = new Map<string, AbandonedCheckoutRecord>();
+    for (const id of [...this.baseState.abandonedCheckoutOrder, ...this.stagedState.abandonedCheckoutOrder]) {
+      const checkout = this.getAbandonedCheckoutById(id);
+      if (checkout) {
+        mergedCheckouts.set(id, checkout);
+      }
+    }
+    for (const checkout of [
+      ...Object.values(this.baseState.abandonedCheckouts),
+      ...Object.values(this.stagedState.abandonedCheckouts),
+    ]) {
+      if (!mergedCheckouts.has(checkout.id)) {
+        mergedCheckouts.set(checkout.id, structuredClone(checkout));
+      }
+    }
+    return Array.from(mergedCheckouts.values()).sort((left, right) => {
+      const leftCreatedAt = typeof left.data['createdAt'] === 'string' ? left.data['createdAt'] : '';
+      const rightCreatedAt = typeof right.data['createdAt'] === 'string' ? right.data['createdAt'] : '';
+      return rightCreatedAt.localeCompare(leftCreatedAt) || compareShopifyResourceIds(right.id, left.id);
+    });
+  }
+
+  getAbandonments(): AbandonmentRecord[] {
+    const mergedAbandonments = new Map<string, AbandonmentRecord>();
+    for (const id of [...this.baseState.abandonmentOrder, ...this.stagedState.abandonmentOrder]) {
+      const abandonment = this.getAbandonmentById(id);
+      if (abandonment) {
+        mergedAbandonments.set(id, abandonment);
+      }
+    }
+    for (const abandonment of [
+      ...Object.values(this.baseState.abandonments),
+      ...Object.values(this.stagedState.abandonments),
+    ]) {
+      if (!mergedAbandonments.has(abandonment.id)) {
+        mergedAbandonments.set(abandonment.id, structuredClone(abandonment));
+      }
+    }
+    return Array.from(mergedAbandonments.values()).sort((left, right) => {
+      const leftCreatedAt = typeof left.data['createdAt'] === 'string' ? left.data['createdAt'] : '';
+      const rightCreatedAt = typeof right.data['createdAt'] === 'string' ? right.data['createdAt'] : '';
+      return rightCreatedAt.localeCompare(leftCreatedAt) || compareShopifyResourceIds(right.id, left.id);
+    });
+  }
+
+  stageAbandonmentDeliveryActivity(
+    abandonmentId: string,
+    activity: AbandonmentDeliveryActivityRecord,
+  ): AbandonmentRecord | null {
+    const abandonment = this.getAbandonmentById(abandonmentId);
+    if (!abandonment) {
+      return null;
+    }
+
+    const staged: AbandonmentRecord = {
+      ...abandonment,
+      data: {
+        ...structuredClone(abandonment.data),
+        emailState: activity.deliveryStatus,
+        ...(activity.deliveredAt ? { emailSentAt: activity.deliveredAt } : {}),
+      },
+      deliveryActivities: {
+        ...structuredClone(abandonment.deliveryActivities),
+        [activity.marketingActivityId]: structuredClone(activity),
+      },
+    };
+    this.stagedState.abandonments[staged.id] = structuredClone(staged);
+    if (!this.stagedState.abandonmentOrder.includes(staged.id)) {
+      this.stagedState.abandonmentOrder.push(staged.id);
+    }
+    return structuredClone(staged);
   }
 
   upsertBaseOrders(orders: OrderRecord[]): void {

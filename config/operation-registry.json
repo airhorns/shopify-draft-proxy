@@ -2624,6 +2624,46 @@
     "runtimeTests": ["tests/integration/order-query-shapes.test.ts"]
   },
   {
+    "name": "abandonedCheckouts",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["abandonedCheckouts", "AbandonedCheckouts"],
+    "runtimeTests": ["tests/integration/abandoned-checkout-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local reads serialize empty no-data connections and seeded normalized abandoned checkout records. Live capture on 2026-04-27 against harry-test-heelo.myshopify.com returned an empty connection/count; representative non-empty behavior is modeled from schema/introspection-backed seeded records until a disposable store can produce real abandoned checkout data."
+  },
+  {
+    "name": "abandonedCheckoutsCount",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["abandonedCheckoutsCount", "AbandonedCheckoutsCount"],
+    "runtimeTests": ["tests/integration/abandoned-checkout-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local count reads return the Shopify-like Count payload with EXACT precision, including limit-based AT_LEAST precision for local seeded records."
+  },
+  {
+    "name": "abandonment",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["abandonment", "Abandonment"],
+    "runtimeTests": ["tests/integration/abandoned-checkout-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local detail reads return null for missing ids and project seeded Abandonment records, including the linked abandonedCheckoutPayload when the seeded record references a local abandoned checkout."
+  },
+  {
+    "name": "abandonmentByAbandonedCheckoutId",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["abandonmentByAbandonedCheckoutId", "AbandonmentByAbandonedCheckoutId"],
+    "runtimeTests": ["tests/integration/abandoned-checkout-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local lookup reads return null for missing abandoned checkout ids and resolve seeded abandonment records by abandonedCheckoutId."
+  },
+  {
     "name": "orderUpdate",
     "type": "mutation",
     "domain": "orders",
@@ -3407,6 +3447,16 @@
     "implemented": true,
     "matchNames": ["orderCreate", "OrderCreate"],
     "runtimeTests": ["tests/integration/order-creation-flow.test.ts"]
+  },
+  {
+    "name": "abandonmentUpdateActivitiesDeliveryStatuses",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["abandonmentUpdateActivitiesDeliveryStatuses", "AbandonmentUpdateActivitiesDeliveryStatuses"],
+    "runtimeTests": ["tests/integration/abandoned-checkout-query-shapes.test.ts"],
+    "supportNotes": "Local-only support for seeded/snapshot abandonment records. Unknown abandonment ids mirror the captured safe userError `abandonment_not_found`; known local records update the in-memory delivery activity map and selected abandonment payload without sending runtime writes to Shopify."
   },
   {
     "name": "refundCreate",
