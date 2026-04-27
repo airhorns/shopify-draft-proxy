@@ -1,0 +1,14 @@
+query LocalizationTranslationsRead($resourceId: ID!) {
+  translatableResource(resourceId: $resourceId) {
+    resourceId
+    translations(locale: "fr") {
+      key
+      value
+      locale
+      outdated
+      market {
+        id
+      }
+    }
+  }
+}

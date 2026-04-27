@@ -4,14 +4,14 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/customer-email-marketing-consent-update-parity.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customer-email-marketing-consent-update-parity.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/customerEmailMarketingConsentUpdate-parity.graphql",
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Strict comparison covers local staging for customerEmailMarketingConsentUpdate, downstream customer/customerByIdentifier/customers reads for the selected consent fields, and the captured unknown-customer userErrors branch.",
+  "notes": "Strict comparison covers local staging for customerEmailMarketingConsentUpdate, downstream customer/customerByIdentifier/customers reads for the selected consent fields, and the captured unknown-customer userErrors branch. The same fixture also records the HAR-287 validation matrix for missing/null payload fields, enum/DateTime coercion, future timestamps, contact-method absence, pending/subscribed/unsubscribed transitions, idempotent repeats, and unsupported input states; targeted integration tests enforce those local branches.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

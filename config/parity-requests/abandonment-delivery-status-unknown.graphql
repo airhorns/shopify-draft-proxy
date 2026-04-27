@@ -1,0 +1,19 @@
+mutation AbandonmentDeliveryStatusUnknown($abandonmentId: ID!, $marketingActivityId: ID!) {
+  abandonmentUpdateActivitiesDeliveryStatuses(
+    abandonmentId: $abandonmentId
+    marketingActivityId: $marketingActivityId
+    deliveryStatus: SENT
+    deliveredAt: "2026-04-27T00:00:00Z"
+    deliveryStatusChangeReason: "HAR-300 safe unknown-id probe"
+  ) {
+    abandonment {
+      id
+      emailState
+      emailSentAt
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
