@@ -2648,3 +2648,19 @@ Practical rule:
 - model these roots as order-backed fulfillment-order state transitions plus merchant request history, not as generic status patches or runtime callback calls
 - keep hold/move/reroute/progress semantics out of this slice even though live setup used `fulfillmentOrderMove`; that move was conformance setup, not locally supported request-lifecycle behavior
 - do not infer broader fulfillment-service assignment filtering from `assignedFulfillmentOrders`; the current local read exposes staged order-backed records so tests can see request transitions, while broader live access-scope behavior remains separate evidence
+
+## 71. Gift-card search accepts id, but not obvious scalar display fields
+
+HAR-310 re-captured gift-card evidence on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com` after the conformance grant gained `read_gift_cards` and `write_gift_cards`.
+
+Captured facts:
+
+- `giftCards(query: "id:999999999999")` and `giftCardsCount(query: "id:999999999999")` returned an empty connection/count with no search warnings
+- `giftCards(query: "last_characters:...")`, `giftCards(query: "enabled:false")`, and `giftCards(query: "active:false")` returned unfiltered results plus invalid-search-field warnings
+- `giftCardCredit` and `giftCardDebit` require `write_gift_card_transactions`, which is separate from `write_gift_cards`
+- selecting `giftCard.transactions.nodes` requires `read_gift_card_transactions`, which is separate from `read_gift_cards`
+
+Practical rule:
+
+- keep local gift-card search filtering limited to confirmed Shopify search fields such as `id`; invalid fields should not narrow local results
+- treat credit/debit transaction support as locally staged runtime behavior backed by current integration tests until live transaction scopes are added and successful payloads can be captured

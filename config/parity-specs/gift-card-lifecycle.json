@@ -14,11 +14,11 @@
     "giftCardSendNotificationToRecipient"
   ],
   "scenarioStatus": "captured",
-  "assertionKinds": ["schema-access-evidence", "access-blocker", "payload-shape", "downstream-read-parity"],
+  "assertionKinds": ["schema-access-evidence", "payload-shape", "empty-read-parity", "downstream-read-parity", "access-blocker"],
   "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-card-lifecycle.json"],
   "runtimeTestFiles": ["tests/integration/gift-card-flow.test.ts"],
   "comparisonMode": "captured-fixture",
-  "notes": "HAR-310 captures Admin GraphQL gift-card schema shape and the active conformance credential's read/write blocker payloads: read roots require `read_gift_cards` and lifecycle mutations require `write_gift_cards`, neither of which is currently granted. Runtime parity is enforced by integration tests for the locally modeled gift-card read/lifecycle slice. Notification roots are intentionally not executed in live capture because they are customer-visible side effects; local runtime handling short-circuits them without sending notifications.",
+  "notes": "HAR-310 captures Admin GraphQL gift-card schema shape; readable configuration; unknown-id and filtered empty read behavior; non-empty giftCards/giftCardsCount behavior; and successful giftCardCreate, giftCardUpdate, and giftCardDeactivate payloads with a conformance credential that has read_gift_cards/write_gift_cards. giftCard.transactions reads and giftCardCredit/giftCardDebit remain captured as access blockers until the conformance grant includes read_gift_card_transactions/write_gift_card_transactions. Runtime parity is enforced by integration tests for the locally modeled gift-card read/lifecycle slice. Notification roots are intentionally not executed in live capture because they are customer-visible side effects; local runtime handling short-circuits them without sending notifications.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": []
