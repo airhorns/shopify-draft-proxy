@@ -4763,6 +4763,34 @@
     "supportNotes": "Stages product-scoped fixed-price upserts/deletes only for variants visible in normalized product state."
   },
   {
+    "name": "quantityPricingByVariantUpdate",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["quantityPricingByVariantUpdate", "QuantityPricingByVariantUpdate"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages PriceList fixed prices, variant quantity rules, and quantity price breaks for variants visible in normalized product state."
+  },
+  {
+    "name": "quantityRulesAdd",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["quantityRulesAdd", "QuantityRulesAdd"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
+  },
+  {
+    "name": "quantityRulesDelete",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["quantityRulesDelete", "QuantityRulesDelete"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
+  },
+  {
     "name": "webPresences",
     "type": "query",
     "domain": "markets",
