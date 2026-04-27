@@ -96,6 +96,33 @@ describe('getOperationCapability anonymous operations', () => {
     }
   });
 
+  it('classifies anonymous Shopify Function metadata reads and mutations by root field name', () => {
+    for (const rootField of ['validation', 'validations', 'cartTransforms', 'shopifyFunction', 'shopifyFunctions']) {
+      expect(getOperationCapability({ type: 'query', name: null, rootFields: [rootField] })).toEqual({
+        domain: 'functions',
+        execution: 'overlay-read',
+        operationName: rootField,
+        type: 'query',
+      });
+    }
+
+    for (const rootField of [
+      'validationCreate',
+      'validationUpdate',
+      'validationDelete',
+      'cartTransformCreate',
+      'cartTransformDelete',
+      'taxAppConfigure',
+    ]) {
+      expect(getOperationCapability({ type: 'mutation', name: null, rootFields: [rootField] })).toEqual({
+        domain: 'functions',
+        execution: 'stage-locally',
+        operationName: rootField,
+        type: 'mutation',
+      });
+    }
+  });
+
   it('classifies anonymous product option mutations by root field name', () => {
     expect(getOperationCapability({ type: 'mutation', name: null, rootFields: ['productOptionsCreate'] })).toEqual({
       domain: 'products',
