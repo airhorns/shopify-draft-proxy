@@ -1,0 +1,77 @@
+mutation DiscountCodeBasicLifecycleCreate($input: DiscountCodeBasicInput!) {
+  discountCodeBasicCreate(basicCodeDiscount: $input) {
+    codeDiscountNode {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          status
+          summary
+          startsAt
+          endsAt
+          asyncUsageCount
+          discountClasses
+          combinesWith {
+            productDiscounts
+            orderDiscounts
+            shippingDiscounts
+          }
+          codes(first: 2) {
+            nodes {
+              code
+              asyncUsageCount
+            }
+          }
+          context {
+            __typename
+            ... on DiscountBuyerSelectionAll {
+              all
+            }
+          }
+          customerGets {
+            value {
+              __typename
+              ... on DiscountPercentage {
+                percentage
+              }
+              ... on DiscountAmount {
+                amount {
+                  amount
+                  currencyCode
+                }
+                appliesOnEachItem
+              }
+            }
+            items {
+              __typename
+              ... on AllDiscountItems {
+                allItems
+              }
+            }
+            appliesOnOneTimePurchase
+            appliesOnSubscription
+          }
+          minimumRequirement {
+            __typename
+            ... on DiscountMinimumSubtotal {
+              greaterThanOrEqualToSubtotal {
+                amount
+                currencyCode
+              }
+            }
+            ... on DiscountMinimumQuantity {
+              greaterThanOrEqualToQuantity
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}
