@@ -1,6 +1,7 @@
 {
   "scenarioId": "draft-order-residual-helper-roots",
   "operationNames": [
+    "draftOrderCreate",
     "draftOrderAvailableDeliveryOptions",
     "draftOrderSavedSearches",
     "draftOrderBulkAddTags",
