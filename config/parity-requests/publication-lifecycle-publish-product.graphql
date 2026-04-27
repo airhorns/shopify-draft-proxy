@@ -1,0 +1,18 @@
+mutation PublicationLifecyclePublishProduct($productId: ID!, $publicationId: ID!) {
+  publishablePublish(id: $productId, input: [{ publicationId: $publicationId }]) {
+    publishable {
+      ... on Product {
+        id
+        publishedOnPublication(publicationId: $publicationId)
+        resourcePublicationsCount {
+          count
+          precision
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -1,0 +1,22 @@
+query CustomerAccountPages($unknownId: ID!) {
+  customerAccountPages(first: 10) {
+    nodes {
+      id
+      title
+      handle
+      defaultCursor
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  missing: customerAccountPage(id: $unknownId) {
+    id
+    title
+    handle
+    defaultCursor
+  }
+}

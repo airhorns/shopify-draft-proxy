@@ -13,6 +13,7 @@ export type CapabilityDomain =
   | 'store-properties'
   | 'discounts'
   | 'events'
+  | 'functions'
   | 'payments'
   | 'marketing'
   | 'online-store'

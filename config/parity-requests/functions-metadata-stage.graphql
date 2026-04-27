@@ -1,0 +1,58 @@
+mutation StageFunctionMetadata(
+  $validation: ValidationCreateInput!
+  $cartFunctionHandle: String!
+  $cartBlockOnFailure: Boolean!
+  $ready: Boolean!
+) {
+  validationCreate(validation: $validation) {
+    validation {
+      id
+      title
+      enable
+      blockOnFailure
+      functionHandle
+      createdAt
+      updatedAt
+      shopifyFunction {
+        id
+        title
+        handle
+        apiType
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  cartTransformCreate(functionHandle: $cartFunctionHandle, blockOnFailure: $cartBlockOnFailure) {
+    cartTransform {
+      id
+      title
+      blockOnFailure
+      functionId
+      functionHandle
+      createdAt
+      updatedAt
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  taxAppConfigure(ready: $ready) {
+    taxAppConfiguration {
+      id
+      ready
+      state
+      updatedAt
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

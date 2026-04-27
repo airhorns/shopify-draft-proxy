@@ -1,0 +1,27 @@
+query ReadDeletedFunctionMetadata($validationId: ID!) {
+  validation(id: $validationId) {
+    id
+  }
+  validations(first: 5) {
+    nodes {
+      id
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  cartTransforms(first: 5) {
+    nodes {
+      id
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

@@ -1,0 +1,17 @@
+mutation PublicationUpdateLocalRuntime($id: ID!, $input: PublicationInput!) {
+  publicationUpdate(id: $id, input: $input) {
+    publication {
+      id
+      name
+      autoPublish
+      channel {
+        id
+        name
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

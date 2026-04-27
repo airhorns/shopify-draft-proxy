@@ -1,0 +1,143 @@
+{
+  "scenarioId": "publication-roots-local-runtime",
+  "operationNames": [
+    "channel",
+    "channels",
+    "publication",
+    "publicationsCount",
+    "publishedProductsCount",
+    "publicationCreate",
+    "publicationUpdate",
+    "publicationDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "empty-state-parity",
+    "downstream-read-parity",
+    "no-upstream-passthrough",
+    "captured-vs-proxy-request"
+  ],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/publication-roots-local-runtime.json"],
+  "runtimeTestFiles": ["tests/integration/publication-query-shapes.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/publicationCreate-local-runtime.graphql",
+    "variablesCapturePath": "$.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "publicationCreate payload",
+        "capturePath": "$.create.response.data.publicationCreate",
+        "proxyPath": "$.data.publicationCreate"
+      },
+      {
+        "name": "publicationUpdate payload",
+        "capturePath": "$.update.response.data.publicationUpdate",
+        "proxyPath": "$.data.publicationUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/publicationUpdate-local-runtime.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.publicationCreate.publication.id"
+            },
+            "input": {
+              "name": "Codex Updated Channel",
+              "autoPublish": false
+            }
+          }
+        }
+      },
+      {
+        "name": "top-level channel and publication roots",
+        "capturePath": "$.rootRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/publication-roots-local-runtime-read.graphql",
+          "variables": {
+            "publicationId": {
+              "fromPrimaryProxyPath": "$.data.publicationCreate.publication.id"
+            },
+            "channelId": "gid://shopify/Channel/2"
+          }
+        }
+      },
+      {
+        "name": "publish product to staged publication",
+        "capturePath": "$.publishProduct.response.data.publishablePublish",
+        "proxyPath": "$.data.publishablePublish",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/publication-lifecycle-publish-product.graphql",
+          "variables": {
+            "productId": "gid://shopify/Product/1",
+            "publicationId": {
+              "fromPrimaryProxyPath": "$.data.publicationCreate.publication.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "publish collection to staged publication",
+        "capturePath": "$.publishCollection.response.data.publishablePublish",
+        "proxyPath": "$.data.publishablePublish",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/publication-lifecycle-publish-collection.graphql",
+          "variables": {
+            "collectionId": "gid://shopify/Collection/1",
+            "publicationId": {
+              "fromPrimaryProxyPath": "$.data.publicationCreate.publication.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "downstream product and collection visibility read",
+        "capturePath": "$.downstreamRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/publication-lifecycle-downstream-read.graphql",
+          "variables": {
+            "publicationId": {
+              "fromPrimaryProxyPath": "$.data.publicationCreate.publication.id"
+            },
+            "productId": "gid://shopify/Product/1",
+            "collectionId": "gid://shopify/Collection/1"
+          }
+        }
+      },
+      {
+        "name": "publicationDelete payload",
+        "capturePath": "$.delete.response.data.publicationDelete",
+        "proxyPath": "$.data.publicationDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/publicationDelete-local-runtime.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.publicationCreate.publication.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "after-delete publication visibility read",
+        "capturePath": "$.afterDeleteRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/publication-lifecycle-after-delete-read.graphql",
+          "variables": {
+            "publicationId": {
+              "fromPrimaryProxyPath": "$.data.publicationCreate.publication.id"
+            },
+            "channelId": "gid://shopify/Channel/2",
+            "productId": "gid://shopify/Product/1",
+            "collectionId": "gid://shopify/Collection/1"
+          }
+        }
+      }
+    ]
+  },
+  "notes": "HAR-319 publication root evidence now executes through the generic conformance parity harness. The scenario seeds a base publication, product, and collection; stages publicationCreate/update/delete locally; validates top-level channel/publication roots; publishes product and collection records to the staged publication; and verifies downstream reads before and after delete without runtime Shopify writes."
+}
