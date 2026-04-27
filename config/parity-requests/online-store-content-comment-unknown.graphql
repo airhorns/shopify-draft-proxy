@@ -1,0 +1,39 @@
+mutation OnlineStoreContentCommentUnknown($id: ID!) {
+  commentApprove(id: $id) {
+    comment {
+      id
+      status
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  commentSpam(id: $id) {
+    comment {
+      id
+      status
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  commentNotSpam(id: $id) {
+    comment {
+      id
+      status
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  commentDelete(id: $id) {
+    deletedCommentId
+    userErrors {
+      field
+      message
+    }
+  }
+}

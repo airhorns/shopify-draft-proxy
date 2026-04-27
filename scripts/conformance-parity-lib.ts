@@ -55,6 +55,11 @@ import {
 } from '../src/proxy/localization.js';
 import { handleMediaMutation, handleMediaQuery } from '../src/proxy/media.js';
 import { handleOrderMutation, handleOrderQuery } from '../src/proxy/orders.js';
+import {
+  handleOnlineStoreMutation,
+  handleOnlineStoreQuery,
+  hydrateOnlineStoreFromUpstreamResponse,
+} from '../src/proxy/online-store.js';
 import { findOperationRegistryEntry } from '../src/proxy/operation-registry.js';
 import {
   handleProductMutation,
@@ -737,9 +742,9 @@ export function readJsonPath(value: unknown, pathValue: string): unknown {
   return current;
 }
 
-function materializeValue(rawValue: unknown, primaryProxyResponse: unknown): unknown {
+function materializeValue(rawValue: unknown, primaryProxyResponse: unknown, previousProxyResponse: unknown): unknown {
   if (Array.isArray(rawValue)) {
-    return rawValue.map((item) => materializeValue(item, primaryProxyResponse));
+    return rawValue.map((item) => materializeValue(item, primaryProxyResponse, previousProxyResponse));
   }
 
   if (!isPlainObject(rawValue)) {
@@ -750,13 +755,24 @@ function materializeValue(rawValue: unknown, primaryProxyResponse: unknown): unk
     return readJsonPath(primaryProxyResponse, rawValue['fromPrimaryProxyPath']);
   }
 
+  if (typeof rawValue['fromPreviousProxyPath'] === 'string') {
+    return readJsonPath(previousProxyResponse, rawValue['fromPreviousProxyPath']);
+  }
+
   return Object.fromEntries(
-    Object.entries(rawValue).map(([key, value]) => [key, materializeValue(value, primaryProxyResponse)]),
+    Object.entries(rawValue).map(([key, value]) => [
+      key,
+      materializeValue(value, primaryProxyResponse, previousProxyResponse),
+    ]),
   );
 }
 
-function materializeVariables(rawVariables: unknown, primaryProxyResponse: unknown): Record<string, unknown> {
-  const materialized = materializeValue(rawVariables ?? {}, primaryProxyResponse);
+function materializeVariables(
+  rawVariables: unknown,
+  primaryProxyResponse: unknown,
+  previousProxyResponse: unknown,
+): Record<string, unknown> {
+  const materialized = materializeValue(rawVariables ?? {}, primaryProxyResponse, previousProxyResponse);
   return isPlainObject(materialized) ? materialized : {};
 }
 
@@ -1034,6 +1050,31 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: marketingMutation.response,
+    };
+  }
+
+  if (capability.execution === 'stage-locally' && capability.domain === 'online-store') {
+    const onlineStoreMutation = handleOnlineStoreMutation(document, variables);
+    if (!onlineStoreMutation) {
+      throw new Error(`Online-store parity request was not handled locally: ${capability.operationName}`);
+    }
+
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2025-01/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      stagedResourceIds: onlineStoreMutation.stagedResourceIds,
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: onlineStoreMutation.response,
     };
   }
 
@@ -1393,6 +1434,17 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleMarketingQuery(document, variables),
+    };
+  }
+
+  if (capability.execution === 'overlay-read' && capability.domain === 'online-store') {
+    if (upstreamPayload !== undefined) {
+      hydrateOnlineStoreFromUpstreamResponse(document, upstreamPayload);
+    }
+
+    return {
+      status: 200,
+      body: handleOnlineStoreQuery(document, variables),
     };
   }
 
@@ -6156,10 +6208,29 @@ function seedLocalizationPreconditions(capture: unknown): boolean {
   return locales.length > 0 || shopLocales.length > 0 || resources.length > 0;
 }
 
+function seedOnlineStoreContentPreconditions(capture: unknown): void {
+  const interactions = readArrayField(capture as Record<string, unknown>, 'interactions').filter(isPlainObject);
+  for (const interaction of interactions) {
+    if (interaction['name'] !== 'baseline-catalog-detail-empty') {
+      continue;
+    }
+
+    const request = readRecordField(interaction, 'request');
+    const response = readRecordField(interaction, 'response');
+    const query = readStringField(request, 'query');
+    if (query && response) {
+      hydrateOnlineStoreFromUpstreamResponse(query, response);
+    }
+    return;
+  }
+}
+
 function seedPreconditionsFromCapture(capture: unknown, variables: Record<string, unknown>): void {
   if (seedBulkVariantValidationAtomicityPreconditions(capture)) {
     return;
   }
+
+  seedOnlineStoreContentPreconditions(capture);
 
   const seedProducts = readArrayField(capture as Record<string, unknown>, 'seedProducts').filter(isPlainObject);
   for (const seedProduct of seedProducts) {
@@ -6892,15 +6963,20 @@ function readRequestVariables(
   request: ProxyRequestSpec,
   capture: unknown,
   primaryProxyResponse: unknown,
+  previousProxyResponse: unknown,
 ): Record<string, unknown> {
   if (request.variablesCapturePath) {
-    return materializeVariables(readJsonPath(capture, request.variablesCapturePath), primaryProxyResponse);
+    return materializeVariables(
+      readJsonPath(capture, request.variablesCapturePath),
+      primaryProxyResponse,
+      previousProxyResponse,
+    );
   }
 
   const rawVariables = request.variablesPath
     ? parseJsonFileWithSchema(path.join(repoRoot, request.variablesPath), graphqlVariablesSchema)
     : request.variables;
-  return materializeVariables(rawVariables, primaryProxyResponse);
+  return materializeVariables(rawVariables, primaryProxyResponse, previousProxyResponse);
 }
 
 function readPrimaryUpstreamPayload(capture: unknown, comparison: ComparisonContract, document: string): unknown {
@@ -6965,7 +7041,7 @@ export async function executeParityScenario({
 
   const capture = readJsonFile(repoRoot, capturePath);
   const primaryDocument = readTextFile(repoRoot, paritySpec.proxyRequest.documentPath);
-  const primaryVariables = readRequestVariables(repoRoot, paritySpec.proxyRequest, capture, {});
+  const primaryVariables = readRequestVariables(repoRoot, paritySpec.proxyRequest, capture, {}, {});
   seedPreconditionsFromCapture(capture, primaryVariables);
   const primaryProxyResponse = await executeGraphQLAgainstLocalProxy(
     primaryDocument,
@@ -6974,6 +7050,7 @@ export async function executeParityScenario({
   );
 
   const comparisons = [];
+  let previousProxyResponseBody: unknown = primaryProxyResponse.body;
   for (const target of readComparisonTargets(paritySpec.comparison)) {
     const expected = readJsonPath(capture, target.capturePath);
     let proxyResponseBody: unknown = primaryProxyResponse.body;
@@ -6983,7 +7060,13 @@ export async function executeParityScenario({
         await sleep(target.proxyRequest.waitBeforeMs);
       }
       const document = readTextFile(repoRoot, target.proxyRequest.documentPath);
-      const variables = readRequestVariables(repoRoot, target.proxyRequest, capture, primaryProxyResponse.body);
+      const variables = readRequestVariables(
+        repoRoot,
+        target.proxyRequest,
+        capture,
+        primaryProxyResponse.body,
+        previousProxyResponseBody,
+      );
       const upstreamPayload =
         target.upstreamCapturePath === null
           ? undefined
@@ -6992,6 +7075,7 @@ export async function executeParityScenario({
             : undefined;
       const proxyResponse = await executeGraphQLAgainstLocalProxy(document, variables, upstreamPayload);
       proxyResponseBody = proxyResponse.body;
+      previousProxyResponseBody = proxyResponse.body;
     }
 
     const actual = readJsonPath(proxyResponseBody, target.proxyPath);
