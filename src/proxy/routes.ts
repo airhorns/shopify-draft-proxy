@@ -46,6 +46,12 @@ import {
   isOnlineStoreContentQueryRoot,
 } from './online-store.js';
 import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamResponse } from './products.js';
+import {
+  handleSavedSearchMutation,
+  handleSavedSearchQuery,
+  hydrateSavedSearchesFromUpstreamResponse,
+  isSavedSearchQueryRoot,
+} from './saved-searches.js';
 import { handleMetafieldDefinitionMutation, handleMetafieldDefinitionQuery } from './metafield-definitions.js';
 import {
   handleMetaobjectDefinitionMutation,
@@ -96,6 +102,7 @@ const ORDER_RETURN_MUTATION_ROOTS = new Set([
   'returnClose',
   'returnReopen',
 ]);
+const DRAFT_ORDER_LOCAL_HELPER_QUERY_ROOTS = new Set(['draftOrderAvailableDeliveryOptions', 'draftOrderTag']);
 const NO_LOG_ERROR_MUTATION_ROOTS = new Set([
   'orderCapture',
   'transactionVoid',
@@ -1173,7 +1180,9 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       request.capability.domain === 'orders' ||
       (request.capability.domain === 'payments' && ORDER_PAYMENT_MUTATION_ROOTS.has(request.primaryRootField ?? '')) ||
       (request.capability.domain === 'shipping-fulfillments' &&
-        isOrderBackedLocalFulfillmentMutation(request.primaryRootField)),
+        isOrderBackedLocalFulfillmentMutation(request.primaryRootField)) ||
+      (request.parsed.type === 'query' &&
+        request.parsed.rootFields.some((rootField) => DRAFT_ORDER_LOCAL_HELPER_QUERY_ROOTS.has(rootField))),
     async handleQuery(request) {
       if (request.capability.execution !== 'overlay-read') {
         return false;
@@ -1546,6 +1555,58 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         notes: 'Staged locally in the in-memory segment draft store.',
       });
       setGraphQLResponse(request, 200, responseBody);
+      return true;
+    },
+  },
+  {
+    name: 'saved-searches',
+    canHandle: (request) => request.capability.domain === 'saved-searches',
+    async handleQuery(request) {
+      if (request.capability.execution !== 'overlay-read') {
+        return false;
+      }
+
+      if (!request.parsed.rootFields.every((rootField) => isSavedSearchQueryRoot(rootField))) {
+        return false;
+      }
+
+      if (request.config.readMode === 'snapshot') {
+        setGraphQLResponse(request, 200, handleSavedSearchQuery(request.body.query, request.variables));
+        return true;
+      }
+
+      if (request.config.readMode === 'live-hybrid') {
+        const upstreamResponse = await proxyUpstreamGraphQL(request);
+        hydrateSavedSearchesFromUpstreamResponse(request.body.query, upstreamResponse.body);
+        setGraphQLResponse(
+          request,
+          upstreamResponse.status,
+          store.hasStagedSavedSearches() ||
+            (isSavedSearchQueryRoot(request.primaryRootField) && store.hasSavedSearches())
+            ? handleSavedSearchQuery(request.body.query, request.variables)
+            : upstreamResponse.body,
+        );
+        return true;
+      }
+
+      return false;
+    },
+    handleMutation(request) {
+      if (request.capability.execution !== 'stage-locally') {
+        return false;
+      }
+
+      const savedSearchMutation = handleSavedSearchMutation(request.body.query, request.variables);
+      if (!savedSearchMutation) {
+        return false;
+      }
+
+      appendStagedMutationLog(request, {
+        stagedResourceIds: savedSearchMutation.stagedResourceIds,
+        notes:
+          'Staged locally in the in-memory saved-search draft store; URL redirect saved-search branches remain blocked until online-store navigation conformance is captured.',
+      });
+      setGraphQLResponse(request, 200, savedSearchMutation.response);
       return true;
     },
   },
