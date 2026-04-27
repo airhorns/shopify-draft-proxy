@@ -2052,6 +2052,85 @@ function collectHydratableCustomers(document: string, raw: unknown): CustomerRec
   return customers;
 }
 
+function normalizeCustomerAccountPage(raw: unknown, cursor: string | null = null): CustomerAccountPageRecord | null {
+  if (!isObject(raw)) {
+    return null;
+  }
+
+  const id = typeof raw['id'] === 'string' ? raw['id'] : null;
+  const title = typeof raw['title'] === 'string' ? raw['title'] : null;
+  const handle = typeof raw['handle'] === 'string' ? raw['handle'] : null;
+  const defaultCursor = typeof raw['defaultCursor'] === 'string' ? raw['defaultCursor'] : null;
+  if (!id || !title || !handle || !defaultCursor) {
+    return null;
+  }
+
+  return {
+    id,
+    title,
+    handle,
+    defaultCursor,
+    cursor,
+  };
+}
+
+function collectCustomerAccountPages(document: string, raw: unknown): CustomerAccountPageRecord[] {
+  if (!isObject(raw)) {
+    return [];
+  }
+
+  const pages: CustomerAccountPageRecord[] = [];
+  for (const field of getRootFields(document)) {
+    const responseKey = getFieldResponseKey(field);
+    if (field.name.value === 'customerAccountPage') {
+      const page = normalizeCustomerAccountPage(raw[responseKey]);
+      if (page) {
+        pages.push(page);
+      }
+      continue;
+    }
+
+    if (field.name.value !== 'customerAccountPages') {
+      continue;
+    }
+
+    const connection = raw[responseKey];
+    if (!isObject(connection)) {
+      continue;
+    }
+
+    const edgePages = Array.isArray(connection['edges'])
+      ? connection['edges']
+          .filter((edge): edge is Record<string, unknown> => isObject(edge))
+          .map((edge) =>
+            normalizeCustomerAccountPage(edge['node'], typeof edge['cursor'] === 'string' ? edge['cursor'] : null),
+          )
+          .filter((page): page is CustomerAccountPageRecord => page !== null)
+      : [];
+    if (edgePages.length > 0) {
+      pages.push(...edgePages);
+      continue;
+    }
+
+    const nodes = Array.isArray(connection['nodes']) ? connection['nodes'] : [];
+    const pageInfo = isObject(connection['pageInfo']) ? connection['pageInfo'] : {};
+    for (const [index, node] of nodes.entries()) {
+      const cursor =
+        index === 0 && typeof pageInfo['startCursor'] === 'string'
+          ? pageInfo['startCursor']
+          : index === nodes.length - 1 && typeof pageInfo['endCursor'] === 'string'
+            ? pageInfo['endCursor']
+            : null;
+      const page = normalizeCustomerAccountPage(node, cursor);
+      if (page) {
+        pages.push(page);
+      }
+    }
+  }
+
+  return pages;
+}
+
 function collectCustomerAddressesFromRawCustomer(rawCustomer: unknown): CustomerAddressRecord[] {
   if (!isObject(rawCustomer) || typeof rawCustomer['id'] !== 'string') {
     return [];
@@ -4596,6 +4675,11 @@ export function hydrateCustomersFromUpstreamResponse(
   const customers = collectHydratableCustomers(document, upstreamBody['data']);
   if (customers.length > 0) {
     store.upsertBaseCustomers(customers);
+  }
+
+  const customerAccountPages = collectCustomerAccountPages(document, upstreamBody['data']);
+  if (customerAccountPages.length > 0) {
+    store.upsertBaseCustomerAccountPages(customerAccountPages);
   }
 
   const customerAddresses = collectCustomerAddresses(document, upstreamBody['data']);

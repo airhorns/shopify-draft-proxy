@@ -11,14 +11,36 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customer-account-page-data-erasure.json"
   ],
-  "comparisonMode": "captured-fixture",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customer-account-pages-read.graphql",
+    "variablesCapturePath": "$.reads.customerAccountPages.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
   "runtimeTestFiles": [
     "tests/integration/customer-query-shapes.test.ts",
     "tests/integration/customer-draft-flow.test.ts"
   ],
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "captured-account-pages-read",
+        "capturePath": "$.reads.customerAccountPages.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.reads.customerAccountPages.response"
+      },
+      {
+        "name": "hydrated-local-account-pages-read",
+        "capturePath": "$.reads.customerAccountPages.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customer-account-pages-read.graphql",
+          "variablesCapturePath": "$.reads.customerAccountPages.variables"
+        }
+      }
+    ]
   },
-  "notes": "HAR-322 captures customer account page read shapes and the live data-erasure access blocker. Runtime tests enforce snapshot account-page null/empty behavior, seeded account-page serialization, and local no-upstream data-erasure request/cancel staging with meta audit state and raw mutation replay order."
+  "notes": "HAR-322 executable parity compares captured customerAccountPages/customerAccountPage read shapes once as captured live payload replay and once after hydrating normalized customer account page state into a local snapshot-style read. Runtime tests cover local no-upstream customerRequestDataErasure/customerCancelDataErasure staging, meta audit state, userErrors, and raw mutation replay order because live success capture remains blocked by Shopify's `write_customer_data_erasure` scope and erase-customer-data user permission."
 }
