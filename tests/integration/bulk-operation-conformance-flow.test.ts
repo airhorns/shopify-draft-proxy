@@ -142,7 +142,7 @@ describe('BulkOperation conformance fixture and local model', () => {
     }
   });
 
-  it('discovers captured fixture evidence for locally implemented read and cancel foundations', () => {
+  it('discovers captured proxy-comparison evidence for locally implemented read and cancel foundations', () => {
     const scenarios = loadConformanceScenarios(repoRoot);
     const scenario = scenarios.find((candidate) => candidate.id === 'bulk-operation-status-catalog-cancel');
     const paritySpec = readJson<ParitySpec>(specPath);
@@ -158,7 +158,7 @@ describe('BulkOperation conformance fixture and local model', () => {
       ],
       captureFiles: [fixturePath],
     });
-    expect(classifyParityScenarioState(scenario!, paritySpec)).toBe('enforced-by-fixture');
+    expect(classifyParityScenarioState(scenario!, paritySpec)).toBe('ready-for-comparison');
 
     for (const [operationType, rootField, implemented] of [
       ['query', 'bulkOperation', true],
