@@ -2184,6 +2184,20 @@ Practical rule for the proxy:
 - keep customer-order overlap narrow: local customer reads may expose empty `orders` / `lastOrder` when the customer graph has no modeled order relationship, while real order lifecycle behavior remains in the order-domain notes and tests
 - any future non-empty nested customer replay must first add normalized state for that sub-resource and compare against captured fixtures instead of reusing the HAR-160 empty/no-data serializer branch
 
+### 53a. `orderCustomerSet` updates `Customer.orders` before the scalar summaries
+
+HAR-288 captured a focused 2026-04 live sequence with a disposable customer and an existing order:
+
+- before linking, `customer.orders` was empty, `lastOrder` was `null`, `numberOfOrders` was `"0"`, and `amountSpent` was zero
+- immediately after `orderCustomerSet`, `customer.orders(first: 5)` contained the linked order with its `customer` object pointing at the disposable customer
+- in that same immediate read, `lastOrder` stayed `null`, `numberOfOrders` stayed `"0"`, and `amountSpent` stayed zero
+- after `orderCustomerRemove`, `customer.orders` returned to the empty connection shape
+
+Practical rule:
+
+- model the immediate read-after-write bridge from order customer mutations by deriving `Customer.orders` from normalized `OrderRecord.customer`
+- do not increment `Customer.numberOfOrders`, add to `Customer.amountSpent`, or synthesize `Customer.lastOrder` from local order customer set/remove mutations unless a future capture proves a different lifecycle branch
+
 ## 54. Markets reads are safe to capture, but writes are not harmless
 
 The first Shopify Markets inventory was captured against Admin GraphQL 2026-04 with `corepack pnpm conformance:capture-markets`.
