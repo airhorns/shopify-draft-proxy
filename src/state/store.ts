@@ -39,6 +39,7 @@ import type {
   ProductVariantRecord,
   PriceListRecord,
   PublicationRecord,
+  SavedSearchRecord,
   SegmentRecord,
   ShopRecord,
   StateSnapshot,
@@ -95,6 +96,8 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   onlineStorePageOrder: [],
   onlineStoreComments: {},
   onlineStoreCommentOrder: [],
+  savedSearches: {},
+  savedSearchOrder: [],
   discounts: {},
   discountBulkOperations: {},
   paymentCustomizations: {},
@@ -134,6 +137,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedOnlineStoreBlogIds: {},
   deletedOnlineStorePageIds: {},
   deletedOnlineStoreCommentIds: {},
+  deletedSavedSearchIds: {},
   deletedDiscountIds: {},
   deletedPaymentCustomizationIds: {},
   deletedMarketIds: {},
@@ -1092,6 +1096,71 @@ export class InMemoryStore {
       Object.keys(this.stagedState.deletedOnlineStoreBlogIds).length > 0 ||
       Object.keys(this.stagedState.deletedOnlineStorePageIds).length > 0 ||
       Object.keys(this.stagedState.deletedOnlineStoreCommentIds).length > 0
+    );
+  }
+
+  upsertBaseSavedSearches(records: SavedSearchRecord[]): void {
+    for (const record of records) {
+      delete this.baseState.deletedSavedSearchIds[record.id];
+      delete this.stagedState.deletedSavedSearchIds[record.id];
+      this.baseState.savedSearches[record.id] = structuredClone(record);
+      if (!this.baseState.savedSearchOrder.includes(record.id)) {
+        this.baseState.savedSearchOrder.push(record.id);
+      }
+    }
+  }
+
+  upsertStagedSavedSearch(record: SavedSearchRecord): SavedSearchRecord {
+    delete this.stagedState.deletedSavedSearchIds[record.id];
+    this.stagedState.savedSearches[record.id] = structuredClone(record);
+    if (
+      !this.baseState.savedSearchOrder.includes(record.id) &&
+      !this.stagedState.savedSearchOrder.includes(record.id)
+    ) {
+      this.stagedState.savedSearchOrder.push(record.id);
+    }
+    return structuredClone(record);
+  }
+
+  deleteStagedSavedSearch(savedSearchId: string): void {
+    delete this.stagedState.savedSearches[savedSearchId];
+    this.stagedState.deletedSavedSearchIds[savedSearchId] = true;
+  }
+
+  getEffectiveSavedSearchById(savedSearchId: string): SavedSearchRecord | null {
+    if (this.stagedState.deletedSavedSearchIds[savedSearchId] || this.baseState.deletedSavedSearchIds[savedSearchId]) {
+      return null;
+    }
+
+    const record = this.stagedState.savedSearches[savedSearchId] ?? this.baseState.savedSearches[savedSearchId];
+    return record ? structuredClone(record) : null;
+  }
+
+  listEffectiveSavedSearches(): SavedSearchRecord[] {
+    const orderedIds = new Set([...this.baseState.savedSearchOrder, ...this.stagedState.savedSearchOrder]);
+    const orderedRecords = [...orderedIds]
+      .map((id) => this.getEffectiveSavedSearchById(id))
+      .filter((record): record is SavedSearchRecord => record !== null);
+    const unorderedRecords = Object.values({
+      ...this.baseState.savedSearches,
+      ...this.stagedState.savedSearches,
+    })
+      .filter((record) => !orderedIds.has(record.id))
+      .map((record) => this.getEffectiveSavedSearchById(record.id))
+      .filter((record): record is SavedSearchRecord => record !== null)
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
+
+    return structuredClone([...orderedRecords, ...unorderedRecords]);
+  }
+
+  hasSavedSearches(): boolean {
+    return Object.keys(this.baseState.savedSearches).length > 0 || this.hasStagedSavedSearches();
+  }
+
+  hasStagedSavedSearches(): boolean {
+    return (
+      Object.keys(this.stagedState.savedSearches).length > 0 ||
+      Object.keys(this.stagedState.deletedSavedSearchIds).length > 0
     );
   }
 

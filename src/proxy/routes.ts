@@ -30,6 +30,12 @@ import {
   isOnlineStoreContentQueryRoot,
 } from './online-store.js';
 import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamResponse } from './products.js';
+import {
+  handleSavedSearchMutation,
+  handleSavedSearchQuery,
+  hydrateSavedSearchesFromUpstreamResponse,
+  isSavedSearchQueryRoot,
+} from './saved-searches.js';
 import { handleMetafieldDefinitionMutation, handleMetafieldDefinitionQuery } from './metafield-definitions.js';
 import {
   handleMetaobjectDefinitionMutation,
@@ -796,6 +802,30 @@ export function createProxyRouter(config: AppConfig): Router {
       return;
     }
 
+    if (capability.execution === 'stage-locally' && capability.domain === 'saved-searches') {
+      const savedSearchMutation = handleSavedSearchMutation(body.query, variables);
+      if (savedSearchMutation) {
+        store.appendLog({
+          id: makeSyntheticGid('MutationLogEntry'),
+          receivedAt: makeSyntheticTimestamp(),
+          operationName: capability.operationName,
+          path: ctx.path,
+          query: body.query,
+          variables,
+          requestBody,
+          stagedResourceIds: savedSearchMutation.stagedResourceIds,
+          status: 'staged',
+          interpreted: interpretMutationLogEntry(parsed, capability),
+          notes:
+            'Staged locally in the in-memory saved-search draft store; URL redirect saved-search branches remain blocked until online-store navigation conformance is captured.',
+        });
+
+        ctx.status = 200;
+        ctx.body = savedSearchMutation.response;
+        return;
+      }
+    }
+
     if (
       capability.execution === 'stage-locally' &&
       capability.domain === 'marketing' &&
@@ -1321,6 +1351,34 @@ export function createProxyRouter(config: AppConfig): Router {
 
         ctx.status = response.status;
         ctx.body = store.hasStagedSegments() ? handleSegmentsQuery(body.query, variables) : upstreamBody;
+        return;
+      }
+    }
+
+    if (capability.execution === 'overlay-read' && capability.domain === 'saved-searches') {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleSavedSearchQuery(body.query, variables);
+        return;
+      }
+
+      if (config.readMode === 'live-hybrid') {
+        const response = await requestUpstreamGraphQL(upstream, ctx, {
+          body: {
+            query: body.query,
+            variables,
+          },
+        });
+
+        const upstreamBody = await response.json();
+        hydrateSavedSearchesFromUpstreamResponse(body.query, upstreamBody);
+
+        ctx.status = response.status;
+        ctx.body =
+          store.hasStagedSavedSearches() ||
+          (primaryRootField !== null && isSavedSearchQueryRoot(primaryRootField) && store.hasSavedSearches())
+            ? handleSavedSearchQuery(body.query, variables)
+            : upstreamBody;
         return;
       }
     }

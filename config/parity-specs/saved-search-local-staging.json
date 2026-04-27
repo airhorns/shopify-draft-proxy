@@ -1,0 +1,33 @@
+{
+  "scenarioId": "saved-search-local-staging",
+  "operationNames": [
+    "productSavedSearches",
+    "collectionSavedSearches",
+    "customerSavedSearches",
+    "orderSavedSearches",
+    "draftOrderSavedSearches",
+    "fileSavedSearches",
+    "codeDiscountSavedSearches",
+    "automaticDiscountSavedSearches",
+    "discountRedeemCodeSavedSearches",
+    "savedSearchCreate",
+    "savedSearchUpdate",
+    "savedSearchDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "null-empty-behavior",
+    "pagination-shape",
+    "user-errors-parity",
+    "downstream-read-parity"
+  ],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-search-url-redirects.json"],
+  "runtimeTestFiles": ["tests/integration/saved-search-flow.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "notes": "HAR-312 captured saved-search schema, PRODUCT saved-search create/read/update-validation/delete behavior, missing-id userErrors, and current URL redirect scope blockers. The runtime test enforces local saved-search lifecycle staging, empty connection/pageInfo behavior, downstream reads, query filtering, mutation log visibility, and the explicit URL_REDIRECT saved-search unsupported branch.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  }
+}
