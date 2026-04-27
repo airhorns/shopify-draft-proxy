@@ -23,10 +23,91 @@
   ],
   "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/functions-metadata-flow.json"],
   "runtimeTestFiles": ["tests/integration/functions-flow.test.ts"],
-  "comparisonMode": "captured-fixture",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/functions-metadata-stage.graphql",
+    "variablesCapturePath": "$.primary.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "primary-stage-data",
+        "capturePath": "$.primary.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "validation-update-data",
+        "capturePath": "$.validationUpdate.response.data.validationUpdate",
+        "proxyPath": "$.data.validationUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions-metadata-update-validation.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.validationCreate.validation.id"
+            },
+            "validation": {
+              "title": "Updated validation",
+              "enable": false,
+              "blockOnFailure": false
+            }
+          }
+        }
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions-metadata-read.graphql",
+          "variables": {
+            "validationId": {
+              "fromPrimaryProxyPath": "$.data.validationCreate.validation.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "validation-delete-data",
+        "capturePath": "$.validationDelete.response.data.validationDelete",
+        "proxyPath": "$.data.validationDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions-metadata-delete-validation.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.validationCreate.validation.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "cart-transform-delete-data",
+        "capturePath": "$.cartTransformDelete.response.data.cartTransformDelete",
+        "proxyPath": "$.data.cartTransformDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions-metadata-delete-cart-transform.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.cartTransformCreate.cartTransform.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "post-delete-read-data",
+        "capturePath": "$.emptyRead.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions-metadata-empty-read.graphql",
+          "variables": {
+            "validationId": {
+              "fromPrimaryProxyPath": "$.data.validationCreate.validation.id"
+            }
+          }
+        }
+      }
+    ]
   },
-  "notes": "HAR-325 covers Function-backed Admin metadata roots with a committed runtime fixture and integration test rather than executing external Shopify Functions locally. The local proxy stages validation/cart transform/tax app metadata, exposes downstream validation(s), cartTransforms, and shopifyFunction(s) reads, preserves raw mutation request bodies in the meta log, and verifies runtime requests do not hit Shopify. Root availability is backed by the checked-in 2025-01 Admin GraphQL root introspection fixture; live success-path Shopify Function execution remains intentionally out of scope."
+  "notes": "HAR-325 covers Function-backed Admin metadata roots with executable local parity validation in the generic proxy harness. The local proxy stages validation/cart transform/tax app metadata, exposes downstream validation(s), cartTransforms, and shopifyFunction(s) reads, preserves raw mutation request bodies in the meta log, and verifies runtime requests do not hit Shopify. Root availability is backed by the checked-in 2025-01 Admin GraphQL root introspection fixture; live success-path Shopify Function execution remains intentionally out of scope."
 }

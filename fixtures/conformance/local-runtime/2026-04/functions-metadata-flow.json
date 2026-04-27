@@ -1,35 +1,203 @@
 {
   "scenarioId": "functions-metadata-local-staging",
-  "capturedAt": "2026-04-27T17:32:00.000Z",
+  "capturedAt": "2026-04-27T18:18:00.000Z",
   "source": "local-runtime",
   "apiVersion": "2026-04",
-  "summary": "Runtime-test-backed local fixture for HAR-325 Function metadata staging.",
-  "evidence": {
-    "runtimeTest": "tests/integration/functions-flow.test.ts",
-    "rootIntrospectionFixture": "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-graphql-root-operation-introspection.json",
-    "modeledRoots": [
-      "validation",
-      "validations",
-      "validationCreate",
-      "validationUpdate",
-      "validationDelete",
-      "cartTransforms",
-      "cartTransformCreate",
-      "cartTransformDelete",
-      "shopifyFunction",
-      "shopifyFunctions",
-      "taxAppConfigure"
-    ]
+  "summary": "Executable local parity fixture for HAR-325 Function metadata staging.",
+  "primary": {
+    "variables": {
+      "validation": {
+        "functionHandle": "validation-local",
+        "title": "Local validation",
+        "enable": true,
+        "blockOnFailure": true
+      },
+      "cartFunctionHandle": "cart-transform-local",
+      "cartBlockOnFailure": true,
+      "ready": true
+    },
+    "response": {
+      "data": {
+        "validationCreate": {
+          "validation": {
+            "id": "gid://shopify/Validation/2",
+            "title": "Local validation",
+            "enable": true,
+            "blockOnFailure": true,
+            "functionHandle": "validation-local",
+            "createdAt": "2024-01-01T00:00:01.000Z",
+            "updatedAt": "2024-01-01T00:00:01.000Z",
+            "shopifyFunction": {
+              "id": "gid://shopify/ShopifyFunction/validation-local",
+              "title": "Validation Local",
+              "handle": "validation-local",
+              "apiType": "VALIDATION"
+            }
+          },
+          "userErrors": []
+        },
+        "cartTransformCreate": {
+          "cartTransform": {
+            "id": "gid://shopify/CartTransform/3",
+            "title": "Cart Transform Local",
+            "blockOnFailure": true,
+            "functionId": "gid://shopify/ShopifyFunction/cart-transform-local",
+            "functionHandle": "cart-transform-local",
+            "createdAt": "2024-01-01T00:00:02.000Z",
+            "updatedAt": "2024-01-01T00:00:02.000Z"
+          },
+          "userErrors": []
+        },
+        "taxAppConfigure": {
+          "taxAppConfiguration": {
+            "id": "gid://shopify/TaxAppConfiguration/local",
+            "ready": true,
+            "state": "READY",
+            "updatedAt": "2024-01-01T00:00:03.000Z"
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "validationUpdate": {
+    "response": {
+      "data": {
+        "validationUpdate": {
+          "validation": {
+            "id": "gid://shopify/Validation/2",
+            "title": "Updated validation",
+            "enable": false,
+            "blockOnFailure": false,
+            "functionHandle": "validation-local",
+            "updatedAt": "2024-01-01T00:00:05.000Z"
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "validation": {
+        "id": "gid://shopify/Validation/2",
+        "title": "Updated validation",
+        "enable": false,
+        "blockOnFailure": false,
+        "functionHandle": "validation-local",
+        "shopifyFunction": {
+          "id": "gid://shopify/ShopifyFunction/validation-local",
+          "title": "Validation Local",
+          "handle": "validation-local",
+          "apiType": "VALIDATION"
+        }
+      },
+      "validations": {
+        "nodes": [
+          {
+            "id": "gid://shopify/Validation/2",
+            "title": "Updated validation",
+            "enable": false,
+            "blockOnFailure": false
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": "cursor:gid://shopify/Validation/2",
+          "endCursor": "cursor:gid://shopify/Validation/2"
+        }
+      },
+      "cartTransforms": {
+        "nodes": [
+          {
+            "id": "gid://shopify/CartTransform/3",
+            "title": "Cart Transform Local",
+            "blockOnFailure": true,
+            "functionHandle": "cart-transform-local"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": "cursor:gid://shopify/CartTransform/3",
+          "endCursor": "cursor:gid://shopify/CartTransform/3"
+        }
+      },
+      "validationFunctions": {
+        "nodes": [
+          {
+            "id": "gid://shopify/ShopifyFunction/validation-local",
+            "title": "Validation Local",
+            "handle": "validation-local",
+            "apiType": "VALIDATION"
+          }
+        ]
+      },
+      "cartFunctions": {
+        "nodes": [
+          {
+            "id": "gid://shopify/ShopifyFunction/cart-transform-local",
+            "title": "Cart Transform Local",
+            "handle": "cart-transform-local",
+            "apiType": "CART_TRANSFORM"
+          }
+        ]
+      },
+      "cartFunction": {
+        "id": "gid://shopify/ShopifyFunction/cart-transform-local",
+        "title": "Cart Transform Local",
+        "handle": "cart-transform-local",
+        "apiType": "CART_TRANSFORM"
+      }
+    }
+  },
+  "validationDelete": {
+    "response": {
+      "data": {
+        "validationDelete": {
+          "deletedId": "gid://shopify/Validation/2",
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "cartTransformDelete": {
+    "response": {
+      "data": {
+        "cartTransformDelete": {
+          "deletedId": "gid://shopify/CartTransform/3",
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "emptyRead": {
+    "data": {
+      "validation": null,
+      "validations": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      },
+      "cartTransforms": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      }
+    }
   },
   "runtimeContract": {
     "supportedMutationsStageLocally": true,
     "downstreamReadsReflectStagedMetadata": true,
-    "rawMutationRequestBodiesRemainInMetaLog": true,
-    "externalShopifyFunctionsExecuted": false,
-    "upstreamShopifyFetchesDuringRuntimeFlow": 0
-  },
-  "boundaries": [
-    "Function WASM, checkout cart-transform behavior, validation execution, and tax calculation callbacks are not executed locally.",
-    "Metafield owner records for validation and cart transform resources are not expanded in this increment."
-  ]
+    "externalShopifyFunctionsExecuted": false
+  }
 }
