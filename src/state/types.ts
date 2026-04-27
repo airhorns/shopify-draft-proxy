@@ -623,6 +623,20 @@ export const marketingRecordSchema = z.strictObject({
 });
 export type MarketingRecord = z.infer<typeof marketingRecordSchema>;
 
+export const onlineStoreContentKindSchema = z.enum(['article', 'blog', 'page', 'comment']);
+export type OnlineStoreContentKind = z.infer<typeof onlineStoreContentKindSchema>;
+
+export const onlineStoreContentRecordSchema = z.strictObject({
+  id: z.string(),
+  kind: onlineStoreContentKindSchema,
+  cursor: nullableStringSchema.optional(),
+  parentId: nullableStringSchema.optional(),
+  createdAt: nullableStringSchema.optional(),
+  updatedAt: nullableStringSchema.optional(),
+  data: z.record(z.string(), jsonValueSchema),
+});
+export type OnlineStoreContentRecord = z.infer<typeof onlineStoreContentRecordSchema>;
+
 export const businessEntityAddressRecordSchema = z.strictObject({
   address1: nullableStringSchema,
   address2: nullableStringSchema,
@@ -1582,6 +1596,14 @@ export const stateSnapshotSchema = z.strictObject({
   marketingActivityOrder: z.array(z.string()).default([]),
   marketingEvents: z.record(z.string(), marketingRecordSchema).default({}),
   marketingEventOrder: z.array(z.string()).default([]),
+  onlineStoreArticles: z.record(z.string(), onlineStoreContentRecordSchema).default({}),
+  onlineStoreArticleOrder: z.array(z.string()).default([]),
+  onlineStoreBlogs: z.record(z.string(), onlineStoreContentRecordSchema).default({}),
+  onlineStoreBlogOrder: z.array(z.string()).default([]),
+  onlineStorePages: z.record(z.string(), onlineStoreContentRecordSchema).default({}),
+  onlineStorePageOrder: z.array(z.string()).default([]),
+  onlineStoreComments: z.record(z.string(), onlineStoreContentRecordSchema).default({}),
+  onlineStoreCommentOrder: z.array(z.string()).default([]),
   discounts: z.record(z.string(), discountRecordSchema).default({}),
   discountBulkOperations: z.record(z.string(), discountBulkOperationRecordSchema).default({}),
   paymentCustomizations: z.record(z.string(), paymentCustomizationRecordSchema).default({}),
@@ -1617,6 +1639,10 @@ export const stateSnapshotSchema = z.strictObject({
   deletedCustomerPaymentMethodIds: z.record(z.string(), z.literal(true)).default({}),
   deletedSegmentIds: z.record(z.string(), z.literal(true)).default({}),
   deletedWebhookSubscriptionIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedOnlineStoreArticleIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedOnlineStoreBlogIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedOnlineStorePageIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedOnlineStoreCommentIds: z.record(z.string(), z.literal(true)).default({}),
   deletedDiscountIds: z.record(z.string(), z.literal(true)).default({}),
   deletedPaymentCustomizationIds: z.record(z.string(), z.literal(true)).default({}),
   deletedMarketIds: z.record(z.string(), z.literal(true)).default({}),
