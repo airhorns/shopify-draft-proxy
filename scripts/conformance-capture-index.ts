@@ -639,6 +639,20 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
+    packageScript: 'conformance:capture-store-credit',
+    scriptPath: 'scripts/capture-store-credit-conformance.ts',
+    purpose: 'Store credit account creation setup, account-id credit/debit mutations, and downstream balance reads.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'store credit account access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}store-credit-account-parity.json`,
+      'config/parity-specs/store-credit-account-local-staging.json',
+    ],
+    cleanupBehavior:
+      'Creates a disposable customer, credits/debits a real store credit account, debits the remaining balance back to zero, then deletes the customer.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
     packageScript: 'conformance:capture-customer-set',
     scriptPath: 'scripts/capture-customer-set-conformance.mts',
     purpose: 'customerSet upsert/identifier semantics.',

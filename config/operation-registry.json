@@ -1156,6 +1156,16 @@
     "runtimeTests": ["tests/integration/publication-query-shapes.test.ts"]
   },
   {
+    "name": "storeCreditAccount",
+    "type": "query",
+    "domain": "customers",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["storeCreditAccount", "StoreCreditAccount"],
+    "runtimeTests": ["tests/integration/store-credit-flow.test.ts"],
+    "supportNotes": "HAR-317: snapshot/local reads expose only seeded or staged store credit accounts. Unknown ids return null, customer nested connections remain empty unless normalized accounts exist, and balances are never fabricated."
+  },
+  {
     "name": "customer",
     "type": "query",
     "domain": "customers",
@@ -1375,6 +1385,26 @@
     "matchNames": ["customerSendAccountInviteEmail", "CustomerSendAccountInviteEmail"],
     "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"],
     "supportNotes": "Buffered locally as a staged outbound invite intent. Runtime support validates the customer, updates local account state to invited when applicable, and keeps the original raw mutation for commit-time email delivery."
+  },
+  {
+    "name": "storeCreditAccountCredit",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["storeCreditAccountCredit", "StoreCreditAccountCredit"],
+    "runtimeTests": ["tests/integration/store-credit-flow.test.ts"],
+    "supportNotes": "HAR-317: stages credit adjustments only for existing normalized store credit accounts, updates local balance/transactions, returns captured unknown-id userErrors locally, and keeps the original raw mutation for commit replay without runtime Shopify writes."
+  },
+  {
+    "name": "storeCreditAccountDebit",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["storeCreditAccountDebit", "StoreCreditAccountDebit"],
+    "runtimeTests": ["tests/integration/store-credit-flow.test.ts"],
+    "supportNotes": "HAR-317: stages debit adjustments only for existing normalized store credit accounts, enforces local currency/funds checks, updates downstream balance/transactions, and keeps the original raw mutation for commit replay without runtime Shopify writes."
   },
   {
     "name": "customerPaymentMethodSendUpdateEmail",

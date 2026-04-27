@@ -17,6 +17,8 @@ import type {
   CustomerMergeRequestRecord,
   CustomerMetafieldRecord,
   CustomerPaymentMethodRecord,
+  StoreCreditAccountRecord,
+  StoreCreditAccountTransactionRecord,
   CustomerRecord,
   CustomerSegmentMembersQueryRecord,
   DeliveryProfileRecord,
@@ -96,6 +98,8 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   customers: {},
   customerAddresses: {},
   customerPaymentMethods: {},
+  storeCreditAccounts: {},
+  storeCreditAccountTransactions: {},
   segments: {},
   customerSegmentMembersQueries: {},
   webhookSubscriptions: {},
@@ -666,6 +670,18 @@ export class InMemoryStore {
       delete this.baseState.deletedCustomerPaymentMethodIds[paymentMethod.id];
       delete this.stagedState.deletedCustomerPaymentMethodIds[paymentMethod.id];
       this.baseState.customerPaymentMethods[paymentMethod.id] = structuredClone(paymentMethod);
+    }
+  }
+
+  upsertBaseStoreCreditAccounts(
+    accounts: StoreCreditAccountRecord[],
+    transactions: StoreCreditAccountTransactionRecord[] = [],
+  ): void {
+    for (const account of accounts) {
+      this.baseState.storeCreditAccounts[account.id] = structuredClone(account);
+    }
+    for (const transaction of transactions) {
+      this.baseState.storeCreditAccountTransactions[transaction.id] = structuredClone(transaction);
     }
   }
 
@@ -2484,6 +2500,18 @@ export class InMemoryStore {
     return structuredClone(address);
   }
 
+  stageStoreCreditAccount(account: StoreCreditAccountRecord): StoreCreditAccountRecord {
+    this.stagedState.storeCreditAccounts[account.id] = structuredClone(account);
+    return structuredClone(account);
+  }
+
+  stageStoreCreditAccountTransaction(
+    transaction: StoreCreditAccountTransactionRecord,
+  ): StoreCreditAccountTransactionRecord {
+    this.stagedState.storeCreditAccountTransactions[transaction.id] = structuredClone(transaction);
+    return structuredClone(transaction);
+  }
+
   stageDeleteCustomerAddress(addressId: string): void {
     delete this.stagedState.customerAddresses[addressId];
     this.stagedState.deletedCustomerAddressIds[addressId] = true;
@@ -3348,6 +3376,15 @@ export class InMemoryStore {
     return structuredClone(paymentMethod);
   }
 
+  getEffectiveStoreCreditAccountById(accountId: string): StoreCreditAccountRecord | null {
+    const account = this.stagedState.storeCreditAccounts[accountId] ?? this.baseState.storeCreditAccounts[accountId];
+    if (!account || this.stagedState.deletedCustomerIds[account.customerId]) {
+      return null;
+    }
+
+    return structuredClone(account);
+  }
+
   listEffectiveCustomerAddresses(customerId: string): CustomerAddressRecord[] {
     if (this.stagedState.deletedCustomerIds[customerId]) {
       return [];
@@ -3397,6 +3434,51 @@ export class InMemoryStore {
     return paymentMethods.sort(
       (left, right) =>
         (left.cursor ?? left.id).localeCompare(right.cursor ?? right.id) || left.id.localeCompare(right.id),
+    );
+  }
+
+  listEffectiveStoreCreditAccountsForCustomer(customerId: string): StoreCreditAccountRecord[] {
+    if (this.stagedState.deletedCustomerIds[customerId]) {
+      return [];
+    }
+
+    const accountIds = new Set([
+      ...Object.keys(this.baseState.storeCreditAccounts),
+      ...Object.keys(this.stagedState.storeCreditAccounts),
+    ]);
+    const accounts: StoreCreditAccountRecord[] = [];
+
+    for (const accountId of Array.from(accountIds)) {
+      const account = this.getEffectiveStoreCreditAccountById(accountId);
+      if (account?.customerId === customerId) {
+        accounts.push(account);
+      }
+    }
+
+    return accounts.sort(
+      (left, right) =>
+        (left.cursor ?? left.id).localeCompare(right.cursor ?? right.id) || left.id.localeCompare(right.id),
+    );
+  }
+
+  listEffectiveStoreCreditAccountTransactions(accountId: string): StoreCreditAccountTransactionRecord[] {
+    const transactionIds = new Set([
+      ...Object.keys(this.baseState.storeCreditAccountTransactions),
+      ...Object.keys(this.stagedState.storeCreditAccountTransactions),
+    ]);
+    const transactions: StoreCreditAccountTransactionRecord[] = [];
+
+    for (const transactionId of Array.from(transactionIds)) {
+      const transaction =
+        this.stagedState.storeCreditAccountTransactions[transactionId] ??
+        this.baseState.storeCreditAccountTransactions[transactionId];
+      if (transaction?.accountId === accountId) {
+        transactions.push(structuredClone(transaction));
+      }
+    }
+
+    return transactions.sort(
+      (left, right) => right.createdAt.localeCompare(left.createdAt) || right.id.localeCompare(left.id),
     );
   }
 
