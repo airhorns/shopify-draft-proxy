@@ -632,6 +632,16 @@ export const marketingRecordSchema = z.strictObject({
 });
 export type MarketingRecord = z.infer<typeof marketingRecordSchema>;
 
+export const marketingEngagementRecordSchema = z.strictObject({
+  id: z.string(),
+  marketingActivityId: nullableStringSchema.optional(),
+  remoteId: nullableStringSchema.optional(),
+  channelHandle: nullableStringSchema.optional(),
+  occurredOn: z.string(),
+  data: z.record(z.string(), jsonValueSchema),
+});
+export type MarketingEngagementRecord = z.infer<typeof marketingEngagementRecordSchema>;
+
 export const onlineStoreContentKindSchema = z.enum(['article', 'blog', 'page', 'comment']);
 export type OnlineStoreContentKind = z.infer<typeof onlineStoreContentKindSchema>;
 
@@ -1625,8 +1635,11 @@ export const stateSnapshotSchema = z.strictObject({
   marketingActivityOrder: z.array(z.string()).default([]),
   marketingEvents: z.record(z.string(), marketingRecordSchema).default({}),
   marketingEventOrder: z.array(z.string()).default([]),
+  marketingEngagements: z.record(z.string(), marketingEngagementRecordSchema).default({}),
+  marketingEngagementOrder: z.array(z.string()).default([]),
   deletedMarketingActivityIds: z.record(z.string(), z.boolean()).default({}),
   deletedMarketingEventIds: z.record(z.string(), z.boolean()).default({}),
+  deletedMarketingEngagementIds: z.record(z.string(), z.boolean()).default({}),
   onlineStoreArticles: z.record(z.string(), onlineStoreContentRecordSchema).default({}),
   onlineStoreArticleOrder: z.array(z.string()).default([]),
   onlineStoreBlogs: z.record(z.string(), onlineStoreContentRecordSchema).default({}),
@@ -1681,6 +1694,7 @@ export const stateSnapshotSchema = z.strictObject({
   deletedPriceListIds: z.record(z.string(), z.literal(true)).default({}),
   deletedWebPresenceIds: z.record(z.string(), z.literal(true)).default({}),
   deletedDeliveryProfileIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedMetaobjectDefinitionIds: z.record(z.string(), z.literal(true)).default({}),
   mergedCustomerIds: z.record(z.string(), z.string()).default({}),
   customerMergeRequests: z.record(z.string(), customerMergeRequestRecordSchema).default({}),
 });

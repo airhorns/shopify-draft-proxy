@@ -47,6 +47,166 @@
     "supportNotes": "Snapshot-mode no-data read support only: captured 2025-01 harry-test-heelo evidence returns an empty ProductFeedConnection with empty nodes/edges and null cursors. Live-hybrid feed reads continue to proxy upstream because staged product writes do not currently affect feed membership."
   },
   {
+    "name": "app",
+    "type": "query",
+    "domain": "apps",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["app", "App"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 declared app identity read gap. Captured 2025-01 evidence records current conformance app lookup shapes by id/handle/key and missing lookup nullability; local overlay support requires an app/installation model before implementation."
+  },
+  {
+    "name": "appByHandle",
+    "type": "query",
+    "domain": "apps",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["appByHandle", "AppByHandle"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 declared app handle lookup gap. Captured 2025-01 evidence records accessible app object fields and missing-handle nullability; local overlay support requires an app identity index before implementation."
+  },
+  {
+    "name": "appByKey",
+    "type": "query",
+    "domain": "apps",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["appByKey", "AppByKey"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 declared app API-key lookup gap. Captured 2025-01 evidence records accessible app object fields and missing-key nullability; local overlay support requires an app identity index before implementation."
+  },
+  {
+    "name": "appInstallation",
+    "type": "query",
+    "domain": "apps",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["appInstallation", "AppInstallation"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 declared app installation read gap. Captured 2025-01 evidence records current installation object shape, active subscription empty list behavior, billing connection empty behavior, and unknown installation nullability."
+  },
+  {
+    "name": "appInstallations",
+    "type": "query",
+    "domain": "apps",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["appInstallations", "AppInstallations"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 declared app installation catalog gap. Current conformance app receives field-level ACCESS_DENIED for appInstallations, so local support must wait for an eligible credential or fixture that captures authorized empty/non-empty connection behavior."
+  },
+  {
+    "name": "currentAppInstallation",
+    "type": "query",
+    "domain": "apps",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["currentAppInstallation", "CurrentAppInstallation"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 declared current app installation read gap. Captured 2025-01 evidence records access scopes, app identity, empty activeSubscriptions, empty allSubscriptions, and empty oneTimePurchases for the active conformance install."
+  },
+  {
+    "name": "appPurchaseOneTimeCreate",
+    "type": "mutation",
+    "domain": "apps",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["appPurchaseOneTimeCreate", "AppPurchaseOneTimeCreate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 side-effect-heavy billing mutation gap. Do not support until one-time purchase confirmation URL creation, merchant approval status, downstream installation billing reads, and raw commit replay semantics are modeled locally."
+  },
+  {
+    "name": "appSubscriptionCreate",
+    "type": "mutation",
+    "domain": "apps",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["appSubscriptionCreate", "AppSubscriptionCreate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 side-effect-heavy recurring billing mutation gap. Do not support until subscription confirmation URL creation, replacement behavior, trial/line item modeling, downstream billing reads, and raw commit replay semantics are modeled locally."
+  },
+  {
+    "name": "appSubscriptionCancel",
+    "type": "mutation",
+    "domain": "apps",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["appSubscriptionCancel", "AppSubscriptionCancel"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 side-effect-heavy billing mutation gap. Do not support until cancellation/proration behavior, downstream subscription status reads, and raw commit replay semantics are modeled locally."
+  },
+  {
+    "name": "appSubscriptionLineItemUpdate",
+    "type": "mutation",
+    "domain": "apps",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["appSubscriptionLineItemUpdate", "AppSubscriptionLineItemUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 side-effect-heavy usage billing mutation gap. Do not support until capped amount updates, line item lookup/error behavior, downstream billing reads, and raw commit replay semantics are modeled locally."
+  },
+  {
+    "name": "appSubscriptionTrialExtend",
+    "type": "mutation",
+    "domain": "apps",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["appSubscriptionTrialExtend", "AppSubscriptionTrialExtend"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 side-effect-heavy billing mutation gap. Do not support until trial extension limits, status transitions, downstream subscription reads, and raw commit replay semantics are modeled locally."
+  },
+  {
+    "name": "appUsageRecordCreate",
+    "type": "mutation",
+    "domain": "apps",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["appUsageRecordCreate", "AppUsageRecordCreate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 side-effect-heavy usage billing mutation gap. Do not support until idempotency behavior, usage record connection reads, billing limit errors, and raw commit replay semantics are modeled locally."
+  },
+  {
+    "name": "appRevokeAccessScopes",
+    "type": "mutation",
+    "domain": "apps",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["appRevokeAccessScopes", "AppRevokeAccessScopes"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 side-effect-heavy access mutation gap. Do not support until scope revocation effects, app grant visibility, validation errors, and raw commit replay semantics are modeled locally."
+  },
+  {
+    "name": "appUninstall",
+    "type": "mutation",
+    "domain": "apps",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["appUninstall", "AppUninstall"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 destructive installation mutation gap. Do not support until uninstall effects, post-uninstall read behavior, app/session invalidation consequences, and raw commit replay semantics are modeled locally."
+  },
+  {
+    "name": "delegateAccessTokenCreate",
+    "type": "mutation",
+    "domain": "apps",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["delegateAccessTokenCreate", "DelegateAccessTokenCreate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 delegated-access mutation gap. Do not support until token scope/resource modeling, returned token secrecy rules, downstream authorization effects, and raw commit replay semantics are modeled locally."
+  },
+  {
+    "name": "delegateAccessTokenDestroy",
+    "type": "mutation",
+    "domain": "apps",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["delegateAccessTokenDestroy", "DelegateAccessTokenDestroy"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 delegated-access mutation gap. Do not support until token lookup/destruction behavior, idempotency/error semantics, downstream authorization effects, and raw commit replay semantics are modeled locally."
+  },
+  {
     "name": "productVariant",
     "type": "query",
     "domain": "products",
@@ -1914,40 +2074,40 @@
     "type": "mutation",
     "domain": "metaobjects",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectDefinitionCreate", "MetaobjectDefinitionCreate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until definition schema validation, capabilities, access, and entry catalog side effects are modeled."
+    "runtimeTests": ["tests/integration/metaobject-definition-draft-flow.test.ts"],
+    "supportNotes": "Locally stages merchant-owned metaobject definition creation for captured 2026-04 fields, default access/capabilities, ordered field definitions, and downstream definition reads without runtime Shopify writes. Merchant-owned admin access input returns the captured ADMIN_ACCESS_INPUT_NOT_ALLOWED guardrail locally."
   },
   {
     "name": "metaobjectDefinitionUpdate",
     "type": "mutation",
     "domain": "metaobjects",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectDefinitionUpdate", "MetaobjectDefinitionUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until field definition migrations, validation jobs, access changes, and downstream entry effects are modeled."
+    "runtimeTests": ["tests/integration/metaobject-definition-draft-flow.test.ts"],
+    "supportNotes": "Locally stages definition updates for normalized name, description, displayNameKey, access, capabilities, field definition create/update/delete operations, and resetFieldOrder-driven read ordering. Entry migration/validation side effects remain outside the current local entry model."
   },
   {
     "name": "metaobjectDefinitionDelete",
     "type": "mutation",
     "domain": "metaobjects",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectDefinitionDelete", "MetaobjectDefinitionDelete"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until associated entry deletion, unknown-type behavior, and downstream definition absence are modeled."
+    "runtimeTests": ["tests/integration/metaobject-definition-draft-flow.test.ts"],
+    "supportNotes": "Locally stages definition deletion for definitions with no modeled associated entries and hides deleted base/staged definitions from downstream reads. Definitions with associated metaobjects return an explicit local unsupported userError until entry cascade behavior is modeled."
   },
   {
     "name": "standardMetaobjectDefinitionEnable",
     "type": "mutation",
     "domain": "metaobjects",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["standardMetaobjectDefinitionEnable", "StandardMetaobjectDefinitionEnable"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until standard template catalog capture, enable validation, and created-definition semantics are modeled."
+    "runtimeTests": ["tests/integration/metaobject-definition-draft-flow.test.ts"],
+    "supportNotes": "Locally stages captured-safe standard metaobject definition enablement for the bounded local template catalog and returns TEMPLATE_NOT_FOUND for unknown template types without runtime Shopify writes."
   },
   {
     "name": "collectionCreate",
@@ -3437,20 +3597,20 @@
     "type": "mutation",
     "domain": "marketing",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingEngagementCreate", "MarketingEngagementCreate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for activity-level and channel-level engagement metrics and report visibility."
+    "runtimeTests": ["tests/integration/marketing-engagement-flow.test.ts"],
+    "supportNotes": "Locally stages activity-level marketing engagement metrics by marketing activity ID or remote ID from captured write_marketing_events evidence. Duplicate same-day writes replace the local engagement record; captured userErrors cover missing/invalid identifiers and unrecognized channel handles. Immediate downstream activity adSpend remains unchanged to match captured Shopify reads."
   },
   {
     "name": "marketingEngagementsDelete",
     "type": "mutation",
     "domain": "marketing",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingEngagementsDelete", "MarketingEngagementsDelete"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for channel-level deletion semantics and userErrors."
+    "runtimeTests": ["tests/integration/marketing-engagement-flow.test.ts"],
+    "supportNotes": "Locally stages channel-level engagement deletion with captured selector validation. Activity-level engagement writes are retained because Shopify exposes no activity-level selector on marketingEngagementsDelete; delete-all removes known local channel engagement records and returns the captured result shape."
   },
   {
     "name": "webhookSubscription",

@@ -1,0 +1,1530 @@
+{
+  "capturedAt": "2026-04-27T00:49:29.560Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": [
+    "HAR-301 safe app/billing/access read capture. No billing, uninstall, scope revocation, or delegated-token mutations are executed.",
+    "The active conformance app has no active subscriptions, no allSubscriptions rows, and no oneTimePurchases rows, so the fixture captures Shopify empty/no-data billing connection behavior for the installed app.",
+    "The current credential can read currentAppInstallation, app/appByHandle/appByKey, and appInstallation for the active install. appInstallations returns ACCESS_DENIED and is recorded as a credential/access blocker."
+  ],
+  "rootIntrospection": {
+    "query": "#graphql\n  query AppBillingRootIntrospection {\n    queryRoot: __type(name: \"QueryRoot\") {\n      fields {\n        name\n        args {\n          name\n          type {\n            kind\n            name\n            ofType {\n              kind\n              name\n              ofType {\n                kind\n                name\n              }\n            }\n          }\n        }\n        type {\n          kind\n          name\n          ofType {\n            kind\n            name\n            ofType {\n              kind\n              name\n            }\n          }\n        }\n      }\n    }\n    mutationRoot: __type(name: \"Mutation\") {\n      fields {\n        name\n        args {\n          name\n          type {\n            kind\n            name\n            ofType {\n              kind\n              name\n              ofType {\n                kind\n                name\n              }\n            }\n          }\n        }\n        type {\n          kind\n          name\n          ofType {\n            kind\n            name\n            ofType {\n              kind\n              name\n            }\n          }\n        }\n      }\n    }\n  }\n",
+    "status": 200,
+    "errors": null,
+    "relevantRoots": {
+      "queryRoots": [
+        {
+          "name": "app",
+          "args": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "App",
+            "ofType": null
+          }
+        },
+        {
+          "name": "appByHandle",
+          "args": [
+            {
+              "name": "handle",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "String",
+                  "ofType": null
+                }
+              }
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "App",
+            "ofType": null
+          }
+        },
+        {
+          "name": "appByKey",
+          "args": [
+            {
+              "name": "apiKey",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "String",
+                  "ofType": null
+                }
+              }
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "App",
+            "ofType": null
+          }
+        },
+        {
+          "name": "appInstallation",
+          "args": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "AppInstallation",
+            "ofType": null
+          }
+        },
+        {
+          "name": "appInstallations",
+          "args": [
+            {
+              "name": "first",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null
+              }
+            },
+            {
+              "name": "after",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "name": "last",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null
+              }
+            },
+            {
+              "name": "before",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "name": "reverse",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            },
+            {
+              "name": "sortKey",
+              "type": {
+                "kind": "ENUM",
+                "name": "AppInstallationSortKeys",
+                "ofType": null
+              }
+            },
+            {
+              "name": "category",
+              "type": {
+                "kind": "ENUM",
+                "name": "AppInstallationCategory",
+                "ofType": null
+              }
+            },
+            {
+              "name": "privacy",
+              "type": {
+                "kind": "ENUM",
+                "name": "AppInstallationPrivacy",
+                "ofType": null
+              }
+            }
+          ],
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "OBJECT",
+              "name": "AppInstallationConnection",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "currentAppInstallation",
+          "args": [],
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "OBJECT",
+              "name": "AppInstallation",
+              "ofType": null
+            }
+          }
+        }
+      ],
+      "mutationRoots": [
+        {
+          "name": "appPurchaseOneTimeCreate",
+          "args": [
+            {
+              "name": "name",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "String",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "name": "price",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "INPUT_OBJECT",
+                  "name": "MoneyInput",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "name": "returnUrl",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "URL",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "name": "test",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "AppPurchaseOneTimeCreatePayload",
+            "ofType": null
+          }
+        },
+        {
+          "name": "appRevokeAccessScopes",
+          "args": [
+            {
+              "name": "scopes",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "LIST",
+                  "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL",
+                    "name": null
+                  }
+                }
+              }
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "AppRevokeAccessScopesPayload",
+            "ofType": null
+          }
+        },
+        {
+          "name": "appSubscriptionCancel",
+          "args": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "ID",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "name": "prorate",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "AppSubscriptionCancelPayload",
+            "ofType": null
+          }
+        },
+        {
+          "name": "appSubscriptionCreate",
+          "args": [
+            {
+              "name": "name",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "String",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "name": "lineItems",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "LIST",
+                  "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL",
+                    "name": null
+                  }
+                }
+              }
+            },
+            {
+              "name": "test",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            },
+            {
+              "name": "trialDays",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null
+              }
+            },
+            {
+              "name": "returnUrl",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "URL",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "name": "replacementBehavior",
+              "type": {
+                "kind": "ENUM",
+                "name": "AppSubscriptionReplacementBehavior",
+                "ofType": null
+              }
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "AppSubscriptionCreatePayload",
+            "ofType": null
+          }
+        },
+        {
+          "name": "appSubscriptionLineItemUpdate",
+          "args": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "ID",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "name": "cappedAmount",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "INPUT_OBJECT",
+                  "name": "MoneyInput",
+                  "ofType": null
+                }
+              }
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "AppSubscriptionLineItemUpdatePayload",
+            "ofType": null
+          }
+        },
+        {
+          "name": "appSubscriptionTrialExtend",
+          "args": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "ID",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "name": "days",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "Int",
+                  "ofType": null
+                }
+              }
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "AppSubscriptionTrialExtendPayload",
+            "ofType": null
+          }
+        },
+        {
+          "name": "appUninstall",
+          "args": [],
+          "type": {
+            "kind": "OBJECT",
+            "name": "AppUninstallPayload",
+            "ofType": null
+          }
+        },
+        {
+          "name": "appUsageRecordCreate",
+          "args": [
+            {
+              "name": "subscriptionLineItemId",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "ID",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "name": "price",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "INPUT_OBJECT",
+                  "name": "MoneyInput",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "name": "description",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "String",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "name": "idempotencyKey",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "AppUsageRecordCreatePayload",
+            "ofType": null
+          }
+        },
+        {
+          "name": "delegateAccessTokenCreate",
+          "args": [
+            {
+              "name": "input",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "INPUT_OBJECT",
+                  "name": "DelegateAccessTokenInput",
+                  "ofType": null
+                }
+              }
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "DelegateAccessTokenCreatePayload",
+            "ofType": null
+          }
+        },
+        {
+          "name": "delegateAccessTokenDestroy",
+          "args": [
+            {
+              "name": "accessToken",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "String",
+                  "ofType": null
+                }
+              }
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "DelegateAccessTokenDestroyPayload",
+            "ofType": null
+          }
+        }
+      ]
+    }
+  },
+  "currentInstallation": {
+    "query": "#graphql\n  query CurrentAppBillingSafeRead($unknownInstallationId: ID!, $first: Int!) {\n    currentAppInstallation {\n      id\n      launchUrl\n      uninstallUrl\n      accessScopes {\n        handle\n        description\n      }\n      app {\n        id\n        apiKey\n        handle\n        title\n        developerName\n        embedded\n        previouslyInstalled\n        requestedAccessScopes {\n          handle\n          description\n        }\n      }\n      activeSubscriptions {\n        id\n        name\n        status\n        test\n        trialDays\n        currentPeriodEnd\n        createdAt\n        lineItems {\n          id\n          plan {\n            pricingDetails {\n              __typename\n              ... on AppRecurringPricing {\n                price {\n                  amount\n                  currencyCode\n                }\n                interval\n                planHandle\n              }\n              ... on AppUsagePricing {\n                cappedAmount {\n                  amount\n                  currencyCode\n                }\n                balanceUsed {\n                  amount\n                  currencyCode\n                }\n                interval\n                terms\n              }\n            }\n          }\n        }\n      }\n      allSubscriptions(first: $first) {\n        nodes {\n          id\n          name\n          status\n          test\n          trialDays\n          currentPeriodEnd\n          createdAt\n        }\n        edges {\n          cursor\n          node {\n            id\n          }\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n      oneTimePurchases(first: $first) {\n        nodes {\n          id\n          name\n          status\n          test\n          createdAt\n          price {\n            amount\n            currencyCode\n          }\n        }\n        edges {\n          cursor\n          node {\n            id\n          }\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n    missingAppInstallation: appInstallation(id: $unknownInstallationId) {\n      id\n    }\n  }\n",
+    "variables": {
+      "unknownInstallationId": "gid://shopify/AppInstallation/0",
+      "first": 5
+    },
+    "status": 200,
+    "payload": {
+      "data": {
+        "currentAppInstallation": {
+          "id": "gid://shopify/AppInstallation/913990517042",
+          "launchUrl": "https://harry-test-heelo.myshopify.com/admin/apps/hermes-conformance-products",
+          "uninstallUrl": null,
+          "accessScopes": [
+            {
+              "handle": "read_assigned_fulfillment_orders",
+              "description": "Read assigned fulfillment"
+            },
+            {
+              "handle": "read_content",
+              "description": "Read store content like articles, blogs, comments, pages, and redirects"
+            },
+            {
+              "handle": "read_customers",
+              "description": "Read customer details and customer groups"
+            },
+            {
+              "handle": "read_discounts",
+              "description": "Read discounts"
+            },
+            {
+              "handle": "read_draft_orders",
+              "description": "Read draft orders"
+            },
+            {
+              "handle": "read_files",
+              "description": "Read files"
+            },
+            {
+              "handle": "read_fulfillments",
+              "description": "Read fulfillment services"
+            },
+            {
+              "handle": "read_inventory",
+              "description": "Read inventory"
+            },
+            {
+              "handle": "read_locations",
+              "description": "Read locations"
+            },
+            {
+              "handle": "read_marketing_events",
+              "description": "Read marketing events and related marketing engagement data"
+            },
+            {
+              "handle": "read_markets",
+              "description": "Read access for Shopify Markets API"
+            },
+            {
+              "handle": "read_merchant_managed_fulfillment_orders",
+              "description": "Read fulfillment for merchant-managed locations"
+            },
+            {
+              "handle": "read_metaobject_definitions",
+              "description": "Read metaobject definitions"
+            },
+            {
+              "handle": "read_metaobjects",
+              "description": "Read metaobjects"
+            },
+            {
+              "handle": "read_order_edits",
+              "description": "Read order edits"
+            },
+            {
+              "handle": "read_orders",
+              "description": "Read orders, transactions, and fulfillments"
+            },
+            {
+              "handle": "read_product_listings",
+              "description": "Read product information"
+            },
+            {
+              "handle": "read_products",
+              "description": "Read products, variants, and collections"
+            },
+            {
+              "handle": "read_publications",
+              "description": "Read publications"
+            },
+            {
+              "handle": "read_returns",
+              "description": "Read access for returns"
+            },
+            {
+              "handle": "read_shipping",
+              "description": "Read shipping rates, countries, and provinces"
+            },
+            {
+              "handle": "read_themes",
+              "description": "Read theme templates and theme assets"
+            },
+            {
+              "handle": "read_third_party_fulfillment_orders",
+              "description": "Read fulfillment assigned to fulfillment services"
+            },
+            {
+              "handle": "read_translations",
+              "description": "Read dynamic content translations"
+            },
+            {
+              "handle": "write_assigned_fulfillment_orders",
+              "description": "Modify assigned fulfillment"
+            },
+            {
+              "handle": "write_content",
+              "description": "Modify store content like articles, blogs, comments, pages, and redirects"
+            },
+            {
+              "handle": "write_customers",
+              "description": "Modify customer details and customer groups"
+            },
+            {
+              "handle": "write_discounts",
+              "description": "Modify discounts"
+            },
+            {
+              "handle": "write_draft_orders",
+              "description": "Modify draft orders"
+            },
+            {
+              "handle": "write_files",
+              "description": "Write files"
+            },
+            {
+              "handle": "write_fulfillments",
+              "description": "Modify fulfillment services"
+            },
+            {
+              "handle": "write_gift_cards",
+              "description": "Modify gift cards"
+            },
+            {
+              "handle": "write_inventory",
+              "description": "Modify inventory"
+            },
+            {
+              "handle": "write_locations",
+              "description": "Modify locations"
+            },
+            {
+              "handle": "write_marketing_events",
+              "description": "Modify marketing events and related marketing engagement data"
+            },
+            {
+              "handle": "write_markets",
+              "description": "Write access for Shopify Markets API"
+            },
+            {
+              "handle": "write_merchant_managed_fulfillment_orders",
+              "description": "Action fulfillment for merchant-managed locations"
+            },
+            {
+              "handle": "write_metaobject_definitions",
+              "description": "Write metaobject definitions"
+            },
+            {
+              "handle": "write_metaobjects",
+              "description": "Write metaobjects"
+            },
+            {
+              "handle": "write_order_edits",
+              "description": "Modify orders"
+            },
+            {
+              "handle": "write_orders",
+              "description": "Modify orders, transactions, and fulfillments"
+            },
+            {
+              "handle": "write_products",
+              "description": "Modify products, variants, and collections"
+            },
+            {
+              "handle": "write_publications",
+              "description": "Modify publications"
+            },
+            {
+              "handle": "write_returns",
+              "description": "Write access for returns"
+            },
+            {
+              "handle": "write_shipping",
+              "description": "Modify shipping rates, countries, and provinces"
+            },
+            {
+              "handle": "write_third_party_fulfillment_orders",
+              "description": "Modify fulfillment assigned to fulfillment services"
+            },
+            {
+              "handle": "write_translations",
+              "description": "Write dynamic content translations"
+            },
+            {
+              "handle": "read_gift_cards",
+              "description": "Read gift cards"
+            }
+          ],
+          "app": {
+            "id": "gid://shopify/App/347082227713",
+            "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+            "handle": "hermes-conformance-products",
+            "title": "hermes-conformance-products",
+            "developerName": "Gadget",
+            "embedded": true,
+            "previouslyInstalled": false,
+            "requestedAccessScopes": [
+              {
+                "handle": "read_assigned_fulfillment_orders",
+                "description": "Read assigned fulfillment"
+              },
+              {
+                "handle": "read_content",
+                "description": "Read store content like articles, blogs, comments, pages, and redirects"
+              },
+              {
+                "handle": "read_customers",
+                "description": "Read customer details and customer groups"
+              },
+              {
+                "handle": "read_discounts",
+                "description": "Read discounts"
+              },
+              {
+                "handle": "read_draft_orders",
+                "description": "Read draft orders"
+              },
+              {
+                "handle": "read_files",
+                "description": "Read files"
+              },
+              {
+                "handle": "read_fulfillments",
+                "description": "Read fulfillment services"
+              },
+              {
+                "handle": "read_inventory",
+                "description": "Read inventory"
+              },
+              {
+                "handle": "read_locations",
+                "description": "Read locations"
+              },
+              {
+                "handle": "read_marketing_events",
+                "description": "Read marketing events and related marketing engagement data"
+              },
+              {
+                "handle": "read_markets",
+                "description": "Read access for Shopify Markets API"
+              },
+              {
+                "handle": "read_merchant_managed_fulfillment_orders",
+                "description": "Read fulfillment for merchant-managed locations"
+              },
+              {
+                "handle": "read_metaobject_definitions",
+                "description": "Read metaobject definitions"
+              },
+              {
+                "handle": "read_metaobjects",
+                "description": "Read metaobjects"
+              },
+              {
+                "handle": "read_order_edits",
+                "description": "Read order edits"
+              },
+              {
+                "handle": "read_orders",
+                "description": "Read orders, transactions, and fulfillments"
+              },
+              {
+                "handle": "read_product_listings",
+                "description": "Read product information"
+              },
+              {
+                "handle": "read_products",
+                "description": "Read products, variants, and collections"
+              },
+              {
+                "handle": "read_publications",
+                "description": "Read publications"
+              },
+              {
+                "handle": "read_returns",
+                "description": "Read access for returns"
+              },
+              {
+                "handle": "read_shipping",
+                "description": "Read shipping rates, countries, and provinces"
+              },
+              {
+                "handle": "read_themes",
+                "description": "Read theme templates and theme assets"
+              },
+              {
+                "handle": "read_third_party_fulfillment_orders",
+                "description": "Read fulfillment assigned to fulfillment services"
+              },
+              {
+                "handle": "read_translations",
+                "description": "Read dynamic content translations"
+              },
+              {
+                "handle": "write_assigned_fulfillment_orders",
+                "description": "Modify assigned fulfillment"
+              },
+              {
+                "handle": "write_cash_tracking",
+                "description": "Write cash balance tracking for retail cash registers"
+              },
+              {
+                "handle": "write_content",
+                "description": "Modify store content like articles, blogs, comments, pages, and redirects"
+              },
+              {
+                "handle": "write_customers",
+                "description": "Modify customer details and customer groups"
+              },
+              {
+                "handle": "write_discounts",
+                "description": "Modify discounts"
+              },
+              {
+                "handle": "write_draft_orders",
+                "description": "Modify draft orders"
+              },
+              {
+                "handle": "write_files",
+                "description": "Write files"
+              },
+              {
+                "handle": "write_fulfillments",
+                "description": "Modify fulfillment services"
+              },
+              {
+                "handle": "write_gift_cards",
+                "description": "Modify gift cards"
+              },
+              {
+                "handle": "write_inventory",
+                "description": "Modify inventory"
+              },
+              {
+                "handle": "write_locations",
+                "description": "Modify locations"
+              },
+              {
+                "handle": "write_marketing_events",
+                "description": "Modify marketing events and related marketing engagement data"
+              },
+              {
+                "handle": "write_markets",
+                "description": "Write access for Shopify Markets API"
+              },
+              {
+                "handle": "write_merchant_managed_fulfillment_orders",
+                "description": "Action fulfillment for merchant-managed locations"
+              },
+              {
+                "handle": "write_metaobject_definitions",
+                "description": "Write metaobject definitions"
+              },
+              {
+                "handle": "write_metaobjects",
+                "description": "Write metaobjects"
+              },
+              {
+                "handle": "write_order_edits",
+                "description": "Modify orders"
+              },
+              {
+                "handle": "write_orders",
+                "description": "Modify orders, transactions, and fulfillments"
+              },
+              {
+                "handle": "write_products",
+                "description": "Modify products, variants, and collections"
+              },
+              {
+                "handle": "write_publications",
+                "description": "Modify publications"
+              },
+              {
+                "handle": "write_returns",
+                "description": "Write access for returns"
+              },
+              {
+                "handle": "write_shipping",
+                "description": "Modify shipping rates, countries, and provinces"
+              },
+              {
+                "handle": "write_third_party_fulfillment_orders",
+                "description": "Modify fulfillment assigned to fulfillment services"
+              },
+              {
+                "handle": "write_translations",
+                "description": "Write dynamic content translations"
+              },
+              {
+                "handle": "read_cash_tracking",
+                "description": "Read cash balance tracking for retail cash registers"
+              },
+              {
+                "handle": "read_gift_cards",
+                "description": "Read gift cards"
+              }
+            ]
+          },
+          "activeSubscriptions": [],
+          "allSubscriptions": {
+            "nodes": [],
+            "edges": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          },
+          "oneTimePurchases": {
+            "nodes": [],
+            "edges": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          }
+        },
+        "missingAppInstallation": null
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 34,
+          "actualQueryCost": 16,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1978,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "appLookups": {
+    "query": "#graphql\n  query AppLookupShapes(\n    $id: ID!\n    $missingId: ID!\n    $handle: String!\n    $missingHandle: String!\n    $apiKey: String!\n    $missingApiKey: String!\n  ) {\n    appById: app(id: $id) {\n      id\n      apiKey\n      handle\n      title\n      developerName\n      embedded\n      previouslyInstalled\n      requestedAccessScopes {\n        handle\n        description\n      }\n    }\n    missingAppById: app(id: $missingId) {\n      id\n    }\n    appByHandle(handle: $handle) {\n      id\n      apiKey\n      handle\n      title\n      developerName\n      embedded\n      previouslyInstalled\n    }\n    missingAppByHandle: appByHandle(handle: $missingHandle) {\n      id\n    }\n    appByKey(apiKey: $apiKey) {\n      id\n      apiKey\n      handle\n      title\n      developerName\n      embedded\n      previouslyInstalled\n    }\n    missingAppByKey: appByKey(apiKey: $missingApiKey) {\n      id\n    }\n  }\n",
+    "variables": {
+      "id": "gid://shopify/App/347082227713",
+      "missingId": "gid://shopify/App/0",
+      "handle": "hermes-conformance-products",
+      "missingHandle": "missing-hermes-conformance-products",
+      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+      "missingApiKey": "00000000000000000000000000000000"
+    },
+    "status": 200,
+    "payload": {
+      "data": {
+        "appById": {
+          "id": "gid://shopify/App/347082227713",
+          "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+          "handle": "hermes-conformance-products",
+          "title": "hermes-conformance-products",
+          "developerName": "Gadget",
+          "embedded": true,
+          "previouslyInstalled": false,
+          "requestedAccessScopes": [
+            {
+              "handle": "read_assigned_fulfillment_orders",
+              "description": "Read assigned fulfillment"
+            },
+            {
+              "handle": "read_content",
+              "description": "Read store content like articles, blogs, comments, pages, and redirects"
+            },
+            {
+              "handle": "read_customers",
+              "description": "Read customer details and customer groups"
+            },
+            {
+              "handle": "read_discounts",
+              "description": "Read discounts"
+            },
+            {
+              "handle": "read_draft_orders",
+              "description": "Read draft orders"
+            },
+            {
+              "handle": "read_files",
+              "description": "Read files"
+            },
+            {
+              "handle": "read_fulfillments",
+              "description": "Read fulfillment services"
+            },
+            {
+              "handle": "read_inventory",
+              "description": "Read inventory"
+            },
+            {
+              "handle": "read_locations",
+              "description": "Read locations"
+            },
+            {
+              "handle": "read_marketing_events",
+              "description": "Read marketing events and related marketing engagement data"
+            },
+            {
+              "handle": "read_markets",
+              "description": "Read access for Shopify Markets API"
+            },
+            {
+              "handle": "read_merchant_managed_fulfillment_orders",
+              "description": "Read fulfillment for merchant-managed locations"
+            },
+            {
+              "handle": "read_metaobject_definitions",
+              "description": "Read metaobject definitions"
+            },
+            {
+              "handle": "read_metaobjects",
+              "description": "Read metaobjects"
+            },
+            {
+              "handle": "read_order_edits",
+              "description": "Read order edits"
+            },
+            {
+              "handle": "read_orders",
+              "description": "Read orders, transactions, and fulfillments"
+            },
+            {
+              "handle": "read_product_listings",
+              "description": "Read product information"
+            },
+            {
+              "handle": "read_products",
+              "description": "Read products, variants, and collections"
+            },
+            {
+              "handle": "read_publications",
+              "description": "Read publications"
+            },
+            {
+              "handle": "read_returns",
+              "description": "Read access for returns"
+            },
+            {
+              "handle": "read_shipping",
+              "description": "Read shipping rates, countries, and provinces"
+            },
+            {
+              "handle": "read_themes",
+              "description": "Read theme templates and theme assets"
+            },
+            {
+              "handle": "read_third_party_fulfillment_orders",
+              "description": "Read fulfillment assigned to fulfillment services"
+            },
+            {
+              "handle": "read_translations",
+              "description": "Read dynamic content translations"
+            },
+            {
+              "handle": "write_assigned_fulfillment_orders",
+              "description": "Modify assigned fulfillment"
+            },
+            {
+              "handle": "write_cash_tracking",
+              "description": "Write cash balance tracking for retail cash registers"
+            },
+            {
+              "handle": "write_content",
+              "description": "Modify store content like articles, blogs, comments, pages, and redirects"
+            },
+            {
+              "handle": "write_customers",
+              "description": "Modify customer details and customer groups"
+            },
+            {
+              "handle": "write_discounts",
+              "description": "Modify discounts"
+            },
+            {
+              "handle": "write_draft_orders",
+              "description": "Modify draft orders"
+            },
+            {
+              "handle": "write_files",
+              "description": "Write files"
+            },
+            {
+              "handle": "write_fulfillments",
+              "description": "Modify fulfillment services"
+            },
+            {
+              "handle": "write_gift_cards",
+              "description": "Modify gift cards"
+            },
+            {
+              "handle": "write_inventory",
+              "description": "Modify inventory"
+            },
+            {
+              "handle": "write_locations",
+              "description": "Modify locations"
+            },
+            {
+              "handle": "write_marketing_events",
+              "description": "Modify marketing events and related marketing engagement data"
+            },
+            {
+              "handle": "write_markets",
+              "description": "Write access for Shopify Markets API"
+            },
+            {
+              "handle": "write_merchant_managed_fulfillment_orders",
+              "description": "Action fulfillment for merchant-managed locations"
+            },
+            {
+              "handle": "write_metaobject_definitions",
+              "description": "Write metaobject definitions"
+            },
+            {
+              "handle": "write_metaobjects",
+              "description": "Write metaobjects"
+            },
+            {
+              "handle": "write_order_edits",
+              "description": "Modify orders"
+            },
+            {
+              "handle": "write_orders",
+              "description": "Modify orders, transactions, and fulfillments"
+            },
+            {
+              "handle": "write_products",
+              "description": "Modify products, variants, and collections"
+            },
+            {
+              "handle": "write_publications",
+              "description": "Modify publications"
+            },
+            {
+              "handle": "write_returns",
+              "description": "Write access for returns"
+            },
+            {
+              "handle": "write_shipping",
+              "description": "Modify shipping rates, countries, and provinces"
+            },
+            {
+              "handle": "write_third_party_fulfillment_orders",
+              "description": "Modify fulfillment assigned to fulfillment services"
+            },
+            {
+              "handle": "write_translations",
+              "description": "Write dynamic content translations"
+            },
+            {
+              "handle": "read_cash_tracking",
+              "description": "Read cash balance tracking for retail cash registers"
+            },
+            {
+              "handle": "read_gift_cards",
+              "description": "Read gift cards"
+            }
+          ]
+        },
+        "missingAppById": null,
+        "appByHandle": {
+          "id": "gid://shopify/App/347082227713",
+          "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+          "handle": "hermes-conformance-products",
+          "title": "hermes-conformance-products",
+          "developerName": "Gadget",
+          "embedded": true,
+          "previouslyInstalled": false
+        },
+        "missingAppByHandle": null,
+        "appByKey": {
+          "id": "gid://shopify/App/347082227713",
+          "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+          "handle": "hermes-conformance-products",
+          "title": "hermes-conformance-products",
+          "developerName": "Gadget",
+          "embedded": true,
+          "previouslyInstalled": false
+        },
+        "missingAppByKey": null
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 7,
+          "actualQueryCost": 7,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "appInstallationDetail": {
+    "query": "#graphql\n  query AppInstallationDetail($id: ID!) {\n    appInstallation(id: $id) {\n      id\n      launchUrl\n      uninstallUrl\n      app {\n        id\n        apiKey\n        handle\n        title\n        developerName\n        embedded\n      }\n      accessScopes {\n        handle\n        description\n      }\n      activeSubscriptions {\n        id\n        name\n        status\n        test\n      }\n    }\n  }\n",
+    "variables": {
+      "id": "gid://shopify/AppInstallation/913990517042"
+    },
+    "status": 200,
+    "payload": {
+      "data": {
+        "appInstallation": {
+          "id": "gid://shopify/AppInstallation/913990517042",
+          "launchUrl": "https://harry-test-heelo.myshopify.com/admin/apps/hermes-conformance-products",
+          "uninstallUrl": null,
+          "app": {
+            "id": "gid://shopify/App/347082227713",
+            "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+            "handle": "hermes-conformance-products",
+            "title": "hermes-conformance-products",
+            "developerName": "Gadget",
+            "embedded": true
+          },
+          "accessScopes": [
+            {
+              "handle": "read_assigned_fulfillment_orders",
+              "description": "Read assigned fulfillment"
+            },
+            {
+              "handle": "read_content",
+              "description": "Read store content like articles, blogs, comments, pages, and redirects"
+            },
+            {
+              "handle": "read_customers",
+              "description": "Read customer details and customer groups"
+            },
+            {
+              "handle": "read_discounts",
+              "description": "Read discounts"
+            },
+            {
+              "handle": "read_draft_orders",
+              "description": "Read draft orders"
+            },
+            {
+              "handle": "read_files",
+              "description": "Read files"
+            },
+            {
+              "handle": "read_fulfillments",
+              "description": "Read fulfillment services"
+            },
+            {
+              "handle": "read_inventory",
+              "description": "Read inventory"
+            },
+            {
+              "handle": "read_locations",
+              "description": "Read locations"
+            },
+            {
+              "handle": "read_marketing_events",
+              "description": "Read marketing events and related marketing engagement data"
+            },
+            {
+              "handle": "read_markets",
+              "description": "Read access for Shopify Markets API"
+            },
+            {
+              "handle": "read_merchant_managed_fulfillment_orders",
+              "description": "Read fulfillment for merchant-managed locations"
+            },
+            {
+              "handle": "read_metaobject_definitions",
+              "description": "Read metaobject definitions"
+            },
+            {
+              "handle": "read_metaobjects",
+              "description": "Read metaobjects"
+            },
+            {
+              "handle": "read_order_edits",
+              "description": "Read order edits"
+            },
+            {
+              "handle": "read_orders",
+              "description": "Read orders, transactions, and fulfillments"
+            },
+            {
+              "handle": "read_product_listings",
+              "description": "Read product information"
+            },
+            {
+              "handle": "read_products",
+              "description": "Read products, variants, and collections"
+            },
+            {
+              "handle": "read_publications",
+              "description": "Read publications"
+            },
+            {
+              "handle": "read_returns",
+              "description": "Read access for returns"
+            },
+            {
+              "handle": "read_shipping",
+              "description": "Read shipping rates, countries, and provinces"
+            },
+            {
+              "handle": "read_themes",
+              "description": "Read theme templates and theme assets"
+            },
+            {
+              "handle": "read_third_party_fulfillment_orders",
+              "description": "Read fulfillment assigned to fulfillment services"
+            },
+            {
+              "handle": "read_translations",
+              "description": "Read dynamic content translations"
+            },
+            {
+              "handle": "write_assigned_fulfillment_orders",
+              "description": "Modify assigned fulfillment"
+            },
+            {
+              "handle": "write_content",
+              "description": "Modify store content like articles, blogs, comments, pages, and redirects"
+            },
+            {
+              "handle": "write_customers",
+              "description": "Modify customer details and customer groups"
+            },
+            {
+              "handle": "write_discounts",
+              "description": "Modify discounts"
+            },
+            {
+              "handle": "write_draft_orders",
+              "description": "Modify draft orders"
+            },
+            {
+              "handle": "write_files",
+              "description": "Write files"
+            },
+            {
+              "handle": "write_fulfillments",
+              "description": "Modify fulfillment services"
+            },
+            {
+              "handle": "write_gift_cards",
+              "description": "Modify gift cards"
+            },
+            {
+              "handle": "write_inventory",
+              "description": "Modify inventory"
+            },
+            {
+              "handle": "write_locations",
+              "description": "Modify locations"
+            },
+            {
+              "handle": "write_marketing_events",
+              "description": "Modify marketing events and related marketing engagement data"
+            },
+            {
+              "handle": "write_markets",
+              "description": "Write access for Shopify Markets API"
+            },
+            {
+              "handle": "write_merchant_managed_fulfillment_orders",
+              "description": "Action fulfillment for merchant-managed locations"
+            },
+            {
+              "handle": "write_metaobject_definitions",
+              "description": "Write metaobject definitions"
+            },
+            {
+              "handle": "write_metaobjects",
+              "description": "Write metaobjects"
+            },
+            {
+              "handle": "write_order_edits",
+              "description": "Modify orders"
+            },
+            {
+              "handle": "write_orders",
+              "description": "Modify orders, transactions, and fulfillments"
+            },
+            {
+              "handle": "write_products",
+              "description": "Modify products, variants, and collections"
+            },
+            {
+              "handle": "write_publications",
+              "description": "Modify publications"
+            },
+            {
+              "handle": "write_returns",
+              "description": "Write access for returns"
+            },
+            {
+              "handle": "write_shipping",
+              "description": "Modify shipping rates, countries, and provinces"
+            },
+            {
+              "handle": "write_third_party_fulfillment_orders",
+              "description": "Modify fulfillment assigned to fulfillment services"
+            },
+            {
+              "handle": "write_translations",
+              "description": "Write dynamic content translations"
+            },
+            {
+              "handle": "read_gift_cards",
+              "description": "Read gift cards"
+            }
+          ],
+          "activeSubscriptions": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 4,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "appInstallationsAccessProbe": {
+    "query": "#graphql\n  query AppInstallationsAccessProbe($first: Int!) {\n    appInstallations(first: $first) {\n      nodes {\n        id\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n",
+    "variables": {
+      "first": 5
+    },
+    "status": 200,
+    "payload": {
+      "errors": [
+        {
+          "message": "access denied",
+          "locations": [
+            {
+              "line": 3,
+              "column": 5
+            }
+          ],
+          "extensions": {
+            "code": "ACCESS_DENIED",
+            "documentation": "https://shopify.dev/api/usage/access-scopes"
+          },
+          "path": ["appInstallations"]
+        }
+      ],
+      "data": null,
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 5,
+          "actualQueryCost": 2,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1998,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

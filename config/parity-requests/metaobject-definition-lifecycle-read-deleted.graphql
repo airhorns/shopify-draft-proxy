@@ -1,0 +1,13 @@
+query MetaobjectDefinitionLifecycleReadDeleted($id: ID!, $type: String!) {
+  byId: metaobjectDefinition(id: $id) {
+    id
+  }
+  byType: metaobjectDefinitionByType(type: $type) {
+    id
+  }
+  catalog: metaobjectDefinitions(first: 5) {
+    nodes {
+      id
+    }
+  }
+}

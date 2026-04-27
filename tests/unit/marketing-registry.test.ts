@@ -32,13 +32,10 @@ const implementedMarketingMutationRoots = [
   'marketingActivityUpsertExternal',
   'marketingActivityDeleteExternal',
   'marketingActivitiesDeleteAllExternal',
-] as const;
-const scaffoldOnlyMarketingMutationRoots = [
-  'marketingActivityCreate',
-  'marketingActivityUpdate',
   'marketingEngagementCreate',
   'marketingEngagementsDelete',
 ] as const;
+const scaffoldOnlyMarketingMutationRoots = ['marketingActivityCreate', 'marketingActivityUpdate'] as const;
 
 const segmentQueryRoots = [
   'segment',
@@ -197,10 +194,13 @@ describe('Marketing and segment registry scaffold', () => {
     }
 
     for (const root of implementedMarketingMutationRoots) {
+      const expectedRuntimeTest = root.startsWith('marketingEngagement')
+        ? 'tests/integration/marketing-engagement-flow.test.ts'
+        : 'tests/integration/marketing-activity-lifecycle-flow.test.ts';
       const entry = entriesByName.get(root);
-      expect(entry?.implemented, `${root} should be enabled by HAR-213 marketing lifecycle coverage`).toBe(true);
+      expect(entry?.implemented, `${root} should be enabled by marketing lifecycle coverage`).toBe(true);
       expect(entry?.runtimeTests, `${root} should claim runtime marketing lifecycle coverage`).toContain(
-        'tests/integration/marketing-activity-lifecycle-flow.test.ts',
+        expectedRuntimeTest,
       );
     }
   });
@@ -256,6 +256,19 @@ describe('Marketing and segment registry scaffold', () => {
       domain: 'unknown',
       execution: 'passthrough',
       operationName: 'MarketingActivityCreate',
+      type: 'mutation',
+    });
+
+    expect(
+      getOperationCapability({
+        type: 'mutation',
+        name: 'MarketingEngagementCreate',
+        rootFields: ['marketingEngagementCreate'],
+      }),
+    ).toEqual({
+      domain: 'marketing',
+      execution: 'stage-locally',
+      operationName: 'MarketingEngagementCreate',
       type: 'mutation',
     });
 

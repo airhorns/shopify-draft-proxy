@@ -20,6 +20,7 @@ import type {
   LocationRecord,
   MarketLocalizationRecord,
   MarketRecord,
+  MarketingEngagementRecord,
   MarketingRecord,
   MetaobjectDefinitionRecord,
   MetafieldDefinitionRecord,
@@ -83,8 +84,11 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   marketingActivityOrder: [],
   marketingEvents: {},
   marketingEventOrder: [],
+  marketingEngagements: {},
+  marketingEngagementOrder: [],
   deletedMarketingActivityIds: {},
   deletedMarketingEventIds: {},
+  deletedMarketingEngagementIds: {},
   onlineStoreArticles: {},
   onlineStoreArticleOrder: [],
   onlineStoreBlogs: {},
@@ -139,6 +143,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedPriceListIds: {},
   deletedWebPresenceIds: {},
   deletedDeliveryProfileIds: {},
+  deletedMetaobjectDefinitionIds: {},
   mergedCustomerIds: {},
   customerMergeRequests: {},
 };
@@ -220,6 +225,17 @@ function readMarketingRemoteId(source: Record<string, unknown>): string | null {
   const event = readMarketingNestedObject(source, 'marketingEvent');
   const eventRemoteId = event?.['remoteId'];
   return typeof eventRemoteId === 'string' && eventRemoteId.length > 0 ? eventRemoteId : null;
+}
+
+function readMarketingChannelHandle(source: Record<string, unknown>): string | null {
+  const channelHandle = source['channelHandle'];
+  if (typeof channelHandle === 'string' && channelHandle.length > 0) {
+    return channelHandle;
+  }
+
+  const event = readMarketingNestedObject(source, 'marketingEvent');
+  const eventChannelHandle = event?.['channelHandle'];
+  return typeof eventChannelHandle === 'string' && eventChannelHandle.length > 0 ? eventChannelHandle : null;
 }
 
 function mergeCollectionRecords(
@@ -837,8 +853,76 @@ export class InMemoryStore {
     return (
       Object.keys(this.stagedState.marketingActivities).length > 0 ||
       Object.keys(this.stagedState.marketingEvents).length > 0 ||
+      Object.keys(this.stagedState.marketingEngagements).length > 0 ||
       Object.keys(this.stagedState.deletedMarketingActivityIds).length > 0 ||
-      Object.keys(this.stagedState.deletedMarketingEventIds).length > 0
+      Object.keys(this.stagedState.deletedMarketingEventIds).length > 0 ||
+      Object.keys(this.stagedState.deletedMarketingEngagementIds).length > 0
+    );
+  }
+
+  stageMarketingEngagement(record: MarketingEngagementRecord): MarketingEngagementRecord {
+    delete this.stagedState.deletedMarketingEngagementIds[record.id];
+    this.stagedState.marketingEngagements[record.id] = structuredClone(record);
+    if (!this.stagedState.marketingEngagementOrder.includes(record.id)) {
+      this.stagedState.marketingEngagementOrder.push(record.id);
+    }
+    return structuredClone(record);
+  }
+
+  stageDeleteMarketingEngagement(engagementId: string): void {
+    delete this.stagedState.marketingEngagements[engagementId];
+    this.stagedState.deletedMarketingEngagementIds[engagementId] = true;
+  }
+
+  stageDeleteMarketingEngagementsByChannelHandle(channelHandle: string): string[] {
+    const deletedIds: string[] = [];
+    for (const engagement of this.listEffectiveMarketingEngagements()) {
+      if (engagement.channelHandle === channelHandle) {
+        this.stageDeleteMarketingEngagement(engagement.id);
+        deletedIds.push(engagement.id);
+      }
+    }
+    return deletedIds;
+  }
+
+  stageDeleteAllChannelMarketingEngagements(): string[] {
+    const deletedIds: string[] = [];
+    for (const engagement of this.listEffectiveMarketingEngagements()) {
+      if (engagement.channelHandle !== null && engagement.channelHandle !== undefined) {
+        this.stageDeleteMarketingEngagement(engagement.id);
+        deletedIds.push(engagement.id);
+      }
+    }
+    return deletedIds;
+  }
+
+  listEffectiveMarketingEngagements(): MarketingEngagementRecord[] {
+    const merged = new Map<string, MarketingEngagementRecord>();
+    const orderedIds = [...this.baseState.marketingEngagementOrder, ...this.stagedState.marketingEngagementOrder];
+    const allRecords = {
+      ...this.baseState.marketingEngagements,
+      ...this.stagedState.marketingEngagements,
+    };
+
+    for (const id of orderedIds) {
+      const record = allRecords[id];
+      if (record && !this.stagedState.deletedMarketingEngagementIds[id]) {
+        merged.set(id, record);
+      }
+    }
+
+    for (const record of Object.values(allRecords)) {
+      if (!merged.has(record.id) && !this.stagedState.deletedMarketingEngagementIds[record.id]) {
+        merged.set(record.id, record);
+      }
+    }
+
+    return structuredClone([...merged.values()]);
+  }
+
+  hasKnownMarketingChannelHandle(channelHandle: string): boolean {
+    return this.listEffectiveMarketingEvents().some(
+      (event) => readMarketingChannelHandle(event.data) === channelHandle,
     );
   }
 
@@ -2450,8 +2534,14 @@ export class InMemoryStore {
 
   upsertStagedMetaobjectDefinitions(definitions: MetaobjectDefinitionRecord[]): void {
     for (const definition of definitions) {
+      delete this.stagedState.deletedMetaobjectDefinitionIds[definition.id];
       this.stagedState.metaobjectDefinitions[definition.id] = structuredClone(definition);
     }
+  }
+
+  deleteStagedMetaobjectDefinition(definitionId: string): void {
+    delete this.stagedState.metaobjectDefinitions[definitionId];
+    this.stagedState.deletedMetaobjectDefinitionIds[definitionId] = true;
   }
 
   replaceBaseMetafieldsForProduct(productId: string, metafields: ProductMetafieldRecord[]): void {
@@ -3127,6 +3217,9 @@ export class InMemoryStore {
     const definitionsById = new Map<string, MetaobjectDefinitionRecord>();
 
     for (const definition of Object.values(this.baseState.metaobjectDefinitions)) {
+      if (this.stagedState.deletedMetaobjectDefinitionIds[definition.id]) {
+        continue;
+      }
       definitionsById.set(definition.id, structuredClone(definition));
     }
 
@@ -3140,6 +3233,10 @@ export class InMemoryStore {
   }
 
   getEffectiveMetaobjectDefinitionById(definitionId: string): MetaobjectDefinitionRecord | null {
+    if (this.stagedState.deletedMetaobjectDefinitionIds[definitionId]) {
+      return null;
+    }
+
     const definition =
       this.stagedState.metaobjectDefinitions[definitionId] ?? this.baseState.metaobjectDefinitions[definitionId];
     return definition ? structuredClone(definition) : null;
@@ -3153,7 +3250,8 @@ export class InMemoryStore {
   hasEffectiveMetaobjectDefinitions(): boolean {
     return (
       Object.keys(this.baseState.metaobjectDefinitions).length > 0 ||
-      Object.keys(this.stagedState.metaobjectDefinitions).length > 0
+      Object.keys(this.stagedState.metaobjectDefinitions).length > 0 ||
+      Object.keys(this.stagedState.deletedMetaobjectDefinitionIds).length > 0
     );
   }
 
