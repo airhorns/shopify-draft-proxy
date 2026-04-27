@@ -2884,50 +2884,50 @@
     "type": "mutation",
     "domain": "metaobjects",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectCreate", "MetaobjectCreate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until field validation, handle generation, capabilities, and downstream read visibility are modeled."
+    "runtimeTests": ["tests/integration/metaobject-draft-flow.test.ts"],
+    "supportNotes": "Locally stages metaobject entry creation for existing effective definitions, captured field/value projection, handle identity, publishable status defaults/input, definition counts, downstream entry reads, meta state/log visibility, and commit replay ordering without runtime Shopify writes."
   },
   {
     "name": "metaobjectUpdate",
     "type": "mutation",
     "domain": "metaobjects",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectUpdate", "MetaobjectUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until field patching, validation, capability changes, and read-after-write behavior are modeled."
+    "runtimeTests": ["tests/integration/metaobject-draft-flow.test.ts"],
+    "supportNotes": "Locally stages effective metaobject entry field, handle, displayName, and publishable status updates with downstream ID/handle/catalog read-after-write behavior and local NOT_FOUND/TAKEN userErrors."
   },
   {
     "name": "metaobjectUpsert",
     "type": "mutation",
     "domain": "metaobjects",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectUpsert", "MetaobjectUpsert"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until create-vs-update identity, handle conflicts, and downstream catalog behavior are modeled."
+    "runtimeTests": ["tests/integration/metaobject-draft-flow.test.ts"],
+    "supportNotes": "Locally stages handle-scoped metaobject upsert, updating an existing effective row or creating a new row against an existing effective definition with immediate downstream entry/catalog visibility."
   },
   {
     "name": "metaobjectDelete",
     "type": "mutation",
     "domain": "metaobjects",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectDelete", "MetaobjectDelete"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until delete payloads, unknown IDs, references, and downstream absence behavior are modeled."
+    "runtimeTests": ["tests/integration/metaobject-draft-flow.test.ts"],
+    "supportNotes": "Locally stages metaobject entry deletion tombstones, Shopify-like deletedId/NOT_FOUND userError payloads for selected fields, definition count updates, downstream absence, and meta state/log visibility without runtime Shopify writes."
   },
   {
     "name": "metaobjectBulkDelete",
     "type": "mutation",
     "domain": "metaobjects",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectBulkDelete", "MetaobjectBulkDelete"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until bulk selection, partial failures, async job shape, and downstream absence behavior are modeled."
+    "runtimeTests": ["tests/integration/metaobject-draft-flow.test.ts"],
+    "supportNotes": "Locally stages ids/where-type metaobject bulk deletion with a completed local job payload, ordered missing-row userErrors, definition count updates, downstream absence, and meta state visibility."
   },
   {
     "name": "metaobjectDefinitionCreate",
