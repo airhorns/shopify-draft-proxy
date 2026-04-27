@@ -2528,12 +2528,7 @@ export function handleOrderMutation(
     if (field.name.value === 'paymentTermsCreate') {
       handled = true;
       const referenceId = readNullableStringArgument(field, 'referenceId', variables);
-      const attributes = readInputObjectArgument(
-        field,
-        'paymentTermsAttributes',
-        variables,
-        'paymentTermsAttributes',
-      );
+      const attributes = readInputObjectArgument(field, 'paymentTermsAttributes', variables, 'paymentTermsAttributes');
       const validation = validatePaymentTermsAttributes(attributes, ['paymentTermsAttributes']);
       if (validation.userErrors.length > 0 || validation.templateId === null) {
         data[key] = serializePaymentTermsMutationPayload(field, null, validation.userErrors);
