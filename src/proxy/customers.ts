@@ -626,6 +626,7 @@ function normalizeCustomerAddress(
   const rawName = normalizeAddressStringField(raw, 'name', options.fallback?.name ?? null);
   const fallbackName = [firstName, lastName].filter(Boolean).join(' ') || null;
   const name = rawName ?? fallbackName;
+  const explicitFormattedArea = normalizeStringField(raw, 'formattedArea');
 
   return {
     id,
@@ -645,11 +646,7 @@ function normalizeCustomerAddress(
     zip,
     phone,
     name,
-    formattedArea: normalizeStringField(
-      raw,
-      'formattedArea',
-      options.fallback?.formattedArea ?? buildFormattedArea(city, provinceCode, country),
-    ),
+    formattedArea: explicitFormattedArea ?? buildFormattedArea(city, provinceCode, country),
   };
 }
 
@@ -3192,7 +3189,8 @@ function findDuplicateCustomerAddress(
 }
 
 function buildCreatedCustomerAddress(customer: CustomerRecord, input: Record<string, unknown>): CustomerAddressRecord {
-  const position = store.listEffectiveCustomerAddresses(customer.id).length;
+  const position =
+    Math.max(-1, ...store.listEffectiveCustomerAddresses(customer.id).map((address) => address.position)) + 1;
   const address = normalizeCustomerAddress(customer.id, input, {
     position,
     cursor: `customer-address-${customer.id}-${position}`,

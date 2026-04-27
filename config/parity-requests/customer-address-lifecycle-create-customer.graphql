@@ -1,0 +1,13 @@
+#graphql
+mutation CustomerAddressLifecycleCreateCustomer($input: CustomerInput!) {
+  customerCreate(input: $input) {
+    customer {
+      id
+      email
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
