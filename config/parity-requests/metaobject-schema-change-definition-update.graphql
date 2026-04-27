@@ -1,0 +1,60 @@
+fragment MetaobjectSchemaChangeDefinitionFields on MetaobjectDefinition {
+  id
+  type
+  name
+  description
+  displayNameKey
+  access {
+    admin
+    storefront
+  }
+  capabilities {
+    publishable {
+      enabled
+    }
+    translatable {
+      enabled
+    }
+    renderable {
+      enabled
+    }
+    onlineStore {
+      enabled
+    }
+  }
+  fieldDefinitions {
+    key
+    name
+    description
+    required
+    type {
+      name
+      category
+    }
+    validations {
+      name
+      value
+    }
+  }
+  hasThumbnailField
+  metaobjectsCount
+  standardTemplate {
+    type
+    name
+  }
+}
+
+mutation MetaobjectSchemaChangeDefinitionUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+  metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+    metaobjectDefinition {
+      ...MetaobjectSchemaChangeDefinitionFields
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}

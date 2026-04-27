@@ -1,0 +1,2629 @@
+{
+  "capturedAt": "2026-04-27T23:19:30.766Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "seed": {
+    "type": "codex_har_245_1777331967407",
+    "preHandle": "codex-har-245-pre-1777331967407",
+    "deletedBeforeHandle": "codex-har-245-delete-before-1777331967407",
+    "postHandle": "codex-har-245-post-1777331967407",
+    "deletedAfterHandle": "codex-har-245-delete-after-1777331967407",
+    "definitionId": "gid://shopify/MetaobjectDefinition/17588257074",
+    "preEntryId": "gid://shopify/Metaobject/185862291762",
+    "deletedBeforeEntryId": "gid://shopify/Metaobject/185862324530",
+    "postEntryId": "gid://shopify/Metaobject/185862390066",
+    "deletedAfterEntryId": "gid://shopify/Metaobject/185862422834"
+  },
+  "safety": {
+    "setup": "Creates one temporary metaobject definition and several temporary rows on the disposable conformance shop, exercises add/update/delete before and after a schema edit, then deletes remaining rows and the definition before writing the successful fixture.",
+    "paritySpecs": "The matching parity spec replays the captured mutation/read sequence through local staging; volatile IDs, timestamps, and opaque cursors are path-scoped expected differences."
+  },
+  "setup": [
+    {
+      "name": "setup-definition-create",
+      "request": {
+        "query": "fragment MetaobjectSchemaChangeDefinitionFields on MetaobjectDefinition {\n  id\n  type\n  name\n  description\n  displayNameKey\n  access {\n    admin\n    storefront\n  }\n  capabilities {\n    publishable {\n      enabled\n    }\n    translatable {\n      enabled\n    }\n    renderable {\n      enabled\n    }\n    onlineStore {\n      enabled\n    }\n  }\n  fieldDefinitions {\n    key\n    name\n    description\n    required\n    type {\n      name\n      category\n    }\n    validations {\n      name\n      value\n    }\n  }\n  hasThumbnailField\n  metaobjectsCount\n  standardTemplate {\n    type\n    name\n  }\n}\n\nmutation MetaobjectSchemaChangeDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      ...MetaobjectSchemaChangeDefinitionFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "definition": {
+            "type": "codex_har_245_1777331967407",
+            "name": "Codex HAR-245 1777331967407",
+            "description": "Temporary HAR-245 conformance definition for schema-change lifecycle capture.",
+            "capabilities": {
+              "publishable": {
+                "enabled": true
+              },
+              "translatable": {
+                "enabled": false
+              }
+            },
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "description": "Display title before schema changes.",
+                "type": "single_line_text_field",
+                "required": true
+              },
+              {
+                "key": "body",
+                "name": "Body",
+                "description": "Body text before schema changes.",
+                "type": "multi_line_text_field",
+                "required": false
+              },
+              {
+                "key": "legacy",
+                "name": "Legacy",
+                "description": "Field removed during schema-change capture.",
+                "type": "single_line_text_field",
+                "required": false
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionCreate": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17588257074",
+              "type": "codex_har_245_1777331967407",
+              "name": "Codex HAR-245 1777331967407",
+              "description": "Temporary HAR-245 conformance definition for schema-change lifecycle capture.",
+              "displayNameKey": "title",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "NONE"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": true
+                },
+                "translatable": {
+                  "enabled": false
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "title",
+                  "name": "Title",
+                  "description": "Display title before schema changes.",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": []
+                },
+                {
+                  "key": "body",
+                  "name": "Body",
+                  "description": "Body text before schema changes.",
+                  "required": false,
+                  "type": {
+                    "name": "multi_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": []
+                },
+                {
+                  "key": "legacy",
+                  "name": "Legacy",
+                  "description": "Field removed during schema-change capture.",
+                  "required": false,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": []
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 0,
+              "standardTemplate": null
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "setup-pre-schema-entry-create",
+      "request": {
+        "query": "fragment MetaobjectSchemaChangeEntryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  summaryField: field(key: \"summary\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectSchemaChangeEntryCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectSchemaChangeEntryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har_245_1777331967407",
+            "handle": "codex-har-245-pre-1777331967407",
+            "capabilities": {
+              "publishable": {
+                "status": "ACTIVE"
+              }
+            },
+            "fields": [
+              {
+                "key": "title",
+                "value": "HAR-245 pre title 1777331967407"
+              },
+              {
+                "key": "body",
+                "value": "HAR-245 pre body 1777331967407"
+              },
+              {
+                "key": "legacy",
+                "value": "HAR-245 legacy 1777331967407"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": {
+              "id": "gid://shopify/Metaobject/185862291762",
+              "handle": "codex-har-245-pre-1777331967407",
+              "type": "codex_har_245_1777331967407",
+              "displayName": "HAR-245 pre title 1777331967407",
+              "updatedAt": "2026-04-27T23:19:27Z",
+              "capabilities": {
+                "publishable": {
+                  "status": "ACTIVE"
+                },
+                "onlineStore": null
+              },
+              "fields": [
+                {
+                  "key": "title",
+                  "type": "single_line_text_field",
+                  "value": "HAR-245 pre title 1777331967407",
+                  "jsonValue": "HAR-245 pre title 1777331967407",
+                  "definition": {
+                    "key": "title",
+                    "name": "Title",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                },
+                {
+                  "key": "body",
+                  "type": "multi_line_text_field",
+                  "value": "HAR-245 pre body 1777331967407",
+                  "jsonValue": "HAR-245 pre body 1777331967407",
+                  "definition": {
+                    "key": "body",
+                    "name": "Body",
+                    "required": false,
+                    "type": {
+                      "name": "multi_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                },
+                {
+                  "key": "legacy",
+                  "type": "single_line_text_field",
+                  "value": "HAR-245 legacy 1777331967407",
+                  "jsonValue": "HAR-245 legacy 1777331967407",
+                  "definition": {
+                    "key": "legacy",
+                    "name": "Legacy",
+                    "required": false,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                }
+              ],
+              "summaryField": null
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 19,
+            "actualQueryCost": 17,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1983,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "setup-delete-before-schema-entry-create",
+      "request": {
+        "query": "fragment MetaobjectSchemaChangeEntryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  summaryField: field(key: \"summary\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectSchemaChangeEntryCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectSchemaChangeEntryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har_245_1777331967407",
+            "handle": "codex-har-245-delete-before-1777331967407",
+            "fields": [
+              {
+                "key": "title",
+                "value": "HAR-245 delete-before title 1777331967407"
+              },
+              {
+                "key": "body",
+                "value": "HAR-245 delete-before body 1777331967407"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": {
+              "id": "gid://shopify/Metaobject/185862324530",
+              "handle": "codex-har-245-delete-before-1777331967407",
+              "type": "codex_har_245_1777331967407",
+              "displayName": "HAR-245 delete-before title 1777331967407",
+              "updatedAt": "2026-04-27T23:19:28Z",
+              "capabilities": {
+                "publishable": {
+                  "status": "DRAFT"
+                },
+                "onlineStore": null
+              },
+              "fields": [
+                {
+                  "key": "title",
+                  "type": "single_line_text_field",
+                  "value": "HAR-245 delete-before title 1777331967407",
+                  "jsonValue": "HAR-245 delete-before title 1777331967407",
+                  "definition": {
+                    "key": "title",
+                    "name": "Title",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                },
+                {
+                  "key": "body",
+                  "type": "multi_line_text_field",
+                  "value": "HAR-245 delete-before body 1777331967407",
+                  "jsonValue": "HAR-245 delete-before body 1777331967407",
+                  "definition": {
+                    "key": "body",
+                    "name": "Body",
+                    "required": false,
+                    "type": {
+                      "name": "multi_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                },
+                {
+                  "key": "legacy",
+                  "type": "single_line_text_field",
+                  "value": null,
+                  "jsonValue": null,
+                  "definition": {
+                    "key": "legacy",
+                    "name": "Legacy",
+                    "required": false,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                }
+              ],
+              "summaryField": null
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 19,
+            "actualQueryCost": 17,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1983,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "setup-delete-before-schema-entry-delete",
+      "request": {
+        "query": "mutation MetaobjectSchemaChangeEntryDelete($id: ID!) {\n  metaobjectDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/185862324530"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/185862324530",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "preSchemaReads": [
+    {
+      "name": "pre-schema-read",
+      "request": {
+        "query": "fragment MetaobjectSchemaChangeDefinitionFields on MetaobjectDefinition {\n  id\n  type\n  name\n  description\n  displayNameKey\n  access {\n    admin\n    storefront\n  }\n  capabilities {\n    publishable {\n      enabled\n    }\n    translatable {\n      enabled\n    }\n    renderable {\n      enabled\n    }\n    onlineStore {\n      enabled\n    }\n  }\n  fieldDefinitions {\n    key\n    name\n    description\n    required\n    type {\n      name\n      category\n    }\n    validations {\n      name\n      value\n    }\n  }\n  hasThumbnailField\n  metaobjectsCount\n  standardTemplate {\n    type\n    name\n  }\n}\n\nfragment MetaobjectSchemaChangeEntryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  summaryField: field(key: \"summary\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nquery MetaobjectSchemaChangeRead($id: ID!, $handle: MetaobjectHandleInput!, $deletedId: ID!, $type: String!) {\n  detail: metaobject(id: $id) {\n    ...MetaobjectSchemaChangeEntryFields\n  }\n  byHandle: metaobjectByHandle(handle: $handle) {\n    ...MetaobjectSchemaChangeEntryFields\n  }\n  deleted: metaobject(id: $deletedId) {\n    id\n  }\n  catalog: metaobjects(type: $type, first: 10, sortKey: \"display_name\") {\n    edges {\n      cursor\n      node {\n        ...MetaobjectSchemaChangeEntryFields\n      }\n    }\n    nodes {\n      ...MetaobjectSchemaChangeEntryFields\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  definition: metaobjectDefinitionByType(type: $type) {\n    ...MetaobjectSchemaChangeDefinitionFields\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/185862291762",
+          "handle": {
+            "type": "codex_har_245_1777331967407",
+            "handle": "codex-har-245-pre-1777331967407"
+          },
+          "deletedId": "gid://shopify/Metaobject/185862324530",
+          "type": "codex_har_245_1777331967407"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "detail": {
+            "id": "gid://shopify/Metaobject/185862291762",
+            "handle": "codex-har-245-pre-1777331967407",
+            "type": "codex_har_245_1777331967407",
+            "displayName": "HAR-245 pre title 1777331967407",
+            "updatedAt": "2026-04-27T23:19:27Z",
+            "capabilities": {
+              "publishable": {
+                "status": "ACTIVE"
+              },
+              "onlineStore": null
+            },
+            "fields": [
+              {
+                "key": "title",
+                "type": "single_line_text_field",
+                "value": "HAR-245 pre title 1777331967407",
+                "jsonValue": "HAR-245 pre title 1777331967407",
+                "definition": {
+                  "key": "title",
+                  "name": "Title",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              },
+              {
+                "key": "body",
+                "type": "multi_line_text_field",
+                "value": "HAR-245 pre body 1777331967407",
+                "jsonValue": "HAR-245 pre body 1777331967407",
+                "definition": {
+                  "key": "body",
+                  "name": "Body",
+                  "required": false,
+                  "type": {
+                    "name": "multi_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              },
+              {
+                "key": "legacy",
+                "type": "single_line_text_field",
+                "value": "HAR-245 legacy 1777331967407",
+                "jsonValue": "HAR-245 legacy 1777331967407",
+                "definition": {
+                  "key": "legacy",
+                  "name": "Legacy",
+                  "required": false,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              }
+            ],
+            "summaryField": null
+          },
+          "byHandle": {
+            "id": "gid://shopify/Metaobject/185862291762",
+            "handle": "codex-har-245-pre-1777331967407",
+            "type": "codex_har_245_1777331967407",
+            "displayName": "HAR-245 pre title 1777331967407",
+            "updatedAt": "2026-04-27T23:19:27Z",
+            "capabilities": {
+              "publishable": {
+                "status": "ACTIVE"
+              },
+              "onlineStore": null
+            },
+            "fields": [
+              {
+                "key": "title",
+                "type": "single_line_text_field",
+                "value": "HAR-245 pre title 1777331967407",
+                "jsonValue": "HAR-245 pre title 1777331967407",
+                "definition": {
+                  "key": "title",
+                  "name": "Title",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              },
+              {
+                "key": "body",
+                "type": "multi_line_text_field",
+                "value": "HAR-245 pre body 1777331967407",
+                "jsonValue": "HAR-245 pre body 1777331967407",
+                "definition": {
+                  "key": "body",
+                  "name": "Body",
+                  "required": false,
+                  "type": {
+                    "name": "multi_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              },
+              {
+                "key": "legacy",
+                "type": "single_line_text_field",
+                "value": "HAR-245 legacy 1777331967407",
+                "jsonValue": "HAR-245 legacy 1777331967407",
+                "definition": {
+                  "key": "legacy",
+                  "name": "Legacy",
+                  "required": false,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              }
+            ],
+            "summaryField": null
+          },
+          "deleted": null,
+          "catalog": {
+            "edges": [],
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          },
+          "definition": {
+            "id": "gid://shopify/MetaobjectDefinition/17588257074",
+            "type": "codex_har_245_1777331967407",
+            "name": "Codex HAR-245 1777331967407",
+            "description": "Temporary HAR-245 conformance definition for schema-change lifecycle capture.",
+            "displayNameKey": "title",
+            "access": {
+              "admin": "PUBLIC_READ_WRITE",
+              "storefront": "NONE"
+            },
+            "capabilities": {
+              "publishable": {
+                "enabled": true
+              },
+              "translatable": {
+                "enabled": false
+              },
+              "renderable": {
+                "enabled": false
+              },
+              "onlineStore": {
+                "enabled": false
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "description": "Display title before schema changes.",
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": []
+              },
+              {
+                "key": "body",
+                "name": "Body",
+                "description": "Body text before schema changes.",
+                "required": false,
+                "type": {
+                  "name": "multi_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": []
+              },
+              {
+                "key": "legacy",
+                "name": "Legacy",
+                "description": "Field removed during schema-change capture.",
+                "required": false,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": []
+              }
+            ],
+            "hasThumbnailField": false,
+            "metaobjectsCount": 1,
+            "standardTemplate": null
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 114,
+            "actualQueryCost": 34,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1966,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "schemaChanges": [
+    {
+      "name": "definition-update-add-remove-reorder-display-validation-capability",
+      "request": {
+        "query": "fragment MetaobjectSchemaChangeDefinitionFields on MetaobjectDefinition {\n  id\n  type\n  name\n  description\n  displayNameKey\n  access {\n    admin\n    storefront\n  }\n  capabilities {\n    publishable {\n      enabled\n    }\n    translatable {\n      enabled\n    }\n    renderable {\n      enabled\n    }\n    onlineStore {\n      enabled\n    }\n  }\n  fieldDefinitions {\n    key\n    name\n    description\n    required\n    type {\n      name\n      category\n    }\n    validations {\n      name\n      value\n    }\n  }\n  hasThumbnailField\n  metaobjectsCount\n  standardTemplate {\n    type\n    name\n  }\n}\n\nmutation MetaobjectSchemaChangeDefinitionUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      ...MetaobjectSchemaChangeDefinitionFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17588257074",
+          "definition": {
+            "name": "Codex HAR-245 Updated 1777331967407",
+            "description": "Updated by HAR-245 schema-change lifecycle capture.",
+            "displayNameKey": "summary",
+            "resetFieldOrder": true,
+            "capabilities": {
+              "publishable": {
+                "enabled": false
+              },
+              "translatable": {
+                "enabled": true
+              },
+              "renderable": {
+                "enabled": true
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "create": {
+                  "key": "summary",
+                  "name": "Summary",
+                  "description": "Required display field added during schema change.",
+                  "type": "single_line_text_field",
+                  "required": true,
+                  "validations": [
+                    {
+                      "name": "max",
+                      "value": "80"
+                    }
+                  ]
+                }
+              },
+              {
+                "update": {
+                  "key": "title",
+                  "name": "Short title",
+                  "description": "Title retained after schema change.",
+                  "required": false
+                }
+              },
+              {
+                "update": {
+                  "key": "body",
+                  "name": "Body summary",
+                  "description": "Body validation changed during schema change; Shopify 2026-04 does not expose type on update input.",
+                  "required": false,
+                  "validations": [
+                    {
+                      "name": "max",
+                      "value": "120"
+                    }
+                  ]
+                }
+              },
+              {
+                "delete": {
+                  "key": "legacy"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionUpdate": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17588257074",
+              "type": "codex_har_245_1777331967407",
+              "name": "Codex HAR-245 Updated 1777331967407",
+              "description": "Updated by HAR-245 schema-change lifecycle capture.",
+              "displayNameKey": "summary",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "NONE"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": true
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "summary",
+                  "name": "Summary",
+                  "description": "Required display field added during schema change.",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": [
+                    {
+                      "name": "max",
+                      "value": "80"
+                    }
+                  ]
+                },
+                {
+                  "key": "title",
+                  "name": "Short title",
+                  "description": "Title retained after schema change.",
+                  "required": false,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": []
+                },
+                {
+                  "key": "body",
+                  "name": "Body summary",
+                  "description": "Body validation changed during schema change; Shopify 2026-04 does not expose type on update input.",
+                  "required": false,
+                  "type": {
+                    "name": "multi_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": [
+                    {
+                      "name": "max",
+                      "value": "120"
+                    }
+                  ]
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 1,
+              "standardTemplate": null
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1961,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "postSchemaValidation": [
+    {
+      "name": "post-schema-create-missing-required-summary",
+      "request": {
+        "query": "fragment MetaobjectSchemaChangeEntryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  summaryField: field(key: \"summary\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectSchemaChangeEntryCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectSchemaChangeEntryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har_245_1777331967407",
+            "handle": "codex-har-245-missing-summary-1777331967407",
+            "fields": [
+              {
+                "key": "title",
+                "value": "HAR-245 missing summary title 1777331967407"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": [
+                  "metaobject"
+                ],
+                "message": "Summary can't be blank",
+                "code": "OBJECT_FIELD_REQUIRED",
+                "elementKey": "summary",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 19,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1954,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "post-schema-update-removed-legacy-field",
+      "request": {
+        "query": "fragment MetaobjectSchemaChangeEntryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  summaryField: field(key: \"summary\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectSchemaChangeEntryUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectSchemaChangeEntryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/185862291762",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "legacy",
+                "value": "HAR-245 invalid legacy 1777331967407"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": [
+                  "metaobject",
+                  "fields",
+                  "0"
+                ],
+                "message": "Field definition \"legacy\" does not exist",
+                "code": "UNDEFINED_OBJECT_FIELD",
+                "elementKey": "legacy",
+                "elementIndex": null
+              },
+              {
+                "field": [
+                  "metaobject"
+                ],
+                "message": "Summary can't be blank",
+                "code": "OBJECT_FIELD_REQUIRED",
+                "elementKey": "summary",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 19,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1956,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "postSchemaMutations": [
+    {
+      "name": "post-schema-update-existing-entry",
+      "request": {
+        "query": "fragment MetaobjectSchemaChangeEntryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  summaryField: field(key: \"summary\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectSchemaChangeEntryUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectSchemaChangeEntryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/185862291762",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "summary",
+                "value": "HAR-245 pre summary after schema 1777331967407"
+              },
+              {
+                "key": "body",
+                "value": "HAR-245 pre body after schema 1777331967407"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": {
+              "id": "gid://shopify/Metaobject/185862291762",
+              "handle": "codex-har-245-pre-1777331967407",
+              "type": "codex_har_245_1777331967407",
+              "displayName": "HAR-245 pre summary after schema 1777331967407",
+              "updatedAt": "2026-04-27T23:19:29Z",
+              "capabilities": {
+                "publishable": null,
+                "onlineStore": null
+              },
+              "fields": [
+                {
+                  "key": "summary",
+                  "type": "single_line_text_field",
+                  "value": "HAR-245 pre summary after schema 1777331967407",
+                  "jsonValue": "HAR-245 pre summary after schema 1777331967407",
+                  "definition": {
+                    "key": "summary",
+                    "name": "Summary",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                },
+                {
+                  "key": "title",
+                  "type": "single_line_text_field",
+                  "value": "HAR-245 pre title 1777331967407",
+                  "jsonValue": "HAR-245 pre title 1777331967407",
+                  "definition": {
+                    "key": "title",
+                    "name": "Short title",
+                    "required": false,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                },
+                {
+                  "key": "body",
+                  "type": "multi_line_text_field",
+                  "value": "HAR-245 pre body after schema 1777331967407",
+                  "jsonValue": "HAR-245 pre body after schema 1777331967407",
+                  "definition": {
+                    "key": "body",
+                    "name": "Body summary",
+                    "required": false,
+                    "type": {
+                      "name": "multi_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                }
+              ],
+              "summaryField": {
+                "key": "summary",
+                "type": "single_line_text_field",
+                "value": "HAR-245 pre summary after schema 1777331967407",
+                "jsonValue": "HAR-245 pre summary after schema 1777331967407",
+                "definition": {
+                  "key": "summary",
+                  "name": "Summary",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 19,
+            "actualQueryCost": 19,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1949,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "post-schema-entry-create",
+      "request": {
+        "query": "fragment MetaobjectSchemaChangeEntryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  summaryField: field(key: \"summary\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectSchemaChangeEntryCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectSchemaChangeEntryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har_245_1777331967407",
+            "handle": "codex-har-245-post-1777331967407",
+            "fields": [
+              {
+                "key": "summary",
+                "value": "HAR-245 post summary 1777331967407"
+              },
+              {
+                "key": "title",
+                "value": "HAR-245 post title 1777331967407"
+              },
+              {
+                "key": "body",
+                "value": "HAR-245 post body 1777331967407"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": {
+              "id": "gid://shopify/Metaobject/185862390066",
+              "handle": "codex-har-245-post-1777331967407",
+              "type": "codex_har_245_1777331967407",
+              "displayName": "HAR-245 post summary 1777331967407",
+              "updatedAt": "2026-04-27T23:19:29Z",
+              "capabilities": {
+                "publishable": null,
+                "onlineStore": null
+              },
+              "fields": [
+                {
+                  "key": "summary",
+                  "type": "single_line_text_field",
+                  "value": "HAR-245 post summary 1777331967407",
+                  "jsonValue": "HAR-245 post summary 1777331967407",
+                  "definition": {
+                    "key": "summary",
+                    "name": "Summary",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                },
+                {
+                  "key": "title",
+                  "type": "single_line_text_field",
+                  "value": "HAR-245 post title 1777331967407",
+                  "jsonValue": "HAR-245 post title 1777331967407",
+                  "definition": {
+                    "key": "title",
+                    "name": "Short title",
+                    "required": false,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                },
+                {
+                  "key": "body",
+                  "type": "multi_line_text_field",
+                  "value": "HAR-245 post body 1777331967407",
+                  "jsonValue": "HAR-245 post body 1777331967407",
+                  "definition": {
+                    "key": "body",
+                    "name": "Body summary",
+                    "required": false,
+                    "type": {
+                      "name": "multi_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                }
+              ],
+              "summaryField": {
+                "key": "summary",
+                "type": "single_line_text_field",
+                "value": "HAR-245 post summary 1777331967407",
+                "jsonValue": "HAR-245 post summary 1777331967407",
+                "definition": {
+                  "key": "summary",
+                  "name": "Summary",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 19,
+            "actualQueryCost": 19,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1946,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "post-schema-entry-update",
+      "request": {
+        "query": "fragment MetaobjectSchemaChangeEntryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  summaryField: field(key: \"summary\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectSchemaChangeEntryUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectSchemaChangeEntryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/185862390066",
+          "metaobject": {
+            "handle": "codex-har-245-post-1777331967407-updated",
+            "fields": [
+              {
+                "key": "summary",
+                "value": "HAR-245 post summary updated 1777331967407"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": {
+              "id": "gid://shopify/Metaobject/185862390066",
+              "handle": "codex-har-245-post-1777331967407-updated",
+              "type": "codex_har_245_1777331967407",
+              "displayName": "HAR-245 post summary updated 1777331967407",
+              "updatedAt": "2026-04-27T23:19:29Z",
+              "capabilities": {
+                "publishable": null,
+                "onlineStore": null
+              },
+              "fields": [
+                {
+                  "key": "summary",
+                  "type": "single_line_text_field",
+                  "value": "HAR-245 post summary updated 1777331967407",
+                  "jsonValue": "HAR-245 post summary updated 1777331967407",
+                  "definition": {
+                    "key": "summary",
+                    "name": "Summary",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                },
+                {
+                  "key": "title",
+                  "type": "single_line_text_field",
+                  "value": "HAR-245 post title 1777331967407",
+                  "jsonValue": "HAR-245 post title 1777331967407",
+                  "definition": {
+                    "key": "title",
+                    "name": "Short title",
+                    "required": false,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                },
+                {
+                  "key": "body",
+                  "type": "multi_line_text_field",
+                  "value": "HAR-245 post body 1777331967407",
+                  "jsonValue": "HAR-245 post body 1777331967407",
+                  "definition": {
+                    "key": "body",
+                    "name": "Body summary",
+                    "required": false,
+                    "type": {
+                      "name": "multi_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                }
+              ],
+              "summaryField": {
+                "key": "summary",
+                "type": "single_line_text_field",
+                "value": "HAR-245 post summary updated 1777331967407",
+                "jsonValue": "HAR-245 post summary updated 1777331967407",
+                "definition": {
+                  "key": "summary",
+                  "name": "Summary",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 19,
+            "actualQueryCost": 19,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1945,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "post-schema-delete-entry-create",
+      "request": {
+        "query": "fragment MetaobjectSchemaChangeEntryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  summaryField: field(key: \"summary\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectSchemaChangeEntryCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectSchemaChangeEntryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har_245_1777331967407",
+            "handle": "codex-har-245-delete-after-1777331967407",
+            "fields": [
+              {
+                "key": "summary",
+                "value": "HAR-245 delete-after summary 1777331967407"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": {
+              "id": "gid://shopify/Metaobject/185862422834",
+              "handle": "codex-har-245-delete-after-1777331967407",
+              "type": "codex_har_245_1777331967407",
+              "displayName": "HAR-245 delete-after summary 1777331967407",
+              "updatedAt": "2026-04-27T23:19:29Z",
+              "capabilities": {
+                "publishable": null,
+                "onlineStore": null
+              },
+              "fields": [
+                {
+                  "key": "summary",
+                  "type": "single_line_text_field",
+                  "value": "HAR-245 delete-after summary 1777331967407",
+                  "jsonValue": "HAR-245 delete-after summary 1777331967407",
+                  "definition": {
+                    "key": "summary",
+                    "name": "Summary",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                },
+                {
+                  "key": "title",
+                  "type": "single_line_text_field",
+                  "value": null,
+                  "jsonValue": null,
+                  "definition": {
+                    "key": "title",
+                    "name": "Short title",
+                    "required": false,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                },
+                {
+                  "key": "body",
+                  "type": "multi_line_text_field",
+                  "value": null,
+                  "jsonValue": null,
+                  "definition": {
+                    "key": "body",
+                    "name": "Body summary",
+                    "required": false,
+                    "type": {
+                      "name": "multi_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                }
+              ],
+              "summaryField": {
+                "key": "summary",
+                "type": "single_line_text_field",
+                "value": "HAR-245 delete-after summary 1777331967407",
+                "jsonValue": "HAR-245 delete-after summary 1777331967407",
+                "definition": {
+                  "key": "summary",
+                  "name": "Summary",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 19,
+            "actualQueryCost": 19,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1945,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "post-schema-delete-entry-delete",
+      "request": {
+        "query": "mutation MetaobjectSchemaChangeEntryDelete($id: ID!) {\n  metaobjectDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/185862422834"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/185862422834",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1949,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "finalReads": [
+    {
+      "name": "post-definition-update-read-existing-entry",
+      "request": {
+        "query": "fragment MetaobjectSchemaChangeDefinitionFields on MetaobjectDefinition {\n  id\n  type\n  name\n  description\n  displayNameKey\n  access {\n    admin\n    storefront\n  }\n  capabilities {\n    publishable {\n      enabled\n    }\n    translatable {\n      enabled\n    }\n    renderable {\n      enabled\n    }\n    onlineStore {\n      enabled\n    }\n  }\n  fieldDefinitions {\n    key\n    name\n    description\n    required\n    type {\n      name\n      category\n    }\n    validations {\n      name\n      value\n    }\n  }\n  hasThumbnailField\n  metaobjectsCount\n  standardTemplate {\n    type\n    name\n  }\n}\n\nfragment MetaobjectSchemaChangeEntryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  summaryField: field(key: \"summary\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nquery MetaobjectSchemaChangeRead($id: ID!, $handle: MetaobjectHandleInput!, $deletedId: ID!, $type: String!) {\n  detail: metaobject(id: $id) {\n    ...MetaobjectSchemaChangeEntryFields\n  }\n  byHandle: metaobjectByHandle(handle: $handle) {\n    ...MetaobjectSchemaChangeEntryFields\n  }\n  deleted: metaobject(id: $deletedId) {\n    id\n  }\n  catalog: metaobjects(type: $type, first: 10, sortKey: \"display_name\") {\n    edges {\n      cursor\n      node {\n        ...MetaobjectSchemaChangeEntryFields\n      }\n    }\n    nodes {\n      ...MetaobjectSchemaChangeEntryFields\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  definition: metaobjectDefinitionByType(type: $type) {\n    ...MetaobjectSchemaChangeDefinitionFields\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/185862291762",
+          "handle": {
+            "type": "codex_har_245_1777331967407",
+            "handle": "codex-har-245-pre-1777331967407"
+          },
+          "deletedId": "gid://shopify/Metaobject/185862324530",
+          "type": "codex_har_245_1777331967407"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "detail": {
+            "id": "gid://shopify/Metaobject/185862291762",
+            "handle": "codex-har-245-pre-1777331967407",
+            "type": "codex_har_245_1777331967407",
+            "displayName": "Codex Har 245 Pre 1777331967407",
+            "updatedAt": "2026-04-27T23:19:28Z",
+            "capabilities": {
+              "publishable": null,
+              "onlineStore": null
+            },
+            "fields": [
+              {
+                "key": "summary",
+                "type": "single_line_text_field",
+                "value": null,
+                "jsonValue": null,
+                "definition": {
+                  "key": "summary",
+                  "name": "Summary",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              },
+              {
+                "key": "title",
+                "type": "single_line_text_field",
+                "value": "HAR-245 pre title 1777331967407",
+                "jsonValue": "HAR-245 pre title 1777331967407",
+                "definition": {
+                  "key": "title",
+                  "name": "Short title",
+                  "required": false,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              },
+              {
+                "key": "body",
+                "type": "multi_line_text_field",
+                "value": "HAR-245 pre body 1777331967407",
+                "jsonValue": "HAR-245 pre body 1777331967407",
+                "definition": {
+                  "key": "body",
+                  "name": "Body summary",
+                  "required": false,
+                  "type": {
+                    "name": "multi_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              }
+            ],
+            "summaryField": {
+              "key": "summary",
+              "type": "single_line_text_field",
+              "value": null,
+              "jsonValue": null,
+              "definition": {
+                "key": "summary",
+                "name": "Summary",
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                }
+              }
+            }
+          },
+          "byHandle": {
+            "id": "gid://shopify/Metaobject/185862291762",
+            "handle": "codex-har-245-pre-1777331967407",
+            "type": "codex_har_245_1777331967407",
+            "displayName": "Codex Har 245 Pre 1777331967407",
+            "updatedAt": "2026-04-27T23:19:28Z",
+            "capabilities": {
+              "publishable": null,
+              "onlineStore": null
+            },
+            "fields": [
+              {
+                "key": "summary",
+                "type": "single_line_text_field",
+                "value": null,
+                "jsonValue": null,
+                "definition": {
+                  "key": "summary",
+                  "name": "Summary",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              },
+              {
+                "key": "title",
+                "type": "single_line_text_field",
+                "value": "HAR-245 pre title 1777331967407",
+                "jsonValue": "HAR-245 pre title 1777331967407",
+                "definition": {
+                  "key": "title",
+                  "name": "Short title",
+                  "required": false,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              },
+              {
+                "key": "body",
+                "type": "multi_line_text_field",
+                "value": "HAR-245 pre body 1777331967407",
+                "jsonValue": "HAR-245 pre body 1777331967407",
+                "definition": {
+                  "key": "body",
+                  "name": "Body summary",
+                  "required": false,
+                  "type": {
+                    "name": "multi_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              }
+            ],
+            "summaryField": {
+              "key": "summary",
+              "type": "single_line_text_field",
+              "value": null,
+              "jsonValue": null,
+              "definition": {
+                "key": "summary",
+                "name": "Summary",
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                }
+              }
+            }
+          },
+          "deleted": null,
+          "catalog": {
+            "edges": [],
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          },
+          "definition": {
+            "id": "gid://shopify/MetaobjectDefinition/17588257074",
+            "type": "codex_har_245_1777331967407",
+            "name": "Codex HAR-245 Updated 1777331967407",
+            "description": "Updated by HAR-245 schema-change lifecycle capture.",
+            "displayNameKey": "summary",
+            "access": {
+              "admin": "PUBLIC_READ_WRITE",
+              "storefront": "NONE"
+            },
+            "capabilities": {
+              "publishable": {
+                "enabled": false
+              },
+              "translatable": {
+                "enabled": true
+              },
+              "renderable": {
+                "enabled": true
+              },
+              "onlineStore": {
+                "enabled": false
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "key": "summary",
+                "name": "Summary",
+                "description": "Required display field added during schema change.",
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": [
+                  {
+                    "name": "max",
+                    "value": "80"
+                  }
+                ]
+              },
+              {
+                "key": "title",
+                "name": "Short title",
+                "description": "Title retained after schema change.",
+                "required": false,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": []
+              },
+              {
+                "key": "body",
+                "name": "Body summary",
+                "description": "Body validation changed during schema change; Shopify 2026-04 does not expose type on update input.",
+                "required": false,
+                "type": {
+                  "name": "multi_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": [
+                  {
+                    "name": "max",
+                    "value": "120"
+                  }
+                ]
+              }
+            ],
+            "hasThumbnailField": false,
+            "metaobjectsCount": 1,
+            "standardTemplate": null
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 114,
+            "actualQueryCost": 38,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1949,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "final-read-existing-entry",
+      "request": {
+        "query": "fragment MetaobjectSchemaChangeDefinitionFields on MetaobjectDefinition {\n  id\n  type\n  name\n  description\n  displayNameKey\n  access {\n    admin\n    storefront\n  }\n  capabilities {\n    publishable {\n      enabled\n    }\n    translatable {\n      enabled\n    }\n    renderable {\n      enabled\n    }\n    onlineStore {\n      enabled\n    }\n  }\n  fieldDefinitions {\n    key\n    name\n    description\n    required\n    type {\n      name\n      category\n    }\n    validations {\n      name\n      value\n    }\n  }\n  hasThumbnailField\n  metaobjectsCount\n  standardTemplate {\n    type\n    name\n  }\n}\n\nfragment MetaobjectSchemaChangeEntryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  summaryField: field(key: \"summary\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nquery MetaobjectSchemaChangeRead($id: ID!, $handle: MetaobjectHandleInput!, $deletedId: ID!, $type: String!) {\n  detail: metaobject(id: $id) {\n    ...MetaobjectSchemaChangeEntryFields\n  }\n  byHandle: metaobjectByHandle(handle: $handle) {\n    ...MetaobjectSchemaChangeEntryFields\n  }\n  deleted: metaobject(id: $deletedId) {\n    id\n  }\n  catalog: metaobjects(type: $type, first: 10, sortKey: \"display_name\") {\n    edges {\n      cursor\n      node {\n        ...MetaobjectSchemaChangeEntryFields\n      }\n    }\n    nodes {\n      ...MetaobjectSchemaChangeEntryFields\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  definition: metaobjectDefinitionByType(type: $type) {\n    ...MetaobjectSchemaChangeDefinitionFields\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/185862291762",
+          "handle": {
+            "type": "codex_har_245_1777331967407",
+            "handle": "codex-har-245-pre-1777331967407"
+          },
+          "deletedId": "gid://shopify/Metaobject/185862422834",
+          "type": "codex_har_245_1777331967407"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "detail": {
+            "id": "gid://shopify/Metaobject/185862291762",
+            "handle": "codex-har-245-pre-1777331967407",
+            "type": "codex_har_245_1777331967407",
+            "displayName": "HAR-245 pre summary after schema 1777331967407",
+            "updatedAt": "2026-04-27T23:19:29Z",
+            "capabilities": {
+              "publishable": null,
+              "onlineStore": null
+            },
+            "fields": [
+              {
+                "key": "summary",
+                "type": "single_line_text_field",
+                "value": "HAR-245 pre summary after schema 1777331967407",
+                "jsonValue": "HAR-245 pre summary after schema 1777331967407",
+                "definition": {
+                  "key": "summary",
+                  "name": "Summary",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              },
+              {
+                "key": "title",
+                "type": "single_line_text_field",
+                "value": "HAR-245 pre title 1777331967407",
+                "jsonValue": "HAR-245 pre title 1777331967407",
+                "definition": {
+                  "key": "title",
+                  "name": "Short title",
+                  "required": false,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              },
+              {
+                "key": "body",
+                "type": "multi_line_text_field",
+                "value": "HAR-245 pre body after schema 1777331967407",
+                "jsonValue": "HAR-245 pre body after schema 1777331967407",
+                "definition": {
+                  "key": "body",
+                  "name": "Body summary",
+                  "required": false,
+                  "type": {
+                    "name": "multi_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              }
+            ],
+            "summaryField": {
+              "key": "summary",
+              "type": "single_line_text_field",
+              "value": "HAR-245 pre summary after schema 1777331967407",
+              "jsonValue": "HAR-245 pre summary after schema 1777331967407",
+              "definition": {
+                "key": "summary",
+                "name": "Summary",
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                }
+              }
+            }
+          },
+          "byHandle": {
+            "id": "gid://shopify/Metaobject/185862291762",
+            "handle": "codex-har-245-pre-1777331967407",
+            "type": "codex_har_245_1777331967407",
+            "displayName": "HAR-245 pre summary after schema 1777331967407",
+            "updatedAt": "2026-04-27T23:19:29Z",
+            "capabilities": {
+              "publishable": null,
+              "onlineStore": null
+            },
+            "fields": [
+              {
+                "key": "summary",
+                "type": "single_line_text_field",
+                "value": "HAR-245 pre summary after schema 1777331967407",
+                "jsonValue": "HAR-245 pre summary after schema 1777331967407",
+                "definition": {
+                  "key": "summary",
+                  "name": "Summary",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              },
+              {
+                "key": "title",
+                "type": "single_line_text_field",
+                "value": "HAR-245 pre title 1777331967407",
+                "jsonValue": "HAR-245 pre title 1777331967407",
+                "definition": {
+                  "key": "title",
+                  "name": "Short title",
+                  "required": false,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              },
+              {
+                "key": "body",
+                "type": "multi_line_text_field",
+                "value": "HAR-245 pre body after schema 1777331967407",
+                "jsonValue": "HAR-245 pre body after schema 1777331967407",
+                "definition": {
+                  "key": "body",
+                  "name": "Body summary",
+                  "required": false,
+                  "type": {
+                    "name": "multi_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              }
+            ],
+            "summaryField": {
+              "key": "summary",
+              "type": "single_line_text_field",
+              "value": "HAR-245 pre summary after schema 1777331967407",
+              "jsonValue": "HAR-245 pre summary after schema 1777331967407",
+              "definition": {
+                "key": "summary",
+                "name": "Summary",
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                }
+              }
+            }
+          },
+          "deleted": null,
+          "catalog": {
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxODU4NjIyOTE3NjIsImxhc3RfdmFsdWUiOiJjb2RleCBoYXIgMjQ1IHByZSAxNzc3MzMxOTY3NDA3In0=",
+                "node": {
+                  "id": "gid://shopify/Metaobject/185862291762",
+                  "handle": "codex-har-245-pre-1777331967407",
+                  "type": "codex_har_245_1777331967407",
+                  "displayName": "HAR-245 pre summary after schema 1777331967407",
+                  "updatedAt": "2026-04-27T23:19:29Z",
+                  "capabilities": {
+                    "publishable": null,
+                    "onlineStore": null
+                  },
+                  "fields": [
+                    {
+                      "key": "summary",
+                      "type": "single_line_text_field",
+                      "value": "HAR-245 pre summary after schema 1777331967407",
+                      "jsonValue": "HAR-245 pre summary after schema 1777331967407",
+                      "definition": {
+                        "key": "summary",
+                        "name": "Summary",
+                        "required": true,
+                        "type": {
+                          "name": "single_line_text_field",
+                          "category": "TEXT"
+                        }
+                      }
+                    },
+                    {
+                      "key": "title",
+                      "type": "single_line_text_field",
+                      "value": "HAR-245 pre title 1777331967407",
+                      "jsonValue": "HAR-245 pre title 1777331967407",
+                      "definition": {
+                        "key": "title",
+                        "name": "Short title",
+                        "required": false,
+                        "type": {
+                          "name": "single_line_text_field",
+                          "category": "TEXT"
+                        }
+                      }
+                    },
+                    {
+                      "key": "body",
+                      "type": "multi_line_text_field",
+                      "value": "HAR-245 pre body after schema 1777331967407",
+                      "jsonValue": "HAR-245 pre body after schema 1777331967407",
+                      "definition": {
+                        "key": "body",
+                        "name": "Body summary",
+                        "required": false,
+                        "type": {
+                          "name": "multi_line_text_field",
+                          "category": "TEXT"
+                        }
+                      }
+                    }
+                  ],
+                  "summaryField": {
+                    "key": "summary",
+                    "type": "single_line_text_field",
+                    "value": "HAR-245 pre summary after schema 1777331967407",
+                    "jsonValue": "HAR-245 pre summary after schema 1777331967407",
+                    "definition": {
+                      "key": "summary",
+                      "name": "Summary",
+                      "required": true,
+                      "type": {
+                        "name": "single_line_text_field",
+                        "category": "TEXT"
+                      }
+                    }
+                  }
+                }
+              }
+            ],
+            "nodes": [
+              {
+                "id": "gid://shopify/Metaobject/185862291762",
+                "handle": "codex-har-245-pre-1777331967407",
+                "type": "codex_har_245_1777331967407",
+                "displayName": "HAR-245 pre summary after schema 1777331967407",
+                "updatedAt": "2026-04-27T23:19:29Z",
+                "capabilities": {
+                  "publishable": null,
+                  "onlineStore": null
+                },
+                "fields": [
+                  {
+                    "key": "summary",
+                    "type": "single_line_text_field",
+                    "value": "HAR-245 pre summary after schema 1777331967407",
+                    "jsonValue": "HAR-245 pre summary after schema 1777331967407",
+                    "definition": {
+                      "key": "summary",
+                      "name": "Summary",
+                      "required": true,
+                      "type": {
+                        "name": "single_line_text_field",
+                        "category": "TEXT"
+                      }
+                    }
+                  },
+                  {
+                    "key": "title",
+                    "type": "single_line_text_field",
+                    "value": "HAR-245 pre title 1777331967407",
+                    "jsonValue": "HAR-245 pre title 1777331967407",
+                    "definition": {
+                      "key": "title",
+                      "name": "Short title",
+                      "required": false,
+                      "type": {
+                        "name": "single_line_text_field",
+                        "category": "TEXT"
+                      }
+                    }
+                  },
+                  {
+                    "key": "body",
+                    "type": "multi_line_text_field",
+                    "value": "HAR-245 pre body after schema 1777331967407",
+                    "jsonValue": "HAR-245 pre body after schema 1777331967407",
+                    "definition": {
+                      "key": "body",
+                      "name": "Body summary",
+                      "required": false,
+                      "type": {
+                        "name": "multi_line_text_field",
+                        "category": "TEXT"
+                      }
+                    }
+                  }
+                ],
+                "summaryField": {
+                  "key": "summary",
+                  "type": "single_line_text_field",
+                  "value": "HAR-245 pre summary after schema 1777331967407",
+                  "jsonValue": "HAR-245 pre summary after schema 1777331967407",
+                  "definition": {
+                    "key": "summary",
+                    "name": "Summary",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxODU4NjIyOTE3NjIsImxhc3RfdmFsdWUiOiJjb2RleCBoYXIgMjQ1IHByZSAxNzc3MzMxOTY3NDA3In0=",
+              "endCursor": "eyJsYXN0X2lkIjoxODU4NjIyOTE3NjIsImxhc3RfdmFsdWUiOiJjb2RleCBoYXIgMjQ1IHByZSAxNzc3MzMxOTY3NDA3In0="
+            }
+          },
+          "definition": {
+            "id": "gid://shopify/MetaobjectDefinition/17588257074",
+            "type": "codex_har_245_1777331967407",
+            "name": "Codex HAR-245 Updated 1777331967407",
+            "description": "Updated by HAR-245 schema-change lifecycle capture.",
+            "displayNameKey": "summary",
+            "access": {
+              "admin": "PUBLIC_READ_WRITE",
+              "storefront": "NONE"
+            },
+            "capabilities": {
+              "publishable": {
+                "enabled": false
+              },
+              "translatable": {
+                "enabled": true
+              },
+              "renderable": {
+                "enabled": true
+              },
+              "onlineStore": {
+                "enabled": false
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "key": "summary",
+                "name": "Summary",
+                "description": "Required display field added during schema change.",
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": [
+                  {
+                    "name": "max",
+                    "value": "80"
+                  }
+                ]
+              },
+              {
+                "key": "title",
+                "name": "Short title",
+                "description": "Title retained after schema change.",
+                "required": false,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": []
+              },
+              {
+                "key": "body",
+                "name": "Body summary",
+                "description": "Body validation changed during schema change; Shopify 2026-04 does not expose type on update input.",
+                "required": false,
+                "type": {
+                  "name": "multi_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": [
+                  {
+                    "name": "max",
+                    "value": "120"
+                  }
+                ]
+              }
+            ],
+            "hasThumbnailField": false,
+            "metaobjectsCount": 2,
+            "standardTemplate": null
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 114,
+            "actualQueryCost": 47,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1918,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "final-read-post-entry",
+      "request": {
+        "query": "fragment MetaobjectSchemaChangeDefinitionFields on MetaobjectDefinition {\n  id\n  type\n  name\n  description\n  displayNameKey\n  access {\n    admin\n    storefront\n  }\n  capabilities {\n    publishable {\n      enabled\n    }\n    translatable {\n      enabled\n    }\n    renderable {\n      enabled\n    }\n    onlineStore {\n      enabled\n    }\n  }\n  fieldDefinitions {\n    key\n    name\n    description\n    required\n    type {\n      name\n      category\n    }\n    validations {\n      name\n      value\n    }\n  }\n  hasThumbnailField\n  metaobjectsCount\n  standardTemplate {\n    type\n    name\n  }\n}\n\nfragment MetaobjectSchemaChangeEntryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  summaryField: field(key: \"summary\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nquery MetaobjectSchemaChangeRead($id: ID!, $handle: MetaobjectHandleInput!, $deletedId: ID!, $type: String!) {\n  detail: metaobject(id: $id) {\n    ...MetaobjectSchemaChangeEntryFields\n  }\n  byHandle: metaobjectByHandle(handle: $handle) {\n    ...MetaobjectSchemaChangeEntryFields\n  }\n  deleted: metaobject(id: $deletedId) {\n    id\n  }\n  catalog: metaobjects(type: $type, first: 10, sortKey: \"display_name\") {\n    edges {\n      cursor\n      node {\n        ...MetaobjectSchemaChangeEntryFields\n      }\n    }\n    nodes {\n      ...MetaobjectSchemaChangeEntryFields\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  definition: metaobjectDefinitionByType(type: $type) {\n    ...MetaobjectSchemaChangeDefinitionFields\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/185862390066",
+          "handle": {
+            "type": "codex_har_245_1777331967407",
+            "handle": "codex-har-245-post-1777331967407-updated"
+          },
+          "deletedId": "gid://shopify/Metaobject/185862422834",
+          "type": "codex_har_245_1777331967407"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "detail": {
+            "id": "gid://shopify/Metaobject/185862390066",
+            "handle": "codex-har-245-post-1777331967407-updated",
+            "type": "codex_har_245_1777331967407",
+            "displayName": "HAR-245 post summary updated 1777331967407",
+            "updatedAt": "2026-04-27T23:19:29Z",
+            "capabilities": {
+              "publishable": null,
+              "onlineStore": null
+            },
+            "fields": [
+              {
+                "key": "summary",
+                "type": "single_line_text_field",
+                "value": "HAR-245 post summary updated 1777331967407",
+                "jsonValue": "HAR-245 post summary updated 1777331967407",
+                "definition": {
+                  "key": "summary",
+                  "name": "Summary",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              },
+              {
+                "key": "title",
+                "type": "single_line_text_field",
+                "value": "HAR-245 post title 1777331967407",
+                "jsonValue": "HAR-245 post title 1777331967407",
+                "definition": {
+                  "key": "title",
+                  "name": "Short title",
+                  "required": false,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              },
+              {
+                "key": "body",
+                "type": "multi_line_text_field",
+                "value": "HAR-245 post body 1777331967407",
+                "jsonValue": "HAR-245 post body 1777331967407",
+                "definition": {
+                  "key": "body",
+                  "name": "Body summary",
+                  "required": false,
+                  "type": {
+                    "name": "multi_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              }
+            ],
+            "summaryField": {
+              "key": "summary",
+              "type": "single_line_text_field",
+              "value": "HAR-245 post summary updated 1777331967407",
+              "jsonValue": "HAR-245 post summary updated 1777331967407",
+              "definition": {
+                "key": "summary",
+                "name": "Summary",
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                }
+              }
+            }
+          },
+          "byHandle": {
+            "id": "gid://shopify/Metaobject/185862390066",
+            "handle": "codex-har-245-post-1777331967407-updated",
+            "type": "codex_har_245_1777331967407",
+            "displayName": "HAR-245 post summary updated 1777331967407",
+            "updatedAt": "2026-04-27T23:19:29Z",
+            "capabilities": {
+              "publishable": null,
+              "onlineStore": null
+            },
+            "fields": [
+              {
+                "key": "summary",
+                "type": "single_line_text_field",
+                "value": "HAR-245 post summary updated 1777331967407",
+                "jsonValue": "HAR-245 post summary updated 1777331967407",
+                "definition": {
+                  "key": "summary",
+                  "name": "Summary",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              },
+              {
+                "key": "title",
+                "type": "single_line_text_field",
+                "value": "HAR-245 post title 1777331967407",
+                "jsonValue": "HAR-245 post title 1777331967407",
+                "definition": {
+                  "key": "title",
+                  "name": "Short title",
+                  "required": false,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              },
+              {
+                "key": "body",
+                "type": "multi_line_text_field",
+                "value": "HAR-245 post body 1777331967407",
+                "jsonValue": "HAR-245 post body 1777331967407",
+                "definition": {
+                  "key": "body",
+                  "name": "Body summary",
+                  "required": false,
+                  "type": {
+                    "name": "multi_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              }
+            ],
+            "summaryField": {
+              "key": "summary",
+              "type": "single_line_text_field",
+              "value": "HAR-245 post summary updated 1777331967407",
+              "jsonValue": "HAR-245 post summary updated 1777331967407",
+              "definition": {
+                "key": "summary",
+                "name": "Summary",
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                }
+              }
+            }
+          },
+          "deleted": null,
+          "catalog": {
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxODU4NjIyOTE3NjIsImxhc3RfdmFsdWUiOiJjb2RleCBoYXIgMjQ1IHByZSAxNzc3MzMxOTY3NDA3In0=",
+                "node": {
+                  "id": "gid://shopify/Metaobject/185862291762",
+                  "handle": "codex-har-245-pre-1777331967407",
+                  "type": "codex_har_245_1777331967407",
+                  "displayName": "HAR-245 pre summary after schema 1777331967407",
+                  "updatedAt": "2026-04-27T23:19:29Z",
+                  "capabilities": {
+                    "publishable": null,
+                    "onlineStore": null
+                  },
+                  "fields": [
+                    {
+                      "key": "summary",
+                      "type": "single_line_text_field",
+                      "value": "HAR-245 pre summary after schema 1777331967407",
+                      "jsonValue": "HAR-245 pre summary after schema 1777331967407",
+                      "definition": {
+                        "key": "summary",
+                        "name": "Summary",
+                        "required": true,
+                        "type": {
+                          "name": "single_line_text_field",
+                          "category": "TEXT"
+                        }
+                      }
+                    },
+                    {
+                      "key": "title",
+                      "type": "single_line_text_field",
+                      "value": "HAR-245 pre title 1777331967407",
+                      "jsonValue": "HAR-245 pre title 1777331967407",
+                      "definition": {
+                        "key": "title",
+                        "name": "Short title",
+                        "required": false,
+                        "type": {
+                          "name": "single_line_text_field",
+                          "category": "TEXT"
+                        }
+                      }
+                    },
+                    {
+                      "key": "body",
+                      "type": "multi_line_text_field",
+                      "value": "HAR-245 pre body after schema 1777331967407",
+                      "jsonValue": "HAR-245 pre body after schema 1777331967407",
+                      "definition": {
+                        "key": "body",
+                        "name": "Body summary",
+                        "required": false,
+                        "type": {
+                          "name": "multi_line_text_field",
+                          "category": "TEXT"
+                        }
+                      }
+                    }
+                  ],
+                  "summaryField": {
+                    "key": "summary",
+                    "type": "single_line_text_field",
+                    "value": "HAR-245 pre summary after schema 1777331967407",
+                    "jsonValue": "HAR-245 pre summary after schema 1777331967407",
+                    "definition": {
+                      "key": "summary",
+                      "name": "Summary",
+                      "required": true,
+                      "type": {
+                        "name": "single_line_text_field",
+                        "category": "TEXT"
+                      }
+                    }
+                  }
+                }
+              }
+            ],
+            "nodes": [
+              {
+                "id": "gid://shopify/Metaobject/185862291762",
+                "handle": "codex-har-245-pre-1777331967407",
+                "type": "codex_har_245_1777331967407",
+                "displayName": "HAR-245 pre summary after schema 1777331967407",
+                "updatedAt": "2026-04-27T23:19:29Z",
+                "capabilities": {
+                  "publishable": null,
+                  "onlineStore": null
+                },
+                "fields": [
+                  {
+                    "key": "summary",
+                    "type": "single_line_text_field",
+                    "value": "HAR-245 pre summary after schema 1777331967407",
+                    "jsonValue": "HAR-245 pre summary after schema 1777331967407",
+                    "definition": {
+                      "key": "summary",
+                      "name": "Summary",
+                      "required": true,
+                      "type": {
+                        "name": "single_line_text_field",
+                        "category": "TEXT"
+                      }
+                    }
+                  },
+                  {
+                    "key": "title",
+                    "type": "single_line_text_field",
+                    "value": "HAR-245 pre title 1777331967407",
+                    "jsonValue": "HAR-245 pre title 1777331967407",
+                    "definition": {
+                      "key": "title",
+                      "name": "Short title",
+                      "required": false,
+                      "type": {
+                        "name": "single_line_text_field",
+                        "category": "TEXT"
+                      }
+                    }
+                  },
+                  {
+                    "key": "body",
+                    "type": "multi_line_text_field",
+                    "value": "HAR-245 pre body after schema 1777331967407",
+                    "jsonValue": "HAR-245 pre body after schema 1777331967407",
+                    "definition": {
+                      "key": "body",
+                      "name": "Body summary",
+                      "required": false,
+                      "type": {
+                        "name": "multi_line_text_field",
+                        "category": "TEXT"
+                      }
+                    }
+                  }
+                ],
+                "summaryField": {
+                  "key": "summary",
+                  "type": "single_line_text_field",
+                  "value": "HAR-245 pre summary after schema 1777331967407",
+                  "jsonValue": "HAR-245 pre summary after schema 1777331967407",
+                  "definition": {
+                    "key": "summary",
+                    "name": "Summary",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxODU4NjIyOTE3NjIsImxhc3RfdmFsdWUiOiJjb2RleCBoYXIgMjQ1IHByZSAxNzc3MzMxOTY3NDA3In0=",
+              "endCursor": "eyJsYXN0X2lkIjoxODU4NjIyOTE3NjIsImxhc3RfdmFsdWUiOiJjb2RleCBoYXIgMjQ1IHByZSAxNzc3MzMxOTY3NDA3In0="
+            }
+          },
+          "definition": {
+            "id": "gid://shopify/MetaobjectDefinition/17588257074",
+            "type": "codex_har_245_1777331967407",
+            "name": "Codex HAR-245 Updated 1777331967407",
+            "description": "Updated by HAR-245 schema-change lifecycle capture.",
+            "displayNameKey": "summary",
+            "access": {
+              "admin": "PUBLIC_READ_WRITE",
+              "storefront": "NONE"
+            },
+            "capabilities": {
+              "publishable": {
+                "enabled": false
+              },
+              "translatable": {
+                "enabled": true
+              },
+              "renderable": {
+                "enabled": true
+              },
+              "onlineStore": {
+                "enabled": false
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "key": "summary",
+                "name": "Summary",
+                "description": "Required display field added during schema change.",
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": [
+                  {
+                    "name": "max",
+                    "value": "80"
+                  }
+                ]
+              },
+              {
+                "key": "title",
+                "name": "Short title",
+                "description": "Title retained after schema change.",
+                "required": false,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": []
+              },
+              {
+                "key": "body",
+                "name": "Body summary",
+                "description": "Body validation changed during schema change; Shopify 2026-04 does not expose type on update input.",
+                "required": false,
+                "type": {
+                  "name": "multi_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": [
+                  {
+                    "name": "max",
+                    "value": "120"
+                  }
+                ]
+              }
+            ],
+            "hasThumbnailField": false,
+            "metaobjectsCount": 2,
+            "standardTemplate": null
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 114,
+            "actualQueryCost": 47,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1886,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "name": "cleanup-metaobject-delete",
+      "request": {
+        "query": "mutation MetaobjectSchemaChangeEntryDelete($id: ID!) {\n  metaobjectDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/185862291762"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/185862291762",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1889,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-delete",
+      "request": {
+        "query": "mutation MetaobjectSchemaChangeEntryDelete($id: ID!) {\n  metaobjectDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/185862390066"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/185862390066",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1892,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-delete",
+      "request": {
+        "query": "mutation MetaobjectSchemaChangeEntryDelete($id: ID!) {\n  metaobjectDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/185862422834"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": null,
+            "userErrors": [
+              {
+                "field": [
+                  "id"
+                ],
+                "message": "Record not found",
+                "code": "RECORD_NOT_FOUND",
+                "elementKey": null,
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1894,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-delete",
+      "request": {
+        "query": "mutation MetaobjectSchemaChangeEntryDelete($id: ID!) {\n  metaobjectDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/185862324530"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": null,
+            "userErrors": [
+              {
+                "field": [
+                  "id"
+                ],
+                "message": "Record not found",
+                "code": "RECORD_NOT_FOUND",
+                "elementKey": null,
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1894,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-definition-delete",
+      "request": {
+        "query": "mutation DeleteMetaobjectDefinition($id: ID!) { metaobjectDefinitionDelete(id: $id) { deletedId userErrors { field message code elementKey elementIndex } } }",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17588257074"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17588257074",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1894,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ]
+}

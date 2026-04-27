@@ -1215,6 +1215,15 @@ Setup trap:
 
 HAR-242 implements local staging for definition create/update/delete plus a bounded `standardMetaobjectDefinitionEnable` template slice. Keep the associated-entry delete branch explicit: when `metaobjectsCount` is nonzero, the proxy returns a local unsupported userError because it does not yet model metaobject entries or Shopify's definition-delete cascade. Do not broaden this into entry deletion behavior until entry lifecycle fixtures exist.
 
+HAR-245's 2026-04 schema-change capture added several easy traps:
+
+- `metaobjectDefinitionUpdate` accepts `resetFieldOrder` inside `MetaobjectDefinitionUpdateInput`; it is not a top-level mutation argument on this schema.
+- `MetaobjectFieldDefinitionUpdateInput` does not expose `type`, so field type changes cannot be submitted through the captured update input shape. Validation changes are captured; type changes are not part of the supported local update surface.
+- when publishable capability is enabled and `metaobjectCreate` omits a publishable status, Shopify defaulted the row to `DRAFT`, not `ACTIVE`.
+- after a required display field is added, pre-existing rows return that field with `value: null`; `displayName` falls back to a titleized handle until the row is updated with the required display field.
+- immediate `metaobjects(type:)` catalog reads omitted rows that were missing the newly required field. After updating the pre-existing row with that field, it returned to the catalog.
+- rows created after publishable capability was disabled were still visible through `metaobject(id:)` and `metaobjectByHandle`, but the immediate captured catalog read did not include that newly created post-disable row.
+
 ## 18a. Staged metafield writes need product-scoped replacement semantics, not id-wise merge
 
 Adding `metafieldsSet` / `metafieldDelete` exposed a subtle state-model trap:

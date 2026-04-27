@@ -284,7 +284,6 @@ describe('metaobject schema change flow', () => {
                 update: {
                   key: 'body',
                   name: 'Body summary',
-                  type: 'single_line_text_field',
                   required: false,
                   validations: [{ name: 'max', value: '120' }],
                 },
@@ -317,7 +316,7 @@ describe('metaobject schema change flow', () => {
           {
             key: 'body',
             name: 'Body summary',
-            type: { name: 'single_line_text_field', category: 'TEXT' },
+            type: { name: 'multi_line_text_field', category: 'TEXT' },
             validations: [{ name: 'max', value: '120' }],
           },
         ],
@@ -343,14 +342,15 @@ describe('metaobject schema change flow', () => {
 
     expect(afterDefinitionRead.body.data.detail).toMatchObject({
       id: preChangeRow.id,
-      displayName: null,
+      displayName: 'Pre Change Updated',
       fields: [
+        { key: 'summary', type: 'single_line_text_field', value: null },
         { key: 'title', type: 'single_line_text_field', value: 'Pre title updated' },
         {
           key: 'body',
-          type: 'single_line_text_field',
+          type: 'multi_line_text_field',
           value: 'Pre body updated',
-          definition: { key: 'body', name: 'Body summary', type: { name: 'single_line_text_field', category: 'TEXT' } },
+          definition: { key: 'body', name: 'Body summary', type: { name: 'multi_line_text_field', category: 'TEXT' } },
         },
       ],
       titleField: {
@@ -358,7 +358,11 @@ describe('metaobject schema change flow', () => {
         value: 'Pre title updated',
         definition: { key: 'title', name: 'Short title' },
       },
-      summaryField: null,
+      summaryField: {
+        key: 'summary',
+        value: null,
+        definition: { key: 'summary', name: 'Summary' },
+      },
       legacyField: null,
       definition: {
         displayNameKey: 'summary',
@@ -368,13 +372,14 @@ describe('metaobject schema change flow', () => {
     expect(afterDefinitionRead.body.data.byHandle).toMatchObject({
       id: preChangeRow.id,
       handle: 'pre-change-updated',
-      displayName: null,
+      displayName: 'Pre Change Updated',
       fields: [
+        { key: 'summary', type: 'single_line_text_field', value: null },
         { key: 'title', type: 'single_line_text_field', value: 'Pre title updated' },
-        { key: 'body', type: 'single_line_text_field', value: 'Pre body updated' },
+        { key: 'body', type: 'multi_line_text_field', value: 'Pre body updated' },
       ],
     });
-    expect(afterDefinitionRead.body.data.catalog.nodes).toHaveLength(1);
+    expect(afterDefinitionRead.body.data.catalog.nodes).toHaveLength(0);
     expect(afterDefinitionRead.body.data.definition).toMatchObject({
       displayNameKey: 'summary',
       metaobjectsCount: 1,
@@ -409,9 +414,9 @@ describe('metaobject schema change flow', () => {
       metaobject: null,
       userErrors: [
         {
-          field: ['metaobject', 'fields', 'summary'],
+          field: ['metaobject'],
           message: "Summary can't be blank",
-          code: 'BLANK',
+          code: 'OBJECT_FIELD_REQUIRED',
           elementKey: 'summary',
           elementIndex: null,
         },
@@ -438,11 +443,18 @@ describe('metaobject schema change flow', () => {
       metaobject: null,
       userErrors: [
         {
-          field: ['metaobject', 'fields', '0', 'key'],
-          message: 'Field definition not found.',
-          code: 'NOT_FOUND',
+          field: ['metaobject', 'fields', '0'],
+          message: 'Field definition "legacy" does not exist',
+          code: 'UNDEFINED_OBJECT_FIELD',
           elementKey: 'legacy',
-          elementIndex: 0,
+          elementIndex: null,
+        },
+        {
+          field: ['metaobject'],
+          message: "Summary can't be blank",
+          code: 'OBJECT_FIELD_REQUIRED',
+          elementKey: 'summary',
+          elementIndex: null,
         },
       ],
     });
@@ -476,7 +488,7 @@ describe('metaobject schema change flow', () => {
         fields: [
           { key: 'summary', type: 'single_line_text_field', value: 'Pre summary after schema' },
           { key: 'title', type: 'single_line_text_field', value: 'Pre title updated' },
-          { key: 'body', type: 'single_line_text_field', value: 'Pre body after schema' },
+          { key: 'body', type: 'multi_line_text_field', value: 'Pre body after schema' },
         ],
       },
     });
@@ -637,9 +649,8 @@ describe('metaobject schema change flow', () => {
         fieldDefinitions: [{ key: 'summary' }, { key: 'title' }, { key: 'body' }],
       },
     });
-    expect(finalReadResponse.body.data.catalog.nodes).toHaveLength(2);
+    expect(finalReadResponse.body.data.catalog.nodes).toHaveLength(1);
     expect(finalReadResponse.body.data.catalog.nodes.map((node: { handle: string }) => node.handle).sort()).toEqual([
-      'post-visible-updated',
       'pre-change-updated',
     ]);
 

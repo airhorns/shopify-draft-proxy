@@ -90,9 +90,9 @@ HAR-244 adds local staging for the core Admin GraphQL 2026-04 metaobject row lif
 
 Supported entry mutations never proxy to Shopify at runtime. They append the original GraphQL request body to the meta mutation log for later `POST /__meta/commit` replay, stage changes in the normalized `metaobjects` state bucket or `deletedMetaobjectIds` tombstone map, and make downstream `metaobject`, `metaobjectByHandle`, and `metaobjects` reads observe staged row writes immediately.
 
-Create support requires an existing effective definition. It stages a synthetic `Metaobject` ID, explicit or generated handle, selected field values projected through the effective definition's ordered field definitions, `displayName` from the definition's `displayNameKey`, default/selected publishable status, nullable online-store capability shape, and an incremented effective definition `metaobjectsCount`.
+Create support requires an existing effective definition. It stages a synthetic `Metaobject` ID, explicit or generated handle, selected field values projected through the effective definition's ordered field definitions, null-valued placeholders for omitted field definitions, `displayName` from the definition's `displayNameKey`, default/selected publishable status, nullable online-store capability shape, and an incremented effective definition `metaobjectsCount`. Captured 2026-04 behavior defaults omitted publishable status to `DRAFT` while the definition's publishable capability is enabled.
 
-Update support resolves the effective row by ID, patches selected fields while preserving omitted field values, supports handle changes with same-type uniqueness checks, merges publishable/online-store capability input, updates `displayName`, and keeps the row visible under the new handle while the old handle returns `null`.
+Update support resolves the effective row by ID, patches selected fields while preserving omitted field values, supports handle changes with same-type uniqueness checks, merges publishable/online-store capability input, updates `displayName`, and keeps the row visible under the new handle while the old handle returns `null`. Required field validation now mirrors the captured `OBJECT_FIELD_REQUIRED` shape, and updates to removed fields return the captured `UNDEFINED_OBJECT_FIELD` shape.
 
 Upsert support resolves by `MetaobjectHandleInput`. Existing rows are updated in place; missing rows are created against the effective definition with the requested handle. Definition misses and missing handle data return local userErrors rather than proxying.
 
@@ -106,6 +106,16 @@ Bulk delete support accepts the local `ids` branch used by runtime tests and a t
 - `implemented` must remain `false` until a root has executable runtime behavior, targeted tests, captured conformance/runtime evidence, and documented field behavior. HAR-241 satisfies that bar for definition reads; HAR-242 satisfies that bar for definition mutation roots; HAR-243 satisfies that bar for entry reads; HAR-244 satisfies that bar for entry row mutation roots.
 - Unsupported metaobjects mutations must not be registered as permanent passthrough support. The generic unknown-operation passthrough path can still handle unsupported runtime requests outside snapshot-only parity execution, but that is not a support commitment for any declared root.
 - Do not add planned-only parity specs or request placeholders for this group. Add parity specs only after a captured Shopify interaction can run as evidence.
+
+## Schema-change lifecycle behavior
+
+HAR-245's live 2026-04 schema-change fixture (`fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobject-schema-change-lifecycle.json`) is replayed by `config/parity-specs/metaobject-schema-change-lifecycle.json`.
+
+The captured update sequence creates a definition and rows, deletes a row before the schema edit, then updates the definition with `resetFieldOrder: true` inside `MetaobjectDefinitionUpdateInput`, an added required field, a removed field, display-name key change, validation change, and publishable capability disable. Shopify 2026-04 rejects `resetFieldOrder` as a top-level `metaobjectDefinitionUpdate` argument, and `MetaobjectFieldDefinitionUpdateInput` does not expose a `type` field, so the local model treats type changes as outside the captured supported update surface.
+
+Rows created before the schema edit continue to resolve by ID and handle after the definition update. Missing newly required fields serialize as selected field objects with `value: null`, and `displayName` falls back to a titleized handle until the row is updated with the new display field. Immediate type catalog reads omit rows that fail the new required-field validation. After the row is updated with the new display field, it returns to the catalog.
+
+Rows created after publishable capability is disabled serialize `capabilities.publishable: null`; singular ID/handle reads observe them immediately, while the captured immediate catalog read did not include the newly created post-disable row. The local catalog model preserves the captured distinction between rows that had an active publishable status before capability disable and rows created after publishable is disabled.
 
 ## Planned local-staging posture
 
@@ -150,7 +160,7 @@ HAR-242 adds `config/parity-specs/metaobject-definition-lifecycle-local-staging.
 
 HAR-244 adds `config/parity-specs/metaobject-entry-lifecycle-local-staging.json` and `tests/integration/metaobject-draft-flow.test.ts` for local entry row lifecycle staging. The test covers create/update/upsert/delete/bulk delete, downstream ID/handle/catalog reads, definition count updates, meta API state/log visibility, ordered missing-row bulk errors, and no runtime Shopify writes. The captured create/delete branches in `metaobjects-read.json` are used as shape evidence; additional live captures are still needed before promoting broader update/upsert/bulk delete parity scenarios.
 
-HAR-245 adds `tests/integration/metaobject-schema-change-flow.test.ts` for the combined definition/row lifecycle matrix. The fixture-backed local scenario creates a definition, creates/updates/deletes rows before a schema edit, updates the definition with an added required field, removed field, reordered fields, display-name key change, field type/validation change, and capability changes, then validates pre-existing and post-change row reads plus post-change create/update/delete behavior. It also checks singular ID/handle lookups, catalog reads, meta state/log visibility, and no runtime Shopify writes.
+HAR-245 adds `tests/integration/metaobject-schema-change-flow.test.ts` for the combined definition/row lifecycle matrix and promotes the live schema-change sequence through `config/parity-specs/metaobject-schema-change-lifecycle.json`. The fixture-backed local scenario creates a definition, creates/updates/deletes rows before a schema edit, updates the definition with an added required field, removed field, reordered fields, display-name key change, validation change, and capability changes, then validates pre-existing and post-change row reads plus post-change create/update/delete behavior. It also checks singular ID/handle lookups, catalog reads, meta state/log visibility, and no runtime Shopify writes.
 
 ## Validation anchors
 
@@ -162,3 +172,4 @@ HAR-245 adds `tests/integration/metaobject-schema-change-flow.test.ts` for the c
 - Definition/entry schema-change runtime tests: `tests/integration/metaobject-schema-change-flow.test.ts`
 - Captured root inventory: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-graphql-root-operation-introspection.json`
 - Read fixture recorder: `scripts/capture-metaobject-read-conformance.mts`
+- Schema-change fixture recorder: `scripts/capture-metaobject-schema-change-conformance.ts`

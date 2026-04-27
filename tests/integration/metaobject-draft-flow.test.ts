@@ -282,7 +282,7 @@ describe('metaobject draft flow', () => {
         handle: 'upsert-created',
         displayName: 'Upsert created title',
         capabilities: {
-          publishable: { status: 'ACTIVE' },
+          publishable: { status: 'DRAFT' },
           onlineStore: null,
         },
       },
