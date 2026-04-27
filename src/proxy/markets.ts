@@ -2742,9 +2742,9 @@ function moneyPayload(rawMoney: unknown, currencyCode: string): Record<string, u
   const rawAmount = rawMoney['amount'];
   const amount =
     typeof rawAmount === 'number'
-      ? rawAmount.toFixed(2)
+      ? formatShopifyMoneyAmount(String(rawAmount))
       : typeof rawAmount === 'string' && rawAmount.trim().length > 0
-        ? rawAmount.trim()
+        ? formatShopifyMoneyAmount(rawAmount.trim())
         : null;
   if (amount === null) {
     return null;
@@ -2757,6 +2757,16 @@ function moneyPayload(rawMoney: unknown, currencyCode: string): Record<string, u
         ? rawMoney['currencyCode']
         : currencyCode,
   };
+}
+
+function formatShopifyMoneyAmount(rawAmount: string): string {
+  if (!/^-?\d+(?:\.\d+)?$/.test(rawAmount)) {
+    return rawAmount;
+  }
+
+  const [integerPart, fractionalPart = ''] = rawAmount.split('.');
+  const trimmedFraction = fractionalPart.replace(/0+$/, '');
+  return `${integerPart}.${trimmedFraction.length > 0 ? trimmedFraction : '0'}`;
 }
 
 function variantPriceListNode(

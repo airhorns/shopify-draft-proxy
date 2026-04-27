@@ -1,0 +1,19 @@
+mutation QuantityRulesAdd($priceListId: ID!, $quantityRules: [QuantityRuleInput!]!) {
+  quantityRulesAdd(priceListId: $priceListId, quantityRules: $quantityRules) {
+    quantityRules {
+      minimum
+      maximum
+      increment
+      isDefault
+      originType
+      productVariant {
+        id
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}
