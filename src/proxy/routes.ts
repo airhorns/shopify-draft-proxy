@@ -54,6 +54,19 @@ const APP_DISCOUNT_MUTATION_ROOTS = new Set([
 ]);
 
 const ORDER_PAYMENT_MUTATION_ROOTS = new Set(['orderCapture', 'transactionVoid', 'orderCreateMandatePayment']);
+const NO_LOG_ERROR_MUTATION_ROOTS = new Set([
+  'orderCapture',
+  'transactionVoid',
+  'orderCreateMandatePayment',
+  'orderClose',
+  'orderOpen',
+  'orderMarkAsPaid',
+  'orderCreateManualPayment',
+  'orderCustomerSet',
+  'orderCustomerRemove',
+  'taxSummaryCreate',
+  'orderCancel',
+]);
 
 const PAYMENT_CUSTOMIZATION_MUTATION_ROOTS = new Set([
   'paymentCustomizationActivation',
@@ -87,6 +100,8 @@ const MARKETING_ACTIVITY_MUTATION_ROOTS = new Set([
   'marketingActivityDeleteExternal',
   'marketingActivitiesDeleteAllExternal',
 ]);
+
+const PRODUCT_FEED_QUERY_ROOTS = new Set(['productFeed', 'productFeeds']);
 
 function readVariables(raw: unknown): Record<string, unknown> {
   return typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
@@ -140,6 +155,44 @@ function collectProxySyntheticGids(value: unknown, seen = new Set<string>()): st
   }
 
   return [...seen];
+}
+
+function hasLocalMutationErrors(value: unknown): boolean {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  if (Array.isArray(value)) {
+    return value.some((item) => hasLocalMutationErrors(item));
+  }
+
+  for (const [key, child] of Object.entries(value)) {
+    if (key === 'errors' && Array.isArray(child) && child.length > 0) {
+      return true;
+    }
+
+    if ((key === 'userErrors' || key.endsWith('UserErrors')) && Array.isArray(child) && child.length > 0) {
+      return true;
+    }
+
+    if (hasLocalMutationErrors(child)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function shouldAppendLocalMutationLog(primaryRootField: string | null | undefined, responseBody: unknown): boolean {
+  if (isRejectedCreateMutationResponse(primaryRootField, responseBody)) {
+    return false;
+  }
+
+  if (!hasLocalMutationErrors(responseBody)) {
+    return true;
+  }
+
+  return !NO_LOG_ERROR_MUTATION_ROOTS.has(primaryRootField ?? '');
 }
 
 function interpretMutationLogEntry(
@@ -559,19 +612,23 @@ export function createProxyRouter(config: AppConfig): Router {
     ) {
       const responseBody = handleOrderMutation(body.query, variables, config.readMode, config.shopifyAdminOrigin);
       if (responseBody) {
-        store.appendLog({
-          id: makeSyntheticGid('MutationLogEntry'),
-          receivedAt: makeSyntheticTimestamp(),
-          operationName: capability.operationName,
-          path: ctx.path,
-          query: body.query,
-          variables,
-          requestBody,
-          stagedResourceIds: collectProxySyntheticGids(responseBody),
-          status: 'staged',
-          interpreted: interpretMutationLogEntry(parsed, capability),
-          notes: 'Staged locally in the in-memory order payment draft store.',
-        });
+        const logEntryId = makeSyntheticGid('MutationLogEntry');
+        const logReceivedAt = makeSyntheticTimestamp();
+        if (shouldAppendLocalMutationLog(primaryRootField, responseBody)) {
+          store.appendLog({
+            id: logEntryId,
+            receivedAt: logReceivedAt,
+            operationName: capability.operationName,
+            path: ctx.path,
+            query: body.query,
+            variables,
+            requestBody,
+            stagedResourceIds: collectProxySyntheticGids(responseBody),
+            status: 'staged',
+            interpreted: interpretMutationLogEntry(parsed, capability),
+            notes: 'Staged locally in the in-memory order payment draft store.',
+          });
+        }
 
         ctx.status = 200;
         ctx.body = responseBody;
@@ -832,6 +889,13 @@ export function createProxyRouter(config: AppConfig): Router {
       });
 
       const upstreamBody = await response.json();
+
+      if (primaryRootField && PRODUCT_FEED_QUERY_ROOTS.has(primaryRootField)) {
+        ctx.status = response.status;
+        ctx.body = upstreamBody;
+        return;
+      }
+
       hydrateProductsFromUpstreamResponse(body.query, variables, upstreamBody);
 
       ctx.status = response.status;
@@ -1260,20 +1324,21 @@ export function createProxyRouter(config: AppConfig): Router {
       (config.readMode === 'snapshot' || primaryRootField === 'draftOrderCreate')
     ) {
       const logEntryId = makeSyntheticGid('MutationLogEntry');
-      const receivedAt = makeSyntheticTimestamp();
+      const logReceivedAt = makeSyntheticTimestamp();
       const responseBody = handleOrderMutation(body.query, variables, config.readMode, config.shopifyAdminOrigin) ?? {
         data: {},
       };
 
-      if (!isRejectedCreateMutationResponse(primaryRootField, responseBody)) {
+      if (shouldAppendLocalMutationLog(primaryRootField, responseBody)) {
         store.appendLog({
           id: logEntryId,
-          receivedAt,
+          receivedAt: logReceivedAt,
           operationName: capability.operationName,
           path: ctx.path,
           query: body.query,
           variables,
           requestBody,
+          stagedResourceIds: collectProxySyntheticGids(responseBody),
           status: 'staged',
           interpreted: interpretMutationLogEntry(parsed, capability),
           notes: orderBackedLocalFulfillmentMutation
@@ -1326,6 +1391,8 @@ export function createProxyRouter(config: AppConfig): Router {
         config.shopifyAdminOrigin,
       );
       if (orderMutationResponse) {
+        const logEntryId = makeSyntheticGid('MutationLogEntry');
+        const logReceivedAt = makeSyntheticTimestamp();
         const shortCircuitNotesByOperation: Record<string, string> = {
           orderCreate: 'Locally short-circuited captured orderCreate validation in live-hybrid mode.',
           refundCreate:
@@ -1368,15 +1435,16 @@ export function createProxyRouter(config: AppConfig): Router {
             'Locally staged fulfillmentEventCreate in live-hybrid mode for an order-backed local fulfillment.',
         };
 
-        if (!isRejectedCreateMutationResponse(primaryRootField, orderMutationResponse)) {
+        if (shouldAppendLocalMutationLog(primaryRootField, orderMutationResponse)) {
           store.appendLog({
-            id: makeSyntheticGid('MutationLogEntry'),
-            receivedAt: makeSyntheticTimestamp(),
+            id: logEntryId,
+            receivedAt: logReceivedAt,
             operationName: capability.operationName,
             path: ctx.path,
             query: body.query,
             variables,
             requestBody,
+            stagedResourceIds: collectProxySyntheticGids(orderMutationResponse),
             status: 'staged',
             interpreted: interpretMutationLogEntry(parsed, capability),
             notes:

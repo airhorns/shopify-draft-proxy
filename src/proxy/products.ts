@@ -28,6 +28,13 @@ import type {
   PublicationRecord,
 } from '../state/types.js';
 
+type ProductFeedRecord = {
+  id: string;
+  country: string | null;
+  language: string | null;
+  status: 'ACTIVE' | 'INACTIVE';
+};
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
@@ -5568,6 +5575,74 @@ function serializeTopLevelPublicationsConnection(
   });
 }
 
+function serializeProductFeedSelectionSet(
+  productFeed: ProductFeedRecord,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      const typeName = selection.typeCondition?.name.value;
+      if (typeName && typeName !== 'ProductFeed' && typeName !== 'Node') {
+        continue;
+      }
+
+      Object.assign(result, serializeProductFeedSelectionSet(productFeed, selection.selectionSet.selections));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = selection.alias?.value ?? selection.name.value;
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'ProductFeed';
+        break;
+      case 'id':
+        result[key] = productFeed.id;
+        break;
+      case 'country':
+        result[key] = productFeed.country;
+        break;
+      case 'language':
+        result[key] = productFeed.language;
+        break;
+      case 'status':
+        result[key] = productFeed.status;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeTopLevelProductFeedsConnection(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const productFeeds: ProductFeedRecord[] = [];
+  const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
+    productFeeds,
+    field,
+    variables,
+    (productFeed) => productFeed.id,
+  );
+
+  return serializeConnection(field, {
+    items,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (productFeed) => productFeed.id,
+    serializeNode: (productFeed, selection) =>
+      serializeProductFeedSelectionSet(productFeed, selection.selectionSet?.selections ?? []),
+  });
+}
+
 function serializeMediaImageSelectionSet(
   imageUrl: string | null,
   selections: readonly SelectionNode[],
@@ -9461,6 +9536,14 @@ export function handleProductQuery(
       }
       case 'productsCount': {
         data[responseKey] = serializeProductsCount(args['query'], field.selectionSet?.selections ?? []);
+        break;
+      }
+      case 'productFeed': {
+        data[responseKey] = null;
+        break;
+      }
+      case 'productFeeds': {
+        data[responseKey] = serializeTopLevelProductFeedsConnection(field, variables);
         break;
       }
       case 'productVariant': {
