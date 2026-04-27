@@ -3797,6 +3797,116 @@
     "supportNotes": "Locally stages DeliveryCarrierService updates for name, callback URL, active status, and service-discovery flags. Unknown IDs mirror the captured app ownership/not-found userError and downstream reads observe the staged values."
   },
   {
+    "name": "giftCard",
+    "type": "query",
+    "domain": "gift-cards",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["giftCard", "GiftCard"],
+    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "supportNotes": "Snapshot reads resolve from normalized gift-card state and return null for missing IDs. Staged lifecycle mutations are visible to downstream giftCard(id:) reads without sending supported writes upstream."
+  },
+  {
+    "name": "giftCards",
+    "type": "query",
+    "domain": "gift-cards",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["giftCards", "GiftCards"],
+    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "supportNotes": "Connection reads use shared pagination helpers over normalized gift-card state and preserve empty/no-data structures in snapshot mode."
+  },
+  {
+    "name": "giftCardsCount",
+    "type": "query",
+    "domain": "gift-cards",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["giftCardsCount", "GiftCardsCount"],
+    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "supportNotes": "Local count support covers exact no-data and staged gift-card counts with basic id/enabled query filtering."
+  },
+  {
+    "name": "giftCardConfiguration",
+    "type": "query",
+    "domain": "gift-cards",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["giftCardConfiguration", "GiftCardConfiguration"],
+    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "supportNotes": "Snapshot support exposes issueLimit and purchaseLimit money objects from normalized gift-card configuration, with safe zero-value placeholders when no readable configuration fixture is present."
+  },
+  {
+    "name": "giftCardCreate",
+    "type": "mutation",
+    "domain": "gift-cards",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["giftCardCreate", "GiftCardCreate"],
+    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "supportNotes": "Locally stages gift-card creation with initial balance, masked code metadata, optional note/expiry/template/customer metadata, stable timestamps, and raw mutation retention for commit replay."
+  },
+  {
+    "name": "giftCardUpdate",
+    "type": "mutation",
+    "domain": "gift-cards",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["giftCardUpdate", "GiftCardUpdate"],
+    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "supportNotes": "Locally stages mutable metadata updates and keeps downstream giftCard/giftCards reads consistent without runtime Shopify writes."
+  },
+  {
+    "name": "giftCardCredit",
+    "type": "mutation",
+    "domain": "gift-cards",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["giftCardCredit", "GiftCardCredit"],
+    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "supportNotes": "Locally stages balance credits and transaction nodes for supported local gift cards."
+  },
+  {
+    "name": "giftCardDebit",
+    "type": "mutation",
+    "domain": "gift-cards",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["giftCardDebit", "GiftCardDebit"],
+    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "supportNotes": "Locally stages balance debits and transaction nodes for supported local gift cards, including a local insufficient-balance guardrail."
+  },
+  {
+    "name": "giftCardDeactivate",
+    "type": "mutation",
+    "domain": "gift-cards",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["giftCardDeactivate", "GiftCardDeactivate"],
+    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "supportNotes": "Locally stages deactivation by flipping enabled state and recording deactivatedAt while preserving read-after-write visibility."
+  },
+  {
+    "name": "giftCardSendNotificationToCustomer",
+    "type": "mutation",
+    "domain": "gift-cards",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["giftCardSendNotificationToCustomer", "GiftCardSendNotificationToCustomer"],
+    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "supportNotes": "Short-circuits customer notification payloads locally for existing gift cards; no customer-visible email/notification side effect is sent during supported runtime handling."
+  },
+  {
+    "name": "giftCardSendNotificationToRecipient",
+    "type": "mutation",
+    "domain": "gift-cards",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["giftCardSendNotificationToRecipient", "GiftCardSendNotificationToRecipient"],
+    "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
+    "supportNotes": "Short-circuits recipient notification payloads locally for existing gift cards; no customer-visible email/notification side effect is sent during supported runtime handling."
+  },
+  {
     "name": "deliveryProfile",
     "type": "query",
     "domain": "shipping-fulfillments",
