@@ -26,6 +26,19 @@ const marketingMutationRoots = [
   'marketingEngagementCreate',
   'marketingEngagementsDelete',
 ] as const;
+const implementedMarketingMutationRoots = [
+  'marketingActivityCreateExternal',
+  'marketingActivityUpdateExternal',
+  'marketingActivityUpsertExternal',
+  'marketingActivityDeleteExternal',
+  'marketingActivitiesDeleteAllExternal',
+] as const;
+const scaffoldOnlyMarketingMutationRoots = [
+  'marketingActivityCreate',
+  'marketingActivityUpdate',
+  'marketingEngagementCreate',
+  'marketingEngagementsDelete',
+] as const;
 
 const segmentQueryRoots = [
   'segment',
@@ -67,7 +80,7 @@ const scaffoldOnlySegmentMutationRoots = [] as const;
 const marketingRoots = [...marketingQueryRoots, ...marketingMutationRoots] as const;
 const segmentRoots = [...segmentQueryRoots, ...segmentMutationRoots] as const;
 const scaffoldOnlyMarketingAndSegmentRoots = [
-  ...marketingMutationRoots,
+  ...scaffoldOnlyMarketingMutationRoots,
   ...scaffoldOnlySegmentQueryRoots,
   ...scaffoldOnlySegmentMutationRoots,
 ] as const;
@@ -182,6 +195,14 @@ describe('Marketing and segment registry scaffold', () => {
         'tests/integration/customer-segment-member-flow.test.ts',
       );
     }
+
+    for (const root of implementedMarketingMutationRoots) {
+      const entry = entriesByName.get(root);
+      expect(entry?.implemented, `${root} should be enabled by HAR-213 marketing lifecycle coverage`).toBe(true);
+      expect(entry?.runtimeTests, `${root} should claim runtime marketing lifecycle coverage`).toContain(
+        'tests/integration/marketing-activity-lifecycle-flow.test.ts',
+      );
+    }
   });
 
   it('records local-staging intent for known future mutations without registering passthrough support', () => {
@@ -202,7 +223,7 @@ describe('Marketing and segment registry scaffold', () => {
     expect(rawRegistry.some((entry) => entry.execution === 'passthrough')).toBe(false);
   });
 
-  it('keeps scaffold-only marketing and segment roots out of capability routing', () => {
+  it('keeps scaffold-only roots out of capability routing and routes implemented marketing lifecycle roots', () => {
     expect(
       getOperationCapability({ type: 'query', name: 'MarketingActivities', rootFields: ['marketingActivities'] }),
     ).toEqual({
@@ -219,9 +240,22 @@ describe('Marketing and segment registry scaffold', () => {
         rootFields: ['marketingActivityCreateExternal'],
       }),
     ).toEqual({
+      domain: 'marketing',
+      execution: 'stage-locally',
+      operationName: 'marketingActivityCreateExternal',
+      type: 'mutation',
+    });
+
+    expect(
+      getOperationCapability({
+        type: 'mutation',
+        name: 'MarketingActivityCreate',
+        rootFields: ['marketingActivityCreate'],
+      }),
+    ).toEqual({
       domain: 'unknown',
       execution: 'passthrough',
-      operationName: 'CreateExternalActivity',
+      operationName: 'MarketingActivityCreate',
       type: 'mutation',
     });
 
@@ -277,6 +311,13 @@ describe('Marketing and segment registry scaffold', () => {
 
     for (const root of [...implementedSegmentMutationRoots, ...implementedSegmentMemberMutationRoots]) {
       expect(scenarioOperations.has(root), `${root} should have executable segment mutation parity coverage`).toBe(
+        true,
+      );
+      expect(statusDocument.implementedOperations.some((entry) => entry.name === root)).toBe(true);
+    }
+
+    for (const root of implementedMarketingMutationRoots) {
+      expect(scenarioOperations.has(root), `${root} should have captured runtime-test-backed lifecycle evidence`).toBe(
         true,
       );
       expect(statusDocument.implementedOperations.some((entry) => entry.name === root)).toBe(true);

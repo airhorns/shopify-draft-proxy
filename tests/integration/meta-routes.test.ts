@@ -31,6 +31,8 @@ const emptySnapshot = {
   marketingActivityOrder: [],
   marketingEvents: {},
   marketingEventOrder: [],
+  deletedMarketingActivityIds: {},
+  deletedMarketingEventIds: {},
   onlineStoreArticles: {},
   onlineStoreArticleOrder: [],
   onlineStoreBlogs: {},

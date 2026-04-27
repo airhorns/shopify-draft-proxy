@@ -83,6 +83,8 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   marketingActivityOrder: [],
   marketingEvents: {},
   marketingEventOrder: [],
+  deletedMarketingActivityIds: {},
+  deletedMarketingEventIds: {},
   onlineStoreArticles: {},
   onlineStoreArticleOrder: [],
   onlineStoreBlogs: {},
@@ -196,6 +198,28 @@ function marketLocalizationStorageKey(
 
 function readCollectionPosition(collection: ProductCollectionRecord): number | null {
   return typeof collection.position === 'number' && Number.isFinite(collection.position) ? collection.position : null;
+}
+
+function readMarketingNestedObject(source: Record<string, unknown>, field: string): Record<string, unknown> | null {
+  const value = source[field];
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function readMarketingEventId(source: Record<string, unknown>): string | null {
+  const event = readMarketingNestedObject(source, 'marketingEvent');
+  const id = event?.['id'];
+  return typeof id === 'string' && id.length > 0 ? id : null;
+}
+
+function readMarketingRemoteId(source: Record<string, unknown>): string | null {
+  const remoteId = source['remoteId'];
+  if (typeof remoteId === 'string' && remoteId.length > 0) {
+    return remoteId;
+  }
+
+  const event = readMarketingNestedObject(source, 'marketingEvent');
+  const eventRemoteId = event?.['remoteId'];
+  return typeof eventRemoteId === 'string' && eventRemoteId.length > 0 ? eventRemoteId : null;
 }
 
 function mergeCollectionRecords(
@@ -679,6 +703,62 @@ export class InMemoryStore {
     this.upsertBaseMarketingRecords(this.baseState.marketingEvents, this.baseState.marketingEventOrder, records);
   }
 
+  private stageMarketingRecord(
+    bucket: Record<string, MarketingRecord>,
+    order: string[],
+    deletedBucket: Record<string, boolean>,
+    record: MarketingRecord,
+  ): MarketingRecord {
+    delete deletedBucket[record.id];
+    bucket[record.id] = structuredClone(record);
+    if (!order.includes(record.id)) {
+      order.push(record.id);
+    }
+    return structuredClone(record);
+  }
+
+  stageMarketingActivity(record: MarketingRecord): MarketingRecord {
+    return this.stageMarketingRecord(
+      this.stagedState.marketingActivities,
+      this.stagedState.marketingActivityOrder,
+      this.stagedState.deletedMarketingActivityIds,
+      record,
+    );
+  }
+
+  stageMarketingEvent(record: MarketingRecord): MarketingRecord {
+    return this.stageMarketingRecord(
+      this.stagedState.marketingEvents,
+      this.stagedState.marketingEventOrder,
+      this.stagedState.deletedMarketingEventIds,
+      record,
+    );
+  }
+
+  stageDeleteMarketingActivity(activityId: string): void {
+    const activity = this.getEffectiveMarketingActivityRecordById(activityId);
+    const eventId = activity ? readMarketingEventId(activity.data) : null;
+
+    delete this.stagedState.marketingActivities[activityId];
+    this.stagedState.deletedMarketingActivityIds[activityId] = true;
+
+    if (eventId) {
+      delete this.stagedState.marketingEvents[eventId];
+      this.stagedState.deletedMarketingEventIds[eventId] = true;
+    }
+  }
+
+  stageDeleteAllExternalMarketingActivities(): string[] {
+    const deletedIds: string[] = [];
+    for (const activity of this.listEffectiveMarketingActivities()) {
+      if (activity.data['isExternal'] === true) {
+        this.stageDeleteMarketingActivity(activity.id);
+        deletedIds.push(activity.id);
+      }
+    }
+    return deletedIds;
+  }
+
   getBaseMarketingActivityById(activityId: string): unknown | null {
     const activity = this.baseState.marketingActivities[activityId];
     return activity === undefined ? null : structuredClone(activity.data);
@@ -689,12 +769,77 @@ export class InMemoryStore {
     return event === undefined ? null : structuredClone(event.data);
   }
 
+  getEffectiveMarketingActivityById(activityId: string): unknown | null {
+    const activity = this.getEffectiveMarketingActivityRecordById(activityId);
+    return activity ? structuredClone(activity.data) : null;
+  }
+
+  getEffectiveMarketingEventById(eventId: string): unknown | null {
+    const event = this.getEffectiveMarketingEventRecordById(eventId);
+    return event ? structuredClone(event.data) : null;
+  }
+
+  getEffectiveMarketingActivityRecordById(activityId: string): MarketingRecord | null {
+    if (this.stagedState.deletedMarketingActivityIds[activityId]) {
+      return null;
+    }
+
+    const activity = this.stagedState.marketingActivities[activityId] ?? this.baseState.marketingActivities[activityId];
+    return activity ? structuredClone(activity) : null;
+  }
+
+  getEffectiveMarketingEventRecordById(eventId: string): MarketingRecord | null {
+    if (this.stagedState.deletedMarketingEventIds[eventId]) {
+      return null;
+    }
+
+    const event = this.stagedState.marketingEvents[eventId] ?? this.baseState.marketingEvents[eventId];
+    return event ? structuredClone(event) : null;
+  }
+
+  getEffectiveMarketingActivityByRemoteId(remoteId: string): MarketingRecord | null {
+    return (
+      this.listEffectiveMarketingActivities().find((activity) => {
+        return readMarketingRemoteId(activity.data) === remoteId;
+      }) ?? null
+    );
+  }
+
   listBaseMarketingActivities(): MarketingRecord[] {
     return this.listBaseMarketingRecords(this.baseState.marketingActivities, this.baseState.marketingActivityOrder);
   }
 
   listBaseMarketingEvents(): MarketingRecord[] {
     return this.listBaseMarketingRecords(this.baseState.marketingEvents, this.baseState.marketingEventOrder);
+  }
+
+  listEffectiveMarketingActivities(): MarketingRecord[] {
+    return this.listEffectiveMarketingRecords(
+      this.baseState.marketingActivities,
+      this.baseState.marketingActivityOrder,
+      this.stagedState.marketingActivities,
+      this.stagedState.marketingActivityOrder,
+      this.stagedState.deletedMarketingActivityIds,
+    );
+  }
+
+  listEffectiveMarketingEvents(): MarketingRecord[] {
+    return this.listEffectiveMarketingRecords(
+      this.baseState.marketingEvents,
+      this.baseState.marketingEventOrder,
+      this.stagedState.marketingEvents,
+      this.stagedState.marketingEventOrder,
+      this.stagedState.deletedMarketingEventIds,
+    );
+  }
+
+  hasStagedMarketingRecords(): boolean {
+    return (
+      Object.keys(this.stagedState.marketingActivities).length > 0 ||
+      Object.keys(this.stagedState.marketingEvents).length > 0 ||
+      Object.keys(this.stagedState.deletedMarketingActivityIds).length > 0 ||
+      Object.keys(this.stagedState.deletedMarketingEventIds).length > 0
+    );
   }
 
   private listBaseMarketingRecords(bucket: Record<string, MarketingRecord>, order: string[]): MarketingRecord[] {
@@ -707,6 +852,28 @@ export class InMemoryStore {
       .sort((left, right) => left.id.localeCompare(right.id));
 
     return structuredClone([...orderedRecords, ...unorderedRecords]);
+  }
+
+  private listEffectiveMarketingRecords(
+    baseBucket: Record<string, MarketingRecord>,
+    baseOrder: string[],
+    stagedBucket: Record<string, MarketingRecord>,
+    stagedOrder: string[],
+    deletedBucket: Record<string, boolean>,
+  ): MarketingRecord[] {
+    const merged = new Map<string, MarketingRecord>();
+    for (const record of this.listBaseMarketingRecords(baseBucket, baseOrder)) {
+      if (!deletedBucket[record.id]) {
+        merged.set(record.id, record);
+      }
+    }
+    for (const record of this.listBaseMarketingRecords(stagedBucket, stagedOrder)) {
+      if (!deletedBucket[record.id]) {
+        merged.set(record.id, record);
+      }
+    }
+
+    return structuredClone([...merged.values()]);
   }
 
   private onlineStoreBucket(

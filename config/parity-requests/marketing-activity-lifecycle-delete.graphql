@@ -1,0 +1,10 @@
+mutation MarketingActivityLifecycleDelete($remoteId: String) {
+  marketingActivityDeleteExternal(remoteId: $remoteId) {
+    deletedMarketingActivityId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

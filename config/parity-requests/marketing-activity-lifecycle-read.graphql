@@ -1,0 +1,30 @@
+query MarketingActivityLifecycleRead($createdActivityId: ID!, $upsertActivityId: ID!, $remoteIds: [String!]) {
+  createdActivity: marketingActivity(id: $createdActivityId) {
+    title
+    status
+    statusLabel
+    marketingEvent {
+      remoteId
+      manageUrl
+      description
+    }
+  }
+  upsertActivity: marketingActivity(id: $upsertActivityId) {
+    title
+    status
+    statusLabel
+    marketingEvent {
+      remoteId
+      manageUrl
+    }
+  }
+  marketingActivities(first: 10, remoteIds: $remoteIds, sortKey: ID) {
+    nodes {
+      title
+      status
+      marketingEvent {
+        remoteId
+      }
+    }
+  }
+}
