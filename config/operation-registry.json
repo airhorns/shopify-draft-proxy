@@ -87,16 +87,6 @@
     "supportNotes": "Serializes a distinct sorted StringConnection from effective local vendor values; absent product data returns an empty connection."
   },
   {
-    "name": "productSavedSearches",
-    "type": "query",
-    "domain": "products",
-    "execution": "overlay-read",
-    "implemented": true,
-    "matchNames": ["productSavedSearches", "ProductSavedSearches"],
-    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
-    "supportNotes": "Snapshot/local support currently returns Shopify-like empty SavedSearchConnection behavior; saved search CRUD/storage remains unsupported."
-  },
-  {
     "name": "productOperation",
     "type": "query",
     "domain": "products",
@@ -1902,6 +1892,246 @@
     "matchNames": ["shopPolicyUpdate", "ShopPolicyUpdate"],
     "runtimeTests": ["tests/integration/shop-policy-update-flow.test.ts"],
     "supportNotes": "HAR-173: stages legal policy updates locally by ShopPolicyType, preserves raw mutation requests for commit replay, and overlays downstream shop.shopPolicies reads without proxying supported requests upstream."
+  },
+  {
+    "name": "productSavedSearches",
+    "type": "query",
+    "domain": "saved-searches",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productSavedSearches", "ProductSavedSearches"],
+    "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
+    "supportNotes": "HAR-312: serves Product SavedSearch connections from effective local saved-search state with Shopify-like empty connection and cursor pageInfo behavior."
+  },
+  {
+    "name": "collectionSavedSearches",
+    "type": "query",
+    "domain": "saved-searches",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["collectionSavedSearches", "CollectionSavedSearches"],
+    "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
+    "supportNotes": "HAR-312: serves Collection SavedSearch connections from effective local saved-search state with Shopify-like empty connection and cursor pageInfo behavior."
+  },
+  {
+    "name": "customerSavedSearches",
+    "type": "query",
+    "domain": "saved-searches",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["customerSavedSearches", "CustomerSavedSearches"],
+    "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
+    "supportNotes": "HAR-312: serves Customer SavedSearch connections, including local query filtering by name/query/resource type, from effective local saved-search state."
+  },
+  {
+    "name": "orderSavedSearches",
+    "type": "query",
+    "domain": "saved-searches",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["orderSavedSearches", "OrderSavedSearches"],
+    "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
+    "supportNotes": "HAR-312: serves Order SavedSearch connections from effective local saved-search state with captured default-order saved-search shapes represented as records when hydrated or staged."
+  },
+  {
+    "name": "draftOrderSavedSearches",
+    "type": "query",
+    "domain": "saved-searches",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["draftOrderSavedSearches", "DraftOrderSavedSearches"],
+    "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
+    "supportNotes": "HAR-312: serves DraftOrder SavedSearch connections from effective local saved-search state with Shopify-like empty connection behavior when absent."
+  },
+  {
+    "name": "fileSavedSearches",
+    "type": "query",
+    "domain": "saved-searches",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["fileSavedSearches", "FileSavedSearches"],
+    "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
+    "supportNotes": "HAR-312: serves File SavedSearch connections from effective local saved-search state with Shopify-like empty connection behavior when absent."
+  },
+  {
+    "name": "codeDiscountSavedSearches",
+    "type": "query",
+    "domain": "saved-searches",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["codeDiscountSavedSearches", "CodeDiscountSavedSearches"],
+    "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
+    "supportNotes": "HAR-312: serves code-discount SavedSearch roots from locally staged PRICE_RULE saved searches; automatic/code subtype distinction needs deeper discount saved-search evidence."
+  },
+  {
+    "name": "automaticDiscountSavedSearches",
+    "type": "query",
+    "domain": "saved-searches",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["automaticDiscountSavedSearches", "AutomaticDiscountSavedSearches"],
+    "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
+    "supportNotes": "HAR-312: serves automatic-discount SavedSearch roots from locally staged PRICE_RULE saved searches; automatic/code subtype distinction needs deeper discount saved-search evidence."
+  },
+  {
+    "name": "discountRedeemCodeSavedSearches",
+    "type": "query",
+    "domain": "saved-searches",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["discountRedeemCodeSavedSearches", "DiscountRedeemCodeSavedSearches"],
+    "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
+    "supportNotes": "HAR-312: serves DiscountRedeemCode SavedSearch connections from effective local saved-search state with local query filtering."
+  },
+  {
+    "name": "savedSearchCreate",
+    "type": "mutation",
+    "domain": "saved-searches",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["savedSearchCreate", "SavedSearchCreate"],
+    "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
+    "supportNotes": "HAR-312: stages supported saved-search resource types locally, derives searchTerms/filters from the Admin query string, and leaves URL_REDIRECT saved searches unsupported until navigation-scope conformance succeeds."
+  },
+  {
+    "name": "savedSearchUpdate",
+    "type": "mutation",
+    "domain": "saved-searches",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["savedSearchUpdate", "SavedSearchUpdate"],
+    "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
+    "supportNotes": "HAR-312: stages saved-search name/query updates locally and returns the captured missing-id userError shape for unknown saved searches."
+  },
+  {
+    "name": "savedSearchDelete",
+    "type": "mutation",
+    "domain": "saved-searches",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["savedSearchDelete", "SavedSearchDelete"],
+    "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
+    "supportNotes": "HAR-312: stages saved-search deletion tombstones locally and returns the captured missing-id userError shape for unknown saved searches."
+  },
+  {
+    "name": "urlRedirectSavedSearches",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["urlRedirectSavedSearches", "UrlRedirectSavedSearches"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-312 blocker: current live conformance credential returns ACCESS_DENIED requiring `read_online_store_navigation`; do not implement until URL redirect saved-search success/empty behavior is captured."
+  },
+  {
+    "name": "urlRedirects",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["urlRedirects", "UrlRedirects"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-312 blocker: current live conformance credential returns ACCESS_DENIED for urlRedirects; local catalog/search/pageInfo support needs `read_online_store_navigation` capture."
+  },
+  {
+    "name": "urlRedirectsCount",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["urlRedirectsCount", "UrlRedirectsCount"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-312 blocker: current live conformance credential returns ACCESS_DENIED requiring `read_online_store_navigation`; local count support needs captured empty/non-empty behavior."
+  },
+  {
+    "name": "urlRedirectCreate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["urlRedirectCreate", "UrlRedirectCreate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-312 blocker: current live conformance credential returns ACCESS_DENIED requiring `write_online_store_navigation`; do not stage until create validation, normalization, and downstream reads are captured."
+  },
+  {
+    "name": "urlRedirectUpdate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["urlRedirectUpdate", "UrlRedirectUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-312 blocker: URL redirect update needs `write_online_store_navigation` success and missing-id behavior capture before local support."
+  },
+  {
+    "name": "urlRedirectDelete",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["urlRedirectDelete", "UrlRedirectDelete"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-312 blocker: URL redirect delete needs `write_online_store_navigation` success and downstream null/count behavior capture before local support."
+  },
+  {
+    "name": "urlRedirectBulkDeleteAll",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["urlRedirectBulkDeleteAll", "UrlRedirectBulkDeleteAll"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-312 blocker: destructive bulk URL redirect deletion must not be supported until scoped behavior, job shape, and downstream effects are captured and modeled locally."
+  },
+  {
+    "name": "urlRedirectBulkDeleteByIds",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["urlRedirectBulkDeleteByIds", "UrlRedirectBulkDeleteByIds"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-312 blocker: bulk URL redirect deletion by ids needs conformance-backed job/deletion semantics before local support."
+  },
+  {
+    "name": "urlRedirectBulkDeleteBySavedSearch",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["urlRedirectBulkDeleteBySavedSearch", "UrlRedirectBulkDeleteBySavedSearch"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-312 blocker: bulk URL redirect deletion by saved search depends on URL redirect saved-search capture and job/deletion semantics."
+  },
+  {
+    "name": "urlRedirectBulkDeleteBySearch",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["urlRedirectBulkDeleteBySearch", "UrlRedirectBulkDeleteBySearch"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-312 blocker: bulk URL redirect deletion by search needs captured search matching, job shape, and deletion effects before local support."
+  },
+  {
+    "name": "urlRedirectImportCreate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["urlRedirectImportCreate", "UrlRedirectImportCreate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-312 blocker: current live conformance credential returns ACCESS_DENIED requiring `write_online_store_navigation`; import create also needs CSV fetch/preview behavior modeled before support."
+  },
+  {
+    "name": "urlRedirectImportSubmit",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["urlRedirectImportSubmit", "UrlRedirectImportSubmit"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-312 blocker: URL redirect import submit is an async job path and must wait for import-create success fixtures, job shape, and downstream redirect effects."
   },
   {
     "name": "article",
@@ -4154,6 +4384,66 @@
     "supportNotes": "Short-circuits recipient notification payloads locally for existing gift cards; no customer-visible email/notification side effect is sent during supported runtime handling."
   },
   {
+    "name": "deliveryCustomization",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["deliveryCustomization", "DeliveryCustomization"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 declared gap. Live 2025-01 probe returned ACCESS_DENIED requiring `read_delivery_customizations`; do not synthesize function-backed customization detail reads until an authorized capture records shape, metafields, function ownership, and missing-id behavior."
+  },
+  {
+    "name": "deliveryCustomizations",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["deliveryCustomizations", "DeliveryCustomizations"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 declared gap. Live 2025-01 probe returned ACCESS_DENIED requiring `read_delivery_customizations`; catalog sorting, search, pagination, and empty/no-data behavior need an authorized capture before local support."
+  },
+  {
+    "name": "deliveryPromiseParticipants",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["deliveryPromiseParticipants", "DeliveryPromiseParticipants"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 declared gap. Live 2025-01 probe returned ACCESS_DENIED requiring `read_delivery_promises`; participant owner eligibility, branded promise handles, connection pagination, and empty behavior need captured evidence before local support."
+  },
+  {
+    "name": "deliveryPromiseProvider",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["deliveryPromiseProvider", "DeliveryPromiseProvider"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 declared gap. Live 2025-01 probe returned ACCESS_DENIED requiring `read_delivery_promises`; provider state by location and downstream mutation effects need authorized capture before local support."
+  },
+  {
+    "name": "deliveryPromiseSettings",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["deliveryPromiseSettings", "DeliveryPromiseSettings"],
+    "runtimeTests": ["tests/integration/delivery-settings-query-shapes.test.ts"],
+    "supportNotes": "HAR-324 fixture-backed 2025-01 snapshot read. Local snapshot mode returns the captured no-promise-settings shape `deliveryDatesEnabled: false` and `processingTime: null`; mutation-backed promise provider/participant effects remain unsupported."
+  },
+  {
+    "name": "deliverySettings",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["deliverySettings", "DeliverySettings"],
+    "runtimeTests": ["tests/integration/delivery-settings-query-shapes.test.ts"],
+    "supportNotes": "HAR-324 fixture-backed 2025-01 snapshot read. Local snapshot mode returns captured no-legacy-mode settings with `legacyModeProfiles: false` and unblocked `legacyModeBlocked`; deliverySettingUpdate remains unsupported until setting transitions are modeled."
+  },
+  {
     "name": "deliveryProfile",
     "type": "query",
     "domain": "shipping-fulfillments",
@@ -4305,6 +4595,76 @@
     "matchNames": ["deliveryProfileUpdate", "DeliveryProfileUpdate"],
     "runtimeTests": ["tests/integration/delivery-profile-lifecycle-flow.test.ts"],
     "supportNotes": "Admin GraphQL 2026-04 deliveryProfileUpdate stages locally for profile rename, nested location add/remove, location-group create/update/delete, zone create/update/delete, static rate method create/update/delete, condition update/delete, variant association/dissociation, and downstream profile reads. Legacy-mode transitions, carrier participant callbacks, and full selling-plan routing remain excluded until separately captured."
+  },
+  {
+    "name": "deliveryCustomizationActivation",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["deliveryCustomizationActivation", "DeliveryCustomizationActivation"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 function-backed mutation gap. Keep unsupported until activation/deactivation limits, Shopify Function ownership, custom-app eligibility, and downstream customization reads are captured and modeled locally."
+  },
+  {
+    "name": "deliveryCustomizationCreate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["deliveryCustomizationCreate", "DeliveryCustomizationCreate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 function-backed mutation gap. Current credential lacks `read_delivery_customizations`; do not stage create until functionId validation, metafield behavior, activation defaults, and downstream customization reads have authorized fixtures."
+  },
+  {
+    "name": "deliveryCustomizationDelete",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["deliveryCustomizationDelete", "DeliveryCustomizationDelete"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 function-backed mutation gap. Delete must remain unsupported until missing-id, ownership, metafield cleanup, and downstream detail/catalog absence are captured and modeled locally."
+  },
+  {
+    "name": "deliveryCustomizationUpdate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["deliveryCustomizationUpdate", "DeliveryCustomizationUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 function-backed mutation gap. Keep unsupported until title/enabled/metafield updates, immutable functionId behavior, validation errors, and downstream reads are captured and modeled locally."
+  },
+  {
+    "name": "deliveryPromiseParticipantsUpdate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["deliveryPromiseParticipantsUpdate", "DeliveryPromiseParticipantsUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 delivery-promise mutation gap. Live reads require `read_delivery_promises`; keep unsupported until branded promise handle validation, owner add/remove semantics, and participant read-after-write behavior are captured."
+  },
+  {
+    "name": "deliveryPromiseProviderUpsert",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["deliveryPromiseProviderUpsert", "DeliveryPromiseProviderUpsert"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 delivery-promise provider mutation gap. Keep unsupported until provider state by location, active/fulfillmentDelay/timeZone validation, access scopes, and downstream provider/settings reads are captured."
+  },
+  {
+    "name": "deliverySettingUpdate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["deliverySettingUpdate", "DeliverySettingUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 delivery-settings mutation gap. The local proxy supports the captured read-only no-legacy-mode settings shape, but setting transitions can alter shop delivery configuration and must remain unsupported until success and rollback behavior are captured."
   },
   {
     "name": "orderEditAddShippingLine",
@@ -4500,16 +4860,6 @@
     "matchNames": ["draftOrderAvailableDeliveryOptions", "DraftOrderAvailableDeliveryOptions"],
     "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"],
     "supportNotes": "Captured 2025-01 no-data behavior returns empty delivery-rate/local-delivery/local-pickup arrays and empty pageInfo. Local snapshot/live-hybrid helper reads mirror that empty/no-data shape."
-  },
-  {
-    "name": "draftOrderSavedSearches",
-    "type": "query",
-    "domain": "orders",
-    "execution": "overlay-read",
-    "implemented": true,
-    "matchNames": ["draftOrderSavedSearches", "DraftOrderSavedSearches"],
-    "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"],
-    "supportNotes": "Captured 2025-01 default draft-order saved searches are modeled as a stable local connection and can drive local bulk helper search selection by savedSearchId."
   },
   {
     "name": "draftOrderTag",
@@ -5829,16 +6179,6 @@
     "matchNames": ["files", "Files"],
     "runtimeTests": ["tests/integration/media-draft-flow.test.ts"],
     "supportNotes": "Serves snapshot and locally staged Files API records from normalized file state; live-hybrid overlay currently prefers local file state when present rather than merging upstream file catalogs."
-  },
-  {
-    "name": "fileSavedSearches",
-    "type": "query",
-    "domain": "media",
-    "execution": "overlay-read",
-    "implemented": true,
-    "matchNames": ["fileSavedSearches", "FileSavedSearches"],
-    "runtimeTests": ["tests/integration/media-draft-flow.test.ts"],
-    "supportNotes": "Returns Shopify-like empty saved-search connections in snapshot mode; saved search records are not modeled yet."
   },
   {
     "name": "stagedUploadsCreate",

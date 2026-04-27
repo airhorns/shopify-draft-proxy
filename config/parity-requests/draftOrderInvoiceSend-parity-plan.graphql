@@ -1,0 +1,14 @@
+mutation DraftOrderInvoiceSendSafety($id: ID!, $email: EmailInput) {
+  draftOrderInvoiceSend(id: $id, email: $email) {
+    draftOrder {
+      id
+      status
+      email
+      invoiceUrl
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

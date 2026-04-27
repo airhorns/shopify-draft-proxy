@@ -4,6 +4,12 @@
   "apiVersion": "2025-01",
   "namespace": "har145_moghh45f",
   "key": "definition_lifecycle",
+  "seedProducts": [
+    {
+      "id": "gid://shopify/Product/10171266138418",
+      "title": "HAR-145 definition lifecycle moghh45f"
+    }
+  ],
   "captures": [
     {
       "label": "productCreate setup",
