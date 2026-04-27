@@ -1,0 +1,13 @@
+mutation PublicationDeleteLocalRuntime($id: ID!) {
+  publicationDelete(id: $id) {
+    deletedId
+    publication {
+      id
+      name
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

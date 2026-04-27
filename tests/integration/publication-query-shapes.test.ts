@@ -5,7 +5,7 @@ import { createApp } from '../../src/app.js';
 import type { AppConfig } from '../../src/config.js';
 import { store } from '../../src/state/store.js';
 import { resetSyntheticIdentity } from '../../src/state/synthetic-identity.js';
-import type { ProductRecord, PublicationRecord } from '../../src/state/types.js';
+import type { CollectionRecord, ProductRecord, PublicationRecord } from '../../src/state/types.js';
 
 const config: AppConfig = {
   port: 3000,
@@ -36,6 +36,28 @@ function makeProduct(id: string, title: string, publicationIds: string[]): Produ
       description: null,
     },
     category: null,
+  };
+}
+
+function makeCollection(id: string, title: string, publicationIds: string[]): CollectionRecord {
+  return {
+    id,
+    legacyResourceId: id.split('/').at(-1) ?? null,
+    title,
+    handle: title.toLowerCase().replace(/\s+/g, '-'),
+    publicationIds,
+    updatedAt: '2025-01-01T00:00:00.000Z',
+    description: null,
+    descriptionHtml: null,
+    image: null,
+    sortOrder: 'MANUAL',
+    templateSuffix: null,
+    seo: {
+      title: null,
+      description: null,
+    },
+    ruleSet: null,
+    isSmart: false,
   };
 }
 
@@ -240,6 +262,273 @@ describe('publication query shapes', () => {
       },
     });
 
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('serves empty channel and publication roots locally in snapshot mode', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('empty publication roots should resolve locally in snapshot mode');
+    });
+
+    const app = createApp(config).callback();
+
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query EmptyPublicationRoots($id: ID!) {
+          publication(id: $id) { id name }
+          channel(id: $id) { id name }
+          channels(first: 5) {
+            nodes { id name }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          publicationsCount { count precision }
+          publishedProductsCount(publicationId: $id) { count precision }
+        }`,
+        variables: { id: 'gid://shopify/Publication/999' },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        publication: null,
+        channel: null,
+        channels: {
+          nodes: [],
+          pageInfo: {
+            hasNextPage: false,
+            hasPreviousPage: false,
+            startCursor: null,
+            endCursor: null,
+          },
+        },
+        publicationsCount: {
+          count: 0,
+          precision: 'EXACT',
+        },
+        publishedProductsCount: {
+          count: 0,
+          precision: 'EXACT',
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('stages publication lifecycle mutations and downstream product and collection visibility locally', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('publication lifecycle should stage locally');
+    });
+
+    const basePublication: PublicationRecord = {
+      id: 'gid://shopify/Publication/1',
+      name: 'Online Store',
+    };
+    store.upsertBasePublications([basePublication]);
+    store.upsertBaseProducts([makeProduct('gid://shopify/Product/1', 'Published Product', [basePublication.id])]);
+    store.upsertBaseCollections([
+      makeCollection('gid://shopify/Collection/1', 'Published Collection', [basePublication.id]),
+    ]);
+
+    const app = createApp(config).callback();
+
+    const createResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CreatePublication($input: PublicationInput!) {
+          publicationCreate(input: $input) {
+            publication {
+              id
+              name
+              autoPublish
+              supportsFuturePublishing
+              channel { id name }
+            }
+            userErrors { field message }
+          }
+        }`,
+        variables: { input: { name: 'Codex Sales Channel', autoPublish: true } },
+      });
+
+    expect(createResponse.status).toBe(200);
+    const createdPublication = createResponse.body.data.publicationCreate.publication;
+    expect(createdPublication).toMatchObject({
+      name: 'Codex Sales Channel',
+      autoPublish: true,
+      supportsFuturePublishing: false,
+      channel: {
+        name: 'Codex Sales Channel',
+      },
+    });
+    expect(createdPublication.id).toMatch(/^gid:\/\/shopify\/Publication\//u);
+    expect(createResponse.body.data.publicationCreate.userErrors).toEqual([]);
+
+    const publicationId = createdPublication.id as string;
+    const updateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation UpdatePublication($id: ID!, $input: PublicationInput!) {
+          publicationUpdate(id: $id, input: $input) {
+            publication { id name autoPublish }
+            userErrors { field message }
+          }
+        }`,
+        variables: { id: publicationId, input: { name: 'Codex Updated Channel', autoPublish: false } },
+      });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body.data.publicationUpdate).toEqual({
+      publication: {
+        id: publicationId,
+        name: 'Codex Updated Channel',
+        autoPublish: false,
+      },
+      userErrors: [],
+    });
+
+    const publishResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation PublishProduct($id: ID!, $input: [PublicationInput!]!, $publicationId: ID!) {
+          publishablePublish(id: $id, input: $input) {
+            publishable {
+              ... on Product {
+                id
+                publishedOnPublication(publicationId: $publicationId)
+                resourcePublicationsCount { count precision }
+              }
+            }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          id: 'gid://shopify/Product/1',
+          input: [{ publicationId }],
+          publicationId,
+        },
+      });
+
+    expect(publishResponse.status).toBe(200);
+    expect(publishResponse.body.data.publishablePublish).toEqual({
+      publishable: {
+        id: 'gid://shopify/Product/1',
+        publishedOnPublication: true,
+        resourcePublicationsCount: {
+          count: 2,
+          precision: 'EXACT',
+        },
+      },
+      userErrors: [],
+    });
+
+    const readAfterPublish = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query ReadPublished($publicationId: ID!) {
+          publication(id: $publicationId) {
+            id
+            name
+            products(first: 5) { nodes { id title } }
+            publishedProductsCount { count precision }
+          }
+          publicationsCount { count precision }
+          publishedProductsCount(publicationId: $publicationId) { count precision }
+          product(id: "gid://shopify/Product/1") {
+            publishedOnPublication(publicationId: $publicationId)
+          }
+        }`,
+        variables: { publicationId },
+      });
+
+    expect(readAfterPublish.status).toBe(200);
+    expect(readAfterPublish.body.data).toMatchObject({
+      publication: {
+        id: publicationId,
+        name: 'Codex Updated Channel',
+        products: {
+          nodes: [
+            {
+              id: 'gid://shopify/Product/1',
+              title: 'Published Product',
+            },
+          ],
+        },
+        publishedProductsCount: {
+          count: 1,
+          precision: 'EXACT',
+        },
+      },
+      publicationsCount: {
+        count: 2,
+        precision: 'EXACT',
+      },
+      publishedProductsCount: {
+        count: 1,
+        precision: 'EXACT',
+      },
+      product: {
+        publishedOnPublication: true,
+      },
+    });
+
+    const deleteResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation DeletePublication($id: ID!) {
+          publicationDelete(id: $id) {
+            deletedId
+            publication { id name }
+            userErrors { field message }
+          }
+        }`,
+        variables: { id: publicationId },
+      });
+
+    expect(deleteResponse.status).toBe(200);
+    expect(deleteResponse.body.data.publicationDelete).toEqual({
+      deletedId: publicationId,
+      publication: {
+        id: publicationId,
+        name: 'Codex Updated Channel',
+      },
+      userErrors: [],
+    });
+
+    const readAfterDelete = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query ReadAfterDelete($publicationId: ID!) {
+          publication(id: $publicationId) { id name }
+          publicationsCount { count precision }
+          publishedProductsCount(publicationId: $publicationId) { count precision }
+          product(id: "gid://shopify/Product/1") {
+            publishedOnPublication(publicationId: $publicationId)
+          }
+          collection(id: "gid://shopify/Collection/1") {
+            publishedOnPublication(publicationId: $publicationId)
+          }
+        }`,
+        variables: { publicationId },
+      });
+
+    expect(readAfterDelete.status).toBe(200);
+    expect(readAfterDelete.body.data).toEqual({
+      publication: null,
+      publicationsCount: {
+        count: 1,
+        precision: 'EXACT',
+      },
+      publishedProductsCount: {
+        count: 0,
+        precision: 'EXACT',
+      },
+      product: {
+        publishedOnPublication: false,
+      },
+      collection: {
+        publishedOnPublication: false,
+      },
+    });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

@@ -9,7 +9,12 @@ import { createApp } from '../../src/app.js';
 import type { AppConfig } from '../../src/config.js';
 import { store } from '../../src/state/store.js';
 import { resetSyntheticIdentity } from '../../src/state/synthetic-identity.js';
-import type { NormalizedStateSnapshotFile, ShopRecord } from '../../src/state/types.js';
+import {
+  defaultPaymentTermsTemplateOrder,
+  defaultPaymentTermsTemplateRecordMap,
+  type NormalizedStateSnapshotFile,
+  type ShopRecord,
+} from '../../src/state/types.js';
 
 const snapshotConfig: AppConfig = {
   port: 3000,
@@ -134,9 +139,15 @@ function writeSnapshot(shop: ShopRecord | null): string {
       giftCardConfiguration: null,
       collections: {},
       publications: {},
+      channels: {},
       customers: {},
       customerAddresses: {},
       customerPaymentMethods: {},
+      customerAccountPages: {},
+      customerAccountPageOrder: [],
+      customerDataErasureRequests: {},
+      storeCreditAccounts: {},
+      storeCreditAccountTransactions: {},
       segments: {},
       customerSegmentMembersQueries: {},
       webhookSubscriptions: {},
@@ -162,6 +173,15 @@ function writeSnapshot(shop: ShopRecord | null): string {
       discountBulkOperations: {},
       paymentCustomizations: {},
       paymentCustomizationOrder: [],
+      paymentTermsTemplates: defaultPaymentTermsTemplateRecordMap,
+      paymentTermsTemplateOrder: defaultPaymentTermsTemplateOrder,
+      shopifyFunctions: {},
+      shopifyFunctionOrder: [],
+      validations: {},
+      validationOrder: [],
+      cartTransforms: {},
+      cartTransformOrder: [],
+      taxAppConfiguration: null,
       deletedPaymentCustomizationIds: {},
       businessEntities: {},
       businessEntityOrder: [],
@@ -204,6 +224,7 @@ function writeSnapshot(shop: ShopRecord | null): string {
       deletedProductIds: {},
       deletedFileIds: {},
       deletedCollectionIds: {},
+      deletedPublicationIds: {},
       deletedLocationIds: {},
       deletedFulfillmentServiceIds: {},
       deletedCarrierServiceIds: {},
@@ -218,6 +239,8 @@ function writeSnapshot(shop: ShopRecord | null): string {
       deletedOnlineStorePageIds: {},
       deletedOnlineStoreCommentIds: {},
       deletedDiscountIds: {},
+      deletedValidationIds: {},
+      deletedCartTransformIds: {},
       deletedMarketIds: {},
       deletedCatalogIds: {},
       deletedPriceListIds: {},
@@ -228,6 +251,7 @@ function writeSnapshot(shop: ShopRecord | null): string {
       deletedSellingPlanGroupIds: {},
       deletedMetafieldDefinitionIds: {},
       deletedMetaobjectDefinitionIds: {},
+      deletedMetaobjectIds: {},
       mergedCustomerIds: {},
       customerMergeRequests: {},
     },

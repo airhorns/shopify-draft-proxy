@@ -1,0 +1,382 @@
+{
+  "capturedAt": "2026-04-27T18:35:34.082Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "reads": {
+    "customerAccountPages": {
+      "operationName": "CustomerAccountPages",
+      "query": "#graphql\n  query CustomerAccountPages($unknownId: ID!) {\n    customerAccountPages(first: 10) {\n      nodes {\n        id\n        title\n        handle\n        defaultCursor\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    missing: customerAccountPage(id: $unknownId) {\n      id\n      title\n      handle\n      defaultCursor\n    }\n  }\n",
+      "variables": {
+        "unknownId": "gid://shopify/CustomerAccountPage/999999999999999"
+      },
+      "response": {
+        "data": {
+          "customerAccountPages": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CustomerAccountPage/221353705778",
+                "title": "Orders",
+                "handle": "orders",
+                "defaultCursor": "eyJsaW1pdCI6MSwib3JkZXIiOiJpZCBhc2MiLCJsYXN0X2lkIjoyMjEzNTM3MDU3NzgsImxhc3RfdmFsdWUiOjIyMTM1MzcwNTc3OCwiZGlyZWN0aW9uIjoibmV4dCJ9"
+              },
+              {
+                "id": "gid://shopify/CustomerAccountPage/221353738546",
+                "title": "Profile",
+                "handle": "profile",
+                "defaultCursor": "eyJsaW1pdCI6MSwib3JkZXIiOiJpZCBhc2MiLCJsYXN0X2lkIjoyMjEzNTM3Mzg1NDYsImxhc3RfdmFsdWUiOjIyMTM1MzczODU0NiwiZGlyZWN0aW9uIjoibmV4dCJ9"
+              },
+              {
+                "id": "gid://shopify/CustomerAccountPage/221353771314",
+                "title": "Settings",
+                "handle": "settings",
+                "defaultCursor": "eyJsaW1pdCI6MSwib3JkZXIiOiJpZCBhc2MiLCJsYXN0X2lkIjoyMjEzNTM3NzEzMTQsImxhc3RfdmFsdWUiOjIyMTM1Mzc3MTMxNCwiZGlyZWN0aW9uIjoibmV4dCJ9"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoyMjEzNTM3MDU3NzgsImxhc3RfdmFsdWUiOiIyMjEzNTM3MDU3NzgifQ==",
+              "endCursor": "eyJsYXN0X2lkIjoyMjEzNTM3NzEzMTQsImxhc3RfdmFsdWUiOiIyMjEzNTM3NzEzMTQifQ=="
+            }
+          },
+          "missing": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 7,
+            "actualQueryCost": 5,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1995,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "precondition": {
+    "customerCreate": {
+      "operationName": "CreateCustomerForDataErasure",
+      "query": "#graphql\n  mutation CreateCustomerForDataErasure($input: CustomerInput!) {\n    customerCreate(input: $input) {\n      customer {\n        #graphql\n  id\n  email\n  firstName\n  lastName\n  tags\n  defaultEmailAddress {\n    emailAddress\n  }\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "email": "hermes-data-erasure-1777314932891@example.com",
+          "firstName": "Hermes",
+          "lastName": "DataErasure",
+          "tags": ["parity", "data-erasure-1777314932891"]
+        }
+      },
+      "response": {
+        "data": {
+          "customerCreate": {
+            "customer": {
+              "id": "gid://shopify/Customer/10547408830770",
+              "email": "hermes-data-erasure-1777314932891@example.com",
+              "firstName": "Hermes",
+              "lastName": "DataErasure",
+              "tags": ["data-erasure-1777314932891", "parity"],
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-data-erasure-1777314932891@example.com"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "mutation": {
+    "operationName": "CustomerRequestDataErasure",
+    "query": "#graphql\n  mutation CustomerRequestDataErasure($customerId: ID!) {\n    customerRequestDataErasure(customerId: $customerId) {\n      customerId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+    "variables": {
+      "customerId": "gid://shopify/Customer/10547408830770"
+    },
+    "response": {
+      "data": {
+        "customerRequestDataErasure": {
+          "customerId": "gid://shopify/Customer/10547408830770",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "mutations": {
+    "customerRequestDataErasure": {
+      "operationName": "CustomerRequestDataErasure",
+      "query": "#graphql\n  mutation CustomerRequestDataErasure($customerId: ID!) {\n    customerRequestDataErasure(customerId: $customerId) {\n      customerId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "customerId": "gid://shopify/Customer/10547408830770"
+      },
+      "response": {
+        "data": {
+          "customerRequestDataErasure": {
+            "customerId": "gid://shopify/Customer/10547408830770",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "downstreamRead": {
+        "operationName": "CustomerDataErasureCustomerRead",
+        "query": "#graphql\n  query CustomerDataErasureCustomerRead($id: ID!) {\n    customer(id: $id) {\n      #graphql\n  id\n  email\n  firstName\n  lastName\n  tags\n  defaultEmailAddress {\n    emailAddress\n  }\n\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Customer/10547408830770"
+        },
+        "response": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10547408830770",
+              "email": "hermes-data-erasure-1777314932891@example.com",
+              "firstName": "Hermes",
+              "lastName": "DataErasure",
+              "tags": ["data-erasure-1777314932891", "parity"],
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-data-erasure-1777314932891@example.com"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "customerCancelDataErasure": {
+      "operationName": "CustomerCancelDataErasure",
+      "query": "#graphql\n  mutation CustomerCancelDataErasure($customerId: ID!) {\n    customerCancelDataErasure(customerId: $customerId) {\n      customerId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "customerId": "gid://shopify/Customer/10547408830770"
+      },
+      "response": {
+        "data": {
+          "customerCancelDataErasure": {
+            "customerId": "gid://shopify/Customer/10547408830770",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "downstreamRead": {
+        "operationName": "CustomerDataErasureCustomerRead",
+        "query": "#graphql\n  query CustomerDataErasureCustomerRead($id: ID!) {\n    customer(id: $id) {\n      #graphql\n  id\n  email\n  firstName\n  lastName\n  tags\n  defaultEmailAddress {\n    emailAddress\n  }\n\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Customer/10547408830770"
+        },
+        "response": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10547408830770",
+              "email": "hermes-data-erasure-1777314932891@example.com",
+              "firstName": "Hermes",
+              "lastName": "DataErasure",
+              "tags": ["data-erasure-1777314932891", "parity"],
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-data-erasure-1777314932891@example.com"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "validation": {
+    "unknownCustomerRequest": {
+      "operationName": "CustomerRequestDataErasure",
+      "query": "#graphql\n  mutation CustomerRequestDataErasure($customerId: ID!) {\n    customerRequestDataErasure(customerId: $customerId) {\n      customerId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "customerId": "gid://shopify/Customer/999999999999999"
+      },
+      "response": {
+        "data": {
+          "customerRequestDataErasure": {
+            "customerId": null,
+            "userErrors": [
+              {
+                "field": ["customerId"],
+                "message": "Customer does not exist",
+                "code": "DOES_NOT_EXIST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "unknownCustomerCancel": {
+      "operationName": "CustomerCancelDataErasure",
+      "query": "#graphql\n  mutation CustomerCancelDataErasure($customerId: ID!) {\n    customerCancelDataErasure(customerId: $customerId) {\n      customerId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "customerId": "gid://shopify/Customer/999999999999999"
+      },
+      "response": {
+        "data": {
+          "customerCancelDataErasure": {
+            "customerId": null,
+            "userErrors": [
+              {
+                "field": ["customerId"],
+                "message": "Customer does not exist",
+                "code": "DOES_NOT_EXIST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "schemaEvidence": {
+    "customerRequestDataErasure": {
+      "args": ["customerId: ID!"],
+      "payloadFields": ["customerId: ID", "userErrors: [CustomerRequestDataErasureUserError!]!"]
+    },
+    "customerCancelDataErasure": {
+      "args": ["customerId: ID!"],
+      "payloadFields": ["customerId: ID", "userErrors: [CustomerCancelDataErasureUserError!]!"]
+    }
+  },
+  "cleanup": {
+    "cancelAfterCapture": {
+      "operationName": "CustomerCancelDataErasure",
+      "query": "#graphql\n  mutation CustomerCancelDataErasure($customerId: ID!) {\n    customerCancelDataErasure(customerId: $customerId) {\n      customerId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "customerId": "gid://shopify/Customer/10547408830770"
+      },
+      "response": {
+        "data": {
+          "customerCancelDataErasure": {
+            "customerId": null,
+            "userErrors": [
+              {
+                "field": ["customerId"],
+                "message": "Customer's data is not scheduled for erasure",
+                "code": "NOT_BEING_ERASED"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "customerDelete": {
+      "operationName": "DeleteCustomerForDataErasure",
+      "query": "#graphql\n  mutation DeleteCustomerForDataErasure($input: CustomerDeleteInput!) {\n    customerDelete(input: $input) {\n      deletedCustomerId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10547408830770"
+        }
+      },
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10547408830770",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  }
+}

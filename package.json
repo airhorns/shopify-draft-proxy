@@ -31,6 +31,8 @@
     "conformance:capture-customer-consent": "tsx ./scripts/capture-customer-consent-conformance.ts",
     "conformance:capture-customer-tax-exemptions": "tsx ./scripts/capture-customer-tax-exemption-conformance.ts",
     "conformance:capture-customer-input-validation": "tsx ./scripts/capture-customer-input-validation-conformance.ts",
+    "conformance:capture-customer-account-page-data-erasure": "tsx ./scripts/capture-customer-account-page-data-erasure-conformance.ts",
+    "conformance:capture-store-credit": "tsx ./scripts/capture-store-credit-conformance.ts",
     "conformance:capture-customer-order-summary": "SHOPIFY_CONFORMANCE_API_VERSION=2026-04 tsx ./scripts/capture-customer-order-summary-conformance.ts",
     "conformance:capture-product-mutations": "tsx ./scripts/capture-product-mutation-conformance.mts",
     "conformance:capture-product-state-mutations": "tsx ./scripts/capture-product-state-mutation-conformance.mts",

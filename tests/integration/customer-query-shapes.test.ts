@@ -83,6 +83,133 @@ describe('customer query shapes', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('serves customer account page reads from normalized snapshot state', async () => {
+    store.upsertBaseCustomerAccountPages([
+      {
+        id: 'gid://shopify/CustomerAccountPage/221353705778',
+        title: 'Orders',
+        handle: 'orders',
+        defaultCursor: 'orders-default-cursor',
+        cursor: 'orders-edge-cursor',
+      },
+      {
+        id: 'gid://shopify/CustomerAccountPage/221353738546',
+        title: 'Profile',
+        handle: 'profile',
+        defaultCursor: 'profile-default-cursor',
+        cursor: 'profile-edge-cursor',
+      },
+    ]);
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('customer account page snapshot reads should not hit upstream fetch');
+    });
+
+    const app = createApp(config).callback();
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query CustomerAccountPages($id: ID!, $missingId: ID!) {
+          page: customerAccountPage(id: $id) {
+            __typename
+            id
+            title
+            handle
+            defaultCursor
+          }
+          missing: customerAccountPage(id: $missingId) { id title }
+          pages: customerAccountPages(first: 1) {
+            nodes { id title handle defaultCursor }
+            edges { cursor node { id title } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }`,
+        variables: {
+          id: 'gid://shopify/CustomerAccountPage/221353705778',
+          missingId: 'gid://shopify/CustomerAccountPage/999999999999999',
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        page: {
+          __typename: 'CustomerAccountPage',
+          id: 'gid://shopify/CustomerAccountPage/221353705778',
+          title: 'Orders',
+          handle: 'orders',
+          defaultCursor: 'orders-default-cursor',
+        },
+        missing: null,
+        pages: {
+          nodes: [
+            {
+              id: 'gid://shopify/CustomerAccountPage/221353705778',
+              title: 'Orders',
+              handle: 'orders',
+              defaultCursor: 'orders-default-cursor',
+            },
+          ],
+          edges: [
+            {
+              cursor: 'orders-edge-cursor',
+              node: {
+                id: 'gid://shopify/CustomerAccountPage/221353705778',
+                title: 'Orders',
+              },
+            },
+          ],
+          pageInfo: {
+            hasNextPage: true,
+            hasPreviousPage: false,
+            startCursor: 'orders-edge-cursor',
+            endCursor: 'orders-edge-cursor',
+          },
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns Shopify-like empty customer account page shapes when snapshot state is absent', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('empty customer account page snapshot reads should not hit upstream fetch');
+    });
+
+    const app = createApp(config).callback();
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query EmptyCustomerAccountPages($id: ID!) {
+          page: customerAccountPage(id: $id) { id title }
+          pages: customerAccountPages(first: 5) {
+            nodes { id }
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }`,
+        variables: { id: 'gid://shopify/CustomerAccountPage/999999999999999' },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        page: null,
+        pages: {
+          nodes: [],
+          edges: [],
+          pageInfo: {
+            hasNextPage: false,
+            hasPreviousPage: false,
+            startCursor: null,
+            endCursor: null,
+          },
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('returns Shopify-like empty directly related customer sub-resource shapes in snapshot mode', async () => {
     store.upsertBaseCustomers([
       {

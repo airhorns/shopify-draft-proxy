@@ -641,13 +641,41 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     domain: 'customers',
     packageScript: 'conformance:capture-customer-input-validation',
     scriptPath: 'scripts/capture-customer-input-validation-conformance.ts',
-    purpose: 'Customer mutation input validation, userErrors, and downstream read branches.',
-    requiredAuthScopes: ['read_customers', 'write_customers'],
+    purpose: 'CustomerInput create/update/delete/merge validation branches and downstream invariance.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'read_customer_merge', 'write_customer_merge'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}customer-input-validation-parity.json`,
       'config/parity-specs/customerInputValidation-parity.json',
     ],
-    cleanupBehavior: 'Creates disposable customers for validation probes and removes remaining records.',
+    cleanupBehavior: 'Creates disposable customers for validation cases and deletes remaining records.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
+    packageScript: 'conformance:capture-customer-account-page-data-erasure',
+    scriptPath: 'scripts/capture-customer-account-page-data-erasure-conformance.ts',
+    purpose: 'Customer Account page reads plus customer data-erasure request/cancel success and validation payloads.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'write_customer_data_erasure'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-account-page-data-erasure.json`,
+      'config/parity-specs/customer-account-page-data-erasure.json',
+    ],
+    cleanupBehavior:
+      'Creates a disposable customer, requests and cancels data erasure, then cancels again and deletes the customer in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
+    packageScript: 'conformance:capture-store-credit',
+    scriptPath: 'scripts/capture-store-credit-conformance.ts',
+    purpose: 'Store credit account creation setup, account-id credit/debit mutations, and downstream balance reads.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'store credit account access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}store-credit-account-parity.json`,
+      'config/parity-specs/store-credit-account-local-staging.json',
+    ],
+    cleanupBehavior:
+      'Creates a disposable customer, credits/debits a real store credit account, debits the remaining balance back to zero, then deletes the customer.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -734,19 +762,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_customers', 'write_customers'],
     fixtureOutputs: [`${CAPTURE_ROOT}customer-tax-exemption-*.json`],
     cleanupBehavior: 'Creates disposable customer and deletes it after tax-exemption probes.',
-    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
-  },
-  {
-    domain: 'customers',
-    packageScript: 'conformance:capture-customer-input-validation',
-    scriptPath: 'scripts/capture-customer-input-validation-conformance.ts',
-    purpose: 'Customer input validation and downstream read parity for create/update/merge/delete behavior.',
-    requiredAuthScopes: ['read_customers', 'write_customers', 'read_customer_merge', 'write_customer_merge'],
-    fixtureOutputs: [
-      `${CAPTURE_ROOT}customer-input-validation-parity.json`,
-      'config/parity-specs/customerInputValidation-parity.json',
-    ],
-    cleanupBehavior: 'Creates disposable customers, exercises validation branches, and deletes remaining records.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
