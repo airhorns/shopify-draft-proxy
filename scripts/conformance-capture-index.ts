@@ -20,6 +20,7 @@ const domainSchema = z.enum([
   'metafields',
   'metaobjects',
   'orders',
+  'payments',
   'privacy',
   'products',
   'shipping-fulfillments',
@@ -509,6 +510,19 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'payments',
+    packageScript: 'conformance:capture-finance-risk',
+    scriptPath: 'scripts/capture-finance-risk-conformance.ts',
+    purpose: 'Finance, risk, POS, dispute, and Shop Pay receipt read/access evidence.',
+    requiredAuthScopes: ['Shopify Payments, finance, risk, and POS root access for the active Admin token'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}finance-risk-access-read.json`,
+      'config/parity-specs/finance-risk-no-data-read.json',
+    ],
+    cleanupBehavior: 'Read/access capture only; do not create or invent sensitive financial records.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'admin-platform',
     packageScript: 'conformance:capture-admin-platform',
     scriptPath: 'scripts/capture-admin-platform-conformance.mts',
@@ -608,6 +622,19 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_customers', 'write_customers'],
     fixtureOutputs: [`${CAPTURE_ROOT}customer-mutation-*.json`],
     cleanupBehavior: 'Creates disposable customers and deletes them in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
+    packageScript: 'conformance:capture-customer-input-validation',
+    scriptPath: 'scripts/capture-customer-input-validation-conformance.ts',
+    purpose: 'Customer mutation input validation, userErrors, and downstream read branches.',
+    requiredAuthScopes: ['read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-input-validation-parity.json`,
+      'config/parity-specs/customerInputValidation-parity.json',
+    ],
+    cleanupBehavior: 'Creates disposable customers for validation probes and removes remaining records.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
