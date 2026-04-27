@@ -1,0 +1,33 @@
+query SavedSearchLocalStagingReadAfterCreate($query: String!) {
+  productSavedSearches(first: 1, query: $query) {
+    nodes {
+      id
+      name
+      query
+      resourceType
+      searchTerms
+      filters {
+        key
+        value
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  customerSavedSearches(first: 3, query: $query) {
+    nodes {
+      id
+      name
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

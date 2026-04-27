@@ -1,0 +1,9 @@
+mutation DeleteFs($id: ID!) {
+  fulfillmentServiceDelete(id: $id, inventoryAction: DELETE) {
+    deletedId
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -33,6 +33,7 @@ import { handleAdminPlatformQuery } from '../src/proxy/admin-platform.js';
 import { handleB2BQuery } from '../src/proxy/b2b.js';
 import { handleBulkOperationMutation, handleBulkOperationQuery } from '../src/proxy/bulk-operations.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from '../src/proxy/delivery-profiles.js';
+import { handleDeliverySettingsQuery } from '../src/proxy/delivery-settings.js';
 import { handleDiscountMutation, handleDiscountQuery } from '../src/proxy/discounts.js';
 import { handleEventsQuery } from '../src/proxy/events.js';
 import { handleFunctionMutation, handleFunctionQuery } from '../src/proxy/functions.js';
@@ -62,6 +63,11 @@ import {
   handleProductQuery,
   hydrateProductsFromUpstreamResponse,
 } from '../src/proxy/products.js';
+import {
+  handleSavedSearchMutation,
+  handleSavedSearchQuery,
+  hydrateSavedSearchesFromUpstreamResponse,
+} from '../src/proxy/saved-searches.js';
 import {
   handleMetafieldDefinitionMutation,
   handleMetafieldDefinitionQuery,
@@ -1021,6 +1027,35 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'stage-locally' && capability.domain === 'saved-searches') {
+    const savedSearchMutation = handleSavedSearchMutation(document, variables);
+    if (!savedSearchMutation) {
+      throw new Error(
+        `Registered saved-search parity request was not handled locally: ${
+          capability.operationName ?? parsed.rootFields.join(', ')
+        }`,
+      );
+    }
+
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2025-01/graphql.json',
+      query: document,
+      variables,
+      stagedResourceIds: savedSearchMutation.stagedResourceIds,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: savedSearchMutation.response,
+    };
+  }
+
   if (capability.execution === 'stage-locally' && capability.domain === 'marketing') {
     const marketingMutation = handleMarketingMutation(document, variables);
     if (!marketingMutation) {
@@ -1372,6 +1407,15 @@ async function executeGraphQLAgainstLocalProxy(
 
   if (capability.execution === 'overlay-read' && capability.domain === 'shipping-fulfillments') {
     const primaryRootField = parsed.rootFields[0] ?? capability.operationName;
+    if (
+      parsed.rootFields.some((rootField) => rootField === 'deliverySettings' || rootField === 'deliveryPromiseSettings')
+    ) {
+      return {
+        status: 200,
+        body: handleDeliverySettingsQuery(document),
+      };
+    }
+
     if (parsed.rootFields.some((rootField) => rootField === 'deliveryProfile' || rootField === 'deliveryProfiles')) {
       return {
         status: 200,
@@ -1446,6 +1490,17 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleSegmentsQuery(document, variables),
+    };
+  }
+
+  if (capability.execution === 'overlay-read' && capability.domain === 'saved-searches') {
+    if (upstreamPayload !== undefined) {
+      hydrateSavedSearchesFromUpstreamResponse(document, upstreamPayload);
+    }
+
+    return {
+      status: 200,
+      body: handleSavedSearchQuery(document, variables),
     };
   }
 
@@ -4609,6 +4664,51 @@ function hydrateOrdersFromUpstreamResponse(upstreamPayload: unknown): void {
   }
 }
 
+function readDraftOrderInvoiceSendSeedSource(
+  capture: Record<string, unknown>,
+  pathSegments: string[],
+  payloadName: string,
+): Record<string, unknown> | null {
+  let current: Record<string, unknown> | null = capture;
+  for (const segment of pathSegments) {
+    current = readRecordField(current, segment);
+  }
+
+  const payload = readRecordField(
+    readRecordField(readRecordField(readRecordField(current, 'mutation'), 'response'), 'data'),
+    payloadName,
+  );
+  return readRecordField(payload, 'draftOrder');
+}
+
+function seedDraftOrderInvoiceSendSafetyPreconditions(capture: unknown): boolean {
+  if (!isPlainObject(capture) || capture['safetyPolicy'] === undefined) {
+    return false;
+  }
+
+  const openDraftOrder = readDraftOrderInvoiceSendSeedSource(
+    capture,
+    ['recipient', 'openNoRecipient', 'setup', 'draftOrderCreate'],
+    'draftOrderCreate',
+  );
+  const openDraftOrderId = readStringField(openDraftOrder, 'id');
+  if (openDraftOrderId) {
+    store.stageCreateDraftOrder(makeSeedDraftOrder(openDraftOrderId, openDraftOrder));
+  }
+
+  const completedDraftOrder = readDraftOrderInvoiceSendSeedSource(
+    capture,
+    ['lifecycle', 'completedNoRecipient', 'setup', 'draftOrderComplete'],
+    'draftOrderComplete',
+  );
+  const completedDraftOrderId = readStringField(completedDraftOrder, 'id');
+  if (completedDraftOrderId) {
+    store.stageCreateDraftOrder(makeSeedDraftOrder(completedDraftOrderId, completedDraftOrder));
+  }
+
+  return Boolean(openDraftOrderId || completedDraftOrderId);
+}
+
 function hydrateOrderConnectionsFromData(data: Record<string, unknown> | null): void {
   for (const value of Object.values(data ?? {})) {
     const connection = isPlainObject(value) ? value : null;
@@ -6462,6 +6562,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   }
 
   if (seedFulfillmentOrderRequestLifecyclePreconditions(capture)) {
+    return;
+  }
+
+  if (seedDraftOrderInvoiceSendSafetyPreconditions(capture)) {
     return;
   }
 
