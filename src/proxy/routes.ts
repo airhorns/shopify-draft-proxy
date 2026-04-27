@@ -23,6 +23,12 @@ import { handleCustomerMutation, handleCustomerQuery, hydrateCustomersFromUpstre
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from './delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from './discounts.js';
 import { handleEventsQuery } from './events.js';
+import {
+  FUNCTION_MUTATION_ROOTS,
+  FUNCTION_QUERY_ROOTS,
+  handleFunctionMutation,
+  handleFunctionQuery,
+} from './functions.js';
 import { handleGiftCardMutation, handleGiftCardQuery } from './gift-cards.js';
 import { handleMarketMutation, handleMarketsQuery, hydrateMarketsFromUpstreamResponse } from './markets.js';
 import {
@@ -1520,6 +1526,52 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       setGraphQLResponse(request, 200, webhookSubscriptionMutation.response);
+      return true;
+    },
+  },
+  {
+    name: 'functions',
+    canHandle: (request) =>
+      request.capability.domain === 'functions' ||
+      (request.primaryRootField !== null &&
+        (FUNCTION_QUERY_ROOTS.has(request.primaryRootField) || FUNCTION_MUTATION_ROOTS.has(request.primaryRootField))),
+    async handleQuery(request) {
+      if (request.capability.execution !== 'overlay-read') {
+        return false;
+      }
+
+      if (request.config.readMode === 'snapshot') {
+        setGraphQLResponse(request, 200, handleFunctionQuery(request.body.query, request.variables));
+        return true;
+      }
+
+      if (request.config.readMode === 'live-hybrid') {
+        if (store.hasFunctionMetadata()) {
+          setGraphQLResponse(request, 200, handleFunctionQuery(request.body.query, request.variables));
+          return true;
+        }
+
+        const upstreamResponse = await proxyUpstreamGraphQL(request);
+        setGraphQLResponse(request, upstreamResponse.status, upstreamResponse.body);
+        return true;
+      }
+
+      return false;
+    },
+    handleMutation(request) {
+      if (request.capability.execution !== 'stage-locally') {
+        return false;
+      }
+
+      const responseBody = handleFunctionMutation(request.body.query, request.variables);
+      appendStagedMutationLog(request, {
+        responseBody,
+        notes:
+          request.primaryRootField === 'taxAppConfigure'
+            ? 'Staged locally in the in-memory tax app configuration metadata store; no tax calculation app callbacks are invoked.'
+            : 'Staged locally in the in-memory Shopify Functions metadata store; external Shopify Function code is not executed.',
+      });
+      setGraphQLResponse(request, 200, responseBody);
       return true;
     },
   },

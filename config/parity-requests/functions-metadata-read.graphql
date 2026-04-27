@@ -1,0 +1,65 @@
+query ReadFunctionMetadata($validationId: ID!) {
+  validation(id: $validationId) {
+    id
+    title
+    enable
+    blockOnFailure
+    functionHandle
+    shopifyFunction {
+      id
+      title
+      handle
+      apiType
+    }
+  }
+  validations(first: 5) {
+    nodes {
+      id
+      title
+      enable
+      blockOnFailure
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  cartTransforms(first: 5) {
+    nodes {
+      id
+      title
+      blockOnFailure
+      functionHandle
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  validationFunctions: shopifyFunctions(first: 5, apiType: VALIDATION) {
+    nodes {
+      id
+      title
+      handle
+      apiType
+    }
+  }
+  cartFunctions: shopifyFunctions(first: 5, apiType: CART_TRANSFORM) {
+    nodes {
+      id
+      title
+      handle
+      apiType
+    }
+  }
+  cartFunction: shopifyFunction(id: "gid://shopify/ShopifyFunction/cart-transform-local") {
+    id
+    title
+    handle
+    apiType
+  }
+}

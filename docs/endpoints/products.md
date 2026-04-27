@@ -32,7 +32,12 @@ Overlay reads:
 - `collectionByHandle`
 - `collections`
 - `locations`
+- `channel`
+- `channels`
+- `publication`
 - `publications`
+- `publicationsCount`
+- `publishedProductsCount`
 
 Local staged mutations:
 
@@ -76,6 +81,9 @@ Local staged mutations:
 - `collectionAddProducts`
 - `collectionRemoveProducts`
 - `collectionReorderProducts`
+- `publicationCreate`
+- `publicationUpdate`
+- `publicationDelete`
 
 ## Registered product helper and merchandising gaps
 
@@ -114,6 +122,8 @@ These product-adjacent roots are registered in the operation registry as product
 - Collection records carry aggregate publication target ids alongside product publication ids. A staged `collectionCreate` starts unpublished; collection publication counts and `publishedOnPublication(publicationId:)` remain unpublished until a local publish mutation adds a target.
 - `publishedOnCurrentPublication` is not inferred from aggregate collection publication count. Captured Online Store publishable writes leave it false when the app current publication is not the target.
 - Local `publishablePublish` and `publishableUnpublish` currently stage Product and Collection publishables. Broader publishable implementers remain unsupported in their own groups.
+- Top-level `publication(id:)`, `publications(...)`, `publicationsCount(...)`, `publishedProductsCount(publicationId:)`, and deprecated `channel` / `channels` roots resolve from the normalized publication catalog in snapshot/local overlay paths. Empty snapshot state returns `publication: null`, `channel: null`, empty channel/publication connections, and exact zero counts without upstream access. The existing live publication catalog fixture captures non-empty `publications` id/name/cursor shape; HAR-319 adds runtime-test-backed local evidence for the remaining root family and lifecycle flow.
+- `publicationCreate`, `publicationUpdate`, and `publicationDelete` stage normalized Publication rows locally and never perform runtime Shopify writes. This support is intentionally catalog-level: product and collection publication membership still flows through the existing product-specific or generic publishable roots. Deleting a publication strips that target from locally modeled Product and Collection publication IDs so downstream `publishedOnPublication`, publication counts, and `published_status` filters stop seeing the removed target.
 - Product handle generation and validation follows the captured product mutation slice: duplicate title-generated handles are de-duplicated, explicit handles are normalized before uniqueness checks, Unicode letters/numbers are preserved, punctuation-only explicit handles fall back into the `product` handle family, explicit collisions return `['input', 'handle']` userErrors, and explicit handles longer than 255 characters return `['handle']` userErrors without staging partial state. The HAR-22 live probe found no product reserved-word rejection for handles such as `admin`, `products`, `collections`, `cart`, `checkout`, or `new`.
 - Product option lifecycle staging is fixture-backed for `productOptionsCreate`, `productOptionUpdate`, and `productOptionsDelete`. The current conformance fixtures cover replacing Shopify's default `Title` option with created options, keeping non-variant option values in `optionValues` but out of `values`, renaming and repositioning options, adding/updating/deleting option values, reordering variant `selectedOptions` after option repositioning, and restoring Shopify's default option/variant graph when all custom options are deleted. Expected parity differences are limited to generated `ProductOption` and `ProductOptionValue` GIDs.
 - Captured option lifecycle validation branches include `productOptionsCreate` with an unknown product (`field: ["productId"]`, `Product does not exist`), `productOptionUpdate` with an unknown option (`field: ["option"]`, `Option does not exist`), and `productOptionsDelete` with an unknown option id (`field: ["options", "0"]`, `Option does not exist`). These branches stage no upstream Shopify writes.

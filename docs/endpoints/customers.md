@@ -13,6 +13,7 @@ Overlay reads:
 - `customerMergePreview`
 - `customerMergeJobStatus`
 - `customerPaymentMethod` from seeded/snapshot or locally hydrated state only; formal live conformance support remains blocked on `read_customer_payment_methods`
+- `storeCreditAccount` from seeded/snapshot or locally staged state only
 
 Local staged mutations:
 
@@ -33,6 +34,8 @@ Local staged mutations:
 - `customerAddTaxExemptions`
 - `customerRemoveTaxExemptions`
 - `customerReplaceTaxExemptions`
+- `storeCreditAccountCredit`
+- `storeCreditAccountDebit`
 
 ## Unsupported roots still tracked by the registry
 
@@ -57,6 +60,9 @@ Local staged mutations:
 - Customer payment method reads are modeled from normalized `customerPaymentMethods` state only. The local serializer supports `customerPaymentMethod(id:, showRevoked:)` and `Customer.paymentMethods(showRevoked:)`; revoked rows are hidden unless `showRevoked: true` is selected.
 - `CustomerPaymentMethod.instrument` is stored as a selected union payload keyed by `__typename`, so seeded fixtures can serialize credit-card and PayPal billing-agreement fragments without local vaulting. `subscriptionContracts` on the payment method is serialized as a normal connection from seeded link rows; the customer-level `subscriptionContracts` field remains empty/no-data until separately modeled.
 - Customer payment method writes remain unsupported scaffolds except for `customerPaymentMethodSendUpdateEmail`, which is buffered locally and retained for commit replay rather than delivered at runtime. Credit-card, PayPal billing-agreement, remote-create, duplication-data, update-url, and revoke roots require `write_customers` plus `write_customer_payment_methods` and are sensitive because they can involve vaulted instruments, expiring payment links, destructive revocation, asynchronous gateway polling, or customer-visible flows.
+- Store credit accounts are modeled as sensitive balance records. Snapshot mode never creates a store credit account merely because a customer exists: `Customer.storeCreditAccounts` remains an empty connection until normalized account state is seeded or a local mutation updates an existing account, and `storeCreditAccount(id:)` returns `null` for unknown IDs.
+- `storeCreditAccountCredit` and `storeCreditAccountDebit` stage locally only for existing normalized store credit accounts. They update the account balance and append local `StoreCreditAccountTransaction` rows so direct account reads and nested customer account reads observe the changed balance without runtime Shopify writes. Debit staging rejects insufficient local funds; both roots reject currency mismatches and unknown account IDs locally.
+- HAR-317 live evidence on 2026-04-27 used the canonical conformance auth helper against `harry-test-heelo.myshopify.com`: schema introspection captured the account fields (`id`, `balance`, `owner`, `transactions`), transaction fields (`account`, `amount`, `balanceAfterTransaction`, `createdAt`, `event`, `origin`), credit/debit input shapes, and payload fields. The recorder now creates a disposable customer, calls `storeCreditAccountCredit` with that customer ID so Shopify creates a real store credit account, captures account-ID credit/debit mutations plus downstream direct/nested balance reads, debits the remaining captured balance back to zero, and deletes the disposable customer.
 - Captured Admin GraphQL 2025-01 evidence for `customerCreate` and `customerUpdate` now covers the first CustomerInput validation long tail. The local model reproduces payload `userErrors` for invalid email (`["email"]`, `Email is invalid`), invalid phone (`["phone"]`, `Phone is invalid`), duplicate email/phone (`Email has already been taken`, `Phone has already been taken`), invalid locale (`["locale"]`, `Locale is invalid`), oversized tags (`["tags"]`, 255-character limit), oversized first/last name (255-character limit), and oversized note (5000-character limit). Failed validations return `customer: null` and do not mutate normalized customer rows or customer-owned metafields.
 - Captured successful CustomerInput normalization trims blank `firstName`/`lastName`/`phone` to `null`, preserves blank `note` as an empty string, preserves explicit `null` scalar inputs as `null` on update, defaults created-customer `locale` to `en` when omitted, and trims, de-duplicates, and lexicographically sorts tags. These normalized values are reflected in mutation payloads and downstream `customer`, `customerByIdentifier`, and `customers` reads.
 - Updating a deleted customer or a customer that was merged away returns the same supported unknown-id branch as other missing customers: `customer: null` plus `userErrors[{ field: ["id"], message: "Customer does not exist" }]`.
@@ -92,6 +98,8 @@ Do not mark outbound email roots implemented by proxying them upstream. Support 
 
 - Customer reads: `tests/integration/customer-query-shapes.test.ts`
 - Customer mutations, `customerSet`, and merge slices: `tests/integration/customer-draft-flow.test.ts`
+- Store credit account read and local balance staging: `tests/integration/store-credit-flow.test.ts`
+- Store credit account success-path capture: `corepack pnpm conformance:capture-store-credit`, writing `store-credit-account-parity.json`
 - Customer address lifecycle capture: `corepack pnpm conformance:capture-customer-addresses`, writing `fixtures/conformance/<store>/<version>/customer-address-lifecycle.json`
 - CustomerSet capture: `corepack pnpm conformance:capture-customer-set`, writing `fixtures/conformance/<store>/<version>/customer-set-parity.json`
 - CustomerInput validation capture: `corepack pnpm conformance:capture-customer-input-validation`, writing `fixtures/conformance/<store>/<version>/customer-input-validation-parity.json`
