@@ -63,7 +63,7 @@ Future fixture refresh should confirm whether those reads were added after the c
 
 ## Captured 2026-04 evidence
 
-HAR-262 adds a live 2026-04 fixture at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operation-status-catalog-cancel.json`, produced by `corepack pnpm tsx scripts/capture-bulk-operation-status-conformance.ts`.
+HAR-262 adds a live 2026-04 fixture at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operation-status-catalog-cancel.json`, produced by `corepack pnpm tsx scripts/capture-bulk-operation-status-conformance.ts`. The fixture is registered by `config/parity-specs/bulk-operation-status-catalog-cancel.json` and enforced by `tests/integration/bulk-operation-conformance-flow.test.ts`; until a local BulkOperation job model exists, those tests keep the captured roots as explicit unsupported passthrough gaps rather than guessed local support.
 
 The fixture captures these read and validation branches:
 
