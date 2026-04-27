@@ -512,10 +512,10 @@ Current live findings on this host:
   - `orderEditSetQuantity` now also has that same first safe GraphQL-validation slice before the access gate: omitting the required `$id` variable while still sending `lineItemId` and `quantity` returns the same top-level `INVALID_VARIABLE` payload before Shopify reaches the root's separate `write_order_edits` blocker
   - `orderEditCommit` also fails on the same missing-`$id` variables-path validation branch before the access gate: omitting the required `$id` variable while still sending `notifyCustomer` / `staffNote` returns top-level `INVALID_VARIABLE` before Shopify reaches the root's separate `write_order_edits` blocker
 - current practical split for that family:
-  - `orderEditBegin`, `orderEditAddVariant`, `orderEditSetQuantity`, and `orderEditCommit` are safe to mirror locally in snapshot mode and live-hybrid for the missing-`$id` validation branch without hitting upstream, and those captured branches are enough to cover each root narrowly while keeping happy-path parity blocked separately
-  - the remaining calculated-order edit work is the happy-path non-local Shopify parity family, which still needs explicit blocker-note + parity-plan scaffolding until a `write_order_edits`-capable install exists
+  - `orderEditBegin`, `orderEditAddVariant`, `orderEditSetQuantity`, and `orderEditCommit` are safe to mirror locally in snapshot mode and live-hybrid for the missing-`$id` validation branch without hitting upstream, and captured existing-order workflows now cover the initial lifecycle and downstream read-after-write paths
+  - the remaining calculated-order edit work is represented by captured existing-order workflow evidence plus executable single-root begin/add/set/commit parity slices; those scenario IDs must not return to planned access-scope-only blockers
 
-- keep concrete parity requests checked in for each root so later live capture can compare the real payload slice once an order-edit capable credential exists
+- keep the captured workflow parity requests checked in so later live capture can compare full begin/add/set/commit sequences rather than isolated root placeholders
 - refresh HAR-115 with `corepack pnpm conformance:capture-orders` evidence instead of leaving the order-edit family as a generic worklist bullet
 - do not skip ahead to fulfillment just because the edit roots introspect cleanly; the current host still needs a `write_order_edits`-capable credential before broader order-edit parity can become evidence-backed runtime work
 - newer local-runtime consequence: even without that credential, the proxy can still support a minimal but coherent local calculated-order session for synthetic/local orders only
@@ -1158,6 +1158,19 @@ HAR-256 captured `metafieldDefinitionPin` and `metafieldDefinitionUnpin` against
 
 The implemented local slice is intentionally limited to existing normalized definitions. Keep create/update/delete and app-configuration-managed or unsupported-owner pinning branches separate until they have their own evidence.
 
+## 19c. Product definition lifecycle deletes make matching product metafields disappear immediately
+
+HAR-145 captured product-owner `metafieldDefinitionCreate`, `metafieldDefinitionUpdate`, and `metafieldDefinitionDelete` against the 2025-01 conformance store in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafield-definition-lifecycle-mutations.json`.
+
+Useful behavior:
+
+- create returns a concrete `createdDefinition` with the selected identity, type, validation, pinned position, and `validationStatus`
+- update is identity-based: `ownerType`, `namespace`, and `key` identify the definition, while fields such as name and description can change
+- delete accepts the definition `id`, returns both `deletedDefinitionId` and the deleted identity payload, and `deleteAllAssociatedMetafields: true` returned no user errors in the product-owner capture
+- immediate downstream reads after delete returned `metafieldDefinition: null`, an empty matching `metafieldDefinitions` connection, and `product.metafield(namespace:, key:)`: `null`
+
+The local model mirrors the immediate no-data effect for product-owned metafields only. It does not model a generalized async deletion job or broaden associated-metafield deletion to unsupported owner families without separate evidence.
+
 ## 20. Metaobject read no-data behavior is clean, but setup access has a trap
 
 HAR-240 captured the first Admin GraphQL 2026-04 metaobject read fixture against `harry-test-heelo.myshopify.com`.
@@ -1178,7 +1191,7 @@ Setup trap:
 - passing `access.admin` while creating a merchant-owned metaobject definition returns `ADMIN_ACCESS_INPUT_NOT_ALLOWED` with message `Admin access can only be specified on metaobject definitions that have an app-reserved type.`
 - practical consequence: for merchant-owned fixture setup, omit `access` from `metaobjectDefinitionCreate` and capture the default access through read queries instead of trying to force it in setup input
 
-No parity spec is checked in for this fixture yet because the proxy does not have an executable metaobject read/snapshot model. Do not add a planned-only metaobject parity spec just to point at this fixture.
+HAR-242 implements local staging for definition create/update/delete plus a bounded `standardMetaobjectDefinitionEnable` template slice. Keep the associated-entry delete branch explicit: when `metaobjectsCount` is nonzero, the proxy returns a local unsupported userError because it does not yet model metaobject entries or Shopify's definition-delete cascade. Do not broaden this into entry deletion behavior until entry lifecycle fixtures exist.
 
 ## 18a. Staged metafield writes need product-scoped replacement semantics, not id-wise merge
 
@@ -1985,6 +1998,30 @@ The first Store properties inventory for Admin GraphQL 2026-04 exposed several r
 Current scaffold decision:
 
 - `shop`, `location`, `locationByIdentifier`, `businessEntities`, and `businessEntity` now have narrow Store properties overlay-read support backed by captured fixtures; `cashManagementLocationSummary` remains a registry-tracked planned overlay read
+
+## B2B company roots
+
+HAR-302 captured the first B2B company/contact/location read slice against
+`harry-test-heelo.myshopify.com` on Admin GraphQL 2025-01. The app credential
+can read the B2B company roots on that store. The capture showed:
+
+- `companies(first:)` returns a non-null connection, and `companiesCount`
+  returned `{ count: 2 }`.
+- Unknown `company`, `companyContact`, `companyContactRole`, and
+  `companyLocation` IDs returned `null`.
+- Company records exposed `contactsCount`, `locationsCount`,
+  `contactRoles(first:)`, `locations(first:)`, `contacts(first:)`,
+  `mainContact`, and `defaultRole` in the safe selected slice.
+- `companyLocations(first:)` returned locations with their parent `company`.
+- Safe unknown-ID `companyUpdate`, `companyLocationUpdate`, and
+  `companyContactUpdate` returned `RESOURCE_NOT_FOUND` userErrors. The field
+  paths differ: `companyId`, `input`, and `companyContactId` respectively.
+
+The mutation roots are only inventoried as B2B blockers. Do not mark them
+supported from validation-only evidence; company/contact/location create,
+update, delete, assignment, revoke, address, tax, staff, and welcome-email
+behavior needs local lifecycle modeling before runtime support.
+
 - `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, and `locationDelete` stage locally at runtime; the lifecycle roots are backed by safe 2026-04 validation captures for missing `@idempotent` and active stocked delete rejection, while happy-path lifecycle captures still require a disposable location setup
 - `shopPolicyUpdate` now stages locally by `ShopPolicyType` when a shop baseline is available; captured 2026-04 evidence shows oversized policy bodies return `field: ["shopPolicy", "body"]`, message `Body is too big (maximum is 512 KB)`, and code `TOO_BIG`
 - generic `publishablePublish` / `publishableUnpublish` now stage Product and Collection targets locally; `publishablePublishToCurrentChannel` / `publishableUnpublishToCurrentChannel` currently have product-scoped local staging only
@@ -2184,6 +2221,20 @@ Practical rule for the proxy:
 - keep customer-order overlap narrow: local customer reads may expose empty `orders` / `lastOrder` when the customer graph has no modeled order relationship, while real order lifecycle behavior remains in the order-domain notes and tests
 - any future non-empty nested customer replay must first add normalized state for that sub-resource and compare against captured fixtures instead of reusing the HAR-160 empty/no-data serializer branch
 
+### 53a. `orderCustomerSet` updates `Customer.orders` before the scalar summaries
+
+HAR-288 captured a focused 2026-04 live sequence with a disposable customer and an existing order:
+
+- before linking, `customer.orders` was empty, `lastOrder` was `null`, `numberOfOrders` was `"0"`, and `amountSpent` was zero
+- immediately after `orderCustomerSet`, `customer.orders(first: 5)` contained the linked order with its `customer` object pointing at the disposable customer
+- in that same immediate read, `lastOrder` stayed `null`, `numberOfOrders` stayed `"0"`, and `amountSpent` stayed zero
+- after `orderCustomerRemove`, `customer.orders` returned to the empty connection shape
+
+Practical rule:
+
+- model the immediate read-after-write bridge from order customer mutations by deriving `Customer.orders` from normalized `OrderRecord.customer`
+- do not increment `Customer.numberOfOrders`, add to `Customer.amountSpent`, or synthesize `Customer.lastOrder` from local order customer set/remove mutations unless a future capture proves a different lifecycle branch
+
 ## 54. Markets reads are safe to capture, but writes are not harmless
 
 The first Shopify Markets inventory was captured against Admin GraphQL 2026-04 with `corepack pnpm conformance:capture-markets`.
@@ -2194,6 +2245,7 @@ Observed current-version surface:
 - schema inventory confirms current mutation roots for `marketCreate`, `marketUpdate`, `marketDelete`, `webPresenceCreate`, `webPresenceUpdate`, `webPresenceDelete`, `marketLocalizationsRegister`, and `marketLocalizationsRemove`
 - `marketsResolvedValues(buyerSignal: { countryCode: US })` is present in 2026-04 and returned resolved currency/price-inclusivity data on this store, but an empty resolved catalog connection for the captured buyer signal
 - top-level `webPresences` can be captured safely with `id`, `subfolderSuffix`, `domain`, `rootUrls`, linked `markets`, `defaultLocale`, and `alternateLocales`
+- On 2026-04, `BuyerSignalInput.countryCode` is a Shopify `CountryCode` enum. A live probe against `harry-test-heelo.myshopify.com` returned `INVALID_VARIABLE` for `AQ`, while accepted country codes such as `US`, `CA`, `DE`, `FR`, and `ZZ` all resolved through the shop's configured primary market/web presence. That shop therefore cannot currently provide a true no-market/no-web-presence buyer-signal capture without changing market configuration; use empty resolved catalog connections plus local empty-state tests for the current safe no-data evidence.
 
 Access-scope trap:
 
@@ -2592,3 +2644,44 @@ Practical rule:
 - keep local snapshot `comment(id:)` missing behavior stable as `null` rather than reproducing Shopify's internal-error branch
 - treat comment moderation as local lifecycle support only for comments already present in snapshot or hydrated local state, since Admin GraphQL did not expose a captured comment-create root in this slice
 - continue to record success-path setup and cleanup for online-store content mutations when broadening validation or publication semantics
+
+## 69. Fulfillment-order lifecycle roots split work into replacement orders
+
+HAR-234 captured fulfillment-order lifecycle evidence on Admin GraphQL 2026-04 at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/fulfillment-order-lifecycle.json`.
+
+Captured facts:
+
+- partial `fulfillmentOrderHold` changes the selected work to `ON_HOLD`, creates a new `FulfillmentHold`, reduces the held fulfillment-order line item quantities, and returns a separate `remainingFulfillmentOrder` for the unheld quantity
+- `fulfillmentOrderReleaseHold` restores the held fulfillment order to `OPEN`, clears `fulfillmentHolds`, and re-expands the line item back to the full remaining quantity in the captured branch
+- partial `fulfillmentOrderMove` creates a new moved fulfillment order at the destination location while the original fulfillment order remains open with the remaining quantity; the payload reports the same original record as `originalFulfillmentOrder` and `remainingFulfillmentOrder`
+- `fulfillmentOrderReportProgress` changes an open merchant-managed fulfillment order to `IN_PROGRESS` and adds `MARK_AS_OPEN`; `fulfillmentOrderOpen` changes it back to `OPEN`
+- `fulfillmentOrderCancel` closes the original fulfillment order, empties its line items, and returns a replacement open fulfillment order carrying the remaining line item quantity
+- nested `Order.fulfillmentOrders` does not accept `includeClosed`; that argument belongs to the top-level `fulfillmentOrders` root
+- the captured merchant-managed setup returns guardrails for unsupported branches: reschedule requires a scheduled fulfillment order, close requires an API fulfillment service, and the attempted included-location reroute returned a Shopify internal error instead of a success payload
+
+Practical rule:
+
+- do not model fulfillment-order lifecycle roots as simple status patches; partial hold/move/cancel behavior affects line-item quantities and replacement fulfillment-order identities
+- keep `fulfillmentOrderReschedule`, `fulfillmentOrderClose`, and `fulfillmentOrdersReroute` unimplemented for full support until success-path fixtures exist, even if local guardrails are mirrored
+
+## 70. Fulfillment-order request lifecycles need an API fulfillment service to reach happy paths
+
+HAR-233 captured fulfillment-order request/cancellation behavior on Admin GraphQL 2026-04 against `harry-test-heelo.myshopify.com`. A merchant-managed fulfillment order did not reach the request happy path: `fulfillmentOrderSubmitFulfillmentRequest` returned `userErrors[{ field: ["id"], message: "The fulfillment order's assigned fulfillment service must be of api type" }]`.
+
+Useful setup and behavior:
+
+- creating a temporary `fulfillmentService` without a callback URL produced a third-party API fulfillment service plus a service-managed location
+- moving a disposable order's fulfillment order to that location with `fulfillmentOrderMove` was enough to exercise the request roots
+- partial `fulfillmentOrderSubmitFulfillmentRequest` shrank the submitted fulfillment order's line-item `totalQuantity` / `remainingQuantity` to the requested quantity and created an `UNSUBMITTED` replacement fulfillment order for the remaining quantity
+- submit fulfillment request records a `FULFILLMENT_REQUEST` merchant request with the message and `requestOptions.notify_customer`
+- accept fulfillment request transitions `status` to `IN_PROGRESS` and `requestStatus` to `ACCEPTED`; the selected merchant request `responseData` remained `null` even when `message` and `estimatedShippedAt` were passed
+- submit cancellation request appends a `CANCELLATION_REQUEST` merchant request, but the selected fulfillment order still reported `requestStatus: ACCEPTED` immediately after submission
+- accept cancellation transitions to `status: CLOSED`, `requestStatus: CANCELLATION_ACCEPTED`, and selected line-item quantities of `0`
+- reject fulfillment request transitions to `requestStatus: REJECTED`; reject cancellation request transitions to `requestStatus: CANCELLATION_REJECTED`
+- all six scoped roots returned top-level `RESOURCE_NOT_FOUND` errors for `gid://shopify/FulfillmentOrder/0`
+
+Practical rule:
+
+- model these roots as order-backed fulfillment-order state transitions plus merchant request history, not as generic status patches or runtime callback calls
+- keep hold/move/reroute/progress semantics out of this slice even though live setup used `fulfillmentOrderMove`; that move was conformance setup, not locally supported request-lifecycle behavior
+- do not infer broader fulfillment-service assignment filtering from `assignedFulfillmentOrders`; the current local read exposes staged order-backed records so tests can see request transitions, while broader live access-scope behavior remains separate evidence

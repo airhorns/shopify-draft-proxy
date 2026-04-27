@@ -97,7 +97,7 @@ describe('order lifecycle, payment, and customer mutations', () => {
       taxExempt: false,
       state: 'ENABLED',
       tags: [],
-      numberOfOrders: 0,
+      numberOfOrders: '0',
       amountSpent: { amount: '0.0', currencyCode: 'CAD' },
       defaultEmailAddress: { emailAddress: 'har-customer@example.com' },
       defaultPhoneNumber: null,
@@ -235,6 +235,50 @@ describe('order lifecycle, payment, and customer mutations', () => {
       displayName: 'HAR Customer',
     });
 
+    const linkedCustomerReadResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query LinkedCustomerOrderSummary($id: ID!) {
+          customer(id: $id) {
+            id
+            numberOfOrders
+            amountSpent { amount currencyCode }
+            lastOrder { id name }
+            orders(first: 5) {
+              nodes {
+                id
+                name
+                currentTotalPriceSet { shopMoney { amount currencyCode } }
+              }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }`,
+        variables: { id: 'gid://shopify/Customer/100' },
+      });
+
+    expect(linkedCustomerReadResponse.body.data.customer).toEqual({
+      id: 'gid://shopify/Customer/100',
+      numberOfOrders: '0',
+      amountSpent: { amount: '0.0', currencyCode: 'CAD' },
+      lastOrder: null,
+      orders: {
+        nodes: [
+          {
+            id: orderId,
+            name: '#1',
+            currentTotalPriceSet: { shopMoney: { amount: '19.0', currencyCode: 'CAD' } },
+          },
+        ],
+        pageInfo: {
+          hasNextPage: false,
+          hasPreviousPage: false,
+          startCursor: `cursor:${orderId}`,
+          endCursor: `cursor:${orderId}`,
+        },
+      },
+    });
+
     const removeCustomerResponse = await request(app)
       .post('/admin/api/2026-04/graphql.json')
       .send({
@@ -248,6 +292,40 @@ describe('order lifecycle, payment, and customer mutations', () => {
       });
 
     expect(removeCustomerResponse.body.data.orderCustomerRemove.order.customer).toBeNull();
+
+    const unlinkedCustomerReadResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query UnlinkedCustomerOrderSummary($id: ID!) {
+          customer(id: $id) {
+            id
+            numberOfOrders
+            amountSpent { amount currencyCode }
+            lastOrder { id }
+            orders(first: 5) {
+              nodes { id }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }`,
+        variables: { id: 'gid://shopify/Customer/100' },
+      });
+
+    expect(unlinkedCustomerReadResponse.body.data.customer).toEqual({
+      id: 'gid://shopify/Customer/100',
+      numberOfOrders: '0',
+      amountSpent: { amount: '0.0', currencyCode: 'CAD' },
+      lastOrder: null,
+      orders: {
+        nodes: [],
+        pageInfo: {
+          hasNextPage: false,
+          hasPreviousPage: false,
+          startCursor: null,
+          endCursor: null,
+        },
+      },
+    });
 
     const invoiceResponse = await request(app)
       .post('/admin/api/2026-04/graphql.json')

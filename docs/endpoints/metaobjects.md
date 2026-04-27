@@ -1,8 +1,8 @@
 # Metaobjects Endpoint Group
 
-The metaobjects group is a registry-only coverage map for Shopify Admin GraphQL custom data roots. It intentionally declares known roots before runtime support so future slices can add conformance-backed local modeling without treating known unsupported operations as supported passthrough.
+The metaobjects group covers Shopify Admin GraphQL custom data roots. The current runtime support is intentionally definition-first: definition reads and definition lifecycle mutations have local modeling, while entry reads/mutations remain declared gaps until entry state is modeled.
 
-HAR-131 is the source related issue for the metaobjects area. HAR-239 blocks the implementation slices that depend on this registry coverage map.
+HAR-131 is the source related issue for the metaobjects area.
 
 ## Supported definition read roots
 
@@ -26,6 +26,33 @@ Live-hybrid mode still fetches upstream first. When local staged or snapshot def
 
 Local catalog cursors use the proxy's stable `cursor:<definition gid>` form. Shopify's captured live catalog cursors are opaque and should not be treated as client-visible semantics.
 
+## Supported definition mutation roots
+
+HAR-242 adds local staging for these Admin GraphQL 2026-04 definition mutation roots:
+
+- `metaobjectDefinitionCreate(definition:)`
+- `metaobjectDefinitionUpdate(id:, definition:, resetFieldOrder:)`
+- `metaobjectDefinitionDelete(id:)`
+- captured-safe branches of `standardMetaobjectDefinitionEnable(type:)`
+
+Supported definition mutations never proxy to Shopify at runtime. They append the original GraphQL request body to the meta mutation log for later `POST /__meta/commit` replay, stage changes in the normalized `metaobjectDefinitions` state bucket, and make downstream `metaobjectDefinition`, `metaobjectDefinitionByType`, and `metaobjectDefinitions` reads observe the effective staged schema immediately.
+
+Create support models the captured merchant-owned definition shape:
+
+- `type`, `name`, `description`, and `displayNameKey`
+- default merchant access `admin: PUBLIC_READ_WRITE` and `storefront: NONE`
+- `capabilities.publishable`, `translatable`, `renderable`, and `onlineStore` with false defaults when omitted
+- ordered field definitions with `key`, `name`, `description`, `required`, scalar type name/category, and validations
+- `metaobjectsCount: 0`, `hasThumbnailField: false`, and `standardTemplate: null`
+
+Captured guardrail: merchant-owned create input that specifies `access.admin` returns a local `ADMIN_ACCESS_INPUT_NOT_ALLOWED` userError with Shopify's captured message instead of staging or proxying.
+
+Update support stages scalar definition changes, access/capability merges, field definition create/update/delete operations, and `resetFieldOrder` ordering. Field definition updates preserve existing values for omitted fields; created fields append unless `resetFieldOrder` is set, in which case fields touched by the update input lead the resulting order and untouched fields follow in their previous relative order.
+
+Delete support stages deletion for definitions whose effective `metaobjectsCount` is zero and hides deleted base/staged definitions from downstream reads through a staged tombstone. Definitions with associated entries return an explicit local `UNSUPPORTED` userError because entry records and cascade semantics are not modeled yet; this keeps the known branch local and visible instead of pretending Shopify's destructive cascade has been faithfully emulated.
+
+`standardMetaobjectDefinitionEnable` is limited to the bounded local template catalog currently represented by runtime tests. Known templates stage a standard definition locally with `standardTemplate` metadata; unknown template types return `TEMPLATE_NOT_FOUND` locally.
+
 ## Unsupported roots tracked by the registry
 
 Planned overlay reads:
@@ -41,22 +68,18 @@ Planned local-staging mutations:
 - `metaobjectUpsert`
 - `metaobjectDelete`
 - `metaobjectBulkDelete`
-- `metaobjectDefinitionCreate`
-- `metaobjectDefinitionUpdate`
-- `metaobjectDefinitionDelete`
-- `standardMetaobjectDefinitionEnable`
 
 ## Coverage boundaries
 
-- Registry entries in this group are declared gaps. They make known Admin GraphQL roots discoverable but do not claim runtime support.
-- `implemented` must remain `false` until a root has executable runtime behavior, targeted tests, captured conformance evidence, and documented field behavior. HAR-241 satisfies that bar only for the three definition read roots listed above; entry reads and definition mutations remain declared gaps.
+- Registry entries in this group are declared gaps unless they are marked implemented and have executable runtime tests, parity inventory, and documented field behavior.
+- `implemented` must remain `false` until a root has executable runtime behavior, targeted tests, captured conformance/runtime evidence, and documented field behavior. HAR-241 satisfies that bar for definition reads; HAR-242 satisfies that bar for the definition mutation roots listed above. Entry reads and entry mutations remain declared gaps.
 - Unsupported metaobjects mutations must not be registered as permanent passthrough support. The generic unknown-operation passthrough path can still handle unsupported runtime requests outside snapshot-only parity execution, but that is not a support commitment for any declared root.
 - Do not add planned-only parity specs or request placeholders for this group. Add parity specs only after a captured Shopify interaction can run as evidence.
 
 ## Planned local-staging posture
 
 - Entry mutations must eventually stage locally without mutating Shopify at runtime, preserve the original raw mutation for commit replay, and make staged entries visible through `metaobject`, `metaobjectByHandle`, and `metaobjects`.
-- Definition mutations must eventually stage schema changes locally, including access settings, capabilities, field definition ordering, standard-template enablement, and downstream effects on entry reads.
+- Definition mutation support does not yet update modeled entries because entry state is still absent. When entry support lands, definition updates/deletes need conformance-backed entry migration and cascade behavior.
 - Bulk delete support needs captured evidence for selection semantics, partial failure behavior, async payload shape, and read-after-delete visibility before it can be promoted.
 - Upsert support needs captured evidence for create-vs-update identity, handle conflicts, and userErrors before it can be promoted.
 
@@ -71,7 +94,8 @@ Planned local-staging mutations:
 
 - Capture baseline definition catalog and definition detail reads, including empty catalog behavior and missing ID/type lookup behavior.
 - Capture entry catalog reads by type, singular ID lookup, handle lookup, empty type behavior, pagination, reverse ordering, supported sort keys, and field-value query filters.
-- Capture create, update, upsert, delete, bulk delete, definition create/update/delete, and standard definition enable userErrors before local staging is marked implemented.
+- Capture create, update, upsert, delete, and bulk delete entry behavior before entry local staging is marked implemented.
+- Expand definition mutation live captures for update, associated-entry delete cascades, and additional standard templates before broadening the HAR-242 local support boundaries.
 - Promote parity specs only after comparison targets can verify Shopify payload shape, userErrors, nullability, empty connections, cursor treatment, and downstream read-after-write or read-after-delete behavior.
 
 ## Captured read fixture slice
@@ -88,11 +112,16 @@ The recorder captures no-data behavior before setup:
 
 The seeded branch creates one disposable merchant-owned metaobject definition and one entry, reads them, then deletes both. Definition reads cover catalog/detail/type lookup with `access`, `capabilities`, `displayNameKey`, ordered `fieldDefinitions`, `metaobjectsCount`, and connection cursors. Entry reads cover type catalog, ID lookup, handle lookup, `handle`, `type`, `displayName`, `updatedAt`, entry `capabilities`, ordered `fields`, and `field(key: "title")`.
 
-HAR-241 adds `config/parity-specs/metaobject-definitions-read.json` for the definition-read subset of this fixture, enforced by `tests/integration/metaobject-definition-query-shapes.test.ts`. Entry reads and mutation lifecycles still need implementation before the full `metaobjects-read.json` capture can be promoted as a strict end-to-end parity scenario without expected gaps.
+HAR-241 adds `config/parity-specs/metaobject-definitions-read.json` for the definition-read subset of this fixture, enforced by `tests/integration/metaobject-definition-query-shapes.test.ts`.
+
+HAR-242 adds `config/parity-specs/metaobject-definition-lifecycle-local-staging.json`, backed by `fixtures/conformance/local-runtime/2026-04/metaobject-definition-draft-flow.json`, `config/parity-requests/metaobject-definition-*.graphql`, and `tests/integration/metaobject-definition-draft-flow.test.ts`. The convention-driven parity runner executes the create/update/delete/read-after-write and bounded standard-enable flow against the local proxy harness with strict JSON comparison targets. The runtime test also covers meta API log/state visibility, no runtime Shopify writes, the captured merchant-owned access.admin guardrail, and explicit unsupported handling for associated-entry delete cascades.
+
+Entry reads and entry mutation lifecycles still need implementation before the full `metaobjects-read.json` capture can be promoted as a strict end-to-end parity scenario without expected gaps.
 
 ## Validation anchors
 
 - Registry and coverage tests: `tests/unit/operation-registry.test.ts`, `tests/unit/graphql-operation-coverage.test.ts`
 - Definition read runtime tests: `tests/integration/metaobject-definition-query-shapes.test.ts`
+- Definition mutation runtime tests: `tests/integration/metaobject-definition-draft-flow.test.ts`
 - Captured root inventory: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-graphql-root-operation-introspection.json`
 - Read fixture recorder: `scripts/capture-metaobject-read-conformance.mts`

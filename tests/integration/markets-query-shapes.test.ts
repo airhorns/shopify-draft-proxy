@@ -161,6 +161,186 @@ describe('Markets query shapes', () => {
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
+  it('resolves marketsResolvedValues from hydrated buyer-country market state', async () => {
+    hydrateMarketsFromUpstreamResponse(
+      readText('config/parity-requests/markets-catalog-read.graphql'),
+      readJson<Record<string, unknown>>('config/parity-requests/markets-catalog-read.variables.json'),
+      readJson(`${fixtureRoot}/markets-catalog.json`),
+    );
+
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('snapshot Markets reads must not fetch upstream'));
+    const app = createApp(config);
+
+    const response = await request(app.callback())
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          query LocalResolvedValues {
+            us: marketsResolvedValues(buyerSignal: { countryCode: US }) {
+              currencyCode
+              priceInclusivity {
+                dutiesIncluded
+                taxesIncluded
+              }
+              catalogs(first: 5) {
+                nodes {
+                  id
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+              webPresences(first: 5) {
+                nodes {
+                  id
+                  subfolderSuffix
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+            }
+            de: marketsResolvedValues(buyerSignal: { countryCode: DE }) {
+              currencyCode
+              priceInclusivity {
+                dutiesIncluded
+                taxesIncluded
+              }
+              catalogs(first: 5) {
+                nodes {
+                  id
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+              webPresences(first: 5) {
+                nodes {
+                  id
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+            }
+          }
+        `,
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.us).toEqual({
+      currencyCode: 'CAD',
+      priceInclusivity: {
+        dutiesIncluded: false,
+        taxesIncluded: false,
+      },
+      catalogs: {
+        nodes: [],
+        pageInfo: {
+          hasNextPage: false,
+          hasPreviousPage: false,
+          startCursor: null,
+          endCursor: null,
+        },
+      },
+      webPresences: {
+        nodes: [
+          {
+            id: 'gid://shopify/MarketWebPresence/33131921641',
+            subfolderSuffix: null,
+          },
+        ],
+        pageInfo: {
+          hasNextPage: false,
+          hasPreviousPage: false,
+          startCursor: 'eyJsYXN0X2lkIjozMzEzMTkyMTY0MSwibGFzdF92YWx1ZSI6MzMxMzE5MjE2NDF9',
+          endCursor: 'eyJsYXN0X2lkIjozMzEzMTkyMTY0MSwibGFzdF92YWx1ZSI6MzMxMzE5MjE2NDF9',
+        },
+      },
+    });
+    expect(response.body.data.de).toEqual({
+      currencyCode: 'EUR',
+      priceInclusivity: {
+        dutiesIncluded: false,
+        taxesIncluded: false,
+      },
+      catalogs: {
+        nodes: [],
+        pageInfo: {
+          hasNextPage: false,
+          hasPreviousPage: false,
+          startCursor: null,
+          endCursor: null,
+        },
+      },
+      webPresences: {
+        nodes: [],
+        pageInfo: {
+          hasNextPage: false,
+          hasPreviousPage: false,
+          startCursor: null,
+          endCursor: null,
+        },
+      },
+    });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('returns Shopify-like marketsResolvedValues invalid buyer-signal variable errors locally', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('snapshot Markets validation must not fetch upstream'));
+    const app = createApp(config);
+
+    const response = await request(app.callback())
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          query InvalidResolvedValues($buyerSignal: BuyerSignalInput!) {
+            marketsResolvedValues(buyerSignal: $buyerSignal) {
+              currencyCode
+            }
+          }
+        `,
+        variables: {
+          buyerSignal: {
+            countryCode: 'AQ',
+          },
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toBeUndefined();
+    expect(response.body.errors).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining('Variable $buyerSignal of type BuyerSignalInput! was provided invalid value'),
+        extensions: expect.objectContaining({
+          code: 'INVALID_VARIABLE',
+          value: {
+            countryCode: 'AQ',
+          },
+          problems: [
+            expect.objectContaining({
+              path: ['countryCode'],
+              explanation: expect.stringContaining('Expected "AQ" to be one of:'),
+            }),
+          ],
+        }),
+      }),
+    ]);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
   it.each([
     {
       name: 'market catalog detail and count',

@@ -9,7 +9,7 @@ The product-owner definition slice supports the Admin GraphQL read roots:
 
 The implementation is snapshot/local only for definition reads. In snapshot mode, missing singular definitions return `null`, and catalog misses return a non-null empty connection with empty `nodes` / `edges` and falsey `pageInfo`.
 
-Normalized state stores definition records separately from product metafields. The supported owner type is `PRODUCT`; definition-scoped `metafields` and `metafieldsCount` are derived from the effective product-owned metafield set by matching `namespace` and `key`. This keeps staged `metafieldsSet` writes visible through a matching product definition without adding definition lifecycle mutation support.
+Normalized state stores definition records separately from product metafields. The supported owner type is `PRODUCT`; definition-scoped `metafields` and `metafieldsCount` are derived from the effective product-owned metafield set by matching `namespace` and `key`. Staged definition lifecycle mutations update this same normalized catalog, so downstream definition reads and definition-backed `metafieldsSet` validation use the effective staged definition state.
 
 The serializer currently covers these selected definition fields:
 
@@ -27,7 +27,23 @@ The serializer currently covers these selected definition fields:
 
 Catalog filters are intentionally limited to the fixture-backed product-owner slice: owner type, namespace, key, pinned status, constraint status/subtype, and search query terms for `id`, `namespace`, `key`, `owner_type`, and `type`. `sortKey: PINNED_POSITION` follows the captured Shopify ordering where higher pinned positions sort before lower pinned positions.
 
-Definition lifecycle mutations other than `standardMetafieldDefinitionEnable` and product-owner definition pinning remain unsupported and must not be registered as local staged capabilities until they are modeled and covered separately.
+## Metafield definition lifecycle mutations
+
+The product-owner lifecycle slice stages these roots locally without runtime Shopify writes:
+
+- `metafieldDefinitionCreate(definition:)`
+- `metafieldDefinitionUpdate(definition:)`
+- `metafieldDefinitionDelete(id:|identifier:, deleteAllAssociatedMetafields:)`
+
+Create supports the normalized fields represented by `MetafieldDefinitionRecord`: identity (`ownerType`, `namespace`, `key`), `name`, `description`, `type`, `validations`, selected `access`, selected `capabilities`, optional `pin`, empty constraints, and `validationStatus: ALL_VALID`.
+
+Update resolves the existing definition by immutable identity (`ownerType`, `namespace`, `key`). It preserves `type`, `ownerType`, `namespace`, and `key`, and locally updates `name`, `description`, `validations`, selected `access`, and selected `capabilities`. The local `validationJob` payload is currently `null`.
+
+Delete resolves by Shopify's preferred `identifier` input or by global `id`, hides the definition from singular and catalog reads with a staged tombstone, and compacts owner-type pin positions when deleting a pinned definition. When `deleteAllAssociatedMetafields: true`, the local effect conservatively removes matching product-owned metafields from the in-memory graph; it does not invent broad async job state.
+
+Definition-backed `metafieldsSet` support now consults effective staged definitions for product, product variant, and collection owners. When the input omits `type`, the matching definition supplies it. When the input supplies a mismatched type, local validation rejects the write. Fixture-backed basic validations currently cover `max` string length and `regex`.
+
+Live evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafield-definition-lifecycle-mutations.json`, captured with `corepack pnpm conformance:capture-metafield-definition-lifecycle`, covers product-owner create, downstream definition/metafield reads, update, delete with `deleteAllAssociatedMetafields: true`, and immediate downstream no-data reads after delete.
 
 ## Standard metafield definition enablement
 
@@ -61,10 +77,12 @@ The product-owner pinning slice supports local staging for existing normalized d
 
 Captured 2025-01 live behavior shows pinning an unpinned product definition assigns the next owner-type pinned position after the highest existing product definition position. Pinned definition catalogs sorted with `sortKey: PINNED_POSITION` return higher pinned positions first. Unpinning clears the target definition's `pinnedPosition` and compacts any higher pinned positions down by one, so downstream `metafieldDefinition` detail reads plus `metafieldDefinitions(... pinnedStatus: PINNED|UNPINNED)` catalogs reflect the staged change.
 
-The local implementation intentionally covers pin/unpin for definitions already present in normalized snapshot or hydrated state. It does not create missing definitions, broaden definition lifecycle support, or model app-configuration-managed / unsupported-owner error branches yet. Create, update, and delete remain separate unsupported lifecycle gaps until their full local behavior and downstream read effects are modeled.
+The local implementation intentionally covers pin/unpin for definitions already present in normalized snapshot, hydrated state, or staged lifecycle state. It does not create missing definitions through pin/unpin and does not model app-configuration-managed / unsupported-owner error branches yet.
 
 Validation entry points:
 
 - `tests/integration/metafield-definition-query-shapes.test.ts`
+- `tests/integration/metafield-definition-draft-flow.test.ts`
 - `config/parity-specs/metafield-definition-pinning-parity.json`
 - `corepack pnpm conformance:capture-metafield-definition-pinning`
+- `corepack pnpm conformance:capture-metafield-definition-lifecycle`

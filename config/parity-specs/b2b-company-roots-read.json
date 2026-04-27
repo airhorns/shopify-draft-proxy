@@ -1,0 +1,34 @@
+{
+  "scenarioId": "b2b-company-roots-read",
+  "operationNames": [
+    "companies",
+    "companiesCount",
+    "company",
+    "companyContact",
+    "companyContactRole",
+    "companyLocation",
+    "companyLocations"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "catalog-count", "detail-null", "nested-roles-locations"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/b2b-company-roots-read.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b-company-roots-read.graphql",
+    "variablesPath": "config/parity-requests/b2b-company-roots-read.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["tests/integration/b2b-company-query-shapes.test.ts"],
+  "notes": "Strict data comparison covers B2B company catalog, count, known detail lookups, unknown-id nulls, top-level company locations, and nested contact role/location/contact connections from the 2025-01 harry-test-heelo capture. Mutations remain registry-only blockers until local lifecycle behavior and downstream reads are modeled.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "b2b-company-data",
+        "capturePath": "$.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}
