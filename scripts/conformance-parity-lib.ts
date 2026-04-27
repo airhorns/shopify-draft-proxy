@@ -766,9 +766,9 @@ export function readJsonPath(value: unknown, pathValue: string): unknown {
   return current;
 }
 
-function materializeValue(rawValue: unknown, primaryProxyResponse: unknown, capture?: unknown): unknown {
+function materializeValue(rawValue: unknown, proxyResponses: Record<string, unknown>, capture?: unknown): unknown {
   if (Array.isArray(rawValue)) {
-    return rawValue.map((item) => materializeValue(item, primaryProxyResponse, capture));
+    return rawValue.map((item) => materializeValue(item, proxyResponses, capture));
   }
 
   if (!isPlainObject(rawValue)) {
@@ -776,7 +776,11 @@ function materializeValue(rawValue: unknown, primaryProxyResponse: unknown, capt
   }
 
   if (typeof rawValue['fromPrimaryProxyPath'] === 'string') {
-    return readJsonPath(primaryProxyResponse, rawValue['fromPrimaryProxyPath']);
+    return readJsonPath(proxyResponses['primary'], rawValue['fromPrimaryProxyPath']);
+  }
+
+  if (typeof rawValue['fromProxyResponse'] === 'string' && typeof rawValue['path'] === 'string') {
+    return readJsonPath(proxyResponses[rawValue['fromProxyResponse']], rawValue['path']);
   }
 
   if (typeof rawValue['fromCapturePath'] === 'string') {
@@ -784,16 +788,16 @@ function materializeValue(rawValue: unknown, primaryProxyResponse: unknown, capt
   }
 
   return Object.fromEntries(
-    Object.entries(rawValue).map(([key, value]) => [key, materializeValue(value, primaryProxyResponse, capture)]),
+    Object.entries(rawValue).map(([key, value]) => [key, materializeValue(value, proxyResponses, capture)]),
   );
 }
 
 function materializeVariables(
   rawVariables: unknown,
-  primaryProxyResponse: unknown,
+  proxyResponses: Record<string, unknown>,
   capture?: unknown,
 ): Record<string, unknown> {
-  const materialized = materializeValue(rawVariables ?? {}, primaryProxyResponse, capture);
+  const materialized = materializeValue(rawVariables ?? {}, proxyResponses, capture);
   return isPlainObject(materialized) ? materialized : {};
 }
 
@@ -2451,6 +2455,47 @@ function seedStoreCreditAccountPreconditions(capture: unknown): boolean {
       balance,
     },
   ]);
+
+  return true;
+}
+
+function seedCustomerOrderSummaryPreconditions(capture: unknown): boolean {
+  const seedOrder = readArrayField(
+    readRecordField(
+      readRecordField(
+        readRecordField(readRecordField(capture as Record<string, unknown>, 'seedOrder'), 'response'),
+        'data',
+      ),
+      'orders',
+    ),
+    'nodes',
+  )
+    .filter(isPlainObject)
+    .at(0);
+  const seedOrderId = readStringField(seedOrder, 'id');
+  if (!seedOrder || !seedOrderId) {
+    return false;
+  }
+
+  store.upsertBaseOrders([makeSeedOrder(seedOrderId, seedOrder)]);
+
+  const beforeSetCount = readNumberField(
+    readRecordField(
+      readRecordField(
+        readRecordField(readRecordField(capture as Record<string, unknown>, 'beforeSet'), 'response'),
+        'data',
+      ),
+      'customersCount',
+    ),
+    'count',
+  );
+  if (beforeSetCount !== null) {
+    const placeholders = [];
+    for (let index = 0; index < Math.max(0, beforeSetCount - 1); index += 1) {
+      placeholders.push(makePlaceholderCustomer(index));
+    }
+    store.upsertBaseCustomers(placeholders);
+  }
 
   return true;
 }
@@ -6654,6 +6699,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     return;
   }
 
+  if (seedCustomerOrderSummaryPreconditions(capture)) {
+    return;
+  }
+
   if (seedStoreCreditAccountPreconditions(capture)) {
     return;
   }
@@ -7282,16 +7331,16 @@ function readRequestVariables(
   repoRoot: string,
   request: ProxyRequestSpec,
   capture: unknown,
-  primaryProxyResponse: unknown,
+  proxyResponses: Record<string, unknown>,
 ): Record<string, unknown> {
   if (request.variablesCapturePath) {
-    return materializeVariables(readJsonPath(capture, request.variablesCapturePath), primaryProxyResponse, capture);
+    return materializeVariables(readJsonPath(capture, request.variablesCapturePath), proxyResponses, capture);
   }
 
   const rawVariables = request.variablesPath
     ? parseJsonFileWithSchema(path.join(repoRoot, request.variablesPath), graphqlVariablesSchema)
     : request.variables;
-  return materializeVariables(rawVariables, primaryProxyResponse, capture);
+  return materializeVariables(rawVariables, proxyResponses, capture);
 }
 
 function readPrimaryUpstreamPayload(capture: unknown, comparison: ComparisonContract, document: string): unknown {
@@ -7357,7 +7406,8 @@ export async function executeParityScenario({
 
   const capture = readJsonFile(repoRoot, capturePath);
   const primaryDocument = readTextFile(repoRoot, paritySpec.proxyRequest.documentPath);
-  const primaryVariables = readRequestVariables(repoRoot, paritySpec.proxyRequest, capture, {});
+  const proxyResponses: Record<string, unknown> = {};
+  const primaryVariables = readRequestVariables(repoRoot, paritySpec.proxyRequest, capture, proxyResponses);
   const executedOperations: ExecutedOperation[] = [];
   seedPreconditionsFromCapture(capture, primaryVariables);
   const primaryProxyResponse = await executeGraphQLAgainstLocalProxy(
@@ -7366,6 +7416,7 @@ export async function executeParityScenario({
     readPrimaryUpstreamPayload(capture, paritySpec.comparison, primaryDocument),
     (operation) => executedOperations.push(operation),
   );
+  proxyResponses['primary'] = primaryProxyResponse.body;
 
   const comparisons = [];
   for (const target of readComparisonTargets(paritySpec.comparison)) {
@@ -7377,7 +7428,7 @@ export async function executeParityScenario({
         await sleep(target.proxyRequest.waitBeforeMs);
       }
       const document = readTextFile(repoRoot, target.proxyRequest.documentPath);
-      const variables = readRequestVariables(repoRoot, target.proxyRequest, capture, primaryProxyResponse.body);
+      const variables = readRequestVariables(repoRoot, target.proxyRequest, capture, proxyResponses);
       const upstreamPayload =
         target.upstreamCapturePath === null
           ? undefined
@@ -7388,6 +7439,7 @@ export async function executeParityScenario({
         executedOperations.push(operation),
       );
       proxyResponseBody = proxyResponse.body;
+      proxyResponses[target.name] = proxyResponse.body;
     }
 
     const actual = readJsonPath(proxyResponseBody, target.proxyPath);

@@ -1,0 +1,36 @@
+#graphql
+mutation CustomerAddressUpdate(
+  $customerId: ID!
+  $addressId: ID!
+  $address: MailingAddressInput!
+  $setAsDefault: Boolean
+) {
+  customerAddressUpdate(
+    customerId: $customerId
+    addressId: $addressId
+    address: $address
+    setAsDefault: $setAsDefault
+  ) {
+    address {
+      id
+      firstName
+      lastName
+      address1
+      address2
+      city
+      company
+      country
+      countryCodeV2
+      province
+      provinceCode
+      zip
+      phone
+      name
+      formattedArea
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
