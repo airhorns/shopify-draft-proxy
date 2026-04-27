@@ -35,6 +35,7 @@ import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from '../sr
 import { handleDiscountMutation, handleDiscountQuery } from '../src/proxy/discounts.js';
 import { handleEventsQuery } from '../src/proxy/events.js';
 import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
+import { handleInventoryShipmentMutation, handleInventoryShipmentQuery } from '../src/proxy/inventory-shipments.js';
 import {
   handleMarketingMutation,
   handleMarketingQuery,
@@ -742,6 +743,18 @@ function sleep(ms: number): Promise<void> {
   });
 }
 
+const INVENTORY_SHIPMENT_MUTATION_ROOTS = new Set([
+  'inventoryShipmentCreate',
+  'inventoryShipmentCreateInTransit',
+  'inventoryShipmentAddItems',
+  'inventoryShipmentRemoveItems',
+  'inventoryShipmentUpdateItemQuantities',
+  'inventoryShipmentSetTracking',
+  'inventoryShipmentMarkInTransit',
+  'inventoryShipmentReceive',
+  'inventoryShipmentDelete',
+]);
+
 async function executeGraphQLAgainstLocalProxy(
   document: string,
   variables: Record<string, unknown>,
@@ -766,6 +779,33 @@ async function executeGraphQLAgainstLocalProxy(
     (capability.domain === 'products' ||
       (capability.domain === 'store-properties' && capability.operationName?.startsWith('publishable') === true))
   ) {
+    if (parsed.rootFields.some((rootField) => INVENTORY_SHIPMENT_MUTATION_ROOTS.has(rootField))) {
+      const inventoryShipmentMutation = handleInventoryShipmentMutation(document, variables);
+      if (!inventoryShipmentMutation) {
+        throw new Error(`Inventory shipment parity request was not handled locally: ${capability.operationName}`);
+      }
+
+      if (inventoryShipmentMutation.staged) {
+        store.appendLog({
+          id: makeSyntheticGid('MutationLogEntry'),
+          receivedAt: makeSyntheticTimestamp(),
+          operationName: capability.operationName,
+          path: '/admin/api/2025-01/graphql.json',
+          query: document,
+          variables,
+          status: 'staged',
+          interpreted: interpretMutationLogEntry(parsed, capability),
+          stagedResourceIds: inventoryShipmentMutation.stagedResourceIds,
+          notes: inventoryShipmentMutation.notes,
+        });
+      }
+
+      return {
+        status: 200,
+        body: inventoryShipmentMutation.response,
+      };
+    }
+
     store.appendLog({
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
@@ -1127,6 +1167,13 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'overlay-read' && capability.domain === 'products') {
+    if (parsed.rootFields.includes('inventoryShipment')) {
+      return {
+        status: 200,
+        body: handleInventoryShipmentQuery(document, variables),
+      };
+    }
+
     if (upstreamPayload !== undefined) {
       hydrateProductsFromUpstreamResponse(document, variables, upstreamPayload);
       if (!hasStagedState()) {
