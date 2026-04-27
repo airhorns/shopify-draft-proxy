@@ -1,0 +1,156 @@
+{
+  "capturedAt": "2026-04-27T13:24:00.000Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": [
+    "Schema introspection confirmed SavedSearchConnection roots and SavedSearch fields id, legacyResourceId, name, query, resourceType, searchTerms, and filters { key value }.",
+    "savedSearchCreate(resourceType: PRODUCT) succeeded and downstream productSavedSearches returned the created search with non-null cursors.",
+    "savedSearchUpdate and savedSearchDelete for gid://shopify/SavedSearch/0 returned userErrors field [\"input\", \"id\"], message \"Saved Search does not exist\".",
+    "urlRedirectSavedSearches and urlRedirectsCount were blocked by read_online_store_navigation; urlRedirects returned ACCESS_DENIED; urlRedirectCreate and urlRedirectImportCreate were blocked by write_online_store_navigation."
+  ],
+  "schema": {
+    "savedSearchFields": ["id", "legacyResourceId", "name", "query", "resourceType", "searchTerms", "filters"],
+    "searchFilterFields": ["key", "value"],
+    "urlRedirectFields": ["id", "path", "target"],
+    "urlRedirectImportFields": [
+      "id",
+      "finished",
+      "finishedAt",
+      "count",
+      "createdCount",
+      "updatedCount",
+      "failedCount",
+      "previewRedirects"
+    ]
+  },
+  "savedSearchCreateProduct": {
+    "variables": {
+      "input": {
+        "resourceType": "PRODUCT",
+        "name": "Codex Product Search 1777309108817",
+        "query": "title:Codex 1777309108817"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchCreate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4002144682290",
+            "legacyResourceId": "4002144682290",
+            "name": "Codex Product Search 1777309108817",
+            "query": "title:Codex 1777309108817",
+            "resourceType": "PRODUCT",
+            "searchTerms": "1777309108817",
+            "filters": [{ "key": "title", "value": "Codex" }]
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "productSavedSearchesAfterCreate": {
+    "payload": {
+      "data": {
+        "productSavedSearches": {
+          "nodes": [
+            {
+              "id": "gid://shopify/SavedSearch/4002144682290",
+              "name": "Codex Product Search 1777309108817",
+              "query": "1777309108817 title:Codex",
+              "resourceType": "PRODUCT",
+              "searchTerms": "1777309108817",
+              "filters": [{ "key": "title", "value": "Codex" }]
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo0MDAyMTQ0NjgyMjkwLCJsYXN0X3ZhbHVlIjoiNDAwMjE0NDY4MjI5MCJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDAyMTQ0NjgyMjkwLCJsYXN0X3ZhbHVlIjoiNDAwMjE0NDY4MjI5MCJ9"
+          }
+        },
+        "customerSavedSearches": {
+          "nodes": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+          }
+        }
+      }
+    }
+  },
+  "savedSearchUpdateTooLongName": {
+    "payload": {
+      "data": {
+        "savedSearchUpdate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4002144682290",
+            "name": "Codex Product Search 1777309108817",
+            "query": "status:ACTIVE 1777309108817",
+            "resourceType": "PRODUCT",
+            "searchTerms": "1777309108817",
+            "filters": [{ "key": "status", "value": "ACTIVE" }]
+          },
+          "userErrors": [
+            {
+              "field": ["input", "name"],
+              "message": "Name is too long (maximum is 40 characters)"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "missingSavedSearch": {
+    "payload": {
+      "data": {
+        "savedSearchUpdate": {
+          "savedSearch": null,
+          "userErrors": [
+            {
+              "field": ["input", "id"],
+              "message": "Saved Search does not exist"
+            }
+          ]
+        },
+        "savedSearchDelete": {
+          "deletedSavedSearchId": null,
+          "userErrors": [
+            {
+              "field": ["input", "id"],
+              "message": "Saved Search does not exist"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "urlRedirectBlockers": {
+    "readOnlineStoreNavigation": [
+      {
+        "root": "urlRedirectSavedSearches",
+        "message": "Access denied for urlRedirectSavedSearches field. Required access: `read_online_store_navigation` access scope."
+      },
+      {
+        "root": "urlRedirectsCount",
+        "message": "Access denied for urlRedirectsCount field. Required access: `read_online_store_navigation` access scope."
+      },
+      {
+        "root": "urlRedirects",
+        "message": "Access denied for urlRedirects field."
+      }
+    ],
+    "writeOnlineStoreNavigation": [
+      {
+        "root": "urlRedirectCreate",
+        "message": "Access denied for urlRedirectCreate field. Required access: `write_online_store_navigation` access scope."
+      },
+      {
+        "root": "urlRedirectImportCreate",
+        "message": "Access denied for urlRedirectImportCreate field. Required access: `write_online_store_navigation` access scope."
+      }
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+query ShippingSettingsAvailability {
+  availableCarrierServices {
+    carrierService {
+      id
+      name
+      formattedName
+      active
+      supportsServiceDiscovery
+    }
+  }
+  locationsAvailableForDeliveryProfilesConnection(first: 3) {
+    nodes {
+      id
+      name
+      localPickupSettingsV2 {
+        pickupTime
+        instructions
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+}

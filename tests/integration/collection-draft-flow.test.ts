@@ -1017,6 +1017,82 @@ describe('collection draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('stages collectionAddProductsV2 locally with job payload and downstream membership visibility', async () => {
+    store.upsertBaseProducts([
+      makeBaseProduct('gid://shopify/Product/4320', 'V2 Green Hat', 'v2-green-hat'),
+      makeBaseProduct('gid://shopify/Product/4321', 'V2 Blue Hat', 'v2-blue-hat'),
+    ]);
+    store.upsertBaseCollections([
+      {
+        id: 'gid://shopify/Collection/9432',
+        title: 'V2 Featured Hats',
+        handle: 'v2-featured-hats',
+      },
+    ]);
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const app = createApp(config).callback();
+
+    const addResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation AddProductsV2($id: ID!, $productIds: [ID!]!) { collectionAddProductsV2(id: $id, productIds: $productIds) { job { id done } userErrors { field message } } }',
+        variables: {
+          id: 'gid://shopify/Collection/9432',
+          productIds: ['gid://shopify/Product/4320', 'gid://shopify/Product/4321'],
+        },
+      });
+
+    expect(addResponse.status).toBe(200);
+    expect(addResponse.body).toEqual({
+      data: {
+        collectionAddProductsV2: {
+          job: {
+            id: expect.stringMatching(/^gid:\/\/shopify\/Job\/\d+$/),
+            done: false,
+          },
+          userErrors: [],
+        },
+      },
+    });
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'query ReadCollectionMembership($id: ID!, $productId: ID!) { collection(id: $id) { id products(first: 10) { nodes { id title handle } } hasProduct(id: $productId) productsCount { count precision } } product(id: $productId) { id collections(first: 10) { nodes { id title handle } } } }',
+        variables: {
+          id: 'gid://shopify/Collection/9432',
+          productId: 'gid://shopify/Product/4320',
+        },
+      });
+
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body).toEqual({
+      data: {
+        collection: {
+          id: 'gid://shopify/Collection/9432',
+          products: {
+            nodes: [
+              { id: 'gid://shopify/Product/4321', title: 'V2 Blue Hat', handle: 'v2-blue-hat' },
+              { id: 'gid://shopify/Product/4320', title: 'V2 Green Hat', handle: 'v2-green-hat' },
+            ],
+          },
+          hasProduct: true,
+          productsCount: { count: 2, precision: 'EXACT' },
+        },
+        product: {
+          id: 'gid://shopify/Product/4320',
+          collections: {
+            nodes: [{ id: 'gid://shopify/Collection/9432', title: 'V2 Featured Hats', handle: 'v2-featured-hats' }],
+          },
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('keeps collectionAddProducts atomic when any product is already a member', async () => {
     store.upsertBaseProducts([
       {

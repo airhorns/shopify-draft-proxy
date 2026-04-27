@@ -237,6 +237,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    packageScript: 'conformance:capture-product-relationship-roots',
+    scriptPath: 'scripts/capture-product-relationship-roots-conformance.ts',
+    purpose:
+      'Product/variant relationship roots for option ordering, collection V2 membership, media attachment, and selling-plan membership.',
+    requiredAuthScopes: ['read_products', 'write_products', 'write_purchase_options'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-relationship-roots.json`,
+      'config/parity-specs/product-relationship-roots-live-parity.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable products, collection, media, and selling-plan group, then deletes them during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     packageScript: 'conformance:capture-selling-plan-groups',
     scriptPath: 'scripts/capture-selling-plan-group-conformance.ts',
     purpose: 'Selling-plan group lifecycle, membership mutation payloads, and downstream product/variant reads.',
@@ -577,6 +592,19 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [`${CAPTURE_ROOT}delivery-profile-*.json`, 'config/parity-specs/delivery-profile-*.json'],
     cleanupBehavior: 'Removes or restores created delivery profile artifacts; review default-profile protections.',
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
+  },
+  {
+    domain: 'shipping-fulfillments',
+    packageScript: 'conformance:capture-shipping-settings',
+    scriptPath: 'scripts/capture-shipping-settings-conformance.ts',
+    purpose: 'Shipping package, local pickup, carrier availability, and constraint-root blocker evidence.',
+    requiredAuthScopes: ['read_shipping', 'write_shipping', 'read_locations', 'write_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}shipping-settings-package-pickup-constraints.json`,
+      'config/parity-specs/shipping-settings-package-pickup-constraints.json',
+    ],
+    cleanupBehavior: 'Enables and disables local pickup on an active location to restore the pre-capture setting.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
     domain: 'bulk-operations',

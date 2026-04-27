@@ -32,6 +32,8 @@ Nested content behavior:
 - `Comment.article` resolves through the local article graph
 - `Article.author`, `articleAuthors`, and `articleTags` are derived from local article data
 
+The HAR-352 parity promotion captures a Shopify quirk where top-level `articles` omitted a locally updated unpublished article while the same article still appeared through `Blog.articles`, `Article.blog`, `articleAuthors`, and `articleTags`. The proxy now mirrors that boundary: top-level `articles` filters out records with `isPublished: false`, while nested blog/article helper reads continue to expose the effective local graph.
+
 Metafield, translation, and event subresources on these content types remain shallow: local reads return empty connections, empty translation lists, or `null` singular metafields rather than inventing unsupported subresource data.
 
 ## Content mutation behavior
@@ -113,7 +115,7 @@ These roots can affect the live storefront, tracking integrations, theme assets,
 
 ## Evidence and blockers
 
-- Current content evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store-content-lifecycle.json` captures content catalog/detail/empty reads, blog/page/article lifecycle success paths with downstream reads, and unknown-id comment moderation/delete userErrors.
+- Current content evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store-content-lifecycle.json` captures content catalog/detail/empty reads, blog/page/article lifecycle success paths with downstream reads, and unknown-id comment moderation/delete userErrors. HAR-352 promotes this fixture through `config/parity-specs/online-store-content-lifecycle.json` and `config/parity-requests/online-store-content-*.graphql`; `corepack pnpm conformance:parity` seeds the captured baseline read, replays local create/update/read/delete/comment guardrail requests, and strictly compares stable payload/count/null-empty/userErrors fields against the recording.
 - Current presentation/integration evidence: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-graphql-root-operation-introspection.json` proves the HAR-304 query and mutation root names exist in the captured Admin GraphQL schema.
 - Current HAR-304 blocker: no checked-in parity scenario or live capture records presentation/integration read shapes, validation branches, or safe lifecycle behavior for those roots.
 - Safety boundary: publish, theme-file, pixel, script tag, token, and mobile-platform mutations are externally visible and must not be marked implemented from validation-only or branch-only evidence.

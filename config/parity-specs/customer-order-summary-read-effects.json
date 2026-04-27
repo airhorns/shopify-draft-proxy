@@ -1,16 +1,202 @@
 {
   "scenarioId": "customer-order-summary-read-effects",
-  "operationNames": ["customer", "customers", "customersCount", "orderCustomerSet", "orderCustomerRemove"],
+  "operationNames": [
+    "customer",
+    "customers",
+    "customersCount",
+    "customerCreate",
+    "orderCustomerSet",
+    "orderCustomerRemove"
+  ],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "downstream-read-parity", "runtime-staging"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customer-order-summary-read-effects.json"
   ],
   "runtimeTestFiles": ["tests/integration/order-lifecycle-payment-customer-flow.test.ts"],
-  "comparisonMode": "captured-fixture",
-  "notes": "Captured HAR-288 customer order-summary read effects against 2026-04: a disposable customer starts with empty `orders`, `lastOrder: null`, `numberOfOrders: \"0\"`, and zero `amountSpent`; after `orderCustomerSet`, `customer.orders` immediately exposes the linked order, while `numberOfOrders`, `amountSpent`, and `lastOrder` remain at their existing customer summary values in the immediate read; after `orderCustomerRemove`, the customer returns to the empty order connection. Local runtime parity is enforced by the order lifecycle/payment/customer integration flow because the generic parity runner does not chain setup, mutation, read, cleanup, and restore operations for this multi-step scenario.",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customer-order-summary-create-customer.graphql",
+    "variables": {
+      "input": {
+        "email": "har-288-customer-order-summary-1777250739747@example.com",
+        "firstName": "HAR-288",
+        "lastName": "Order Summary"
+      }
+    }
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict comparison now replays the HAR-288 customer order-summary read-effects trace through the local proxy harness. The runner seeds the captured order, stages customer setup locally, then compares before-set reads, orderCustomerSet, after-set reads, orderCustomerRemove, and after-remove reads. The comparison focuses on the immediate customer/order association behavior captured by Shopify: Customer.orders exposes the linked order after set and returns empty after remove, while lastOrder stays at the baseline. Expected differences are limited to locally generated customer IDs, opaque order connection cursors, and the existing local representation gap where freshly staged customers use numeric/null summary defaults instead of Shopify's string zero and shop-currency money object.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-customer",
+        "capturePath": "$.setup.response.data.customerCreate",
+        "proxyPath": "$.data.customerCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy stages the setup customer locally and returns a stable synthetic Customer GID instead of Shopify's live Customer GID."
+          },
+          {
+            "path": "$.customer.amountSpent",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Freshly staged customers do not yet synthesize Shopify's shop-currency zero amountSpent object."
+          },
+          {
+            "path": "$.customer.numberOfOrders",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Freshly staged customers currently store numberOfOrders as numeric zero while this live capture returns string zero."
+          }
+        ]
+      },
+      {
+        "name": "before-set-read",
+        "capturePath": "$.beforeSet.response.data.customer",
+        "proxyPath": "$.data.customer",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customer-order-summary-read.graphql",
+          "variables": {
+            "id": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "emailQuery": "email:har-288-customer-order-summary-1777250739747@example.com"
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy reads the locally staged setup customer."
+          },
+          {
+            "path": "$.amountSpent",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Freshly staged customers do not yet synthesize Shopify's shop-currency zero amountSpent object."
+          },
+          {
+            "path": "$.numberOfOrders",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Freshly staged customers currently store numberOfOrders as numeric zero while this live capture returns string zero."
+          }
+        ]
+      },
+      {
+        "name": "set-customer",
+        "capturePath": "$.orderCustomerSet.response.data.orderCustomerSet",
+        "proxyPath": "$.data.orderCustomerSet",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customer-order-summary-set.graphql",
+          "variables": {
+            "orderId": "gid://shopify/Order/8710861881650",
+            "customerId": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.order.customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy links the order to the locally staged setup customer."
+          }
+        ]
+      },
+      {
+        "name": "after-set-read",
+        "capturePath": "$.afterSet.response.data.customer",
+        "proxyPath": "$.data.customer",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customer-order-summary-read.graphql",
+          "variables": {
+            "id": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "emailQuery": "email:har-288-customer-order-summary-1777250739747@example.com"
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy reads the locally staged setup customer."
+          },
+          {
+            "path": "$.amountSpent",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Freshly staged customers do not yet synthesize Shopify's shop-currency zero amountSpent object."
+          },
+          {
+            "path": "$.numberOfOrders",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Freshly staged customers currently store numberOfOrders as numeric zero while this live capture returns string zero."
+          },
+          {
+            "path": "$.orders.nodes[*].customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy links the order to the locally staged setup customer."
+          },
+          {
+            "path": "$.orders.edges[*].cursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
+          },
+          {
+            "path": "$.orders.pageInfo.startCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
+          },
+          {
+            "path": "$.orders.pageInfo.endCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
+          }
+        ]
+      },
+      {
+        "name": "remove-customer",
+        "capturePath": "$.orderCustomerRemove.response.data.orderCustomerRemove",
+        "proxyPath": "$.data.orderCustomerRemove",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customer-order-summary-remove.graphql",
+          "variables": {
+            "orderId": "gid://shopify/Order/8710861881650"
+          }
+        }
+      },
+      {
+        "name": "after-remove-read",
+        "capturePath": "$.afterRemove.response.data.customer",
+        "proxyPath": "$.data.customer",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customer-order-summary-read.graphql",
+          "variables": {
+            "id": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "emailQuery": "email:har-288-customer-order-summary-1777250739747@example.com"
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy reads the locally staged setup customer."
+          },
+          {
+            "path": "$.amountSpent",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Freshly staged customers do not yet synthesize Shopify's shop-currency zero amountSpent object."
+          },
+          {
+            "path": "$.numberOfOrders",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Freshly staged customers currently store numberOfOrders as numeric zero while this live capture returns string zero."
+          }
+        ]
+      }
+    ]
   }
 }

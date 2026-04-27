@@ -1,6 +1,6 @@
 {
   "scenarioId": "order-edit-set-quantity-live-parity",
-  "operationNames": ["orderEditSetQuantity"],
+  "operationNames": ["orderEditBegin", "orderEditSetQuantity"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity"],
   "liveCaptureFiles": [

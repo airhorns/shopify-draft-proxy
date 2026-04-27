@@ -1,0 +1,11 @@
+mutation UpdateUnknown($id: ID!) {
+  fulfillmentServiceUpdate(id: $id, name: "Nope") {
+    fulfillmentService {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

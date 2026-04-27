@@ -1,0 +1,122 @@
+{
+  "capturedAt": "2026-04-27T07:20:00.000Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "purpose": "HAR-324 delivery customization, promise, provider, and settings read/blocker evidence.",
+  "credentialScopeSummary": {
+    "present": ["read_shipping", "write_shipping"],
+    "missingObserved": ["read_delivery_customizations", "read_delivery_promises"]
+  },
+  "settingsRead": {
+    "request": {
+      "query": "query DeliverySettingsOnly { deliverySettings { legacyModeProfiles legacyModeBlocked { blocked reasons } } deliveryPromiseSettings { deliveryDatesEnabled processingTime } }"
+    },
+    "status": 200,
+    "payload": {
+      "data": {
+        "deliverySettings": {
+          "legacyModeProfiles": false,
+          "legacyModeBlocked": {
+            "blocked": false,
+            "reasons": null
+          }
+        },
+        "deliveryPromiseSettings": {
+          "deliveryDatesEnabled": false,
+          "processingTime": null
+        }
+      }
+    }
+  },
+  "deliveryCustomizationDetailBlocker": {
+    "request": {
+      "query": "query DeliveryCustomizationMissing($missingId: ID!) { deliveryCustomization(id: $missingId) { id title enabled functionId } }",
+      "variables": {
+        "missingId": "gid://shopify/DeliveryCustomization/0"
+      }
+    },
+    "status": 200,
+    "payload": {
+      "errors": [
+        {
+          "message": "Access denied for deliveryCustomization field. Required access: `read_delivery_customizations` access scope.",
+          "extensions": {
+            "code": "ACCESS_DENIED",
+            "documentation": "https://shopify.dev/api/usage/access-scopes",
+            "requiredAccess": "`read_delivery_customizations` access scope."
+          },
+          "path": ["deliveryCustomization"]
+        }
+      ],
+      "data": {
+        "deliveryCustomization": null
+      }
+    }
+  },
+  "deliveryCustomizationCatalogBlocker": {
+    "request": {
+      "query": "query DeliveryCustomizationCatalog($first: Int!) { deliveryCustomizations(first: $first) { nodes { id title enabled functionId } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }",
+      "variables": {
+        "first": 5
+      }
+    },
+    "status": 200,
+    "payload": {
+      "errors": [
+        {
+          "message": "Access denied for deliveryCustomizations field. Required access: `read_delivery_customizations` access scope.",
+          "extensions": {
+            "code": "ACCESS_DENIED",
+            "documentation": "https://shopify.dev/api/usage/access-scopes",
+            "requiredAccess": "`read_delivery_customizations` access scope."
+          },
+          "path": ["deliveryCustomizations"]
+        }
+      ],
+      "data": null
+    }
+  },
+  "deliveryPromiseReadBlockers": {
+    "request": {
+      "query": "query DeliveryPromiseBranches($ownerIds: [ID!], $handle: String!, $locationId: ID!) { deliveryPromiseParticipants(ownerIds: $ownerIds, brandedPromiseHandle: $handle, first: 5) { nodes { id ownerType owner { __typename } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } deliveryPromiseProvider(locationId: $locationId) { id active fulfillmentDelay timeZone location { id name } } }",
+      "variables": {
+        "ownerIds": [],
+        "handle": "codex-har-324-empty-promise",
+        "locationId": "gid://shopify/Location/106318463282"
+      }
+    },
+    "status": 200,
+    "payload": {
+      "errors": [
+        {
+          "message": "Access denied for deliveryPromiseParticipants field. Required access: `read_delivery_promises` access scope.",
+          "extensions": {
+            "code": "ACCESS_DENIED",
+            "documentation": "https://shopify.dev/api/usage/access-scopes",
+            "requiredAccess": "`read_delivery_promises` access scope."
+          },
+          "path": ["deliveryPromiseParticipants"]
+        },
+        {
+          "message": "Access denied for deliveryPromiseProvider field. Required access: `read_delivery_promises` access scope.",
+          "extensions": {
+            "code": "ACCESS_DENIED",
+            "documentation": "https://shopify.dev/api/usage/access-scopes",
+            "requiredAccess": "`read_delivery_promises` access scope."
+          },
+          "path": ["deliveryPromiseProvider"]
+        }
+      ],
+      "data": {
+        "deliveryPromiseParticipants": null,
+        "deliveryPromiseProvider": null
+      }
+    }
+  },
+  "notes": [
+    "The successful settings read is used only for the read-only snapshot branch.",
+    "Customization and promise blockers are not treated as empty successful reads.",
+    "Delivery customization mutations are Shopify Function-backed and remain unsupported until authorized success and validation captures exist.",
+    "Delivery promise and delivery setting mutations remain unsupported until access, eligibility, and downstream read-after-write behavior are captured."
+  ]
+}

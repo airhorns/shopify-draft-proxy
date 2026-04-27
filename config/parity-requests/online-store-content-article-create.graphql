@@ -1,0 +1,30 @@
+mutation OnlineStoreContentArticleCreate($article: ArticleCreateInput!) {
+  articleCreate(article: $article) {
+    article {
+      id
+      title
+      handle
+      body
+      summary
+      tags
+      isPublished
+      templateSuffix
+      author {
+        name
+      }
+      blog {
+        id
+        title
+        handle
+      }
+      commentsCount {
+        count
+        precision
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -87,16 +87,6 @@
     "supportNotes": "Serializes a distinct sorted StringConnection from effective local vendor values; absent product data returns an empty connection."
   },
   {
-    "name": "productSavedSearches",
-    "type": "query",
-    "domain": "products",
-    "execution": "overlay-read",
-    "implemented": true,
-    "matchNames": ["productSavedSearches", "ProductSavedSearches"],
-    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
-    "supportNotes": "Snapshot/local support currently returns Shopify-like empty SavedSearchConnection behavior; saved search CRUD/storage remains unsupported."
-  },
-  {
     "name": "productOperation",
     "type": "query",
     "domain": "products",
@@ -473,6 +463,16 @@
     "matchNames": ["inventoryItems", "InventoryItems"],
     "runtimeTests": ["tests/integration/inventory-quantity-roots.test.ts"],
     "supportNotes": "Lists the effective product-backed inventory items from normalized product variant state, including empty no-data connections and a narrow id/sku/tracked search slice."
+  },
+  {
+    "name": "inventoryShipment",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["inventoryShipment", "InventoryShipment"],
+    "runtimeTests": ["tests/integration/inventory-shipment-flow.test.ts"],
+    "supportNotes": "Reads locally staged inventory shipments and returns null for unknown ids in snapshot mode. Current support is scoped to product-backed inventory items and shipment line/status/tracking fields captured through 2025-01 schema introspection."
   },
   {
     "name": "inventoryLevel",
@@ -1606,6 +1606,46 @@
     "supportNotes": "HAR-308 stages product variant membership removal locally and returns removedProductVariantIds with Shopify-like unknown-id userErrors."
   },
   {
+    "name": "productJoinSellingPlanGroups",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["productJoinSellingPlanGroups", "ProductJoinSellingPlanGroups"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-299 stages product-to-selling-plan-group membership locally and exposes product.sellingPlanGroups / counts without runtime Shopify writes."
+  },
+  {
+    "name": "productLeaveSellingPlanGroups",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["productLeaveSellingPlanGroups", "ProductLeaveSellingPlanGroups"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-299 stages product selling-plan-group membership removal locally and refreshes downstream product membership reads."
+  },
+  {
+    "name": "productVariantJoinSellingPlanGroups",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["productVariantJoinSellingPlanGroups", "ProductVariantJoinSellingPlanGroups"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-299 stages variant-to-selling-plan-group membership locally and exposes ProductVariant.sellingPlanGroups / direct counts without runtime Shopify writes."
+  },
+  {
+    "name": "productVariantLeaveSellingPlanGroups",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["productVariantLeaveSellingPlanGroups", "ProductVariantLeaveSellingPlanGroups"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-299 stages variant selling-plan-group membership removal locally and refreshes downstream ProductVariant membership reads."
+  },
+  {
     "name": "tagsAdd",
     "type": "mutation",
     "domain": "products",
@@ -1902,6 +1942,246 @@
     "matchNames": ["shopPolicyUpdate", "ShopPolicyUpdate"],
     "runtimeTests": ["tests/integration/shop-policy-update-flow.test.ts"],
     "supportNotes": "HAR-173: stages legal policy updates locally by ShopPolicyType, preserves raw mutation requests for commit replay, and overlays downstream shop.shopPolicies reads without proxying supported requests upstream."
+  },
+  {
+    "name": "productSavedSearches",
+    "type": "query",
+    "domain": "saved-searches",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productSavedSearches", "ProductSavedSearches"],
+    "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
+    "supportNotes": "HAR-312: serves Product SavedSearch connections from effective local saved-search state with Shopify-like empty connection and cursor pageInfo behavior."
+  },
+  {
+    "name": "collectionSavedSearches",
+    "type": "query",
+    "domain": "saved-searches",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["collectionSavedSearches", "CollectionSavedSearches"],
+    "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
+    "supportNotes": "HAR-312: serves Collection SavedSearch connections from effective local saved-search state with Shopify-like empty connection and cursor pageInfo behavior."
+  },
+  {
+    "name": "customerSavedSearches",
+    "type": "query",
+    "domain": "saved-searches",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["customerSavedSearches", "CustomerSavedSearches"],
+    "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
+    "supportNotes": "HAR-312: serves Customer SavedSearch connections, including local query filtering by name/query/resource type, from effective local saved-search state."
+  },
+  {
+    "name": "orderSavedSearches",
+    "type": "query",
+    "domain": "saved-searches",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["orderSavedSearches", "OrderSavedSearches"],
+    "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
+    "supportNotes": "HAR-312: serves Order SavedSearch connections from effective local saved-search state with captured default-order saved-search shapes represented as records when hydrated or staged."
+  },
+  {
+    "name": "draftOrderSavedSearches",
+    "type": "query",
+    "domain": "saved-searches",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["draftOrderSavedSearches", "DraftOrderSavedSearches"],
+    "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
+    "supportNotes": "HAR-312: serves DraftOrder SavedSearch connections from effective local saved-search state with Shopify-like empty connection behavior when absent."
+  },
+  {
+    "name": "fileSavedSearches",
+    "type": "query",
+    "domain": "saved-searches",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["fileSavedSearches", "FileSavedSearches"],
+    "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
+    "supportNotes": "HAR-312: serves File SavedSearch connections from effective local saved-search state with Shopify-like empty connection behavior when absent."
+  },
+  {
+    "name": "codeDiscountSavedSearches",
+    "type": "query",
+    "domain": "saved-searches",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["codeDiscountSavedSearches", "CodeDiscountSavedSearches"],
+    "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
+    "supportNotes": "HAR-312: serves code-discount SavedSearch roots from locally staged PRICE_RULE saved searches; automatic/code subtype distinction needs deeper discount saved-search evidence."
+  },
+  {
+    "name": "automaticDiscountSavedSearches",
+    "type": "query",
+    "domain": "saved-searches",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["automaticDiscountSavedSearches", "AutomaticDiscountSavedSearches"],
+    "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
+    "supportNotes": "HAR-312: serves automatic-discount SavedSearch roots from locally staged PRICE_RULE saved searches; automatic/code subtype distinction needs deeper discount saved-search evidence."
+  },
+  {
+    "name": "discountRedeemCodeSavedSearches",
+    "type": "query",
+    "domain": "saved-searches",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["discountRedeemCodeSavedSearches", "DiscountRedeemCodeSavedSearches"],
+    "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
+    "supportNotes": "HAR-312: serves DiscountRedeemCode SavedSearch connections from effective local saved-search state with local query filtering."
+  },
+  {
+    "name": "savedSearchCreate",
+    "type": "mutation",
+    "domain": "saved-searches",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["savedSearchCreate", "SavedSearchCreate"],
+    "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
+    "supportNotes": "HAR-312: stages supported saved-search resource types locally, derives searchTerms/filters from the Admin query string, and leaves URL_REDIRECT saved searches unsupported until navigation-scope conformance succeeds."
+  },
+  {
+    "name": "savedSearchUpdate",
+    "type": "mutation",
+    "domain": "saved-searches",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["savedSearchUpdate", "SavedSearchUpdate"],
+    "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
+    "supportNotes": "HAR-312: stages saved-search name/query updates locally and returns the captured missing-id userError shape for unknown saved searches."
+  },
+  {
+    "name": "savedSearchDelete",
+    "type": "mutation",
+    "domain": "saved-searches",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["savedSearchDelete", "SavedSearchDelete"],
+    "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
+    "supportNotes": "HAR-312: stages saved-search deletion tombstones locally and returns the captured missing-id userError shape for unknown saved searches."
+  },
+  {
+    "name": "urlRedirectSavedSearches",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["urlRedirectSavedSearches", "UrlRedirectSavedSearches"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-312 blocker: current live conformance credential returns ACCESS_DENIED requiring `read_online_store_navigation`; do not implement until URL redirect saved-search success/empty behavior is captured."
+  },
+  {
+    "name": "urlRedirects",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["urlRedirects", "UrlRedirects"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-312 blocker: current live conformance credential returns ACCESS_DENIED for urlRedirects; local catalog/search/pageInfo support needs `read_online_store_navigation` capture."
+  },
+  {
+    "name": "urlRedirectsCount",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["urlRedirectsCount", "UrlRedirectsCount"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-312 blocker: current live conformance credential returns ACCESS_DENIED requiring `read_online_store_navigation`; local count support needs captured empty/non-empty behavior."
+  },
+  {
+    "name": "urlRedirectCreate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["urlRedirectCreate", "UrlRedirectCreate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-312 blocker: current live conformance credential returns ACCESS_DENIED requiring `write_online_store_navigation`; do not stage until create validation, normalization, and downstream reads are captured."
+  },
+  {
+    "name": "urlRedirectUpdate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["urlRedirectUpdate", "UrlRedirectUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-312 blocker: URL redirect update needs `write_online_store_navigation` success and missing-id behavior capture before local support."
+  },
+  {
+    "name": "urlRedirectDelete",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["urlRedirectDelete", "UrlRedirectDelete"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-312 blocker: URL redirect delete needs `write_online_store_navigation` success and downstream null/count behavior capture before local support."
+  },
+  {
+    "name": "urlRedirectBulkDeleteAll",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["urlRedirectBulkDeleteAll", "UrlRedirectBulkDeleteAll"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-312 blocker: destructive bulk URL redirect deletion must not be supported until scoped behavior, job shape, and downstream effects are captured and modeled locally."
+  },
+  {
+    "name": "urlRedirectBulkDeleteByIds",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["urlRedirectBulkDeleteByIds", "UrlRedirectBulkDeleteByIds"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-312 blocker: bulk URL redirect deletion by ids needs conformance-backed job/deletion semantics before local support."
+  },
+  {
+    "name": "urlRedirectBulkDeleteBySavedSearch",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["urlRedirectBulkDeleteBySavedSearch", "UrlRedirectBulkDeleteBySavedSearch"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-312 blocker: bulk URL redirect deletion by saved search depends on URL redirect saved-search capture and job/deletion semantics."
+  },
+  {
+    "name": "urlRedirectBulkDeleteBySearch",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["urlRedirectBulkDeleteBySearch", "UrlRedirectBulkDeleteBySearch"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-312 blocker: bulk URL redirect deletion by search needs captured search matching, job shape, and deletion effects before local support."
+  },
+  {
+    "name": "urlRedirectImportCreate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["urlRedirectImportCreate", "UrlRedirectImportCreate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-312 blocker: current live conformance credential returns ACCESS_DENIED requiring `write_online_store_navigation`; import create also needs CSV fetch/preview behavior modeled before support."
+  },
+  {
+    "name": "urlRedirectImportSubmit",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["urlRedirectImportSubmit", "UrlRedirectImportSubmit"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-312 blocker: URL redirect import submit is an async job path and must wait for import-create success fixtures, job shape, and downstream redirect effects."
   },
   {
     "name": "article",
@@ -2598,10 +2878,10 @@
     "type": "mutation",
     "domain": "bulk-operations",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["bulkOperationRunQuery", "BulkOperationRunQuery"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-261 root-level Bulk Operations export mutation gap. Future support must stage a local asynchronous query-export job, preserve the original raw mutation for commit, and emulate payload/userErrors/status/read-after-write effects without sending supported runtime requests to Shopify."
+    "runtimeTests": ["tests/integration/bulk-operation-conformance-flow.test.ts"],
+    "supportNotes": "HAR-264: stages supported products/productVariants query exports locally, writes completed BulkOperation jobs plus JSONL result records, retains original raw mutation bodies in the mutation log, and returns local userErrors for unsupported roots, malformed query strings, groupObjects, and unsupported nested connection shapes without runtime Shopify passthrough."
   },
   {
     "name": "bulkOperationRunMutation",
@@ -2655,10 +2935,10 @@
     "type": "mutation",
     "domain": "products",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["productOptionsReorder", "ProductOptionsReorder"],
-    "runtimeTests": [],
-    "supportNotes": "Live schema introspection confirms `productOptionsReorder(productId: ID!, options: [OptionReorderInput!]!)` returns `product` plus `userErrors`. Keep unimplemented until option/value reorder semantics and the resulting variant order recalculation are backed by conformance evidence; registry presence must not make this a supported passthrough."
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
+    "supportNotes": "HAR-299 stages option and option-value reorder locally, remaps variant selectedOptions/title order, and sorts the variant connection from the reordered option/value sequence without runtime Shopify writes."
   },
   {
     "name": "productVariantsBulkCreate",
@@ -2762,6 +3042,36 @@
     "supportNotes": "Local staging applies `MoveInput` media moves to the effective product media order, returns an async-style `Job`, and exposes the reordered media/image connections without runtime Shopify writes."
   },
   {
+    "name": "productVariantAppendMedia",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["productVariantAppendMedia", "ProductVariantAppendMedia"],
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
+    "supportNotes": "HAR-299 stages variant-specific media attachments as ordered media IDs on ProductVariant and exposes ProductVariant.media without runtime Shopify writes."
+  },
+  {
+    "name": "productVariantDetachMedia",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["productVariantDetachMedia", "ProductVariantDetachMedia"],
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
+    "supportNotes": "HAR-299 stages variant-specific media detaches locally and updates ProductVariant.media reads without removing product-level media."
+  },
+  {
+    "name": "productVariantRelationshipBulkUpdate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["productVariantRelationshipBulkUpdate", "ProductVariantRelationshipBulkUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-299 registers the bundle relationship root as an explicit gap. Full support requires normalized ProductVariantComponent state, bundle-specific validation, and downstream productVariantComponents reads; do not mark validation-only or branch-only handling as implemented."
+  },
+  {
     "name": "inventoryItemUpdate",
     "type": "mutation",
     "domain": "products",
@@ -2825,6 +3135,96 @@
     "implemented": true,
     "matchNames": ["inventoryBulkToggleActivation", "InventoryBulkToggleActivation"],
     "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
+  },
+  {
+    "name": "inventoryShipmentCreate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryShipmentCreate", "InventoryShipmentCreate"],
+    "runtimeTests": ["tests/integration/inventory-shipment-flow.test.ts"],
+    "supportNotes": "Stages a draft shipment over existing product-backed inventory items with local line-item, tracking, and read-after-write detail support. Transfer/movement routing remains opaque until HAR-307 transfer state is available."
+  },
+  {
+    "name": "inventoryShipmentCreateInTransit",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryShipmentCreateInTransit", "InventoryShipmentCreateInTransit"],
+    "runtimeTests": ["tests/integration/inventory-shipment-flow.test.ts"],
+    "supportNotes": "Stages an in-transit shipment locally and increases the destination inventory item's incoming quantity in the first known product-backed inventory level."
+  },
+  {
+    "name": "inventoryShipmentAddItems",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryShipmentAddItems", "InventoryShipmentAddItems"],
+    "runtimeTests": ["tests/integration/inventory-shipment-flow.test.ts"],
+    "supportNotes": "Stages line-item additions for local draft/in-transit shipments and updates incoming inventory for in-transit additions."
+  },
+  {
+    "name": "inventoryShipmentRemoveItems",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryShipmentRemoveItems", "InventoryShipmentRemoveItems"],
+    "runtimeTests": ["tests/integration/inventory-shipment-flow.test.ts"],
+    "supportNotes": "Stages line-item removal for local draft/in-transit shipments and reverses unreceived incoming inventory for removed in-transit items."
+  },
+  {
+    "name": "inventoryShipmentUpdateItemQuantities",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryShipmentUpdateItemQuantities", "InventoryShipmentUpdateItemQuantities"],
+    "runtimeTests": ["tests/integration/inventory-shipment-flow.test.ts"],
+    "supportNotes": "Stages local shipment line quantity changes, rejecting quantities below already received amounts and updating incoming inventory deltas for in-transit shipments."
+  },
+  {
+    "name": "inventoryShipmentSetTracking",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryShipmentSetTracking", "InventoryShipmentSetTracking"],
+    "runtimeTests": ["tests/integration/inventory-shipment-flow.test.ts"],
+    "supportNotes": "Stages local shipment tracking details for unreceived shipments."
+  },
+  {
+    "name": "inventoryShipmentMarkInTransit",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryShipmentMarkInTransit", "InventoryShipmentMarkInTransit"],
+    "runtimeTests": ["tests/integration/inventory-shipment-flow.test.ts"],
+    "supportNotes": "Stages draft-to-in-transit transition locally and increases incoming inventory for unreceived shipment quantities."
+  },
+  {
+    "name": "inventoryShipmentReceive",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryShipmentReceive", "InventoryShipmentReceive"],
+    "runtimeTests": ["tests/integration/inventory-shipment-flow.test.ts"],
+    "supportNotes": "Stages accepted/rejected receipt quantities locally. Accepted quantities move from incoming to available/on_hand inventory; rejected quantities only reduce incoming."
+  },
+  {
+    "name": "inventoryShipmentDelete",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryShipmentDelete", "InventoryShipmentDelete"],
+    "runtimeTests": ["tests/integration/inventory-shipment-flow.test.ts"],
+    "supportNotes": "Deletes local draft/in-transit shipments and reverses unreceived incoming inventory for in-transit shipment lines. Received shipments return a local status userError."
   },
   {
     "name": "metafieldsSet",
@@ -3134,6 +3534,16 @@
     "implemented": true,
     "matchNames": ["collectionAddProducts", "CollectionAddProducts"],
     "runtimeTests": ["tests/integration/collection-draft-flow.test.ts"]
+  },
+  {
+    "name": "collectionAddProductsV2",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["collectionAddProductsV2", "CollectionAddProductsV2"],
+    "runtimeTests": ["tests/integration/collection-draft-flow.test.ts"],
+    "supportNotes": "HAR-299 stages the V2 async-shaped collection add locally, returning a Job payload while making downstream collection/product membership reads observe the new manual-order memberships."
   },
   {
     "name": "collectionRemoveProducts",
@@ -3988,10 +4398,10 @@
     "type": "query",
     "domain": "shipping-fulfillments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["availableCarrierServices", "AvailableCarrierServices"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL carrier-service availability root. Registry-only declared gap until active carrier service/location pairing and empty-list behavior are captured."
+    "runtimeTests": ["tests/integration/shipping-settings-flow.test.ts"],
+    "supportNotes": "Admin GraphQL carrier-service availability root. Snapshot/local reads pair active local DeliveryCarrierService records with active merchant-managed locations and return an empty list when no local carrier services are available; local staging never invokes rate or service-discovery callbacks."
   },
   {
     "name": "carrierService",
@@ -4154,6 +4564,66 @@
     "supportNotes": "Short-circuits recipient notification payloads locally for existing gift cards; no customer-visible email/notification side effect is sent during supported runtime handling."
   },
   {
+    "name": "deliveryCustomization",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["deliveryCustomization", "DeliveryCustomization"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 declared gap. Live 2025-01 probe returned ACCESS_DENIED requiring `read_delivery_customizations`; do not synthesize function-backed customization detail reads until an authorized capture records shape, metafields, function ownership, and missing-id behavior."
+  },
+  {
+    "name": "deliveryCustomizations",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["deliveryCustomizations", "DeliveryCustomizations"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 declared gap. Live 2025-01 probe returned ACCESS_DENIED requiring `read_delivery_customizations`; catalog sorting, search, pagination, and empty/no-data behavior need an authorized capture before local support."
+  },
+  {
+    "name": "deliveryPromiseParticipants",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["deliveryPromiseParticipants", "DeliveryPromiseParticipants"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 declared gap. Live 2025-01 probe returned ACCESS_DENIED requiring `read_delivery_promises`; participant owner eligibility, branded promise handles, connection pagination, and empty behavior need captured evidence before local support."
+  },
+  {
+    "name": "deliveryPromiseProvider",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["deliveryPromiseProvider", "DeliveryPromiseProvider"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 declared gap. Live 2025-01 probe returned ACCESS_DENIED requiring `read_delivery_promises`; provider state by location and downstream mutation effects need authorized capture before local support."
+  },
+  {
+    "name": "deliveryPromiseSettings",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["deliveryPromiseSettings", "DeliveryPromiseSettings"],
+    "runtimeTests": ["tests/integration/delivery-settings-query-shapes.test.ts"],
+    "supportNotes": "HAR-324 fixture-backed 2025-01 snapshot read. Local snapshot mode returns the captured no-promise-settings shape `deliveryDatesEnabled: false` and `processingTime: null`; mutation-backed promise provider/participant effects remain unsupported."
+  },
+  {
+    "name": "deliverySettings",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["deliverySettings", "DeliverySettings"],
+    "runtimeTests": ["tests/integration/delivery-settings-query-shapes.test.ts"],
+    "supportNotes": "HAR-324 fixture-backed 2025-01 snapshot read. Local snapshot mode returns captured no-legacy-mode settings with `legacyModeProfiles: false` and unblocked `legacyModeBlocked`; deliverySettingUpdate remains unsupported until setting transitions are modeled."
+  },
+  {
     "name": "deliveryProfile",
     "type": "query",
     "domain": "shipping-fulfillments",
@@ -4178,13 +4648,103 @@
     "type": "query",
     "domain": "shipping-fulfillments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": [
       "locationsAvailableForDeliveryProfilesConnection",
       "LocationsAvailableForDeliveryProfilesConnection"
     ],
+    "runtimeTests": ["tests/integration/shipping-settings-flow.test.ts"],
+    "supportNotes": "Delivery-profile origin-location helper root. Snapshot/local reads serialize active local locations through the shared connection helpers, including cursor pagination, reverse ordering, empty/no-data behavior, and local-pickup settings staged by locationLocalPickupEnable/Disable."
+  },
+  {
+    "name": "locationLocalPickupDisable",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["locationLocalPickupDisable", "LocationLocalPickupDisable"],
+    "runtimeTests": ["tests/integration/shipping-settings-flow.test.ts"],
+    "supportNotes": "Locally disables local pickup for active local Location records, returns captured ACTIVE_LOCATION_NOT_FOUND userErrors for unknown/inactive locations, updates downstream location(id:) and delivery-profile location reads, and preserves the original raw mutation for commit replay."
+  },
+  {
+    "name": "locationLocalPickupEnable",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["locationLocalPickupEnable", "LocationLocalPickupEnable"],
+    "runtimeTests": ["tests/integration/shipping-settings-flow.test.ts"],
+    "supportNotes": "Locally enables local pickup for active local Location records using captured DeliveryLocalPickupSettings payload shape, updates downstream location(id:) and delivery-profile location reads, and preserves the original raw mutation for commit replay."
+  },
+  {
+    "name": "shippingPackageDelete",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["shippingPackageDelete", "ShippingPackageDelete"],
+    "runtimeTests": ["tests/integration/shipping-settings-flow.test.ts"],
+    "supportNotes": "Locally stages deletion of normalized shipping packages and returns deletedId plus empty userErrors for known local package IDs. Unknown IDs return the captured RESOURCE_NOT_FOUND top-level GraphQL error shape."
+  },
+  {
+    "name": "shippingPackageMakeDefault",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["shippingPackageMakeDefault", "ShippingPackageMakeDefault"],
+    "runtimeTests": ["tests/integration/shipping-settings-flow.test.ts"],
+    "supportNotes": "Locally stages default package selection across normalized shipping packages and preserves raw mutation order for commit replay. Admin GraphQL exposes no package read root in this schema, so local visibility is through meta state and downstream package bookkeeping."
+  },
+  {
+    "name": "shippingPackageUpdate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["shippingPackageUpdate", "ShippingPackageUpdate"],
+    "runtimeTests": ["tests/integration/shipping-settings-flow.test.ts"],
+    "supportNotes": "Locally stages normalized custom shipping package name, type, default flag, weight, and dimensions updates for known package IDs. Unknown IDs return the captured RESOURCE_NOT_FOUND top-level GraphQL error shape."
+  },
+  {
+    "name": "fulfillmentConstraintRules",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["fulfillmentConstraintRules", "FulfillmentConstraintRules"],
     "runtimeTests": [],
-    "supportNotes": "Delivery-profile origin-location helper root. Registry-only declared gap until active origin location eligibility, pickup/local-delivery/shipping-rate configuration, and cursor behavior are captured."
+    "supportNotes": "Captured blocker: the current conformance credential receives ACCESS_DENIED requiring read_fulfillment_constraint_rules. Keep registry-only until rule visibility, Shopify Function shape, and scope requirements can be captured and modeled."
+  },
+  {
+    "name": "fulfillmentConstraintRuleCreate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentConstraintRuleCreate", "FulfillmentConstraintRuleCreate"],
+    "runtimeTests": [],
+    "supportNotes": "Captured blocker: the current conformance credential receives ACCESS_DENIED requiring write_fulfillment_constraint_rules. Do not mark supported until Shopify Function ownership, metafield side effects, and downstream rule reads are captured."
+  },
+  {
+    "name": "fulfillmentConstraintRuleDelete",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentConstraintRuleDelete", "FulfillmentConstraintRuleDelete"],
+    "runtimeTests": [],
+    "supportNotes": "Captured blocker: the current conformance credential receives ACCESS_DENIED requiring write_fulfillment_constraint_rules. Delete semantics remain registry-only until a scoped test app can capture success and downstream absence behavior."
+  },
+  {
+    "name": "fulfillmentConstraintRuleUpdate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentConstraintRuleUpdate", "FulfillmentConstraintRuleUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "Captured blocker: the current conformance credential receives ACCESS_DENIED requiring write_fulfillment_constraint_rules. Update semantics remain registry-only until delivery-method and downstream read behavior are captured."
   },
   {
     "name": "deliveryProfileCreate",
@@ -4215,6 +4775,76 @@
     "matchNames": ["deliveryProfileUpdate", "DeliveryProfileUpdate"],
     "runtimeTests": ["tests/integration/delivery-profile-lifecycle-flow.test.ts"],
     "supportNotes": "Admin GraphQL 2026-04 deliveryProfileUpdate stages locally for profile rename, nested location add/remove, location-group create/update/delete, zone create/update/delete, static rate method create/update/delete, condition update/delete, variant association/dissociation, and downstream profile reads. Legacy-mode transitions, carrier participant callbacks, and full selling-plan routing remain excluded until separately captured."
+  },
+  {
+    "name": "deliveryCustomizationActivation",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["deliveryCustomizationActivation", "DeliveryCustomizationActivation"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 function-backed mutation gap. Keep unsupported until activation/deactivation limits, Shopify Function ownership, custom-app eligibility, and downstream customization reads are captured and modeled locally."
+  },
+  {
+    "name": "deliveryCustomizationCreate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["deliveryCustomizationCreate", "DeliveryCustomizationCreate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 function-backed mutation gap. Current credential lacks `read_delivery_customizations`; do not stage create until functionId validation, metafield behavior, activation defaults, and downstream customization reads have authorized fixtures."
+  },
+  {
+    "name": "deliveryCustomizationDelete",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["deliveryCustomizationDelete", "DeliveryCustomizationDelete"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 function-backed mutation gap. Delete must remain unsupported until missing-id, ownership, metafield cleanup, and downstream detail/catalog absence are captured and modeled locally."
+  },
+  {
+    "name": "deliveryCustomizationUpdate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["deliveryCustomizationUpdate", "DeliveryCustomizationUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 function-backed mutation gap. Keep unsupported until title/enabled/metafield updates, immutable functionId behavior, validation errors, and downstream reads are captured and modeled locally."
+  },
+  {
+    "name": "deliveryPromiseParticipantsUpdate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["deliveryPromiseParticipantsUpdate", "DeliveryPromiseParticipantsUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 delivery-promise mutation gap. Live reads require `read_delivery_promises`; keep unsupported until branded promise handle validation, owner add/remove semantics, and participant read-after-write behavior are captured."
+  },
+  {
+    "name": "deliveryPromiseProviderUpsert",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["deliveryPromiseProviderUpsert", "DeliveryPromiseProviderUpsert"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 delivery-promise provider mutation gap. Keep unsupported until provider state by location, active/fulfillmentDelay/timeZone validation, access scopes, and downstream provider/settings reads are captured."
+  },
+  {
+    "name": "deliverySettingUpdate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["deliverySettingUpdate", "DeliverySettingUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 delivery-settings mutation gap. The local proxy supports the captured read-only no-legacy-mode settings shape, but setting transitions can alter shop delivery configuration and must remain unsupported until success and rollback behavior are captured."
   },
   {
     "name": "orderEditAddShippingLine",
@@ -4410,16 +5040,6 @@
     "matchNames": ["draftOrderAvailableDeliveryOptions", "DraftOrderAvailableDeliveryOptions"],
     "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"],
     "supportNotes": "Captured 2025-01 no-data behavior returns empty delivery-rate/local-delivery/local-pickup arrays and empty pageInfo. Local snapshot/live-hybrid helper reads mirror that empty/no-data shape."
-  },
-  {
-    "name": "draftOrderSavedSearches",
-    "type": "query",
-    "domain": "orders",
-    "execution": "overlay-read",
-    "implemented": true,
-    "matchNames": ["draftOrderSavedSearches", "DraftOrderSavedSearches"],
-    "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"],
-    "supportNotes": "Captured 2025-01 default draft-order saved searches are modeled as a stable local connection and can drive local bulk helper search selection by savedSearchId."
   },
   {
     "name": "draftOrderTag",
@@ -5739,16 +6359,6 @@
     "matchNames": ["files", "Files"],
     "runtimeTests": ["tests/integration/media-draft-flow.test.ts"],
     "supportNotes": "Serves snapshot and locally staged Files API records from normalized file state; live-hybrid overlay currently prefers local file state when present rather than merging upstream file catalogs."
-  },
-  {
-    "name": "fileSavedSearches",
-    "type": "query",
-    "domain": "media",
-    "execution": "overlay-read",
-    "implemented": true,
-    "matchNames": ["fileSavedSearches", "FileSavedSearches"],
-    "runtimeTests": ["tests/integration/media-draft-flow.test.ts"],
-    "supportNotes": "Returns Shopify-like empty saved-search connections in snapshot mode; saved search records are not modeled yet."
   },
   {
     "name": "stagedUploadsCreate",

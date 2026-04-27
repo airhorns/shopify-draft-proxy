@@ -1,0 +1,77 @@
+mutation OrderPaymentCapture($input: OrderCaptureInput!) {
+  orderCapture(input: $input) {
+    transaction {
+      id
+      kind
+      status
+      gateway
+      paymentId
+      paymentReferenceId
+      parentTransaction {
+        id
+        kind
+        status
+      }
+      amountSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    order {
+      id
+      displayFinancialStatus
+      capturable
+      totalCapturable
+      totalCapturableSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalOutstandingSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalReceivedSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      netPaymentSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      paymentGatewayNames
+      transactions {
+        id
+        kind
+        status
+        gateway
+        paymentId
+        paymentReferenceId
+        parentTransaction {
+          id
+          kind
+          status
+        }
+        amountSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -1,0 +1,27 @@
+mutation MetafieldDefinitionLifecycleCreate($definition: MetafieldDefinitionInput!) {
+  metafieldDefinitionCreate(definition: $definition) {
+    createdDefinition {
+      id
+      name
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      description
+      validations {
+        name
+        value
+      }
+      pinnedPosition
+      validationStatus
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

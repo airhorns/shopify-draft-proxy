@@ -1,0 +1,23 @@
+mutation OnlineStoreContentDelete($articleId: ID!, $pageId: ID!, $blogId: ID!) {
+  articleDelete(id: $articleId) {
+    deletedArticleId
+    userErrors {
+      field
+      message
+    }
+  }
+  pageDelete(id: $pageId) {
+    deletedPageId
+    userErrors {
+      field
+      message
+    }
+  }
+  blogDelete(id: $blogId) {
+    deletedBlogId
+    userErrors {
+      field
+      message
+    }
+  }
+}

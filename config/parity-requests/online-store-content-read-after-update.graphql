@@ -1,0 +1,70 @@
+query OnlineStoreContentReadAfterUpdate($blogId: ID!, $pageId: ID!, $articleId: ID!) {
+  blog(id: $blogId) {
+    id
+    title
+    articlesCount {
+      count
+      precision
+    }
+    articles(first: 5) {
+      nodes {
+        id
+        title
+        handle
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+  page(id: $pageId) {
+    id
+    title
+    isPublished
+  }
+  article(id: $articleId) {
+    id
+    title
+    isPublished
+    blog {
+      id
+      title
+    }
+  }
+  articles(first: 5, query: "har-303") {
+    nodes {
+      id
+      title
+      tags
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  articleAuthors(first: 10) {
+    nodes {
+      name
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  articleTags(limit: 20)
+  blogsCount {
+    count
+    precision
+  }
+  pagesCount {
+    count
+    precision
+  }
+}

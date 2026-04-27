@@ -1,0 +1,13 @@
+mutation ReturnClose($id: ID!) {
+  returnClose(id: $id) {
+    return {
+      id
+      status
+      closedAt
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -10,6 +10,7 @@ import type {
   BusinessEntityAddressRecord,
   BusinessEntityRecord,
   CarrierServiceRecord,
+  DeliveryLocalPickupSettingsRecord,
   FulfillmentServiceRecord,
   InventoryLevelRecord,
   LocationAddressRecord,
@@ -19,6 +20,9 @@ import type {
   PaymentSettingsRecord,
   ProductVariantRecord,
   ShopifyPaymentsAccountRecord,
+  ShippingPackageDimensionsRecord,
+  ShippingPackageRecord,
+  ShippingPackageWeightRecord,
   ShopAddressRecord,
   ShopBundlesFeatureRecord,
   ShopCartTransformEligibleOperationsRecord,
@@ -75,6 +79,17 @@ interface FulfillmentServiceUserErrorRecord {
 }
 
 interface CarrierServiceUserErrorRecord {
+  field: string[] | null;
+  message: string;
+}
+
+interface LocalPickupUserErrorRecord {
+  field: string[] | null;
+  message: string;
+  code: string | null;
+}
+
+interface ShippingPackageUserErrorRecord {
   field: string[] | null;
   message: string;
 }
@@ -798,6 +813,44 @@ function serializeLocationInventoryLevelsConnection(
   });
 }
 
+function serializeLocalPickupSettings(
+  settings: DeliveryLocalPickupSettingsRecord,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'DeliveryLocalPickupSettings') {
+        continue;
+      }
+      Object.assign(result, serializeLocalPickupSettings(settings, selection.selectionSet.selections));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'DeliveryLocalPickupSettings';
+        break;
+      case 'pickupTime':
+        result[key] = settings.pickupTime;
+        break;
+      case 'instructions':
+        result[key] = settings.instructions;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
 function findInventoryLevelForLocation(
   locationId: string,
   inventoryItemId: string,
@@ -934,6 +987,11 @@ function serializeLocation(
       }
       case 'inventoryLevels':
         result[key] = serializeLocationInventoryLevelsConnection(location, selection, variables);
+        break;
+      case 'localPickupSettingsV2':
+        result[key] = location.localPickupSettings
+          ? serializeLocalPickupSettings(location.localPickupSettings, selection.selectionSet?.selections ?? [])
+          : null;
         break;
       default:
         result[key] = null;
@@ -2561,6 +2619,110 @@ function serializeCarrierServicesConnection(
   });
 }
 
+function listLocationsAvailableForDeliveryProfiles(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): LocationRecord[] {
+  const args = getFieldArguments(field, variables);
+  const locations = listEffectiveLocations()
+    .filter((location) => location.deleted !== true && location.isActive !== false)
+    .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
+
+  return args['reverse'] === true ? locations.reverse() : locations;
+}
+
+function serializeLocationsAvailableForDeliveryProfilesConnection(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const locations = listLocationsAvailableForDeliveryProfiles(field, variables);
+  const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
+    locations,
+    field,
+    variables,
+    (location) => location.id,
+  );
+
+  return serializeConnection(field, {
+    items,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (location) => location.id,
+    serializeNode: (location, selection) =>
+      serializeLocation(location, selection.selectionSet?.selections ?? [], variables),
+  });
+}
+
+function serializeAvailableCarrierServiceLocation(
+  location: LocationRecord,
+  selections: readonly SelectionNode[],
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  return serializeLocation(location, selections, variables);
+}
+
+function serializeAvailableCarrierServicePair(
+  service: CarrierServiceRecord,
+  locations: LocationRecord[],
+  selections: readonly SelectionNode[],
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (
+        selection.typeCondition?.name.value &&
+        selection.typeCondition.name.value !== 'DeliveryCarrierServiceAndLocations'
+      ) {
+        continue;
+      }
+      Object.assign(
+        result,
+        serializeAvailableCarrierServicePair(service, locations, selection.selectionSet.selections, variables),
+      );
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'DeliveryCarrierServiceAndLocations';
+        break;
+      case 'carrierService':
+        result[key] = serializeCarrierService(service, selection.selectionSet?.selections ?? []);
+        break;
+      case 'locations':
+        result[key] = locations.map((location) =>
+          serializeAvailableCarrierServiceLocation(location, selection.selectionSet?.selections ?? [], variables),
+        );
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeAvailableCarrierServices(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Array<Record<string, unknown>> {
+  const locations = listEffectiveLocations().filter(
+    (location) => location.deleted !== true && location.isActive !== false && location.isFulfillmentService !== true,
+  );
+  const services = store.listEffectiveCarrierServices().filter((service) => service.active);
+
+  return services.map((service) =>
+    serializeAvailableCarrierServicePair(service, locations, field.selectionSet?.selections ?? [], variables),
+  );
+}
+
 function readCarrierServiceInput(args: Record<string, unknown>): Record<string, unknown> {
   const input = args['input'];
   return input && typeof input === 'object' && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
@@ -2772,6 +2934,419 @@ function serializeCarrierServiceDeletePayload(
         break;
       case 'userErrors':
         result[key] = serializeCarrierServiceUserErrors(payload.userErrors, selection.selectionSet?.selections ?? []);
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function localPickupLocationNotFound(
+  field: 'localPickupSettings' | 'locationId',
+  locationId: string | null,
+): LocalPickupUserErrorRecord {
+  const legacyId = locationId ? (readLegacyResourceIdFromGid(locationId) ?? locationId) : '';
+  return {
+    field: [field],
+    message: `Unable to find an active location for location ID ${legacyId}`,
+    code: 'ACTIVE_LOCATION_NOT_FOUND',
+  };
+}
+
+function serializeLocalPickupUserErrors(
+  userErrors: LocalPickupUserErrorRecord[],
+  selections: readonly SelectionNode[],
+): Array<Record<string, unknown>> {
+  return userErrors.map((userError) => {
+    const result: Record<string, unknown> = {};
+
+    for (const selection of selections) {
+      if (selection.kind === Kind.INLINE_FRAGMENT) {
+        Object.assign(result, serializeLocalPickupUserErrors([userError], selection.selectionSet.selections)[0] ?? {});
+        continue;
+      }
+
+      if (selection.kind !== Kind.FIELD) {
+        continue;
+      }
+
+      const key = responseKey(selection);
+      switch (selection.name.value) {
+        case '__typename':
+          result[key] = 'DeliveryLocationLocalPickupSettingsError';
+          break;
+        case 'field':
+          result[key] = userError.field ? structuredClone(userError.field) : null;
+          break;
+        case 'message':
+          result[key] = userError.message;
+          break;
+        case 'code':
+          result[key] = userError.code;
+          break;
+        default:
+          result[key] = null;
+      }
+    }
+
+    return result;
+  });
+}
+
+function readLocalPickupSettings(args: Record<string, unknown>): Record<string, unknown> {
+  const input = args['localPickupSettings'];
+  return input && typeof input === 'object' && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
+}
+
+function stageLocationLocalPickupEnable(args: Record<string, unknown>): {
+  localPickupSettings: DeliveryLocalPickupSettingsRecord | null;
+  userErrors: LocalPickupUserErrorRecord[];
+} {
+  const input = readLocalPickupSettings(args);
+  const locationId = typeof input['locationId'] === 'string' ? input['locationId'] : null;
+  const location = locationId ? findEffectiveLocationById(locationId) : null;
+  if (!location || location.isActive === false) {
+    return { localPickupSettings: null, userErrors: [localPickupLocationNotFound('localPickupSettings', locationId)] };
+  }
+
+  const settings: DeliveryLocalPickupSettingsRecord = {
+    pickupTime: typeof input['pickupTime'] === 'string' ? input['pickupTime'] : 'ONE_HOUR',
+    instructions: typeof input['instructions'] === 'string' ? input['instructions'] : '',
+  };
+  store.stageUpdateLocation({ ...location, localPickupSettings: settings, updatedAt: makeSyntheticTimestamp() });
+  return { localPickupSettings: settings, userErrors: [] };
+}
+
+function stageLocationLocalPickupDisable(args: Record<string, unknown>): {
+  locationId: string | null;
+  userErrors: LocalPickupUserErrorRecord[];
+} {
+  const locationId = typeof args['locationId'] === 'string' ? args['locationId'] : null;
+  const location = locationId ? findEffectiveLocationById(locationId) : null;
+  if (!location || location.isActive === false) {
+    return { locationId: null, userErrors: [localPickupLocationNotFound('locationId', locationId)] };
+  }
+
+  store.stageUpdateLocation({ ...location, localPickupSettings: null, updatedAt: makeSyntheticTimestamp() });
+  return { locationId, userErrors: [] };
+}
+
+function serializeLocationLocalPickupEnablePayload(
+  payload: { localPickupSettings: DeliveryLocalPickupSettingsRecord | null; userErrors: LocalPickupUserErrorRecord[] },
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (
+        selection.typeCondition?.name.value &&
+        selection.typeCondition.name.value !== 'LocationLocalPickupEnablePayload'
+      ) {
+        continue;
+      }
+      Object.assign(result, serializeLocationLocalPickupEnablePayload(payload, selection.selectionSet.selections));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'LocationLocalPickupEnablePayload';
+        break;
+      case 'localPickupSettings':
+        result[key] = payload.localPickupSettings
+          ? serializeLocalPickupSettings(payload.localPickupSettings, selection.selectionSet?.selections ?? [])
+          : null;
+        break;
+      case 'userErrors':
+        result[key] = serializeLocalPickupUserErrors(payload.userErrors, selection.selectionSet?.selections ?? []);
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeLocationLocalPickupDisablePayload(
+  payload: { locationId: string | null; userErrors: LocalPickupUserErrorRecord[] },
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (
+        selection.typeCondition?.name.value &&
+        selection.typeCondition.name.value !== 'LocationLocalPickupDisablePayload'
+      ) {
+        continue;
+      }
+      Object.assign(result, serializeLocationLocalPickupDisablePayload(payload, selection.selectionSet.selections));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'LocationLocalPickupDisablePayload';
+        break;
+      case 'locationId':
+        result[key] = payload.locationId;
+        break;
+      case 'userErrors':
+        result[key] = serializeLocalPickupUserErrors(payload.userErrors, selection.selectionSet?.selections ?? []);
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function readRecordValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function readOptionalInputNumber(input: Record<string, unknown>, key: string): number | null {
+  const value = input[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function readShippingPackageWeight(
+  input: Record<string, unknown>,
+  base: ShippingPackageWeightRecord | null,
+): ShippingPackageWeightRecord | null {
+  if (!hasInputField(input, 'weight')) {
+    return base;
+  }
+
+  const weight = readRecordValue(input['weight']);
+  if (!weight) {
+    return null;
+  }
+
+  return {
+    value: readOptionalInputNumber(weight, 'value'),
+    unit: readOptionalInputString(weight, 'unit'),
+  };
+}
+
+function readShippingPackageDimensions(
+  input: Record<string, unknown>,
+  base: ShippingPackageDimensionsRecord | null,
+): ShippingPackageDimensionsRecord | null {
+  if (!hasInputField(input, 'dimensions')) {
+    return base;
+  }
+
+  const dimensions = readRecordValue(input['dimensions']);
+  if (!dimensions) {
+    return null;
+  }
+
+  return {
+    length: readOptionalInputNumber(dimensions, 'length'),
+    width: readOptionalInputNumber(dimensions, 'width'),
+    height: readOptionalInputNumber(dimensions, 'height'),
+    unit: readOptionalInputString(dimensions, 'unit'),
+  };
+}
+
+function shippingPackageInvalidIdError(field: FieldNode): GraphQLResponseError {
+  const error: GraphQLResponseError = {
+    message: 'invalid id',
+    path: [responseKey(field)],
+    extensions: {
+      code: 'RESOURCE_NOT_FOUND',
+    },
+  };
+
+  if (field.loc) {
+    error.locations = [{ line: field.loc.startToken.line, column: field.loc.startToken.column }];
+  }
+
+  return error;
+}
+
+function serializeShippingPackageUserErrors(
+  userErrors: ShippingPackageUserErrorRecord[],
+  selections: readonly SelectionNode[],
+): Array<Record<string, unknown>> {
+  return userErrors.map((userError) => {
+    const result: Record<string, unknown> = {};
+
+    for (const selection of selections) {
+      if (selection.kind === Kind.INLINE_FRAGMENT) {
+        Object.assign(
+          result,
+          serializeShippingPackageUserErrors([userError], selection.selectionSet.selections)[0] ?? {},
+        );
+        continue;
+      }
+
+      if (selection.kind !== Kind.FIELD) {
+        continue;
+      }
+
+      const key = responseKey(selection);
+      switch (selection.name.value) {
+        case '__typename':
+          result[key] = 'UserError';
+          break;
+        case 'field':
+          result[key] = userError.field ? structuredClone(userError.field) : null;
+          break;
+        case 'message':
+          result[key] = userError.message;
+          break;
+        default:
+          result[key] = null;
+      }
+    }
+
+    return result;
+  });
+}
+
+function stageShippingPackageUpdate(args: Record<string, unknown>): ShippingPackageRecord | null {
+  const id = typeof args['id'] === 'string' ? args['id'] : null;
+  const existing = id ? store.getEffectiveShippingPackageById(id) : null;
+  if (!id || !existing) {
+    return null;
+  }
+
+  const input = readRecordValue(args['shippingPackage']) ?? {};
+  const nextPackage: ShippingPackageRecord = {
+    ...existing,
+    name: hasInputField(input, 'name') ? readOptionalInputString(input, 'name') : existing.name,
+    type: hasInputField(input, 'type') ? readOptionalInputString(input, 'type') : existing.type,
+    default: typeof input['default'] === 'boolean' ? input['default'] : existing.default,
+    weight: readShippingPackageWeight(input, existing.weight),
+    dimensions: readShippingPackageDimensions(input, existing.dimensions),
+    updatedAt: makeSyntheticTimestamp(),
+  };
+
+  if (nextPackage.default) {
+    for (const shippingPackage of store.listEffectiveShippingPackages()) {
+      if (shippingPackage.id !== nextPackage.id && shippingPackage.default) {
+        store.stageUpdateShippingPackage({ ...shippingPackage, default: false, updatedAt: nextPackage.updatedAt });
+      }
+    }
+  }
+
+  return store.stageUpdateShippingPackage(nextPackage);
+}
+
+function stageShippingPackageMakeDefault(args: Record<string, unknown>): ShippingPackageRecord | null {
+  const id = typeof args['id'] === 'string' ? args['id'] : null;
+  const existing = id ? store.getEffectiveShippingPackageById(id) : null;
+  if (!id || !existing) {
+    return null;
+  }
+
+  const now = makeSyntheticTimestamp();
+  for (const shippingPackage of store.listEffectiveShippingPackages()) {
+    store.stageUpdateShippingPackage({ ...shippingPackage, default: shippingPackage.id === id, updatedAt: now });
+  }
+
+  return store.getEffectiveShippingPackageById(id);
+}
+
+function stageShippingPackageDelete(args: Record<string, unknown>): string | null {
+  const id = typeof args['id'] === 'string' ? args['id'] : null;
+  const existing = id ? store.getEffectiveShippingPackageById(id) : null;
+  if (!id || !existing) {
+    return null;
+  }
+
+  store.stageDeleteShippingPackage(id);
+  return id;
+}
+
+function serializeShippingPackageUserErrorsOnlyPayload(
+  selections: readonly SelectionNode[],
+  payloadTypename: 'ShippingPackageUpdatePayload' | 'ShippingPackageMakeDefaultPayload',
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== payloadTypename) {
+        continue;
+      }
+      Object.assign(
+        result,
+        serializeShippingPackageUserErrorsOnlyPayload(selection.selectionSet.selections, payloadTypename),
+      );
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = payloadTypename;
+        break;
+      case 'userErrors':
+        result[key] = serializeShippingPackageUserErrors([], selection.selectionSet?.selections ?? []);
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeShippingPackageDeletePayload(
+  deletedId: string,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (
+        selection.typeCondition?.name.value &&
+        selection.typeCondition.name.value !== 'ShippingPackageDeletePayload'
+      ) {
+        continue;
+      }
+      Object.assign(result, serializeShippingPackageDeletePayload(deletedId, selection.selectionSet.selections));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'ShippingPackageDeletePayload';
+        break;
+      case 'deletedId':
+        result[key] = deletedId;
+        break;
+      case 'userErrors':
+        result[key] = serializeShippingPackageUserErrors([], selection.selectionSet?.selections ?? []);
         break;
       default:
         result[key] = null;
@@ -3306,6 +3881,55 @@ export function handleStorePropertiesMutation(
         );
         break;
       }
+      case 'locationLocalPickupEnable': {
+        const args = getFieldArguments(field, variables);
+        data[key] = serializeLocationLocalPickupEnablePayload(
+          stageLocationLocalPickupEnable(args),
+          field.selectionSet?.selections ?? [],
+        );
+        break;
+      }
+      case 'locationLocalPickupDisable': {
+        const args = getFieldArguments(field, variables);
+        data[key] = serializeLocationLocalPickupDisablePayload(
+          stageLocationLocalPickupDisable(args),
+          field.selectionSet?.selections ?? [],
+        );
+        break;
+      }
+      case 'shippingPackageUpdate': {
+        const args = getFieldArguments(field, variables);
+        const updatedPackage = stageShippingPackageUpdate(args);
+        if (!updatedPackage) {
+          return { errors: [shippingPackageInvalidIdError(field)], data: { [key]: null } };
+        }
+        data[key] = serializeShippingPackageUserErrorsOnlyPayload(
+          field.selectionSet?.selections ?? [],
+          'ShippingPackageUpdatePayload',
+        );
+        break;
+      }
+      case 'shippingPackageMakeDefault': {
+        const args = getFieldArguments(field, variables);
+        const defaultPackage = stageShippingPackageMakeDefault(args);
+        if (!defaultPackage) {
+          return { errors: [shippingPackageInvalidIdError(field)], data: { [key]: null } };
+        }
+        data[key] = serializeShippingPackageUserErrorsOnlyPayload(
+          field.selectionSet?.selections ?? [],
+          'ShippingPackageMakeDefaultPayload',
+        );
+        break;
+      }
+      case 'shippingPackageDelete': {
+        const args = getFieldArguments(field, variables);
+        const deletedId = stageShippingPackageDelete(args);
+        if (!deletedId) {
+          return { errors: [shippingPackageInvalidIdError(field)], data: { [key]: null } };
+        }
+        data[key] = serializeShippingPackageDeletePayload(deletedId, field.selectionSet?.selections ?? []);
+        break;
+      }
       case 'fulfillmentServiceCreate': {
         const args = getFieldArguments(field, variables);
         data[key] = serializeFulfillmentServiceMutationPayload(
@@ -3522,6 +4146,12 @@ export function handleStorePropertiesQuery(
       }
       case 'carrierServices':
         data[key] = serializeCarrierServicesConnection(field, variables);
+        break;
+      case 'availableCarrierServices':
+        data[key] = serializeAvailableCarrierServices(field, variables);
+        break;
+      case 'locationsAvailableForDeliveryProfilesConnection':
+        data[key] = serializeLocationsAvailableForDeliveryProfilesConnection(field, variables);
         break;
       case 'fulfillmentService': {
         const args = getFieldArguments(field, variables);

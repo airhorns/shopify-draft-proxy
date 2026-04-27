@@ -1,0 +1,16 @@
+mutation CarrierServiceUpdateProbe($input: DeliveryCarrierServiceUpdateInput!) {
+  carrierServiceUpdate(input: $input) {
+    carrierService {
+      id
+      name
+      formattedName
+      callbackUrl
+      active
+      supportsServiceDiscovery
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
