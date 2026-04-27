@@ -1,0 +1,73 @@
+mutation GiftCardLifecycle(
+  $id: ID!
+  $updateInput: GiftCardUpdateInput!
+  $creditInput: GiftCardCreditInput!
+  $debitInput: GiftCardDebitInput!
+) {
+  update: giftCardUpdate(id: $id, input: $updateInput) {
+    giftCard {
+      note
+      templateSuffix
+      expiresOn
+      balance {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  credit: giftCardCredit(id: $id, creditInput: $creditInput) {
+    giftCardCreditTransaction {
+      note
+      amount {
+        amount
+        currencyCode
+      }
+      giftCard {
+        balance {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  debit: giftCardDebit(id: $id, debitInput: $debitInput) {
+    giftCardDebitTransaction {
+      note
+      amount {
+        amount
+        currencyCode
+      }
+      giftCard {
+        balance {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  deactivate: giftCardDeactivate(id: $id) {
+    giftCard {
+      enabled
+      balance {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
