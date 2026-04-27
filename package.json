@@ -68,6 +68,7 @@
     "conformance:capture-discount-free-shipping-lifecycle": "SHOPIFY_CONFORMANCE_API_VERSION=2026-04 tsx ./scripts/capture-discount-free-shipping-lifecycle-conformance.ts",
     "conformance:capture-discount-validation": "tsx ./scripts/capture-discount-validation-conformance.ts",
     "conformance:capture-app-billing": "tsx ./scripts/capture-app-billing-conformance.ts",
+    "conformance:capture-finance-risk": "tsx ./scripts/capture-finance-risk-conformance.ts",
     "conformance:capture-order-refunds": "tsx ./scripts/capture-order-refund-conformance.mts",
     "conformance:capture-fulfillment-order-lifecycle": "SHOPIFY_CONFORMANCE_API_VERSION=2026-04 tsx ./scripts/capture-fulfillment-order-lifecycle-conformance.ts",
     "conformance:capture-delivery-profiles": "tsx ./scripts/capture-delivery-profile-conformance.ts",

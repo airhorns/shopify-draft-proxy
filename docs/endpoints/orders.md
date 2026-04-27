@@ -1,6 +1,6 @@
 # Orders Endpoint Group
 
-The orders group is fully implemented in the operation registry. It covers orders, draft orders, order lifecycle mutations, fulfillment slices, refunds, and order editing.
+The orders group covers orders, draft orders, order lifecycle mutations, fulfillment slices, refunds, and order editing. Most declared order roots are implemented; registry-only risk and edge-operation gaps are called out below so they do not imply runtime support.
 
 ## Supported roots
 
@@ -61,6 +61,10 @@ Local staged mutations:
 - `orderEditAddVariant`
 - `orderEditSetQuantity`
 - `orderEditCommit`
+
+## Declared Gaps
+
+- `orderRiskAssessmentCreate` is a registry-only HAR-316 scaffold. The 2025-01 `finance-risk-access-read` capture records only an unknown-order validation branch returning `userErrors[{ field: ["orderRiskAssessmentInput", "orderId"], code: "NOT_FOUND" }]`. Do not mark this mutation supported until local risk assessment staging, downstream order risk reads, Shopify-like userErrors, and raw commit replay are modeled end to end.
 
 ## Behavior notes
 

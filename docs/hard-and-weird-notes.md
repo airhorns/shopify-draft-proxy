@@ -2713,3 +2713,25 @@ Practical rule:
 - model these roots as order-backed fulfillment-order state transitions plus merchant request history, not as generic status patches or runtime callback calls
 - keep hold/move/reroute/progress semantics out of this slice even though live setup used `fulfillmentOrderMove`; that move was conformance setup, not locally supported request-lifecycle behavior
 - do not infer broader fulfillment-service assignment filtering from `assignedFulfillmentOrders`; the current local read exposes staged order-backed records so tests can see request transitions, while broader live access-scope behavior remains separate evidence
+
+## 71. Finance/risk/POS roots need strong data minimization
+
+HAR-316 captured finance/risk root evidence on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com` in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/finance-risk-access-read.json`.
+
+Captured facts:
+
+- `cashTrackingSession(id:)`, `pointOfSaleDevice(id:)`, `dispute(id:)`, and `shopPayPaymentRequestReceipt(token:)` returned `null` for unknown identifiers
+- `cashTrackingSessions(first: 1)` and `shopPayPaymentRequestReceipts(first: 1)` returned empty connections with false `pageInfo` flags
+- `disputes(first: 1)` returned an empty connection, but `disputeEvidence(id:)` returned ACCESS_DENIED without `read_shopify_payments_dispute_evidences`
+- `financeAppAccessPolicy` returned ACCESS_DENIED requiring a valid finance app user session/client
+- `financeKycInformation` returned ACCESS_DENIED without `read_financial_kyc_information` plus finance-app permission
+- `disputeEvidenceUpdate` returned ACCESS_DENIED without write dispute-evidence scope plus staff dispute/order permission
+- `orderRiskAssessmentCreate` against an unknown order returned a mutation-scoped NOT_FOUND userError for `orderRiskAssessmentInput.orderId`
+- `shopifyPaymentsPayoutAlternateCurrencyCreate` was captured only through missing-required-argument GraphQL validation so the payout resolver did not execute
+- `tenderTransactions(first: 1)` can expose live tender rows on this store, so the fixture intentionally selects only `__typename` and page flags
+
+Practical rule:
+
+- do not invent financial, KYC, dispute, POS cash, tender transaction, Shop Pay receipt, payout, or risk records
+- do not select or check in tender IDs, payment methods, amounts, remote references, user links, KYC details, dispute evidence content, or payout details unless the capture is intentionally scrubbed and justified
+- keep mutation roots scaffold-only until local staging preserves userErrors, downstream read-after-write effects, and original raw mutation commit replay without runtime Shopify writes

@@ -710,6 +710,26 @@
     "runtimeTests": []
   },
   {
+    "name": "cashTrackingSession",
+    "type": "query",
+    "domain": "payments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["cashTrackingSession", "CashTrackingSession"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-316 finance/risk scaffold only. Captured 2025-01 harry-test-heelo safe probe returned null for an unknown CashTrackingSession id; do not synthesize POS cash sessions, balances, staff, or register activity without disposable non-empty evidence."
+  },
+  {
+    "name": "cashTrackingSessions",
+    "type": "query",
+    "domain": "payments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["cashTrackingSessions", "CashTrackingSessions"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-316 finance/risk scaffold only. Captured 2025-01 harry-test-heelo safe probe returned an empty cashTrackingSessions connection with false pageInfo flags; future support needs a POS cash-tracking state model and must not invent cash drawer records."
+  },
+  {
     "name": "customerPaymentMethod",
     "type": "query",
     "domain": "payments",
@@ -760,6 +780,66 @@
     "supportNotes": "Payment terms scaffold only. The 2026-04-25 harry-test-heelo probe can capture the template catalog; future capture should also record paymentTermsType filtering before local overlay support."
   },
   {
+    "name": "financeAppAccessPolicy",
+    "type": "query",
+    "domain": "payments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["financeAppAccessPolicy", "FinanceAppAccessPolicy"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-316 finance/risk scaffold only. Captured 2025-01 harry-test-heelo probe returned ACCESS_DENIED requiring a valid user session and API client, so local support must wait for an authorized finance-app credential and must not infer access policy values."
+  },
+  {
+    "name": "financeKycInformation",
+    "type": "query",
+    "domain": "payments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["financeKycInformation", "FinanceKycInformation"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-316 finance/risk scaffold only. Captured 2025-01 harry-test-heelo probe returned null with ACCESS_DENIED requiring read_financial_kyc_information plus finance-app permission; never invent KYC business, owner, address, or tax-identification data."
+  },
+  {
+    "name": "pointOfSaleDevice",
+    "type": "query",
+    "domain": "payments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["pointOfSaleDevice", "PointOfSaleDevice"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-316 finance/risk scaffold only. Captured 2025-01 harry-test-heelo safe probe returned null for an unknown PointOfSaleDevice id; future support needs captured POS device inventory and must not invent hardware records."
+  },
+  {
+    "name": "dispute",
+    "type": "query",
+    "domain": "payments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["dispute", "Dispute"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-316 finance/risk scaffold only. Captured 2025-01 harry-test-heelo safe probe returned null for an unknown ShopifyPaymentsDispute id; non-empty dispute modeling requires authorized dispute fixtures and must not invent chargeback amounts, reasons, or statuses."
+  },
+  {
+    "name": "disputes",
+    "type": "query",
+    "domain": "payments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["disputes", "Disputes"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-316 finance/risk scaffold only. Captured 2025-01 harry-test-heelo safe probe returned an empty disputes connection while disputeEvidence was denied separately; future support needs authorized non-empty Shopify Payments dispute evidence before local overlay behavior."
+  },
+  {
+    "name": "disputeEvidence",
+    "type": "query",
+    "domain": "payments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["disputeEvidence", "DisputeEvidence"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-316 finance/risk scaffold only. Captured 2025-01 harry-test-heelo probe returned ACCESS_DENIED requiring read_shopify_payments_dispute_evidences; never synthesize customer communications, addresses, file uploads, or submitted evidence."
+  },
+  {
     "name": "shopPayPaymentRequestReceipt",
     "type": "query",
     "domain": "payments",
@@ -767,7 +847,7 @@
     "implemented": false,
     "matchNames": ["shopPayPaymentRequestReceipt", "ShopPayPaymentRequestReceipt"],
     "runtimeTests": [],
-    "supportNotes": "Shop Pay payment request receipt scaffold only. The 2026-04-25 harry-test-heelo probe can capture unknown-token null behavior; future capture should avoid creating customer-visible payment requests before local overlay support."
+    "supportNotes": "Shop Pay payment request receipt scaffold only. HAR-316 captured 2025-01 harry-test-heelo unknown-token null behavior; future capture should avoid creating customer-visible payment requests before local overlay support."
   },
   {
     "name": "shopPayPaymentRequestReceipts",
@@ -777,7 +857,7 @@
     "implemented": false,
     "matchNames": ["shopPayPaymentRequestReceipts", "ShopPayPaymentRequestReceipts"],
     "runtimeTests": [],
-    "supportNotes": "Shop Pay payment request receipt scaffold only. The 2026-04-25 harry-test-heelo probe can capture empty connection behavior; future capture should avoid creating customer-visible payment requests before local overlay support."
+    "supportNotes": "Shop Pay payment request receipt scaffold only. HAR-316 captured 2025-01 harry-test-heelo empty connection behavior with type-only node selections; future capture should avoid creating customer-visible payment requests before local overlay support."
   },
   {
     "name": "shopifyPaymentsAccount",
@@ -797,7 +877,7 @@
     "implemented": false,
     "matchNames": ["tenderTransactions", "TenderTransactions"],
     "runtimeTests": [],
-    "supportNotes": "Tender transaction scaffold only. The 2026-04-25 harry-test-heelo probe can capture an empty read-only listing; future capture should preserve payment-details nullability and record no-data connection behavior before local overlay support."
+    "supportNotes": "Tender transaction scaffold only. HAR-316 captured 2025-01 harry-test-heelo type-only connection shape without ids or payment details; future support must preserve payment-details nullability and avoid exposing sensitive tender data without scrubbed fixtures."
   },
   {
     "name": "publications",
@@ -2719,6 +2799,16 @@
     "runtimeTests": ["tests/integration/order-lifecycle-payment-customer-flow.test.ts"]
   },
   {
+    "name": "orderRiskAssessmentCreate",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["orderRiskAssessmentCreate", "OrderRiskAssessmentCreate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-316 finance/risk scaffold only. Captured 2025-01 harry-test-heelo unknown-order probe returns a NOT_FOUND userError; do not mark supported until risk assessment staging, downstream order risk reads, userErrors, and raw commit replay are modeled locally."
+  },
+  {
     "name": "customerPaymentMethodCreateFromDuplicationData",
     "type": "mutation",
     "domain": "payments",
@@ -2915,6 +3005,16 @@
     "supportNotes": "Payment terms scaffold only. Future capture requires write_payment_terms plus order or draft-order access and an isolated payment schedule because updates change due dates/payment status."
   },
   {
+    "name": "disputeEvidenceUpdate",
+    "type": "mutation",
+    "domain": "payments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["disputeEvidenceUpdate", "DisputeEvidenceUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-316 finance/risk scaffold only. Captured 2025-01 harry-test-heelo unknown-id probe returned ACCESS_DENIED requiring write_shopify_payments_dispute_evidences plus manage_orders_information or manage_disputes permission; do not support until dispute evidence fields, submitted state, files, userErrors, downstream reads, and commit replay are modeled locally."
+  },
+  {
     "name": "shopifyPaymentsPayoutAlternateCurrencyCreate",
     "type": "mutation",
     "domain": "payments",
@@ -2922,7 +3022,7 @@
     "implemented": false,
     "matchNames": ["shopifyPaymentsPayoutAlternateCurrencyCreate", "ShopifyPaymentsPayoutAlternateCurrencyCreate"],
     "runtimeTests": [],
-    "supportNotes": "Shopify Payments payout scaffold only. Future capture requires Shopify Payments payout/account access and must not run happy paths on shared stores because it can alter real payout configuration or money movement."
+    "supportNotes": "Shopify Payments payout scaffold only. HAR-316 captured only non-executing missing-currency GraphQL validation; future capture requires Shopify Payments payout/account access and must not run happy paths on shared stores because it can alter real payout configuration or money movement."
   },
   {
     "name": "transactionVoid",
