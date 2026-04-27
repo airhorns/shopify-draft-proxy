@@ -1307,7 +1307,14 @@ export function createProxyRouter(config: AppConfig): Router {
       }
     }
 
-    const orderBackedLocalFulfillmentMutation = primaryRootField === 'fulfillmentEventCreate';
+    const orderBackedLocalFulfillmentMutation =
+      primaryRootField === 'fulfillmentEventCreate' ||
+      primaryRootField === 'fulfillmentOrderSubmitFulfillmentRequest' ||
+      primaryRootField === 'fulfillmentOrderAcceptFulfillmentRequest' ||
+      primaryRootField === 'fulfillmentOrderRejectFulfillmentRequest' ||
+      primaryRootField === 'fulfillmentOrderSubmitCancellationRequest' ||
+      primaryRootField === 'fulfillmentOrderAcceptCancellationRequest' ||
+      primaryRootField === 'fulfillmentOrderRejectCancellationRequest';
     if (
       capability.execution === 'stage-locally' &&
       (capability.domain === 'orders' ||
@@ -1372,6 +1379,12 @@ export function createProxyRouter(config: AppConfig): Router {
         primaryRootField === 'draftOrderCreateFromOrder' ||
         primaryRootField === 'fulfillmentCreate' ||
         primaryRootField === 'fulfillmentEventCreate' ||
+        primaryRootField === 'fulfillmentOrderSubmitFulfillmentRequest' ||
+        primaryRootField === 'fulfillmentOrderAcceptFulfillmentRequest' ||
+        primaryRootField === 'fulfillmentOrderRejectFulfillmentRequest' ||
+        primaryRootField === 'fulfillmentOrderSubmitCancellationRequest' ||
+        primaryRootField === 'fulfillmentOrderAcceptCancellationRequest' ||
+        primaryRootField === 'fulfillmentOrderRejectCancellationRequest' ||
         primaryRootField === 'fulfillmentTrackingInfoUpdate' ||
         primaryRootField === 'fulfillmentCancel')
     ) {
@@ -1424,6 +1437,18 @@ export function createProxyRouter(config: AppConfig): Router {
           fulfillmentCreate: 'Locally short-circuited captured fulfillmentCreate validation in live-hybrid mode.',
           fulfillmentEventCreate:
             'Locally staged fulfillmentEventCreate in live-hybrid mode for an order-backed local fulfillment.',
+          fulfillmentOrderSubmitFulfillmentRequest:
+            'Locally staged fulfillment-order fulfillment request without invoking fulfillment-service callbacks.',
+          fulfillmentOrderAcceptFulfillmentRequest:
+            'Locally staged fulfillment-order fulfillment request acceptance without invoking fulfillment-service callbacks.',
+          fulfillmentOrderRejectFulfillmentRequest:
+            'Locally staged fulfillment-order fulfillment request rejection without invoking fulfillment-service callbacks.',
+          fulfillmentOrderSubmitCancellationRequest:
+            'Locally staged fulfillment-order cancellation request without invoking fulfillment-service callbacks.',
+          fulfillmentOrderAcceptCancellationRequest:
+            'Locally staged fulfillment-order cancellation request acceptance without invoking fulfillment-service callbacks.',
+          fulfillmentOrderRejectCancellationRequest:
+            'Locally staged fulfillment-order cancellation request rejection without invoking fulfillment-service callbacks.',
         };
 
         if (shouldAppendLocalMutationLog(primaryRootField, orderMutationResponse)) {
