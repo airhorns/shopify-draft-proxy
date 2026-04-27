@@ -336,6 +336,7 @@ Important docs:
 - `docs/original-intent.md`: project intent, non-goals, and fidelity standard
 - `docs/architecture.md`: request flow, state model, runtime modes, and meta API
 - `docs/simple-demo-guide.md`: longer copy-pasteable product staging demo
+- `docs/conformance-capture.md`: indexed capture-command lookup by domain
 - `docs/helpers.md`: shared helper APIs to use before adding new utilities
 - `docs/hard-and-weird-notes.md`: captured Shopify quirks and fidelity traps
 - `docs/endpoints/`: endpoint-specific behavior and coverage notes
