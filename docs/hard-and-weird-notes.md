@@ -236,6 +236,20 @@ A later healthy-again pass on this host exposed a repo-local repair bug rather t
 
 This note is historical for the old worktree-local repair path. The current conformance auth entry point is the shared home-folder credential at `~/.shopify-draft-proxy/conformance-admin-auth.json`, and `corepack pnpm conformance:refresh-auth` should use that same path as `corepack pnpm conformance:probe` / `corepack pnpm conformance:capture-orders`.
 
+### 7b. BulkOperation reads expose terminal job history, not just active jobs
+
+HAR-262 live capture on 2026-04 settled a few easy-to-model-wrong branches for the root-level Bulk Operations controller:
+
+- `bulkOperation(id:)` unknown IDs return `null`, while malformed non-GID IDs fail earlier with a top-level invalid-id error.
+- `bulkOperations(first:, query: "status:running operation_type:query")` and the matching mutation filter return empty connection objects, not `null`, when no running jobs exist.
+- `currentBulkOperation(type: MUTATION)` can return `null`, but `currentBulkOperation(type: QUERY)` on this host returned a terminal query job; do not assume the deprecated root means "currently running only."
+- Canceling a completed operation returns the completed operation plus a userError with `field: null`; canceling an unknown operation returns `bulkOperation: null` plus `field: ["id"]`.
+- A successful cancel starts at `CANCELING` and then reaches `CANCELED`; the captured canceled operation kept `completedAt: null`, `fileSize: null`, and `partialDataUrl: null`. Result URL/counter behavior should be modeled from fixtures, not inferred from the completed export branch.
+
+Practical rule:
+
+- model BulkOperation as an app-scoped job history with terminal entries and status-specific payload details, not as a single nullable active job slot.
+
 ## 8. Customer mutation payloads normalize tags and phone numbers differently than guessed
 
 The first strict customer CRUD parity promotion exposed two easy local-draft guesses that were wrong for the captured Shopify Admin GraphQL payloads:
@@ -1900,7 +1914,34 @@ Practical rule for the proxy:
 - mask staged `defaultPhoneNumber.phoneNumber` in the same practical style as the captured live payload instead of echoing raw phone input
 - preserve the captured validation distinctions exactly: null-field missing-identity create error, `Customer does not exist` for unknown-id update, and `Customer can't be found` for unknown-id delete
 
-### 44a. `dataSaleOptOut` is privacy-scoped but behaves like a customer write
+### 44a. CustomerInput validation failures are payload userErrors and must be state-invariant
+
+The HAR-282 live capture on `harry-test-heelo.myshopify.com` added the first focused long-tail `CustomerInput` validation matrix for `customerCreate` and `customerUpdate`.
+
+Observed validation behavior:
+
+- invalid email returns `customer: null` plus `userErrors[{ field: ['email'], message: 'Email is invalid' }]`
+- invalid phone returns `customer: null` plus `userErrors[{ field: ['phone'], message: 'Phone is invalid' }]`
+- duplicate email/phone identity returns `Email has already been taken` / `Phone has already been taken` at the corresponding field
+- invalid locale returns `userErrors[{ field: ['locale'], message: 'Locale is invalid' }]`
+- a tag longer than 255 characters returns `userErrors[{ field: ['tags'], message: 'Tags is too long (maximum is 255 characters)' }]`
+- oversized names and note accumulate separate fielded errors: first/last name max 255 characters, note max 5000 characters
+- updating a deleted customer, or the source customer after `customerMerge`, returns the same unknown-id payload branch as other missing rows: `field: ['id']`, `Customer does not exist`
+
+Observed normalization behavior:
+
+- created customers defaulted `locale` to `en` when the input omitted locale
+- blank `firstName`, `lastName`, and `phone` normalized to `null`
+- blank `note` stayed as an empty string, while explicit `null` note stayed `null`
+- tag input was trimmed, empty tags were dropped, duplicates were removed, and the response sorted the remaining tags lexicographically
+
+Practical rule for the proxy:
+
+- run captured validation before staging the customer row or replacing customer-owned metafields
+- failed validations may still produce the normal supported-mutation log entry, but they must not introduce staged resource IDs or mutate downstream customer/customerByIdentifier/customers reads
+- keep this validation slice limited to captured branches; broader email/phone/locale international edge cases need new live evidence before tightening rules further
+
+### 44b. `dataSaleOptOut` is privacy-scoped but behaves like a customer write
 
 HAR-255 capture on `harry-test-heelo.myshopify.com` / Admin GraphQL 2025-01 settled a few non-obvious data-sale opt-out behaviors:
 
@@ -2290,16 +2331,21 @@ Captured safe happy path for two synthetic customers:
 
 - Shopify selected `customerTwoId` as the resulting customer id
 - the mutation returned a job with `done: false`
-- after polling, `customerMergeJobStatus` reached `COMPLETED`
+- HAR-291 polling observed `customerMergeJobStatus` return `IN_PROGRESS` immediately after the mutation and `COMPLETED` on the next poll
 - downstream `customer(id: customerOneId)` and `customerByIdentifier(emailAddress: customer one email)` returned `null`
 - downstream `customer(id: customerTwoId)` and `customerByIdentifier(emailAddress: customer two email)` returned the merged customer
 - override `note` and `tags` replaced the default combined note/tag values; selected name/email fields followed the requested customer id override fields
+- HAR-291 keeps the base two-customer merge fixture separate from the attached-resource fixture; run `corepack pnpm conformance:capture-customer-merge-attached-resources` to refresh the address/metafield/order scenario
+- when the two customers had addresses, customer-owned metafields, and a source order, Shopify retained the result customer's default address, appended the source address to `addressesV2`, retained result-side metafield conflicts, copied source-only metafields with a new metafield id, and moved the source order to the result customer with the result customer's email
+- the captured result customer kept `numberOfOrders: "0"` and `lastOrder: null` even after the source order became visible in `Customer.orders`
+- the captured result customer's `createdAt` matched the source customer timestamp when the source and result creation seconds differed
 
 Practical rule:
 
 - stage supported `customerMerge` locally for customers already present in the normalized graph, mark the source customer deleted, record the source-to-result id redirect for state inspection, and expose a local merge request for `customerMergeJobStatus`
 - do not fetch or mutate Shopify during normal runtime to discover missing merge customers; unknown ids should return captured `CustomerMergeUserError` payloads instead
-- do not model transfer of orders, draft orders, gift cards, discounts, addresses, or other attached resources until a fixture captures those non-empty merge fields
+- model only attached resources with captured non-empty behavior and normalized local state: HAR-291 covers customer addresses, customer metafields, and orders
+- draft-order setup was captured, but not a downstream draft-order transfer read; draft orders, gift cards, discounts, and other attached resources remain deferred until fixtures capture their non-empty post-merge behavior
 
 ## 56. discountNodes code filter does not mirror codeDiscountNodes for native code discounts
 
@@ -2655,7 +2701,25 @@ Practical rule:
 - keep missing custom price and missing shipping-line title out of the local validation list until a later fixture proves a narrower invalid branch
 - broad direct `orderCreate` validation capture is still constrained by Shopify's order-create attempt throttle on this host; the executable direct-order fixture currently covers only the no-line-items branch
 
-## 68. Unknown comment detail can error while comment moderation validates cleanly
+## 68. Generic translations use raw value digests, and locale writes are reversible
+
+HAR-314 captured generic localization roots on Admin GraphQL 2026-04 against `harry-test-heelo.myshopify.com`.
+
+Captured facts:
+
+- `TranslatableContent.digest` for product scalar content matched `sha256(value)` for the selected title, handle, and product type values.
+- `shopLocaleEnable(locale: "fr")` succeeded with `published: false`, `primary: false`, and no market web presences when the shop initially only had primary `en`.
+- `shopLocaleUpdate(locale: "fr", shopLocale: { published: false })` returned the same unpublished locale payload.
+- `shopLocaleDisable(locale: "fr")` returned `{ locale: "fr", userErrors: [] }` and restored the shop locale list to only `en`.
+- `translationsRegister` for an enabled `fr` locale returned the staged product title translation and immediate `translatableResource.translations(locale: "fr")` reads observed it.
+- `translationsRemove` returned the removed translation payload, and the immediate downstream translations read became an empty list.
+- Unknown product resources return `TranslationUserError` with `field: ["resourceId"]`, `code: "RESOURCE_NOT_FOUND"`, and message `Resource <gid> does not exist` for both register and remove.
+
+Practical rule:
+
+- it is safe to stage the generic product/product-metafield translation slice locally with SHA-256 digests and read-after-write translation visibility, but do not broaden generic localization to market-specific custom content or non-product owner families until they have their own captures.
+
+## 69. Unknown comment detail can error while comment moderation validates cleanly
 
 HAR-303 captured online-store content roots on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com`.
 
@@ -2673,7 +2737,7 @@ Practical rule:
 - treat comment moderation as local lifecycle support only for comments already present in snapshot or hydrated local state, since Admin GraphQL did not expose a captured comment-create root in this slice
 - continue to record success-path setup and cleanup for online-store content mutations when broadening validation or publication semantics
 
-## 69. Fulfillment-order lifecycle roots split work into replacement orders
+## 70. Fulfillment-order lifecycle roots split work into replacement orders
 
 HAR-234 captured fulfillment-order lifecycle evidence on Admin GraphQL 2026-04 at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/fulfillment-order-lifecycle.json`.
 
@@ -2692,7 +2756,7 @@ Practical rule:
 - do not model fulfillment-order lifecycle roots as simple status patches; partial hold/move/cancel behavior affects line-item quantities and replacement fulfillment-order identities
 - keep `fulfillmentOrderReschedule`, `fulfillmentOrderClose`, and `fulfillmentOrdersReroute` unimplemented for full support until success-path fixtures exist, even if local guardrails are mirrored
 
-## 70. Fulfillment-order request lifecycles need an API fulfillment service to reach happy paths
+## 71. Fulfillment-order request lifecycles need an API fulfillment service to reach happy paths
 
 HAR-233 captured fulfillment-order request/cancellation behavior on Admin GraphQL 2026-04 against `harry-test-heelo.myshopify.com`. A merchant-managed fulfillment order did not reach the request happy path: `fulfillmentOrderSubmitFulfillmentRequest` returned `userErrors[{ field: ["id"], message: "The fulfillment order's assigned fulfillment service must be of api type" }]`.
 
@@ -2713,3 +2777,26 @@ Practical rule:
 - model these roots as order-backed fulfillment-order state transitions plus merchant request history, not as generic status patches or runtime callback calls
 - keep hold/move/reroute/progress semantics out of this slice even though live setup used `fulfillmentOrderMove`; that move was conformance setup, not locally supported request-lifecycle behavior
 - do not infer broader fulfillment-service assignment filtering from `assignedFulfillmentOrders`; the current local read exposes staged order-backed records so tests can see request transitions, while broader live access-scope behavior remains separate evidence
+
+## 71. Finance/risk/POS roots need strong data minimization
+
+HAR-316 captured finance/risk root evidence on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com` in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/finance-risk-access-read.json`.
+
+Captured facts:
+
+- `cashTrackingSession(id:)`, `pointOfSaleDevice(id:)`, `dispute(id:)`, and `shopPayPaymentRequestReceipt(token:)` returned `null` for unknown identifiers
+- `cashTrackingSessions(first: 1)` and `shopPayPaymentRequestReceipts(first: 1)` returned empty connections with false `pageInfo` flags
+- `disputes(first: 1)` returned an empty connection, but `disputeEvidence(id:)` returned ACCESS_DENIED without `read_shopify_payments_dispute_evidences`
+- `financeAppAccessPolicy` returned ACCESS_DENIED requiring a valid finance app user session/client
+- `financeKycInformation` returned ACCESS_DENIED without `read_financial_kyc_information` plus finance-app permission
+- `disputeEvidenceUpdate` returned ACCESS_DENIED without write dispute-evidence scope plus staff dispute/order permission
+- `orderRiskAssessmentCreate` against an unknown order returned a mutation-scoped NOT_FOUND userError for `orderRiskAssessmentInput.orderId`
+- `shopifyPaymentsPayoutAlternateCurrencyCreate` was captured only through missing-required-argument GraphQL validation so the payout resolver did not execute
+- `tenderTransactions(first: 1)` can expose live tender rows on this store, so the fixture intentionally selects only `__typename` and page flags
+
+Practical rule:
+
+- captured no-data reads for `cashTrackingSession(s)`, `pointOfSaleDevice`, `dispute(s)`, and Shop Pay payment request receipt roots are safe to model as local empty/null overlay behavior and are enforced by `finance-risk-no-data-read`
+- do not invent financial, KYC, dispute, POS cash, tender transaction, Shop Pay receipt, payout, or risk records
+- do not select or check in tender IDs, payment methods, amounts, remote references, user links, KYC details, dispute evidence content, or payout details unless the capture is intentionally scrubbed and justified
+- keep mutation roots scaffold-only until local staging preserves userErrors, downstream read-after-write effects, and original raw mutation commit replay without runtime Shopify writes

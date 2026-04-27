@@ -26,11 +26,13 @@ import type {
   FulfillmentServiceRecord,
   InventoryShipmentRecord,
   LocationRecord,
+  LocaleRecord,
   MarketLocalizationRecord,
   MarketRecord,
   MarketingEngagementRecord,
   MarketingRecord,
   MetaobjectDefinitionRecord,
+  MetaobjectRecord,
   MetafieldDefinitionRecord,
   MutationLogEntry,
   NormalizedStateSnapshotFile,
@@ -51,7 +53,9 @@ import type {
   PublicationRecord,
   SegmentRecord,
   ShopRecord,
+  ShopLocaleRecord,
   StateSnapshot,
+  TranslationRecord,
   WebhookSubscriptionRecord,
   WebPresenceRecord,
 } from './types.js';
@@ -128,6 +132,9 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   webPresences: {},
   webPresenceOrder: [],
   marketLocalizations: {},
+  availableLocales: [],
+  shopLocales: {},
+  translations: {},
   catalogs: {},
   catalogOrder: [],
   priceLists: {},
@@ -144,6 +151,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   productMetafields: {},
   metafieldDefinitions: {},
   metaobjectDefinitions: {},
+  metaobjects: {},
   customerMetafields: {},
   deletedProductIds: {},
   deletedFileIds: {},
@@ -167,6 +175,8 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedCatalogIds: {},
   deletedPriceListIds: {},
   deletedWebPresenceIds: {},
+  deletedShopLocales: {},
+  deletedTranslations: {},
   deletedDeliveryProfileIds: {},
   deletedMetafieldDefinitionIds: {},
   deletedMetaobjectDefinitionIds: {},
@@ -225,6 +235,12 @@ function marketLocalizationStorageKey(
   localization: Pick<MarketLocalizationRecord, 'resourceId' | 'marketId' | 'key'>,
 ): string {
   return `${localization.resourceId}::${localization.marketId}::${localization.key}`;
+}
+
+function translationStorageKey(
+  translation: Pick<TranslationRecord, 'resourceId' | 'locale' | 'key' | 'marketId'>,
+): string {
+  return `${translation.resourceId}::${translation.locale}::${translation.marketId ?? ''}::${translation.key}`;
 }
 
 function readCollectionPosition(collection: ProductCollectionRecord): number | null {
@@ -426,25 +442,25 @@ function mergeCustomerRecords(base: CustomerRecord | null, staged: CustomerRecor
     firstName: staged.firstName,
     lastName: staged.lastName,
     displayName: staged.displayName,
-    email: staged.email ?? base.email,
+    email: staged.email,
     legacyResourceId: staged.legacyResourceId ?? base.legacyResourceId,
-    locale: staged.locale ?? base.locale,
-    note: staged.note ?? base.note,
-    canDelete: staged.canDelete ?? base.canDelete,
-    verifiedEmail: staged.verifiedEmail ?? base.verifiedEmail,
+    locale: staged.locale,
+    note: staged.note,
+    canDelete: staged.canDelete,
+    verifiedEmail: staged.verifiedEmail,
     dataSaleOptOut: staged.dataSaleOptOut ?? base.dataSaleOptOut ?? false,
-    taxExempt: staged.taxExempt ?? base.taxExempt,
+    taxExempt: staged.taxExempt,
     taxExemptions: structuredClone(staged.taxExemptions ?? base.taxExemptions ?? []),
-    state: staged.state ?? base.state,
+    state: staged.state,
     tags: structuredClone(staged.tags),
-    numberOfOrders: staged.numberOfOrders ?? base.numberOfOrders,
-    amountSpent: staged.amountSpent ?? base.amountSpent,
-    defaultEmailAddress: staged.defaultEmailAddress ?? base.defaultEmailAddress,
-    defaultPhoneNumber: staged.defaultPhoneNumber ?? base.defaultPhoneNumber,
-    emailMarketingConsent: staged.emailMarketingConsent ?? base.emailMarketingConsent,
-    smsMarketingConsent: staged.smsMarketingConsent ?? base.smsMarketingConsent,
-    defaultAddress: staged.defaultAddress ?? base.defaultAddress,
-    createdAt: base.createdAt,
+    numberOfOrders: staged.numberOfOrders,
+    amountSpent: staged.amountSpent,
+    defaultEmailAddress: staged.defaultEmailAddress,
+    defaultPhoneNumber: staged.defaultPhoneNumber,
+    emailMarketingConsent: staged.emailMarketingConsent,
+    smsMarketingConsent: staged.smsMarketingConsent,
+    defaultAddress: staged.defaultAddress,
+    createdAt: staged.createdAt ?? base.createdAt,
     updatedAt:
       base.updatedAt && staged.updatedAt
         ? ensureUpdatedAtAfterBase(base.updatedAt, staged.updatedAt)
@@ -2239,6 +2255,135 @@ export class InMemoryStore {
     );
   }
 
+  replaceBaseAvailableLocales(locales: LocaleRecord[]): void {
+    this.baseState.availableLocales = structuredClone(locales);
+  }
+
+  listEffectiveAvailableLocales(): LocaleRecord[] {
+    return structuredClone(this.baseState.availableLocales);
+  }
+
+  upsertBaseShopLocales(locales: ShopLocaleRecord[]): void {
+    for (const locale of locales) {
+      delete this.baseState.deletedShopLocales[locale.locale];
+      delete this.stagedState.deletedShopLocales[locale.locale];
+      this.baseState.shopLocales[locale.locale] = structuredClone(locale);
+    }
+  }
+
+  stageShopLocale(locale: ShopLocaleRecord): ShopLocaleRecord {
+    delete this.stagedState.deletedShopLocales[locale.locale];
+    this.stagedState.shopLocales[locale.locale] = structuredClone(locale);
+    return structuredClone(locale);
+  }
+
+  disableShopLocale(locale: string): ShopLocaleRecord | null {
+    const existing = this.stagedState.shopLocales[locale] ?? this.baseState.shopLocales[locale] ?? null;
+    delete this.stagedState.shopLocales[locale];
+    if (existing) {
+      this.stagedState.deletedShopLocales[locale] = true;
+    }
+    return existing ? structuredClone(existing) : null;
+  }
+
+  getEffectiveShopLocale(locale: string): ShopLocaleRecord | null {
+    if (this.stagedState.deletedShopLocales[locale]) {
+      return null;
+    }
+
+    const record = this.stagedState.shopLocales[locale] ?? this.baseState.shopLocales[locale] ?? null;
+    return record ? structuredClone(record) : null;
+  }
+
+  listEffectiveShopLocales(published?: boolean | null): ShopLocaleRecord[] {
+    const locales = new Map<string, ShopLocaleRecord>();
+    for (const locale of Object.values(this.baseState.shopLocales)) {
+      if (!this.stagedState.deletedShopLocales[locale.locale]) {
+        locales.set(locale.locale, structuredClone(locale));
+      }
+    }
+    for (const locale of Object.values(this.stagedState.shopLocales)) {
+      if (!this.stagedState.deletedShopLocales[locale.locale]) {
+        locales.set(locale.locale, structuredClone(locale));
+      }
+    }
+
+    return Array.from(locales.values())
+      .filter((locale) => (typeof published === 'boolean' ? locale.published === published : true))
+      .sort((left, right) => Number(right.primary) - Number(left.primary) || left.locale.localeCompare(right.locale));
+  }
+
+  stageTranslation(translation: TranslationRecord): TranslationRecord {
+    const storageKey = translationStorageKey(translation);
+    delete this.stagedState.deletedTranslations[storageKey];
+    this.stagedState.translations[storageKey] = structuredClone(translation);
+    return structuredClone(translation);
+  }
+
+  removeTranslation(
+    resourceId: string,
+    locale: string,
+    key: string,
+    marketId: string | null = null,
+  ): TranslationRecord | null {
+    const storageKey = translationStorageKey({ resourceId, locale, key, marketId });
+    const existing = this.stagedState.translations[storageKey] ?? this.baseState.translations[storageKey] ?? null;
+    delete this.stagedState.translations[storageKey];
+    if (existing) {
+      this.stagedState.deletedTranslations[storageKey] = true;
+    }
+    return existing ? structuredClone(existing) : null;
+  }
+
+  listEffectiveTranslations(resourceId: string, locale: string, marketId: string | null = null): TranslationRecord[] {
+    const translations = new Map<string, TranslationRecord>();
+    for (const translation of Object.values(this.baseState.translations)) {
+      const storageKey = translationStorageKey(translation);
+      if (
+        translation.resourceId === resourceId &&
+        translation.locale === locale &&
+        (translation.marketId ?? null) === marketId &&
+        !this.stagedState.deletedTranslations[storageKey]
+      ) {
+        translations.set(storageKey, structuredClone(translation));
+      }
+    }
+    for (const translation of Object.values(this.stagedState.translations)) {
+      if (
+        translation.resourceId === resourceId &&
+        translation.locale === locale &&
+        (translation.marketId ?? null) === marketId
+      ) {
+        translations.set(translationStorageKey(translation), structuredClone(translation));
+      }
+    }
+
+    return Array.from(translations.values()).sort(
+      (left, right) => left.key.localeCompare(right.key) || left.updatedAt.localeCompare(right.updatedAt),
+    );
+  }
+
+  hasLocalizationState(): boolean {
+    return (
+      this.baseState.availableLocales.length > 0 ||
+      Object.keys(this.baseState.shopLocales).length > 0 ||
+      Object.keys(this.stagedState.shopLocales).length > 0 ||
+      Object.keys(this.stagedState.deletedShopLocales).length > 0 ||
+      Object.keys(this.baseState.translations).length > 0 ||
+      Object.keys(this.stagedState.translations).length > 0 ||
+      Object.keys(this.stagedState.deletedTranslations).length > 0
+    );
+  }
+
+  hasStagedLocalizationState(): boolean {
+    return (
+      Object.keys(this.stagedState.shopLocales).length > 0 ||
+      Object.keys(this.stagedState.deletedShopLocales).length > 0 ||
+      Object.keys(this.stagedState.translations).length > 0 ||
+      Object.keys(this.stagedState.deletedTranslations).length > 0
+    );
+  }
+
   setBaseSegmentsRootPayload(rootField: string, payload: unknown): void {
     this.baseSegmentsRootPayloads[rootField] = structuredClone(payload);
   }
@@ -2886,6 +3031,18 @@ export class InMemoryStore {
     for (const definition of definitions) {
       delete this.stagedState.deletedMetaobjectDefinitionIds[definition.id];
       this.stagedState.metaobjectDefinitions[definition.id] = structuredClone(definition);
+    }
+  }
+
+  upsertBaseMetaobjects(metaobjects: MetaobjectRecord[]): void {
+    for (const metaobject of metaobjects) {
+      this.baseState.metaobjects[metaobject.id] = structuredClone(metaobject);
+    }
+  }
+
+  upsertStagedMetaobjects(metaobjects: MetaobjectRecord[]): void {
+    for (const metaobject of metaobjects) {
+      this.stagedState.metaobjects[metaobject.id] = structuredClone(metaobject);
     }
   }
 
@@ -3614,6 +3771,42 @@ export class InMemoryStore {
     return definition ? structuredClone(definition) : null;
   }
 
+  listEffectiveMetaobjects(): MetaobjectRecord[] {
+    const metaobjectsById = new Map<string, MetaobjectRecord>();
+
+    for (const metaobject of Object.values(this.baseState.metaobjects)) {
+      metaobjectsById.set(metaobject.id, structuredClone(metaobject));
+    }
+
+    for (const metaobject of Object.values(this.stagedState.metaobjects)) {
+      metaobjectsById.set(metaobject.id, structuredClone(metaobject));
+    }
+
+    return [...metaobjectsById.values()].sort(
+      (left, right) =>
+        left.type.localeCompare(right.type) ||
+        left.handle.localeCompare(right.handle) ||
+        compareShopifyResourceIds(left.id, right.id),
+    );
+  }
+
+  getEffectiveMetaobjectById(metaobjectId: string): MetaobjectRecord | null {
+    const metaobject = this.stagedState.metaobjects[metaobjectId] ?? this.baseState.metaobjects[metaobjectId];
+    return metaobject ? structuredClone(metaobject) : null;
+  }
+
+  findEffectiveMetaobjectByHandle(identifier: { type: string; handle: string }): MetaobjectRecord | null {
+    const metaobject =
+      this.listEffectiveMetaobjects().find(
+        (candidate) => candidate.type === identifier.type && candidate.handle === identifier.handle,
+      ) ?? null;
+    return metaobject ? structuredClone(metaobject) : null;
+  }
+
+  listEffectiveMetaobjectsByType(type: string): MetaobjectRecord[] {
+    return this.listEffectiveMetaobjects().filter((metaobject) => metaobject.type === type);
+  }
+
   hasEffectiveMetaobjectDefinitions(): boolean {
     return (
       Object.keys(this.baseState.metaobjectDefinitions).length > 0 ||
@@ -3624,6 +3817,14 @@ export class InMemoryStore {
 
   hasStagedMetaobjectDefinitions(): boolean {
     return Object.keys(this.stagedState.metaobjectDefinitions).length > 0;
+  }
+
+  hasEffectiveMetaobjects(): boolean {
+    return Object.keys(this.baseState.metaobjects).length > 0 || Object.keys(this.stagedState.metaobjects).length > 0;
+  }
+
+  hasStagedMetaobjects(): boolean {
+    return Object.keys(this.stagedState.metaobjects).length > 0;
   }
 
   getEffectiveMetafieldsByProductId(productId: string): ProductMetafieldRecord[] {
@@ -3639,19 +3840,14 @@ export class InMemoryStore {
       .filter((metafield) => metafield.customerId === customerId)
       .map((metafield) => structuredClone(metafield));
 
-    const sourceMetafields =
-      stagedMetafields.length > 0
-        ? stagedMetafields
-        : Object.values(this.baseState.customerMetafields)
-            .filter((metafield) => metafield.customerId === customerId)
-            .map((metafield) => structuredClone(metafield));
+    if (stagedMetafields.length > 0) {
+      return stagedMetafields;
+    }
 
-    return sourceMetafields.sort(
-      (left, right) =>
-        left.namespace.localeCompare(right.namespace) ||
-        left.key.localeCompare(right.key) ||
-        left.id.localeCompare(right.id),
-    );
+    return Object.values(this.baseState.customerMetafields)
+      .filter((metafield) => metafield.customerId === customerId)
+      .map((metafield) => structuredClone(metafield))
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
   }
 
   hasStagedProducts(): boolean {

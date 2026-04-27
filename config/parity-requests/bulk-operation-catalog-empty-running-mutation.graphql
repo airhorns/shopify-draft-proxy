@@ -1,0 +1,57 @@
+query BulkOperationsCatalogCapture(
+  $first: Int
+  $last: Int
+  $after: String
+  $before: String
+  $query: String
+  $sortKey: BulkOperationsSortKeys
+  $reverse: Boolean
+) {
+  bulkOperations(
+    first: $first
+    last: $last
+    after: $after
+    before: $before
+    query: $query
+    sortKey: $sortKey
+    reverse: $reverse
+  ) {
+    edges {
+      cursor
+      node {
+        id
+        status
+        type
+        errorCode
+        createdAt
+        completedAt
+        objectCount
+        rootObjectCount
+        fileSize
+        url
+        partialDataUrl
+        query
+      }
+    }
+    nodes {
+      id
+      status
+      type
+      errorCode
+      createdAt
+      completedAt
+      objectCount
+      rootObjectCount
+      fileSize
+      url
+      partialDataUrl
+      query
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

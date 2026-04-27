@@ -1,0 +1,265 @@
+query CustomerMergeAttachedResourcesDownstreamParity($one: ID!, $two: ID!, $emailOne: String!, $emailTwo: String!) {
+  source: customer(id: $one) {
+    id
+    firstName
+    lastName
+    displayName
+    email
+    note
+    tags
+    numberOfOrders
+    defaultEmailAddress {
+      emailAddress
+    }
+    defaultPhoneNumber {
+      phoneNumber
+    }
+    defaultAddress {
+      id
+      address1
+      city
+      provinceCode
+      countryCodeV2
+      zip
+    }
+    addressesV2(first: 10) {
+      nodes {
+        id
+        address1
+        city
+        provinceCode
+        countryCodeV2
+        zip
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    metafields(first: 10) {
+      nodes {
+        id
+        namespace
+        key
+        type
+        value
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    orders(first: 10, sortKey: CREATED_AT, reverse: true) {
+      nodes {
+        id
+        name
+        email
+        createdAt
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    lastOrder {
+      id
+      name
+      email
+      createdAt
+    }
+    createdAt
+    updatedAt
+  }
+  result: customer(id: $two) {
+    id
+    firstName
+    lastName
+    displayName
+    email
+    note
+    tags
+    numberOfOrders
+    defaultEmailAddress {
+      emailAddress
+    }
+    defaultPhoneNumber {
+      phoneNumber
+    }
+    defaultAddress {
+      id
+      address1
+      city
+      provinceCode
+      countryCodeV2
+      zip
+    }
+    addressesV2(first: 10) {
+      nodes {
+        id
+        address1
+        city
+        provinceCode
+        countryCodeV2
+        zip
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    metafields(first: 10) {
+      nodes {
+        id
+        namespace
+        key
+        type
+        value
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    orders(first: 10, sortKey: CREATED_AT, reverse: true) {
+      nodes {
+        id
+        name
+        email
+        createdAt
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    lastOrder {
+      id
+      name
+      email
+      createdAt
+    }
+    createdAt
+    updatedAt
+  }
+  byEmailOne: customerByIdentifier(identifier: { emailAddress: $emailOne }) {
+    id
+    email
+    defaultAddress {
+      id
+      address1
+      city
+    }
+    addressesV2(first: 10) {
+      nodes {
+        id
+        address1
+        city
+      }
+    }
+    metafields(first: 10) {
+      nodes {
+        namespace
+        key
+        type
+        value
+      }
+    }
+    orders(first: 10, sortKey: CREATED_AT, reverse: true) {
+      nodes {
+        id
+        name
+      }
+    }
+    lastOrder {
+      id
+      name
+    }
+  }
+  byEmailTwo: customerByIdentifier(identifier: { emailAddress: $emailTwo }) {
+    id
+    email
+    defaultAddress {
+      id
+      address1
+      city
+    }
+    addressesV2(first: 10) {
+      nodes {
+        id
+        address1
+        city
+      }
+    }
+    metafields(first: 10) {
+      nodes {
+        namespace
+        key
+        type
+        value
+      }
+    }
+    orders(first: 10, sortKey: CREATED_AT, reverse: true) {
+      nodes {
+        id
+        name
+      }
+    }
+    lastOrder {
+      id
+      name
+    }
+  }
+  customers(first: 10, query: "tag:har-291-merge") {
+    nodes {
+      id
+      email
+      tags
+      numberOfOrders
+      defaultAddress {
+        id
+        address1
+        city
+      }
+      addressesV2(first: 10) {
+        nodes {
+          id
+          address1
+          city
+        }
+      }
+      metafields(first: 10) {
+        nodes {
+          namespace
+          key
+          value
+        }
+      }
+      orders(first: 10, sortKey: CREATED_AT, reverse: true) {
+        nodes {
+          id
+          name
+        }
+      }
+      lastOrder {
+        id
+        name
+      }
+    }
+  }
+  customersCount(query: "tag:har-291-merge") {
+    count
+    precision
+  }
+}

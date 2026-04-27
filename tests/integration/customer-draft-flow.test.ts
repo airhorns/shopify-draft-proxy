@@ -244,6 +244,433 @@ describe('customer draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('models captured customerCreate input validation and normalization without mutating state on failures', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('customerCreate validation should not hit upstream fetch');
+    });
+
+    const app = createApp(snapshotConfig).callback();
+    const createMutation = `mutation CustomerCreate($input: CustomerInput!) {
+      customerCreate(input: $input) {
+        customer {
+          id
+          email
+          firstName
+          lastName
+          locale
+          note
+          tags
+          defaultPhoneNumber { phoneNumber }
+        }
+        userErrors { field message }
+      }
+    }`;
+
+    const invalidEmailResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: createMutation,
+        variables: { input: { email: 'not-an-email' } },
+      });
+    expect(invalidEmailResponse.body.data.customerCreate).toEqual({
+      customer: null,
+      userErrors: [{ field: ['email'], message: 'Email is invalid' }],
+    });
+    expect(store.listEffectiveCustomers()).toEqual([]);
+    expect(store.getLog().at(-1)?.stagedResourceIds).toEqual([]);
+
+    const validResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: createMutation,
+        variables: {
+          input: {
+            email: 'validation-create@example.com',
+            firstName: '   ',
+            lastName: '',
+            note: '',
+            phone: '',
+            tags: ['Zulu', 'alpha', 'alpha', ' spaced tag ', ''],
+          },
+        },
+      });
+    expect(validResponse.body.data.customerCreate.userErrors).toEqual([]);
+    expect(validResponse.body.data.customerCreate.customer).toMatchObject({
+      email: 'validation-create@example.com',
+      firstName: null,
+      lastName: null,
+      locale: 'en',
+      note: '',
+      tags: ['alpha', 'spaced tag', 'Zulu'],
+      defaultPhoneNumber: null,
+    });
+    const customerId = validResponse.body.data.customerCreate.customer.id;
+
+    const duplicateEmailResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: createMutation,
+        variables: { input: { email: 'validation-create@example.com', firstName: 'Duplicate' } },
+      });
+    expect(duplicateEmailResponse.body.data.customerCreate).toEqual({
+      customer: null,
+      userErrors: [{ field: ['email'], message: 'Email has already been taken' }],
+    });
+
+    const phoneSeedResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: createMutation,
+        variables: { input: { phone: '+14155550120' } },
+      });
+    expect(phoneSeedResponse.body.data.customerCreate.userErrors).toEqual([]);
+
+    const duplicatePhoneResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: createMutation,
+        variables: { input: { phone: '+14155550120', firstName: 'Duplicate' } },
+      });
+    expect(duplicatePhoneResponse.body.data.customerCreate).toEqual({
+      customer: null,
+      userErrors: [{ field: ['phone'], message: 'Phone has already been taken' }],
+    });
+
+    const invalidPhoneResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: createMutation,
+        variables: { input: { phone: 'abc' } },
+      });
+    expect(invalidPhoneResponse.body.data.customerCreate).toEqual({
+      customer: null,
+      userErrors: [{ field: ['phone'], message: 'Phone is invalid' }],
+    });
+
+    const invalidLocaleResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: createMutation,
+        variables: { input: { email: 'validation-locale@example.com', locale: 'not-a-locale' } },
+      });
+    expect(invalidLocaleResponse.body.data.customerCreate).toEqual({
+      customer: null,
+      userErrors: [{ field: ['locale'], message: 'Locale is invalid' }],
+    });
+
+    const oversizedResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: createMutation,
+        variables: {
+          input: {
+            email: 'validation-oversized@example.com',
+            firstName: 'F'.repeat(300),
+            lastName: 'L'.repeat(300),
+            note: 'N'.repeat(5001),
+            tags: ['T'.repeat(256)],
+          },
+        },
+      });
+    expect(oversizedResponse.body.data.customerCreate).toEqual({
+      customer: null,
+      userErrors: [
+        { field: ['firstName'], message: 'First name is too long (maximum is 255 characters)' },
+        { field: ['lastName'], message: 'Last name is too long (maximum is 255 characters)' },
+        { field: ['note'], message: 'Note is too long (maximum is 5000 characters)' },
+        { field: ['tags'], message: 'Tags is too long (maximum is 255 characters)' },
+      ],
+    });
+
+    expect(new Set(store.listEffectiveCustomers().map((customer) => customer.id))).toEqual(
+      new Set([customerId, phoneSeedResponse.body.data.customerCreate.customer.id]),
+    );
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('models captured customerUpdate validation without mutating customer state or metafields on failure', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('customerUpdate validation should not hit upstream fetch');
+    });
+
+    const app = createApp(snapshotConfig).callback();
+    const createResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CustomerCreate($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer {
+              id
+              email
+              note
+              tags
+              metafield(namespace: "custom", key: "loyalty") { namespace key type value }
+            }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            email: 'validation-update@example.com',
+            firstName: 'Validation',
+            lastName: 'Update',
+            phone: '+14155550123',
+            note: 'before failure',
+            tags: ['before'],
+            metafields: [
+              {
+                namespace: 'custom',
+                key: 'loyalty',
+                type: 'single_line_text_field',
+                value: 'gold',
+              },
+            ],
+          },
+        },
+      });
+    const customerId = createResponse.body.data.customerCreate.customer.id;
+
+    const duplicateSeedResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CustomerCreate($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id email defaultPhoneNumber { phoneNumber } }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            email: 'validation-duplicate@example.com',
+            phone: '+14155550124',
+          },
+        },
+      });
+    expect(duplicateSeedResponse.body.data.customerCreate.userErrors).toEqual([]);
+
+    const updateMutation = `mutation CustomerUpdate($input: CustomerInput!) {
+      customerUpdate(input: $input) {
+        customer {
+          id
+          email
+          firstName
+          lastName
+          locale
+          note
+          tags
+          defaultPhoneNumber { phoneNumber }
+          metafield(namespace: "custom", key: "loyalty") { namespace key type value }
+        }
+        userErrors { field message }
+      }
+    }`;
+
+    const invalidUpdateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: updateMutation,
+        variables: {
+          input: {
+            id: customerId,
+            email: 'not-an-email',
+            phone: 'abc',
+            locale: 'not-a-locale',
+            note: 'should not apply',
+            tags: ['should-not-apply'],
+            metafields: [
+              {
+                namespace: 'custom',
+                key: 'loyalty',
+                type: 'single_line_text_field',
+                value: 'platinum',
+              },
+            ],
+          },
+        },
+      });
+    expect(invalidUpdateResponse.body.data.customerUpdate).toEqual({
+      customer: null,
+      userErrors: [
+        { field: ['email'], message: 'Email is invalid' },
+        { field: ['phone'], message: 'Phone is invalid' },
+        { field: ['locale'], message: 'Locale is invalid' },
+      ],
+    });
+    expect(store.getLog().at(-1)?.stagedResourceIds).toEqual([]);
+
+    const failedDuplicateUpdateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: updateMutation,
+        variables: {
+          input: {
+            id: customerId,
+            email: 'validation-duplicate@example.com',
+            phone: '+14155550124',
+          },
+        },
+      });
+    expect(failedDuplicateUpdateResponse.body.data.customerUpdate).toEqual({
+      customer: null,
+      userErrors: [
+        { field: ['email'], message: 'Email has already been taken' },
+        { field: ['phone'], message: 'Phone has already been taken' },
+      ],
+    });
+
+    const readAfterFailureResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query CustomerAfterFailedUpdate($id: ID!) {
+          customer(id: $id) {
+            id
+            email
+            note
+            tags
+            defaultPhoneNumber { phoneNumber }
+            metafield(namespace: "custom", key: "loyalty") { namespace key type value }
+          }
+          customerByIdentifier(identifier: { emailAddress: "validation-update@example.com" }) {
+            id
+            email
+          }
+          customers(first: 10, query: "email:validation-update@example.com") {
+            nodes { id email note tags }
+          }
+        }`,
+        variables: { id: customerId },
+      });
+
+    expect(readAfterFailureResponse.body.data).toEqual({
+      customer: {
+        id: customerId,
+        email: 'validation-update@example.com',
+        note: 'before failure',
+        tags: ['before'],
+        defaultPhoneNumber: { phoneNumber: '+14155550123' },
+        metafield: {
+          namespace: 'custom',
+          key: 'loyalty',
+          type: 'single_line_text_field',
+          value: 'gold',
+        },
+      },
+      customerByIdentifier: {
+        id: customerId,
+        email: 'validation-update@example.com',
+      },
+      customers: {
+        nodes: [
+          {
+            id: customerId,
+            email: 'validation-update@example.com',
+            note: 'before failure',
+            tags: ['before'],
+          },
+        ],
+      },
+    });
+
+    const normalizationResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: updateMutation,
+        variables: {
+          input: {
+            id: customerId,
+            firstName: '   ',
+            lastName: '',
+            note: '',
+            phone: '',
+            tags: ['Zulu', 'alpha', 'alpha', ' spaced tag ', ''],
+          },
+        },
+      });
+    expect(normalizationResponse.body.data.customerUpdate.userErrors).toEqual([]);
+    expect(normalizationResponse.body.data.customerUpdate.customer).toMatchObject({
+      id: customerId,
+      email: 'validation-update@example.com',
+      firstName: null,
+      lastName: null,
+      note: '',
+      tags: ['alpha', 'spaced tag', 'Zulu'],
+      defaultPhoneNumber: null,
+      metafield: {
+        namespace: 'custom',
+        key: 'loyalty',
+        type: 'single_line_text_field',
+        value: 'gold',
+      },
+    });
+
+    const readAfterNormalizationResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query CustomerAfterNormalizedUpdate($id: ID!) {
+          customer(id: $id) {
+            id
+            firstName
+            lastName
+            note
+            tags
+            defaultPhoneNumber { phoneNumber }
+          }
+          customerByIdentifier(identifier: { emailAddress: "validation-update@example.com" }) {
+            id
+            firstName
+            lastName
+            note
+            tags
+            defaultPhoneNumber { phoneNumber }
+          }
+        }`,
+        variables: { id: customerId },
+      });
+    expect(readAfterNormalizationResponse.body.data).toEqual({
+      customer: {
+        id: customerId,
+        firstName: null,
+        lastName: null,
+        note: '',
+        tags: ['alpha', 'spaced tag', 'Zulu'],
+        defaultPhoneNumber: null,
+      },
+      customerByIdentifier: {
+        id: customerId,
+        firstName: null,
+        lastName: null,
+        note: '',
+        tags: ['alpha', 'spaced tag', 'Zulu'],
+        defaultPhoneNumber: null,
+      },
+    });
+
+    const nullScalarResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: updateMutation,
+        variables: {
+          input: {
+            id: customerId,
+            firstName: null,
+            lastName: null,
+            note: null,
+            phone: null,
+          },
+        },
+      });
+    expect(nullScalarResponse.body.data.customerUpdate.userErrors).toEqual([]);
+    expect(nullScalarResponse.body.data.customerUpdate.customer).toMatchObject({
+      id: customerId,
+      firstName: null,
+      lastName: null,
+      note: null,
+      defaultPhoneNumber: null,
+    });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('stages dataSaleOptOut locally and overlays downstream customer privacy reads', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('dataSaleOptOut should not hit upstream fetch');
@@ -1585,6 +2012,281 @@ describe('customer draft flow', () => {
       'CustomerCreate',
       'CustomerMerge',
     ]);
+
+    const updateMergedSourceResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation UpdateMergedSource($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }`,
+        variables: { input: { id: customerOneId, firstName: 'AfterMerge' } },
+      });
+    expect(updateMergedSourceResponse.body.data.customerUpdate).toEqual({
+      customer: null,
+      userErrors: [{ field: ['id'], message: 'Customer does not exist' }],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('stages customerMerge attached resources represented in normalized state', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('customerMerge attached resources should not hit upstream fetch');
+    });
+
+    const app = createApp(snapshotConfig).callback();
+    const createMutation = `mutation CustomerCreate($input: CustomerInput!) {
+      customerCreate(input: $input) {
+        customer { id email defaultPhoneNumber { phoneNumber } metafields(first: 5) { nodes { id namespace key type value } } }
+        userErrors { field message }
+      }
+    }`;
+
+    const createOneResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: createMutation,
+        variables: {
+          input: {
+            email: 'merge-attached-one@example.com',
+            phone: '+16475550111',
+            firstName: 'Merge',
+            lastName: 'One',
+            note: 'one note',
+            tags: ['har-291-merge', 'merge-one'],
+            metafields: [
+              { namespace: 'custom', key: 'source_only', type: 'single_line_text_field', value: 'source' },
+              { namespace: 'custom', key: 'conflict', type: 'single_line_text_field', value: 'source-conflict' },
+            ],
+          },
+        },
+      });
+    const createTwoResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: createMutation,
+        variables: {
+          input: {
+            email: 'merge-attached-two@example.com',
+            phone: '+16475550222',
+            firstName: 'Merge',
+            lastName: 'Two',
+            note: 'two note',
+            tags: ['har-291-merge', 'merge-two'],
+            metafields: [
+              { namespace: 'custom', key: 'result_only', type: 'single_line_text_field', value: 'result' },
+              { namespace: 'custom', key: 'conflict', type: 'single_line_text_field', value: 'result-conflict' },
+            ],
+          },
+        },
+      });
+
+    const customerOneId = createOneResponse.body.data.customerCreate.customer.id;
+    const customerTwoId = createTwoResponse.body.data.customerCreate.customer.id;
+
+    const addressMutation = `mutation CustomerAddressCreate($customerId: ID!, $address: MailingAddressInput!, $setAsDefault: Boolean) {
+      customerAddressCreate(customerId: $customerId, address: $address, setAsDefault: $setAsDefault) {
+        address { id address1 city provinceCode countryCodeV2 zip }
+        userErrors { field message }
+      }
+    }`;
+    await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: addressMutation,
+        variables: {
+          customerId: customerOneId,
+          address: {
+            firstName: 'Source',
+            lastName: 'Address',
+            address1: '1 Source Merge St',
+            city: 'Ottawa',
+            provinceCode: 'ON',
+            countryCode: 'CA',
+            zip: 'K1A 0B1',
+          },
+          setAsDefault: true,
+        },
+      });
+    await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: addressMutation,
+        variables: {
+          customerId: customerTwoId,
+          address: {
+            firstName: 'Result',
+            lastName: 'Address',
+            address1: '2 Result Merge Ave',
+            city: 'Toronto',
+            provinceCode: 'ON',
+            countryCode: 'CA',
+            zip: 'M5H 2N2',
+          },
+          setAsDefault: true,
+        },
+      });
+
+    const orderResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CustomerMergeOrderCreate($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id email customer { id email displayName } }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          order: {
+            customerId: customerOneId,
+            email: 'merge-attached-one@example.com',
+            currency: 'CAD',
+            lineItems: [
+              {
+                title: 'HAR-291 merge source order item',
+                quantity: 1,
+                priceSet: { shopMoney: { amount: '11.00', currencyCode: 'CAD' } },
+              },
+            ],
+          },
+        },
+      });
+    const orderId = orderResponse.body.data.orderCreate.order.id;
+    await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CustomerMergeOrderCustomerSet($orderId: ID!, $customerId: ID!) {
+          orderCustomerSet(orderId: $orderId, customerId: $customerId) {
+            order { id customer { id email displayName } }
+            userErrors { field message }
+          }
+        }`,
+        variables: { orderId, customerId: customerOneId },
+      });
+
+    const mergeResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CustomerMerge($one: ID!, $two: ID!, $override: CustomerMergeOverrideFields) {
+          customerMerge(customerOneId: $one, customerTwoId: $two, overrideFields: $override) {
+            resultingCustomerId
+            job { id done }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          one: customerOneId,
+          two: customerTwoId,
+          override: {
+            customerIdOfEmailToKeep: customerTwoId,
+            customerIdOfPhoneNumberToKeep: customerOneId,
+            customerIdOfFirstNameToKeep: customerOneId,
+            customerIdOfLastNameToKeep: customerTwoId,
+            note: 'merged note',
+            tags: ['har-291-merge', 'merged'],
+          },
+        },
+      });
+    const jobId = mergeResponse.body.data.customerMerge.job.id;
+
+    const downstreamResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query CustomerMergeAttachedDownstream($one: ID!, $two: ID!, $jobId: ID!) {
+          source: customer(id: $one) { id }
+          result: customer(id: $two) {
+            id
+            email
+            note
+            tags
+            numberOfOrders
+            defaultPhoneNumber { phoneNumber }
+            defaultAddress { address1 city }
+            addressesV2(first: 10) { nodes { address1 city } }
+            metafields(first: 10) { nodes { namespace key type value } }
+            orders(first: 10) { nodes { id email customer { id email displayName } } }
+            lastOrder { id }
+          }
+          oldEmail: customerByIdentifier(identifier: { emailAddress: "merge-attached-one@example.com" }) { id }
+          newEmail: customerByIdentifier(identifier: { emailAddress: "merge-attached-two@example.com" }) {
+            id
+            addressesV2(first: 10) { nodes { address1 city } }
+            metafields(first: 10) { nodes { namespace key type value } }
+            orders(first: 10) { nodes { id email } }
+          }
+          mergeStatus: customerMergeJobStatus(jobId: $jobId) { jobId resultingCustomerId status customerMergeErrors { message } }
+        }`,
+        variables: { one: customerOneId, two: customerTwoId, jobId },
+      });
+
+    expect(downstreamResponse.status).toBe(200);
+    expect(downstreamResponse.body.data).toEqual({
+      source: null,
+      result: {
+        id: customerTwoId,
+        email: 'merge-attached-two@example.com',
+        note: 'merged note',
+        tags: ['har-291-merge', 'merged'],
+        numberOfOrders: 0,
+        defaultPhoneNumber: { phoneNumber: '+16475550111' },
+        defaultAddress: { address1: '2 Result Merge Ave', city: 'Toronto' },
+        addressesV2: {
+          nodes: [
+            { address1: '1 Source Merge St', city: 'Ottawa' },
+            { address1: '2 Result Merge Ave', city: 'Toronto' },
+          ],
+        },
+        metafields: {
+          nodes: [
+            { namespace: 'custom', key: 'result_only', type: 'single_line_text_field', value: 'result' },
+            { namespace: 'custom', key: 'conflict', type: 'single_line_text_field', value: 'result-conflict' },
+            { namespace: 'custom', key: 'source_only', type: 'single_line_text_field', value: 'source' },
+          ],
+        },
+        orders: {
+          nodes: [
+            {
+              id: orderId,
+              email: 'merge-attached-two@example.com',
+              customer: {
+                id: customerTwoId,
+                email: 'merge-attached-two@example.com',
+                displayName: 'Merge Two',
+              },
+            },
+          ],
+        },
+        lastOrder: null,
+      },
+      oldEmail: null,
+      newEmail: {
+        id: customerTwoId,
+        addressesV2: {
+          nodes: [
+            { address1: '1 Source Merge St', city: 'Ottawa' },
+            { address1: '2 Result Merge Ave', city: 'Toronto' },
+          ],
+        },
+        metafields: {
+          nodes: [
+            { namespace: 'custom', key: 'result_only', type: 'single_line_text_field', value: 'result' },
+            { namespace: 'custom', key: 'conflict', type: 'single_line_text_field', value: 'result-conflict' },
+            { namespace: 'custom', key: 'source_only', type: 'single_line_text_field', value: 'source' },
+          ],
+        },
+        orders: {
+          nodes: [{ id: orderId, email: 'merge-attached-two@example.com' }],
+        },
+      },
+      mergeStatus: {
+        jobId,
+        resultingCustomerId: customerTwoId,
+        status: 'COMPLETED',
+        customerMergeErrors: [],
+      },
+    });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -3184,6 +3886,22 @@ describe('customer draft flow', () => {
         customers: { nodes: [] },
         customersCount: { count: 0, precision: 'EXACT' },
       },
+    });
+
+    const updateDeletedResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation UpdateDeletedCustomer($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }`,
+        variables: { input: { id: 'gid://shopify/Customer/402', firstName: 'AfterDelete' } },
+      });
+    expect(updateDeletedResponse.body.data.customerUpdate).toEqual({
+      customer: null,
+      userErrors: [{ field: ['id'], message: 'Customer does not exist' }],
     });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
