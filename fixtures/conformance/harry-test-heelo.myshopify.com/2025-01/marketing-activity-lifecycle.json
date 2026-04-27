@@ -1,0 +1,243 @@
+{
+  "capturedAt": "2026-04-25T22:54:20Z",
+  "apiVersion": "2025-01",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "accessScopes": ["read_marketing_events", "write_marketing_events"],
+  "notes": [
+    "Temporary HAR-213 external marketing activities were created against the disposable conformance shop and deleted during capture.",
+    "UpdateExternal succeeds by remoteId for newly-created external activities; a direct marketingActivityId update returned MARKETING_ACTIVITY_DOES_NOT_EXIST in the same capture session.",
+    "UpsertExternal updates an existing remoteId when UTM values are unchanged; changing UTM values returns IMMUTABLE_UTM_PARAMETERS.",
+    "DeleteAllExternal returns an asynchronous Job payload with done false."
+  ],
+  "operations": {
+    "createExternal": {
+      "variables": {
+        "input": {
+          "title": "HAR-213 Probe 1777157638014",
+          "remoteId": "har-213-probe-1777157638014",
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/har-213",
+          "tactic": "NEWSLETTER",
+          "marketingChannelType": "EMAIL",
+          "utm": {
+            "campaign": "har-213-probe-1777157638014",
+            "source": "newsletter",
+            "medium": "email"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "marketingActivityCreateExternal": {
+            "marketingActivity": {
+              "id": "gid://shopify/MarketingActivity/196829184306",
+              "title": "HAR-213 Probe 1777157638014",
+              "createdAt": "2026-04-25T22:53:58Z",
+              "updatedAt": "2026-04-25T22:53:58Z",
+              "status": "ACTIVE",
+              "statusLabel": "Sending",
+              "tactic": "NEWSLETTER",
+              "marketingChannelType": "EMAIL",
+              "sourceAndMedium": "Email newsletter",
+              "isExternal": true,
+              "inMainWorkflowVersion": false,
+              "urlParameterValue": null,
+              "parentActivityId": null,
+              "parentRemoteId": null,
+              "hierarchyLevel": null,
+              "utmParameters": {
+                "campaign": "har-213-probe-1777157638014",
+                "source": "newsletter",
+                "medium": "email"
+              },
+              "marketingEvent": {
+                "id": "gid://shopify/MarketingEvent/242185994546",
+                "type": "NEWSLETTER",
+                "remoteId": "har-213-probe-1777157638014",
+                "startedAt": "2026-04-25T22:53:58Z",
+                "endedAt": null,
+                "scheduledToEndAt": null,
+                "manageUrl": "https://example.com/har-213",
+                "previewUrl": null,
+                "utmCampaign": "har-213-probe-1777157638014",
+                "utmMedium": "email",
+                "utmSource": "newsletter",
+                "description": "HAR-213 Probe 1777157638014",
+                "marketingChannelType": "EMAIL",
+                "sourceAndMedium": "Email newsletter",
+                "channelHandle": null
+              }
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "updateExternalByRemoteId": {
+      "response": {
+        "data": {
+          "marketingActivityUpdateExternal": {
+            "marketingActivity": {
+              "id": "gid://shopify/MarketingActivity/196829217074",
+              "title": "HAR-213 Updated By Remote 1777157650359",
+              "createdAt": "2026-04-25T22:54:10Z",
+              "updatedAt": "2026-04-25T22:54:10Z",
+              "status": "PAUSED",
+              "statusLabel": "Paused",
+              "tactic": "NEWSLETTER",
+              "marketingChannelType": "EMAIL",
+              "sourceAndMedium": "Email newsletter",
+              "isExternal": true,
+              "inMainWorkflowVersion": false,
+              "utmParameters": {
+                "campaign": "har-213-update-1777157650359",
+                "source": "newsletter",
+                "medium": "email"
+              },
+              "marketingEvent": {
+                "id": "gid://shopify/MarketingEvent/242186027314",
+                "type": "NEWSLETTER",
+                "remoteId": "har-213-update-1777157650359",
+                "startedAt": "2026-04-25T22:54:10Z",
+                "endedAt": null,
+                "manageUrl": "https://example.com/har-213-update-2",
+                "previewUrl": null,
+                "utmCampaign": "har-213-update-1777157650359",
+                "utmMedium": "email",
+                "utmSource": "newsletter",
+                "description": "HAR-213 Updated By Remote 1777157650359",
+                "marketingChannelType": "EMAIL",
+                "sourceAndMedium": "Email newsletter"
+              }
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "upsertExternalCreateThenUpdate": {
+      "createResponse": {
+        "data": {
+          "marketingActivityUpsertExternal": {
+            "marketingActivity": {
+              "id": "gid://shopify/MarketingActivity/196829282610",
+              "title": "HAR-213 Upsert OK 1777157659720",
+              "status": "ACTIVE",
+              "statusLabel": "Sending",
+              "marketingEvent": {
+                "id": "gid://shopify/MarketingEvent/242186092850",
+                "remoteId": "har-213-upsert-ok-1777157659720",
+                "startedAt": "2026-04-25T22:54:19Z",
+                "endedAt": null,
+                "manageUrl": "https://example.com/har-213-upsert-ok"
+              }
+            },
+            "userErrors": []
+          }
+        }
+      },
+      "updateResponse": {
+        "data": {
+          "marketingActivityUpsertExternal": {
+            "marketingActivity": {
+              "id": "gid://shopify/MarketingActivity/196829282610",
+              "title": "HAR-213 Upsert OK Updated 1777157659720",
+              "updatedAt": "2026-04-25T22:54:20Z",
+              "status": "INACTIVE",
+              "statusLabel": "Sent",
+              "marketingEvent": {
+                "id": "gid://shopify/MarketingEvent/242186092850",
+                "remoteId": "har-213-upsert-ok-1777157659720",
+                "startedAt": "2026-04-25T22:54:20Z",
+                "endedAt": "2026-04-25T22:54:20Z",
+                "manageUrl": "https://example.com/har-213-upsert-ok-2"
+              }
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "deleteExternal": {
+      "response": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/196829184306",
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "deleteAllExternal": {
+      "response": {
+        "data": {
+          "marketingActivitiesDeleteAllExternal": {
+            "job": {
+              "id": "gid://shopify/Job/990e19fe-fedb-4ebb-8379-98eec64919f4",
+              "done": false
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "validation": {
+      "createMissingAttribution": {
+        "data": {
+          "marketingActivityCreateExternal": {
+            "marketingActivity": null,
+            "userErrors": [
+              {
+                "field": ["input"],
+                "message": "Non-hierarchical marketing activities must have UTM parameters or a URL parameter value.",
+                "code": "NON_HIERARCHIAL_REQUIRES_UTM_URL_PARAMETER"
+              }
+            ]
+          }
+        }
+      },
+      "deleteMissing": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Marketing activity does not exist.",
+                "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+              }
+            ]
+          }
+        }
+      },
+      "upsertChangedUtm": {
+        "data": {
+          "marketingActivityUpsertExternal": {
+            "marketingActivity": null,
+            "userErrors": [
+              {
+                "field": ["input"],
+                "message": "UTM parameters cannot be modified.",
+                "code": "IMMUTABLE_UTM_PARAMETERS"
+              }
+            ]
+          }
+        }
+      },
+      "duplicateRemoteId": {
+        "data": {
+          "marketingActivityCreateExternal": {
+            "marketingActivity": null,
+            "userErrors": [
+              {
+                "field": ["input"],
+                "message": "Validation failed: Remote ID has already been taken, Utm campaign has already been taken",
+                "code": null
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

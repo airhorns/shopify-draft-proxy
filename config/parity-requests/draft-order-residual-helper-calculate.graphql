@@ -1,0 +1,73 @@
+mutation CalculateDraftOrder($input: DraftOrderInput!) {
+  draftOrderCalculate(input: $input) {
+    calculatedDraftOrder {
+      currencyCode
+      totalQuantityOfLineItems
+      subtotalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalDiscountsSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalShippingPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      lineItems {
+        title
+        quantity
+        custom
+        originalUnitPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        originalTotalSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        discountedTotalSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        totalDiscountSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+      availableShippingRates {
+        handle
+        title
+        price {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

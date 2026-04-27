@@ -1,0 +1,78 @@
+query LocalizationLocaleTranslationRead($first: Int!, $resourceType: TranslatableResourceType!, $ids: [ID!]!) {
+  availableLocalesExcerpt: availableLocales {
+    isoCode
+    name
+  }
+  allShopLocales: shopLocales {
+    locale
+    name
+    primary
+    published
+    marketWebPresences {
+      id
+      subfolderSuffix
+    }
+  }
+  publishedShopLocales: shopLocales(published: true) {
+    locale
+    name
+    primary
+    published
+  }
+  resources: translatableResources(first: $first, resourceType: $resourceType) {
+    nodes {
+      resourceId
+      translatableContent {
+        key
+        value
+        digest
+        locale
+        type
+      }
+      translations(locale: "fr") {
+        key
+        value
+        locale
+        outdated
+        market {
+          id
+        }
+      }
+      nestedTranslatableResources(first: 1) {
+        nodes {
+          resourceId
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  byIds: translatableResourcesByIds(first: $first, resourceIds: $ids) {
+    nodes {
+      resourceId
+    }
+    edges {
+      cursor
+      node {
+        resourceId
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  missing: translatableResource(resourceId: "gid://shopify/Product/999999999999999") {
+    resourceId
+  }
+}

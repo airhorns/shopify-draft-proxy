@@ -688,8 +688,15 @@ describe('getOperationCapability', () => {
     });
   });
 
-  it('routes implemented metaobject definition read roots through the local overlay', () => {
-    for (const rootField of ['metaobjectDefinition', 'metaobjectDefinitionByType', 'metaobjectDefinitions']) {
+  it('routes implemented metaobject read roots through the local overlay', () => {
+    for (const rootField of [
+      'metaobject',
+      'metaobjectByHandle',
+      'metaobjects',
+      'metaobjectDefinition',
+      'metaobjectDefinitionByType',
+      'metaobjectDefinitions',
+    ]) {
       expect(
         getOperationCapability({
           type: 'query',
@@ -705,32 +712,68 @@ describe('getOperationCapability', () => {
     }
   });
 
-  it('routes implemented payment customization read roots through the local overlay', () => {
-    expect(
-      getOperationCapability({
-        type: 'query',
-        name: 'PaymentCustomizations',
-        rootFields: ['paymentCustomizations'],
-      }),
-    ).toEqual({
-      domain: 'payments',
-      execution: 'overlay-read',
-      operationName: 'PaymentCustomizations',
-      type: 'query',
-    });
+  it('routes implemented metaobject definition mutation roots through local staging', () => {
+    for (const rootField of [
+      'metaobjectDefinitionCreate',
+      'metaobjectDefinitionUpdate',
+      'metaobjectDefinitionDelete',
+      'standardMetaobjectDefinitionEnable',
+    ]) {
+      expect(
+        getOperationCapability({
+          type: 'mutation',
+          name: rootField,
+          rootFields: [rootField],
+        }),
+      ).toEqual({
+        domain: 'metaobjects',
+        execution: 'stage-locally',
+        operationName: rootField,
+        type: 'mutation',
+      });
+    }
+  });
 
-    expect(
-      getOperationCapability({
+  it('routes implemented payment customization read roots through the local overlay', () => {
+    for (const rootField of ['paymentCustomizations', 'paymentCustomization']) {
+      expect(
+        getOperationCapability({
+          type: 'query',
+          name: `${rootField[0]?.toUpperCase() ?? ''}${rootField.slice(1)}`,
+          rootFields: [rootField],
+        }),
+      ).toEqual({
+        domain: 'payments',
+        execution: 'overlay-read',
+        operationName: `${rootField[0]?.toUpperCase() ?? ''}${rootField.slice(1)}`,
         type: 'query',
-        name: 'PaymentCustomization',
-        rootFields: ['paymentCustomization'],
-      }),
-    ).toEqual({
-      domain: 'payments',
-      execution: 'overlay-read',
-      operationName: 'PaymentCustomization',
-      type: 'query',
-    });
+      });
+    }
+  });
+
+  it('routes implemented finance risk no-data read roots through the payment overlay', () => {
+    for (const rootField of [
+      'cashTrackingSession',
+      'cashTrackingSessions',
+      'pointOfSaleDevice',
+      'dispute',
+      'disputes',
+      'shopPayPaymentRequestReceipt',
+      'shopPayPaymentRequestReceipts',
+    ]) {
+      expect(
+        getOperationCapability({
+          type: 'query',
+          name: `${rootField[0]?.toUpperCase() ?? ''}${rootField.slice(1)}`,
+          rootFields: [rootField],
+        }),
+      ).toEqual({
+        domain: 'payments',
+        execution: 'overlay-read',
+        operationName: `${rootField[0]?.toUpperCase() ?? ''}${rootField.slice(1)}`,
+        type: 'query',
+      });
+    }
   });
 
   it('routes implemented payment customization mutations through local staging', () => {

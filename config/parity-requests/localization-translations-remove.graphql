@@ -1,0 +1,14 @@
+mutation LocalizationTranslationsRemove($resourceId: ID!, $keys: [String!]!, $locales: [String!]!) {
+  translationsRemove(resourceId: $resourceId, translationKeys: $keys, locales: $locales) {
+    translations {
+      key
+      value
+      locale
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

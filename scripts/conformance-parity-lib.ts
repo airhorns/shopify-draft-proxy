@@ -29,19 +29,31 @@ import {
   handleCustomerQuery,
   hydrateCustomersFromUpstreamResponse,
 } from '../src/proxy/customers.js';
+import { handleAdminPlatformQuery } from '../src/proxy/admin-platform.js';
+import { handleB2BQuery } from '../src/proxy/b2b.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from '../src/proxy/delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from '../src/proxy/discounts.js';
 import { handleEventsQuery } from '../src/proxy/events.js';
 import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
-import { handleMarketingQuery, hydrateMarketingFromUpstreamResponse } from '../src/proxy/marketing.js';
+import {
+  handleMarketingMutation,
+  handleMarketingQuery,
+  hydrateMarketingFromUpstreamResponse,
+} from '../src/proxy/marketing.js';
 import {
   handleMarketMutation,
   handleMarketsQuery,
   hydrateMarketsFromUpstreamResponse,
   seedMarketsFromCapture,
 } from '../src/proxy/markets.js';
-import { handleMediaMutation } from '../src/proxy/media.js';
+import {
+  handleLocalizationMutation,
+  handleLocalizationQuery,
+  hydrateLocalizationFromUpstreamResponse,
+} from '../src/proxy/localization.js';
+import { handleMediaMutation, handleMediaQuery } from '../src/proxy/media.js';
 import { handleOrderMutation, handleOrderQuery } from '../src/proxy/orders.js';
+import { findOperationRegistryEntry } from '../src/proxy/operation-registry.js';
 import {
   handleProductMutation,
   handleProductQuery,
@@ -51,6 +63,11 @@ import {
   handleMetafieldDefinitionMutation,
   handleMetafieldDefinitionQuery,
 } from '../src/proxy/metafield-definitions.js';
+import {
+  handleMetaobjectDefinitionMutation,
+  handleMetaobjectDefinitionQuery,
+  hydrateMetaobjectsFromUpstreamResponse,
+} from '../src/proxy/metaobject-definitions.js';
 import { handlePaymentMutation, handlePaymentQuery } from '../src/proxy/payments.js';
 import {
   handleSegmentMutation,
@@ -61,8 +78,14 @@ import { handleStorePropertiesMutation, handleStorePropertiesQuery } from '../sr
 import { makeSyntheticGid, makeSyntheticTimestamp, resetSyntheticIdentity } from '../src/state/synthetic-identity.js';
 import { store } from '../src/state/store.js';
 import type {
+  B2BCompanyContactRecord,
+  B2BCompanyContactRoleRecord,
+  B2BCompanyLocationRecord,
+  B2BCompanyRecord,
   BusinessEntityRecord,
   CollectionRecord,
+  CustomerAddressRecord,
+  CustomerMetafieldRecord,
   CustomerRecord,
   DeliveryProfileCountryRecord,
   DeliveryProfileLocationGroupRecord,
@@ -73,6 +96,7 @@ import type {
   DraftOrderRecord,
   DraftOrderShippingLineRecord,
   InventoryLevelRecord,
+  LocaleRecord,
   LocationRecord,
   MutationLogInterpretedMetadata,
   OrderCustomerRecord,
@@ -93,6 +117,7 @@ import type {
   ProductVariantRecord,
   ShopifyPaymentsAccountRecord,
   ShopRecord,
+  ShopLocaleRecord,
   DiscountRecord,
 } from '../src/state/types.js';
 
@@ -110,6 +135,25 @@ function interpretMutationLogEntry(
       domain: capability.domain,
       execution: capability.execution,
     },
+  };
+}
+
+function readRegisteredParityCapability(parsed: ParsedOperation, fallback: OperationCapability): OperationCapability {
+  const registryEntry = findOperationRegistryEntry(parsed.type, [...parsed.rootFields, parsed.name]);
+  if (!registryEntry) {
+    return fallback;
+  }
+
+  const matchedRootField = parsed.rootFields.find((rootField) => registryEntry.matchNames.includes(rootField));
+  const operationName =
+    matchedRootField ??
+    (parsed.name && registryEntry.matchNames.includes(parsed.name) ? parsed.name : registryEntry.name);
+
+  return {
+    type: parsed.type,
+    operationName,
+    domain: registryEntry.domain,
+    execution: registryEntry.execution,
   };
 }
 
@@ -176,26 +220,16 @@ function isKnownMatcher(matcher: string): matcher is Matcher {
   );
 }
 
-export function validateComparisonContract(comparison: unknown): string[] {
+function validateExpectedDifferences(rawRules: unknown, labelPrefix: string): string[] {
   const errors: string[] = [];
-  const candidate = isPlainObject(comparison) ? comparison : {};
-
-  if (candidate['mode'] !== 'strict-json') {
-    errors.push('Comparison contract mode must be `strict-json`.');
-  }
-
-  if ('allowedDifferences' in candidate) {
-    errors.push('Comparison contract must use `expectedDifferences`; `allowedDifferences` is no longer supported.');
-  }
-
-  if (!Array.isArray(candidate['expectedDifferences'])) {
-    errors.push('Comparison contract must declare an `expectedDifferences` array.');
+  if (!Array.isArray(rawRules)) {
+    errors.push(`${labelPrefix} must declare an expectedDifferences array.`);
     return errors;
   }
 
-  for (const [index, rawRule] of candidate['expectedDifferences'].entries()) {
+  for (const [index, rawRule] of rawRules.entries()) {
     const rule = isPlainObject(rawRule) ? rawRule : {};
-    const label = `expectedDifferences[${index}]`;
+    const label = `${labelPrefix}[${index}]`;
     if (typeof rule['path'] !== 'string' || rule['path'].length === 0) {
       errors.push(`${label} must declare a non-empty JSON path.`);
     }
@@ -223,6 +257,28 @@ export function validateComparisonContract(comparison: unknown): string[] {
     }
   }
 
+  return errors;
+}
+
+export function validateComparisonContract(comparison: unknown): string[] {
+  const errors: string[] = [];
+  const candidate = isPlainObject(comparison) ? comparison : {};
+
+  if (candidate['mode'] !== 'strict-json') {
+    errors.push('Comparison contract mode must be `strict-json`.');
+  }
+
+  if ('allowedDifferences' in candidate) {
+    errors.push('Comparison contract must use `expectedDifferences`; `allowedDifferences` is no longer supported.');
+  }
+
+  if (!Array.isArray(candidate['expectedDifferences'])) {
+    errors.push('Comparison contract must declare an `expectedDifferences` array.');
+    return errors;
+  }
+
+  errors.push(...validateExpectedDifferences(candidate['expectedDifferences'], 'expectedDifferences'));
+
   const rawTargets = candidate['targets'];
   if (rawTargets !== undefined) {
     if (!Array.isArray(rawTargets) || rawTargets.length === 0) {
@@ -239,6 +295,20 @@ export function validateComparisonContract(comparison: unknown): string[] {
         }
         if (typeof target['proxyPath'] !== 'string' || target['proxyPath'].length === 0) {
           errors.push(`${label} must declare a non-empty proxyPath.`);
+        }
+        if ('selectedPaths' in target) {
+          if (!Array.isArray(target['selectedPaths']) || target['selectedPaths'].length === 0) {
+            errors.push(`${label} selectedPaths, when declared, must be a non-empty array.`);
+          } else {
+            for (const [pathIndex, rawPath] of target['selectedPaths'].entries()) {
+              if (typeof rawPath !== 'string' || rawPath.length === 0) {
+                errors.push(`${label}.selectedPaths[${pathIndex}] must be a non-empty JSON path.`);
+              }
+            }
+          }
+        }
+        if ('expectedDifferences' in target) {
+          errors.push(...validateExpectedDifferences(target['expectedDifferences'], `${label}.expectedDifferences`));
         }
       }
     }
@@ -679,6 +749,7 @@ async function executeGraphQLAgainstLocalProxy(
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   const parsed = parseOperation(document);
   const capability = getOperationCapability(parsed);
+  const registeredCapability = readRegisteredParityCapability(parsed, capability);
 
   if (parsed.type === 'mutation') {
     const discountMutation = handleDiscountMutation(document, variables);
@@ -839,6 +910,25 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'stage-locally' && capability.domain === 'localization') {
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2026-04/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: handleLocalizationMutation(document, variables),
+    };
+  }
+
   if (capability.execution === 'stage-locally' && capability.domain === 'segments') {
     store.appendLog({
       id: makeSyntheticGid('MutationLogEntry'),
@@ -855,6 +945,33 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleSegmentMutation(document, variables),
+    };
+  }
+
+  if (capability.execution === 'stage-locally' && capability.domain === 'marketing') {
+    const marketingMutation = handleMarketingMutation(document, variables);
+    if (!marketingMutation) {
+      throw new Error(`Marketing-domain parity request was not handled locally: ${capability.operationName}`);
+    }
+
+    if (marketingMutation.shouldLog) {
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: '/admin/api/2025-01/graphql.json',
+        query: document,
+        variables,
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        stagedResourceIds: marketingMutation.stagedResourceIds,
+        notes: marketingMutation.notes,
+      });
+    }
+
+    return {
+      status: 200,
+      body: marketingMutation.response,
     };
   }
 
@@ -877,6 +994,27 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'stage-locally' && capability.domain === 'metaobjects') {
+    const body = handleMetaobjectDefinitionMutation(document, variables);
+
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2026-04/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body,
+    };
+  }
+
   if (capability.execution === 'stage-locally' && capability.domain === 'store-properties') {
     store.appendLog({
       id: makeSyntheticGid('MutationLogEntry'),
@@ -896,18 +1034,19 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
-  if (capability.execution === 'stage-locally' && capability.domain === 'shipping-fulfillments') {
+  const shippingCapability = capability.domain === 'shipping-fulfillments' ? capability : registeredCapability;
+  if (shippingCapability.execution === 'stage-locally' && shippingCapability.domain === 'shipping-fulfillments') {
     const deliveryProfileMutation = handleDeliveryProfileMutation(document, variables);
     if (deliveryProfileMutation) {
       store.appendLog({
         id: makeSyntheticGid('MutationLogEntry'),
         receivedAt: makeSyntheticTimestamp(),
-        operationName: capability.operationName,
+        operationName: shippingCapability.operationName,
         path: '/admin/api/2026-04/graphql.json',
         query: document,
         variables,
         status: 'staged',
-        interpreted: interpretMutationLogEntry(parsed, capability),
+        interpreted: interpretMutationLogEntry(parsed, shippingCapability),
         stagedResourceIds: deliveryProfileMutation.stagedResourceIds,
         notes: deliveryProfileMutation.notes,
       });
@@ -918,15 +1057,43 @@ async function executeGraphQLAgainstLocalProxy(
       };
     }
 
+    const orderMutationBody = handleOrderMutation(document, variables, 'snapshot');
+    if (orderMutationBody) {
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: shippingCapability.operationName,
+        path: '/admin/api/2026-04/graphql.json',
+        query: document,
+        variables,
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, shippingCapability),
+        notes: 'Staged locally in the conformance parity proxy harness.',
+      });
+
+      return {
+        status: 200,
+        body: orderMutationBody,
+      };
+    }
+
+    if (capability.domain !== 'shipping-fulfillments') {
+      throw new Error(
+        `Registered shipping-fulfillment parity request was not handled locally: ${
+          shippingCapability.operationName ?? parsed.rootFields.join(', ')
+        }`,
+      );
+    }
+
     store.appendLog({
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
-      operationName: capability.operationName,
+      operationName: shippingCapability.operationName,
       path: '/admin/api/2026-04/graphql.json',
       query: document,
       variables,
       status: 'staged',
-      interpreted: interpretMutationLogEntry(parsed, capability),
+      interpreted: interpretMutationLogEntry(parsed, shippingCapability),
       notes: 'Staged locally in the conformance parity proxy harness.',
     });
 
@@ -976,10 +1143,31 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'overlay-read' && capability.domain === 'admin-platform') {
+    return {
+      status: 200,
+      body: handleAdminPlatformQuery(document, variables),
+    };
+  }
+
   if (capability.execution === 'overlay-read' && capability.domain === 'metafields') {
     return {
       status: 200,
       body: handleMetafieldDefinitionQuery(document, variables),
+    };
+  }
+
+  if (capability.execution === 'overlay-read' && capability.domain === 'media') {
+    return {
+      status: 200,
+      body: handleMediaQuery(document, variables),
+    };
+  }
+
+  if (capability.execution === 'overlay-read' && capability.domain === 'metaobjects') {
+    return {
+      status: 200,
+      body: handleMetaobjectDefinitionQuery(document, variables),
     };
   }
 
@@ -1099,6 +1287,17 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'overlay-read' && capability.domain === 'localization') {
+    if (upstreamPayload !== undefined) {
+      hydrateLocalizationFromUpstreamResponse(upstreamPayload);
+    }
+
+    return {
+      status: 200,
+      body: handleLocalizationQuery(document, variables),
+    };
+  }
+
   if (capability.execution === 'overlay-read' && capability.domain === 'segments') {
     if (upstreamPayload !== undefined) {
       hydrateSegmentsFromUpstreamResponse(document, variables, upstreamPayload);
@@ -1128,6 +1327,13 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'overlay-read' && capability.domain === 'b2b') {
+    return {
+      status: 200,
+      body: handleB2BQuery(document, variables),
+    };
+  }
+
   throw new Error(
     `Parity execution does not allow live Shopify requests or unsupported operations: ${capability.operationName}`,
   );
@@ -1146,6 +1352,8 @@ function hasStagedState(): boolean {
     Object.keys(stagedState.files).length > 0 ||
     Object.keys(stagedState.productMetafields).length > 0 ||
     Object.keys(stagedState.metafieldDefinitions).length > 0 ||
+    Object.keys(stagedState.metaobjectDefinitions).length > 0 ||
+    Object.keys(stagedState.deletedMetaobjectDefinitionIds).length > 0 ||
     Object.keys(stagedState.deletedProductIds).length > 0 ||
     Object.keys(stagedState.deletedFileIds).length > 0 ||
     Object.keys(stagedState.deletedCollectionIds).length > 0 ||
@@ -1526,13 +1734,92 @@ function readCustomerDefaultAddress(
   }
 
   return {
+    id: readStringField(address, 'id'),
+    firstName: readStringField(address, 'firstName'),
+    lastName: readStringField(address, 'lastName'),
     address1: readStringField(address, 'address1'),
     city: readStringField(address, 'city'),
     province: readStringField(address, 'province'),
+    provinceCode: readStringField(address, 'provinceCode'),
     country: readStringField(address, 'country'),
+    countryCodeV2: readStringField(address, 'countryCodeV2'),
     zip: readStringField(address, 'zip'),
     formattedArea: readStringField(address, 'formattedArea'),
   };
+}
+
+function makeSeedCustomerAddress(
+  customerId: string,
+  address: Record<string, unknown>,
+  position: number,
+): CustomerAddressRecord | null {
+  const id = readStringField(address, 'id');
+  if (!id) {
+    return null;
+  }
+
+  const provinceCode = readStringField(address, 'provinceCode');
+  const countryCode = readStringField(address, 'countryCodeV2');
+  const city = readStringField(address, 'city');
+  const country = readStringField(address, 'country');
+  const formattedArea = [city, provinceCode, country ?? countryCode].filter(Boolean).join(', ') || null;
+
+  return {
+    id,
+    customerId,
+    cursor: null,
+    position,
+    firstName: readStringField(address, 'firstName'),
+    lastName: readStringField(address, 'lastName'),
+    address1: readStringField(address, 'address1'),
+    address2: readStringField(address, 'address2'),
+    city,
+    company: readStringField(address, 'company'),
+    province: readStringField(address, 'province'),
+    provinceCode,
+    country,
+    countryCodeV2: countryCode,
+    zip: readStringField(address, 'zip'),
+    phone: readStringField(address, 'phone'),
+    name: readStringField(address, 'name'),
+    formattedArea,
+  };
+}
+
+function readCustomerAddressRecords(
+  customerId: string,
+  customer: Record<string, unknown> | null,
+): CustomerAddressRecord[] {
+  return readArrayField(readRecordField(customer, 'addressesV2'), 'nodes')
+    .filter(isPlainObject)
+    .map((address, index) => makeSeedCustomerAddress(customerId, address, index))
+    .filter((address): address is CustomerAddressRecord => address !== null);
+}
+
+function readCustomerMetafieldRecords(
+  customerId: string,
+  customer: Record<string, unknown> | null,
+): CustomerMetafieldRecord[] {
+  return readArrayField(readRecordField(customer, 'metafields'), 'nodes')
+    .filter(isPlainObject)
+    .map((metafield): CustomerMetafieldRecord | null => {
+      const id = readStringField(metafield, 'id');
+      const namespace = readStringField(metafield, 'namespace');
+      const key = readStringField(metafield, 'key');
+      if (!id || !namespace || !key) {
+        return null;
+      }
+
+      return {
+        id,
+        customerId,
+        namespace,
+        key,
+        type: readStringField(metafield, 'type'),
+        value: readStringField(metafield, 'value'),
+      };
+    })
+    .filter((metafield): metafield is CustomerMetafieldRecord => metafield !== null);
 }
 
 function readCustomerDefaultEmailAddress(
@@ -1737,6 +2024,8 @@ function seedCustomerMergePreconditions(
   }
 
   const seedCustomers: CustomerRecord[] = [];
+  const seedAddresses: CustomerAddressRecord[] = [];
+  const seedMetafieldsByCustomerId = new Map<string, CustomerMetafieldRecord[]>();
   for (const key of ['createOne', 'createTwo']) {
     const customerPayload = readRecordField(readCustomerCreatePayloadFromCapture(capture, key), 'customer');
     const customerId = readStringField(customerPayload, 'id');
@@ -1744,6 +2033,38 @@ function seedCustomerMergePreconditions(
       seedCustomers.push(makeSeedCustomer(customerId, customerPayload));
     }
   }
+
+  const attachedBeforeData = readRecordField(
+    readRecordField(readRecordField(readRecordField(capture, 'precondition'), 'attachedBeforeMerge'), 'response'),
+    'data',
+  );
+  for (const key of ['source', 'result']) {
+    const customerPayload = readRecordField(attachedBeforeData, key);
+    const customerId = readStringField(customerPayload, 'id');
+    if (!customerId) {
+      continue;
+    }
+
+    const attachedCustomer = makeSeedCustomer(customerId, customerPayload);
+    const existingIndex = seedCustomers.findIndex((customer) => customer.id === customerId);
+    if (existingIndex === -1) {
+      seedCustomers.push(attachedCustomer);
+    } else {
+      seedCustomers[existingIndex] = attachedCustomer;
+    }
+    seedAddresses.push(...readCustomerAddressRecords(customerId, customerPayload));
+    seedMetafieldsByCustomerId.set(customerId, readCustomerMetafieldRecords(customerId, customerPayload));
+  }
+
+  const order = readRecordField(
+    readRecordField(
+      readRecordField(readRecordField(readRecordField(capture, 'precondition'), 'orderCreate'), 'response'),
+      'data',
+    ),
+    'orderCreate',
+  );
+  const orderPayload = readRecordField(order, 'order');
+  const orderId = readStringField(orderPayload, 'id');
 
   const downstreamData = readRecordField(
     readRecordField(readRecordField(capture, 'downstreamRead'), 'response'),
@@ -1762,6 +2083,15 @@ function seedCustomerMergePreconditions(
   }
 
   store.upsertBaseCustomers(seedCustomers);
+  if (seedAddresses.length > 0) {
+    store.upsertBaseCustomerAddresses(seedAddresses);
+  }
+  for (const [customerId, metafields] of seedMetafieldsByCustomerId) {
+    store.replaceBaseMetafieldsForCustomer(customerId, metafields);
+  }
+  if (orderId) {
+    store.upsertBaseOrders([makeSeedOrder(orderId, orderPayload)]);
+  }
   return true;
 }
 
@@ -1781,6 +2111,84 @@ function seedCustomerByIdentifierPreconditions(capture: unknown): boolean {
       seedCustomers.set(customerId, makeSeedCustomer(customerId, customer));
     }
   }
+
+  if (seedCustomers.size === 0) {
+    return false;
+  }
+
+  store.upsertBaseCustomers([...seedCustomers.values()]);
+  return true;
+}
+
+function readCustomerFromCapturedCreate(source: Record<string, unknown> | null): Record<string, unknown> | null {
+  return readRecordField(
+    readRecordField(readRecordField(readRecordField(source, 'response'), 'data'), 'customerCreate'),
+    'customer',
+  );
+}
+
+function seedCustomerInputValidationPreconditions(capture: unknown): boolean {
+  if (!isPlainObject(capture)) {
+    return false;
+  }
+
+  const createScenarios = readRecordField(capture, 'createScenarios');
+  const updateScenarios = readRecordField(capture, 'updateScenarios');
+  if (!createScenarios || !updateScenarios) {
+    return false;
+  }
+
+  const seedCustomers = new Map<string, CustomerRecord>();
+  const addCustomerPayload = (payload: Record<string, unknown> | null): void => {
+    const customerId = readStringField(payload, 'id');
+    if (!customerId || seedCustomers.has(customerId)) {
+      return;
+    }
+    seedCustomers.set(customerId, makeSeedCustomer(customerId, payload));
+  };
+  const addCapturedCreate = (source: Record<string, unknown> | null): void => {
+    addCustomerPayload(readCustomerFromCapturedCreate(source));
+  };
+  const addBaseCustomer = (baseCustomer: Record<string, unknown> | null): void => {
+    const customerId = readStringField(baseCustomer, 'id');
+    if (!customerId || seedCustomers.has(customerId)) {
+      return;
+    }
+    const email = readStringField(baseCustomer, 'email');
+    const phone = readStringField(baseCustomer, 'phone');
+    seedCustomers.set(
+      customerId,
+      makeSeedCustomer(customerId, {
+        id: customerId,
+        email,
+        displayName: email,
+        locale: 'en',
+        verifiedEmail: email ? true : null,
+        taxExempt: false,
+        tags: ['input-validation'],
+        defaultEmailAddress: email ? { emailAddress: email } : null,
+        defaultPhoneNumber: phone ? { phoneNumber: phone } : null,
+      }),
+    );
+  };
+
+  const preconditions = readRecordField(capture, 'preconditions');
+  for (const key of ['primary', 'duplicateTarget']) {
+    addCapturedCreate(readRecordField(preconditions, key));
+  }
+
+  for (const scenario of Object.values(updateScenarios)) {
+    if (isPlainObject(scenario)) {
+      addBaseCustomer(readRecordField(scenario, 'baseCustomer'));
+    }
+  }
+
+  const deletedCustomerUpdate = readRecordField(capture, 'deletedCustomerUpdate');
+  addCapturedCreate(readRecordField(deletedCustomerUpdate, 'precondition'));
+
+  const mergedCustomerUpdate = readRecordField(capture, 'mergedCustomerUpdate');
+  addCapturedCreate(readRecordField(mergedCustomerUpdate, 'mergeSource'));
+  addCapturedCreate(readRecordField(mergedCustomerUpdate, 'mergeTarget'));
 
   if (seedCustomers.size === 0) {
     return false;
@@ -2846,6 +3254,178 @@ function seedBusinessEntityPreconditions(capture: unknown): boolean {
   return true;
 }
 
+function readB2BConnectionEntries(connection: Record<string, unknown> | null): Array<{
+  node: Record<string, unknown>;
+  cursor: string | null;
+}> {
+  return readConnectionEntries(connection).filter((entry) => readStringField(entry.node, 'id') !== null);
+}
+
+function seedB2BCompanyPreconditions(capture: unknown): boolean {
+  const data = readRecordField(capture as Record<string, unknown>, 'data');
+  const companiesConnection = readRecordField(data, 'companies');
+  const topLevelLocationsConnection = readRecordField(data, 'companyLocations');
+  const companies = new Map<string, B2BCompanyRecord>();
+  const contacts = new Map<string, B2BCompanyContactRecord>();
+  const roles = new Map<string, B2BCompanyContactRoleRecord>();
+  const locations = new Map<string, B2BCompanyLocationRecord>();
+
+  const addCompany = (source: Record<string, unknown>, cursor: string | null): void => {
+    const id = readStringField(source, 'id');
+    if (!id?.startsWith('gid://shopify/Company/')) {
+      return;
+    }
+
+    const contactIds: string[] = [];
+    for (const entry of readB2BConnectionEntries(readRecordField(source, 'contacts'))) {
+      const contactId = readStringField(entry.node, 'id');
+      if (!contactId) {
+        continue;
+      }
+      contactIds.push(contactId);
+      contacts.set(contactId, {
+        id: contactId,
+        companyId: id,
+        cursor: entry.cursor,
+        data: structuredClone(entry.node) as B2BCompanyContactRecord['data'],
+      });
+    }
+
+    const contactRoleIds: string[] = [];
+    for (const entry of readB2BConnectionEntries(readRecordField(source, 'contactRoles'))) {
+      const roleId = readStringField(entry.node, 'id');
+      if (!roleId) {
+        continue;
+      }
+      contactRoleIds.push(roleId);
+      roles.set(roleId, {
+        id: roleId,
+        companyId: id,
+        cursor: entry.cursor,
+        data: structuredClone(entry.node) as B2BCompanyContactRoleRecord['data'],
+      });
+    }
+
+    const locationIds: string[] = [];
+    for (const entry of readB2BConnectionEntries(readRecordField(source, 'locations'))) {
+      const locationId = readStringField(entry.node, 'id');
+      if (!locationId) {
+        continue;
+      }
+      locationIds.push(locationId);
+      locations.set(locationId, {
+        id: locationId,
+        companyId: id,
+        cursor: entry.cursor,
+        data: structuredClone(entry.node) as B2BCompanyLocationRecord['data'],
+      });
+    }
+
+    const existing = companies.get(id);
+    companies.set(id, {
+      id,
+      cursor: cursor ?? existing?.cursor,
+      data: {
+        ...existing?.data,
+        ...(structuredClone(source) as B2BCompanyRecord['data']),
+      },
+      contactIds: contactIds.length > 0 ? contactIds : (existing?.contactIds ?? []),
+      locationIds: locationIds.length > 0 ? locationIds : (existing?.locationIds ?? []),
+      contactRoleIds: contactRoleIds.length > 0 ? contactRoleIds : (existing?.contactRoleIds ?? []),
+    });
+  };
+
+  for (const entry of readB2BConnectionEntries(companiesConnection)) {
+    addCompany(entry.node, entry.cursor);
+  }
+
+  for (const entry of readB2BConnectionEntries(topLevelLocationsConnection)) {
+    const locationId = readStringField(entry.node, 'id');
+    const companyId = readStringField(readRecordField(entry.node, 'company'), 'id');
+    if (!locationId || !companyId) {
+      continue;
+    }
+
+    const existingCompany = companies.get(companyId);
+    if (existingCompany && !existingCompany.locationIds.includes(locationId)) {
+      existingCompany.locationIds.push(locationId);
+    }
+
+    const existingLocation = locations.get(locationId);
+    locations.set(locationId, {
+      id: locationId,
+      companyId,
+      cursor: entry.cursor ?? existingLocation?.cursor,
+      data: {
+        ...existingLocation?.data,
+        ...(structuredClone(entry.node) as B2BCompanyLocationRecord['data']),
+      },
+    });
+  }
+
+  const singularCompany = readRecordField(data, 'company');
+  if (singularCompany) {
+    addCompany(singularCompany, null);
+  }
+
+  const singularContact = readRecordField(data, 'companyContact');
+  const singularContactId = readStringField(singularContact, 'id');
+  const singularContactCompanyId = readStringField(readRecordField(singularContact, 'company'), 'id');
+  if (singularContactId && singularContactCompanyId) {
+    const existingContact = contacts.get(singularContactId);
+    contacts.set(singularContactId, {
+      id: singularContactId,
+      companyId: singularContactCompanyId,
+      cursor: existingContact?.cursor,
+      data: {
+        ...existingContact?.data,
+        ...(structuredClone(singularContact) as B2BCompanyContactRecord['data']),
+      },
+    });
+  }
+
+  const singularRole = readRecordField(data, 'companyContactRole');
+  const singularRoleId = readStringField(singularRole, 'id');
+  if (singularRoleId) {
+    const existingRole = roles.get(singularRoleId);
+    roles.set(singularRoleId, {
+      id: singularRoleId,
+      companyId: existingRole?.companyId ?? '',
+      cursor: existingRole?.cursor,
+      data: {
+        ...existingRole?.data,
+        ...(structuredClone(singularRole) as B2BCompanyContactRoleRecord['data']),
+      },
+    });
+  }
+
+  const singularLocation = readRecordField(data, 'companyLocation');
+  const singularLocationId = readStringField(singularLocation, 'id');
+  const singularLocationCompanyId = readStringField(readRecordField(singularLocation, 'company'), 'id');
+  if (singularLocationId && singularLocationCompanyId) {
+    const existingLocation = locations.get(singularLocationId);
+    locations.set(singularLocationId, {
+      id: singularLocationId,
+      companyId: singularLocationCompanyId,
+      cursor: existingLocation?.cursor,
+      data: {
+        ...existingLocation?.data,
+        ...(structuredClone(singularLocation) as B2BCompanyLocationRecord['data']),
+      },
+    });
+  }
+
+  if (companies.size === 0 && contacts.size === 0 && roles.size === 0 && locations.size === 0) {
+    return false;
+  }
+
+  store.upsertBaseB2BCompanies([...companies.values()]);
+  store.upsertBaseB2BCompanyContacts([...contacts.values()]);
+  store.upsertBaseB2BCompanyContactRoles([...roles.values()]);
+  store.upsertBaseB2BCompanyLocations([...locations.values()]);
+  return true;
+}
+
 function readCapturedOrderMetafields(orderId: string, order: Record<string, unknown> | null): OrderMetafieldRecord[] {
   const byIdentity = new Map<string, OrderMetafieldRecord>();
   const addMetafield = (candidate: unknown): void => {
@@ -3078,6 +3658,8 @@ function readCapturedFulfillmentOrderLineItems(
           `gid://shopify/FulfillmentOrderLineItem/conformance-${index}`,
         lineItemId: readStringField(lineItem, 'id'),
         title: readStringField(lineItem, 'title'),
+        lineItemQuantity: readNumberField(lineItem, 'quantity'),
+        lineItemFulfillableQuantity: readNumberField(lineItem, 'fulfillableQuantity'),
         totalQuantity: readNumberField(fulfillmentOrderLineItem, 'totalQuantity') ?? 0,
         remainingQuantity: readNumberField(fulfillmentOrderLineItem, 'remainingQuantity') ?? 0,
       };
@@ -3087,17 +3669,261 @@ function readCapturedFulfillmentOrderLineItems(
 function readCapturedOrderFulfillmentOrders(order: Record<string, unknown> | null): OrderFulfillmentOrderRecord[] {
   return readArrayField(readRecordField(order, 'fulfillmentOrders'), 'nodes')
     .filter(isPlainObject)
-    .map((fulfillmentOrder, index) => ({
-      id: readStringField(fulfillmentOrder, 'id') ?? `gid://shopify/FulfillmentOrder/conformance-${index}`,
-      status: readStringField(fulfillmentOrder, 'status'),
-      requestStatus: readStringField(fulfillmentOrder, 'requestStatus'),
-      assignedLocation: readRecordField(fulfillmentOrder, 'assignedLocation')
-        ? {
-            name: readStringField(readRecordField(fulfillmentOrder, 'assignedLocation'), 'name'),
-          }
+    .map((fulfillmentOrder, index) => {
+      const assignedLocation = readRecordField(fulfillmentOrder, 'assignedLocation');
+      const nestedLocation = readRecordField(assignedLocation, 'location');
+      return {
+        id: readStringField(fulfillmentOrder, 'id') ?? `gid://shopify/FulfillmentOrder/conformance-${index}`,
+        status: readStringField(fulfillmentOrder, 'status'),
+        requestStatus: readStringField(fulfillmentOrder, 'requestStatus'),
+        fulfillAt: readStringField(fulfillmentOrder, 'fulfillAt'),
+        fulfillBy: readStringField(fulfillmentOrder, 'fulfillBy'),
+        updatedAt: readStringField(fulfillmentOrder, 'updatedAt'),
+        supportedActions: readArrayField(fulfillmentOrder, 'supportedActions')
+          .filter(isPlainObject)
+          .map((action) => readStringField(action, 'action'))
+          .filter((action): action is string => action !== null),
+        fulfillmentHolds: readArrayField(fulfillmentOrder, 'fulfillmentHolds')
+          .filter(isPlainObject)
+          .map((hold, holdIndex) => ({
+            id: readStringField(hold, 'id') ?? `gid://shopify/FulfillmentHold/conformance-${index}-${holdIndex}`,
+            handle: readStringField(hold, 'handle'),
+            reason: readStringField(hold, 'reason'),
+            reasonNotes: readStringField(hold, 'reasonNotes'),
+            displayReason: readStringField(hold, 'displayReason'),
+            heldByRequestingApp: readBooleanField(hold, 'heldByRequestingApp') ?? undefined,
+          })),
+        assignedLocation: assignedLocation
+          ? {
+              name: readStringField(assignedLocation, 'name'),
+              locationId: readStringField(nestedLocation, 'id'),
+            }
+          : null,
+        lineItems: readCapturedFulfillmentOrderLineItems(fulfillmentOrder),
+      };
+    });
+}
+
+function seedFulfillmentOrderLifecyclePreconditions(capture: unknown): boolean {
+  const workflows = readRecordField(capture as Record<string, unknown>, 'workflows');
+  if (!workflows) {
+    return false;
+  }
+
+  const seedOrders: OrderRecord[] = [];
+  for (const workflow of Object.values(workflows)) {
+    if (!isPlainObject(workflow)) {
+      continue;
+    }
+    const orderSource = readRecordField(
+      readRecordField(
+        readRecordField(readRecordField(readRecordField(workflow, 'create'), 'response'), 'payload'),
+        'data',
+      ),
+      'orderCreate',
+    )?.['order'];
+    if (!isPlainObject(orderSource)) {
+      continue;
+    }
+    const orderId = readStringField(orderSource, 'id');
+    if (!orderId) {
+      continue;
+    }
+    seedOrders.push(makeSeedOrder(orderId, orderSource));
+  }
+
+  if (seedOrders.length === 0) {
+    return false;
+  }
+
+  store.upsertBaseOrders(seedOrders);
+  return true;
+}
+
+function readCapturedFulfillmentOrderMerchantRequests(
+  fulfillmentOrder: Record<string, unknown> | null,
+): NonNullable<OrderFulfillmentOrderRecord['merchantRequests']> {
+  return readArrayField(readRecordField(fulfillmentOrder, 'merchantRequests'), 'nodes')
+    .filter(isPlainObject)
+    .map((merchantRequest, index) => ({
+      id:
+        readStringField(merchantRequest, 'id') ?? `gid://shopify/FulfillmentOrderMerchantRequest/conformance-${index}`,
+      kind: readStringField(merchantRequest, 'kind') ?? 'FULFILLMENT_REQUEST',
+      message: readNullableStringField(merchantRequest, 'message'),
+      requestOptions: isPlainObject(merchantRequest['requestOptions'])
+        ? (merchantRequest['requestOptions'] as Record<string, unknown>)
+        : {},
+      responseData: isPlainObject(merchantRequest['responseData'])
+        ? (merchantRequest['responseData'] as Record<string, unknown>)
         : null,
-      lineItems: readCapturedFulfillmentOrderLineItems(fulfillmentOrder),
+      sentAt: readStringField(merchantRequest, 'sentAt') ?? '2026-04-26T01:06:46Z',
     }));
+}
+
+function buildSeedFulfillmentOrderLineItemsFromPartialSubmit(
+  variables: Record<string, unknown> | null,
+  originalFulfillmentOrder: Record<string, unknown> | null,
+  unsubmittedFulfillmentOrder: Record<string, unknown> | null,
+): OrderFulfillmentOrderLineItemRecord[] {
+  const requestedQuantitiesById = new Map(
+    readArrayField(variables, 'fulfillmentOrderLineItems')
+      .filter(isPlainObject)
+      .map((lineItem) => [readStringField(lineItem, 'id') ?? '', readNumberField(lineItem, 'quantity') ?? 0] as const)
+      .filter(([lineItemId]) => lineItemId.length > 0),
+  );
+  const unsubmittedQuantitiesByLineItemId = new Map<string, number>();
+  for (const node of readArrayField(readRecordField(unsubmittedFulfillmentOrder, 'lineItems'), 'nodes').filter(
+    isPlainObject,
+  )) {
+    const lineItemId = readStringField(readRecordField(node, 'lineItem'), 'id');
+    if (lineItemId) {
+      unsubmittedQuantitiesByLineItemId.set(lineItemId, readNumberField(node, 'remainingQuantity') ?? 0);
+    }
+  }
+
+  return readArrayField(readRecordField(originalFulfillmentOrder, 'lineItems'), 'nodes')
+    .filter(isPlainObject)
+    .map((node, index) => {
+      const lineItem = readRecordField(node, 'lineItem');
+      const fulfillmentOrderLineItemId =
+        readStringField(node, 'id') ??
+        [...requestedQuantitiesById.keys()][index] ??
+        `gid://shopify/FulfillmentOrderLineItem/conformance-request-${index}`;
+      const lineItemId = readStringField(lineItem, 'id');
+      const submittedQuantity =
+        requestedQuantitiesById.get(fulfillmentOrderLineItemId) ?? readNumberField(node, 'remainingQuantity') ?? 0;
+      const unsubmittedQuantity = lineItemId ? (unsubmittedQuantitiesByLineItemId.get(lineItemId) ?? 0) : 0;
+      const initialQuantity = submittedQuantity + unsubmittedQuantity;
+
+      return {
+        id: fulfillmentOrderLineItemId,
+        lineItemId,
+        title: readStringField(lineItem, 'title'),
+        totalQuantity: initialQuantity,
+        remainingQuantity: initialQuantity,
+      };
+    });
+}
+
+function makeMinimalFulfillmentOrder(
+  id: string,
+  requestStatus: string,
+  status: string,
+  merchantRequests: NonNullable<OrderFulfillmentOrderRecord['merchantRequests']> = [],
+): OrderFulfillmentOrderRecord {
+  return {
+    id,
+    status,
+    requestStatus,
+    assignedLocation: null,
+    lineItems: [
+      {
+        id: `${id}/line-item-1`,
+        lineItemId: `${id}/order-line-item-1`,
+        title: 'HAR-233 conformance fulfillment item',
+        totalQuantity: 1,
+        remainingQuantity: 1,
+      },
+    ],
+    merchantRequests,
+  };
+}
+
+function seedFulfillmentOrderRequestLifecyclePreconditions(capture: unknown): boolean {
+  const partialSubmit = readRecordField(capture as Record<string, unknown>, 'partialSubmit');
+  if (!partialSubmit) {
+    return false;
+  }
+
+  const partialSubmitPayload = readRecordField(
+    readRecordField(readRecordField(partialSubmit, 'response'), 'data'),
+    'fulfillmentOrderSubmitFulfillmentRequest',
+  );
+  const originalFulfillmentOrder = readRecordField(partialSubmitPayload, 'originalFulfillmentOrder');
+  const unsubmittedFulfillmentOrder = readRecordField(partialSubmitPayload, 'unsubmittedFulfillmentOrder');
+  const variables = readRecordField(partialSubmit, 'variables');
+  const submittedFulfillmentOrderId =
+    readStringField(variables, 'id') ?? readStringField(originalFulfillmentOrder, 'id');
+  if (!submittedFulfillmentOrderId) {
+    return false;
+  }
+
+  const requestOrder = makeSeedOrder('gid://shopify/Order/conformance-fulfillment-order-request', {
+    id: 'gid://shopify/Order/conformance-fulfillment-order-request',
+    name: '#HAR233-FO-REQUEST',
+  });
+  requestOrder.fulfillmentOrders = [
+    {
+      id: submittedFulfillmentOrderId,
+      status: 'OPEN',
+      requestStatus: 'UNSUBMITTED',
+      assignedLocation: null,
+      merchantRequests: [],
+      lineItems: buildSeedFulfillmentOrderLineItemsFromPartialSubmit(
+        variables,
+        originalFulfillmentOrder,
+        unsubmittedFulfillmentOrder,
+      ),
+    },
+  ];
+
+  const rejectFulfillmentOrder = readRecordField(
+    readRecordField(
+      readRecordField(readRecordField(capture as Record<string, unknown>, 'rejectFulfillmentRequest'), 'response'),
+      'data',
+    ),
+    'fulfillmentOrderRejectFulfillmentRequest',
+  );
+  const rejectFulfillmentOrderId = readStringField(readRecordField(rejectFulfillmentOrder, 'fulfillmentOrder'), 'id');
+
+  const rejectCancellationOrder = readRecordField(
+    readRecordField(
+      readRecordField(readRecordField(capture as Record<string, unknown>, 'rejectCancellationRequest'), 'response'),
+      'data',
+    ),
+    'fulfillmentOrderRejectCancellationRequest',
+  );
+  const rejectCancellationFulfillmentOrder = readRecordField(rejectCancellationOrder, 'fulfillmentOrder');
+  const rejectCancellationOrderId = readStringField(rejectCancellationFulfillmentOrder, 'id');
+
+  const supportingFulfillmentOrders: OrderFulfillmentOrderRecord[] = [];
+  if (rejectFulfillmentOrderId) {
+    supportingFulfillmentOrders.push(
+      makeMinimalFulfillmentOrder(rejectFulfillmentOrderId, 'SUBMITTED', 'OPEN', [
+        {
+          id: 'gid://shopify/FulfillmentOrderMerchantRequest/conformance-reject-fulfillment',
+          kind: 'FULFILLMENT_REQUEST',
+          message: 'HAR-233 rejection request',
+          requestOptions: { notify_customer: false },
+          responseData: null,
+          sentAt: '2026-04-26T01:06:46Z',
+        },
+      ]),
+    );
+  }
+  if (rejectCancellationOrderId) {
+    supportingFulfillmentOrders.push(
+      makeMinimalFulfillmentOrder(
+        rejectCancellationOrderId,
+        'ACCEPTED',
+        'IN_PROGRESS',
+        readCapturedFulfillmentOrderMerchantRequests(rejectCancellationFulfillmentOrder),
+      ),
+    );
+  }
+
+  if (supportingFulfillmentOrders.length > 0) {
+    const supportOrder = makeSeedOrder('gid://shopify/Order/conformance-fulfillment-order-request-support', {
+      id: 'gid://shopify/Order/conformance-fulfillment-order-request-support',
+      name: '#HAR233-FO-SUPPORT',
+    });
+    supportOrder.fulfillmentOrders = supportingFulfillmentOrders;
+    store.upsertBaseOrders([requestOrder, supportOrder]);
+    return true;
+  }
+
+  store.upsertBaseOrders([requestOrder]);
+  return true;
 }
 
 function readCapturedOrderRefundLineItems(
@@ -3751,6 +4577,38 @@ function seedProductOptionState(productId: string, variables: Record<string, unk
   ]);
 }
 
+function seedBulkVariantValidationAtomicityPreconditions(capture: unknown): boolean {
+  const seed = readRecordField(capture as Record<string, unknown>, 'seed');
+  const seedProductId = readStringField(seed, 'productId');
+  const setupProduct = readRecordField(
+    readRecordField(readRecordField(readRecordField(seed, 'setupOptionsResponse'), 'data'), 'productOptionsCreate'),
+    'product',
+  );
+  const firstCase = readArrayField(capture as Record<string, unknown>, 'cases').find(isPlainObject) ?? null;
+  const beforeProduct = readRecordField(readRecordField(firstCase, 'before'), 'product');
+  const productId = seedProductId ?? readStringField(setupProduct, 'id') ?? readStringField(beforeProduct, 'id');
+
+  if (!productId?.startsWith('gid://shopify/Product/')) {
+    return false;
+  }
+
+  const productSource = beforeProduct ?? setupProduct;
+  store.upsertBaseProducts([makeSeedProduct(productId, productSource)]);
+
+  const optionsSource = readStringField(setupProduct, 'id') === productId ? setupProduct : beforeProduct;
+  const options = readCapturedProductOptions(productId, optionsSource);
+  if (options.length > 0) {
+    store.replaceBaseOptionsForProduct(productId, options);
+  }
+
+  const variants = readCapturedProductVariants(productId, beforeProduct ?? setupProduct);
+  if (variants.length > 0) {
+    store.replaceBaseVariantsForProduct(productId, variants);
+  }
+
+  return true;
+}
+
 function seedCollectionProducts(collection: CollectionRecord, productNodes: unknown[]): void {
   const collectionMemberships: ProductCollectionRecord[] = [];
   for (const [position, node] of productNodes.filter(isPlainObject).entries()) {
@@ -4247,6 +5105,105 @@ function seedInventoryLinkagePreconditions(capture: unknown): boolean {
   return true;
 }
 
+function makeInventoryQuantityRootSeedLevel(
+  inventoryItemId: string,
+  location: { id: string; name: string | null },
+): InventoryLevelRecord {
+  const locationTail = location.id.split('/').at(-1) ?? encodeURIComponent(location.id);
+
+  return {
+    id: `gid://shopify/InventoryLevel/${locationTail}?inventory_item_id=${encodeURIComponent(inventoryItemId)}`,
+    cursor: `cursor:${inventoryItemId}:${location.id}`,
+    location,
+    quantities: [
+      { name: 'available', quantity: 0, updatedAt: null },
+      { name: 'on_hand', quantity: 0, updatedAt: null },
+      { name: 'damaged', quantity: 0, updatedAt: null },
+    ],
+  };
+}
+
+function seedInventoryQuantityRootPreconditions(capture: unknown): boolean {
+  const mutationEvidence = readRecordField(capture as Record<string, unknown>, 'mutationEvidence');
+  const setup = readRecordField(mutationEvidence, 'setup');
+  const productId = readStringField(setup, 'productId');
+  const variantId = readStringField(setup, 'variantId');
+  const inventoryItemId = readStringField(setup, 'inventoryItemId');
+  if (!productId || !variantId || !inventoryItemId) {
+    return false;
+  }
+
+  const setEvidence = readRecordField(mutationEvidence, 'inventorySetQuantitiesAvailable');
+  const setInput = readRecordField(readRecordField(setEvidence, 'variables'), 'input');
+  const setQuantities = readArrayField(setInput, 'quantities').filter(isPlainObject);
+  const rawSetChanges = readJsonPath(
+    capture,
+    '$.mutationEvidence.inventorySetQuantitiesAvailable.response.data.inventorySetQuantities.inventoryAdjustmentGroup.changes',
+  );
+  const setChanges = Array.isArray(rawSetChanges) ? rawSetChanges.filter(isPlainObject) : [];
+  const downstreamRead = readRecordField(setEvidence, 'downstreamRead');
+  const productTotalInventory = readNumberField(downstreamRead, 'productTotalInventory') ?? 0;
+  const locationsById = new Map<string, { id: string; name: string | null }>();
+
+  for (const change of setChanges) {
+    const location = readRecordField(change, 'location');
+    const locationId = readStringField(location, 'id');
+    if (locationId) {
+      locationsById.set(locationId, { id: locationId, name: readStringField(location, 'name') });
+    }
+  }
+
+  for (const quantity of setQuantities) {
+    const locationId = readStringField(quantity, 'locationId');
+    if (locationId && !locationsById.has(locationId)) {
+      locationsById.set(locationId, { id: locationId, name: null });
+    }
+  }
+
+  store.upsertBaseLocations([...locationsById.values()]);
+  store.upsertBaseProducts([
+    makeSeedProduct(
+      productId,
+      {
+        id: productId,
+        title: 'Inventory quantity roots conformance seed',
+        totalInventory: productTotalInventory,
+        tracksInventory: true,
+      },
+      'Inventory quantity roots conformance seed',
+    ),
+  ]);
+  store.replaceBaseVariantsForProduct(productId, [
+    {
+      id: variantId,
+      productId,
+      title: 'Default Title',
+      sku: null,
+      barcode: null,
+      price: null,
+      compareAtPrice: null,
+      taxable: null,
+      inventoryPolicy: null,
+      inventoryQuantity: 0,
+      selectedOptions: [],
+      inventoryItem: {
+        id: inventoryItemId,
+        tracked: true,
+        requiresShipping: true,
+        measurement: null,
+        countryCodeOfOrigin: null,
+        provinceCodeOfOrigin: null,
+        harmonizedSystemCode: null,
+        inventoryLevels: [...locationsById.values()].map((location) =>
+          makeInventoryQuantityRootSeedLevel(inventoryItemId, location),
+        ),
+      },
+    },
+  ]);
+
+  return true;
+}
+
 function seedInventoryItemUpdatePreconditions(capture: unknown): boolean {
   if (mutationNameFromCapture(capture) !== 'inventoryItemUpdate') {
     return false;
@@ -4363,6 +5320,27 @@ function seedProductMetafieldsReadPreconditions(capture: unknown): boolean {
   store.upsertBaseProducts([makeSeedProduct(productId, product)]);
   store.replaceBaseMetafieldsForProduct(productId, readCapturedProductMetafields(productId, product));
   return true;
+}
+
+function seedMetaobjectReadPreconditions(capture: unknown): boolean {
+  if (!isPlainObject(capture)) {
+    return false;
+  }
+
+  let hydrated = false;
+  for (const read of readArrayField(capture, 'seededReads').filter(isPlainObject)) {
+    const request = readRecordField(read, 'request');
+    const query = readStringField(request, 'query');
+    const response = readRecordField(read, 'response');
+    if (!query || !response) {
+      continue;
+    }
+
+    hydrateMetaobjectsFromUpstreamResponse(query, readRecordField(request, 'variables') ?? {}, response);
+    hydrated = true;
+  }
+
+  return hydrated && (store.hasEffectiveMetaobjectDefinitions() || store.hasEffectiveMetaobjects());
 }
 
 function seedMetafieldsDeleteOwnerProducts(capture: unknown, variables: Record<string, unknown>): boolean {
@@ -4759,7 +5737,87 @@ function seedExplicitProductMediaPreconditions(capture: unknown): boolean {
   return mediaByProductId.size > 0;
 }
 
+function seedLocalizationPreconditions(capture: unknown): boolean {
+  const readCaptureData = readRecordField(
+    readRecordField(readRecordField(capture as Record<string, unknown>, 'readCapture'), 'response'),
+    'data',
+  );
+  if (!readCaptureData) {
+    return false;
+  }
+
+  const locales = readArrayField(readCaptureData, 'availableLocalesExcerpt')
+    .filter(isPlainObject)
+    .flatMap((locale): LocaleRecord[] => {
+      const isoCode = readStringField(locale, 'isoCode');
+      const name = readStringField(locale, 'name');
+      return isoCode && name ? [{ isoCode, name }] : [];
+    });
+  if (locales.length > 0) {
+    store.replaceBaseAvailableLocales(locales);
+  }
+
+  const shopLocales = readArrayField(readCaptureData, 'allShopLocales')
+    .filter(isPlainObject)
+    .flatMap((locale): ShopLocaleRecord[] => {
+      const localeCode = readStringField(locale, 'locale');
+      const name = readStringField(locale, 'name');
+      const primary = readBooleanField(locale, 'primary');
+      const published = readBooleanField(locale, 'published');
+      if (!localeCode || !name || primary === null || published === null) {
+        return [];
+      }
+
+      return [
+        {
+          locale: localeCode,
+          name,
+          primary,
+          published,
+          marketWebPresenceIds: readArrayField(locale, 'marketWebPresences')
+            .filter(isPlainObject)
+            .flatMap((presence) => {
+              const id = readStringField(presence, 'id');
+              return id ? [id] : [];
+            }),
+        },
+      ];
+    });
+  if (shopLocales.length > 0) {
+    store.upsertBaseShopLocales(shopLocales);
+  }
+
+  const resources = readArrayField(readRecordField(readCaptureData, 'resources'), 'nodes').filter(isPlainObject);
+  for (const resource of resources) {
+    const productId = readStringField(resource, 'resourceId');
+    if (!productId?.startsWith('gid://shopify/Product/')) {
+      continue;
+    }
+
+    const contentByKey = new Map(
+      readArrayField(resource, 'translatableContent')
+        .filter(isPlainObject)
+        .map((content) => [readStringField(content, 'key'), readStringField(content, 'value')] as const)
+        .filter((entry): entry is [string, string] => entry[0] !== null && entry[1] !== null),
+    );
+    store.upsertBaseProducts([
+      makeSeedProduct(productId, {
+        id: productId,
+        title: contentByKey.get('title'),
+        handle: contentByKey.get('handle'),
+        productType: contentByKey.get('product_type'),
+      }),
+    ]);
+  }
+
+  return locales.length > 0 || shopLocales.length > 0 || resources.length > 0;
+}
+
 function seedPreconditionsFromCapture(capture: unknown, variables: Record<string, unknown>): void {
+  if (seedBulkVariantValidationAtomicityPreconditions(capture)) {
+    return;
+  }
+
   const seedProducts = readArrayField(capture as Record<string, unknown>, 'seedProducts').filter(isPlainObject);
   for (const seedProduct of seedProducts) {
     const productId = readStringField(seedProduct, 'id');
@@ -4773,10 +5831,18 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     }
   }
   seedExplicitProductMediaPreconditions(capture);
+  seedLocalizationPreconditions(capture);
 
   seedProductMetafieldsReadPreconditions(capture);
   seedMetafieldDefinitionPreconditions(capture);
+  if (seedMetaobjectReadPreconditions(capture)) {
+    return;
+  }
   if (seedInventoryLinkagePreconditions(capture)) {
+    return;
+  }
+
+  if (seedInventoryQuantityRootPreconditions(capture)) {
     return;
   }
 
@@ -4798,7 +5864,19 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     return;
   }
 
+  if (seedFulfillmentOrderLifecyclePreconditions(capture)) {
+    return;
+  }
+
+  if (seedFulfillmentOrderRequestLifecyclePreconditions(capture)) {
+    return;
+  }
+
   if (seedCustomerMergePreconditions(capture, variables, mutationName)) {
+    return;
+  }
+
+  if (seedCustomerInputValidationPreconditions(capture)) {
     return;
   }
 
@@ -4807,6 +5885,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   }
 
   if (seedCustomerByIdentifierPreconditions(capture)) {
+    return;
+  }
+
+  if (seedB2BCompanyPreconditions(capture)) {
     return;
   }
 
@@ -5350,6 +6432,14 @@ function readComparisonTargets(comparison: ComparisonContract): ComparisonTarget
   return Array.isArray(comparison.targets) ? comparison.targets : [];
 }
 
+function selectComparisonPaths(value: unknown, selectedPaths: string[] | undefined): unknown {
+  if (!selectedPaths) {
+    return value;
+  }
+
+  return Object.fromEntries(selectedPaths.map((selectedPath) => [selectedPath, readJsonPath(value, selectedPath)]));
+}
+
 function readRequestVariables(
   repoRoot: string,
   request: ProxyRequestSpec,
@@ -5458,7 +6548,15 @@ export async function executeParityScenario({
     }
 
     const actual = readJsonPath(proxyResponseBody, target.proxyPath);
-    const comparison = compareJsonPayloads(expected, actual, paritySpec.comparison);
+    const expectedDifferences = [
+      ...(paritySpec.comparison.expectedDifferences ?? []),
+      ...(target.expectedDifferences ?? []),
+    ];
+    const comparison = compareJsonPayloads(
+      selectComparisonPaths(expected, target.selectedPaths),
+      selectComparisonPaths(actual, target.selectedPaths),
+      { expectedDifferences },
+    );
     comparisons.push({
       name: target.name,
       ok: comparison.ok,
