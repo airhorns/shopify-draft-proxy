@@ -1,0 +1,22 @@
+mutation InventoryQuantityMove($input: InventoryMoveQuantitiesInput!) {
+  inventoryMoveQuantities(input: $input) {
+    inventoryAdjustmentGroup {
+      reason
+      referenceDocumentUri
+      changes {
+        name
+        delta
+        quantityAfterChange
+        ledgerDocumentUri
+        location {
+          id
+          name
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

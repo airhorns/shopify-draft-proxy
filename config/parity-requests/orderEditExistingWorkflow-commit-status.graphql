@@ -1,0 +1,9 @@
+mutation OrderEditExistingWorkflowCommitStatus($id: ID!, $notifyCustomer: Boolean, $staffNote: String) {
+  orderEditCommit(id: $id, notifyCustomer: $notifyCustomer, staffNote: $staffNote) {
+    successMessages
+    userErrors {
+      field
+      message
+    }
+  }
+}

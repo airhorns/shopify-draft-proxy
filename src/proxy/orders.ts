@@ -13,8 +13,10 @@ import {
 import {
   buildSyntheticCursor,
   getFieldResponseKey,
+  getDocumentFragments,
   getSelectedChildFields as getGraphQLSelectedChildFields,
   paginateConnectionItems,
+  projectGraphqlObject,
   readNullableIntArgument,
   readNullableStringArgument,
   serializeConnection,
@@ -29,6 +31,8 @@ import { store } from '../state/store.js';
 import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import type {
   CalculatedOrderRecord,
+  AbandonedCheckoutRecord,
+  AbandonmentRecord,
   DraftOrderAddressRecord,
   DraftOrderAppliedDiscountRecord,
   DraftOrderAttributeRecord,
@@ -55,6 +59,7 @@ import type {
   OrderRecord,
   OrderRefundLineItemRecord,
   OrderRefundRecord,
+  OrderReturnLineItemRecord,
   OrderReturnRecord,
   OrderShippingLineRecord,
   OrderTaxLineRecord,
@@ -83,6 +88,66 @@ function formatDecimalAmount(value: number): string {
     return `${fixed.slice(0, -3)}.0`;
   }
   return fixed.endsWith('0') ? fixed.slice(0, -1) : fixed;
+}
+
+type DraftOrderSavedSearchRecord = {
+  id: string;
+  legacyResourceId: string;
+  name: string;
+  query: string;
+  resourceType: 'DRAFT_ORDER';
+  searchTerms: string;
+};
+
+const DRAFT_ORDER_SAVED_SEARCHES: DraftOrderSavedSearchRecord[] = [
+  {
+    id: 'gid://shopify/SavedSearch/3634390597938',
+    legacyResourceId: '3634390597938',
+    name: 'Open and invoice sent',
+    query: 'status:open_and_invoice_sent',
+    resourceType: 'DRAFT_ORDER',
+    searchTerms: '',
+  },
+  {
+    id: 'gid://shopify/SavedSearch/3634390630706',
+    legacyResourceId: '3634390630706',
+    name: 'Open',
+    query: 'status:open',
+    resourceType: 'DRAFT_ORDER',
+    searchTerms: '',
+  },
+  {
+    id: 'gid://shopify/SavedSearch/3634390663474',
+    legacyResourceId: '3634390663474',
+    name: 'Invoice sent',
+    query: 'status:invoice_sent',
+    resourceType: 'DRAFT_ORDER',
+    searchTerms: '',
+  },
+  {
+    id: 'gid://shopify/SavedSearch/3634390696242',
+    legacyResourceId: '3634390696242',
+    name: 'Completed',
+    query: 'status:completed',
+    resourceType: 'DRAFT_ORDER',
+    searchTerms: '',
+  },
+  {
+    id: 'gid://shopify/SavedSearch/3634390729010',
+    legacyResourceId: '3634390729010',
+    name: 'Submitted for review',
+    query: 'status:open source:online_store',
+    resourceType: 'DRAFT_ORDER',
+    searchTerms: '',
+  },
+];
+
+function normalizeDraftOrderTagHandle(tag: string): string {
+  return tag.trim().toLowerCase().replace(/\s+/g, '-');
+}
+
+function buildDraftOrderTagId(tag: string): string {
+  return `gid://shopify/DraftOrderTag/${encodeURIComponent(normalizeDraftOrderTagHandle(tag))}`;
 }
 
 function normalizeMoneyBag(
@@ -1976,7 +2041,7 @@ function serializeTransactionVoidPayload(
   return payload;
 }
 
-function serializeJob(field: FieldNode, jobId: string): Record<string, unknown> {
+function serializeJob(field: FieldNode, jobId: string, done = true): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const selection of getSelectedChildFields(field)) {
     const key = getFieldResponseKey(selection);
@@ -1985,7 +2050,142 @@ function serializeJob(field: FieldNode, jobId: string): Record<string, unknown> 
         result[key] = jobId;
         break;
       case 'done':
-        result[key] = true;
+        result[key] = done;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeDraftOrderSavedSearch(
+  field: FieldNode,
+  savedSearch: DraftOrderSavedSearchRecord,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = savedSearch.id;
+        break;
+      case 'legacyResourceId':
+        result[key] = savedSearch.legacyResourceId;
+        break;
+      case 'name':
+        result[key] = savedSearch.name;
+        break;
+      case 'query':
+        result[key] = savedSearch.query;
+        break;
+      case 'resourceType':
+        result[key] = savedSearch.resourceType;
+        break;
+      case 'searchTerms':
+        result[key] = savedSearch.searchTerms;
+        break;
+      case 'filters':
+        result[key] = [];
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeDraftOrderSavedSearchesConnection(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const items = args['reverse'] === true ? [...DRAFT_ORDER_SAVED_SEARCHES].reverse() : DRAFT_ORDER_SAVED_SEARCHES;
+  const window = paginateConnectionItems(items, field, variables, (savedSearch) => savedSearch.id);
+
+  return serializeConnection(field, {
+    items: window.items,
+    hasNextPage: window.hasNextPage,
+    hasPreviousPage: window.hasPreviousPage,
+    getCursorValue: (savedSearch) => savedSearch.id,
+    serializeNode: (savedSearch, selection) => serializeDraftOrderSavedSearch(selection, savedSearch),
+  });
+}
+
+function serializeEmptyPageInfo(field: FieldNode): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'hasNextPage':
+      case 'hasPreviousPage':
+        result[key] = false;
+        break;
+      case 'startCursor':
+      case 'endCursor':
+        result[key] = null;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeDraftOrderAvailableDeliveryOptions(field: FieldNode): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'availableShippingRates':
+      case 'availableLocalDeliveryRates':
+      case 'availableLocalPickupOptions':
+        result[key] = [];
+        break;
+      case 'pageInfo':
+        result[key] = serializeEmptyPageInfo(selection);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function findDraftOrderTagById(id: string): { id: string; handle: string; title: string } | null {
+  for (const draftOrder of store.getDraftOrders()) {
+    const tag = draftOrder.tags.find((candidate) => buildDraftOrderTagId(candidate) === id);
+    if (tag) {
+      return {
+        id,
+        handle: normalizeDraftOrderTagHandle(tag),
+        title: tag,
+      };
+    }
+  }
+  return null;
+}
+
+function serializeDraftOrderTag(
+  field: FieldNode,
+  tag: { id: string; handle: string; title: string },
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = tag.id;
+        break;
+      case 'handle':
+        result[key] = tag.handle;
+        break;
+      case 'title':
+        result[key] = tag.title;
         break;
       default:
         result[key] = null;
@@ -2492,6 +2692,183 @@ function serializeDraftOrderLineItemsConnection(
     getCursorValue: (lineItem) => lineItem.id,
     serializeNode: (lineItem, selection) => serializeDraftOrderLineItemNode(selection, lineItem),
   });
+}
+
+function serializeCalculatedDraftOrderLineItem(
+  field: FieldNode,
+  lineItem: DraftOrderLineItemRecord,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'uuid':
+        result[key] = lineItem.id.split('/').at(-1) ?? lineItem.id;
+        break;
+      case 'title':
+        result[key] = lineItem.title;
+        break;
+      case 'name':
+        result[key] = lineItem.name;
+        break;
+      case 'quantity':
+        result[key] = lineItem.quantity;
+        break;
+      case 'sku':
+        result[key] = lineItem.sku;
+        break;
+      case 'variantTitle':
+        result[key] = lineItem.variantTitle === 'Default Title' ? null : lineItem.variantTitle;
+        break;
+      case 'custom':
+        result[key] = lineItem.custom;
+        break;
+      case 'requiresShipping':
+        result[key] = lineItem.requiresShipping;
+        break;
+      case 'taxable':
+        result[key] = lineItem.taxable;
+        break;
+      case 'customAttributes':
+        result[key] = serializeDraftOrderAttributes(selection, lineItem.customAttributes);
+        break;
+      case 'appliedDiscount':
+        result[key] = serializeDraftOrderAppliedDiscount(selection, lineItem.appliedDiscount);
+        break;
+      case 'originalUnitPrice':
+        result[key] = serializeMoneyField(selection, lineItem.originalUnitPriceSet?.shopMoney ?? null);
+        break;
+      case 'originalTotal':
+        result[key] = serializeMoneyField(selection, lineItem.originalTotalSet?.shopMoney ?? null);
+        break;
+      case 'discountedTotal':
+        result[key] = serializeMoneyField(selection, lineItem.discountedTotalSet?.shopMoney ?? null);
+        break;
+      case 'totalDiscount':
+        result[key] = serializeMoneyField(selection, lineItem.totalDiscountSet?.shopMoney ?? null);
+        break;
+      case 'components':
+      case 'customAttributesV2':
+        result[key] = [];
+        break;
+      case 'approximateDiscountedUnitPriceSet':
+        result[key] = serializeShopMoneySet(selection, lineItem.discountedTotalSet?.shopMoney ?? null);
+        break;
+      case 'discountedTotalSet':
+        result[key] = serializeShopMoneySet(selection, lineItem.discountedTotalSet?.shopMoney ?? null);
+        break;
+      case 'originalTotalSet':
+        result[key] = serializeShopMoneySet(selection, lineItem.originalTotalSet?.shopMoney ?? null);
+        break;
+      case 'originalUnitPriceSet':
+        result[key] = serializeShopMoneySet(selection, lineItem.originalUnitPriceSet ?? null);
+        break;
+      case 'totalDiscountSet':
+        result[key] = serializeShopMoneySet(selection, lineItem.totalDiscountSet?.shopMoney ?? null);
+        break;
+      case 'fulfillmentService':
+      case 'image':
+      case 'priceOverride':
+      case 'product':
+      case 'variant':
+      case 'weight':
+        result[key] = serializeDraftOrderLineItemNode(selection, lineItem)[key] ?? null;
+        break;
+      case 'isGiftCard':
+        result[key] = false;
+        break;
+      case 'vendor':
+        result[key] = null;
+        break;
+      default:
+        result[key] = serializeDraftOrderLineItemNode(selection, lineItem)[key];
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeCalculatedDraftOrder(field: FieldNode, draftOrder: DraftOrderRecord): Record<string, unknown> {
+  const currencyCode = draftOrder.totalPriceSet?.shopMoney.currencyCode ?? 'CAD';
+  const zeroMoney = { shopMoney: normalizeMoney('0.0', currencyCode) };
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'acceptAutomaticDiscounts':
+        result[key] = false;
+        break;
+      case 'alerts':
+      case 'availableShippingRates':
+      case 'platformDiscounts':
+      case 'taxLines':
+      case 'warnings':
+        result[key] = [];
+        break;
+      case 'allVariantPricesOverridden':
+      case 'anyVariantPricesOverridden':
+        result[key] = false;
+        break;
+      case 'appliedDiscount':
+        result[key] = serializeDraftOrderAppliedDiscount(selection, draftOrder.appliedDiscount);
+        break;
+      case 'billingAddressMatchesShippingAddress':
+        result[key] = JSON.stringify(draftOrder.billingAddress) === JSON.stringify(draftOrder.shippingAddress);
+        break;
+      case 'currencyCode':
+      case 'presentmentCurrencyCode':
+        result[key] = currencyCode;
+        break;
+      case 'customer':
+        result[key] = serializeDraftOrderCustomer(selection, draftOrder.customer);
+        break;
+      case 'discountCodes':
+        result[key] = [];
+        break;
+      case 'lineItems':
+        result[key] = draftOrder.lineItems.map((lineItem) =>
+          serializeCalculatedDraftOrderLineItem(selection, lineItem),
+        );
+        break;
+      case 'lineItemsSubtotalPrice':
+      case 'subtotalPriceSet':
+        result[key] = serializeShopMoneySet(selection, draftOrder.subtotalPriceSet ?? zeroMoney);
+        break;
+      case 'phone':
+      case 'purchasingEntity':
+      case 'transformerFingerprint':
+        result[key] = null;
+        break;
+      case 'shippingLine':
+        result[key] = serializeDraftOrderShippingLine(selection, draftOrder.shippingLine);
+        break;
+      case 'taxesIncluded':
+        result[key] = draftOrder.taxesIncluded;
+        break;
+      case 'totalDiscountsSet':
+        result[key] = serializeShopMoneySet(selection, draftOrder.totalDiscountsSet ?? zeroMoney);
+        break;
+      case 'totalLineItemsPriceSet':
+        result[key] = serializeShopMoneySet(selection, draftOrder.subtotalPriceSet ?? zeroMoney);
+        break;
+      case 'totalPriceSet':
+        result[key] = serializeShopMoneySet(selection, draftOrder.totalPriceSet ?? zeroMoney);
+        break;
+      case 'totalQuantityOfLineItems':
+        result[key] = draftOrder.lineItems.reduce((sum, lineItem) => sum + lineItem.quantity, 0);
+        break;
+      case 'totalShippingPriceSet':
+        result[key] = serializeShopMoneySet(selection, draftOrder.totalShippingPriceSet ?? zeroMoney);
+        break;
+      case 'totalTaxSet':
+        result[key] = serializeShopMoneySet(selection, zeroMoney);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
 }
 
 function serializeDraftOrderNode(field: FieldNode, draftOrder: DraftOrderRecord): Record<string, unknown> {
@@ -3472,6 +3849,10 @@ function serializeOrderFulfillmentOrderLineItem(
                     return [lineItemKey, lineItem.lineItemId];
                   case 'title':
                     return [lineItemKey, lineItem.title];
+                  case 'quantity':
+                    return [lineItemKey, lineItem.lineItemQuantity ?? lineItem.totalQuantity];
+                  case 'fulfillableQuantity':
+                    return [lineItemKey, lineItem.lineItemFulfillableQuantity ?? lineItem.remainingQuantity];
                   default:
                     return [lineItemKey, null];
                 }
@@ -3627,6 +4008,57 @@ function serializeOrderFulfillmentOrder(
       case 'requestStatus':
         result[key] = fulfillmentOrder.requestStatus ?? null;
         break;
+      case 'fulfillAt':
+        result[key] = fulfillmentOrder.fulfillAt ?? null;
+        break;
+      case 'fulfillBy':
+        result[key] = fulfillmentOrder.fulfillBy ?? null;
+        break;
+      case 'updatedAt':
+        result[key] = fulfillmentOrder.updatedAt ?? null;
+        break;
+      case 'supportedActions':
+        result[key] = (fulfillmentOrder.supportedActions ?? []).map((action) =>
+          Object.fromEntries(
+            getSelectedChildFields(selection).map((actionSelection) => {
+              const actionKey = getFieldResponseKey(actionSelection);
+              switch (actionSelection.name.value) {
+                case 'action':
+                  return [actionKey, action];
+                default:
+                  return [actionKey, null];
+              }
+            }),
+          ),
+        );
+        break;
+      case 'fulfillmentHolds':
+        result[key] = (fulfillmentOrder.fulfillmentHolds ?? []).map((hold) =>
+          Object.fromEntries(
+            getSelectedChildFields(selection).map((holdSelection) => {
+              const holdKey = getFieldResponseKey(holdSelection);
+              switch (holdSelection.name.value) {
+                case 'id':
+                  return [holdKey, hold.id];
+                case 'handle':
+                  return [holdKey, hold.handle ?? null];
+                case 'reason':
+                  return [holdKey, hold.reason ?? null];
+                case 'reasonNotes':
+                  return [holdKey, hold.reasonNotes ?? null];
+                case 'displayReason':
+                  return [holdKey, hold.displayReason ?? null];
+                case 'heldByRequestingApp':
+                  return [holdKey, hold.heldByRequestingApp ?? null];
+                case 'heldByApp':
+                  return [holdKey, null];
+                default:
+                  return [holdKey, null];
+              }
+            }),
+          ),
+        );
+        break;
       case 'assignedLocation':
         result[key] = fulfillmentOrder.assignedLocation
           ? Object.fromEntries(
@@ -3635,6 +4067,25 @@ function serializeOrderFulfillmentOrder(
                 switch (locationSelection.name.value) {
                   case 'name':
                     return [locationKey, fulfillmentOrder.assignedLocation?.name ?? null];
+                  case 'location':
+                    return fulfillmentOrder.assignedLocation?.locationId
+                      ? [
+                          locationKey,
+                          Object.fromEntries(
+                            getSelectedChildFields(locationSelection).map((nestedLocationSelection) => {
+                              const nestedLocationKey = getFieldResponseKey(nestedLocationSelection);
+                              switch (nestedLocationSelection.name.value) {
+                                case 'id':
+                                  return [nestedLocationKey, fulfillmentOrder.assignedLocation?.locationId ?? null];
+                                case 'name':
+                                  return [nestedLocationKey, fulfillmentOrder.assignedLocation?.name ?? null];
+                                default:
+                                  return [nestedLocationKey, null];
+                              }
+                            }),
+                          ),
+                        ]
+                      : [locationKey, null];
                   default:
                     return [locationKey, null];
                 }
@@ -3690,6 +4141,15 @@ function listOrderFulfillments(orders: OrderRecord[]): OrderFulfillmentRecord[] 
 
 function listOrderFulfillmentOrders(orders: OrderRecord[]): OrderFulfillmentOrderRecord[] {
   return orders.flatMap((order) => order.fulfillmentOrders ?? []);
+}
+
+function listOrderReturns(orders: OrderRecord[]): Array<{ order: OrderRecord; orderReturn: OrderReturnRecord }> {
+  return orders.flatMap((order) =>
+    order.returns.map((orderReturn) => ({
+      order,
+      orderReturn,
+    })),
+  );
 }
 
 function compareFulfillmentOrderIds(leftId: string, rightId: string): number {
@@ -3954,16 +4414,43 @@ function serializeOrderRefund(field: FieldNode, refund: OrderRefundRecord): Reco
   return result;
 }
 
-function serializeOrderReturn(field: FieldNode, orderReturn: OrderReturnRecord): Record<string, unknown> {
+function serializeReturnLineItem(field: FieldNode, lineItem: OrderReturnLineItemRecord): Record<string, unknown> {
   const result: Record<string, unknown> = {};
+  const processedQuantity = lineItem.processedQuantity ?? 0;
   for (const selection of getSelectedChildFields(field)) {
     const key = getFieldResponseKey(selection);
     switch (selection.name.value) {
       case 'id':
-        result[key] = orderReturn.id;
+        result[key] = lineItem.id;
         break;
-      case 'status':
-        result[key] = orderReturn.status;
+      case 'quantity':
+      case 'refundableQuantity':
+      case 'processableQuantity':
+        result[key] = lineItem.quantity;
+        break;
+      case 'processedQuantity':
+      case 'refundedQuantity':
+        result[key] = processedQuantity;
+        break;
+      case 'unprocessedQuantity':
+        result[key] = Math.max(0, lineItem.quantity - processedQuantity);
+        break;
+      case 'returnReason':
+        result[key] = lineItem.returnReason;
+        break;
+      case 'returnReasonNote':
+        result[key] = lineItem.returnReasonNote;
+        break;
+      case 'customerNote':
+        result[key] = lineItem.customerNote ?? null;
+        break;
+      case 'fulfillmentLineItem':
+        result[key] = serializeOrderFulfillmentLineItem(selection, {
+          id: lineItem.fulfillmentLineItemId,
+          lineItemId: lineItem.lineItemId,
+          title: lineItem.title,
+          quantity: lineItem.quantity,
+        });
         break;
       default:
         result[key] = null;
@@ -3973,13 +4460,104 @@ function serializeOrderReturn(field: FieldNode, orderReturn: OrderReturnRecord):
   return result;
 }
 
-function serializeOrderReturnsConnection(field: FieldNode, returns: OrderReturnRecord[]): Record<string, unknown> {
+function serializeReturnLineItemsConnection(
+  field: FieldNode,
+  lineItems: OrderReturnLineItemRecord[],
+): Record<string, unknown> {
+  return serializeConnection(field, {
+    items: lineItems,
+    hasNextPage: false,
+    hasPreviousPage: false,
+    getCursorValue: (lineItem) => lineItem.id,
+    serializeNode: (lineItem, selection) => serializeReturnLineItem(selection, lineItem),
+    pageInfoOptions: {
+      includeCursors: false,
+    },
+  });
+}
+
+function serializeEmptyConnection(field: FieldNode): Record<string, unknown> {
+  return serializeConnection(field, {
+    items: [],
+    hasNextPage: false,
+    hasPreviousPage: false,
+    getCursorValue: (_item, index) => `empty:${index}`,
+    serializeNode: () => ({}),
+    pageInfoOptions: {
+      includeCursors: false,
+    },
+  });
+}
+
+function serializeOrderReturn(
+  field: FieldNode,
+  orderReturn: OrderReturnRecord,
+  variables: Record<string, unknown> = {},
+  order: OrderRecord | null = null,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = orderReturn.id;
+        break;
+      case 'name':
+        result[key] = orderReturn.name ?? `#${orderReturn.id.split('/').at(-1) ?? 'RETURN'}`;
+        break;
+      case 'status':
+        result[key] = orderReturn.status;
+        break;
+      case 'createdAt':
+        result[key] = orderReturn.createdAt ?? order?.createdAt ?? makeSyntheticTimestamp();
+        break;
+      case 'closedAt':
+        result[key] = orderReturn.closedAt ?? null;
+        break;
+      case 'totalQuantity':
+        result[key] =
+          orderReturn.totalQuantity ??
+          (orderReturn.returnLineItems ?? []).reduce((total, lineItem) => total + lineItem.quantity, 0);
+        break;
+      case 'order':
+        result[key] = order ? serializeOrderNode(selection, order, variables) : null;
+        break;
+      case 'returnLineItems':
+        result[key] = serializeReturnLineItemsConnection(selection, orderReturn.returnLineItems ?? []);
+        break;
+      case 'exchangeLineItems':
+      case 'refunds':
+      case 'reverseFulfillmentOrders':
+        result[key] = serializeEmptyConnection(selection);
+        break;
+      case 'returnShippingFees':
+        result[key] = [];
+        break;
+      case 'decline':
+      case 'requestApprovedAt':
+      case 'suggestedFinancialOutcome':
+        result[key] = null;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeOrderReturnsConnection(
+  field: FieldNode,
+  returns: OrderReturnRecord[],
+  variables: Record<string, unknown> = {},
+  order: OrderRecord | null = null,
+): Record<string, unknown> {
   return serializeConnection(field, {
     items: returns,
     hasNextPage: false,
     hasPreviousPage: false,
     getCursorValue: (orderReturn) => orderReturn.id,
-    serializeNode: (orderReturn, selection) => serializeOrderReturn(selection, orderReturn),
+    serializeNode: (orderReturn, selection) => serializeOrderReturn(selection, orderReturn, variables, order),
     pageInfoOptions: {
       includeCursors: false,
     },
@@ -4037,7 +4615,7 @@ function deriveOrderNetPaymentSet(order: OrderRecord): { shopMoney: MoneyV2Recor
   );
 }
 
-function serializeOrderNode(
+export function serializeOrderNode(
   field: FieldNode,
   order: OrderRecord,
   variables: Record<string, unknown> = {},
@@ -4233,7 +4811,7 @@ function serializeOrderNode(
         result[key] = order.refunds.map((refund) => serializeOrderRefund(selection, refund));
         break;
       case 'returns':
-        result[key] = serializeOrderReturnsConnection(selection, order.returns);
+        result[key] = serializeOrderReturnsConnection(selection, order.returns, variables, order);
         break;
       default:
         result[key] = null;
@@ -4275,6 +4853,159 @@ function serializeCalculatedOrder(field: FieldNode, calculatedOrder: CalculatedO
   }
 
   return result;
+}
+
+function readRawConnectionItems(raw: unknown): Record<string, unknown>[] {
+  if (Array.isArray(raw)) {
+    return raw.filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null);
+  }
+
+  if (typeof raw !== 'object' || raw === null) {
+    return [];
+  }
+
+  const source = raw as Record<string, unknown>;
+  if (Array.isArray(source['nodes'])) {
+    return source['nodes'].filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null);
+  }
+
+  if (Array.isArray(source['edges'])) {
+    return source['edges']
+      .map((edge) =>
+        typeof edge === 'object' && edge !== null ? ((edge as Record<string, unknown>)['node'] ?? null) : null,
+      )
+      .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null);
+  }
+
+  return [];
+}
+
+function serializeRawRecordConnection(
+  field: FieldNode,
+  items: Record<string, unknown>[],
+  variables: Record<string, unknown>,
+  fragments: ReturnType<typeof getDocumentFragments>,
+): Record<string, unknown> {
+  const {
+    items: visibleRecords,
+    hasNextPage,
+    hasPreviousPage,
+  } = paginateConnectionItems(items, field, variables, (item, index) =>
+    typeof item['id'] === 'string' ? item['id'] : String(index),
+  );
+
+  return serializeConnection(field, {
+    items: visibleRecords,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (item, index) => (typeof item['id'] === 'string' ? item['id'] : String(index)),
+    serializeNode: (item, selection) => projectGraphqlObject(item, selection.selectionSet?.selections ?? [], fragments),
+    selectedFieldOptions: { includeInlineFragments: true },
+    pageInfoOptions: { includeInlineFragments: true },
+  });
+}
+
+function serializeAbandonedCheckoutNode(
+  field: FieldNode,
+  checkout: AbandonedCheckoutRecord,
+  variables: Record<string, unknown>,
+  fragments: ReturnType<typeof getDocumentFragments>,
+): Record<string, unknown> {
+  return projectGraphqlObject(checkout.data, field.selectionSet?.selections ?? [], fragments, {
+    projectFieldValue: ({ source, field: selection, fieldName }) => {
+      if (fieldName === 'lineItems') {
+        return {
+          handled: true,
+          value: serializeRawRecordConnection(
+            selection,
+            readRawConnectionItems(source[fieldName]),
+            variables,
+            fragments,
+          ),
+        };
+      }
+      return { handled: false };
+    },
+  });
+}
+
+function serializeAbandonedCheckoutsConnection(
+  field: FieldNode,
+  checkouts: AbandonedCheckoutRecord[],
+  variables: Record<string, unknown>,
+  fragments: ReturnType<typeof getDocumentFragments>,
+): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const filteredCheckouts = typeof args['savedSearchId'] === 'string' && args['savedSearchId'].trim() ? [] : checkouts;
+  const orderedCheckouts = args['reverse'] === false ? [...filteredCheckouts].reverse() : filteredCheckouts;
+  const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
+    orderedCheckouts,
+    field,
+    variables,
+    (checkout) => checkout.cursor ?? checkout.id,
+    {
+      parseCursor: (cursor) => cursor.replace(/^cursor:/u, ''),
+    },
+  );
+
+  return serializeConnection(field, {
+    items,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (checkout) => checkout.cursor ?? checkout.id,
+    serializeNode: (checkout, selection) => serializeAbandonedCheckoutNode(selection, checkout, variables, fragments),
+    selectedFieldOptions: { includeInlineFragments: true },
+    pageInfoOptions: { includeInlineFragments: true, prefixCursors: false },
+  });
+}
+
+function serializeAbandonedCheckoutsCount(
+  field: FieldNode,
+  checkouts: AbandonedCheckoutRecord[],
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const filteredCheckouts = typeof args['savedSearchId'] === 'string' && args['savedSearchId'].trim() ? [] : checkouts;
+  const rawLimit = args['limit'];
+  const limit = typeof rawLimit === 'number' && Number.isFinite(rawLimit) && rawLimit >= 0 ? rawLimit : null;
+  const count = limit === null ? filteredCheckouts.length : Math.min(filteredCheckouts.length, limit);
+
+  return serializeOrderCount(field, count, limit !== null && filteredCheckouts.length > limit ? 'AT_LEAST' : 'EXACT');
+}
+
+function serializeAbandonmentNode(
+  field: FieldNode,
+  abandonment: AbandonmentRecord,
+  variables: Record<string, unknown>,
+  fragments: ReturnType<typeof getDocumentFragments>,
+): Record<string, unknown> {
+  return projectGraphqlObject(abandonment.data, field.selectionSet?.selections ?? [], fragments, {
+    projectFieldValue: ({ source, field: selection, fieldName }) => {
+      if (fieldName === 'abandonedCheckoutPayload') {
+        const checkoutId =
+          typeof source[fieldName] === 'object' && source[fieldName] !== null
+            ? ((source[fieldName] as Record<string, unknown>)['id'] as unknown)
+            : abandonment.abandonedCheckoutId;
+        const checkout = typeof checkoutId === 'string' ? store.getAbandonedCheckoutById(checkoutId) : null;
+        return {
+          handled: true,
+          value: checkout ? serializeAbandonedCheckoutNode(selection, checkout, variables, fragments) : null,
+        };
+      }
+      if (fieldName === 'productsAddedToCart' || fieldName === 'productsViewed') {
+        return {
+          handled: true,
+          value: serializeRawRecordConnection(
+            selection,
+            readRawConnectionItems(source[fieldName]),
+            variables,
+            fragments,
+          ),
+        };
+      }
+      return { handled: false };
+    },
+  });
 }
 
 function serializeOrderCount(field: FieldNode, count = 0, precision = 'EXACT'): Record<string, unknown> {
@@ -4561,6 +5292,60 @@ function readDraftOrderDeleteInput(variables: Record<string, unknown>): Record<s
 
 function readDraftOrderInvoiceSendId(variables: Record<string, unknown>): string | null {
   return typeof variables['id'] === 'string' ? variables['id'] : null;
+}
+
+function readStringListArgument(
+  field: FieldNode,
+  argumentName: string,
+  variables: Record<string, unknown>,
+): string[] | null {
+  const value = getFieldArguments(field, variables)[argumentName];
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : null;
+}
+
+function readDraftOrderSavedSearchQuery(savedSearchId: unknown): string | null {
+  if (typeof savedSearchId !== 'string') {
+    return null;
+  }
+  return DRAFT_ORDER_SAVED_SEARCHES.find((savedSearch) => savedSearch.id === savedSearchId)?.query ?? null;
+}
+
+function selectDraftOrderBulkTargets(field: FieldNode, variables: Record<string, unknown>): DraftOrderRecord[] {
+  const args = getFieldArguments(field, variables);
+  const ids = readStringListArgument(field, 'ids', variables);
+  const savedSearchQuery = readDraftOrderSavedSearchQuery(args['savedSearchId']);
+  const rawSearch = typeof args['search'] === 'string' ? args['search'] : savedSearchQuery;
+  const candidates = store.getDraftOrders();
+
+  if (ids && ids.length > 0) {
+    const idSet = new Set(ids);
+    return candidates.filter((draftOrder) => idSet.has(draftOrder.id));
+  }
+
+  if (typeof rawSearch === 'string' && rawSearch.length > 0) {
+    return applyDraftOrdersQuery(candidates, rawSearch);
+  }
+
+  return candidates;
+}
+
+function readDraftOrderBulkTags(field: FieldNode, variables: Record<string, unknown>): string[] {
+  return (readStringListArgument(field, 'tags', variables) ?? [])
+    .map((tag) => tag.trim())
+    .filter((tag) => tag.length > 0);
+}
+
+function updateDraftOrderTags(draftOrder: DraftOrderRecord, tags: string[], operation: 'add' | 'remove'): void {
+  const nextTags =
+    operation === 'add'
+      ? [...new Set([...draftOrder.tags, ...tags])]
+      : draftOrder.tags.filter((tag) => !tags.includes(tag));
+
+  store.updateDraftOrder({
+    ...draftOrder,
+    tags: nextTags.sort((left, right) => left.localeCompare(right)),
+    updatedAt: makeSyntheticTimestamp(),
+  });
 }
 
 function buildDraftOrderInvoiceSendUserErrors(
@@ -5162,6 +5947,28 @@ function getInlineArgument(field: FieldNode, argumentName: string) {
   return field.arguments?.find((argument) => argument.name.value === argumentName) ?? null;
 }
 
+function readNullableEnumArgument(
+  field: FieldNode,
+  argumentName: string,
+  variables: Record<string, unknown>,
+): string | null {
+  const argument = getInlineArgument(field, argumentName);
+  if (!argument) {
+    return null;
+  }
+
+  if (argument.value.kind === Kind.ENUM || argument.value.kind === Kind.STRING) {
+    return argument.value.value;
+  }
+
+  if (argument.value.kind === Kind.VARIABLE) {
+    const rawValue = variables[argument.value.name.value];
+    return typeof rawValue === 'string' ? rawValue : null;
+  }
+
+  return null;
+}
+
 function getFulfillmentTrackingInfoUpdateInlineIdArgument(field: FieldNode) {
   return field.arguments?.find((argument) => argument.name.value === 'fulfillmentId') ?? null;
 }
@@ -5239,6 +6046,454 @@ function findOrderWithFulfillmentOrder(
   }
 
   return null;
+}
+
+function readFulfillmentOrderId(variables: Record<string, unknown>): string | null {
+  return typeof variables['id'] === 'string' ? variables['id'] : null;
+}
+
+function readFulfillmentOrderLineItemInputs(
+  variables: Record<string, unknown>,
+): Array<{ id: string; quantity: number }> {
+  const raw = variables['fulfillmentOrderLineItems'];
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  return raw
+    .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
+    .map((item) => ({
+      id: typeof item['id'] === 'string' ? item['id'] : '',
+      quantity: typeof item['quantity'] === 'number' ? item['quantity'] : 0,
+    }))
+    .filter((item) => item.id.length > 0 && item.quantity > 0);
+}
+
+function readFulfillmentHoldInput(variables: Record<string, unknown>): Record<string, unknown> {
+  const input = variables['fulfillmentHold'];
+  return typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {};
+}
+
+function fulfillmentOrderSupportsSplit(lineItems: OrderFulfillmentOrderLineItemRecord[] | undefined): boolean {
+  return (lineItems ?? []).some((lineItem) => Math.max(lineItem.totalQuantity, lineItem.remainingQuantity) > 1);
+}
+
+function fulfillmentOrderSupportedActions(
+  status: string | null | undefined,
+  lineItems?: OrderFulfillmentOrderLineItemRecord[],
+): string[] {
+  switch (status) {
+    case 'ON_HOLD':
+      return ['RELEASE_HOLD', 'HOLD', 'MOVE'];
+    case 'IN_PROGRESS':
+      return ['CREATE_FULFILLMENT', 'REPORT_PROGRESS', 'HOLD', 'MARK_AS_OPEN'];
+    case 'CLOSED':
+      return [];
+    case 'OPEN':
+    default:
+      return fulfillmentOrderSupportsSplit(lineItems)
+        ? ['CREATE_FULFILLMENT', 'REPORT_PROGRESS', 'MOVE', 'HOLD', 'SPLIT']
+        : ['CREATE_FULFILLMENT', 'REPORT_PROGRESS', 'MOVE', 'HOLD'];
+  }
+}
+
+function updateOrderFulfillmentOrders(
+  order: OrderRecord,
+  updater: (fulfillmentOrders: OrderFulfillmentOrderRecord[]) => OrderFulfillmentOrderRecord[],
+): OrderRecord {
+  return store.updateOrder({
+    ...order,
+    updatedAt: makeSyntheticTimestamp(),
+    fulfillmentOrders: updater(order.fulfillmentOrders ?? []),
+  });
+}
+
+function serializeFulfillmentOrderMutationPayload(
+  field: FieldNode,
+  values: Record<string, OrderFulfillmentOrderRecord | OrderFulfillmentOrderRecord[] | null>,
+  userErrors: Array<{ field: string[] | null; message: string }>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const selectionKey = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'fulfillmentOrder':
+      case 'remainingFulfillmentOrder':
+      case 'movedFulfillmentOrder':
+      case 'originalFulfillmentOrder':
+      case 'replacementFulfillmentOrder': {
+        const fulfillmentOrder = values[selection.name.value];
+        payload[selectionKey] =
+          fulfillmentOrder && !Array.isArray(fulfillmentOrder)
+            ? serializeOrderFulfillmentOrder(selection, fulfillmentOrder)
+            : null;
+        break;
+      }
+      case 'movedFulfillmentOrders': {
+        const fulfillmentOrders = values[selection.name.value];
+        payload[selectionKey] = Array.isArray(fulfillmentOrders)
+          ? fulfillmentOrders.map((fulfillmentOrder) => serializeOrderFulfillmentOrder(selection, fulfillmentOrder))
+          : [];
+        break;
+      }
+      case 'fulfillmentHold': {
+        const fulfillmentOrder = values['fulfillmentOrder'];
+        const hold =
+          fulfillmentOrder && !Array.isArray(fulfillmentOrder)
+            ? ((fulfillmentOrder.fulfillmentHolds ?? [])[0] ?? null)
+            : null;
+        payload[selectionKey] = hold
+          ? Object.fromEntries(
+              getSelectedChildFields(selection).map((holdSelection) => {
+                const holdKey = getFieldResponseKey(holdSelection);
+                switch (holdSelection.name.value) {
+                  case 'id':
+                    return [holdKey, hold.id];
+                  case 'handle':
+                    return [holdKey, hold.handle ?? null];
+                  case 'reason':
+                    return [holdKey, hold.reason ?? null];
+                  case 'reasonNotes':
+                    return [holdKey, hold.reasonNotes ?? null];
+                  case 'displayReason':
+                    return [holdKey, hold.displayReason ?? null];
+                  case 'heldByApp':
+                    return [holdKey, null];
+                  case 'heldByRequestingApp':
+                    return [holdKey, hold.heldByRequestingApp ?? null];
+                  default:
+                    return [holdKey, null];
+                }
+              }),
+            )
+          : null;
+        break;
+      }
+      case 'userErrors':
+        payload[selectionKey] = serializeSelectedUserErrors(selection, userErrors);
+        break;
+      default:
+        payload[selectionKey] = null;
+        break;
+    }
+  }
+  return payload;
+}
+
+function splitFulfillmentOrderLineItems(
+  fulfillmentOrder: OrderFulfillmentOrderRecord,
+  inputs: Array<{ id: string; quantity: number }>,
+): {
+  selectedLineItems: OrderFulfillmentOrderLineItemRecord[];
+  remainingLineItems: OrderFulfillmentOrderLineItemRecord[];
+} {
+  if (inputs.length === 0) {
+    return {
+      selectedLineItems: structuredClone(fulfillmentOrder.lineItems ?? []),
+      remainingLineItems: [],
+    };
+  }
+
+  const selectedLineItems: OrderFulfillmentOrderLineItemRecord[] = [];
+  const remainingLineItems: OrderFulfillmentOrderLineItemRecord[] = [];
+  for (const lineItem of fulfillmentOrder.lineItems ?? []) {
+    const input = inputs.find((candidate) => candidate.id === lineItem.id);
+    if (!input) {
+      remainingLineItems.push(structuredClone(lineItem));
+      continue;
+    }
+
+    const selectedQuantity = Math.min(input.quantity, lineItem.remainingQuantity, lineItem.totalQuantity);
+    if (selectedQuantity > 0) {
+      selectedLineItems.push({
+        ...lineItem,
+        totalQuantity: selectedQuantity,
+        remainingQuantity: selectedQuantity,
+        lineItemFulfillableQuantity: selectedQuantity,
+      });
+    }
+
+    const remainingQuantity = lineItem.totalQuantity - selectedQuantity;
+    if (remainingQuantity > 0) {
+      remainingLineItems.push({
+        ...lineItem,
+        id: makeSyntheticGid('FulfillmentOrderLineItem'),
+        totalQuantity: remainingQuantity,
+        remainingQuantity,
+        lineItemFulfillableQuantity: remainingQuantity,
+      });
+    }
+  }
+
+  return { selectedLineItems, remainingLineItems };
+}
+
+function buildReplacementFulfillmentOrder(
+  fulfillmentOrder: OrderFulfillmentOrderRecord,
+  lineItems: OrderFulfillmentOrderLineItemRecord[],
+  overrides: Partial<OrderFulfillmentOrderRecord> = {},
+): OrderFulfillmentOrderRecord {
+  const status = overrides.status ?? 'OPEN';
+  return {
+    ...fulfillmentOrder,
+    id: makeSyntheticGid('FulfillmentOrder'),
+    updatedAt: makeSyntheticTimestamp(),
+    status,
+    requestStatus: overrides.requestStatus ?? fulfillmentOrder.requestStatus ?? 'UNSUBMITTED',
+    supportedActions: fulfillmentOrderSupportedActions(status, lineItems),
+    fulfillmentHolds: [],
+    lineItems,
+    ...overrides,
+  };
+}
+
+function applyFulfillmentOrderHold(
+  order: OrderRecord,
+  fulfillmentOrder: OrderFulfillmentOrderRecord,
+  variables: Record<string, unknown>,
+): {
+  order: OrderRecord;
+  fulfillmentOrder: OrderFulfillmentOrderRecord;
+  remainingFulfillmentOrder: OrderFulfillmentOrderRecord | null;
+} {
+  const input = readFulfillmentHoldInput(variables);
+  const { selectedLineItems, remainingLineItems } = splitFulfillmentOrderLineItems(
+    fulfillmentOrder,
+    Array.isArray(input['fulfillmentOrderLineItems'])
+      ? (input['fulfillmentOrderLineItems'] as Record<string, unknown>[])
+          .map((item) => ({
+            id: typeof item['id'] === 'string' ? item['id'] : '',
+            quantity: typeof item['quantity'] === 'number' ? item['quantity'] : 0,
+          }))
+          .filter((item) => item.id.length > 0 && item.quantity > 0)
+      : [],
+  );
+  const hold = {
+    id: makeSyntheticGid('FulfillmentHold'),
+    handle: readString(input['handle']),
+    reason: readString(input['reason']) ?? 'OTHER',
+    reasonNotes: readString(input['reasonNotes']),
+    displayReason:
+      readString(input['reason']) === 'OTHER' || !readString(input['reason']) ? 'Other' : readString(input['reason']),
+    heldByRequestingApp: true,
+  };
+  const heldFulfillmentOrder: OrderFulfillmentOrderRecord = {
+    ...fulfillmentOrder,
+    status: 'ON_HOLD',
+    updatedAt: makeSyntheticTimestamp(),
+    supportedActions: fulfillmentOrderSupportedActions('ON_HOLD', selectedLineItems),
+    fulfillmentHolds: [hold],
+    lineItems: selectedLineItems,
+  };
+  const remainingFulfillmentOrder =
+    remainingLineItems.length > 0
+      ? buildReplacementFulfillmentOrder(fulfillmentOrder, remainingLineItems, {
+          assignedLocation: fulfillmentOrder.assignedLocation,
+        })
+      : null;
+  const updatedOrder = updateOrderFulfillmentOrders(order, (fulfillmentOrders) =>
+    fulfillmentOrders.flatMap((candidate) => {
+      if (candidate.id !== fulfillmentOrder.id) {
+        return [candidate];
+      }
+      return remainingFulfillmentOrder ? [heldFulfillmentOrder, remainingFulfillmentOrder] : [heldFulfillmentOrder];
+    }),
+  );
+  return {
+    order: updatedOrder,
+    fulfillmentOrder: heldFulfillmentOrder,
+    remainingFulfillmentOrder,
+  };
+}
+
+function applyFulfillmentOrderReleaseHold(
+  order: OrderRecord,
+  fulfillmentOrder: OrderFulfillmentOrderRecord,
+): { order: OrderRecord; fulfillmentOrder: OrderFulfillmentOrderRecord } {
+  const releasedLineItems = (fulfillmentOrder.lineItems ?? []).map((lineItem) => ({ ...lineItem }));
+  const releasedLineItemsByLineItemId = new Map(
+    releasedLineItems
+      .filter((lineItem) => lineItem.lineItemId)
+      .map((lineItem) => [lineItem.lineItemId as string, lineItem]),
+  );
+  const closedSiblingIds = new Set<string>();
+  const closedSiblingLineItems = new Map<string, OrderFulfillmentOrderLineItemRecord[]>();
+
+  for (const sibling of order.fulfillmentOrders ?? []) {
+    if (sibling.id === fulfillmentOrder.id || sibling.status === 'CLOSED') {
+      continue;
+    }
+    const siblingLineItems = sibling.lineItems ?? [];
+    const isMatchingSplitSibling = siblingLineItems.some(
+      (lineItem) => lineItem.lineItemId && releasedLineItemsByLineItemId.has(lineItem.lineItemId),
+    );
+    if (!isMatchingSplitSibling) {
+      continue;
+    }
+
+    closedSiblingIds.add(sibling.id);
+    closedSiblingLineItems.set(
+      sibling.id,
+      siblingLineItems.map((lineItem) => {
+        const releasedLineItem = lineItem.lineItemId ? releasedLineItemsByLineItemId.get(lineItem.lineItemId) : null;
+        if (releasedLineItem) {
+          const currentFulfillableQuantity =
+            releasedLineItem.lineItemFulfillableQuantity ?? releasedLineItem.remainingQuantity;
+          releasedLineItem.totalQuantity += lineItem.totalQuantity;
+          releasedLineItem.remainingQuantity += lineItem.remainingQuantity;
+          releasedLineItem.lineItemFulfillableQuantity =
+            currentFulfillableQuantity + (lineItem.lineItemFulfillableQuantity ?? lineItem.remainingQuantity);
+        }
+        return {
+          ...lineItem,
+          totalQuantity: 0,
+          remainingQuantity: 0,
+          lineItemFulfillableQuantity:
+            releasedLineItem?.lineItemFulfillableQuantity ?? lineItem.lineItemFulfillableQuantity,
+        };
+      }),
+    );
+  }
+
+  const releasedFulfillmentOrder: OrderFulfillmentOrderRecord = {
+    ...fulfillmentOrder,
+    status: 'OPEN',
+    updatedAt: makeSyntheticTimestamp(),
+    supportedActions: fulfillmentOrderSupportedActions('OPEN', releasedLineItems),
+    fulfillmentHolds: [],
+    lineItems: releasedLineItems,
+  };
+  const updatedOrder = updateOrderFulfillmentOrders(order, (fulfillmentOrders) =>
+    fulfillmentOrders.map((candidate) => {
+      if (candidate.id === fulfillmentOrder.id) {
+        return releasedFulfillmentOrder;
+      }
+      if (!closedSiblingIds.has(candidate.id)) {
+        return candidate;
+      }
+      return {
+        ...candidate,
+        status: 'CLOSED',
+        updatedAt: makeSyntheticTimestamp(),
+        supportedActions: [],
+        fulfillmentHolds: [],
+        lineItems: closedSiblingLineItems.get(candidate.id) ?? [],
+      };
+    }),
+  );
+  return { order: updatedOrder, fulfillmentOrder: releasedFulfillmentOrder };
+}
+
+function applyFulfillmentOrderMove(
+  order: OrderRecord,
+  fulfillmentOrder: OrderFulfillmentOrderRecord,
+  variables: Record<string, unknown>,
+): {
+  order: OrderRecord;
+  movedFulfillmentOrder: OrderFulfillmentOrderRecord;
+  originalFulfillmentOrder: OrderFulfillmentOrderRecord;
+  remainingFulfillmentOrder: OrderFulfillmentOrderRecord | null;
+} {
+  const splitLineItems = splitFulfillmentOrderLineItems(
+    fulfillmentOrder,
+    readFulfillmentOrderLineItemInputs(variables),
+  );
+  const restoreLineItemFulfillableQuantities = (
+    lineItems: OrderFulfillmentOrderLineItemRecord[],
+  ): OrderFulfillmentOrderLineItemRecord[] =>
+    lineItems.map((lineItem) => {
+      const originalLineItem =
+        (fulfillmentOrder.lineItems ?? []).find((candidate) => candidate.lineItemId === lineItem.lineItemId) ?? null;
+      return {
+        ...lineItem,
+        lineItemFulfillableQuantity:
+          originalLineItem?.lineItemFulfillableQuantity ??
+          originalLineItem?.lineItemQuantity ??
+          lineItem.lineItemFulfillableQuantity,
+      };
+    });
+  const selectedLineItems = restoreLineItemFulfillableQuantities(splitLineItems.selectedLineItems);
+  const remainingLineItems = restoreLineItemFulfillableQuantities(splitLineItems.remainingLineItems);
+  const newLocationId = typeof variables['newLocationId'] === 'string' ? variables['newLocationId'] : null;
+  const movedFulfillmentOrder = buildReplacementFulfillmentOrder(fulfillmentOrder, selectedLineItems, {
+    assignedLocation: {
+      name:
+        newLocationId === fulfillmentOrder.assignedLocation?.locationId
+          ? fulfillmentOrder.assignedLocation.name
+          : 'Shop location',
+      locationId: newLocationId,
+    },
+  });
+  const originalFulfillmentOrder: OrderFulfillmentOrderRecord = {
+    ...fulfillmentOrder,
+    updatedAt: makeSyntheticTimestamp(),
+    supportedActions: fulfillmentOrderSupportedActions(fulfillmentOrder.status, remainingLineItems),
+    lineItems: remainingLineItems.length > 0 ? remainingLineItems : [],
+  };
+  const remainingFulfillmentOrder = remainingLineItems.length > 0 ? originalFulfillmentOrder : null;
+  const updatedOrder = updateOrderFulfillmentOrders(order, (fulfillmentOrders) =>
+    fulfillmentOrders.flatMap((candidate) => {
+      if (candidate.id !== fulfillmentOrder.id) {
+        return [candidate];
+      }
+      return remainingFulfillmentOrder ? [originalFulfillmentOrder, movedFulfillmentOrder] : [movedFulfillmentOrder];
+    }),
+  );
+  return { order: updatedOrder, movedFulfillmentOrder, originalFulfillmentOrder, remainingFulfillmentOrder };
+}
+
+function applyFulfillmentOrderStatus(
+  order: OrderRecord,
+  fulfillmentOrder: OrderFulfillmentOrderRecord,
+  status: string,
+): { order: OrderRecord; fulfillmentOrder: OrderFulfillmentOrderRecord } {
+  const updatedFulfillmentOrder: OrderFulfillmentOrderRecord = {
+    ...fulfillmentOrder,
+    status,
+    updatedAt: makeSyntheticTimestamp(),
+    supportedActions: fulfillmentOrderSupportedActions(status, fulfillmentOrder.lineItems),
+  };
+  const updatedOrder = updateOrderFulfillmentOrders(order, (fulfillmentOrders) =>
+    fulfillmentOrders.map((candidate) => (candidate.id === fulfillmentOrder.id ? updatedFulfillmentOrder : candidate)),
+  );
+  if (status === 'IN_PROGRESS' || status === 'OPEN') {
+    const displayFulfillmentStatus = status === 'IN_PROGRESS' ? 'IN_PROGRESS' : 'UNFULFILLED';
+    return {
+      order: store.updateOrder({
+        ...updatedOrder,
+        displayFulfillmentStatus,
+      }),
+      fulfillmentOrder: updatedFulfillmentOrder,
+    };
+  }
+  return { order: updatedOrder, fulfillmentOrder: updatedFulfillmentOrder };
+}
+
+function applyFulfillmentOrderCancel(
+  order: OrderRecord,
+  fulfillmentOrder: OrderFulfillmentOrderRecord,
+): {
+  order: OrderRecord;
+  fulfillmentOrder: OrderFulfillmentOrderRecord;
+  replacementFulfillmentOrder: OrderFulfillmentOrderRecord;
+} {
+  const cancelledFulfillmentOrder: OrderFulfillmentOrderRecord = {
+    ...fulfillmentOrder,
+    status: 'CLOSED',
+    updatedAt: makeSyntheticTimestamp(),
+    supportedActions: [],
+    lineItems: [],
+  };
+  const replacementFulfillmentOrder = buildReplacementFulfillmentOrder(
+    fulfillmentOrder,
+    structuredClone(fulfillmentOrder.lineItems ?? []),
+  );
+  const updatedOrder = updateOrderFulfillmentOrders(order, (fulfillmentOrders) =>
+    fulfillmentOrders.flatMap((candidate) =>
+      candidate.id === fulfillmentOrder.id ? [cancelledFulfillmentOrder, replacementFulfillmentOrder] : [candidate],
+    ),
+  );
+  return { order: updatedOrder, fulfillmentOrder: cancelledFulfillmentOrder, replacementFulfillmentOrder };
 }
 
 type FulfillmentOrderUserError = { field: string[] | null; message: string };
@@ -5862,6 +7117,34 @@ function serializeDraftOrderMutationPayload(
   return payload;
 }
 
+function serializeAbandonmentMutationPayload(
+  field: FieldNode,
+  abandonment: AbandonmentRecord | null,
+  variables: Record<string, unknown>,
+  fragments: ReturnType<typeof getDocumentFragments>,
+  userErrors: Array<{ field: string[] | null; message: string }>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const selectionKey = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'abandonment':
+        payload[selectionKey] = abandonment
+          ? serializeAbandonmentNode(selection, abandonment, variables, fragments)
+          : null;
+        break;
+      case 'userErrors':
+        payload[selectionKey] = serializeSelectedUserErrors(selection, userErrors);
+        break;
+      default:
+        payload[selectionKey] = null;
+        break;
+    }
+  }
+
+  return payload;
+}
+
 function serializeDraftOrderDeletePayload(
   field: FieldNode,
   deletedId: string | null,
@@ -5886,14 +7169,101 @@ function serializeDraftOrderDeletePayload(
   return payload;
 }
 
+function serializeDraftOrderBulkPayload(
+  field: FieldNode,
+  jobId: string | null,
+  userErrors: Array<{ field: string[] | null; message: string }>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const selectionKey = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'job':
+        payload[selectionKey] = jobId ? serializeJob(selection, jobId, false) : null;
+        break;
+      case 'userErrors':
+        payload[selectionKey] = serializeSelectedUserErrors(selection, userErrors);
+        break;
+      default:
+        payload[selectionKey] = null;
+        break;
+    }
+  }
+  return payload;
+}
+
+function serializeDraftOrderCalculatePayload(
+  field: FieldNode,
+  calculatedDraftOrder: DraftOrderRecord | null,
+  userErrors: Array<{ field: string[] | null; message: string }>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const selectionKey = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'calculatedDraftOrder':
+        payload[selectionKey] = calculatedDraftOrder
+          ? serializeCalculatedDraftOrder(selection, calculatedDraftOrder)
+          : null;
+        break;
+      case 'userErrors':
+        payload[selectionKey] = serializeSelectedUserErrors(selection, userErrors);
+        break;
+      default:
+        payload[selectionKey] = null;
+        break;
+    }
+  }
+  return payload;
+}
+
+function serializeDraftOrderInvoicePreviewPayload(
+  field: FieldNode,
+  draftOrder: DraftOrderRecord | null,
+  args: Record<string, unknown>,
+  userErrors: Array<{ field: string[] | null; message: string }>,
+): Record<string, unknown> {
+  const email =
+    typeof args['email'] === 'object' && args['email'] !== null ? (args['email'] as Record<string, unknown>) : {};
+  const subject =
+    typeof email['subject'] === 'string' && email['subject'].length > 0 ? email['subject'] : 'Complete your purchase';
+  const customMessage = typeof email['customMessage'] === 'string' ? email['customMessage'] : '';
+  const payload: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const selectionKey = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'previewSubject':
+        payload[selectionKey] = draftOrder ? subject : null;
+        break;
+      case 'previewHtml':
+        payload[selectionKey] = draftOrder
+          ? `<!DOCTYPE html><html><body><h1>${subject}</h1><p>${customMessage}</p><p>Draft order ${draftOrder.name}</p></body></html>`
+          : null;
+        break;
+      case 'userErrors':
+        payload[selectionKey] = serializeSelectedUserErrors(selection, userErrors);
+        break;
+      default:
+        payload[selectionKey] = null;
+        break;
+    }
+  }
+
+  return payload;
+}
+
 export function handleOrderQuery(
   document: string,
   variables: Record<string, unknown> = {},
 ): { data: Record<string, unknown>; extensions?: { search: OrderSearchExtensionEntry[] } } {
   const data: Record<string, unknown> = {};
+  const fragments = getDocumentFragments(document);
   const orders = store.getOrders();
+  const abandonedCheckouts = store.getAbandonedCheckouts();
   const fulfillments = listOrderFulfillments(orders);
   const fulfillmentOrders = listOrderFulfillmentOrders(orders);
+  const orderReturns = listOrderReturns(orders);
   const searchExtensions: OrderSearchExtensionEntry[] = [];
 
   for (const field of getRootFields(document)) {
@@ -5912,6 +7282,24 @@ export function handleOrderQuery(
       case 'ordersCount':
         data[key] = serializeOrdersCount(field, orders, variables);
         break;
+      case 'abandonedCheckouts':
+        data[key] = serializeAbandonedCheckoutsConnection(field, abandonedCheckouts, variables, fragments);
+        break;
+      case 'abandonedCheckoutsCount':
+        data[key] = serializeAbandonedCheckoutsCount(field, abandonedCheckouts, variables);
+        break;
+      case 'abandonment': {
+        const id = readNullableStringArgument(field, 'id', variables);
+        const abandonment = id ? store.getAbandonmentById(id) : null;
+        data[key] = abandonment ? serializeAbandonmentNode(field, abandonment, variables, fragments) : null;
+        break;
+      }
+      case 'abandonmentByAbandonedCheckoutId': {
+        const abandonedCheckoutId = readNullableStringArgument(field, 'abandonedCheckoutId', variables);
+        const abandonment = abandonedCheckoutId ? store.getAbandonmentByAbandonedCheckoutId(abandonedCheckoutId) : null;
+        data[key] = abandonment ? serializeAbandonmentNode(field, abandonment, variables, fragments) : null;
+        break;
+      }
       case 'fulfillment': {
         const id = readNullableStringArgument(field, 'id', variables);
         const fulfillment = id ? (fulfillments.find((candidate) => candidate.id === id) ?? null) : null;
@@ -5922,6 +7310,12 @@ export function handleOrderQuery(
         const id = readNullableStringArgument(field, 'id', variables);
         const fulfillmentOrder = id ? (fulfillmentOrders.find((candidate) => candidate.id === id) ?? null) : null;
         data[key] = fulfillmentOrder ? serializeOrderFulfillmentOrder(field, fulfillmentOrder, variables) : null;
+        break;
+      }
+      case 'return': {
+        const id = readNullableStringArgument(field, 'id', variables);
+        const match = id ? (orderReturns.find((candidate) => candidate.orderReturn.id === id) ?? null) : null;
+        data[key] = match ? serializeOrderReturn(field, match.orderReturn, variables, match.order) : null;
         break;
       }
       case 'fulfillmentOrders':
@@ -5941,7 +7335,16 @@ export function handleOrderQuery(
         );
         break;
       case 'manualHoldsFulfillmentOrders':
-        data[key] = serializeOrderFulfillmentOrdersConnection(field, [], variables, { includeCursors: true });
+        data[key] = serializeOrderFulfillmentOrdersConnection(
+          field,
+          sortFulfillmentOrdersForConnection(
+            fulfillmentOrders.filter((fulfillmentOrder) => (fulfillmentOrder.fulfillmentHolds ?? []).length > 0),
+            field,
+            variables,
+          ),
+          variables,
+          { includeCursors: true },
+        );
         break;
       case 'draftOrder': {
         const id = readNullableStringArgument(field, 'id', variables);
@@ -5967,6 +7370,18 @@ export function handleOrderQuery(
         }
         break;
       }
+      case 'draftOrderAvailableDeliveryOptions':
+        data[key] = serializeDraftOrderAvailableDeliveryOptions(field);
+        break;
+      case 'draftOrderSavedSearches':
+        data[key] = serializeDraftOrderSavedSearchesConnection(field, variables);
+        break;
+      case 'draftOrderTag': {
+        const id = readNullableStringArgument(field, 'id', variables);
+        const tag = id ? findDraftOrderTagById(id) : null;
+        data[key] = tag ? serializeDraftOrderTag(field, tag) : null;
+        break;
+      }
       default:
         break;
     }
@@ -5984,6 +7399,215 @@ export function handleOrderQuery(
   return { data };
 }
 
+type ReturnUserError = { field: string[] | null; message: string };
+
+function readReturnInput(
+  variables: Record<string, unknown>,
+  key: 'returnInput' | 'input',
+): Record<string, unknown> | null {
+  const input = variables[key];
+  return typeof input === 'object' && input !== null && !Array.isArray(input)
+    ? (input as Record<string, unknown>)
+    : null;
+}
+
+function readReturnMutationId(field: FieldNode, variables: Record<string, unknown>): string | null {
+  const args = getFieldArguments(field, variables);
+  return typeof args['id'] === 'string' ? args['id'] : null;
+}
+
+function findOrderWithReturn(returnId: string): { order: OrderRecord; orderReturn: OrderReturnRecord } | null {
+  for (const order of store.getOrders()) {
+    const orderReturn = order.returns.find((candidate) => candidate.id === returnId) ?? null;
+    if (orderReturn) {
+      return { order, orderReturn };
+    }
+  }
+  return null;
+}
+
+function findFulfillmentLineItem(
+  order: OrderRecord,
+  fulfillmentLineItemId: string,
+): OrderFulfillmentLineItemRecord | null {
+  for (const fulfillment of order.fulfillments ?? []) {
+    const lineItem =
+      (fulfillment.fulfillmentLineItems ?? []).find((candidate) => candidate.id === fulfillmentLineItemId) ?? null;
+    if (lineItem) {
+      return lineItem;
+    }
+  }
+  return null;
+}
+
+function buildReturnLineItemsFromInput(
+  order: OrderRecord,
+  rawLineItems: unknown,
+): { lineItems: OrderReturnLineItemRecord[] } | { userErrors: ReturnUserError[] } {
+  if (!Array.isArray(rawLineItems) || rawLineItems.length === 0) {
+    return { userErrors: [{ field: ['returnLineItems'], message: 'Return must include at least one line item.' }] };
+  }
+
+  const lineItems: OrderReturnLineItemRecord[] = [];
+  const userErrors: ReturnUserError[] = [];
+  for (const [index, rawLineItem] of rawLineItems.entries()) {
+    if (typeof rawLineItem !== 'object' || rawLineItem === null || Array.isArray(rawLineItem)) {
+      userErrors.push({ field: ['returnLineItems', String(index)], message: 'Return line item is invalid.' });
+      continue;
+    }
+
+    const input = rawLineItem as Record<string, unknown>;
+    const fulfillmentLineItemId =
+      typeof input['fulfillmentLineItemId'] === 'string' ? input['fulfillmentLineItemId'] : null;
+    const quantity =
+      typeof input['quantity'] === 'number' && Number.isFinite(input['quantity']) ? input['quantity'] : 0;
+    const fulfillmentLineItem = fulfillmentLineItemId ? findFulfillmentLineItem(order, fulfillmentLineItemId) : null;
+
+    if (!fulfillmentLineItem) {
+      userErrors.push({
+        field: ['returnLineItems', String(index), 'fulfillmentLineItemId'],
+        message: 'Fulfillment line item does not exist.',
+      });
+      continue;
+    }
+
+    if (quantity <= 0 || quantity > fulfillmentLineItem.quantity) {
+      userErrors.push({
+        field: ['returnLineItems', String(index), 'quantity'],
+        message: 'Quantity is not available for return.',
+      });
+      continue;
+    }
+
+    lineItems.push({
+      id: makeSyntheticGid('ReturnLineItem'),
+      fulfillmentLineItemId: fulfillmentLineItem.id,
+      lineItemId: fulfillmentLineItem.lineItemId,
+      title: fulfillmentLineItem.title,
+      quantity,
+      processedQuantity: 0,
+      returnReason: typeof input['returnReason'] === 'string' ? input['returnReason'] : 'UNKNOWN',
+      returnReasonNote: typeof input['returnReasonNote'] === 'string' ? input['returnReasonNote'] : '',
+      customerNote: null,
+    });
+  }
+
+  return userErrors.length > 0 ? { userErrors } : { lineItems };
+}
+
+function buildOrderReturnFromInput(
+  order: OrderRecord,
+  input: Record<string, unknown>,
+  status: 'OPEN' | 'REQUESTED',
+): { orderReturn: OrderReturnRecord } | { userErrors: ReturnUserError[] } {
+  const lineItemResult = buildReturnLineItemsFromInput(order, input['returnLineItems']);
+  if ('userErrors' in lineItemResult) {
+    return lineItemResult;
+  }
+
+  const createdAt = typeof input['requestedAt'] === 'string' ? input['requestedAt'] : makeSyntheticTimestamp();
+  const totalQuantity = lineItemResult.lineItems.reduce((total, lineItem) => total + lineItem.quantity, 0);
+  return {
+    orderReturn: {
+      id: makeSyntheticGid('Return'),
+      orderId: order.id,
+      name: `${order.name}-R${order.returns.length + 1}`,
+      status,
+      createdAt,
+      closedAt: null,
+      totalQuantity,
+      returnLineItems: lineItemResult.lineItems,
+    },
+  };
+}
+
+function applyReturnCreate(
+  input: Record<string, unknown> | null,
+  status: 'OPEN' | 'REQUESTED',
+): { order: OrderRecord | null; orderReturn: OrderReturnRecord | null; userErrors: ReturnUserError[] } {
+  if (!input) {
+    return { order: null, orderReturn: null, userErrors: [{ field: ['input'], message: 'Input is required.' }] };
+  }
+
+  const orderId = typeof input['orderId'] === 'string' ? input['orderId'] : null;
+  const order = orderId ? store.getOrderById(orderId) : null;
+  if (!order) {
+    return {
+      order: null,
+      orderReturn: null,
+      userErrors: [{ field: ['orderId'], message: 'Order does not exist.' }],
+    };
+  }
+
+  const result = buildOrderReturnFromInput(order, input, status);
+  if ('userErrors' in result) {
+    return { order, orderReturn: null, userErrors: result.userErrors };
+  }
+
+  const updatedOrder = store.updateOrder({
+    ...order,
+    updatedAt: makeSyntheticTimestamp(),
+    returns: [result.orderReturn, ...order.returns],
+  });
+  const stagedReturn =
+    updatedOrder.returns.find((candidate) => candidate.id === result.orderReturn.id) ?? result.orderReturn;
+  return { order: updatedOrder, orderReturn: stagedReturn, userErrors: [] };
+}
+
+function applyReturnStatusUpdate(
+  returnId: string | null,
+  status: 'OPEN' | 'CANCELED' | 'CLOSED',
+): { order: OrderRecord | null; orderReturn: OrderReturnRecord | null; userErrors: ReturnUserError[] } {
+  if (!returnId) {
+    return { order: null, orderReturn: null, userErrors: [{ field: ['id'], message: 'Return does not exist.' }] };
+  }
+
+  const match = findOrderWithReturn(returnId);
+  if (!match) {
+    return { order: null, orderReturn: null, userErrors: [{ field: ['id'], message: 'Return does not exist.' }] };
+  }
+
+  const updatedReturn: OrderReturnRecord = {
+    ...match.orderReturn,
+    status,
+    closedAt: status === 'CLOSED' ? makeSyntheticTimestamp() : null,
+  };
+  const updatedOrder = store.updateOrder({
+    ...match.order,
+    updatedAt: makeSyntheticTimestamp(),
+    returns: match.order.returns.map((candidate) => (candidate.id === returnId ? updatedReturn : candidate)),
+  });
+  const stagedReturn = updatedOrder.returns.find((candidate) => candidate.id === returnId) ?? updatedReturn;
+  return { order: updatedOrder, orderReturn: stagedReturn, userErrors: [] };
+}
+
+function serializeReturnMutationPayload(
+  field: FieldNode,
+  orderReturn: OrderReturnRecord | null,
+  order: OrderRecord | null,
+  userErrors: ReturnUserError[],
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const selectionKey = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'return':
+        payload[selectionKey] =
+          orderReturn && order ? serializeOrderReturn(selection, orderReturn, variables, order) : null;
+        break;
+      case 'userErrors':
+        payload[selectionKey] = serializeSelectedUserErrors(selection, userErrors);
+        break;
+      default:
+        payload[selectionKey] = null;
+        break;
+    }
+  }
+
+  return payload;
+}
+
 export function handleOrderMutation(
   document: string,
   variables: Record<string, unknown> = {},
@@ -5992,10 +7616,43 @@ export function handleOrderMutation(
 ): { data?: Record<string, unknown>; errors?: Array<Record<string, unknown>> } | null {
   const data: Record<string, unknown> = {};
   const errors: Array<Record<string, unknown>> = [];
+  const fragments = getDocumentFragments(document);
   let handled = false;
 
   for (const field of getRootFields(document)) {
     const key = getFieldResponseKey(field);
+
+    if (field.name.value === 'returnCreate' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const result = applyReturnCreate(readReturnInput(variables, 'returnInput'), 'OPEN');
+      data[key] = serializeReturnMutationPayload(field, result.orderReturn, result.order, result.userErrors, variables);
+      continue;
+    }
+
+    if (field.name.value === 'returnRequest' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const result = applyReturnCreate(readReturnInput(variables, 'input'), 'REQUESTED');
+      data[key] = serializeReturnMutationPayload(field, result.orderReturn, result.order, result.userErrors, variables);
+      continue;
+    }
+
+    if (
+      (field.name.value === 'returnCancel' ||
+        field.name.value === 'returnClose' ||
+        field.name.value === 'returnReopen') &&
+      (readMode === 'snapshot' || readMode === 'live-hybrid')
+    ) {
+      handled = true;
+      const statusByRoot: Record<string, 'OPEN' | 'CANCELED' | 'CLOSED'> = {
+        returnCancel: 'CANCELED',
+        returnClose: 'CLOSED',
+        returnReopen: 'OPEN',
+      };
+      const status = statusByRoot[field.name.value] ?? 'OPEN';
+      const result = applyReturnStatusUpdate(readReturnMutationId(field, variables), status);
+      data[key] = serializeReturnMutationPayload(field, result.orderReturn, result.order, result.userErrors, variables);
+      continue;
+    }
 
     if (field.name.value === 'orderCapture' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
       handled = true;
@@ -6497,6 +8154,93 @@ export function handleOrderMutation(
       continue;
     }
 
+    if (
+      field.name.value === 'abandonmentUpdateActivitiesDeliveryStatuses' &&
+      (readMode === 'snapshot' || readMode === 'live-hybrid')
+    ) {
+      handled = true;
+      const inlineAbandonmentIdArgument = getInlineArgument(field, 'abandonmentId');
+      const inlineMarketingActivityIdArgument = getInlineArgument(field, 'marketingActivityId');
+      const inlineDeliveryStatusArgument = getInlineArgument(field, 'deliveryStatus');
+
+      if (!inlineAbandonmentIdArgument) {
+        errors.push(buildMissingRequiredArgumentError('abandonmentUpdateActivitiesDeliveryStatuses', 'abandonmentId'));
+        continue;
+      }
+
+      if (inlineAbandonmentIdArgument.value.kind === Kind.NULL) {
+        errors.push(buildNullArgumentError('abandonmentUpdateActivitiesDeliveryStatuses', 'abandonmentId', 'ID!'));
+        continue;
+      }
+
+      if (!inlineMarketingActivityIdArgument) {
+        errors.push(
+          buildMissingRequiredArgumentError('abandonmentUpdateActivitiesDeliveryStatuses', 'marketingActivityId'),
+        );
+        continue;
+      }
+
+      if (inlineMarketingActivityIdArgument.value.kind === Kind.NULL) {
+        errors.push(
+          buildNullArgumentError('abandonmentUpdateActivitiesDeliveryStatuses', 'marketingActivityId', 'ID!'),
+        );
+        continue;
+      }
+
+      if (!inlineDeliveryStatusArgument) {
+        errors.push(buildMissingRequiredArgumentError('abandonmentUpdateActivitiesDeliveryStatuses', 'deliveryStatus'));
+        continue;
+      }
+
+      if (inlineDeliveryStatusArgument.value.kind === Kind.NULL) {
+        errors.push(
+          buildNullArgumentError(
+            'abandonmentUpdateActivitiesDeliveryStatuses',
+            'deliveryStatus',
+            'AbandonmentDeliveryState!',
+          ),
+        );
+        continue;
+      }
+
+      const abandonmentId = readNullableStringArgument(field, 'abandonmentId', variables);
+      if (inlineAbandonmentIdArgument.value.kind === Kind.VARIABLE && abandonmentId === null) {
+        errors.push(buildMissingVariableError(inlineAbandonmentIdArgument.value.name.value, 'ID!'));
+        continue;
+      }
+
+      const marketingActivityId = readNullableStringArgument(field, 'marketingActivityId', variables);
+      if (inlineMarketingActivityIdArgument.value.kind === Kind.VARIABLE && marketingActivityId === null) {
+        errors.push(buildMissingVariableError(inlineMarketingActivityIdArgument.value.name.value, 'ID!'));
+        continue;
+      }
+
+      const deliveryStatus = readNullableEnumArgument(field, 'deliveryStatus', variables);
+      if (inlineDeliveryStatusArgument.value.kind === Kind.VARIABLE && deliveryStatus === null) {
+        errors.push(
+          buildMissingVariableError(inlineDeliveryStatusArgument.value.name.value, 'AbandonmentDeliveryState!'),
+        );
+        continue;
+      }
+
+      const abandonment = abandonmentId ? store.getAbandonmentById(abandonmentId) : null;
+      if (!abandonment || !abandonmentId || !marketingActivityId || !deliveryStatus) {
+        data[key] = serializeAbandonmentMutationPayload(field, null, variables, fragments, [
+          { field: ['abandonmentId'], message: 'abandonment_not_found' },
+        ]);
+        continue;
+      }
+
+      const updatedAbandonment = store.stageAbandonmentDeliveryActivity(abandonmentId, {
+        marketingActivityId,
+        deliveryStatus,
+        deliveredAt: readNullableStringArgument(field, 'deliveredAt', variables),
+        deliveryStatusChangeReason: readNullableStringArgument(field, 'deliveryStatusChangeReason', variables),
+      });
+      data[key] = serializeAbandonmentMutationPayload(field, updatedAbandonment, variables, fragments, []);
+      continue;
+    }
+
     if (field.name.value === 'draftOrderCreate') {
       handled = true;
       const inlineInputArgument = field.arguments?.find((argument) => argument.name.value === 'input') ?? null;
@@ -6541,6 +8285,32 @@ export function handleOrderMutation(
         }
       }
       data[key] = payload;
+      continue;
+    }
+
+    if (field.name.value === 'draftOrderCalculate') {
+      handled = true;
+      const inlineInputArgument = getInlineArgument(field, 'input');
+
+      if (!inlineInputArgument) {
+        errors.push(buildMissingRequiredArgumentError('draftOrderCalculate', 'input'));
+        continue;
+      }
+
+      if (inlineInputArgument.value.kind === Kind.NULL) {
+        errors.push(buildNullArgumentError('draftOrderCalculate', 'input', 'DraftOrderInput!'));
+        continue;
+      }
+
+      const input = readVariableBackedInputArgument(field, 'input', variables, 'input');
+      if (inlineInputArgument.value.kind === Kind.VARIABLE && input === null) {
+        errors.push(buildMissingVariableError(inlineInputArgument.value.name.value, 'DraftOrderInput!'));
+        continue;
+      }
+
+      const userErrors = validateDraftOrderCreateInput(input);
+      const calculatedDraftOrder = userErrors.length === 0 ? buildDraftOrderFromInput(input, shopifyAdminOrigin) : null;
+      data[key] = serializeDraftOrderCalculatePayload(field, calculatedDraftOrder, userErrors);
       continue;
     }
 
@@ -6611,6 +8381,50 @@ export function handleOrderMutation(
       continue;
     }
 
+    if (field.name.value === 'draftOrderBulkAddTags') {
+      handled = true;
+      const tags = readDraftOrderBulkTags(field, variables);
+      const userErrors = tags.length === 0 ? [{ field: ['tags'], message: "Tags can't be blank" }] : [];
+      if (userErrors.length === 0) {
+        for (const draftOrder of selectDraftOrderBulkTargets(field, variables)) {
+          updateDraftOrderTags(draftOrder, tags, 'add');
+        }
+      }
+      data[key] = serializeDraftOrderBulkPayload(
+        field,
+        userErrors.length === 0 ? makeSyntheticGid('Job') : null,
+        userErrors,
+      );
+      continue;
+    }
+
+    if (field.name.value === 'draftOrderBulkRemoveTags') {
+      handled = true;
+      const tags = readDraftOrderBulkTags(field, variables);
+      const userErrors = tags.length === 0 ? [{ field: ['tags'], message: "Tags can't be blank" }] : [];
+      if (userErrors.length === 0) {
+        for (const draftOrder of selectDraftOrderBulkTargets(field, variables)) {
+          updateDraftOrderTags(draftOrder, tags, 'remove');
+        }
+      }
+      data[key] = serializeDraftOrderBulkPayload(
+        field,
+        userErrors.length === 0 ? makeSyntheticGid('Job') : null,
+        userErrors,
+      );
+      continue;
+    }
+
+    if (field.name.value === 'draftOrderBulkDelete') {
+      handled = true;
+      const targets = selectDraftOrderBulkTargets(field, variables);
+      for (const draftOrder of targets) {
+        store.deleteDraftOrder(draftOrder.id);
+      }
+      data[key] = serializeDraftOrderBulkPayload(field, makeSyntheticGid('Job'), []);
+      continue;
+    }
+
     if (field.name.value === 'draftOrderDelete') {
       handled = true;
       const inlineInputArgument = getInlineArgument(field, 'input');
@@ -6671,6 +8485,33 @@ export function handleOrderMutation(
         draftOrder,
         buildDraftOrderInvoiceSendUserErrors(draftOrder),
       );
+      continue;
+    }
+
+    if (field.name.value === 'draftOrderInvoicePreview') {
+      handled = true;
+      const inlineIdArgument = getInlineArgument(field, 'id');
+
+      if (!inlineIdArgument) {
+        errors.push(buildMissingRequiredArgumentError('draftOrderInvoicePreview', 'id'));
+        continue;
+      }
+
+      if (inlineIdArgument.value.kind === Kind.NULL) {
+        errors.push(buildNullArgumentError('draftOrderInvoicePreview', 'id', 'ID!'));
+        continue;
+      }
+
+      const args = getFieldArguments(field, variables);
+      const id = typeof args['id'] === 'string' ? args['id'] : null;
+      if (inlineIdArgument.value.kind === Kind.VARIABLE && id === null) {
+        errors.push(buildMissingVariableError(inlineIdArgument.value.name.value, 'ID!'));
+        continue;
+      }
+
+      const draftOrder = id ? store.getDraftOrderById(id) : null;
+      const userErrors = draftOrder ? [] : [{ field: ['id'], message: 'Draft order does not exist' }];
+      data[key] = serializeDraftOrderInvoicePreviewPayload(field, draftOrder, args, userErrors);
       continue;
     }
 
@@ -7077,6 +8918,166 @@ export function handleOrderMutation(
         });
         data[key] = serializeFulfillmentMutationPayload(field, updatedFulfillment, [], variables);
       }
+      continue;
+    }
+
+    if (field.name.value === 'fulfillmentOrderHold' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const fulfillmentOrderId = readFulfillmentOrderId(variables);
+      const match = fulfillmentOrderId ? findOrderWithFulfillmentOrder(fulfillmentOrderId) : null;
+      if (!match) {
+        errors.push({
+          message: `Invalid id: ${fulfillmentOrderId ?? ''}`,
+          extensions: { code: 'RESOURCE_NOT_FOUND' },
+          path: [key],
+        });
+        continue;
+      }
+
+      const result = applyFulfillmentOrderHold(match.order, match.fulfillmentOrder, variables);
+      data[key] = serializeFulfillmentOrderMutationPayload(
+        field,
+        {
+          fulfillmentOrder: result.fulfillmentOrder,
+          remainingFulfillmentOrder: result.remainingFulfillmentOrder,
+        },
+        [],
+      );
+      continue;
+    }
+
+    if (field.name.value === 'fulfillmentOrderReleaseHold' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const fulfillmentOrderId = readFulfillmentOrderId(variables);
+      const match = fulfillmentOrderId ? findOrderWithFulfillmentOrder(fulfillmentOrderId) : null;
+      if (!match) {
+        errors.push({
+          message: `Invalid id: ${fulfillmentOrderId ?? ''}`,
+          extensions: { code: 'RESOURCE_NOT_FOUND' },
+          path: [key],
+        });
+        continue;
+      }
+
+      const result = applyFulfillmentOrderReleaseHold(match.order, match.fulfillmentOrder);
+      data[key] = serializeFulfillmentOrderMutationPayload(field, { fulfillmentOrder: result.fulfillmentOrder }, []);
+      continue;
+    }
+
+    if (field.name.value === 'fulfillmentOrderMove' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const fulfillmentOrderId = readFulfillmentOrderId(variables);
+      const match = fulfillmentOrderId ? findOrderWithFulfillmentOrder(fulfillmentOrderId) : null;
+      if (!match) {
+        errors.push({
+          message: `Invalid id: ${fulfillmentOrderId ?? ''}`,
+          extensions: { code: 'RESOURCE_NOT_FOUND' },
+          path: [key],
+        });
+        continue;
+      }
+
+      const result = applyFulfillmentOrderMove(match.order, match.fulfillmentOrder, variables);
+      data[key] = serializeFulfillmentOrderMutationPayload(
+        field,
+        {
+          movedFulfillmentOrder: result.movedFulfillmentOrder,
+          originalFulfillmentOrder: result.originalFulfillmentOrder,
+          remainingFulfillmentOrder: result.remainingFulfillmentOrder,
+        },
+        [],
+      );
+      continue;
+    }
+
+    if (
+      field.name.value === 'fulfillmentOrderReportProgress' &&
+      (readMode === 'snapshot' || readMode === 'live-hybrid')
+    ) {
+      handled = true;
+      const fulfillmentOrderId = readFulfillmentOrderId(variables);
+      const match = fulfillmentOrderId ? findOrderWithFulfillmentOrder(fulfillmentOrderId) : null;
+      if (!match) {
+        errors.push({
+          message: `Invalid id: ${fulfillmentOrderId ?? ''}`,
+          extensions: { code: 'RESOURCE_NOT_FOUND' },
+          path: [key],
+        });
+        continue;
+      }
+
+      const result = applyFulfillmentOrderStatus(match.order, match.fulfillmentOrder, 'IN_PROGRESS');
+      data[key] = serializeFulfillmentOrderMutationPayload(field, { fulfillmentOrder: result.fulfillmentOrder }, []);
+      continue;
+    }
+
+    if (field.name.value === 'fulfillmentOrderOpen' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const fulfillmentOrderId = readFulfillmentOrderId(variables);
+      const match = fulfillmentOrderId ? findOrderWithFulfillmentOrder(fulfillmentOrderId) : null;
+      if (!match) {
+        errors.push({
+          message: `Invalid id: ${fulfillmentOrderId ?? ''}`,
+          extensions: { code: 'RESOURCE_NOT_FOUND' },
+          path: [key],
+        });
+        continue;
+      }
+
+      const result = applyFulfillmentOrderStatus(match.order, match.fulfillmentOrder, 'OPEN');
+      data[key] = serializeFulfillmentOrderMutationPayload(field, { fulfillmentOrder: result.fulfillmentOrder }, []);
+      continue;
+    }
+
+    if (field.name.value === 'fulfillmentOrderCancel' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const fulfillmentOrderId = readFulfillmentOrderId(variables);
+      const match = fulfillmentOrderId ? findOrderWithFulfillmentOrder(fulfillmentOrderId) : null;
+      if (!match) {
+        errors.push({
+          message: `Invalid id: ${fulfillmentOrderId ?? ''}`,
+          extensions: { code: 'RESOURCE_NOT_FOUND' },
+          path: [key],
+        });
+        continue;
+      }
+
+      const result = applyFulfillmentOrderCancel(match.order, match.fulfillmentOrder);
+      data[key] = serializeFulfillmentOrderMutationPayload(
+        field,
+        {
+          fulfillmentOrder: result.fulfillmentOrder,
+          replacementFulfillmentOrder: result.replacementFulfillmentOrder,
+        },
+        [],
+      );
+      continue;
+    }
+
+    if (field.name.value === 'fulfillmentOrderReschedule' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      data[key] = serializeFulfillmentOrderMutationPayload(field, { fulfillmentOrder: null }, [
+        { field: null, message: 'Fulfillment order must be scheduled.' },
+      ]);
+      continue;
+    }
+
+    if (field.name.value === 'fulfillmentOrderClose' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      data[key] = serializeFulfillmentOrderMutationPayload(field, { fulfillmentOrder: null }, [
+        { field: null, message: "The fulfillment order's assigned fulfillment service must be of api type" },
+      ]);
+      continue;
+    }
+
+    if (field.name.value === 'fulfillmentOrdersReroute' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      errors.push({
+        message: 'Internal error. Looks like something went wrong on our end.',
+        extensions: {
+          code: 'INTERNAL_SERVER_ERROR',
+        },
+      });
       continue;
     }
 
