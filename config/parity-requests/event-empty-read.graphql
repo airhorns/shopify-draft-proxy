@@ -1,0 +1,47 @@
+query EventEmptyRead($eventId: ID!, $first: Int!, $query: String!) {
+  event(id: $eventId) {
+    id
+    action
+    appTitle
+    attributeToApp
+    attributeToUser
+    createdAt
+    criticalAlert
+    message
+    ... on BasicEvent {
+      additionalContent
+      additionalData
+      arguments
+      author
+      hasAdditionalContent
+      secondaryMessage
+      subjectId
+      subjectType
+    }
+  }
+  events(first: $first, query: $query, sortKey: ID, reverse: true) {
+    nodes {
+      id
+      action
+      message
+    }
+    edges {
+      cursor
+      node {
+        id
+        action
+        message
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  eventsCount(query: $query) {
+    count
+    precision
+  }
+}

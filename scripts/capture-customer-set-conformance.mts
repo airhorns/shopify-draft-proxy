@@ -120,8 +120,10 @@ async function main() {
   const stamp = Date.now();
   const createdEmail = `hermes-customerset-create-${stamp}@example.com`;
   const upsertedEmail = `hermes-customerset-upsert-${stamp}@example.com`;
+  const phoneUpsert = `+1${String(stamp + 2).slice(-10)}`;
   const createdPhone = `+1${String(stamp).slice(-10)}`;
   const updatedPhone = `+1${String(stamp + 1).slice(-10)}`;
+  const cleanupIds = new Set();
 
   const createVariables = {
     input: {
@@ -144,6 +146,7 @@ async function main() {
       `customerSet create did not return a customer id: ${JSON.stringify(createResult.payload, null, 2)}`,
     );
   }
+  cleanupIds.add(createdCustomerId);
 
   const updateVariables = {
     identifier: { id: createdCustomerId },
@@ -181,6 +184,7 @@ async function main() {
       `customerSet upsert did not return a customer id: ${JSON.stringify(upsertResult.payload, null, 2)}`,
     );
   }
+  cleanupIds.add(upsertedCustomerId);
 
   const updateByEmailVariables = {
     identifier: { email: upsertedEmail },
@@ -205,6 +209,118 @@ async function main() {
   };
   const clearAddressesResult = await runCustomerSet(clearAddressesVariables);
   assertNoTopLevelErrors(clearAddressesResult, 'customerSet empty address replacement');
+
+  const phoneUpsertVariables = {
+    identifier: { phone: phoneUpsert },
+    input: {
+      phone: phoneUpsert,
+      firstName: 'Hermes',
+      lastName: 'SetPhone',
+      note: 'customerSet phone upsert parity probe',
+      tags: ['set', 'phone'],
+    },
+  };
+  const phoneUpsertResult = await runCustomerSet(phoneUpsertVariables);
+  assertNoTopLevelErrors(phoneUpsertResult, 'customerSet upsert by phone');
+  const phoneUpsertedCustomerId = phoneUpsertResult.payload?.data?.customerSet?.customer?.id;
+  if (typeof phoneUpsertedCustomerId !== 'string' || !phoneUpsertedCustomerId) {
+    throw new Error(
+      `customerSet phone upsert did not return a customer id: ${JSON.stringify(phoneUpsertResult.payload, null, 2)}`,
+    );
+  }
+  cleanupIds.add(phoneUpsertedCustomerId);
+
+  const phoneUpdateVariables = {
+    identifier: { phone: phoneUpsert },
+    input: {
+      phone: phoneUpsert,
+      firstName: 'Hermes',
+      lastName: 'SetPhoneUpdated',
+      note: 'customerSet phone update parity probe',
+      tags: ['set', 'phone-updated'],
+    },
+  };
+  const phoneUpdateResult = await runCustomerSet(phoneUpdateVariables);
+  assertNoTopLevelErrors(phoneUpdateResult, 'customerSet update by phone');
+
+  const multiAddressVariables = {
+    identifier: { id: createdCustomerId },
+    input: {
+      email: createdEmail,
+      addresses: [
+        { address1: '20 Set St', city: 'Ottawa', countryCode: 'CA', provinceCode: 'ON', zip: 'K1A 0B2' },
+        { address1: '21 Set St', city: 'Toronto', countryCode: 'CA', provinceCode: 'ON', zip: 'M5H 2N3' },
+      ],
+    },
+  };
+  const multiAddressResult = await runCustomerSet(multiAddressVariables);
+  assertNoTopLevelErrors(multiAddressResult, 'customerSet multi-address replacement');
+
+  const duplicateEmailVariables = {
+    input: {
+      email: createdEmail,
+      firstName: 'Hermes',
+      lastName: 'DuplicateEmail',
+    },
+  };
+  const duplicateEmailResult = await runCustomerSet(duplicateEmailVariables);
+  assertNoTopLevelErrors(duplicateEmailResult, 'customerSet duplicate email create validation');
+  const duplicateEmailCustomerId = duplicateEmailResult.payload?.data?.customerSet?.customer?.id;
+  if (typeof duplicateEmailCustomerId === 'string' && duplicateEmailCustomerId) {
+    cleanupIds.add(duplicateEmailCustomerId);
+  }
+
+  const duplicatePhoneVariables = {
+    input: {
+      phone: phoneUpsert,
+      firstName: 'Hermes',
+      lastName: 'DuplicatePhone',
+    },
+  };
+  const duplicatePhoneResult = await runCustomerSet(duplicatePhoneVariables);
+  assertNoTopLevelErrors(duplicatePhoneResult, 'customerSet duplicate phone create validation');
+  const duplicatePhoneCustomerId = duplicatePhoneResult.payload?.data?.customerSet?.customer?.id;
+  if (typeof duplicatePhoneCustomerId === 'string' && duplicatePhoneCustomerId) {
+    cleanupIds.add(duplicatePhoneCustomerId);
+  }
+
+  const missingIdentifierEmailVariables = {
+    identifier: { email: createdEmail },
+    input: { firstName: 'Hermes', lastName: 'MissingIdentifierEmail' },
+  };
+  const missingIdentifierEmail = await runCustomerSet(missingIdentifierEmailVariables);
+  assertNoTopLevelErrors(missingIdentifierEmail, 'customerSet missing identifier email validation');
+
+  const mismatchedIdentifierEmailVariables = {
+    identifier: { email: createdEmail },
+    input: { email: upsertedEmail, firstName: 'Hermes', lastName: 'MismatchedIdentifierEmail' },
+  };
+  const mismatchedIdentifierEmail = await runCustomerSet(mismatchedIdentifierEmailVariables);
+  assertNoTopLevelErrors(mismatchedIdentifierEmail, 'customerSet mismatched identifier email validation');
+
+  const nullAddressListVariables = {
+    identifier: { id: createdCustomerId },
+    input: { email: createdEmail, addresses: null },
+  };
+  const nullAddressList = await runCustomerSet(nullAddressListVariables);
+  assertNoTopLevelErrors(nullAddressList, 'customerSet null address list validation');
+
+  const nullableUpdateVariables = {
+    identifier: { id: upsertedCustomerId },
+    input: {
+      email: null,
+      firstName: null,
+      lastName: null,
+      locale: null,
+      note: null,
+      phone: null,
+      tags: null,
+      taxExempt: null,
+      taxExemptions: null,
+    },
+  };
+  const nullableUpdate = await runCustomerSet(nullableUpdateVariables);
+  assertNoTopLevelErrors(nullableUpdate, 'customerSet nullable update validation');
 
   const downstreamVariables = {
     createdId: createdCustomerId,
@@ -236,8 +352,17 @@ async function main() {
     throw new Error(`customerSet customId branch unexpectedly succeeded: ${JSON.stringify(customId.payload, null, 2)}`);
   }
 
+  const deletedIdentifierCleanup = await runGraphql(deleteMutation, { input: { id: phoneUpsertedCustomerId } });
+  cleanupIds.delete(phoneUpsertedCustomerId);
+  const deletedIdentifierVariables = {
+    identifier: { id: phoneUpsertedCustomerId },
+    input: { firstName: 'Hermes', lastName: 'DeletedIdentifier' },
+  };
+  const deletedIdentifier = await runCustomerSet(deletedIdentifierVariables);
+  assertNoTopLevelErrors(deletedIdentifier, 'customerSet deleted id validation');
+
   const cleanup = [];
-  for (const id of [createdCustomerId, upsertedCustomerId]) {
+  for (const id of cleanupIds) {
     cleanup.push(await runGraphql(deleteMutation, { input: { id } }));
   }
 
@@ -262,6 +387,18 @@ async function main() {
       variables: clearAddressesVariables,
       response: clearAddressesResult.payload,
     },
+    phoneUpsert: {
+      variables: phoneUpsertVariables,
+      response: phoneUpsertResult.payload,
+    },
+    phoneUpdate: {
+      variables: phoneUpdateVariables,
+      response: phoneUpdateResult.payload,
+    },
+    multiAddressReplacement: {
+      variables: multiAddressVariables,
+      response: multiAddressResult.payload,
+    },
     downstreamRead: {
       variables: downstreamVariables,
       response: downstreamRead.payload,
@@ -278,6 +415,35 @@ async function main() {
       customId: {
         variables: customIdVariables,
         response: customId.payload,
+      },
+      duplicateEmail: {
+        variables: duplicateEmailVariables,
+        response: duplicateEmailResult.payload,
+      },
+      duplicatePhone: {
+        variables: duplicatePhoneVariables,
+        response: duplicatePhoneResult.payload,
+      },
+      missingIdentifierEmail: {
+        variables: missingIdentifierEmailVariables,
+        response: missingIdentifierEmail.payload,
+      },
+      mismatchedIdentifierEmail: {
+        variables: mismatchedIdentifierEmailVariables,
+        response: mismatchedIdentifierEmail.payload,
+      },
+      nullAddressList: {
+        variables: nullAddressListVariables,
+        response: nullAddressList.payload,
+      },
+      nullableUpdate: {
+        variables: nullableUpdateVariables,
+        response: nullableUpdate.payload,
+      },
+      deletedIdentifier: {
+        cleanup: deletedIdentifierCleanup.payload,
+        variables: deletedIdentifierVariables,
+        response: deletedIdentifier.payload,
       },
     },
     cleanup: cleanup.map((result) => result.payload),

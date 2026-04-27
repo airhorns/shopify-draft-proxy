@@ -153,12 +153,19 @@ Use the `linear` skill and `linear_graphql` for all Linear writes.
      unsupported upstream writes as acceptable behavior
 5. Create issues in `Backlog`, in the same Linear project as the seed issue, and
    assigned to the required user for the workflow.
+   - Prefer one `issueCreate` mutation per issue. Linear has returned opaque
+     HTTP 400 errors for batched creation and long issue bodies; if that
+     happens, shorten the body without dropping acceptance criteria and retry
+     issues individually.
 6. Relate every generated issue back to the seed issue with `related`.
 7. Add `blocks` relations between generated issues when ordering matters.
    If issue B depends on issue A, create a relation where A blocks B.
 8. Update the seed workpad with created issue identifiers, duplicate decisions,
    unresolved research gaps, and validation performed. Do not add separate
    summary comments unless the calling workflow explicitly requires them.
+9. Verify created issue metadata and relations before handoff. Linear relation
+   queries can be directional, so check the seed issue's outgoing relations and,
+   when links appear missing, also check the generated issue's relation list.
 
 Useful Linear GraphQL mutations:
 

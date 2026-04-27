@@ -1,0 +1,180 @@
+{
+  "capturedAt": "2026-04-26",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": [
+    "These probes document product merchandising mutation payload and blocker shapes only. They are not parity specs and do not mark these roots as locally implemented.",
+    "productFeedCreate could not capture a success branch on this store because Shopify returned a top-level channel lookup error.",
+    "productBundleCreate/productBundleUpdate and combinedListingUpdate success paths still need dedicated component/combined-listing setup evidence before local staging can be implemented."
+  ],
+  "schemaEvidence": {
+    "ProductFeed": {
+      "fields": ["id", "country", "language", "status"],
+      "statusValues": ["ACTIVE", "INACTIVE"]
+    },
+    "ProductFeedCreatePayload": {
+      "fields": ["productFeed", "userErrors"]
+    },
+    "ProductFeedDeletePayload": {
+      "fields": ["deletedId", "userErrors"]
+    },
+    "ProductFullSyncPayload": {
+      "fields": ["id", "userErrors"]
+    },
+    "ProductBundleOperation": {
+      "fields": ["id", "product", "status", "userErrors"],
+      "statusValues": ["CREATED", "ACTIVE", "COMPLETE"]
+    },
+    "ProductBundleCreatePayload": {
+      "fields": ["productBundleOperation", "userErrors"]
+    },
+    "ProductBundleUpdatePayload": {
+      "fields": ["productBundleOperation", "userErrors"]
+    },
+    "CombinedListingUpdatePayload": {
+      "fields": ["product", "userErrors"]
+    }
+  },
+  "probes": [
+    {
+      "name": "productFeedCreate-channel-missing",
+      "operationNames": ["productFeedCreate"],
+      "variables": {
+        "input": {
+          "country": "US",
+          "language": "EN"
+        }
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Unable to find channel for product feed",
+            "locations": [
+              {
+                "line": 1,
+                "column": 56
+              }
+            ],
+            "extensions": {
+              "code": "NOT_FOUND"
+            },
+            "path": ["productFeedCreate"]
+          }
+        ],
+        "data": {
+          "productFeedCreate": null
+        }
+      }
+    },
+    {
+      "name": "productFeedDelete-unknown-id",
+      "operationNames": ["productFeedDelete"],
+      "variables": {
+        "id": "gid://shopify/ProductFeed/999999999"
+      },
+      "response": {
+        "data": {
+          "productFeedDelete": {
+            "deletedId": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "ProductFeed does not exist",
+                "code": null
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "productFullSync-unknown-id",
+      "operationNames": ["productFullSync"],
+      "variables": {
+        "id": "gid://shopify/ProductFeed/999999999"
+      },
+      "response": {
+        "data": {
+          "productFullSync": {
+            "id": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "ProductFeed does not exist",
+                "code": null
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "productBundleCreate-empty-components",
+      "operationNames": ["productBundleCreate"],
+      "variables": {
+        "input": {
+          "title": "HAR-298 bundle probe",
+          "components": []
+        }
+      },
+      "response": {
+        "data": {
+          "productBundleCreate": {
+            "productBundleOperation": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "At least one component is required."
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "productBundleUpdate-unknown-product",
+      "operationNames": ["productBundleUpdate"],
+      "variables": {
+        "input": {
+          "productId": "gid://shopify/Product/999999999",
+          "title": "HAR-298 bundle update probe",
+          "components": []
+        }
+      },
+      "response": {
+        "data": {
+          "productBundleUpdate": {
+            "productBundleOperation": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Product does not exist"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "combinedListingUpdate-unknown-parent",
+      "operationNames": ["combinedListingUpdate"],
+      "variables": {
+        "parentProductId": "gid://shopify/Product/999999999"
+      },
+      "response": {
+        "data": {
+          "combinedListingUpdate": {
+            "product": null,
+            "userErrors": [
+              {
+                "field": ["parentProductId"],
+                "message": "Product does not exist",
+                "code": "PARENT_PRODUCT_NOT_FOUND"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

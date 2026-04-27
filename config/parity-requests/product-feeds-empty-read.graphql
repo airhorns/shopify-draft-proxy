@@ -1,0 +1,28 @@
+query ProductFeedsEmptyRead($missingProductFeedId: ID!) {
+  missingProductFeed: productFeed(id: $missingProductFeedId) {
+    id
+    country
+    language
+    status
+  }
+  productFeeds(first: 10) {
+    nodes {
+      id
+      country
+      language
+      status
+    }
+    edges {
+      cursor
+      node {
+        id
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

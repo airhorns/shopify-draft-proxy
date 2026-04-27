@@ -164,6 +164,23 @@ Current customer-domain state deliberately stays narrower than the product model
 
 Localization state is also normalized for the first product-focused slice: available locales, shop locales, and translations live in dedicated state buckets, while `TranslatableResource` rows are derived from the effective product and product-metafield graph. Locale and translation endpoint-specific boundaries are documented in `docs/endpoints/localization.md`.
 
+Current B2B company-domain state is read-only and fixture-backed:
+
+- `B2BCompanyRecord`, `B2BCompanyContactRecord`, `B2BCompanyContactRoleRecord`,
+  and `B2BCompanyLocationRecord` store captured scalar fields plus normalized
+  company-to-contact/location/role IDs
+- snapshot reads support company catalog/count/detail roots and singular
+  contact/role/location lookups, including empty/null behavior
+- B2B lifecycle mutations remain registry blockers until local create/update,
+  delete, assignment, revoke, address, tax, and side-effect behavior can be
+  staged with downstream read-after-write effects
+
+Marketing-domain state keeps activity/event records and engagement metrics together but separate:
+
+- external marketing activity lifecycle mutations stage normalized `MarketingActivity` and nested `MarketingEvent` records
+- `marketingEngagementCreate` stages metric records keyed by the observed target and `occurredOn`, preserving duplicate same-day replacement behavior without inventing an engagement read root
+- immediate activity/event aggregate reads stay faithful to captured Shopify behavior; for HAR-214 activity-level engagement writes did not materialize into `MarketingActivity.adSpend` on immediate downstream reads, so the local engagement records are visible through meta state/logs rather than fabricated aggregate attribution
+
 ## Mutation handling strategy
 
 Mutation handling should eventually have four steps:
