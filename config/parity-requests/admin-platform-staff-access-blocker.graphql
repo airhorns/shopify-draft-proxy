@@ -1,0 +1,33 @@
+#graphql
+query StaffUtilityRead {
+  staffMember {
+    id
+    exists
+    active
+    isShopOwner
+    accountType
+  }
+  staffMembers(first: 1) {
+    nodes {
+      id
+      exists
+      active
+      isShopOwner
+      accountType
+    }
+    edges {
+      cursor
+      node {
+        id
+        exists
+        active
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

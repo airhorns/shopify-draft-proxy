@@ -147,6 +147,116 @@
     "supportNotes": "Snapshot-mode no-data read support only: captured 2025-01 harry-test-heelo evidence returns an empty ProductFeedConnection with empty nodes/edges and null cursors. Live-hybrid feed reads continue to proxy upstream because staged product writes do not currently affect feed membership."
   },
   {
+    "name": "publicApiVersions",
+    "type": "query",
+    "domain": "admin-platform",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["publicApiVersions", "PublicApiVersions"],
+    "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
+    "supportNotes": "Snapshot-mode utility read support backed by HAR-315 2026-04 capture. The local list is fixture-backed and should be refreshed when Shopify's supported Admin API version window changes."
+  },
+  {
+    "name": "node",
+    "type": "query",
+    "domain": "admin-platform",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["node", "Node"],
+    "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
+    "supportNotes": "Snapshot-mode no-data support only: unknown ids return null. Resolving known resource ids through the generic Node interface remains a declared gap until each resource serializer can be safely dispatched by GID type."
+  },
+  {
+    "name": "nodes",
+    "type": "query",
+    "domain": "admin-platform",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["nodes", "Nodes"],
+    "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
+    "supportNotes": "Snapshot-mode no-data support only: each unknown id returns null in input order. Resolving known resource ids through the generic Node interface remains a declared gap until each resource serializer can be safely dispatched by GID type."
+  },
+  {
+    "name": "job",
+    "type": "query",
+    "domain": "admin-platform",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["job", "Job"],
+    "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
+    "supportNotes": "Snapshot-mode utility guardrail backed by HAR-315 2026-04 capture: an arbitrary Job GID returns a completed Job payload with the requested id and a QueryRoot link. Local async job lifecycle storage remains out of scope."
+  },
+  {
+    "name": "taxonomy",
+    "type": "query",
+    "domain": "admin-platform",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["taxonomy", "Taxonomy"],
+    "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
+    "supportNotes": "Snapshot-mode no-data category connection support only: HAR-315 captured an unmatched taxonomy search returning empty nodes/edges and false/null pageInfo. The global non-empty taxonomy catalog is not modeled."
+  },
+  {
+    "name": "domain",
+    "type": "query",
+    "domain": "admin-platform",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["domain", "Domain"],
+    "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
+    "supportNotes": "Snapshot-mode support resolves the effective shop primaryDomain by id when present and returns null for unknown ids, matching HAR-315 unknown-domain capture. Broader domain catalog/market web presence behavior is not modeled."
+  },
+  {
+    "name": "backupRegion",
+    "type": "query",
+    "domain": "admin-platform",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["backupRegion", "BackupRegion"],
+    "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
+    "supportNotes": "Snapshot-mode utility read support is fixture-backed by HAR-315 2026-04 capture for the current conformance shop's MarketRegionCountry. Broader shop-country region mapping remains a follow-up gap."
+  },
+  {
+    "name": "staffMember",
+    "type": "query",
+    "domain": "admin-platform",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["staffMember", "StaffMember"],
+    "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
+    "supportNotes": "Snapshot-mode captured blocker guardrail only: the current conformance credential returns ACCESS_DENIED for staffMember without read_users and eligible app/store access. Authorized staff identity modeling remains unsupported."
+  },
+  {
+    "name": "staffMembers",
+    "type": "query",
+    "domain": "admin-platform",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["staffMembers", "StaffMembers"],
+    "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
+    "supportNotes": "Snapshot-mode captured blocker guardrail only: the current conformance credential returns ACCESS_DENIED for staffMembers. Authorized staff catalog modeling remains unsupported."
+  },
+  {
+    "name": "flowGenerateSignature",
+    "type": "mutation",
+    "domain": "admin-platform",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["flowGenerateSignature", "FlowGenerateSignature"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-315 side-effect utility gap. Do not support until local signature generation semantics, downstream Flow behavior, and raw commit replay are modeled without runtime Shopify writes."
+  },
+  {
+    "name": "flowTriggerReceive",
+    "type": "mutation",
+    "domain": "admin-platform",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["flowTriggerReceive", "FlowTriggerReceive"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-315 side-effect utility gap. Do not support until local trigger receive semantics, downstream Flow behavior, and raw commit replay are modeled without runtime Shopify writes."
+  },
+  {
     "name": "app",
     "type": "query",
     "domain": "apps",
@@ -820,6 +930,26 @@
     "runtimeTests": []
   },
   {
+    "name": "cashTrackingSession",
+    "type": "query",
+    "domain": "payments",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["cashTrackingSession", "CashTrackingSession"],
+    "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
+    "supportNotes": "HAR-316 finance/risk no-data support. Captured 2025-01 harry-test-heelo safe probe returned null for an unknown CashTrackingSession id; the local overlay mirrors absent-session reads only and must not synthesize POS cash sessions, balances, staff, or register activity without disposable non-empty evidence."
+  },
+  {
+    "name": "cashTrackingSessions",
+    "type": "query",
+    "domain": "payments",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["cashTrackingSessions", "CashTrackingSessions"],
+    "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
+    "supportNotes": "HAR-316 finance/risk no-data support. Captured 2025-01 harry-test-heelo safe probe returned an empty cashTrackingSessions connection with false pageInfo flags; future non-empty support needs a POS cash-tracking state model and must not invent cash drawer records."
+  },
+  {
     "name": "customerPaymentMethod",
     "type": "query",
     "domain": "payments",
@@ -870,24 +1000,84 @@
     "supportNotes": "Payment terms scaffold only. The 2026-04-25 harry-test-heelo probe can capture the template catalog; future capture should also record paymentTermsType filtering before local overlay support."
   },
   {
-    "name": "shopPayPaymentRequestReceipt",
+    "name": "financeAppAccessPolicy",
     "type": "query",
     "domain": "payments",
     "execution": "overlay-read",
     "implemented": false,
-    "matchNames": ["shopPayPaymentRequestReceipt", "ShopPayPaymentRequestReceipt"],
+    "matchNames": ["financeAppAccessPolicy", "FinanceAppAccessPolicy"],
     "runtimeTests": [],
-    "supportNotes": "Shop Pay payment request receipt scaffold only. The 2026-04-25 harry-test-heelo probe can capture unknown-token null behavior; future capture should avoid creating customer-visible payment requests before local overlay support."
+    "supportNotes": "HAR-316 finance/risk scaffold only. Captured 2025-01 harry-test-heelo probe returned ACCESS_DENIED requiring a valid user session and API client, so local support must wait for an authorized finance-app credential and must not infer access policy values."
+  },
+  {
+    "name": "financeKycInformation",
+    "type": "query",
+    "domain": "payments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["financeKycInformation", "FinanceKycInformation"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-316 finance/risk scaffold only. Captured 2025-01 harry-test-heelo probe returned null with ACCESS_DENIED requiring read_financial_kyc_information plus finance-app permission; never invent KYC business, owner, address, or tax-identification data."
+  },
+  {
+    "name": "pointOfSaleDevice",
+    "type": "query",
+    "domain": "payments",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["pointOfSaleDevice", "PointOfSaleDevice"],
+    "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
+    "supportNotes": "HAR-316 finance/risk no-data support. Captured 2025-01 harry-test-heelo safe probe returned null for an unknown PointOfSaleDevice id; future non-empty support needs captured POS device inventory and must not invent hardware records."
+  },
+  {
+    "name": "dispute",
+    "type": "query",
+    "domain": "payments",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["dispute", "Dispute"],
+    "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
+    "supportNotes": "HAR-316 finance/risk no-data support. Captured 2025-01 harry-test-heelo safe probe returned null for an unknown ShopifyPaymentsDispute id; non-empty dispute modeling requires authorized dispute fixtures and must not invent chargeback amounts, reasons, or statuses."
+  },
+  {
+    "name": "disputes",
+    "type": "query",
+    "domain": "payments",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["disputes", "Disputes"],
+    "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
+    "supportNotes": "HAR-316 finance/risk no-data support. Captured 2025-01 harry-test-heelo safe probe returned an empty disputes connection while disputeEvidence was denied separately; future non-empty support needs authorized Shopify Payments dispute evidence before local overlay behavior."
+  },
+  {
+    "name": "disputeEvidence",
+    "type": "query",
+    "domain": "payments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["disputeEvidence", "DisputeEvidence"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-316 finance/risk scaffold only. Captured 2025-01 harry-test-heelo probe returned ACCESS_DENIED requiring read_shopify_payments_dispute_evidences; never synthesize customer communications, addresses, file uploads, or submitted evidence."
+  },
+  {
+    "name": "shopPayPaymentRequestReceipt",
+    "type": "query",
+    "domain": "payments",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["shopPayPaymentRequestReceipt", "ShopPayPaymentRequestReceipt"],
+    "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
+    "supportNotes": "Shop Pay payment request receipt no-data support. HAR-316 captured 2025-01 harry-test-heelo unknown-token null behavior; future non-empty capture should avoid creating customer-visible payment requests before broader local overlay support."
   },
   {
     "name": "shopPayPaymentRequestReceipts",
     "type": "query",
     "domain": "payments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["shopPayPaymentRequestReceipts", "ShopPayPaymentRequestReceipts"],
-    "runtimeTests": [],
-    "supportNotes": "Shop Pay payment request receipt scaffold only. The 2026-04-25 harry-test-heelo probe can capture empty connection behavior; future capture should avoid creating customer-visible payment requests before local overlay support."
+    "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
+    "supportNotes": "Shop Pay payment request receipt no-data support. HAR-316 captured 2025-01 harry-test-heelo empty connection behavior with type-only node selections; future non-empty capture should avoid creating customer-visible payment requests before broader local overlay support."
   },
   {
     "name": "shopifyPaymentsAccount",
@@ -907,7 +1097,7 @@
     "implemented": false,
     "matchNames": ["tenderTransactions", "TenderTransactions"],
     "runtimeTests": [],
-    "supportNotes": "Tender transaction scaffold only. The 2026-04-25 harry-test-heelo probe can capture an empty read-only listing; future capture should preserve payment-details nullability and record no-data connection behavior before local overlay support."
+    "supportNotes": "Tender transaction scaffold only. HAR-316 captured 2025-01 harry-test-heelo type-only connection shape without ids or payment details; future support must preserve payment-details nullability and avoid exposing sensitive tender data without scrubbed fixtures."
   },
   {
     "name": "publications",
@@ -2507,30 +2697,30 @@
     "type": "query",
     "domain": "metaobjects",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobject", "Metaobject"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 entry read root. Registry-only declared gap until live capture proves ID lookup nullability, selected field shape, capabilities, references, and empty/no-data behavior."
+    "runtimeTests": ["tests/integration/metaobject-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 entry ID lookup root. HAR-243 supports snapshot and live-hybrid overlay reads from normalized fixture/local state, including missing ID nullability, selected field shape, capabilities, ordered fields, field(key:) lookup, and safe empty referencedBy behavior."
   },
   {
     "name": "metaobjectByHandle",
     "type": "query",
     "domain": "metaobjects",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectByHandle", "MetaobjectByHandle"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 handle lookup root. Registry-only declared gap until type-plus-handle identity, missing-handle nullability, and app-owned type behavior are captured."
+    "runtimeTests": ["tests/integration/metaobject-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 handle lookup root. HAR-243 supports normalized type-plus-handle lookup in snapshot and live-hybrid overlay modes, including missing handle nullability."
   },
   {
     "name": "metaobjects",
     "type": "query",
     "domain": "metaobjects",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjects", "Metaobjects"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 entry connection root. Registry-only declared gap until type-scoped empty connections, pagination, search filters, sorting, and field-value query semantics are captured."
+    "runtimeTests": ["tests/integration/metaobject-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 entry connection root. HAR-243 supports normalized type-scoped entry connections, empty connections, stable local cursors, pagination, reverse, documented sort keys, and field-value query filters."
   },
   {
     "name": "metaobjectDefinition",
@@ -2879,6 +3069,16 @@
     "runtimeTests": ["tests/integration/order-lifecycle-payment-customer-flow.test.ts"]
   },
   {
+    "name": "orderRiskAssessmentCreate",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["orderRiskAssessmentCreate", "OrderRiskAssessmentCreate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-316 finance/risk scaffold only. Captured 2025-01 harry-test-heelo unknown-order probe returns a NOT_FOUND userError; do not mark supported until risk assessment staging, downstream order risk reads, userErrors, and raw commit replay are modeled locally."
+  },
+  {
     "name": "customerPaymentMethodCreateFromDuplicationData",
     "type": "mutation",
     "domain": "payments",
@@ -3075,6 +3275,16 @@
     "supportNotes": "Payment terms scaffold only. Future capture requires write_payment_terms plus order or draft-order access and an isolated payment schedule because updates change due dates/payment status."
   },
   {
+    "name": "disputeEvidenceUpdate",
+    "type": "mutation",
+    "domain": "payments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["disputeEvidenceUpdate", "DisputeEvidenceUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-316 finance/risk scaffold only. Captured 2025-01 harry-test-heelo unknown-id probe returned ACCESS_DENIED requiring write_shopify_payments_dispute_evidences plus manage_orders_information or manage_disputes permission; do not support until dispute evidence fields, submitted state, files, userErrors, downstream reads, and commit replay are modeled locally."
+  },
+  {
     "name": "shopifyPaymentsPayoutAlternateCurrencyCreate",
     "type": "mutation",
     "domain": "payments",
@@ -3082,7 +3292,7 @@
     "implemented": false,
     "matchNames": ["shopifyPaymentsPayoutAlternateCurrencyCreate", "ShopifyPaymentsPayoutAlternateCurrencyCreate"],
     "runtimeTests": [],
-    "supportNotes": "Shopify Payments payout scaffold only. Future capture requires Shopify Payments payout/account access and must not run happy paths on shared stores because it can alter real payout configuration or money movement."
+    "supportNotes": "Shopify Payments payout scaffold only. HAR-316 captured only non-executing missing-currency GraphQL validation; future capture requires Shopify Payments payout/account access and must not run happy paths on shared stores because it can alter real payout configuration or money movement."
   },
   {
     "name": "transactionVoid",
@@ -4791,6 +5001,34 @@
     "matchNames": ["priceListFixedPricesByProductUpdate", "PriceListFixedPricesByProductUpdate"],
     "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"],
     "supportNotes": "Stages product-scoped fixed-price upserts/deletes only for variants visible in normalized product state."
+  },
+  {
+    "name": "quantityPricingByVariantUpdate",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["quantityPricingByVariantUpdate", "QuantityPricingByVariantUpdate"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages PriceList fixed prices, variant quantity rules, and quantity price breaks for variants visible in normalized product state."
+  },
+  {
+    "name": "quantityRulesAdd",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["quantityRulesAdd", "QuantityRulesAdd"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
+  },
+  {
+    "name": "quantityRulesDelete",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["quantityRulesDelete", "QuantityRulesDelete"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
   },
   {
     "name": "webPresences",

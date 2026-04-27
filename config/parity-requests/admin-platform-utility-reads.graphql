@@ -1,0 +1,65 @@
+query AdminPlatformUtilityReads($ids: [ID!]!, $domainId: ID!, $jobId: ID!) {
+  publicApiVersions {
+    handle
+    displayName
+    supported
+  }
+  node(id: "gid://shopify/Product/0") {
+    __typename
+    id
+  }
+  nodes(ids: $ids) {
+    __typename
+    id
+  }
+  domain(id: $domainId) {
+    id
+    host
+    url
+    sslEnabled
+  }
+  job(id: $jobId) {
+    id
+    done
+    query {
+      __typename
+    }
+  }
+  backupRegion {
+    __typename
+    id
+    name
+    ... on MarketRegionCountry {
+      code
+    }
+  }
+  taxonomy {
+    categories(first: 2, search: "zzzzzz-no-match-har-315") {
+      nodes {
+        id
+        name
+        fullName
+        isRoot
+        isLeaf
+        level
+        parentId
+        ancestorIds
+        childrenIds
+        isArchived
+      }
+      edges {
+        cursor
+        node {
+          id
+          name
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}

@@ -2766,9 +2766,14 @@ function normalizeCustomerTags(raw: unknown, fallback: string[]): string[] {
     return structuredClone(fallback);
   }
 
-  return raw
-    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-    .sort((left, right) => left.localeCompare(right));
+  return [
+    ...new Set(
+      raw
+        .filter((value): value is string => typeof value === 'string')
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0),
+    ),
+  ].sort((left, right) => left.localeCompare(right));
 }
 
 function normalizeCustomerTaxExemptions(raw: unknown, fallback: string[]): string[] {
@@ -2943,10 +2948,17 @@ function validateCustomerMetafieldInputs(rawMetafields: unknown, customerId: str
 }
 
 function upsertMetafieldsForCustomer(customerId: string, inputs: Record<string, unknown>[]): CustomerMetafieldRecord[] {
-  return upsertOwnerMetafields('customerId', customerId, inputs, store.getEffectiveMetafieldsByCustomerId(customerId), {
-    allowIdLookup: true,
-    trimIdentity: true,
-  }).metafields;
+  const result = upsertOwnerMetafields(
+    'customerId',
+    customerId,
+    inputs,
+    store.getEffectiveMetafieldsByCustomerId(customerId),
+    {
+      allowIdLookup: true,
+      trimIdentity: true,
+    },
+  );
+  return result.createdOrUpdated.length === result.metafields.length ? result.createdOrUpdated : result.metafields;
 }
 
 function readCustomerAddressInput(raw: unknown): Record<string, unknown> {
@@ -3104,8 +3116,8 @@ function buildCreatedCustomer(input: Record<string, unknown>): CustomerRecord {
   const lastName =
     typeof input['lastName'] === 'string' && input['lastName'].trim().length > 0 ? input['lastName'].trim() : null;
   const locale =
-    typeof input['locale'] === 'string' && input['locale'].trim().length > 0 ? input['locale'].trim() : null;
-  const note = typeof input['note'] === 'string' && input['note'].trim().length > 0 ? input['note'] : null;
+    typeof input['locale'] === 'string' && input['locale'].trim().length > 0 ? input['locale'].trim() : 'en';
+  const note = typeof input['note'] === 'string' ? input['note'] : null;
   const phone = typeof input['phone'] === 'string' && input['phone'].trim().length > 0 ? input['phone'].trim() : null;
   const taxExempt = input['taxExempt'] === true;
   const taxExemptions = normalizeCustomerTaxExemptions(input['taxExemptions'], []);
@@ -3168,15 +3180,32 @@ function buildCreatedCustomer(input: Record<string, unknown>): CustomerRecord {
 }
 
 function buildUpdatedCustomer(existing: CustomerRecord, input: Record<string, unknown>): CustomerRecord {
-  const email = typeof input['email'] === 'string' ? input['email'].trim() || null : existing.email;
-  const firstName = typeof input['firstName'] === 'string' ? input['firstName'].trim() || null : existing.firstName;
-  const lastName = typeof input['lastName'] === 'string' ? input['lastName'].trim() || null : existing.lastName;
-  const locale = typeof input['locale'] === 'string' ? input['locale'].trim() || null : existing.locale;
-  const note = typeof input['note'] === 'string' ? input['note'] || null : existing.note;
-  const phone =
-    typeof input['phone'] === 'string'
+  const email = hasOwnField(input, 'email')
+    ? typeof input['email'] === 'string'
+      ? input['email'].trim() || null
+      : null
+    : existing.email;
+  const firstName = hasOwnField(input, 'firstName')
+    ? typeof input['firstName'] === 'string'
+      ? input['firstName'].trim() || null
+      : null
+    : existing.firstName;
+  const lastName = hasOwnField(input, 'lastName')
+    ? typeof input['lastName'] === 'string'
+      ? input['lastName'].trim() || null
+      : null
+    : existing.lastName;
+  const locale = hasOwnField(input, 'locale')
+    ? typeof input['locale'] === 'string'
+      ? input['locale'].trim() || null
+      : null
+    : existing.locale;
+  const note = hasOwnField(input, 'note') ? (typeof input['note'] === 'string' ? input['note'] : null) : existing.note;
+  const phone = hasOwnField(input, 'phone')
+    ? typeof input['phone'] === 'string'
       ? input['phone'].trim() || null
-      : (existing.defaultPhoneNumber?.phoneNumber ?? null);
+      : null
+    : (existing.defaultPhoneNumber?.phoneNumber ?? null);
 
   return {
     ...existing,
@@ -3320,8 +3349,69 @@ function buildMergedCustomer(
     emailMarketingConsent: emailSource.emailMarketingConsent,
     smsMarketingConsent: phoneSource.smsMarketingConsent,
     defaultAddress,
+    createdAt: customerOne.createdAt,
     updatedAt: options.updateTimestamp === false ? customerTwo.updatedAt : makeSyntheticTimestamp(),
   };
+}
+
+type CustomerMergeAttachedResources = {
+  sourceAddresses: CustomerAddressRecord[];
+  mergedMetafields: CustomerMetafieldRecord[];
+  sourceOrders: OrderRecord[];
+};
+
+function customerMetafieldStorageKey(metafield: CustomerMetafieldRecord): string {
+  return `${metafield.namespace}::${metafield.key}`;
+}
+
+function collectCustomerMergeAttachedResources(
+  customerOne: CustomerRecord,
+  customerTwo: CustomerRecord,
+): CustomerMergeAttachedResources {
+  const resultMetafields = store.getEffectiveMetafieldsByCustomerId(customerTwo.id);
+  const resultMetafieldKeys = new Set(resultMetafields.map(customerMetafieldStorageKey));
+  const copiedSourceMetafields = store
+    .getEffectiveMetafieldsByCustomerId(customerOne.id)
+    .filter((metafield) => !resultMetafieldKeys.has(customerMetafieldStorageKey(metafield)))
+    .map((metafield): CustomerMetafieldRecord => {
+      return {
+        ...metafield,
+        id: makeSyntheticGid('Metafield'),
+        customerId: customerTwo.id,
+      };
+    });
+
+  return {
+    sourceAddresses: store.listEffectiveCustomerAddresses(customerOne.id),
+    mergedMetafields: [...resultMetafields, ...copiedSourceMetafields],
+    sourceOrders: listOrdersForCustomer(customerOne.id),
+  };
+}
+
+function stageCustomerMergeAttachedResources(
+  resources: CustomerMergeAttachedResources,
+  resultingCustomer: CustomerRecord,
+): void {
+  for (const address of resources.sourceAddresses) {
+    store.stageUpsertCustomerAddress({
+      ...address,
+      customerId: resultingCustomer.id,
+    });
+  }
+
+  store.replaceStagedMetafieldsForCustomer(resultingCustomer.id, resources.mergedMetafields);
+
+  for (const order of resources.sourceOrders) {
+    store.updateOrder({
+      ...order,
+      email: resultingCustomer.email,
+      customer: {
+        id: resultingCustomer.id,
+        email: resultingCustomer.email,
+        displayName: resultingCustomer.displayName,
+      },
+    });
+  }
 }
 
 function buildCustomerMergeMissingArgumentError(field: FieldNode, missingArguments: string[]): Record<string, unknown> {
@@ -3359,6 +3449,115 @@ function validateCustomerCreateInput(input: Record<string, unknown>): CustomerMu
   }
 
   return [{ field: null, message: 'A name, phone number, or email address must be present' }];
+}
+
+function normalizeCustomerEmailInput(input: Record<string, unknown>): string | null {
+  return typeof input['email'] === 'string' && input['email'].trim().length > 0 ? input['email'].trim() : null;
+}
+
+function normalizeCustomerPhoneInput(input: Record<string, unknown>): string | null {
+  return typeof input['phone'] === 'string' && input['phone'].trim().length > 0 ? input['phone'].trim() : null;
+}
+
+function customerEmailsEqual(left: string | null, right: string | null): boolean {
+  return !!left && !!right && left.trim().toLowerCase() === right.trim().toLowerCase();
+}
+
+function customerPhonesEqual(left: string | null, right: string | null): boolean {
+  return !!left && !!right && left.trim() === right.trim();
+}
+
+function customerEmailCandidates(customer: CustomerRecord): string[] {
+  return [customer.email, customer.defaultEmailAddress?.emailAddress ?? null].filter(
+    (email): email is string => typeof email === 'string' && email.trim().length > 0,
+  );
+}
+
+function customerPhoneCandidates(customer: CustomerRecord): string[] {
+  return [customer.defaultPhoneNumber?.phoneNumber ?? null].filter(
+    (phone): phone is string => typeof phone === 'string' && phone.trim().length > 0,
+  );
+}
+
+function hasDuplicateCustomerEmail(email: string, currentCustomerId: string | null): boolean {
+  return store
+    .listEffectiveCustomers()
+    .some(
+      (customer) =>
+        customer.id !== currentCustomerId &&
+        customerEmailCandidates(customer).some((candidate) => customerEmailsEqual(candidate, email)),
+    );
+}
+
+function hasDuplicateCustomerPhone(phone: string, currentCustomerId: string | null): boolean {
+  return store
+    .listEffectiveCustomers()
+    .some(
+      (customer) =>
+        customer.id !== currentCustomerId &&
+        customerPhoneCandidates(customer).some((candidate) => customerPhonesEqual(candidate, phone)),
+    );
+}
+
+function isCapturedValidCustomerEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email);
+}
+
+function isCapturedValidCustomerPhone(phone: string): boolean {
+  return !/[A-Za-z]/u.test(phone) && /\d/u.test(phone);
+}
+
+function isCapturedValidCustomerLocale(locale: string): boolean {
+  return /^[a-z]{2}(?:-[A-Z]{2})?$/u.test(locale);
+}
+
+function validateCustomerInputLongTail(
+  input: Record<string, unknown>,
+  currentCustomerId: string | null,
+): CustomerMutationUserError[] {
+  const errors: CustomerMutationUserError[] = [];
+  const email = normalizeCustomerEmailInput(input);
+  const phone = normalizeCustomerPhoneInput(input);
+  const locale =
+    typeof input['locale'] === 'string' && input['locale'].trim().length > 0 ? input['locale'].trim() : null;
+
+  if (email && !isCapturedValidCustomerEmail(email)) {
+    errors.push({ field: ['email'], message: 'Email is invalid' });
+  } else if (email && hasDuplicateCustomerEmail(email, currentCustomerId)) {
+    errors.push({ field: ['email'], message: 'Email has already been taken' });
+  }
+
+  if (phone && !isCapturedValidCustomerPhone(phone)) {
+    errors.push({ field: ['phone'], message: 'Phone is invalid' });
+  } else if (phone && hasDuplicateCustomerPhone(phone, currentCustomerId)) {
+    errors.push({ field: ['phone'], message: 'Phone has already been taken' });
+  }
+
+  if (locale && !isCapturedValidCustomerLocale(locale)) {
+    errors.push({ field: ['locale'], message: 'Locale is invalid' });
+  }
+
+  for (const field of ['firstName', 'lastName'] as const) {
+    const value = input[field];
+    if (typeof value === 'string' && value.length > 255) {
+      errors.push({
+        field: [field],
+        message: `${field === 'firstName' ? 'First name' : 'Last name'} is too long (maximum is 255 characters)`,
+      });
+    }
+  }
+
+  const note = input['note'];
+  if (typeof note === 'string' && note.length > 5000) {
+    errors.push({ field: ['note'], message: 'Note is too long (maximum is 5000 characters)' });
+  }
+
+  const tags = input['tags'];
+  if (Array.isArray(tags) && tags.some((tag) => typeof tag === 'string' && tag.trim().length > 255)) {
+    errors.push({ field: ['tags'], message: 'Tags is too long (maximum is 255 characters)' });
+  }
+
+  return errors;
 }
 
 function validateCustomerSetCreateInput(input: Record<string, unknown>): CustomerMutationUserError[] {
@@ -4112,6 +4311,7 @@ export function handleCustomerMutation(
       const customerIdForValidation = 'gid://shopify/Customer/__pending__';
       const userErrors = [
         ...validateCustomerCreateInput(input),
+        ...validateCustomerInputLongTail(input, null),
         ...validateCustomerTaxExemptionInput(input),
         ...validateCustomerMetafieldInputs(input['metafields'], customerIdForValidation),
       ];
@@ -4149,6 +4349,7 @@ export function handleCustomerMutation(
       }
 
       const userErrors = [
+        ...validateCustomerInputLongTail(input, existingCustomer.id),
         ...validateCustomerTaxExemptionInput(input),
         ...validateCustomerMetafieldInputs(input['metafields'], existingCustomer.id),
       ];
@@ -4741,6 +4942,7 @@ export function handleCustomerMutation(
 
       const overrideFields = readCustomerMergeOverrideFields(args['overrideFields']);
       const mergedCustomer = buildMergedCustomer(customerOne, customerTwo, overrideFields);
+      const attachedResources = collectCustomerMergeAttachedResources(customerOne, customerTwo);
       const jobId = makeSyntheticGid('Job');
       const customer = store.stageMergeCustomers(customerOne.id, mergedCustomer, {
         jobId,
@@ -4748,6 +4950,7 @@ export function handleCustomerMutation(
         status: 'COMPLETED',
         customerMergeErrors: [],
       });
+      stageCustomerMergeAttachedResources(attachedResources, customer);
       data[key] = serializeCustomerMutationPayload(
         field,
         {

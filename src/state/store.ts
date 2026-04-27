@@ -33,6 +33,7 @@ import type {
   MarketingEngagementRecord,
   MarketingRecord,
   MetaobjectDefinitionRecord,
+  MetaobjectRecord,
   MetafieldDefinitionRecord,
   MutationLogEntry,
   NormalizedStateSnapshotFile,
@@ -151,6 +152,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   productMetafields: {},
   metafieldDefinitions: {},
   metaobjectDefinitions: {},
+  metaobjects: {},
   customerMetafields: {},
   deletedProductIds: {},
   deletedFileIds: {},
@@ -440,25 +442,25 @@ function mergeCustomerRecords(base: CustomerRecord | null, staged: CustomerRecor
     firstName: staged.firstName,
     lastName: staged.lastName,
     displayName: staged.displayName,
-    email: staged.email ?? base.email,
+    email: staged.email,
     legacyResourceId: staged.legacyResourceId ?? base.legacyResourceId,
-    locale: staged.locale ?? base.locale,
-    note: staged.note ?? base.note,
-    canDelete: staged.canDelete ?? base.canDelete,
-    verifiedEmail: staged.verifiedEmail ?? base.verifiedEmail,
+    locale: staged.locale,
+    note: staged.note,
+    canDelete: staged.canDelete,
+    verifiedEmail: staged.verifiedEmail,
     dataSaleOptOut: staged.dataSaleOptOut ?? base.dataSaleOptOut ?? false,
-    taxExempt: staged.taxExempt ?? base.taxExempt,
+    taxExempt: staged.taxExempt,
     taxExemptions: structuredClone(staged.taxExemptions ?? base.taxExemptions ?? []),
-    state: staged.state ?? base.state,
+    state: staged.state,
     tags: structuredClone(staged.tags),
-    numberOfOrders: staged.numberOfOrders ?? base.numberOfOrders,
-    amountSpent: staged.amountSpent ?? base.amountSpent,
-    defaultEmailAddress: staged.defaultEmailAddress ?? base.defaultEmailAddress,
-    defaultPhoneNumber: staged.defaultPhoneNumber ?? base.defaultPhoneNumber,
-    emailMarketingConsent: staged.emailMarketingConsent ?? base.emailMarketingConsent,
-    smsMarketingConsent: staged.smsMarketingConsent ?? base.smsMarketingConsent,
-    defaultAddress: staged.defaultAddress ?? base.defaultAddress,
-    createdAt: base.createdAt,
+    numberOfOrders: staged.numberOfOrders,
+    amountSpent: staged.amountSpent,
+    defaultEmailAddress: staged.defaultEmailAddress,
+    defaultPhoneNumber: staged.defaultPhoneNumber,
+    emailMarketingConsent: staged.emailMarketingConsent,
+    smsMarketingConsent: staged.smsMarketingConsent,
+    defaultAddress: staged.defaultAddress,
+    createdAt: staged.createdAt ?? base.createdAt,
     updatedAt:
       base.updatedAt && staged.updatedAt
         ? ensureUpdatedAtAfterBase(base.updatedAt, staged.updatedAt)
@@ -2990,6 +2992,18 @@ export class InMemoryStore {
     }
   }
 
+  upsertBaseMetaobjects(metaobjects: MetaobjectRecord[]): void {
+    for (const metaobject of metaobjects) {
+      this.baseState.metaobjects[metaobject.id] = structuredClone(metaobject);
+    }
+  }
+
+  upsertStagedMetaobjects(metaobjects: MetaobjectRecord[]): void {
+    for (const metaobject of metaobjects) {
+      this.stagedState.metaobjects[metaobject.id] = structuredClone(metaobject);
+    }
+  }
+
   deleteStagedMetaobjectDefinition(definitionId: string): void {
     delete this.stagedState.metaobjectDefinitions[definitionId];
     this.stagedState.deletedMetaobjectDefinitionIds[definitionId] = true;
@@ -3769,6 +3783,42 @@ export class InMemoryStore {
     return definition ? structuredClone(definition) : null;
   }
 
+  listEffectiveMetaobjects(): MetaobjectRecord[] {
+    const metaobjectsById = new Map<string, MetaobjectRecord>();
+
+    for (const metaobject of Object.values(this.baseState.metaobjects)) {
+      metaobjectsById.set(metaobject.id, structuredClone(metaobject));
+    }
+
+    for (const metaobject of Object.values(this.stagedState.metaobjects)) {
+      metaobjectsById.set(metaobject.id, structuredClone(metaobject));
+    }
+
+    return [...metaobjectsById.values()].sort(
+      (left, right) =>
+        left.type.localeCompare(right.type) ||
+        left.handle.localeCompare(right.handle) ||
+        compareShopifyResourceIds(left.id, right.id),
+    );
+  }
+
+  getEffectiveMetaobjectById(metaobjectId: string): MetaobjectRecord | null {
+    const metaobject = this.stagedState.metaobjects[metaobjectId] ?? this.baseState.metaobjects[metaobjectId];
+    return metaobject ? structuredClone(metaobject) : null;
+  }
+
+  findEffectiveMetaobjectByHandle(identifier: { type: string; handle: string }): MetaobjectRecord | null {
+    const metaobject =
+      this.listEffectiveMetaobjects().find(
+        (candidate) => candidate.type === identifier.type && candidate.handle === identifier.handle,
+      ) ?? null;
+    return metaobject ? structuredClone(metaobject) : null;
+  }
+
+  listEffectiveMetaobjectsByType(type: string): MetaobjectRecord[] {
+    return this.listEffectiveMetaobjects().filter((metaobject) => metaobject.type === type);
+  }
+
   hasEffectiveMetaobjectDefinitions(): boolean {
     return (
       Object.keys(this.baseState.metaobjectDefinitions).length > 0 ||
@@ -3779,6 +3829,14 @@ export class InMemoryStore {
 
   hasStagedMetaobjectDefinitions(): boolean {
     return Object.keys(this.stagedState.metaobjectDefinitions).length > 0;
+  }
+
+  hasEffectiveMetaobjects(): boolean {
+    return Object.keys(this.baseState.metaobjects).length > 0 || Object.keys(this.stagedState.metaobjects).length > 0;
+  }
+
+  hasStagedMetaobjects(): boolean {
+    return Object.keys(this.stagedState.metaobjects).length > 0;
   }
 
   getEffectiveMetafieldsByProductId(productId: string): ProductMetafieldRecord[] {
@@ -3794,19 +3852,14 @@ export class InMemoryStore {
       .filter((metafield) => metafield.customerId === customerId)
       .map((metafield) => structuredClone(metafield));
 
-    const sourceMetafields =
-      stagedMetafields.length > 0
-        ? stagedMetafields
-        : Object.values(this.baseState.customerMetafields)
-            .filter((metafield) => metafield.customerId === customerId)
-            .map((metafield) => structuredClone(metafield));
+    if (stagedMetafields.length > 0) {
+      return stagedMetafields;
+    }
 
-    return sourceMetafields.sort(
-      (left, right) =>
-        left.namespace.localeCompare(right.namespace) ||
-        left.key.localeCompare(right.key) ||
-        left.id.localeCompare(right.id),
-    );
+    return Object.values(this.baseState.customerMetafields)
+      .filter((metafield) => metafield.customerId === customerId)
+      .map((metafield) => structuredClone(metafield))
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
   }
 
   hasStagedProducts(): boolean {
