@@ -34,6 +34,7 @@ import { handleB2BQuery } from '../src/proxy/b2b.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from '../src/proxy/delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from '../src/proxy/discounts.js';
 import { handleEventsQuery } from '../src/proxy/events.js';
+import { handleFunctionMutation, handleFunctionQuery } from '../src/proxy/functions.js';
 import { handleGiftCardMutation, handleGiftCardQuery } from '../src/proxy/gift-cards.js';
 import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
 import {
@@ -896,6 +897,25 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'stage-locally' && capability.domain === 'functions') {
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2026-04/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: handleFunctionMutation(document, variables),
+    };
+  }
+
   if (capability.execution === 'stage-locally' && capability.domain === 'privacy') {
     store.appendLog({
       id: makeSyntheticGid('MutationLogEntry'),
@@ -1216,6 +1236,13 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleGiftCardQuery(document, variables),
+    };
+  }
+
+  if (capability.execution === 'overlay-read' && capability.domain === 'functions') {
+    return {
+      status: 200,
+      body: handleFunctionQuery(document, variables),
     };
   }
 
