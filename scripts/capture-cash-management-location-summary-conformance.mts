@@ -102,28 +102,28 @@ const locationsProbeQuery = `#graphql
 `;
 
 const summaryQuery = `#graphql
-  query CashManagementLocationSummaryProbe($locationId: ID!, $startDate: Date!, $endDate: Date!) {
-    cashManagementLocationSummary(locationId: $locationId, startDate: $startDate, endDate: $endDate) {
-      cashBalanceAtStart {
-        amount
-        currencyCode
-      }
-      cashBalanceAtEnd {
-        amount
-        currencyCode
-      }
-      netCash {
-        amount
-        currencyCode
-      }
-      totalDiscrepancies {
-        amount
-        currencyCode
-      }
-      sessionsOpened
-      sessionsClosed
+query CashManagementLocationSummaryProbe($locationId: ID!, $startDate: Date!, $endDate: Date!) {
+  cashManagementLocationSummary(locationId: $locationId, startDate: $startDate, endDate: $endDate) {
+    cashBalanceAtStart {
+      amount
+      currencyCode
     }
+    cashBalanceAtEnd {
+      amount
+      currencyCode
+    }
+    netCash {
+      amount
+      currencyCode
+    }
+    totalDiscrepancies {
+      amount
+      currencyCode
+    }
+    sessionsOpened
+    sessionsClosed
   }
+}
 `;
 
 const startDate = '2026-04-01';
