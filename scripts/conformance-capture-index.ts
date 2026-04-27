@@ -628,13 +628,13 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     domain: 'customers',
     packageScript: 'conformance:capture-customer-input-validation',
     scriptPath: 'scripts/capture-customer-input-validation-conformance.ts',
-    purpose: 'Customer mutation input validation, userErrors, and downstream read branches.',
-    requiredAuthScopes: ['read_customers', 'write_customers'],
+    purpose: 'CustomerInput create/update/delete/merge validation branches and downstream invariance.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'read_customer_merge', 'write_customer_merge'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}customer-input-validation-parity.json`,
       'config/parity-specs/customerInputValidation-parity.json',
     ],
-    cleanupBehavior: 'Creates disposable customers for validation probes and removes remaining records.',
+    cleanupBehavior: 'Creates disposable customers for validation cases and deletes remaining records.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -689,6 +689,19 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
+    packageScript: 'conformance:capture-customer-input-validation',
+    scriptPath: 'scripts/capture-customer-input-validation-conformance.ts',
+    purpose: 'Customer input validation branches for create/update/delete/merge.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'read_customer_merge', 'write_customer_merge'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-input-validation-parity.json`,
+      'config/parity-specs/customerInputValidation-parity.json',
+    ],
+    cleanupBehavior: 'Creates disposable customers for validation probes and deletes remaining records.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
     packageScript: 'conformance:capture-customer-consent',
     scriptPath: 'scripts/capture-customer-consent-conformance.ts',
     purpose: 'Email/SMS marketing consent update behavior.',
@@ -708,20 +721,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_customers', 'write_customers'],
     fixtureOutputs: [`${CAPTURE_ROOT}customer-tax-exemption-*.json`],
     cleanupBehavior: 'Creates disposable customer and deletes it after tax-exemption probes.',
-    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
-  },
-  {
-    domain: 'customers',
-    packageScript: 'conformance:capture-customer-input-validation',
-    scriptPath: 'scripts/capture-customer-input-validation-conformance.ts',
-    purpose: 'CustomerInput validation, normalization, duplicate identity, and state-invariance branches.',
-    requiredAuthScopes: ['read_customers', 'write_customers', 'read_customer_merge', 'write_customer_merge'],
-    fixtureOutputs: [
-      `${CAPTURE_ROOT}customer-input-validation-parity.json`,
-      'config/parity-specs/customerInputValidation-parity.json',
-    ],
-    cleanupBehavior:
-      'Creates disposable customers for validation and merge/delete probes, then deletes remaining records.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

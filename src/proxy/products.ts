@@ -1,4 +1,4 @@
-import { getLocation, Kind, parse, type FieldNode, type SelectionNode } from 'graphql';
+import { getLocation, Kind, type FieldNode, type SelectionNode } from 'graphql';
 import type { ReadMode } from '../config.js';
 import { getFieldArguments, getRootField, getRootFieldArguments, getRootFields } from '../graphql/root-field.js';
 import {
@@ -17,6 +17,53 @@ import {
   serializeConnection,
   type GraphqlErrorLocation,
 } from './graphql-helpers.js';
+import {
+  getOperationPathLabel,
+  hasOwnField,
+  isObject,
+  readLegacyResourceIdFromGid,
+  stripHtmlToDescription,
+} from './product-runtime/helpers.js';
+import {
+  ensureUniqueProductHandle,
+  findEffectiveProductByHandle,
+  prepareProductInputWithResolvedHandle,
+  slugifyHandle,
+} from './product-runtime/handles.js';
+import {
+  addInventoryQuantityAmount,
+  buildStableSyntheticInventoryLevelId,
+  DEFAULT_INVENTORY_LEVEL_LOCATION_ID,
+  readInventoryQuantityAmount,
+  sumAvailableInventoryLevels,
+  writeInventoryQuantityAmount,
+} from './product-runtime/inventory-quantities.js';
+import {
+  buildInvalidProductMediaContentTypeVariableError,
+  buildInvalidProductMediaProductIdVariableError,
+  CREATE_MEDIA_CONTENT_TYPES,
+  isValidMediaSource,
+  makeCreatedMediaRecord,
+  mediaValidationProductNotFoundPayload,
+  transitionMediaToProcessing,
+  transitionMediaToReady,
+  updateMediaRecord,
+} from './product-runtime/media.js';
+import { makeMetafieldCompareDigest, parseMetafieldJsonValue } from './product-runtime/metafield-values.js';
+import {
+  buildProductSetOptionRecords,
+  deleteOptionRecords,
+  deriveVariantTitle,
+  insertOptionAtPosition,
+  makeCreatedOptionRecord,
+  makeDefaultOptionRecord,
+  makeDefaultVariantRecord,
+  productUsesOnlyDefaultOptionState,
+  remapDefaultVariantToCreatedOptions,
+  restoreDefaultOptionState,
+  updateOptionRecords,
+} from './product-runtime/options.js';
+import { serializeCountValue, serializeJobSelectionSet } from './product-runtime/serializers.js';
 import {
   normalizeOwnerMetafield,
   readMetafieldInputObjects,
@@ -52,113 +99,8 @@ type ProductFeedRecord = {
   status: 'ACTIVE' | 'INACTIVE';
 };
 
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-function hasOwnField(value: Record<string, unknown>, key: string): boolean {
-  return Object.prototype.hasOwnProperty.call(value, key);
-}
-
-function parseMetafieldJsonValue(type: string | null, value: string | null): ProductMetafieldRecord['jsonValue'] {
-  if (value === null) {
-    return null;
-  }
-
-  if (type === 'json' || type?.startsWith('list.')) {
-    try {
-      return JSON.parse(value) as ProductMetafieldRecord['jsonValue'];
-    } catch {
-      return value;
-    }
-  }
-
-  if (type === 'number_integer') {
-    const parsed = Number.parseInt(value, 10);
-    return Number.isFinite(parsed) ? parsed : value;
-  }
-
-  if (type === 'number_decimal') {
-    const parsed = Number.parseFloat(value);
-    return Number.isFinite(parsed) ? parsed : value;
-  }
-
-  if (type === 'boolean') {
-    return value === 'true';
-  }
-
-  return value;
-}
-
-function makeMetafieldCompareDigest(metafield: {
-  namespace: string;
-  key: string;
-  type: string | null;
-  value: string | null;
-  jsonValue?: unknown;
-  updatedAt?: string | null | undefined;
-}): string {
-  return `draft:${Buffer.from(
-    JSON.stringify([
-      metafield.namespace,
-      metafield.key,
-      metafield.type,
-      metafield.value,
-      metafield.jsonValue ?? null,
-      metafield.updatedAt ?? null,
-    ]),
-  ).toString('base64url')}`;
-}
-
-function getOperationPathLabel(document: string): string {
-  const ast = parse(document);
-  const operation = ast.definitions.find((definition) => definition.kind === Kind.OPERATION_DEFINITION);
-  if (!operation || operation.kind !== Kind.OPERATION_DEFINITION) {
-    return 'mutation';
-  }
-
-  const operationType = operation.operation;
-  return operation.name ? `${operationType} ${operation.name.value}` : operationType;
-}
-
-const maxProductHandleLength = 255;
-
-function normalizeHandleParts(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
-function slugifyHandle(title: string): string {
-  const normalized = normalizeHandleParts(title);
-  return normalized || 'untitled-product';
-}
-
-function readLegacyResourceIdFromGid(id: string): string | null {
-  const tail = id.split('/').at(-1);
-  return tail && /^\d+$/u.test(tail) ? tail : null;
-}
-
-function stripHtmlToDescription(value: string): string {
-  return value
-    .replace(/<[^>]*>/gu, '')
-    .replace(/\s+/gu, ' ')
-    .trim();
-}
-
-type ExplicitHandleResolution =
-  | { kind: 'normalized-explicit'; handle: string }
-  | { kind: 'fallback-explicit'; handle: string }
-  | { kind: 'invalid'; error: { field: string[]; message: string } };
-
 function readProductInput(raw: unknown): Record<string, unknown> {
   return isObject(raw) ? raw : {};
-}
-
-function findEffectiveProductByHandle(handle: string): ProductRecord | null {
-  return store.listEffectiveProducts().find((product) => product.handle === handle) ?? null;
 }
 
 function findEffectiveProductByIdentifier(identifier: Record<string, unknown>): ProductRecord | null {
@@ -178,126 +120,6 @@ function findEffectiveProductByIdentifier(identifier: Record<string, unknown>): 
 function findEffectiveVariantByIdentifier(identifier: Record<string, unknown>): ProductVariantRecord | null {
   const id = typeof identifier['id'] === 'string' ? identifier['id'] : null;
   return id ? store.getEffectiveVariantById(id) : null;
-}
-
-function readExplicitHandle(input: Record<string, unknown>): ExplicitHandleResolution | null {
-  const rawHandle = input['handle'];
-  if (typeof rawHandle !== 'string') {
-    return null;
-  }
-
-  const trimmedHandle = rawHandle.trim();
-  if (!trimmedHandle) {
-    return null;
-  }
-
-  const normalized = normalizeHandleParts(trimmedHandle);
-  if (!normalized) {
-    return { kind: 'fallback-explicit', handle: 'product' };
-  }
-
-  if (Array.from(normalized).length > maxProductHandleLength) {
-    return {
-      kind: 'invalid',
-      error: {
-        field: ['handle'],
-        message: `Handle is too long (maximum is ${maxProductHandleLength} characters)`,
-      },
-    };
-  }
-
-  return { kind: 'normalized-explicit', handle: normalized };
-}
-
-function productHandleInUse(handle: string, excludedProductId?: string): boolean {
-  const existing = findEffectiveProductByHandle(handle);
-  return Boolean(existing && existing.id !== excludedProductId);
-}
-
-function nextProductHandleCandidate(handle: string): string {
-  const numericSuffixMatch = handle.match(/^(.*?)(\d+)$/u);
-  if (numericSuffixMatch) {
-    const prefix = numericSuffixMatch[1] ?? '';
-    const numericSuffix = numericSuffixMatch[2] ?? '';
-    return `${prefix}${String(Number.parseInt(numericSuffix, 10) + 1)}`;
-  }
-
-  const hyphenatedSuffixMatch = handle.match(/^(.*?)-(\d+)$/u);
-  if (hyphenatedSuffixMatch) {
-    const prefix = hyphenatedSuffixMatch[1] ?? handle;
-    const numericSuffix = hyphenatedSuffixMatch[2] ?? '0';
-    return `${prefix}-${String(Number.parseInt(numericSuffix, 10) + 1)}`;
-  }
-
-  return `${handle}-1`;
-}
-
-function ensureUniqueProductHandle(handle: string, excludedProductId?: string): string {
-  let candidate = handle;
-  while (productHandleInUse(candidate, excludedProductId)) {
-    candidate = nextProductHandleCandidate(candidate);
-  }
-
-  return candidate;
-}
-
-function productHandleConflictError(handle: string): { field: string[]; message: string } {
-  return {
-    field: ['input', 'handle'],
-    message: `Handle '${handle}' already in use. Please provide a new handle.`,
-  };
-}
-
-function prepareProductInputWithResolvedHandle(
-  input: Record<string, unknown>,
-  existing?: ProductRecord,
-): { input: Record<string, unknown>; error: { field: string[]; message: string } | null } {
-  const explicitHandle = readExplicitHandle(input);
-  if (explicitHandle) {
-    if (explicitHandle.kind === 'invalid') {
-      return { input, error: explicitHandle.error };
-    }
-
-    if (explicitHandle.kind === 'normalized-explicit') {
-      if (productHandleInUse(explicitHandle.handle, existing?.id)) {
-        return { input, error: productHandleConflictError(explicitHandle.handle) };
-      }
-
-      return { input: { ...input, handle: explicitHandle.handle }, error: null };
-    }
-
-    return {
-      input: {
-        ...input,
-        handle: ensureUniqueProductHandle(explicitHandle.handle, existing?.id),
-      },
-      error: null,
-    };
-  }
-
-  const rawId = input['id'];
-  const isSparseUpdate = typeof rawId === 'string' && !existing;
-  if (isSparseUpdate) {
-    return {
-      input: {
-        ...input,
-        handle: '',
-      },
-      error: null,
-    };
-  }
-
-  const rawTitle = input['title'];
-  const title =
-    typeof rawTitle === 'string' && rawTitle.trim() ? rawTitle.trim() : (existing?.title ?? 'Untitled product');
-  const baseHandle = existing?.handle ?? slugifyHandle(title);
-  return {
-    input: {
-      ...input,
-      handle: ensureUniqueProductHandle(baseHandle, existing?.id),
-    },
-    error: null,
-  };
 }
 
 function findEffectiveCollectionById(collectionId: string): CollectionRecord | null {
@@ -764,33 +586,6 @@ function removeProductsFromCollection(collection: CollectionRecord, productIds: 
   }
 }
 
-function serializeJobSelectionSet(
-  job: { id: string; done: boolean },
-  selections: readonly SelectionNode[],
-): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-
-  for (const selection of selections) {
-    if (selection.kind !== Kind.FIELD) {
-      continue;
-    }
-
-    const key = selection.alias?.value ?? selection.name.value;
-    switch (selection.name.value) {
-      case 'id':
-        result[key] = job.id;
-        break;
-      case 'done':
-        result[key] = job.done;
-        break;
-      default:
-        result[key] = null;
-    }
-  }
-
-  return result;
-}
-
 interface ProductSetInventoryQuantityInput {
   locationId: string | null;
   name: string;
@@ -1058,30 +853,6 @@ function getPublishableProductId(rawId: unknown): string | null {
   return typeof rawId === 'string' && rawId.startsWith('gid://shopify/Product/') ? rawId : null;
 }
 
-function serializeCountValue(field: FieldNode, count: number): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-
-  for (const selection of field.selectionSet?.selections ?? []) {
-    if (selection.kind !== Kind.FIELD) {
-      continue;
-    }
-
-    const key = selection.alias?.value ?? selection.name.value;
-    switch (selection.name.value) {
-      case 'count':
-        result[key] = count;
-        break;
-      case 'precision':
-        result[key] = 'EXACT';
-        break;
-      default:
-        result[key] = null;
-    }
-  }
-
-  return result;
-}
-
 function makeProductRecord(input: Record<string, unknown>, existing?: ProductRecord): ProductRecord {
   const rawTitle = input['title'];
   const title = typeof rawTitle === 'string' && rawTitle.trim() ? rawTitle : (existing?.title ?? 'Untitled product');
@@ -1304,52 +1075,6 @@ function makePublicationRecord(input: Record<string, unknown>, existing?: Public
   };
 }
 
-function makeDefaultInventoryItemRecord(): NonNullable<ProductVariantRecord['inventoryItem']> {
-  return {
-    id: makeSyntheticGid('InventoryItem'),
-    tracked: false,
-    requiresShipping: true,
-    measurement: null,
-    countryCodeOfOrigin: null,
-    provinceCodeOfOrigin: null,
-    harmonizedSystemCode: null,
-    inventoryLevels: null,
-  };
-}
-
-function makeDefaultVariantRecord(product: ProductRecord): ProductVariantRecord {
-  return {
-    id: makeSyntheticGid('ProductVariant'),
-    productId: product.id,
-    title: 'Default Title',
-    sku: null,
-    barcode: null,
-    price: null,
-    compareAtPrice: null,
-    taxable: null,
-    inventoryPolicy: null,
-    inventoryQuantity: 0,
-    selectedOptions: [],
-    inventoryItem: makeDefaultInventoryItemRecord(),
-  };
-}
-
-function makeDefaultOptionRecord(product: ProductRecord): ProductOptionRecord {
-  return {
-    id: makeSyntheticGid('ProductOption'),
-    productId: product.id,
-    name: 'Title',
-    position: 1,
-    optionValues: [
-      {
-        id: makeSyntheticGid('ProductOptionValue'),
-        name: 'Default Title',
-        hasVariants: true,
-      },
-    ],
-  };
-}
-
 function makeDuplicatedProductRecord(source: ProductRecord, newTitle?: string): ProductRecord {
   const title = typeof newTitle === 'string' && newTitle.trim() ? newTitle : `Copy of ${source.title}`;
   const now = makeSyntheticTimestamp();
@@ -1422,116 +1147,6 @@ function duplicateCollectionRecord(collection: ProductCollectionRecord, productI
   };
 }
 
-function makeSyntheticMediaId(mediaContentType: string | null | undefined): string {
-  if (mediaContentType === 'IMAGE') {
-    return makeSyntheticGid('MediaImage');
-  }
-
-  return makeSyntheticGid('Media');
-}
-
-function makeSyntheticProductImageId(mediaContentType: string | null | undefined): string | null {
-  if (mediaContentType === 'IMAGE') {
-    return makeSyntheticGid('ProductImage');
-  }
-
-  return null;
-}
-
-const CREATE_MEDIA_CONTENT_TYPES = new Set(['VIDEO', 'EXTERNAL_VIDEO', 'MODEL_3D', 'IMAGE']);
-
-function isValidMediaSource(value: unknown): value is string {
-  if (typeof value !== 'string' || !value.trim()) {
-    return false;
-  }
-
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
-
-function mediaValidationProductNotFoundPayload(shape: 'create' | 'update' | 'delete') {
-  if (shape === 'delete') {
-    return {
-      deletedMediaIds: null,
-      deletedProductImageIds: null,
-      mediaUserErrors: [{ field: ['productId'], message: 'Product does not exist' }],
-      product: null,
-    };
-  }
-
-  return {
-    media: null,
-    mediaUserErrors: [{ field: ['productId'], message: 'Product does not exist' }],
-    ...(shape === 'create' ? { product: null } : {}),
-  };
-}
-
-function buildInvalidProductMediaContentTypeVariableError(
-  media: unknown[],
-  mediaIndex: number,
-  mediaContentType: string,
-  document: string,
-): {
-  errors: Array<{
-    message: string;
-    locations: GraphqlErrorLocation[];
-    extensions: {
-      code: 'INVALID_VARIABLE';
-      value: unknown[];
-      problems: Array<{ path: Array<string | number>; explanation: string }>;
-    };
-  }>;
-} {
-  const explanation = `Expected "${mediaContentType}" to be one of: VIDEO, EXTERNAL_VIDEO, MODEL_3D, IMAGE`;
-  return {
-    errors: [
-      {
-        message: `Variable $media of type [CreateMediaInput!]! was provided invalid value for ${mediaIndex}.mediaContentType (${explanation})`,
-        locations: getVariableDefinitionLocation(document, 'media'),
-        extensions: {
-          code: 'INVALID_VARIABLE',
-          value: structuredClone(media),
-          problems: [{ path: [mediaIndex, 'mediaContentType'], explanation }],
-        },
-      },
-    ],
-  };
-}
-
-function buildInvalidProductMediaProductIdVariableError(
-  productId: string,
-  document: string,
-): {
-  errors: Array<{
-    message: string;
-    locations: GraphqlErrorLocation[];
-    extensions: {
-      code: 'INVALID_VARIABLE';
-      value: string;
-      problems: Array<{ path: never[]; explanation: string; message: string }>;
-    };
-  }>;
-} {
-  const message = `Invalid global id '${productId}'`;
-  return {
-    errors: [
-      {
-        message: 'Variable $productId of type ID! was provided invalid value',
-        locations: getVariableDefinitionLocation(document, 'productId'),
-        extensions: {
-          code: 'INVALID_VARIABLE',
-          value: productId,
-          problems: [{ path: [], explanation: message, message }],
-        },
-      },
-    ],
-  };
-}
-
 function duplicateMetafieldRecord(metafield: ProductMetafieldRecord, productId: string): ProductMetafieldRecord {
   const timestamp = makeSyntheticTimestamp();
   const duplicated: ProductMetafieldRecord = {
@@ -1552,397 +1167,6 @@ function duplicateMetafieldRecord(metafield: ProductMetafieldRecord, productId: 
     ...duplicated,
     compareDigest: makeMetafieldCompareDigest(duplicated),
   };
-}
-
-function normalizeOptionPositions(options: ProductOptionRecord[]): ProductOptionRecord[] {
-  return options.map((option, index) => ({
-    ...structuredClone(option),
-    position: index + 1,
-  }));
-}
-
-function makeCreatedMediaRecord(
-  productId: string,
-  input: Record<string, unknown>,
-  position: number,
-): ProductMediaRecord {
-  const rawMediaContentType = input['mediaContentType'];
-  const mediaContentType = typeof rawMediaContentType === 'string' ? rawMediaContentType : 'IMAGE';
-  const rawAlt = input['alt'];
-  const rawOriginalSource = input['originalSource'];
-  const sourceUrl = typeof rawOriginalSource === 'string' && rawOriginalSource.trim() ? rawOriginalSource : null;
-
-  return {
-    key: `${productId}:media:${position}`,
-    productId,
-    position,
-    id: makeSyntheticMediaId(mediaContentType),
-    mediaContentType,
-    alt: typeof rawAlt === 'string' ? rawAlt : null,
-    status: 'UPLOADED',
-    productImageId: makeSyntheticProductImageId(mediaContentType),
-    imageUrl: null,
-    imageWidth: null,
-    imageHeight: null,
-    previewImageUrl: null,
-    sourceUrl,
-  };
-}
-
-function transitionMediaToProcessing(media: ProductMediaRecord): ProductMediaRecord {
-  return {
-    ...structuredClone(media),
-    status: 'PROCESSING',
-    imageUrl: null,
-    imageWidth: null,
-    imageHeight: null,
-    previewImageUrl: null,
-  };
-}
-
-function transitionMediaToReady(media: ProductMediaRecord): ProductMediaRecord {
-  const readyUrl = media.sourceUrl ?? media.imageUrl ?? media.previewImageUrl ?? null;
-  return {
-    ...structuredClone(media),
-    status: 'READY',
-    imageUrl: readyUrl,
-    previewImageUrl: readyUrl,
-  };
-}
-
-function updateMediaRecord(existing: ProductMediaRecord, input: Record<string, unknown>): ProductMediaRecord {
-  const rawAlt = input['alt'];
-  const rawPreviewImageSource = input['previewImageSource'];
-  const rawOriginalSource = input['originalSource'];
-  const nextImageUrl =
-    typeof rawPreviewImageSource === 'string' && rawPreviewImageSource.trim()
-      ? rawPreviewImageSource
-      : typeof rawOriginalSource === 'string' && rawOriginalSource.trim()
-        ? rawOriginalSource
-        : (existing.imageUrl ?? existing.previewImageUrl ?? existing.sourceUrl ?? null);
-
-  return {
-    ...structuredClone(existing),
-    alt: typeof rawAlt === 'string' ? rawAlt : existing.alt,
-    status: 'READY',
-    imageUrl: nextImageUrl,
-    imageWidth: existing.imageWidth ?? null,
-    imageHeight: existing.imageHeight ?? null,
-    previewImageUrl: nextImageUrl,
-    sourceUrl: existing.sourceUrl ?? nextImageUrl,
-  };
-}
-
-function readOptionValueCreateInput(raw: unknown): ProductOptionRecord['optionValues'][number] | null {
-  if (!isObject(raw)) {
-    return null;
-  }
-
-  const rawName = raw['name'];
-  if (typeof rawName !== 'string' || !rawName.trim()) {
-    return null;
-  }
-
-  return {
-    id: makeSyntheticGid('ProductOptionValue'),
-    name: rawName,
-    hasVariants: false,
-  };
-}
-
-function readOptionValueCreateInputs(raw: unknown): ProductOptionRecord['optionValues'] {
-  if (!Array.isArray(raw)) {
-    return [];
-  }
-
-  return raw
-    .map((value) => readOptionValueCreateInput(value))
-    .filter((value): value is ProductOptionRecord['optionValues'][number] => value !== null);
-}
-
-function makeCreatedOptionRecord(productId: string, input: Record<string, unknown>): ProductOptionRecord {
-  const rawName = input['name'];
-  const optionValues = readOptionValueCreateInputs(input['values']);
-
-  return {
-    id: makeSyntheticGid('ProductOption'),
-    productId,
-    name: typeof rawName === 'string' && rawName.trim() ? rawName : 'Option',
-    position: 0,
-    optionValues,
-  };
-}
-
-function insertOptionAtPosition(
-  options: ProductOptionRecord[],
-  option: ProductOptionRecord,
-  rawPosition: unknown,
-): ProductOptionRecord[] {
-  const nextOptions = options.map((existingOption) => structuredClone(existingOption));
-  const normalizedPosition =
-    typeof rawPosition === 'number' && Number.isInteger(rawPosition) && rawPosition > 0
-      ? Math.min(rawPosition, nextOptions.length + 1)
-      : nextOptions.length + 1;
-
-  nextOptions.splice(normalizedPosition - 1, 0, structuredClone(option));
-  return normalizeOptionPositions(nextOptions);
-}
-
-function productUsesOnlyDefaultOptionState(options: ProductOptionRecord[], variants: ProductVariantRecord[]): boolean {
-  const selectedOptions = variants[0]?.selectedOptions ?? [];
-  const variantUsesDefaultSelection =
-    selectedOptions.length === 0 ||
-    (selectedOptions.length === 1 &&
-      selectedOptions[0]?.name === 'Title' &&
-      selectedOptions[0]?.value === 'Default Title');
-
-  return (
-    options.length === 1 &&
-    options[0]?.name === 'Title' &&
-    options[0]?.optionValues.length === 1 &&
-    options[0]?.optionValues[0]?.name === 'Default Title' &&
-    variants.length === 1 &&
-    variantUsesDefaultSelection
-  );
-}
-
-function remapDefaultVariantToCreatedOptions(
-  variant: ProductVariantRecord,
-  options: ProductOptionRecord[],
-): ProductVariantRecord {
-  const selectedOptions = options
-    .map((option) => {
-      const firstValue = option.optionValues[0]?.name;
-      if (typeof firstValue !== 'string' || !firstValue.trim()) {
-        return null;
-      }
-      return {
-        name: option.name,
-        value: firstValue,
-      };
-    })
-    .filter((value): value is ProductVariantRecord['selectedOptions'][number] => value !== null);
-
-  return {
-    ...structuredClone(variant),
-    title: deriveVariantTitle(null, selectedOptions, 'Default Title'),
-    selectedOptions,
-  };
-}
-
-function restoreDefaultOptionState(
-  product: ProductRecord,
-  variants: ProductVariantRecord[],
-): {
-  options: ProductOptionRecord[];
-  variants: ProductVariantRecord[];
-} {
-  const baseVariant = variants[0] ? structuredClone(variants[0]) : makeDefaultVariantRecord(product);
-  return {
-    options: [makeDefaultOptionRecord(product)],
-    variants: [
-      {
-        ...baseVariant,
-        productId: product.id,
-        title: 'Default Title',
-        selectedOptions: [{ name: 'Title', value: 'Default Title' }],
-      },
-    ],
-  };
-}
-
-function remapVariantSelectionsForOptionUpdate(
-  variants: ProductVariantRecord[],
-  previousOptionName: string,
-  nextOptionName: string,
-  renamedValues: Map<string, string>,
-): ProductVariantRecord[] {
-  return variants.map((variant) => {
-    const selectedOptions = variant.selectedOptions.map((selectedOption) => {
-      if (selectedOption.name !== previousOptionName) {
-        return selectedOption;
-      }
-      return {
-        name: nextOptionName,
-        value: renamedValues.get(selectedOption.value) ?? selectedOption.value,
-      };
-    });
-
-    return {
-      ...structuredClone(variant),
-      title: deriveVariantTitle(null, selectedOptions, variant.title),
-      selectedOptions,
-    };
-  });
-}
-
-function reorderVariantSelectionsForOptions(
-  variants: ProductVariantRecord[],
-  options: ProductOptionRecord[],
-): ProductVariantRecord[] {
-  return variants.map((variant) => {
-    const selectedByName = new Map(
-      variant.selectedOptions.map((selectedOption) => [selectedOption.name, selectedOption]),
-    );
-    const selectedOptions = options
-      .map((option) => selectedByName.get(option.name) ?? null)
-      .filter(
-        (selectedOption): selectedOption is ProductVariantRecord['selectedOptions'][number] => selectedOption !== null,
-      );
-
-    return {
-      ...structuredClone(variant),
-      title: deriveVariantTitle(null, selectedOptions, variant.title),
-      selectedOptions,
-    };
-  });
-}
-
-function updateOptionRecords(
-  productId: string,
-  options: ProductOptionRecord[],
-  variants: ProductVariantRecord[],
-  optionInput: Record<string, unknown>,
-  optionValuesToAddRaw: unknown,
-  optionValuesToUpdateRaw: unknown,
-  optionValuesToDeleteRaw: unknown,
-): { options: ProductOptionRecord[]; variants: ProductVariantRecord[] } | null {
-  const rawOptionId = optionInput['id'];
-  if (typeof rawOptionId !== 'string') {
-    return null;
-  }
-
-  const existingIndex = options.findIndex((option) => option.id === rawOptionId && option.productId === productId);
-  if (existingIndex < 0) {
-    return null;
-  }
-
-  const nextOptions = options.map((option) => structuredClone(option));
-  const existingTarget = nextOptions[existingIndex];
-  if (!existingTarget) {
-    return null;
-  }
-
-  const target = structuredClone(existingTarget);
-  const previousOptionName = existingTarget.name;
-  const renamedValues = new Map<string, string>();
-  const rawName = optionInput['name'];
-  if (typeof rawName === 'string' && rawName.trim()) {
-    target.name = rawName;
-  }
-
-  const deleteIds = Array.isArray(optionValuesToDeleteRaw)
-    ? optionValuesToDeleteRaw.filter((value): value is string => typeof value === 'string')
-    : [];
-  if (deleteIds.length > 0) {
-    target.optionValues = target.optionValues.filter((value) => !deleteIds.includes(value.id));
-  }
-
-  if (Array.isArray(optionValuesToUpdateRaw)) {
-    for (const rawValue of optionValuesToUpdateRaw) {
-      if (!isObject(rawValue)) {
-        continue;
-      }
-
-      const optionValueId = rawValue['id'];
-      const optionValueName = rawValue['name'];
-      if (typeof optionValueId !== 'string' || typeof optionValueName !== 'string' || !optionValueName.trim()) {
-        continue;
-      }
-
-      const existingValue = target.optionValues.find((optionValue) => optionValue.id === optionValueId);
-      if (existingValue) {
-        renamedValues.set(existingValue.name, optionValueName);
-        existingValue.name = optionValueName;
-      }
-    }
-  }
-
-  const optionValuesToAdd = readOptionValueCreateInputs(optionValuesToAddRaw);
-  if (optionValuesToAdd.length > 0) {
-    target.optionValues = [...target.optionValues, ...optionValuesToAdd];
-  }
-
-  nextOptions.splice(existingIndex, 1);
-  const reorderedOptions = insertOptionAtPosition(nextOptions, target, optionInput['position']);
-  const remappedVariants = remapVariantSelectionsForOptionUpdate(
-    variants,
-    previousOptionName,
-    target.name,
-    renamedValues,
-  );
-  return {
-    options: reorderedOptions,
-    variants: reorderVariantSelectionsForOptions(remappedVariants, reorderedOptions),
-  };
-}
-
-function deleteOptionRecords(
-  productId: string,
-  options: ProductOptionRecord[],
-  rawOptionIds: unknown,
-): { options: ProductOptionRecord[]; deletedOptionIds: string[] } {
-  const optionIds = Array.isArray(rawOptionIds)
-    ? rawOptionIds.filter((value): value is string => typeof value === 'string')
-    : [];
-  const deletedOptionIds = options
-    .filter((option) => option.productId === productId && optionIds.includes(option.id))
-    .map((option) => option.id);
-  const nextOptions = options.filter((option) => !(option.productId === productId && optionIds.includes(option.id)));
-
-  return {
-    options: normalizeOptionPositions(nextOptions),
-    deletedOptionIds,
-  };
-}
-
-function buildProductSetOptionRecords(productId: string, rawOptions: unknown): ProductOptionRecord[] {
-  const existingOptions = store.getEffectiveOptionsByProductId(productId);
-  const existingOptionsById = new Map(existingOptions.map((option) => [option.id, option]));
-
-  if (!Array.isArray(rawOptions)) {
-    return [];
-  }
-
-  return normalizeOptionPositions(
-    rawOptions
-      .filter((value): value is Record<string, unknown> => isObject(value))
-      .map((value, index) => {
-        const rawId = value['id'];
-        const existing = typeof rawId === 'string' ? (existingOptionsById.get(rawId) ?? null) : null;
-        const created = makeCreatedOptionRecord(productId, value);
-        const optionValuesInput = Array.isArray(value['values']) ? value['values'] : [];
-        const existingValuesById = new Map(
-          (existing?.optionValues ?? []).map((optionValue) => [optionValue.id, optionValue]),
-        );
-        const optionValues = optionValuesInput
-          .filter((entry): entry is Record<string, unknown> => isObject(entry))
-          .map((entry) => {
-            const rawValueId = entry['id'];
-            const rawValueName = entry['name'];
-            const existingValue = typeof rawValueId === 'string' ? (existingValuesById.get(rawValueId) ?? null) : null;
-            return {
-              id: existingValue?.id ?? makeSyntheticGid('ProductOptionValue'),
-              name:
-                typeof rawValueName === 'string' && rawValueName.trim()
-                  ? rawValueName
-                  : (existingValue?.name ?? 'Option value'),
-              hasVariants: existingValue?.hasVariants ?? false,
-            };
-          });
-
-        return {
-          id: existing?.id ?? created.id,
-          productId,
-          name:
-            typeof value['name'] === 'string' && value['name'].trim()
-              ? value['name']
-              : (existing?.name ?? created.name),
-          position: typeof value['position'] === 'number' ? value['position'] : index + 1,
-          optionValues,
-        };
-      }),
-  );
 }
 
 function readSelectedOptionsInput(raw: unknown): ProductVariantRecord['selectedOptions'] {
@@ -2045,17 +1269,6 @@ function readVariantSku(input: Record<string, unknown>, fallback: string | null)
   }
 
   return fallback;
-}
-
-const DEFAULT_INVENTORY_LEVEL_LOCATION_ID = 'gid://shopify/Location/1';
-
-function buildStableSyntheticInventoryLevelId(inventoryItemId: string, locationId: string): string {
-  const inventoryItemTail = inventoryItemId.split('/').at(-1) ?? encodeURIComponent(inventoryItemId);
-  const locationTail = locationId.split('/').at(-1) ?? encodeURIComponent(locationId);
-
-  return `gid://shopify/InventoryLevel/${inventoryItemTail}-${locationTail}?inventory_item_id=${encodeURIComponent(
-    inventoryItemId,
-  )}`;
 }
 
 function makeDefaultInventoryItemMeasurement(): NonNullable<
@@ -2315,22 +1528,6 @@ function applyProductSetInventoryQuantitiesToVariant(
       inventoryLevels,
     },
   };
-}
-
-function deriveVariantTitle(
-  rawTitle: unknown,
-  selectedOptions: ProductVariantRecord['selectedOptions'],
-  fallbackTitle: string,
-): string {
-  if (typeof rawTitle === 'string' && rawTitle.trim()) {
-    return rawTitle;
-  }
-
-  const selectedOptionTitle = selectedOptions
-    .map((selectedOption) => selectedOption.value)
-    .join(' / ')
-    .trim();
-  return selectedOptionTitle || fallbackTitle;
 }
 
 function makeCreatedVariantRecord(
@@ -3293,41 +2490,6 @@ function isOnHandComponentQuantityName(name: string): boolean {
     INVENTORY_QUANTITY_NAME_DEFINITIONS.find((definition) => definition.name === name)?.belongsTo.includes('on_hand') ??
     false
   );
-}
-
-function readInventoryQuantityAmount(
-  quantities: InventoryLevelRecord['quantities'],
-  name: string,
-  fallback = 0,
-): number {
-  return quantities.find((quantity) => quantity.name === name)?.quantity ?? fallback;
-}
-
-function writeInventoryQuantityAmount(
-  quantities: InventoryLevelRecord['quantities'],
-  name: string,
-  quantity: number,
-): InventoryLevelRecord['quantities'] {
-  const existingIndex = quantities.findIndex((candidate) => candidate.name === name);
-  if (existingIndex >= 0) {
-    return quantities.map((candidate, index) =>
-      index === existingIndex ? { ...candidate, quantity, updatedAt: makeSyntheticTimestamp() } : candidate,
-    );
-  }
-
-  return [...quantities, { name, quantity, updatedAt: makeSyntheticTimestamp() }];
-}
-
-function addInventoryQuantityAmount(
-  quantities: InventoryLevelRecord['quantities'],
-  name: string,
-  delta: number,
-): InventoryLevelRecord['quantities'] {
-  return writeInventoryQuantityAmount(quantities, name, readInventoryQuantityAmount(quantities, name) + delta);
-}
-
-function sumAvailableInventoryLevels(levels: InventoryLevelRecord[]): number {
-  return levels.reduce((total, level) => total + readInventoryQuantityAmount(level.quantities, 'available'), 0);
 }
 
 function getInventoryMutableVariant(
