@@ -882,7 +882,10 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       setGraphQLResponse(
         request,
         upstreamResponse.status,
-        store.hasStagedProducts() || store.hasStagedSellingPlanGroups()
+        store.hasStagedProducts() ||
+          store.hasStagedSellingPlanGroups() ||
+          store.hasStagedInventoryTransfers() ||
+          store.hasInventoryShipments()
           ? handleProductQuery(request.body.query, request.variables, request.config.readMode)
           : upstreamResponse.body,
       );
