@@ -668,6 +668,20 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
+    packageScript: 'conformance:capture-customer-input-validation',
+    scriptPath: 'scripts/capture-customer-input-validation-conformance.ts',
+    purpose: 'CustomerInput validation, normalization, duplicate identity, and state-invariance branches.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'read_customer_merge', 'write_customer_merge'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-input-validation-parity.json`,
+      'config/parity-specs/customerInputValidation-parity.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable customers for validation and merge/delete probes, then deletes remaining records.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
     packageScript: 'conformance:capture-customer-order-summary',
     scriptPath: 'scripts/capture-customer-order-summary-conformance.ts',
     purpose: 'Customer order summary reads against order-linked customer state.',
