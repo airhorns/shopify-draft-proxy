@@ -6,6 +6,7 @@ import type {
   B2BCompanyContactRoleRecord,
   B2BCompanyLocationRecord,
   B2BCompanyRecord,
+  BulkOperationRecord,
   BusinessEntityRecord,
   CalculatedOrderRecord,
   CarrierServiceRecord,
@@ -110,6 +111,8 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   onlineStorePageOrder: [],
   onlineStoreComments: {},
   onlineStoreCommentOrder: [],
+  bulkOperations: {},
+  bulkOperationOrder: [],
   discounts: {},
   discountBulkOperations: {},
   paymentCustomizations: {},
@@ -1135,6 +1138,76 @@ export class InMemoryStore {
       Object.keys(this.stagedState.deletedOnlineStorePageIds).length > 0 ||
       Object.keys(this.stagedState.deletedOnlineStoreCommentIds).length > 0
     );
+  }
+
+  upsertBaseBulkOperations(operations: BulkOperationRecord[]): void {
+    for (const operation of operations) {
+      this.baseState.bulkOperations[operation.id] = structuredClone(operation);
+      if (!this.baseState.bulkOperationOrder.includes(operation.id)) {
+        this.baseState.bulkOperationOrder.push(operation.id);
+      }
+    }
+  }
+
+  stageBulkOperation(operation: BulkOperationRecord): BulkOperationRecord {
+    this.stagedState.bulkOperations[operation.id] = structuredClone(operation);
+    if (
+      !this.baseState.bulkOperationOrder.includes(operation.id) &&
+      !this.stagedState.bulkOperationOrder.includes(operation.id)
+    ) {
+      this.stagedState.bulkOperationOrder.push(operation.id);
+    }
+    return structuredClone(operation);
+  }
+
+  getEffectiveBulkOperationById(operationId: string): BulkOperationRecord | null {
+    const operation =
+      this.stagedState.bulkOperations[operationId] ?? this.baseState.bulkOperations[operationId] ?? null;
+    return operation ? structuredClone(operation) : null;
+  }
+
+  getStagedBulkOperationById(operationId: string): BulkOperationRecord | null {
+    const operation = this.stagedState.bulkOperations[operationId] ?? null;
+    return operation ? structuredClone(operation) : null;
+  }
+
+  listEffectiveBulkOperations(): BulkOperationRecord[] {
+    const orderedIds = new Set([...this.baseState.bulkOperationOrder, ...this.stagedState.bulkOperationOrder]);
+    const orderedOperations = [...orderedIds]
+      .map((operationId) => this.getEffectiveBulkOperationById(operationId))
+      .filter((operation): operation is BulkOperationRecord => operation !== null);
+    const unorderedOperations = Object.values({
+      ...this.baseState.bulkOperations,
+      ...this.stagedState.bulkOperations,
+    })
+      .filter((operation) => !orderedIds.has(operation.id))
+      .sort(
+        (left, right) => right.createdAt.localeCompare(left.createdAt) || compareShopifyResourceIds(left.id, right.id),
+      )
+      .map((operation) => structuredClone(operation));
+
+    return [...orderedOperations, ...unorderedOperations];
+  }
+
+  cancelStagedBulkOperation(operationId: string): BulkOperationRecord | null {
+    const operation = this.stagedState.bulkOperations[operationId] ?? null;
+    if (!operation) {
+      return null;
+    }
+
+    operation.status = 'CANCELING';
+    operation.completedAt = null;
+    return structuredClone(operation);
+  }
+
+  hasBulkOperations(): boolean {
+    return (
+      Object.keys(this.baseState.bulkOperations).length > 0 || Object.keys(this.stagedState.bulkOperations).length > 0
+    );
+  }
+
+  hasStagedBulkOperations(): boolean {
+    return Object.keys(this.stagedState.bulkOperations).length > 0;
   }
 
   stageCreateSegment(segment: SegmentRecord): SegmentRecord {

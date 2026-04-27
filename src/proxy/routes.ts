@@ -10,6 +10,7 @@ import { createUpstreamGraphQLClient } from '../shopify/upstream-client.js';
 import { requestUpstreamGraphQL } from '../shopify/upstream-request.js';
 import { ADMIN_PLATFORM_QUERY_ROOTS, FLOW_UTILITY_MUTATION_ROOTS, handleAdminPlatformQuery } from './admin-platform.js';
 import { handleB2BQuery } from './b2b.js';
+import { handleBulkOperationMutation, handleBulkOperationQuery } from './bulk-operations.js';
 import { getOperationCapability, type OperationCapability } from './capabilities.js';
 import { findOperationRegistryEntry } from './operation-registry.js';
 import { handleMediaMutation, handleMediaQuery } from './media.js';
@@ -421,6 +422,33 @@ export function createProxyRouter(config: AppConfig): Router {
     const primaryRootField = parsed.rootFields[0] ?? capability.operationName;
 
     if (parsed.type === 'mutation') {
+      if (
+        capability.execution === 'stage-locally' &&
+        capability.domain === 'bulk-operations' &&
+        primaryRootField === 'bulkOperationCancel'
+      ) {
+        const bulkOperationMutation = handleBulkOperationMutation(body.query, variables);
+        if (bulkOperationMutation) {
+          store.appendLog({
+            id: makeSyntheticGid('MutationLogEntry'),
+            receivedAt: makeSyntheticTimestamp(),
+            operationName: capability.operationName,
+            path: ctx.path,
+            query: body.query,
+            variables,
+            requestBody,
+            stagedResourceIds: bulkOperationMutation.stagedResourceIds,
+            status: 'staged',
+            interpreted: interpretMutationLogEntry(parsed, capability),
+            notes: bulkOperationMutation.notes,
+          });
+
+          ctx.status = 200;
+          ctx.body = bulkOperationMutation.response;
+          return;
+        }
+      }
+
       const discountMutation = handleDiscountMutation(body.query, variables);
       if (discountMutation) {
         proxyLogger.debug(
@@ -1190,6 +1218,14 @@ export function createProxyRouter(config: AppConfig): Router {
       if (config.readMode === 'live-hybrid' && store.hasDiscounts()) {
         ctx.status = 200;
         ctx.body = handleDiscountQuery(body.query, variables);
+        return;
+      }
+    }
+
+    if (capability.execution === 'overlay-read' && capability.domain === 'bulk-operations') {
+      if (config.readMode === 'snapshot' || (config.readMode === 'live-hybrid' && store.hasBulkOperations())) {
+        ctx.status = 200;
+        ctx.body = handleBulkOperationQuery(body.query, variables);
         return;
       }
     }

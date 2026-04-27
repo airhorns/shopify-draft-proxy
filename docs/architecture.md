@@ -181,6 +181,14 @@ Marketing-domain state keeps activity/event records and engagement metrics toget
 - `marketingEngagementCreate` stages metric records keyed by the observed target and `occurredOn`, preserving duplicate same-day replacement behavior without inventing an engagement read root
 - immediate activity/event aggregate reads stay faithful to captured Shopify behavior; for HAR-214 activity-level engagement writes did not materialize into `MarketingActivity.adSpend` on immediate downstream reads, so the local engagement records are visible through meta state/logs rather than fabricated aggregate attribution
 
+Bulk Operations state is normalized as a shared job foundation rather than as product-, discount-, or metaobject-specific bulk behavior:
+
+- `BulkOperation` jobs live in base/staged state with status, type, timestamps, counters, result URL fields, partial-data URL fields, error code, and original query text
+- snapshot reads for `bulkOperation`, `bulkOperations`, and deprecated `currentBulkOperation` resolve from effective local state and return Shopify-like null/empty structures when no job exists
+- `bulkOperations` uses the shared connection helpers for cursor windowing, `nodes`/`edges`, and selected `pageInfo`, while keeping BulkOperation-specific sort/filter decisions in the endpoint module
+- `bulkOperationCancel` mutates only staged jobs, records the local cancel attempt in the mutation log, and returns captured userErrors for unknown or terminal operations without proxying supported cancel attempts upstream
+- `bulkOperationRunQuery` and `bulkOperationRunMutation` are still unsupported execution roots; the local job model is only the read/cancel foundation until export/import lifecycle staging is implemented
+
 ## Mutation handling strategy
 
 Mutation handling should eventually have four steps:
