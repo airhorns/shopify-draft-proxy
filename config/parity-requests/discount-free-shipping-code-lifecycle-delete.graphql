@@ -1,0 +1,11 @@
+mutation DiscountCodeFreeShippingLifecycleDelete($id: ID!) {
+  discountCodeDelete(id: $id) {
+    deletedCodeDiscountId
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

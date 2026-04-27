@@ -1,0 +1,16 @@
+query BulkOperationByIdParity($id: ID!) {
+  bulkOperation(id: $id) {
+    id
+    status
+    type
+    errorCode
+    createdAt
+    completedAt
+    objectCount
+    rootObjectCount
+    fileSize
+    url
+    partialDataUrl
+    query
+  }
+}

@@ -23,24 +23,278 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discount-free-shipping-lifecycle.json"
   ],
   "runtimeTestFiles": ["tests/integration/discount-free-shipping-lifecycle-flow.test.ts"],
-  "comparisonMode": "captured-fixture",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discount-free-shipping-lifecycle-create.graphql",
+    "variables": {
+      "codeInput": {
+        "fromCapturePath": "$.requests.codeCreate.variables.input"
+      },
+      "automaticInput": {
+        "fromCapturePath": "$.requests.automaticCreate.variables.input"
+      }
+    }
+  },
+  "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "capture-only-code-free-shipping-create-payload",
-        "capturePath": "$.codeCreate.payload.data.discountCodeFreeShippingCreate",
-        "proxyPath": "$.data.discountCodeFreeShippingCreate",
-        "upstreamCapturePath": null
+        "name": "code-free-shipping-create-selected-fields",
+        "capturePath": "$.codeCreate.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.discountCodeFreeShippingCreate.codeDiscountNode.codeDiscount.__typename",
+          "$.discountCodeFreeShippingCreate.codeDiscountNode.codeDiscount.title",
+          "$.discountCodeFreeShippingCreate.codeDiscountNode.codeDiscount.asyncUsageCount",
+          "$.discountCodeFreeShippingCreate.codeDiscountNode.codeDiscount.discountClasses",
+          "$.discountCodeFreeShippingCreate.codeDiscountNode.codeDiscount.combinesWith",
+          "$.discountCodeFreeShippingCreate.codeDiscountNode.codeDiscount.codes.nodes[0].code",
+          "$.discountCodeFreeShippingCreate.codeDiscountNode.codeDiscount.codes.nodes[0].asyncUsageCount",
+          "$.discountCodeFreeShippingCreate.codeDiscountNode.codeDiscount.destinationSelection",
+          "$.discountCodeFreeShippingCreate.codeDiscountNode.codeDiscount.maximumShippingPrice",
+          "$.discountCodeFreeShippingCreate.codeDiscountNode.codeDiscount.appliesOncePerCustomer",
+          "$.discountCodeFreeShippingCreate.codeDiscountNode.codeDiscount.appliesOnOneTimePurchase",
+          "$.discountCodeFreeShippingCreate.codeDiscountNode.codeDiscount.appliesOnSubscription",
+          "$.discountCodeFreeShippingCreate.codeDiscountNode.codeDiscount.recurringCycleLimit",
+          "$.discountCodeFreeShippingCreate.codeDiscountNode.codeDiscount.usageLimit",
+          "$.discountCodeFreeShippingCreate.userErrors"
+        ]
       },
       {
-        "name": "capture-only-automatic-free-shipping-create-payload",
-        "capturePath": "$.automaticCreate.payload.data.discountAutomaticFreeShippingCreate",
-        "proxyPath": "$.data.discountAutomaticFreeShippingCreate",
-        "upstreamCapturePath": null
+        "name": "automatic-free-shipping-create-selected-fields",
+        "capturePath": "$.automaticCreate.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.discountAutomaticFreeShippingCreate.automaticDiscountNode.automaticDiscount.__typename",
+          "$.discountAutomaticFreeShippingCreate.automaticDiscountNode.automaticDiscount.title",
+          "$.discountAutomaticFreeShippingCreate.automaticDiscountNode.automaticDiscount.asyncUsageCount",
+          "$.discountAutomaticFreeShippingCreate.automaticDiscountNode.automaticDiscount.discountClasses",
+          "$.discountAutomaticFreeShippingCreate.automaticDiscountNode.automaticDiscount.combinesWith",
+          "$.discountAutomaticFreeShippingCreate.automaticDiscountNode.automaticDiscount.destinationSelection",
+          "$.discountAutomaticFreeShippingCreate.automaticDiscountNode.automaticDiscount.maximumShippingPrice",
+          "$.discountAutomaticFreeShippingCreate.automaticDiscountNode.automaticDiscount.appliesOnOneTimePurchase",
+          "$.discountAutomaticFreeShippingCreate.automaticDiscountNode.automaticDiscount.appliesOnSubscription",
+          "$.discountAutomaticFreeShippingCreate.automaticDiscountNode.automaticDiscount.recurringCycleLimit",
+          "$.discountAutomaticFreeShippingCreate.userErrors"
+        ]
+      },
+      {
+        "name": "code-free-shipping-update-selected-fields",
+        "capturePath": "$.codeUpdate.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.discountCodeFreeShippingUpdate.codeDiscountNode.codeDiscount.__typename",
+          "$.discountCodeFreeShippingUpdate.codeDiscountNode.codeDiscount.title",
+          "$.discountCodeFreeShippingUpdate.codeDiscountNode.codeDiscount.destinationSelection",
+          "$.discountCodeFreeShippingUpdate.codeDiscountNode.codeDiscount.maximumShippingPrice",
+          "$.discountCodeFreeShippingUpdate.codeDiscountNode.codeDiscount.appliesOncePerCustomer",
+          "$.discountCodeFreeShippingUpdate.codeDiscountNode.codeDiscount.appliesOnOneTimePurchase",
+          "$.discountCodeFreeShippingUpdate.codeDiscountNode.codeDiscount.appliesOnSubscription",
+          "$.discountCodeFreeShippingUpdate.codeDiscountNode.codeDiscount.recurringCycleLimit",
+          "$.discountCodeFreeShippingUpdate.codeDiscountNode.codeDiscount.usageLimit",
+          "$.discountCodeFreeShippingUpdate.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discount-free-shipping-code-lifecycle-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountCodeFreeShippingCreate.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.requests.codeUpdate.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "automatic-free-shipping-update-selected-fields",
+        "capturePath": "$.automaticUpdate.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.discountAutomaticFreeShippingUpdate.automaticDiscountNode.automaticDiscount.__typename",
+          "$.discountAutomaticFreeShippingUpdate.automaticDiscountNode.automaticDiscount.title",
+          "$.discountAutomaticFreeShippingUpdate.automaticDiscountNode.automaticDiscount.destinationSelection",
+          "$.discountAutomaticFreeShippingUpdate.automaticDiscountNode.automaticDiscount.maximumShippingPrice",
+          "$.discountAutomaticFreeShippingUpdate.automaticDiscountNode.automaticDiscount.appliesOnOneTimePurchase",
+          "$.discountAutomaticFreeShippingUpdate.automaticDiscountNode.automaticDiscount.appliesOnSubscription",
+          "$.discountAutomaticFreeShippingUpdate.automaticDiscountNode.automaticDiscount.recurringCycleLimit",
+          "$.discountAutomaticFreeShippingUpdate.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discount-free-shipping-automatic-lifecycle-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountAutomaticFreeShippingCreate.automaticDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.requests.automaticUpdate.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "free-shipping-read-after-update",
+        "capturePath": "$.readAfterUpdate.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.discountNode.discount.__typename",
+          "$.discountNode.discount.title",
+          "$.automaticDiscountNode.automaticDiscount.__typename",
+          "$.automaticDiscountNode.automaticDiscount.title"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discount-free-shipping-lifecycle-read.graphql",
+          "variables": {
+            "codeId": {
+              "fromPrimaryProxyPath": "$.data.discountCodeFreeShippingCreate.codeDiscountNode.id"
+            },
+            "automaticId": {
+              "fromPrimaryProxyPath": "$.data.discountAutomaticFreeShippingCreate.automaticDiscountNode.id"
+            },
+            "code": {
+              "fromCapturePath": "$.variables.updatedCode"
+            }
+          }
+        }
+      },
+      {
+        "name": "code-free-shipping-deactivate-status",
+        "capturePath": "$.codeDeactivate.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.discountCodeDeactivate.codeDiscountNode.codeDiscount.__typename",
+          "$.discountCodeDeactivate.codeDiscountNode.codeDiscount.title",
+          "$.discountCodeDeactivate.codeDiscountNode.codeDiscount.status",
+          "$.discountCodeDeactivate.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discount-free-shipping-code-lifecycle-deactivate.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountCodeFreeShippingCreate.codeDiscountNode.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "automatic-free-shipping-deactivate-status",
+        "capturePath": "$.automaticDeactivate.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.discountAutomaticDeactivate.automaticDiscountNode.automaticDiscount.__typename",
+          "$.discountAutomaticDeactivate.automaticDiscountNode.automaticDiscount.title",
+          "$.discountAutomaticDeactivate.automaticDiscountNode.automaticDiscount.status",
+          "$.discountAutomaticDeactivate.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discount-free-shipping-automatic-lifecycle-deactivate.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountAutomaticFreeShippingCreate.automaticDiscountNode.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "code-free-shipping-activate-status",
+        "capturePath": "$.codeActivate.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.discountCodeActivate.codeDiscountNode.codeDiscount.__typename",
+          "$.discountCodeActivate.codeDiscountNode.codeDiscount.title",
+          "$.discountCodeActivate.codeDiscountNode.codeDiscount.status",
+          "$.discountCodeActivate.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discount-free-shipping-code-lifecycle-activate.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountCodeFreeShippingCreate.codeDiscountNode.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "automatic-free-shipping-activate-status",
+        "capturePath": "$.automaticActivate.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.discountAutomaticActivate.automaticDiscountNode.automaticDiscount.__typename",
+          "$.discountAutomaticActivate.automaticDiscountNode.automaticDiscount.title",
+          "$.discountAutomaticActivate.automaticDiscountNode.automaticDiscount.status",
+          "$.discountAutomaticActivate.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discount-free-shipping-automatic-lifecycle-activate.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountAutomaticFreeShippingCreate.automaticDiscountNode.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "code-free-shipping-delete-user-errors",
+        "capturePath": "$.codeDelete.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.discountCodeDelete.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discount-free-shipping-code-lifecycle-delete.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountCodeFreeShippingCreate.codeDiscountNode.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "automatic-free-shipping-delete-user-errors",
+        "capturePath": "$.automaticDelete.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.discountAutomaticDelete.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discount-free-shipping-automatic-lifecycle-delete.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountAutomaticFreeShippingCreate.automaticDiscountNode.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "free-shipping-read-after-delete",
+        "capturePath": "$.readAfterDelete.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.discountNode", "$.codeDiscountNodeByCode", "$.automaticDiscountNode"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discount-free-shipping-lifecycle-read.graphql",
+          "variables": {
+            "codeId": {
+              "fromPrimaryProxyPath": "$.data.discountCodeFreeShippingCreate.codeDiscountNode.id"
+            },
+            "automaticId": {
+              "fromPrimaryProxyPath": "$.data.discountAutomaticFreeShippingCreate.automaticDiscountNode.id"
+            },
+            "code": {
+              "fromCapturePath": "$.variables.updatedCode"
+            }
+          }
+        }
       }
     ]
   },
-  "notes": "Captured 2026-04 native DiscountCodeFreeShipping and DiscountAutomaticFreeShipping create, update, shared deactivate/activate/delete cleanup, selected destination/minimum/max-shipping/recurring applicability fields, and downstream read roots. Runtime parity is covered by tests/integration/discount-free-shipping-lifecycle-flow.test.ts; executable mutation-lifecycle parity can be promoted when the parity runner supports full multi-root staged lifecycle replay for this scenario."
+  "notes": "Promoted from captured-fixture to executable proxy comparison for 2026-04 DiscountCodeFreeShipping and DiscountAutomaticFreeShipping create, update, shared activate/deactivate/delete cleanup, and singular downstream reads. Targets compare deterministic selected fields from the captured fixture while leaving live IDs, timestamps, generated summaries, pre-existing catalog rows, and opaque cursors out of the contract."
 }
