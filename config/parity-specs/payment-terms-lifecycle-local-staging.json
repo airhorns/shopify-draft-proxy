@@ -1,0 +1,21 @@
+{
+  "scenarioId": "payment-terms-lifecycle-local-staging",
+  "operationNames": ["paymentTermsCreate", "paymentTermsUpdate", "paymentTermsDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "runtime-staging",
+    "downstream-read-parity",
+    "mutation-log-replay",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/payment-terms-lifecycle-local-staging.json"],
+  "runtimeTestFiles": ["tests/integration/payment-terms-lifecycle-flow.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "notes": "HAR-222 local-runtime fixture for paymentTermsCreate/update/delete. Shopify documents the 2026-04 standalone mutation/input shapes, and HAR-221 captured the paymentTermsTemplates catalog used for template projection. Live success-path parity still requires a disposable order or draft order because these mutations alter payment schedules and payment status; the integration test enforces local staging, downstream reads, validation guardrails, no runtime upstream writes, and raw mutation order for commit replay."
+}

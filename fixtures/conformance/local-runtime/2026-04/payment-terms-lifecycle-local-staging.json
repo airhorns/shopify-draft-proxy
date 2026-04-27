@@ -1,0 +1,21 @@
+{
+  "fixtureKind": "local-runtime-payment-terms-lifecycle",
+  "apiVersion": "2026-04",
+  "evidence": {
+    "source": "tests/integration/payment-terms-lifecycle-flow.test.ts",
+    "notes": [
+      "Local runtime fixture for HAR-222 because standalone payment terms happy paths mutate real order payment schedules in Shopify.",
+      "The integration test creates local order and draft-order targets, stages paymentTermsCreate/update/delete without upstream fetch, verifies downstream paymentTerms reads, and verifies raw mutation log order for commit replay."
+    ]
+  },
+  "supportedOperations": ["paymentTermsCreate", "paymentTermsUpdate", "paymentTermsDelete"],
+  "validationBranches": [
+    "unknown reference order/draft-order id",
+    "missing paymentTermsTemplateId",
+    "unknown paymentTermsTemplateId",
+    "NET schedule missing issuedAt",
+    "FIXED schedule missing dueAt",
+    "unknown paymentTermsId on update",
+    "duplicate or unknown paymentTermsId on delete"
+  ]
+}

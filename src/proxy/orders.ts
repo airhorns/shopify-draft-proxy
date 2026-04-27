@@ -1,4 +1,4 @@
-import { Kind, type FieldNode, type ObjectValueNode } from 'graphql';
+import { Kind, valueFromASTUntyped, type FieldNode, type ObjectValueNode } from 'graphql';
 
 import type { ReadMode } from '../config.js';
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
@@ -66,6 +66,8 @@ import type {
   OrderTaxLineRecord,
   OrderTransactionRecord,
 } from '../state/types.js';
+
+type MutationUserError = { field: string[] | null; message: string; code?: string | null };
 
 function getSelectedChildFields(field: FieldNode): FieldNode[] {
   return getGraphQLSelectedChildFields(field, { includeInlineFragments: true });
@@ -414,6 +416,191 @@ function normalizeDraftOrderPaymentTerms(
     translatedName: template?.translatedName ?? name,
     paymentSchedules: normalizedSchedules,
   };
+}
+
+function readInputObjectArgument(
+  field: FieldNode,
+  argumentName: string,
+  variables: Record<string, unknown>,
+  fallbackVariableName: string,
+): Record<string, unknown> | null {
+  const argument = field.arguments?.find((candidate) => candidate.name.value === argumentName) ?? null;
+  if (argument) {
+    const value =
+      argument.value.kind === Kind.VARIABLE
+        ? variables[argument.value.name.value]
+        : valueFromASTUntyped(argument.value, variables);
+    return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
+  }
+
+  const fallback = variables[fallbackVariableName];
+  return typeof fallback === 'object' && fallback !== null ? (fallback as Record<string, unknown>) : null;
+}
+
+function validationPath(prefix: string[], suffix: string[]): string[] {
+  return [...prefix, ...suffix];
+}
+
+function validatePaymentTermsAttributes(
+  raw: unknown,
+  fieldPrefix: string[],
+): { templateId: string; userErrors: [] } | { templateId: null; userErrors: MutationUserError[] } {
+  const input = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
+  const templateId = readString(input['paymentTermsTemplateId']);
+  if (!templateId) {
+    return {
+      templateId: null,
+      userErrors: [
+        {
+          field: validationPath(fieldPrefix, ['paymentTermsTemplateId']),
+          message: 'Payment terms template id can not be empty.',
+          code: 'PAYMENT_TERMS_TEMPLATE_ID_EMPTY',
+        },
+      ],
+    };
+  }
+
+  const template = store.getEffectivePaymentTermsTemplateById(templateId);
+  if (!template) {
+    return {
+      templateId: null,
+      userErrors: [
+        {
+          field: validationPath(fieldPrefix, ['paymentTermsTemplateId']),
+          message: 'Payment terms template does not exist.',
+          code: 'PAYMENT_TERMS_TEMPLATE_NOT_FOUND',
+        },
+      ],
+    };
+  }
+
+  const schedules = Array.isArray(input['paymentSchedules']) ? input['paymentSchedules'] : [];
+  const firstSchedule = schedules[0];
+  const firstScheduleRecord =
+    typeof firstSchedule === 'object' && firstSchedule !== null ? (firstSchedule as Record<string, unknown>) : {};
+
+  if (template.paymentTermsType === 'NET' && !readString(firstScheduleRecord['issuedAt'])) {
+    return {
+      templateId: null,
+      userErrors: [
+        {
+          field: validationPath(fieldPrefix, ['paymentSchedules', '0', 'issuedAt']),
+          message: 'Issued at must be provided for net payment terms.',
+          code: 'PAYMENT_SCHEDULE_INVALID',
+        },
+      ],
+    };
+  }
+
+  if (template.paymentTermsType === 'FIXED' && !readString(firstScheduleRecord['dueAt'])) {
+    return {
+      templateId: null,
+      userErrors: [
+        {
+          field: validationPath(fieldPrefix, ['paymentSchedules', '0', 'dueAt']),
+          message: 'Due at must be provided for fixed payment terms.',
+          code: 'PAYMENT_SCHEDULE_INVALID',
+        },
+      ],
+    };
+  }
+
+  return { templateId, userErrors: [] };
+}
+
+function buildPaymentTermsFromAttributes(
+  raw: unknown,
+  paymentTermsTemplateId: string,
+  amountSet: { shopMoney: MoneyV2Record } | null | undefined,
+  existing: DraftOrderPaymentTermsRecord | null = null,
+): DraftOrderPaymentTermsRecord {
+  const input = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
+  const template = store.getEffectivePaymentTermsTemplateById(paymentTermsTemplateId);
+  const schedules = Array.isArray(input['paymentSchedules']) ? input['paymentSchedules'] : [];
+  const existingSchedules = existing?.paymentSchedules ?? [];
+  const normalizedSchedules = schedules
+    .filter((schedule): schedule is Record<string, unknown> => typeof schedule === 'object' && schedule !== null)
+    .map((schedule, index) => ({
+      id: existingSchedules[index]?.id ?? makeSyntheticGid('PaymentSchedule'),
+      dueAt: readString(schedule['dueAt']),
+      issuedAt: readString(schedule['issuedAt']),
+      completedAt: readString(schedule['completedAt']),
+      completed: readBoolean(schedule['completed'], existingSchedules[index]?.completed ?? false),
+      due: typeof schedule['due'] === 'boolean' ? schedule['due'] : (existingSchedules[index]?.due ?? false),
+      amount: normalizePaymentScheduleAmount(amountSet),
+      balanceDue: normalizePaymentScheduleAmount(amountSet),
+      totalBalance: normalizePaymentScheduleAmount(amountSet),
+    }));
+
+  return {
+    id: existing?.id ?? makeSyntheticGid('PaymentTerms'),
+    due: normalizedSchedules.some((schedule) => schedule.due === true),
+    overdue: false,
+    dueInDays: template?.dueInDays ?? null,
+    paymentTermsName: template?.name ?? 'Custom payment terms',
+    paymentTermsType: template?.paymentTermsType ?? 'UNKNOWN',
+    translatedName: template?.translatedName ?? template?.name ?? 'Custom payment terms',
+    paymentSchedules: normalizedSchedules,
+  };
+}
+
+type PaymentTermsOwner =
+  | { kind: 'order'; record: OrderRecord; paymentTerms: DraftOrderPaymentTermsRecord | null }
+  | { kind: 'draftOrder'; record: DraftOrderRecord; paymentTerms: DraftOrderPaymentTermsRecord | null };
+
+function findPaymentTermsOwnerByReferenceId(referenceId: string | null): PaymentTermsOwner | null {
+  if (!referenceId) {
+    return null;
+  }
+
+  const order = store.getOrderById(referenceId);
+  if (order) {
+    return { kind: 'order', record: order, paymentTerms: order.paymentTerms ?? null };
+  }
+
+  const draftOrder = store.getDraftOrderById(referenceId);
+  if (draftOrder) {
+    return { kind: 'draftOrder', record: draftOrder, paymentTerms: draftOrder.paymentTerms };
+  }
+
+  return null;
+}
+
+function findPaymentTermsOwnerByPaymentTermsId(paymentTermsId: string | null): PaymentTermsOwner | null {
+  if (!paymentTermsId) {
+    return null;
+  }
+
+  for (const order of store.getOrders()) {
+    if (order.paymentTerms?.id === paymentTermsId) {
+      return { kind: 'order', record: order, paymentTerms: order.paymentTerms };
+    }
+  }
+
+  for (const draftOrder of store.getDraftOrders()) {
+    if (draftOrder.paymentTerms?.id === paymentTermsId) {
+      return { kind: 'draftOrder', record: draftOrder, paymentTerms: draftOrder.paymentTerms };
+    }
+  }
+
+  return null;
+}
+
+function storePaymentTermsOwner(owner: PaymentTermsOwner, paymentTerms: DraftOrderPaymentTermsRecord | null): void {
+  if (owner.kind === 'order') {
+    store.updateOrder({
+      ...owner.record,
+      updatedAt: makeSyntheticTimestamp(),
+      paymentTerms: paymentTerms ? structuredClone(paymentTerms) : null,
+    });
+    return;
+  }
+
+  store.updateDraftOrder({
+    ...owner.record,
+    updatedAt: makeSyntheticTimestamp(),
+    paymentTerms: paymentTerms ? structuredClone(paymentTerms) : null,
+  });
 }
 
 function normalizeOrderMetafields(
@@ -5535,7 +5722,7 @@ function getOrderEditInlineIdArgument(field: FieldNode) {
 
 function serializeSelectedUserErrors(
   field: FieldNode,
-  userErrors: Array<{ field: string[] | null; message: string }>,
+  userErrors: MutationUserError[],
 ): Array<Record<string, unknown>> {
   return userErrors.map((userError) => {
     const result: Record<string, unknown> = {};
@@ -5548,6 +5735,9 @@ function serializeSelectedUserErrors(
         case 'message':
           result[key] = userError.message;
           break;
+        case 'code':
+          result[key] = userError.code ?? null;
+          break;
         default:
           result[key] = null;
           break;
@@ -5555,6 +5745,54 @@ function serializeSelectedUserErrors(
     }
     return result;
   });
+}
+
+function serializePaymentTermsMutationPayload(
+  field: FieldNode,
+  paymentTerms: DraftOrderPaymentTermsRecord | null,
+  userErrors: MutationUserError[],
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const selectionKey = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'paymentTerms':
+        payload[selectionKey] = paymentTerms ? serializeDraftOrderPaymentTerms(selection, paymentTerms) : null;
+        break;
+      case 'userErrors':
+        payload[selectionKey] = serializeSelectedUserErrors(selection, userErrors);
+        break;
+      default:
+        payload[selectionKey] = null;
+        break;
+    }
+  }
+
+  return payload;
+}
+
+function serializePaymentTermsDeletePayload(
+  field: FieldNode,
+  deletedId: string | null,
+  userErrors: MutationUserError[],
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const selectionKey = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'deletedId':
+        payload[selectionKey] = deletedId;
+        break;
+      case 'userErrors':
+        payload[selectionKey] = serializeSelectedUserErrors(selection, userErrors);
+        break;
+      default:
+        payload[selectionKey] = null;
+        break;
+    }
+  }
+
+  return payload;
 }
 
 function serializeDraftOrderCreatePayloadWithUserErrors(
@@ -7720,6 +7958,112 @@ export function handleOrderMutation(
 
   for (const field of getRootFields(document)) {
     const key = getFieldResponseKey(field);
+
+    if (field.name.value === 'paymentTermsCreate') {
+      handled = true;
+      const referenceId = readNullableStringArgument(field, 'referenceId', variables);
+      const attributes = readInputObjectArgument(
+        field,
+        'paymentTermsAttributes',
+        variables,
+        'paymentTermsAttributes',
+      );
+      const validation = validatePaymentTermsAttributes(attributes, ['paymentTermsAttributes']);
+      if (validation.userErrors.length > 0 || validation.templateId === null) {
+        data[key] = serializePaymentTermsMutationPayload(field, null, validation.userErrors);
+        continue;
+      }
+
+      const owner = findPaymentTermsOwnerByReferenceId(referenceId);
+      if (!owner) {
+        data[key] = serializePaymentTermsMutationPayload(field, null, [
+          {
+            field: ['referenceId'],
+            message: 'Reference order or draft order does not exist.',
+            code: 'NOT_FOUND',
+          },
+        ]);
+        continue;
+      }
+
+      if (owner.paymentTerms) {
+        data[key] = serializePaymentTermsMutationPayload(field, null, [
+          {
+            field: ['referenceId'],
+            message: 'Payment terms already exist.',
+            code: 'PAYMENT_TERMS_ALREADY_EXISTS',
+          },
+        ]);
+        continue;
+      }
+
+      const paymentTerms = buildPaymentTermsFromAttributes(
+        attributes,
+        validation.templateId,
+        owner.record.totalPriceSet,
+      );
+      storePaymentTermsOwner(owner, paymentTerms);
+      data[key] = serializePaymentTermsMutationPayload(field, paymentTerms, []);
+      continue;
+    }
+
+    if (field.name.value === 'paymentTermsUpdate') {
+      handled = true;
+      const input = readInputObjectArgument(field, 'input', variables, 'input');
+      const paymentTermsId = typeof input?.['paymentTermsId'] === 'string' ? input['paymentTermsId'] : null;
+      const attributes =
+        typeof input?.['paymentTermsAttributes'] === 'object' && input['paymentTermsAttributes'] !== null
+          ? (input['paymentTermsAttributes'] as Record<string, unknown>)
+          : null;
+      const validation = validatePaymentTermsAttributes(attributes, ['paymentTermsAttributes']);
+      if (validation.userErrors.length > 0 || validation.templateId === null) {
+        data[key] = serializePaymentTermsMutationPayload(field, null, validation.userErrors);
+        continue;
+      }
+
+      const owner = findPaymentTermsOwnerByPaymentTermsId(paymentTermsId);
+      if (!owner || !owner.paymentTerms) {
+        data[key] = serializePaymentTermsMutationPayload(field, null, [
+          {
+            field: ['paymentTermsId'],
+            message: 'Payment terms do not exist.',
+            code: 'PAYMENT_TERMS_NOT_FOUND',
+          },
+        ]);
+        continue;
+      }
+
+      const paymentTerms = buildPaymentTermsFromAttributes(
+        attributes,
+        validation.templateId,
+        owner.record.totalPriceSet,
+        owner.paymentTerms,
+      );
+      storePaymentTermsOwner(owner, paymentTerms);
+      data[key] = serializePaymentTermsMutationPayload(field, paymentTerms, []);
+      continue;
+    }
+
+    if (field.name.value === 'paymentTermsDelete') {
+      handled = true;
+      const input = readInputObjectArgument(field, 'input', variables, 'input');
+      const paymentTermsId = typeof input?.['paymentTermsId'] === 'string' ? input['paymentTermsId'] : null;
+      const owner = findPaymentTermsOwnerByPaymentTermsId(paymentTermsId);
+      if (!paymentTermsId || !owner || !owner.paymentTerms) {
+        data[key] = serializePaymentTermsDeletePayload(field, null, [
+          {
+            field: ['paymentTermsId'],
+            message: 'Payment terms do not exist.',
+            code: 'PAYMENT_TERMS_DELETE_UNSUCCESSFUL',
+          },
+        ]);
+        continue;
+      }
+
+      storePaymentTermsOwner(owner, null);
+      data[key] = serializePaymentTermsDeletePayload(field, paymentTermsId, []);
+      continue;
+    }
 
     if (field.name.value === 'returnCreate' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
       handled = true;
