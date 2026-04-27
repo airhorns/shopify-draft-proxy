@@ -132,13 +132,15 @@
                       "id": "gid://shopify/LineItem/return-flow",
                       "title": "Return flow item"
                     }
-                  }
+                  },
+                  "id": "gid://shopify/ReturnLineItem/1"
                 }
               ]
             },
             "reverseFulfillmentOrders": {
               "nodes": []
-            }
+            },
+            "id": "gid://shopify/Return/2"
           },
           "userErrors": []
         }
@@ -149,7 +151,8 @@
         "returnClose": {
           "return": {
             "status": "CLOSED",
-            "closedAt": "2024-01-01T00:00:03.000Z"
+            "closedAt": "2024-01-01T00:00:03.000Z",
+            "id": "gid://shopify/Return/2"
           },
           "userErrors": []
         }
@@ -160,7 +163,8 @@
         "returnReopen": {
           "return": {
             "status": "OPEN",
-            "closedAt": null
+            "closedAt": null,
+            "id": "gid://shopify/Return/2"
           },
           "userErrors": []
         }
@@ -170,7 +174,8 @@
       "data": {
         "returnCancel": {
           "return": {
-            "status": "CANCELED"
+            "status": "CANCELED",
+            "id": "gid://shopify/Return/2"
           },
           "userErrors": []
         }
@@ -183,7 +188,8 @@
           "totalQuantity": 1,
           "order": {
             "id": "gid://shopify/Order/return-flow"
-          }
+          },
+          "id": "gid://shopify/Return/2"
         },
         "order": {
           "id": "gid://shopify/Order/return-flow",
@@ -191,7 +197,8 @@
             "nodes": [
               {
                 "status": "CANCELED",
-                "totalQuantity": 1
+                "totalQuantity": 1,
+                "id": "gid://shopify/Return/2"
               }
             ]
           }
@@ -202,7 +209,8 @@
       "data": {
         "returnRequest": {
           "return": {
-            "status": "REQUESTED"
+            "status": "REQUESTED",
+            "id": "gid://shopify/Return/8"
           },
           "userErrors": []
         }

@@ -18,20 +18,6 @@
         "name": "mandate-payment-stages-paid-order",
         "capturePath": "$.mandateFlow.expected.mandate",
         "proxyPath": "$",
-        "selectedPaths": [
-          "$.data.orderCreateMandatePayment.job.done",
-          "$.data.orderCreateMandatePayment.order.displayFinancialStatus",
-          "$.data.orderCreateMandatePayment.order.capturable",
-          "$.data.orderCreateMandatePayment.order.totalCapturable",
-          "$.data.orderCreateMandatePayment.order.totalOutstandingSet",
-          "$.data.orderCreateMandatePayment.order.totalReceivedSet",
-          "$.data.orderCreateMandatePayment.order.paymentGatewayNames",
-          "$.data.orderCreateMandatePayment.order.transactions[0].kind",
-          "$.data.orderCreateMandatePayment.order.transactions[0].status",
-          "$.data.orderCreateMandatePayment.order.transactions[0].gateway",
-          "$.data.orderCreateMandatePayment.order.transactions[0].amountSet",
-          "$.data.orderCreateMandatePayment.userErrors"
-        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/order-payment-mandate-local-staging.graphql",
           "variables": {
@@ -50,14 +36,6 @@
         "name": "mandate-payment-repeat-is-idempotent",
         "capturePath": "$.mandateFlow.expected.repeatMandate",
         "proxyPath": "$",
-        "selectedPaths": [
-          "$.data.orderCreateMandatePayment.job.done",
-          "$.data.orderCreateMandatePayment.order.displayFinancialStatus",
-          "$.data.orderCreateMandatePayment.order.transactions[0].kind",
-          "$.data.orderCreateMandatePayment.order.transactions[0].status",
-          "$.data.orderCreateMandatePayment.order.transactions[0].gateway",
-          "$.data.orderCreateMandatePayment.userErrors"
-        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/order-payment-mandate-local-staging.graphql",
           "variables": {

@@ -20,30 +20,12 @@
       {
         "name": "return-create-stages-open-return",
         "capturePath": "$.expected.create",
-        "proxyPath": "$",
-        "selectedPaths": [
-          "$.data.returnCreate.return.name",
-          "$.data.returnCreate.return.status",
-          "$.data.returnCreate.return.totalQuantity",
-          "$.data.returnCreate.return.order",
-          "$.data.returnCreate.return.returnLineItems.nodes[0].quantity",
-          "$.data.returnCreate.return.returnLineItems.nodes[0].processedQuantity",
-          "$.data.returnCreate.return.returnLineItems.nodes[0].returnReason",
-          "$.data.returnCreate.return.returnLineItems.nodes[0].returnReasonNote",
-          "$.data.returnCreate.return.returnLineItems.nodes[0].fulfillmentLineItem",
-          "$.data.returnCreate.return.reverseFulfillmentOrders",
-          "$.data.returnCreate.userErrors"
-        ]
+        "proxyPath": "$"
       },
       {
         "name": "return-close-stages-closed-status",
         "capturePath": "$.expected.close",
         "proxyPath": "$",
-        "selectedPaths": [
-          "$.data.returnClose.return.status",
-          "$.data.returnClose.return.closedAt",
-          "$.data.returnClose.userErrors"
-        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/return-close-local-staging.graphql",
           "variables": {
@@ -57,11 +39,6 @@
         "name": "return-reopen-clears-closed-at",
         "capturePath": "$.expected.reopen",
         "proxyPath": "$",
-        "selectedPaths": [
-          "$.data.returnReopen.return.status",
-          "$.data.returnReopen.return.closedAt",
-          "$.data.returnReopen.userErrors"
-        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/return-reopen-local-staging.graphql",
           "variables": {
@@ -75,7 +52,6 @@
         "name": "return-cancel-stages-canceled-status",
         "capturePath": "$.expected.cancel",
         "proxyPath": "$",
-        "selectedPaths": ["$.data.returnCancel.return.status", "$.data.returnCancel.userErrors"],
         "proxyRequest": {
           "documentPath": "config/parity-requests/return-cancel-local-staging.graphql",
           "variables": {
@@ -89,14 +65,6 @@
         "name": "return-downstream-read-after-cancel",
         "capturePath": "$.expected.readAfterCancel",
         "proxyPath": "$",
-        "selectedPaths": [
-          "$.data.return.status",
-          "$.data.return.totalQuantity",
-          "$.data.return.order",
-          "$.data.order.id",
-          "$.data.order.returns.nodes[0].status",
-          "$.data.order.returns.nodes[0].totalQuantity"
-        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/return-read-local-staging.graphql",
           "variables": {
@@ -111,7 +79,6 @@
         "name": "return-request-stages-requested-return",
         "capturePath": "$.expected.request",
         "proxyPath": "$",
-        "selectedPaths": ["$.data.returnRequest.return.status", "$.data.returnRequest.userErrors"],
         "proxyRequest": {
           "documentPath": "config/parity-requests/return-request-local-staging.graphql",
           "variablesCapturePath": "$.returnRequest.variables"
@@ -121,7 +88,6 @@
         "name": "return-create-invalid-fulfillment-line-item",
         "capturePath": "$.expected.invalidCreate",
         "proxyPath": "$",
-        "selectedPaths": ["$.data.returnCreate.return", "$.data.returnCreate.userErrors"],
         "proxyRequest": {
           "documentPath": "config/parity-requests/return-create-local-staging.graphql",
           "variablesCapturePath": "$.invalidReturnCreate.variables"

@@ -18,15 +18,6 @@
         "name": "void-authorization-stages-void-transaction",
         "capturePath": "$.voidFlow.expected.void",
         "proxyPath": "$",
-        "selectedPaths": [
-          "$.data.transactionVoid.transaction.kind",
-          "$.data.transactionVoid.transaction.status",
-          "$.data.transactionVoid.transaction.gateway",
-          "$.data.transactionVoid.transaction.parentTransaction.kind",
-          "$.data.transactionVoid.transaction.parentTransaction.status",
-          "$.data.transactionVoid.transaction.amountSet",
-          "$.data.transactionVoid.userErrors"
-        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/order-payment-void-local-staging.graphql",
           "variables": {
@@ -40,17 +31,6 @@
         "name": "void-downstream-order-read",
         "capturePath": "$.voidFlow.expected.readAfterVoid",
         "proxyPath": "$",
-        "selectedPaths": [
-          "$.data.order.displayFinancialStatus",
-          "$.data.order.capturable",
-          "$.data.order.totalCapturable",
-          "$.data.order.totalOutstandingSet",
-          "$.data.order.transactions[0].kind",
-          "$.data.order.transactions[0].status",
-          "$.data.order.transactions[1].kind",
-          "$.data.order.transactions[1].status",
-          "$.data.order.transactions[1].amountSet"
-        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/order-payment-read-local-staging.graphql",
           "variables": {
