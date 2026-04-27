@@ -2,7 +2,12 @@ import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import type { JsonValue } from '../json-schemas.js';
-import { parseSearchQuery, type SearchQueryNode, type SearchQueryTerm } from '../search-query-parser.js';
+import {
+  applySearchQuery,
+  matchesSearchQueryString,
+  searchQueryTermValue,
+  type SearchQueryTerm,
+} from '../search-query-parser.js';
 import {
   buildSyntheticCursor,
   getFieldResponseKey,
@@ -1628,38 +1633,12 @@ function buildCustomerCustomIdentifierError(field: FieldNode): Record<string, un
   };
 }
 
-function isPrefixPattern(rawValue: string): boolean {
-  return rawValue.endsWith('*');
-}
-
 function matchesStringValue(
   candidate: string | null | undefined,
   rawValue: string,
   matchMode: 'includes' | 'exact',
 ): boolean {
-  const value = rawValue.trim().toLowerCase();
-  if (!value) {
-    return true;
-  }
-
-  const prefixMode = isPrefixPattern(value);
-  const normalizedValue = prefixMode ? value.slice(0, -1) : value;
-  if (!normalizedValue) {
-    return true;
-  }
-
-  const normalizedCandidate = normalizeCustomerSearchValue(candidate);
-  if (prefixMode) {
-    if (normalizedCandidate.startsWith(normalizedValue)) {
-      return true;
-    }
-
-    return normalizedCandidate.split(/[^a-z0-9]+/u).some((part) => part.startsWith(normalizedValue));
-  }
-
-  return matchMode === 'exact'
-    ? normalizedCandidate === normalizedValue
-    : normalizedCandidate.includes(normalizedValue);
+  return matchesSearchQueryString(candidate, rawValue, matchMode, { wordPrefix: true });
 }
 
 function customerMatchesBareToken(customer: CustomerRecord, token: string): boolean {
@@ -1680,10 +1659,6 @@ function customerMatchesBareToken(customer: CustomerRecord, token: string): bool
   return haystacks.some((value) => matchesStringValue(value, normalizedToken, 'includes'));
 }
 
-function searchTermValue(term: SearchQueryTerm): string {
-  return term.comparator === null ? term.value : `${term.comparator}${term.value}`;
-}
-
 function customerMatchesPositiveQueryTerm(customer: CustomerRecord, term: SearchQueryTerm): boolean {
   if (term.field === null) {
     return customerMatchesBareToken(customer, term.value);
@@ -1693,7 +1668,7 @@ function customerMatchesPositiveQueryTerm(customer: CustomerRecord, term: Search
   }
 
   const rawField = term.field;
-  const rawValue = searchTermValue(term);
+  const rawValue = searchQueryTermValue(term);
   const field = normalizeCustomerSearchValue(rawField);
 
   switch (field) {
@@ -1719,34 +1694,8 @@ function customerMatchesPositiveQueryTerm(customer: CustomerRecord, term: Search
   }
 }
 
-function customerMatchesQueryNode(customer: CustomerRecord, node: SearchQueryNode): boolean {
-  switch (node.type) {
-    case 'term': {
-      const matches = customerMatchesPositiveQueryTerm(customer, node.term);
-      return node.term.negated ? !matches : matches;
-    }
-    case 'and':
-      return node.children.every((child) => customerMatchesQueryNode(customer, child));
-    case 'or':
-      return node.children.some((child) => customerMatchesQueryNode(customer, child));
-    case 'not':
-      return !customerMatchesQueryNode(customer, node.child);
-    default:
-      return true;
-  }
-}
-
 function filterCustomersByQuery(customers: CustomerRecord[], rawQuery: unknown): CustomerRecord[] {
-  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
-    return customers;
-  }
-
-  const parsedQuery = parseSearchQuery(rawQuery, { quoteCharacters: ['"'] });
-  if (!parsedQuery) {
-    return customers;
-  }
-
-  return customers.filter((customer) => customerMatchesQueryNode(customer, parsedQuery));
+  return applySearchQuery(customers, rawQuery, { quoteCharacters: ['"'] }, customerMatchesPositiveQueryTerm);
 }
 
 function compareNullableStrings(left: string | null, right: string | null): number {

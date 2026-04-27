@@ -1,0 +1,13 @@
+mutation FulfillmentOrderAcceptFulfillmentRequestLifecycle($id: ID!, $message: String, $estimatedShippedAt: DateTime) {
+  fulfillmentOrderAcceptFulfillmentRequest(id: $id, message: $message, estimatedShippedAt: $estimatedShippedAt) {
+    fulfillmentOrder {
+      id
+      status
+      requestStatus
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
