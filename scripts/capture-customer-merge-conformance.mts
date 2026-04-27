@@ -12,6 +12,9 @@ import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const captureMode =
+  process.env.SHOPIFY_CUSTOMER_MERGE_CAPTURE_MODE === 'attached-resources' ? 'attached-resources' : 'base';
+const capturesAttachedResources = captureMode === 'attached-resources';
 const { runGraphqlRequest: runGraphql } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
@@ -336,20 +339,24 @@ async function main() {
       lastName: 'One',
       note: 'merge-one-note',
       tags: ['har-291-merge', 'merge-one', `merge-${stamp}`],
-      metafields: [
-        {
-          namespace: 'custom',
-          key: 'source_only',
-          type: 'single_line_text_field',
-          value: `source-${stamp}`,
-        },
-        {
-          namespace: 'custom',
-          key: 'conflict',
-          type: 'single_line_text_field',
-          value: `source-conflict-${stamp}`,
-        },
-      ],
+      ...(capturesAttachedResources
+        ? {
+            metafields: [
+              {
+                namespace: 'custom',
+                key: 'source_only',
+                type: 'single_line_text_field',
+                value: `source-${stamp}`,
+              },
+              {
+                namespace: 'custom',
+                key: 'conflict',
+                type: 'single_line_text_field',
+                value: `source-conflict-${stamp}`,
+              },
+            ],
+          }
+        : {}),
     },
   };
   const twoVariables = {
@@ -360,20 +367,24 @@ async function main() {
       lastName: 'Two',
       note: 'merge-two-note',
       tags: ['har-291-merge', 'merge-two', `merge-${stamp}`],
-      metafields: [
-        {
-          namespace: 'custom',
-          key: 'result_only',
-          type: 'single_line_text_field',
-          value: `result-${stamp}`,
-        },
-        {
-          namespace: 'custom',
-          key: 'conflict',
-          type: 'single_line_text_field',
-          value: `result-conflict-${stamp}`,
-        },
-      ],
+      ...(capturesAttachedResources
+        ? {
+            metafields: [
+              {
+                namespace: 'custom',
+                key: 'result_only',
+                type: 'single_line_text_field',
+                value: `result-${stamp}`,
+              },
+              {
+                namespace: 'custom',
+                key: 'conflict',
+                type: 'single_line_text_field',
+                value: `result-conflict-${stamp}`,
+              },
+            ],
+          }
+        : {}),
     },
   };
 
@@ -415,10 +426,18 @@ async function main() {
     },
     setAsDefault: true,
   };
-  const createAddressOne = await runGraphql(createCustomerAddressMutation, addressOneVariables);
-  assertNoTopLevelErrors(createAddressOne, 'customerAddressCreate one');
-  const createAddressTwo = await runGraphql(createCustomerAddressMutation, addressTwoVariables);
-  assertNoTopLevelErrors(createAddressTwo, 'customerAddressCreate two');
+  const createAddressOne = capturesAttachedResources
+    ? await runGraphql(createCustomerAddressMutation, addressOneVariables)
+    : null;
+  if (createAddressOne) {
+    assertNoTopLevelErrors(createAddressOne, 'customerAddressCreate one');
+  }
+  const createAddressTwo = capturesAttachedResources
+    ? await runGraphql(createCustomerAddressMutation, addressTwoVariables)
+    : null;
+  if (createAddressTwo) {
+    assertNoTopLevelErrors(createAddressTwo, 'customerAddressCreate two');
+  }
 
   const orderVariables = {
     order: {
@@ -447,7 +466,7 @@ async function main() {
       sendFulfillmentReceipt: false,
     },
   };
-  const orderCreate = await runGraphql(orderCreateMutation, orderVariables);
+  const orderCreate = capturesAttachedResources ? await runGraphql(orderCreateMutation, orderVariables) : null;
 
   const draftOrderVariables = {
     input: {
@@ -468,8 +487,10 @@ async function main() {
       ],
     },
   };
-  const draftOrderCreate = await runGraphql(draftOrderCreateMutation, draftOrderVariables);
-  const draftOrderId = draftOrderCreate.payload?.data?.draftOrderCreate?.draftOrder?.id;
+  const draftOrderCreate = capturesAttachedResources
+    ? await runGraphql(draftOrderCreateMutation, draftOrderVariables)
+    : null;
+  const draftOrderId = draftOrderCreate?.payload?.data?.draftOrderCreate?.draftOrder?.id;
 
   const attachedBeforeMergeVariables = {
     one: customerOneId,
@@ -477,8 +498,12 @@ async function main() {
     emailOne: oneVariables.input.email,
     emailTwo: twoVariables.input.email,
   };
-  const attachedBeforeMerge = await runGraphql(attachedResourcesQuery, attachedBeforeMergeVariables);
-  assertNoTopLevelErrors(attachedBeforeMerge, 'customerMerge attached resources before merge');
+  const attachedBeforeMerge = capturesAttachedResources
+    ? await runGraphql(attachedResourcesQuery, attachedBeforeMergeVariables)
+    : null;
+  if (attachedBeforeMerge) {
+    assertNoTopLevelErrors(attachedBeforeMerge, 'customerMerge attached resources before merge');
+  }
 
   const overrideFields = {
     customerIdOfEmailToKeep: customerTwoId,
@@ -537,8 +562,12 @@ async function main() {
   };
   const downstreamRead = await runGraphql(downstreamQuery, downstreamVariables);
   assertNoTopLevelErrors(downstreamRead, 'customerMerge downstream read');
-  const attachedAfterMerge = await runGraphql(attachedResourcesQuery, attachedBeforeMergeVariables);
-  assertNoTopLevelErrors(attachedAfterMerge, 'customerMerge attached resources after merge');
+  const attachedAfterMerge = capturesAttachedResources
+    ? await runGraphql(attachedResourcesQuery, attachedBeforeMergeVariables)
+    : null;
+  if (attachedAfterMerge) {
+    assertNoTopLevelErrors(attachedAfterMerge, 'customerMerge attached resources after merge');
+  }
 
   const draftOrderCleanup =
     typeof draftOrderId === 'string'
@@ -557,26 +586,30 @@ async function main() {
         variables: twoVariables,
         response: createTwo.payload,
       },
-      createAddressOne: {
-        variables: addressOneVariables,
-        response: createAddressOne.payload,
-      },
-      createAddressTwo: {
-        variables: addressTwoVariables,
-        response: createAddressTwo.payload,
-      },
-      orderCreate: {
-        variables: orderVariables,
-        response: orderCreate.payload,
-      },
-      draftOrderCreate: {
-        variables: draftOrderVariables,
-        response: draftOrderCreate.payload,
-      },
-      attachedBeforeMerge: {
-        variables: attachedBeforeMergeVariables,
-        response: attachedBeforeMerge.payload,
-      },
+      ...(capturesAttachedResources
+        ? {
+            createAddressOne: {
+              variables: addressOneVariables,
+              response: createAddressOne?.payload,
+            },
+            createAddressTwo: {
+              variables: addressTwoVariables,
+              response: createAddressTwo?.payload,
+            },
+            orderCreate: {
+              variables: orderVariables,
+              response: orderCreate?.payload,
+            },
+            draftOrderCreate: {
+              variables: draftOrderVariables,
+              response: draftOrderCreate?.payload,
+            },
+            attachedBeforeMerge: {
+              variables: attachedBeforeMergeVariables,
+              response: attachedBeforeMerge?.payload,
+            },
+          }
+        : {}),
     },
     preview: {
       variables: mergeVariables,
@@ -603,10 +636,14 @@ async function main() {
       },
       response: downstreamRead.payload,
     },
-    attachedAfterMerge: {
-      variables: attachedBeforeMergeVariables,
-      response: attachedAfterMerge.payload,
-    },
+    ...(capturesAttachedResources
+      ? {
+          attachedAfterMerge: {
+            variables: attachedBeforeMergeVariables,
+            response: attachedAfterMerge?.payload,
+          },
+        }
+      : {}),
     validation: {
       missingArgument: {
         variables: { one: customerOneId },
@@ -637,7 +674,10 @@ async function main() {
     },
   };
 
-  const outputPath = path.join(outputDir, 'customer-merge-parity.json');
+  const outputFilename = capturesAttachedResources
+    ? 'customer-merge-attached-resources-parity.json'
+    : 'customer-merge-parity.json';
+  const outputPath = path.join(outputDir, outputFilename);
   await writeFile(outputPath, `${JSON.stringify(capture, null, 2)}\n`);
   console.log(`Wrote ${outputPath}`);
 }
